@@ -1,0 +1,490 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  Typography,
+  Box,
+  Chip,
+  IconButton,
+  Link,
+  Divider,
+  CircularProgress,
+  TextField,
+  Button,
+  Select,
+  MenuItem,
+  FormControl
+} from '@mui/material';
+import {
+  Close as CloseIcon,
+  Build as BuildIcon,
+  Visibility as VisibilityIcon
+} from '@mui/icons-material';
+import { supabase } from '../../lib/supabaseClient';
+import { Link as RouterLink } from 'react-router-dom';
+
+function CustomerList() {
+  const [customers, setCustomers] = useState([]);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [serviceHistory, setServiceHistory] = useState([]);
+  const [openDialog, setOpenDialog] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filteredCustomers, setFilteredCustomers] = useState([]);
+
+  useEffect(() => {
+    fetchCustomers();
+  }, []);
+
+  useEffect(() => {
+    setFilteredCustomers(customers);
+  }, [customers]);
+
+  const fetchCustomers = async () => {
+    try {
+      setLoading(true);
+      // 서비스 데이터와 태그 정보 함께 조회
+      const { data: servicesData, error } = await supabase
+        .from('services')
+        .select(`
+          customer_name,
+          customer_phone,
+          customer_address,
+          reception_date,
+          service_tags (
+            tag_name
+          )
+        `)
+        .order('reception_date', { ascending: false });
+
+      if (error) throw error;
+
+      // 고객별 최근 A/S 정보, 건수, 첫 번째 태그를 포함한 목록 생성
+      const uniqueCustomers = servicesData.reduce((acc, curr) => {
+        const existingCustomer = acc.find(c => c.phone === curr.customer_phone);
+        if (!existingCustomer) {
+          acc.push({
+            name: curr.customer_name,
+            phone: curr.customer_phone,
+            address: curr.customer_address,
+            lastServiceDate: curr.reception_date,
+            serviceCount: 1,
+            recentTag: curr.service_tags?.[0]?.tag_name || null
+          });
+        } else {
+          existingCustomer.serviceCount += 1;
+        }
+        return acc;
+      }, []);
+
+      // 고객 등급 정보 가져오기
+      const { data: customerGrades, error: gradesError } = await supabase
+        .from('customers')
+        .select('phone, grade');
+
+      if (gradesError) throw gradesError;
+
+      // 등급 정보 병합
+      const customersWithGrades = uniqueCustomers.map(customer => {
+        const gradeInfo = customerGrades?.find(g => g.phone === customer.phone);
+        return {
+          ...customer,
+          grade: gradeInfo?.grade || 'V3'
+        };
+      });
+
+      setCustomers(customersWithGrades);
+    } catch (err) {
+      console.error('Error fetching customers:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchServiceHistory = async (phone) => {
+    try {
+      const { data, error } = await supabase
+        .from('services')
+        .select(`
+          *,
+          service_tags (
+            tag_name
+          )
+        `)
+        .eq('customer_phone', phone)
+        .order('reception_date', { ascending: false });
+
+      if (error) throw error;
+
+      // 태그 데이터 처리
+      const servicesWithTags = data.map(service => ({
+        ...service,
+        tags: service.service_tags?.map(t => t.tag_name) || []
+      }));
+
+      setServiceHistory(servicesWithTags);
+    } catch (err) {
+      console.error('Error fetching service history:', err);
+      setError(err.message);
+    }
+  };
+
+  const handleCustomerClick = async (customer) => {
+    setSelectedCustomer(customer);
+    setOpenDialog(true);
+    await fetchServiceHistory(customer.phone);
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case '접수': return 'default';
+      case '처리중': return 'primary';
+      case '부분완료': return 'warning';
+      case '완료': return 'success';
+      default: return 'default';
+    }
+  };
+
+  const getGradeColor = (grade) => {
+    switch (grade) {
+      case 'V1': return {
+        color: '#3182f6',
+        bgcolor: '#e8f1fd'
+      };
+      case 'V2': return {
+        color: '#3182f6',
+        bgcolor: '#f2f4f6'
+      };
+      case 'V3': return {
+        color: '#3182f6',
+        bgcolor: '#ffffff'
+      };
+      default: return {
+        color: '#3182f6',
+        bgcolor: '#ffffff'
+      };
+    }
+  };
+
+  const handleGradeChange = async (phone, newGrade) => {
+    try {
+      const { error } = await supabase
+        .from('customers')
+        .update({ grade: newGrade })
+        .eq('phone', phone);
+
+      if (error) throw error;
+
+      // 로컬 상태 업데이트
+      setCustomers(prevCustomers => 
+        prevCustomers.map(customer => 
+          customer.phone === phone 
+            ? { ...customer, grade: newGrade }
+            : customer
+        )
+      );
+    } catch (err) {
+      console.error('Error updating customer grade:', err);
+    }
+  };
+
+  // 검색어 처리 함수
+  const handleSearch = (event) => {
+    const term = event.target.value.toLowerCase();
+    setSearchTerm(term);
+
+    const filtered = customers.filter(customer => 
+      customer.name.toLowerCase().includes(term) ||
+      customer.phone.toLowerCase().includes(term) ||
+      customer.address.toLowerCase().includes(term)
+    );
+    setFilteredCustomers(filtered);
+  };
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Box sx={{ mt: 4, color: 'error.main' }}>
+        에러가 발생했습니다: {error}
+      </Box>
+    );
+  }
+
+  return (
+    <Box>
+      {/* 헤더 영역 */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h5" sx={{ 
+          color: 'text.primary',
+          fontWeight: 600,
+          mb: 2
+        }}>
+          고객 관리
+        </Typography>
+      </Box>
+
+      {/* 검색 및 필터 영역 */}
+      <Box sx={{ mb: 3, display: 'flex', gap: 2 }}>
+        <TextField
+          size="small"
+          placeholder="고객명, 연락처, 주소 검색..."
+          value={searchTerm}
+          onChange={handleSearch}
+          sx={{ 
+            flexGrow: 1,
+            bgcolor: 'background.paper',
+            '& .MuiOutlinedInput-root': {
+              '&:hover': {
+                bgcolor: '#f2f4f6'
+              }
+            }
+          }}
+        />
+      </Box>
+
+      {/* 고객 목록 테이블 */}
+      <TableContainer component={Paper} sx={{ mb: 4 }}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell>고객명</TableCell>
+              <TableCell>연락처</TableCell>
+              <TableCell>주소</TableCell>
+              <TableCell>등급</TableCell>
+              <TableCell>최근 A/S</TableCell>
+              <TableCell align="center">상세보기</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {filteredCustomers.map((customer) => (
+              <TableRow key={customer.phone} hover>
+                <TableCell>{customer.name}</TableCell>
+                <TableCell>{customer.phone}</TableCell>
+                <TableCell>
+                  <TextField
+                    defaultValue={customer.address}
+                    size="small"
+                    onBlur={async (e) => {
+                      const newAddress = e.target.value;
+                      if (newAddress !== customer.address) {
+                        try {
+                          const { error } = await supabase
+                            .from('customers')
+                            .update({ address: newAddress })
+                            .eq('phone', customer.phone);
+                          
+                          if (error) throw error;
+                          
+                          setCustomers(prev => prev.map(c => 
+                            c.phone === customer.phone 
+                              ? { ...c, address: newAddress }
+                              : c
+                          ));
+                        } catch (err) {
+                          console.error('Error updating address:', err);
+                        }
+                      }
+                    }}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        '& fieldset': { border: 'none' },
+                        '&:hover fieldset': { border: '1px solid #3182f6' },
+                        '&.Mui-focused fieldset': { border: '1px solid #3182f6' }
+                      }
+                    }}
+                  />
+                </TableCell>
+                <TableCell>
+                  <FormControl size="small">
+                    <Select
+                      value={customer.grade || 'V3'}
+                      onChange={(e) => handleGradeChange(customer.phone, e.target.value)}
+                      sx={{
+                        minWidth: 100,
+                        '& .MuiSelect-select': {
+                          color: getGradeColor(customer.grade).color,
+                          bgcolor: getGradeColor(customer.grade).bgcolor,
+                          fontWeight: 500,
+                        },
+                        '& .MuiOutlinedInput-notchedOutline': {
+                          borderColor: 'transparent'
+                        },
+                        '&:hover .MuiOutlinedInput-notchedOutline': {
+                          borderColor: '#3182f6'
+                        },
+                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                          borderColor: '#3182f6'
+                        }
+                      }}
+                    >
+                      <MenuItem value="V1" sx={{ fontWeight: 500 }}>V1 (VIP)</MenuItem>
+                      <MenuItem value="V2" sx={{ fontWeight: 500 }}>V2 (우수)</MenuItem>
+                      <MenuItem value="V3" sx={{ fontWeight: 500 }}>V3 (일반)</MenuItem>
+                    </Select>
+                  </FormControl>
+                </TableCell>
+                <TableCell>
+                  <Box>
+                    <Typography variant="body2" color="text.secondary">
+                      최근: {customer.lastServiceDate 
+                        ? new Date(customer.lastServiceDate).toLocaleDateString()
+                        : '-'}
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" color="primary">
+                        총 {customer.serviceCount}건
+                      </Typography>
+                      {customer.recentTag && (
+                        <Chip
+                          label={customer.recentTag}
+                          size="small"
+                          sx={{
+                            height: '20px',
+                            fontSize: '0.75rem',
+                            bgcolor: 'primary.lighter',
+                            color: 'primary.main'
+                          }}
+                        />
+                      )}
+                    </Box>
+                  </Box>
+                </TableCell>
+                <TableCell align="center">
+                  <Button
+                    onClick={() => handleCustomerClick(customer)}
+                    startIcon={<VisibilityIcon />}
+                    size="small"
+                    sx={{
+                      color: 'primary.main',
+                      '&:hover': { bgcolor: 'primary.lighter' }
+                    }}
+                  >
+                    A/S 이력
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      {/* A/S 이력 다이얼로그 */}
+      <Dialog 
+        open={openDialog} 
+        onClose={() => setOpenDialog(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h6">
+              {selectedCustomer?.name} 고객님의 A/S 이력
+            </Typography>
+            <IconButton onClick={() => setOpenDialog(false)}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {/* 고객 정보 요약 */}
+          <Box sx={{ mb: 3, p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
+            <Typography variant="body2" color="text.secondary">
+              연락처: {selectedCustomer?.phone} | 주소: {selectedCustomer?.address}
+            </Typography>
+          </Box>
+
+          {/* A/S 이력 테이블 */}
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>접수일</TableCell>
+                  <TableCell>제품</TableCell>
+                  <TableCell>증상</TableCell>
+                  <TableCell>상태</TableCell>
+                  <TableCell>태그</TableCell>
+                  <TableCell align="center">상세</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {serviceHistory.map((service) => (
+                  <TableRow key={service.id} hover>
+                    <TableCell>
+                      {new Date(service.reception_date).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>{service.product_name}</TableCell>
+                    <TableCell>{service.symptom}</TableCell>
+                    <TableCell>
+                      <Chip
+                        label={service.status}
+                        size="small"
+                        color={getStatusColor(service.status)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                        {service.tags?.map((tag, index) => (
+                          <Chip
+                            key={index}
+                            label={tag}
+                            size="small"
+                            sx={{
+                              height: '20px',
+                              fontSize: '0.75rem',
+                              bgcolor: 'primary.lighter',
+                              color: 'primary.main'
+                            }}
+                          />
+                        ))}
+                      </Box>
+                    </TableCell>
+                    <TableCell align="center">
+                      <IconButton
+                        component={RouterLink}
+                        to={`/services/${service.id}`}
+                        size="small"
+                        sx={{ color: 'primary.main' }}
+                      >
+                        <VisibilityIcon fontSize="small" />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          
+          {serviceHistory.length === 0 && (
+            <Typography 
+              variant="body1" 
+              color="text.secondary" 
+              align="center"
+              sx={{ py: 4 }}
+            >
+              A/S 이력이 없습니다.
+            </Typography>
+          )}
+        </DialogContent>
+      </Dialog>
+    </Box>
+  );
+}
+
+export default CustomerList;
