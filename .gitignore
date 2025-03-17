@@ -26,3 +26,6 @@ yarn-error.log*
 # IDE
 .idea/
 .vscode/
+
+build/env-config.js
+public/env-config.js
