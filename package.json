@@ -34,8 +34,8 @@
     "xlsx": "^0.18.5"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build && ./scripts/generate-env-config.sh",
+    "start": "react-scripts --openssl-legacy-provider start",
+    "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
