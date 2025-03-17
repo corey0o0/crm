@@ -36,19 +36,24 @@ import {
   StepLabel,
   Checkbox,
   TableFooter,
-  CircularProgress
+  CircularProgress,
+  Tooltip,
+  Card,
+  CardContent
 } from '@mui/material';
 import { 
   Edit as EditIcon,
   Delete as DeleteIcon,
   Add as AddIcon,
   CloudUpload as CloudUploadIcon,
-  Description as DescriptionIcon
+  Description as DescriptionIcon,
+  Download as DownloadIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { serviceApi } from '../../api/services';
 import { supabase } from '../../lib/supabaseClient';
+import ResponsiveTable from '../common/ResponsiveTable';
 
 function ServiceList() {
   const [selectedBrand, setSelectedBrand] = useState('XRB');
@@ -104,29 +109,24 @@ function ServiceList() {
     try {
       setLoading(true);
       
-      // 1. 먼저 서비스 데이터 가져오기
+      // 1. 서비스 데이터와 태그 데이터를 함께 가져오기
       const { data: servicesData, error: servicesError } = await supabase
         .from('services')
-        .select('*')
+        .select(`
+          *,
+          service_tags (
+            tag_name
+          )
+        `)
         .eq('brand', selectedBrand)
         .order('reception_date', { ascending: false });
 
       if (servicesError) throw servicesError;
 
-      // 2. 각 서비스의 태그 데이터 가져오기
-      const { data: tagsData, error: tagsError } = await supabase
-        .from('service_tags')
-        .select('*')
-        .in('service_id', servicesData.map(service => service.id));
-
-      if (tagsError) throw tagsError;
-
-      // 3. 서비스와 태그 데이터 병합
+      // 2. 서비스와 태그 데이터 병합
       const servicesWithTags = servicesData.map(service => ({
         ...service,
-        tags: tagsData
-          .filter(tag => tag.service_id === service.id)
-          .map(tag => tag.tag_name) || []
+        tags: service.service_tags?.map(tag => tag.tag_name) || []
       }));
 
       setServices(servicesWithTags);
@@ -446,6 +446,177 @@ function ServiceList() {
     navigate('/add-service', { state: { selectedBrand } });
   };
 
+  // 엑셀 다운로드 함수 추가
+  const handleDownloadExcel = async () => {
+    try {
+      // 현재 선택된 브랜드의 서비스 데이터 가져오기
+      const { data, error } = await supabase
+        .from('services')
+        .select('*')
+        .eq('brand', selectedBrand)
+        .order('reception_date', { ascending: false });
+
+      if (error) throw error;
+
+      // 데이터 가공
+      const exportData = data.map(service => ({
+        접수일자: service.reception_date || '',
+        접수방법: service.reception_type || '',
+        입고일: service.repair_date || '',
+        출고일: service.completion_date || '',
+        배송방법: service.delivery_method || '',
+        고객명: service.customer_name || '',
+        연락처: service.customer_phone || '',
+        주소: service.customer_address || '',
+        제품: service.product_name || '',
+        증상: service.symptom || '',
+        처리내역: service.solution || '',
+        상태: service.status || '',
+        총비용: service.total_cost || 0,
+        메모: service.note || ''
+      }));
+
+      // 엑셀 워크북 생성
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "AS목록");
+
+      // 컬럼 너비 설정
+      const wscols = [
+        { wch: 12 },  // 접수일자
+        { wch: 10 },  // 접수방법
+        { wch: 12 },  // 입고일
+        { wch: 12 },  // 출고일
+        { wch: 10 },  // 배송방법
+        { wch: 12 },  // 고객명
+        { wch: 15 },  // 연락처
+        { wch: 40 },  // 주소
+        { wch: 20 },  // 제품
+        { wch: 40 },  // 증상
+        { wch: 40 },  // 처리내역
+        { wch: 10 },  // 상태
+        { wch: 12 },  // 총비용
+        { wch: 30 },  // 메모
+      ];
+      ws['!cols'] = wscols;
+
+      // 파일 다운로드 (브랜드명 포함)
+      const brandName = selectedBrand === 'XRB' ? 'X-RIDER' : 'NEARBIKE';
+      XLSX.writeFile(wb, `AS목록_${brandName}_${new Date().toLocaleDateString()}.xlsx`);
+
+    } catch (error) {
+      console.error('Error downloading excel:', error);
+      alert('엑셀 다운로드 중 오류가 발생했습니다.');
+    }
+  };
+
+  // 테이블 컬럼 정의
+  const columns = [
+    { id: 'reception_date', label: '접수일자' },
+    { id: 'customer_info', label: '고객정보', 
+      render: (row) => (
+        <Box>
+          <Typography>{row.customer_name}</Typography>
+          <Typography variant="caption" color="textSecondary">
+            {row.customer_phone}
+          </Typography>
+        </Box>
+      )
+    },
+    { id: 'product_name', label: '제품' },
+    { id: 'symptom', label: '증상' },
+    { id: 'tags', label: '태그',
+      render: (row) => (
+        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+          {row.tags?.map((tag, index) => (
+            <Chip
+              key={index}
+              label={tag}
+              size="small"
+              sx={{
+                height: '20px',
+                fontSize: '0.75rem',
+                bgcolor: 'primary.lighter',
+                color: 'primary.main'
+              }}
+            />
+          ))}
+        </Box>
+      )
+    },
+    { id: 'status', label: '상태',
+      render: (row) => (
+        <Chip
+          label={row.status}
+          color={getStatusColor(row.status)}
+          size="small"
+        />
+      )
+    },
+    { id: 'actions', label: '관리',
+      render: (row) => (
+        <Box>
+          <IconButton size="small" onClick={() => handleEdit(row.id)}>
+            <EditIcon />
+          </IconButton>
+          <IconButton size="small" onClick={() => handleDeleteClick(row)}>
+            <DeleteIcon />
+          </IconButton>
+        </Box>
+      )
+    }
+  ];
+
+  // 모바일용 카드 렌더링 함수
+  const renderMobileCard = (row, index) => (
+    <Card key={index}>
+      <CardContent>
+        <Typography variant="subtitle1" gutterBottom>
+          {row.customer_name}
+        </Typography>
+        <Typography variant="body2" color="textSecondary">
+          {row.customer_phone}
+        </Typography>
+        <Typography variant="body2" sx={{ mt: 1 }}>
+          제품: {row.product_name}
+        </Typography>
+        <Typography variant="body2" sx={{ mt: 1 }}>
+          증상: {row.symptom}
+        </Typography>
+        <Box sx={{ mt: 1, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+          {row.tags?.map((tag, index) => (
+            <Chip
+              key={index}
+              label={tag}
+              size="small"
+              sx={{
+                height: '20px',
+                fontSize: '0.75rem',
+                bgcolor: 'primary.lighter',
+                color: 'primary.main'
+              }}
+            />
+          ))}
+        </Box>
+        <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Chip
+            label={row.status}
+            color={getStatusColor(row.status)}
+            size="small"
+          />
+          <Box>
+            <IconButton size="small" onClick={() => handleEdit(row.id)}>
+              <EditIcon />
+            </IconButton>
+            <IconButton size="small" onClick={() => handleDeleteClick(row)}>
+              <DeleteIcon />
+            </IconButton>
+          </Box>
+        </Box>
+      </CardContent>
+    </Card>
+  );
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -465,22 +636,40 @@ function ServiceList() {
   return (
     <Box>
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
-        <Tabs 
-          value={selectedBrand} 
-          onChange={handleBrandChange}
-          sx={{ borderBottom: 1, borderColor: 'divider' }}
-        >
-          <Tab 
-            label="X-RIDER" 
-            value="XRB"
-            sx={{ fontWeight: 'bold' }}
-          />
-          <Tab 
-            label="NEARBIKE" 
-            value="NB"
-            sx={{ fontWeight: 'bold' }}
-          />
-        </Tabs>
+        <Stack direction="row" justifyContent="space-between" alignItems="center">
+          <Tabs 
+            value={selectedBrand} 
+            onChange={handleBrandChange}
+          >
+            <Tab 
+              label="X-RIDER" 
+              value="XRB"
+              sx={{ fontWeight: 'bold' }}
+            />
+            <Tab 
+              label="NEARBIKE" 
+              value="NB"
+              sx={{ fontWeight: 'bold' }}
+            />
+          </Tabs>
+          <Stack direction="row" spacing={2}>
+            <Tooltip title="A/S 목록 다운로드">
+              <Button
+                variant="outlined"
+                startIcon={<DownloadIcon />}
+                onClick={handleDownloadExcel}
+              >
+                엑셀 다운로드
+              </Button>
+            </Tooltip>
+            <Button
+              variant="contained"
+              onClick={handleAddService}
+            >
+              신규 등록
+            </Button>
+          </Stack>
+        </Stack>
       </Box>
 
       <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -495,13 +684,6 @@ function ServiceList() {
           <MenuItem value="처리중">처리중</MenuItem>
           <MenuItem value="완료">완료</MenuItem>
         </TextField>
-
-        <Button
-          variant="contained"
-          onClick={handleAddService}
-        >
-          신규 등록
-        </Button>
       </Box>
 
       {/* 검색 및 필터 영역 */}
@@ -516,101 +698,11 @@ function ServiceList() {
       </Box>
 
       {/* A/S 목록 테이블 */}
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>접수일자</TableCell>
-              <TableCell>접수방법</TableCell>
-              <TableCell>입고일</TableCell>
-              <TableCell>출고일</TableCell>
-              <TableCell>고객명</TableCell>
-              <TableCell>연락처/주소</TableCell>
-              <TableCell>제품</TableCell>
-              <TableCell>증상</TableCell>
-              <TableCell>태그</TableCell>
-              <TableCell>처리내역</TableCell>
-              <TableCell>상태</TableCell>
-              <TableCell>작업</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {filteredServices.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={11} align="center">
-                  {loading ? '데이터를 불러오는 중...' : '데이터가 없습니다.'}
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredServices.map((service) => (
-                <TableRow key={service.id}>
-                  <TableCell>{service.reception_date}</TableCell>
-                  <TableCell>{service.reception_type}</TableCell>
-                  <TableCell>{service.repair_date}</TableCell>
-                  <TableCell>
-                    {service.completion_date}
-                    {service.delivery_method && (
-                      <Typography variant="caption" display="block" color="textSecondary">
-                        ({service.delivery_method})
-                      </Typography>
-                    )}
-                  </TableCell>
-                  <TableCell>{service.customer_name}</TableCell>
-                  <TableCell>
-                    {service.customer_phone}
-                    <Typography variant="caption" display="block" color="textSecondary">
-                      {service.customer_address}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>{service.product_name}</TableCell>
-                  <TableCell>{service.symptom}</TableCell>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                      {service.tags?.map((tag, index) => (
-                        <Chip
-                          key={index}
-                          label={tag}
-                          size="small"
-                          sx={{
-                            bgcolor: 'primary.light',
-                            color: 'primary.main',
-                            fontWeight: 500,
-                            '& .MuiChip-label': {
-                              fontSize: '0.75rem'
-                            }
-                          }}
-                        />
-                      ))}
-                    </Box>
-                  </TableCell>
-                  <TableCell>{service.solution}</TableCell>
-                  <TableCell>
-                    <Chip
-                      label={service.status}
-                      color={getStatusColor(service.status)}
-                      size="small"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <IconButton 
-                      size="small" 
-                      onClick={() => handleEdit(service.id)}
-                    >
-                      <EditIcon />
-                    </IconButton>
-                    <IconButton 
-                      size="small" 
-                      onClick={() => handleDeleteClick(service)}
-                    >
-                      <DeleteIcon />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
+      <ResponsiveTable
+        columns={columns}
+        data={filteredServices}
+        renderMobileCard={renderMobileCard}
+      />
 
       <Snackbar
         open={snackbar.open}

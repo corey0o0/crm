@@ -1,0 +1,151 @@
+const express = require('express');
+const cors = require('cors');
+const multer = require('multer');
+const { Anthropic } = require('@anthropic-ai/sdk');
+const fs = require('fs');
+const path = require('path');
+require('dotenv').config();
+
+const app = express();
+const port = process.env.PORT || 5000;
+
+// CORS 설정
+app.use(cors());
+app.use(express.json());
+
+// 헬스 체크 엔드포인트 추가
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', message: '서버가 정상적으로 실행 중입니다.' });
+});
+
+// Anthropic API 키 설정
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
+
+// 파일 업로드를 위한 multer 설정
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, 'uploads');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + '-' + file.originalname);
+  }
+});
+
+const upload = multer({ storage });
+
+// 파일 업로드 및 Claude API 호출 엔드포인트
+app.post('/api/analyze-receipt', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: '파일이 업로드되지 않았습니다.' });
+    }
+
+    const filePath = req.file.path;
+    const fileType = req.file.mimetype;
+    
+    // 지원되는 파일 형식 검증
+    const supportedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    const isPDF = fileType === 'application/pdf';
+    const isImage = supportedImageTypes.includes(fileType);
+    
+    if (!isPDF && !isImage) {
+      // 임시 파일 삭제
+      fs.unlinkSync(filePath);
+      return res.status(400).json({ 
+        error: '지원되지 않는 파일 형식입니다. JPEG, PNG, GIF, WebP 또는 PDF 파일만 지원합니다.' 
+      });
+    }
+    
+    // 파일을 base64로 인코딩
+    const fileBuffer = fs.readFileSync(filePath);
+    const base64Data = fileBuffer.toString('base64');
+    
+    // 프롬프트 설정
+    const promptText = isPDF 
+      ? "이 PDF 영수증에서 다음 정보를 추출해주세요: 상품명, 수량, 금액. JSON 형식으로 응답해주세요. 형식: {\"items\": [{\"id\": 1, \"item_name\": \"상품명\", \"quantity\": 수량, \"amount\": 금액}, ...]}."
+      : "이 영수증 이미지에서 다음 정보를 추출해주세요: 상품명, 수량, 금액. JSON 형식으로 응답해주세요. 형식: {\"items\": [{\"id\": 1, \"item_name\": \"상품명\", \"quantity\": 수량, \"amount\": 금액}, ...]}. 금액은 숫자만 추출해주세요.";
+    
+    // Claude API 호출
+    const response = await anthropic.messages.create({
+      model: "claude-3-sonnet-20240229",
+      max_tokens: 4000,
+      temperature: 0.5,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: promptText
+            },
+            {
+              type: "image",
+              source: {
+                type: "base64",
+                media_type: isImage ? fileType : 'application/pdf',
+                data: base64Data
+              }
+            }
+          ]
+        }
+      ]
+    });
+    
+    // 임시 파일 삭제
+    fs.unlinkSync(filePath);
+    
+    // 응답 처리
+    let content = '';
+    if (response.content && Array.isArray(response.content)) {
+      const textContent = response.content.find(item => item.type === 'text');
+      if (textContent) {
+        content = textContent.text;
+      }
+    }
+    
+    // 백틱으로 감싸진 JSON 처리
+    if (content.includes('```json')) {
+      content = content.split('```json')[1].split('```')[0].trim();
+    } else if (content.includes('```')) {
+      content = content.split('```')[1].split('```')[0].trim();
+    }
+    
+    try {
+      const parsedContent = JSON.parse(content);
+      
+      // 결과 형식 검증 및 보정
+      if (!parsedContent.items || !Array.isArray(parsedContent.items)) {
+        throw new Error('잘못된 응답 형식입니다.');
+      }
+      
+      // 각 항목의 필수 필드 확인 및 보정
+      const validatedItems = parsedContent.items.map((item, index) => ({
+        id: item.id || index + 1,
+        item_name: item.item_name || '알 수 없는 상품',
+        quantity: item.quantity || 1,
+        amount: parseFloat(String(item.amount).replace(/[^0-9.]/g, '')) || 0
+      }));
+      
+      return res.json({ items: validatedItems });
+    } catch (parseError) {
+      console.error('응답 파싱 실패:', parseError);
+      return res.status(500).json({ error: '분석 결과 파싱에 실패했습니다.', rawContent: content });
+    }
+    
+  } catch (error) {
+    console.error('서버 오류:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// 서버 시작
+app.listen(port, () => {
+  console.log(`서버가 포트 ${port}에서 실행 중입니다.`);
+}); 

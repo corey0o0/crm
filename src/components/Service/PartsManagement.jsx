@@ -23,7 +23,9 @@ import {
   Snackbar,
   Alert,
   Tabs,
-  Tab
+  Tab,
+  LinearProgress,
+  TableSortLabel
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -36,6 +38,7 @@ import {
 } from '@mui/icons-material';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../lib/supabaseClient';
+import { useNavigate } from 'react-router-dom';
 
 function PartsManagement() {
   const [parts, setParts] = useState([]);
@@ -57,8 +60,19 @@ function PartsManagement() {
     severity: 'success'
   });
   const [searchTerm, setSearchTerm] = useState('');
+  const [uploadStatus, setUploadStatus] = useState({
+    open: false,
+    step: 0,
+    total: 0,
+    current: 0,
+    message: ''
+  });
+  
+  const [order, setOrder] = useState('asc');
+  const [orderBy, setOrderBy] = useState('code');
 
   const brands = ['XRB', 'NB']; // 브랜드 목록 수정
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchParts();
@@ -78,6 +92,31 @@ function PartsManagement() {
       console.error('Error fetching parts:', err);
       showSnackbar('부품 목록을 불러오는데 실패했습니다.', 'error');
     }
+  };
+
+  const handleRequestSort = (property) => {
+    const isAsc = orderBy === property && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(property);
+  };
+
+  const sortData = (data, order, orderBy) => {
+    return data.sort((a, b) => {
+      if (orderBy === 'supply_price' || orderBy === 'price') {
+        const aValue = a[orderBy] || 0;
+        const bValue = b[orderBy] || 0;
+        return order === 'asc' ? aValue - bValue : bValue - aValue;
+      }
+      
+      const aValue = (a[orderBy] || '').toString().toLowerCase();
+      const bValue = (b[orderBy] || '').toString().toLowerCase();
+      
+      if (order === 'asc') {
+        return aValue.localeCompare(bValue);
+      } else {
+        return bValue.localeCompare(aValue);
+      }
+    });
   };
 
   const handleOpenDialog = (part = null) => {
@@ -130,7 +169,6 @@ function PartsManagement() {
         price: Number(formData.price)
       };
 
-      // barcode와 note가 있는 경우에만 추가
       if (formData.barcode) partData.barcode = formData.barcode;
       if (formData.note) partData.note = formData.note;
 
@@ -180,55 +218,184 @@ function PartsManagement() {
     }
   };
 
-  const handleExcelUpload = (event) => {
+  const closeUploadStatus = () => {
+    setUploadStatus({
+      open: false,
+      step: 0,
+      total: 0,
+      current: 0,
+      message: ''
+    });
+  };
+
+  const validateExcelData = (data) => {
+    const errors = [];
+    const validData = [];
+
+    data.forEach((row, index) => {
+      const rowErrors = [];
+      
+      if (!row.brand) rowErrors.push('brand');
+      if (!row.code) rowErrors.push('code');
+      if (!row.name) rowErrors.push('name');
+
+      if (row.brand && !['XRB', 'NB'].includes(String(row.brand).toUpperCase())) {
+        errors.push(`${index + 2}번 행: 브랜드는 XRB 또는 NB만 입력 가능합니다.`);
+        return;
+      }
+
+      if (row.supplyPrice !== undefined && row.supplyPrice !== '' && 
+          isNaN(Number(String(row.supplyPrice).replace(/[^0-9]/g, '')))) {
+        errors.push(`${index + 2}번 행: 공급가는 숫자만 입력 가능합니다.`);
+        return;
+      }
+      if (row.price !== undefined && row.price !== '' && 
+          isNaN(Number(String(row.price).replace(/[^0-9]/g, '')))) {
+        errors.push(`${index + 2}번 행: 판매가는 숫자만 입력 가능합니다.`);
+        return;
+      }
+
+      if (rowErrors.length > 0) {
+        errors.push(`${index + 2}번 행: ${rowErrors.join(', ')} 필드가 누락되었습니다.`);
+        return;
+      }
+
+      validData.push(row);
+    });
+
+    return { validData, errors };
+  };
+
+  const handleExcelUpload = async (event) => {
     const file = event.target.files[0];
+    if (!file) return;
+
+    const fileExt = file.name.split('.').pop().toLowerCase();
+    if (!['xlsx', 'xls'].includes(fileExt)) {
+      showSnackbar('엑셀 파일(.xlsx, .xls)만 업로드 가능합니다.', 'error');
+      event.target.value = '';
+      return;
+    }
+
+    setUploadStatus({
+      open: true,
+      step: 1,
+      total: 100,
+      current: 0,
+      message: '엑셀 파일 읽는 중...'
+    });
+
     const reader = new FileReader();
 
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const workbook = XLSX.read(e.target.result, { type: 'binary' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         const data = XLSX.utils.sheet_to_json(worksheet);
 
-        const validData = data.filter(row => {
-          const isValid = 
-            row.brand && 
-            row.code && 
-            row.name && 
-            row.supplyPrice && 
-            row.price;
-          
-          return isValid;
-        });
+        if (data.length === 0) {
+          closeUploadStatus();
+          showSnackbar('엑셀 파일에 데이터가 없습니다.', 'error');
+          event.target.value = '';
+          return;
+        }
 
-        if (validData.length === 0) {
-          showSnackbar('유효한 데이터가 없습니다.', 'error');
+        setUploadStatus(prev => ({
+          ...prev,
+          step: 2,
+          message: '데이터 검증 중...',
+          current: 30
+        }));
+
+        const { validData, errors } = validateExcelData(data);
+
+        if (errors.length > 0) {
+          closeUploadStatus();
+          showSnackbar(`데이터 검증 중 오류가 발생했습니다:\n${errors.join('\n')}`, 'error');
+          event.target.value = '';
           return;
         }
 
         const formattedData = validData.map(row => ({
-          id: Date.now() + Math.random(),
           brand: String(row.brand).toUpperCase(),
-          code: String(row.code),
-          name: String(row.name),
-          supplyPrice: Number(row.supplyPrice),
-          price: Number(row.price),
-          barcode: row.barcode ? String(row.barcode) : '',
-          note: row.note ? String(row.note) : ''
+          code: String(row.code).trim(),
+          name: String(row.name).trim(),
+          supply_price: row.supplyPrice === undefined || row.supplyPrice === '' 
+            ? 0 
+            : Number(String(row.supplyPrice).replace(/[^0-9]/g, '')),
+          price: row.price === undefined || row.price === '' 
+            ? 0 
+            : Number(String(row.price).replace(/[^0-9]/g, '')),
+          barcode: row.barcode ? String(row.barcode).trim() : null,
+          note: row.note ? String(row.note).trim() : null
         }));
 
-        setParts(prev => [...prev, ...formattedData]);
-        showSnackbar(`${formattedData.length}개의 파츠가 등록되었습니다.`, 'success');
+        setUploadStatus(prev => ({
+          ...prev,
+          step: 3,
+          message: '중복 데이터 확인 중...',
+          current: 60
+        }));
+
+        const { data: existingParts, error: checkError } = await supabase
+          .from('parts')
+          .select('code')
+          .in('code', formattedData.map(d => d.code));
+
+        if (checkError) throw checkError;
+
+        const duplicateCodes = existingParts.map(p => p.code);
+        if (duplicateCodes.length > 0) {
+          closeUploadStatus();
+          showSnackbar(`다음 상품코드는 이미 존재합니다: ${duplicateCodes.join(', ')}`, 'error');
+          event.target.value = '';
+          return;
+        }
+
+        setUploadStatus(prev => ({
+          ...prev,
+          step: 4,
+          message: '데이터 저장 중...',
+          current: 80
+        }));
+
+        const { error: insertError } = await supabase
+          .from('parts')
+          .insert(formattedData);
+
+        if (insertError) throw insertError;
+
+        setUploadStatus(prev => ({
+          ...prev,
+          step: 5,
+          message: '저장 완료!',
+          current: 100
+        }));
+
+        await fetchParts(); // 목록 새로고침
+        
+        setTimeout(() => {
+          closeUploadStatus();
+          showSnackbar(`${formattedData.length}개의 파츠가 성공적으로 등록되었습니다.`, 'success');
+        }, 1000);
+
+        event.target.value = '';
+
       } catch (error) {
+        closeUploadStatus();
         console.error('엑셀 파일 처리 중 오류:', error);
-        showSnackbar('엑셀 파일 처리 중 오류가 발생했습니다.', 'error');
+        showSnackbar(
+          error.code === '23505' 
+            ? '동일한 상품코드를 가진 파츠가 이미 존재합니다.'
+            : '엑셀 파일 처리 중 오류가 발생했습니다: ' + error.message,
+          'error'
+        );
+        event.target.value = '';
       }
     };
 
-    if (file) {
-      reader.readAsBinaryString(file);
-    }
+    reader.readAsBinaryString(file);
   };
 
   const handleDownloadTemplate = () => {
@@ -239,7 +406,17 @@ function PartsManagement() {
         name: '컴프레서',
         supplyPrice: '100000',
         price: '150000',
-        barcode: '8801234567890'
+        barcode: '8801234567890',
+        note: '예시 데이터입니다'
+      },
+      {
+        brand: 'XRB',
+        code: 'XL-002',
+        name: '필터',
+        supplyPrice: '',  // 빈 값 예시
+        price: '0',       // 0 값 예시
+        barcode: '',      // 빈 값 예시
+        note: ''          // 빈 값 예시
       }
     ];
 
@@ -247,7 +424,15 @@ function PartsManagement() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Template");
 
-    // 컬럼 너비 설정
+    const columnDescriptions = [
+      ['필수 입력 항목: 브랜드(XRB/NB), 상품코드, 파츠명'],
+      ['선택 입력 항목: 공급가, 판매가, 바코드, 비고'],
+      ['* 브랜드는 반드시 XRB 또는 NB로 입력해주세요.'],
+      ['* 금액은 숫자만 입력하거나 비워두세요. (빈 값은 0으로 처리됩니다)']
+    ];
+
+    XLSX.utils.sheet_add_aoa(ws, columnDescriptions, { origin: -1 });
+
     const wscols = [
       { wch: 10 },  // brand
       { wch: 15 },  // code
@@ -255,6 +440,7 @@ function PartsManagement() {
       { wch: 12 },  // supplyPrice
       { wch: 12 },  // price
       { wch: 15 },  // barcode
+      { wch: 30 },  // note
     ];
     ws['!cols'] = wscols;
 
@@ -274,9 +460,28 @@ function PartsManagement() {
     const matchesSearch = 
       part.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       part.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      part.barcode?.includes(searchTerm);
+      part.barcode?.includes(searchTerm) ||
+      part.note?.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesBrand && matchesSearch;
   });
+
+  const sortedParts = sortData([...filteredParts], order, orderBy);
+
+  const renderSortableHeader = (id, label, align = 'left') => (
+    <TableCell 
+      align={align} 
+      sortDirection={orderBy === id ? order : false}
+      sx={{ cursor: 'pointer' }}
+    >
+      <TableSortLabel
+        active={orderBy === id}
+        direction={orderBy === id ? order : 'asc'}
+        onClick={() => handleRequestSort(id)}
+      >
+        {label}
+      </TableSortLabel>
+    </TableCell>
+  );
 
   return (
     <Box>
@@ -331,7 +536,7 @@ function PartsManagement() {
       <TextField
         fullWidth
         size="small"
-        placeholder="파츠명, 상품코드, 바코드로 검색"
+        placeholder="파츠명, 상품코드, 바코드, 비고 검색"
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
         sx={{ mb: 2 }}
@@ -355,18 +560,18 @@ function PartsManagement() {
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell sx={{ width: '15%' }}>상품코드</TableCell>
-              <TableCell sx={{ width: '20%' }}>파츠명</TableCell>
-              <TableCell align="right" sx={{ width: '12%' }}>공급가</TableCell>
-              <TableCell align="right" sx={{ width: '12%' }}>판매가</TableCell>
-              <TableCell align="center" sx={{ width: '12%' }}>바코드</TableCell>
-              <TableCell sx={{ width: '15%' }}>비고</TableCell>
+              {renderSortableHeader('code', '상품코드')}
+              {renderSortableHeader('name', '파츠명')}
+              {renderSortableHeader('supply_price', '공급가', 'right')}
+              {renderSortableHeader('price', '판매가', 'right')}
+              {renderSortableHeader('barcode', '바코드', 'center')}
+              {renderSortableHeader('note', '비고')}
               <TableCell align="center" sx={{ width: '14%' }}>관리</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {filteredParts.length > 0 ? (
-              filteredParts.map((part) => (
+            {sortedParts.length > 0 ? (
+              sortedParts.map((part) => (
                 <TableRow key={part.id} sx={{ '& td': { py: 1 } }}>
                   <TableCell>{part.code}</TableCell>
                   <TableCell>{part.name}</TableCell>
@@ -386,7 +591,7 @@ function PartsManagement() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
+                <TableCell colSpan={7} align="center" sx={{ py: 3 }}>
                   검색 결과가 없습니다.
                 </TableCell>
               </TableRow>
@@ -504,6 +709,34 @@ function PartsManagement() {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      <Dialog
+        open={uploadStatus.open}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: { p: 2 }
+        }}
+      >
+        <DialogTitle sx={{ pb: 1 }}>
+          엑셀 파일 등록 중...
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ width: '100%', mt: 1 }}>
+            <LinearProgress 
+              variant="determinate" 
+              value={uploadStatus.current} 
+              sx={{ height: 10, borderRadius: 5 }}
+            />
+            <Typography sx={{ mt: 2, mb: 1 }} variant="body1">
+              {uploadStatus.message}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {uploadStatus.step}/5 단계
+            </Typography>
+          </Box>
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 }

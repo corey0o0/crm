@@ -26,7 +26,8 @@ import {
   InputAdornment,
   ButtonGroup,
   Chip,
-  Autocomplete
+  Autocomplete,
+  Stack
 } from '@mui/material';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
@@ -35,6 +36,9 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import SearchIcon from '@mui/icons-material/Search';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import ReceiptIcon from '@mui/icons-material/Receipt';
+import CloseIcon from '@mui/icons-material/Close';
+import ReceiptScanner from '../Receipt/ReceiptScanner';
 
 function ServiceDetail() {
   const { id } = useParams();
@@ -71,6 +75,13 @@ function ServiceDetail() {
     '외관', '내장', '소모품', '정기점검', '사고수리'
   ]);
   const [submitting, setSubmitting] = useState(false);
+  const [openReceiptDialog, setOpenReceiptDialog] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState({
+    open: false,
+    title: '',
+    message: '',
+    onConfirm: null
+  });
 
   const fetchServiceDetail = React.useCallback(async () => {
     try {
@@ -318,10 +329,28 @@ function ServiceDetail() {
   };
 
   const handleStatusChange = (newStatus) => {
-    setFormData(prev => ({
-      ...prev,
-      status: newStatus
-    }));
+    if (newStatus === '완료') {
+      setConfirmDialog({
+        open: true,
+        title: 'A/S 완료 확인',
+        message: '해당 A/S를 완료 처리하시겠습니까?',
+        onConfirm: () => {
+          const currentDate = new Date().toISOString().split('T')[0];
+          setFormData(prev => ({
+            ...prev,
+            status: newStatus,
+            completion_date: new Date(),
+            repair_date: new Date()
+          }));
+          setConfirmDialog({ ...confirmDialog, open: false });
+        }
+      });
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        status: newStatus
+      }));
+    }
   };
 
   const getStatusColor = (buttonStatus) => {
@@ -420,14 +449,34 @@ function ServiceDetail() {
       <Typography variant="h6" gutterBottom>
         사용 부품
       </Typography>
-      <Button
-        startIcon={<AddIcon />}
-        variant="contained"
-        onClick={handleOpenPartsDialog}
-        sx={{ mb: 2 }}
-      >
-        부품 추가
-      </Button>
+      <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+        <Button
+          startIcon={<AddIcon />}
+          variant="contained"
+          onClick={handleOpenPartsDialog}
+          sx={{ 
+            bgcolor: '#3182f6',
+            '&:hover': { bgcolor: '#1b64da' }
+          }}
+        >
+          수동으로 부품 추가
+        </Button>
+        <Button
+          startIcon={<ReceiptIcon />}
+          variant="outlined"
+          onClick={() => setOpenReceiptDialog(true)}
+          sx={{ 
+            color: '#3182f6',
+            borderColor: '#3182f6',
+            '&:hover': { 
+              bgcolor: 'rgba(49, 130, 246, 0.04)',
+              borderColor: '#1b64da'
+            }
+          }}
+        >
+          영수증으로 부품 추가
+        </Button>
+      </Stack>
       
       <TableContainer component={Paper} sx={{ mt: 2 }}>
         <Table size="small">
@@ -550,6 +599,37 @@ function ServiceDetail() {
             추가
           </Button>
         </DialogActions>
+      </Dialog>
+
+      {/* 영수증 스캐너 다이얼로그 */}
+      <Dialog 
+        open={openReceiptDialog} 
+        onClose={() => setOpenReceiptDialog(false)}
+        maxWidth="xl"
+        fullWidth
+      >
+        <DialogTitle sx={{ 
+          pb: 1,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          영수증으로 부품 추가
+          <IconButton onClick={() => setOpenReceiptDialog(false)}>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ p: 0 }}>
+          <ReceiptScanner 
+            onPartsSelected={(selectedParts) => {
+              // 선택된 부품들을 현재 서비스의 부품 목록에 추가
+              setSelectedParts(prev => [...prev, ...selectedParts]);
+              setOpenReceiptDialog(false);
+            }}
+            currentServiceId={id}
+            isDialogMode={true}
+          />
+        </DialogContent>
       </Dialog>
     </Box>
   );
@@ -905,6 +985,48 @@ function ServiceDetail() {
             {snackbar.message}
           </Alert>
         </Snackbar>
+
+        {/* 확인 대화상자 추가 */}
+        <Dialog
+          open={confirmDialog.open}
+          onClose={() => setConfirmDialog({ ...confirmDialog, open: false })}
+        >
+          <DialogTitle>{confirmDialog.title}</DialogTitle>
+          <DialogContent>
+            <Typography>{confirmDialog.message}</Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button 
+              onClick={() => setConfirmDialog({ ...confirmDialog, open: false })}
+              sx={{
+                color: '#4e5968',
+                fontSize: '0.95rem',
+                fontWeight: 600,
+                textTransform: 'none',
+                '&:hover': {
+                  bgcolor: '#f2f4f6'
+                }
+              }}
+            >
+              취소
+            </Button>
+            <Button 
+              onClick={() => confirmDialog.onConfirm?.()}
+              variant="contained"
+              sx={{
+                bgcolor: '#3182f6',
+                fontSize: '0.95rem',
+                fontWeight: 600,
+                textTransform: 'none',
+                '&:hover': {
+                  bgcolor: '#1b64da'
+                }
+              }}
+            >
+              확인
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </LocalizationProvider>
   );

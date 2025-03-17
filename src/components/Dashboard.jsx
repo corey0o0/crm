@@ -13,36 +13,58 @@ import {
   Chip,
   CircularProgress,
   Alert,
-  Button
+  Button,
+  Stack,
+  LinearProgress,
+  Tabs,
+  Tab
 } from '@mui/material';
 import {
   Build as BuildIcon,
   Person as PersonIcon,
   Timeline as TimelineIcon,
   Speed as SpeedIcon,
-  Refresh as RefreshIcon
+  Refresh as RefreshIcon,
+  LocalShipping as LocalShippingIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
 function Dashboard() {
   const navigate = useNavigate();
+  const [selectedBrand, setSelectedBrand] = useState('ALL');
   const [stats, setStats] = useState({
     totalCustomers: 0,
     totalServices: 0,
     pendingServices: 0,
     completedServices: 0,
-    recentServices: [],
+    recentServices: {
+      ALL: [],
+      XRB: [],
+      NBK: []
+    },
+    recentShipments: [],
     monthlyStats: {
       total: 0,
       completed: 0,
       avgProcessingDays: 0
     },
-    statusDistribution: []
+    statusCounts: {
+      접수: 0,
+      처리중: 0,
+      부분완료: 0,
+      완료: 0
+    },
+    shipmentStats: {
+      total: 0,
+      pending: 0,
+      completed: 0,
+      todayShipments: 0
+    }
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [recentShipments, setRecentShipments] = useState([]);
 
   // 상태별 색상 정의
   const statusColors = {
@@ -64,15 +86,36 @@ function Dashboard() {
         .select('*')
         .order('reception_date', { ascending: false });
 
-      if (servicesError) throw servicesError;
+      if (servicesError) {
+        console.error('서비스 데이터 조회 오류:', servicesError);
+        throw new Error('서비스 데이터를 불러오는데 실패했습니다.');
+      }
 
-      // 고객 수 계산 (중복 제거)
-      const uniqueCustomers = services 
-        ? [...new Set(services.map(service => service.customer_phone))]
-        : [];
-      const totalCustomers = uniqueCustomers.length;
+      // 2. 출고 데이터 가져오기
+      let shipments = [];
+      try {
+        const { data: shipmentsData, error: shipmentsError } = await supabase
+          .from('shipments')
+          .select('*')
+          .order('created_at', { ascending: false });
 
-      // 3. 최근 서비스 데이터 가져오기 (최근 5개)
+        if (shipmentsError) {
+          console.error('출고 데이터 조회 오류:', shipmentsError);
+          throw new Error(`출고 데이터를 불러오는데 실패했습니다: ${shipmentsError.message}`);
+        }
+
+        if (!shipmentsData) {
+          console.warn('출고 데이터가 없습니다.');
+          shipments = [];
+        } else {
+          shipments = shipmentsData;
+        }
+      } catch (shipmentError) {
+        console.error('출고 데이터 처리 중 오류:', shipmentError);
+        throw new Error('출고 데이터 처리 중 오류가 발생했습니다.');
+      }
+
+      // 3. 최근 서비스 데이터 가져오기
       const { data: recentServices, error: recentServicesError } = await supabase
         .from('services')
         .select(`
@@ -80,38 +123,99 @@ function Dashboard() {
           customer_name,
           product_name,
           status,
-          reception_date
+          reception_date,
+          brand
         `)
-        .order('reception_date', { ascending: false })
-        .limit(5);
+        .order('reception_date', { ascending: false });
 
-      if (recentServicesError) throw recentServicesError;
+      if (recentServicesError) {
+        console.error('최근 서비스 데이터 조회 오류:', recentServicesError);
+        throw new Error('최근 서비스 데이터를 불러오는데 실패했습니다.');
+      }
 
-      // 이번 달 데이터 필터링
+      // 4. 최근 출고 데이터 가져오기
+      let recentShipments = [];
+      try {
+        const { data: recentShipmentsData, error: recentShipmentsError } = await supabase
+          .from('shipments')
+          .select(`
+            id,
+            customer_name,
+            product_name,
+            status,
+            created_at,
+            shipment_date,
+            brand
+          `)
+          .order('created_at', { ascending: false })
+          .limit(5);
+
+        if (recentShipmentsError) {
+          console.error('최근 출고 데이터 조회 오류:', recentShipmentsError);
+          throw new Error(`최근 출고 데이터를 불러오는데 실패했습니다: ${recentShipmentsError.message}`);
+        }
+
+        if (!recentShipmentsData) {
+          console.warn('최근 출고 데이터가 없습니다.');
+          recentShipments = [];
+        } else {
+          recentShipments = recentShipmentsData;
+        }
+      } catch (recentShipmentError) {
+        console.error('최근 출고 데이터 처리 중 오류:', recentShipmentError);
+        throw new Error('최근 출고 데이터 처리 중 오류가 발생했습니다.');
+      }
+
+      // 안전한 데이터 처리를 위한 기본값 설정
+      const safeServices = services || [];
+      const safeShipments = shipments || [];
+      const safeRecentServices = recentServices || [];
+      const safeRecentShipments = recentShipments || [];
+
+      // 고객 수 계산
+      const uniqueCustomers = [...new Set(safeServices.map(service => service.customer_phone))];
+      const totalCustomers = uniqueCustomers.length;
+
+      // 날짜 기준 설정
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
       
-      // 안전하게 필터링 (services가 null이 아닌 경우에만)
-      const monthlyServices = services ? services.filter(service => 
+      // 이번 달 서비스 데이터 필터링
+      const monthlyServices = safeServices.filter(service => 
         new Date(service.reception_date) >= startOfMonth
-      ) : [];
+      );
 
-      // 상태별 분포 계산 (services가 null이 아닌 경우에만)
-      const statusCounts = services ? services.reduce((acc, service) => {
-        acc[service.status] = (acc[service.status] || 0) + 1;
-        return acc;
-      }, {}) : {};
+      // 상태별 카운트 계산
+      const statusCounts = {
+        접수: 0,
+        처리중: 0,
+        부분완료: 0,
+        완료: 0
+      };
 
-      const statusDistribution = Object.keys(statusCounts).map(status => ({
-        name: status,
-        value: statusCounts[status],
-        color: statusColors[status] || '#999999'
-      }));
+      safeServices.forEach(service => {
+        if (statusCounts.hasOwnProperty(service.status)) {
+          statusCounts[service.status]++;
+        }
+      });
 
-      // 평균 처리 기간 계산 (services가 null이 아닌 경우에만)
-      const completedServices = services ? services.filter(service => 
+      // 출고 통계 계산
+      const shipmentStats = {
+        total: safeShipments.length,
+        pending: safeShipments.filter(s => !s.shipment_date).length,
+        completed: safeShipments.filter(s => s.shipment_date).length,
+        todayShipments: safeShipments.filter(s => {
+          const shipDate = new Date(s.created_at);
+          return shipDate >= today;
+        }).length
+      };
+
+      // 평균 처리 기간 계산
+      const completedServices = safeServices.filter(service => 
         service.status === '완료' && service.completion_date && service.reception_date
-      ) : [];
+      );
 
       let avgProcessingDays = 0;
       if (completedServices.length > 0) {
@@ -119,34 +223,93 @@ function Dashboard() {
           const receptionDate = new Date(service.reception_date);
           const completionDate = new Date(service.completion_date);
           const days = Math.round((completionDate - receptionDate) / (1000 * 60 * 60 * 24));
-          return sum + days;
+          return sum + Math.max(0, days); // 음수 일수 방지
         }, 0);
         avgProcessingDays = (totalDays / completedServices.length).toFixed(1);
       }
 
-      // 데이터 설정 (null 체크 추가)
-      setStats({
-        totalCustomers: totalCustomers,
-        totalServices: services?.length || 0,
-        pendingServices: services ? services.filter(s => s.status !== '완료').length : 0,
-        completedServices: services ? services.filter(s => s.status === '완료').length : 0,
-        recentServices: recentServices ? recentServices.map(service => ({
+      // 브랜드별 최근 서비스 데이터 정리
+      const processedRecentServices = {
+        ALL: [],
+        XRB: [],
+        NBK: []
+      };
+
+      // 전체 데이터
+      processedRecentServices.ALL = safeRecentServices
+        .slice(0, 5)
+        .map(service => ({
           id: service.id,
-          customerName: service.customer_name,
-          productName: service.product_name,
-          status: service.status,
-          requestDate: new Date(service.reception_date).toLocaleDateString('ko-KR')
-        })) : [],
+          customerName: service.customer_name || '이름 없음',
+          productName: service.product_name || '제품명 없음',
+          status: service.status || '상태 없음',
+          brand: service.brand || 'UNKNOWN',
+          requestDate: service.reception_date ? 
+            new Date(service.reception_date).toLocaleDateString('ko-KR') : 
+            '날짜 없음'
+        }));
+
+      // X-RIDER 데이터
+      processedRecentServices.XRB = safeRecentServices
+        .filter(service => service.brand === 'XRB')
+        .slice(0, 5)
+        .map(service => ({
+          id: service.id,
+          customerName: service.customer_name || '이름 없음',
+          productName: service.product_name || '제품명 없음',
+          status: service.status || '상태 없음',
+          brand: service.brand,
+          requestDate: service.reception_date ? 
+            new Date(service.reception_date).toLocaleDateString('ko-KR') : 
+            '날짜 없음'
+        }));
+
+      // NEARBIKE 데이터
+      processedRecentServices.NBK = safeRecentServices
+        .filter(service => service.brand === 'NBK')
+        .slice(0, 5)
+        .map(service => ({
+          id: service.id,
+          customerName: service.customer_name || '이름 없음',
+          productName: service.product_name || '제품명 없음',
+          status: service.status || '상태 없음',
+          brand: service.brand,
+          requestDate: service.reception_date ? 
+            new Date(service.reception_date).toLocaleDateString('ko-KR') : 
+            '날짜 없음'
+        }));
+
+      // 최근 출고 데이터 처리
+      const processedRecentShipments = safeRecentShipments.map(shipment => ({
+        id: shipment.id,
+        customerName: shipment.customer_name || '이름 없음',
+        productName: shipment.product_name || '제품명 없음',
+        status: shipment.shipment_date ? '출고완료' : '출고대기',
+        brand: shipment.brand || 'UNKNOWN',
+        shipDate: shipment.shipment_date ? 
+          new Date(shipment.shipment_date).toLocaleDateString('ko-KR') :
+          new Date(shipment.created_at).toLocaleDateString('ko-KR')
+      }));
+
+      setStats({
+        totalCustomers,
+        totalServices: safeServices.length,
+        pendingServices: safeServices.filter(s => s.status !== '완료').length,
+        completedServices: safeServices.filter(s => s.status === '완료').length,
+        recentServices: processedRecentServices,
+        recentShipments: processedRecentShipments,
         monthlyStats: {
           total: monthlyServices.length,
           completed: monthlyServices.filter(s => s.status === '완료').length,
-          avgProcessingDays: avgProcessingDays
+          avgProcessingDays
         },
-        statusDistribution
+        statusCounts,
+        shipmentStats
       });
+
     } catch (err) {
       console.error('대시보드 데이터 로딩 오류:', err);
-      setError('데이터를 불러오는 중 오류가 발생했습니다.');
+      setError(err.message || '데이터를 불러오는 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
@@ -169,6 +332,34 @@ function Dashboard() {
   const handleServiceClick = (serviceId) => {
     navigate(`/services/${serviceId}`);
   };
+
+  const handleBrandChange = (event, newValue) => {
+    setSelectedBrand(newValue);
+  };
+
+  const fetchRecentShipments = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('shipments')
+        .select('*')
+        .eq('brand', selectedBrand)
+        .order('shipment_date', { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+
+      setRecentShipments(data || []);
+    } catch (err) {
+      console.error('Error fetching recent shipments:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRecentShipments();
+  }, [selectedBrand]);
 
   if (loading) {
     return (
@@ -194,8 +385,14 @@ function Dashboard() {
   }
 
   return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+    <Box sx={{ width: '100%', maxWidth: '100%', margin: 0, padding: 0 }}>
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        mb: 3,
+        width: '100%'
+      }}>
         <Typography variant="h5" sx={{ fontWeight: 600, color: 'text.primary' }}>
           대시보드
         </Typography>
@@ -215,208 +412,386 @@ function Dashboard() {
       {/* 주요 통계 카드 */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
         <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ height: '100%' }}>
-            <CardContent sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
-              <PersonIcon sx={{ fontSize: 40, color: 'primary.main', mr: 2 }} />
-              <Box>
-                <Typography color="text.secondary" variant="body2" gutterBottom>
-                  전체 고객 수
-                </Typography>
-                <Typography variant="h4" sx={{ fontWeight: 600, color: 'primary.main' }}>
-                  {stats.totalCustomers}
-                </Typography>
-              </Box>
+          <Card sx={{ height: '100%', bgcolor: 'primary.light' }}>
+            <CardContent>
+              <Stack direction="row" alignItems="center" spacing={2}>
+                <PersonIcon sx={{ fontSize: 40, color: 'primary.main' }} />
+                <Box>
+                  <Typography color="text.secondary" variant="body2" gutterBottom>
+                    전체 고객 수
+                  </Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 600, color: 'primary.main' }}>
+                    {stats.totalCustomers}
+                  </Typography>
+                </Box>
+              </Stack>
             </CardContent>
           </Card>
         </Grid>
 
         <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ height: '100%' }}>
-            <CardContent sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
-              <BuildIcon sx={{ fontSize: 40, color: 'secondary.main', mr: 2 }} />
-              <Box>
-                <Typography color="text.secondary" variant="body2" gutterBottom>
-                  전체 A/S 건수
-                </Typography>
-                <Typography variant="h4" sx={{ fontWeight: 600, color: 'secondary.main' }}>
-                  {stats.totalServices}
-                </Typography>
-              </Box>
+          <Card sx={{ height: '100%', bgcolor: '#e3f2fd' }}>
+            <CardContent>
+              <Stack direction="row" alignItems="center" spacing={2}>
+                <BuildIcon sx={{ fontSize: 40, color: '#1976d2' }} />
+                <Box>
+                  <Typography color="text.secondary" variant="body2" gutterBottom>
+                    전체 A/S 건수
+                  </Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 600, color: '#1976d2' }}>
+                    {stats.totalServices}
+                  </Typography>
+                </Box>
+              </Stack>
             </CardContent>
           </Card>
         </Grid>
 
         <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ height: '100%' }}>
-            <CardContent sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
-              <TimelineIcon sx={{ fontSize: 40, color: 'warning.main', mr: 2 }} />
-              <Box>
-                <Typography color="text.secondary" variant="body2" gutterBottom>
-                  처리중 A/S
-                </Typography>
-                <Typography variant="h4" sx={{ fontWeight: 600, color: 'warning.main' }}>
-                  {stats.pendingServices}
-                </Typography>
-              </Box>
+          <Card sx={{ height: '100%', bgcolor: '#fff3e0' }}>
+            <CardContent>
+              <Stack direction="row" alignItems="center" spacing={2}>
+                <TimelineIcon sx={{ fontSize: 40, color: '#ed6c02' }} />
+                <Box>
+                  <Typography color="text.secondary" variant="body2" gutterBottom>
+                    처리중 A/S
+                  </Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 600, color: '#ed6c02' }}>
+                    {stats.pendingServices}
+                  </Typography>
+                </Box>
+              </Stack>
             </CardContent>
           </Card>
         </Grid>
 
         <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ height: '100%' }}>
-            <CardContent sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
-              <SpeedIcon sx={{ fontSize: 40, color: 'success.main', mr: 2 }} />
-              <Box>
-                <Typography color="text.secondary" variant="body2" gutterBottom>
-                  평균 처리 기간
-                </Typography>
-                <Typography variant="h4" sx={{ fontWeight: 600, color: 'success.main' }}>
-                  {stats.monthlyStats.avgProcessingDays}일
-                </Typography>
-              </Box>
+          <Card sx={{ height: '100%', bgcolor: '#e8f5e9' }}>
+            <CardContent>
+              <Stack direction="row" alignItems="center" spacing={2}>
+                <SpeedIcon sx={{ fontSize: 40, color: '#2e7d32' }} />
+                <Box>
+                  <Typography color="text.secondary" variant="body2" gutterBottom>
+                    평균 처리 기간
+                  </Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 600, color: '#2e7d32' }}>
+                    {stats.monthlyStats.avgProcessingDays}일
+                  </Typography>
+                </Box>
+              </Stack>
             </CardContent>
           </Card>
         </Grid>
       </Grid>
 
-      {/* 차트와 통계 */}
+      {/* A/S 상태 및 출고 현황 */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 3, height: '100%' }}>
-            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, color: 'text.primary' }}>
-              A/S 상태 분포
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 3 }}>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, color: 'text.primary', mb: 3 }}>
+              A/S 상태 현황
             </Typography>
-            <Box sx={{ height: 250, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-              {stats.statusDistribution.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={stats.statusDistribution}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={80}
-                      paddingAngle={5}
-                      dataKey="value"
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    >
-                      {stats.statusDistribution.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value) => [`${value}건`, '건수']} />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <Typography variant="body2" color="text.secondary">
-                  데이터가 없습니다
+            <Stack spacing={2}>
+              <Box>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+                  <Typography variant="body2" color="text.secondary">접수</Typography>
+                  <Typography variant="body2" color="text.primary">{stats.statusCounts.접수}건</Typography>
+                </Stack>
+                <LinearProgress 
+                  variant="determinate" 
+                  value={(stats.statusCounts.접수 / stats.totalServices) * 100}
+                  sx={{ 
+                    height: 10, 
+                    borderRadius: 5,
+                    bgcolor: '#e3f2fd',
+                    '& .MuiLinearProgress-bar': {
+                      bgcolor: statusColors.접수
+                    }
+                  }} 
+                />
+              </Box>
+              <Box>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+                  <Typography variant="body2" color="text.secondary">처리중</Typography>
+                  <Typography variant="body2" color="text.primary">{stats.statusCounts.처리중}건</Typography>
+                </Stack>
+                <LinearProgress 
+                  variant="determinate" 
+                  value={(stats.statusCounts.처리중 / stats.totalServices) * 100}
+                  sx={{ 
+                    height: 10, 
+                    borderRadius: 5,
+                    bgcolor: '#fff3e0',
+                    '& .MuiLinearProgress-bar': {
+                      bgcolor: statusColors.처리중
+                    }
+                  }} 
+                />
+              </Box>
+              <Box>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+                  <Typography variant="body2" color="text.secondary">부분완료</Typography>
+                  <Typography variant="body2" color="text.primary">{stats.statusCounts.부분완료}건</Typography>
+                </Stack>
+                <LinearProgress 
+                  variant="determinate" 
+                  value={(stats.statusCounts.부분완료 / stats.totalServices) * 100}
+                  sx={{ 
+                    height: 10, 
+                    borderRadius: 5,
+                    bgcolor: '#f5f5f5',
+                    '& .MuiLinearProgress-bar': {
+                      bgcolor: statusColors.부분완료
+                    }
+                  }} 
+                />
+              </Box>
+              <Box>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+                  <Typography variant="body2" color="text.secondary">완료</Typography>
+                  <Typography variant="body2" color="text.primary">{stats.statusCounts.완료}건</Typography>
+                </Stack>
+                <LinearProgress 
+                  variant="determinate" 
+                  value={(stats.statusCounts.완료 / stats.totalServices) * 100}
+                  sx={{ 
+                    height: 10, 
+                    borderRadius: 5,
+                    bgcolor: '#e8f5e9',
+                    '& .MuiLinearProgress-bar': {
+                      bgcolor: statusColors.완료
+                    }
+                  }} 
+                />
+              </Box>
+            </Stack>
+          </Paper>
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 3 }}>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, color: 'text.primary', mb: 3 }}>
+              출고 현황
+            </Typography>
+            <Grid container spacing={3}>
+              <Grid item xs={6}>
+                <Card sx={{ bgcolor: '#e3f2fd', p: 2 }}>
+                  <Stack direction="row" alignItems="center" spacing={2}>
+                    <LocalShippingIcon sx={{ fontSize: 30, color: '#1976d2' }} />
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">오늘 출고</Typography>
+                      <Typography variant="h5" sx={{ color: '#1976d2', fontWeight: 600 }}>
+                        {stats.shipmentStats.todayShipments}건
+                      </Typography>
+                    </Box>
+                  </Stack>
+                </Card>
+              </Grid>
+              <Grid item xs={6}>
+                <Card sx={{ bgcolor: '#e8f5e9', p: 2 }}>
+                  <Stack direction="row" alignItems="center" spacing={2}>
+                    <LocalShippingIcon sx={{ fontSize: 30, color: '#2e7d32' }} />
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">총 출고</Typography>
+                      <Typography variant="h5" sx={{ color: '#2e7d32', fontWeight: 600 }}>
+                        {stats.shipmentStats.completed}건
+                      </Typography>
+                    </Box>
+                  </Stack>
+                </Card>
+              </Grid>
+            </Grid>
+            <Box sx={{ mt: 3 }}>
+              <Typography variant="subtitle2" gutterBottom>출고 진행률</Typography>
+              <LinearProgress 
+                variant="determinate" 
+                value={(stats.shipmentStats.completed / stats.shipmentStats.total) * 100}
+                sx={{ 
+                  height: 20, 
+                  borderRadius: 10,
+                  bgcolor: '#f5f5f5',
+                  '& .MuiLinearProgress-bar': {
+                    bgcolor: '#2e7d32'
+                  }
+                }} 
+              />
+              <Typography variant="caption" sx={{ mt: 1, display: 'block', textAlign: 'right' }}>
+                {stats.shipmentStats.completed} / {stats.shipmentStats.total} 완료
+              </Typography>
+            </Box>
+          </Paper>
+        </Grid>
+      </Grid>
+
+      {/* 최근 현황 섹션 */}
+      <Grid container spacing={3}>
+        {/* 최근 A/S 현황 */}
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                최근 A/S 현황
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button 
+                  size="small"
+                  variant={selectedBrand === 'ALL' ? 'contained' : 'outlined'}
+                  onClick={() => setSelectedBrand('ALL')}
+                >
+                  전체
+                </Button>
+                <Button 
+                  size="small"
+                  variant={selectedBrand === 'XRB' ? 'contained' : 'outlined'}
+                  onClick={() => setSelectedBrand('XRB')}
+                >
+                  X-RIDER
+                </Button>
+                <Button 
+                  size="small"
+                  variant={selectedBrand === 'NBK' ? 'contained' : 'outlined'}
+                  onClick={() => setSelectedBrand('NBK')}
+                >
+                  NEARBIKE
+                </Button>
+              </Box>
+            </Box>
+            <Divider sx={{ my: 2 }} />
+            {stats.recentServices[selectedBrand].length > 0 ? (
+              <List>
+                {stats.recentServices[selectedBrand].map((service) => (
+                  <ListItem 
+                    key={service.id} 
+                    sx={{ 
+                      borderRadius: 2, 
+                      mb: 1,
+                      bgcolor: 'background.paper',
+                      '&:hover': { bgcolor: 'background.default', cursor: 'pointer' } 
+                    }}
+                    onClick={() => handleServiceClick(service.id)}
+                  >
+                    <ListItemText
+                      primary={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
+                            {service.customerName} - {service.productName}
+                          </Typography>
+                          <Chip 
+                            label={service.brand === 'XRB' ? 'X-RIDER' : 'NEARBIKE'} 
+                            size="small"
+                            sx={{ 
+                              bgcolor: service.brand === 'XRB' ? '#e3f2fd' : '#e8f5e9',
+                              color: service.brand === 'XRB' ? '#1976d2' : '#2e7d32',
+                              fontWeight: 600
+                            }}
+                          />
+                        </Box>
+                      }
+                      secondary={service.requestDate}
+                    />
+                    <Chip 
+                      label={service.status} 
+                      color={getStatusColor(service.status)}
+                      size="small"
+                      sx={{ fontWeight: 600 }}
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            ) : (
+              <Box sx={{ py: 4, textAlign: 'center' }}>
+                <Typography variant="body1" color="text.secondary">
+                  최근 A/S 데이터가 없습니다
                 </Typography>
-              )}
+              </Box>
+            )}
+            <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+              <Button 
+                variant="outlined" 
+                onClick={() => navigate('/services')}
+                sx={{ 
+                  color: 'primary.main', 
+                  borderColor: 'primary.main',
+                  '&:hover': { borderColor: 'primary.dark', bgcolor: 'primary.light' }
+                }}
+              >
+                모든 A/S 보기
+              </Button>
             </Box>
           </Paper>
         </Grid>
 
-        <Grid item xs={12} md={8}>
-          <Paper sx={{ p: 3, height: '100%' }}>
+        {/* 최근 출고 현황 */}
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 3 }}>
             <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, color: 'text.primary' }}>
-              이번 달 통계
+              최근 출고 현황
             </Typography>
             <Divider sx={{ my: 2 }} />
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={4}>
-                <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'primary.light', borderRadius: 2 }}>
-                  <Typography variant="h4" sx={{ fontWeight: 600, color: 'primary.main' }}>
-                    {stats.monthlyStats.total}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    전체 접수
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'success.light', borderRadius: 2 }}>
-                  <Typography variant="h4" sx={{ fontWeight: 600, color: 'success.main' }}>
-                    {stats.monthlyStats.completed}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    처리 완료
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'warning.light', borderRadius: 2 }}>
-                  <Typography variant="h4" sx={{ fontWeight: 600, color: 'warning.main' }}>
-                    {stats.monthlyStats.total > 0 
-                      ? `${((stats.monthlyStats.completed / stats.monthlyStats.total) * 100).toFixed(1)}%` 
-                      : '0%'}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    완료율
-                  </Typography>
-                </Box>
-              </Grid>
-            </Grid>
+            {recentShipments.length > 0 ? (
+              <List>
+                {recentShipments.map((shipment) => (
+                  <ListItem 
+                    key={shipment.id} 
+                    sx={{ 
+                      borderRadius: 2, 
+                      mb: 1,
+                      bgcolor: 'background.paper',
+                      '&:hover': { bgcolor: 'background.default', cursor: 'pointer' } 
+                    }}
+                    onClick={() => navigate(`/shipments/${shipment.id}`)}
+                  >
+                    <ListItemText
+                      primary={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
+                            {shipment.customerName} - {shipment.productName}
+                          </Typography>
+                          <Chip 
+                            label={shipment.brand === 'XRB' ? 'X-RIDER' : 'NEARBIKE'} 
+                            size="small"
+                            sx={{ 
+                              bgcolor: shipment.brand === 'XRB' ? '#e3f2fd' : '#e8f5e9',
+                              color: shipment.brand === 'XRB' ? '#1976d2' : '#2e7d32',
+                              fontWeight: 600
+                            }}
+                          />
+                        </Box>
+                      }
+                      secondary={shipment.shipDate}
+                    />
+                    <Chip 
+                      label={shipment.status} 
+                      color={shipment.status === '출고완료' ? 'success' : 'warning'}
+                      size="small"
+                      sx={{ fontWeight: 600 }}
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            ) : (
+              <Box sx={{ py: 4, textAlign: 'center' }}>
+                <Typography variant="body1" color="text.secondary">
+                  최근 출고 데이터가 없습니다
+                </Typography>
+              </Box>
+            )}
+            <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+              <Button 
+                variant="outlined" 
+                onClick={() => navigate('/shipments')}
+                sx={{ 
+                  color: 'primary.main', 
+                  borderColor: 'primary.main',
+                  '&:hover': { borderColor: 'primary.dark', bgcolor: 'primary.light' }
+                }}
+              >
+                모든 출고 보기
+              </Button>
+            </Box>
           </Paper>
         </Grid>
       </Grid>
-
-      {/* 최근 A/S 목록 */}
-      <Paper sx={{ p: 3 }}>
-        <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, color: 'text.primary' }}>
-          최근 A/S 현황
-        </Typography>
-        <Divider sx={{ my: 2 }} />
-        {stats.recentServices.length > 0 ? (
-          <List>
-            {stats.recentServices.map((service) => (
-              <ListItem 
-                key={service.id} 
-                sx={{ 
-                  borderRadius: 2, 
-                  mb: 1, 
-                  '&:hover': { bgcolor: 'background.default', cursor: 'pointer' } 
-                }}
-                onClick={() => handleServiceClick(service.id)}
-              >
-                <ListItemText
-                  primary={
-                    <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
-                      {service.customerName} - {service.productName}
-                    </Typography>
-                  }
-                  secondary={service.requestDate}
-                />
-                <Chip 
-                  label={service.status} 
-                  color={getStatusColor(service.status)}
-                  size="small"
-                  sx={{ fontWeight: 600 }}
-                />
-              </ListItem>
-            ))}
-          </List>
-        ) : (
-          <Box sx={{ py: 4, textAlign: 'center' }}>
-            <Typography variant="body1" color="text.secondary">
-              최근 A/S 데이터가 없습니다
-            </Typography>
-          </Box>
-        )}
-        <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
-          <Button 
-            variant="outlined" 
-            onClick={() => navigate('/services')}
-            sx={{ 
-              color: 'primary.main', 
-              borderColor: 'primary.main',
-              '&:hover': { borderColor: 'primary.dark', bgcolor: 'primary.light' }
-            }}
-          >
-            모든 A/S 보기
-          </Button>
-        </Box>
-      </Paper>
     </Box>
   );
 }
