@@ -1,7 +1,6 @@
 [build]
   command = "npm install && npm run build"
   publish = "build"
-  base = "crm-app"
 
 [build.environment]
   NODE_VERSION = "18"
