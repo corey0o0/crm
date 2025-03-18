@@ -26,6 +26,18 @@
     -->
     <title>CRM App</title>
     <script src="%PUBLIC_URL%/env.js"></script>
+    <script>
+      window._env_ = {
+        ...window._env_,
+        REACT_APP_OPENAI_API_ENDPOINT: '%REACT_APP_OPENAI_API_ENDPOINT%',
+        REACT_APP_OPENAI_MODEL: '%REACT_APP_OPENAI_MODEL%',
+        REACT_APP_OPENAI_API_KEY: '%REACT_APP_OPENAI_API_KEY%',
+        REACT_APP_SUPABASE_URL: '%REACT_APP_SUPABASE_URL%',
+        REACT_APP_SUPABASE_ANON_KEY: '%REACT_APP_SUPABASE_ANON_KEY%',
+        REACT_APP_CLAUDE_API_KEY: '%REACT_APP_CLAUDE_API_KEY%',
+        REACT_APP_CLOUDMARSSIVE_API_KEY: '%REACT_APP_CLOUDMARSSIVE_API_KEY%'
+      };
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>

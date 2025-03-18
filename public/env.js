@@ -1,6 +1,6 @@
 window._env_ = {
-  REACT_APP_OPENAI_API_ENDPOINT: '',
-  REACT_APP_OPENAI_MODEL: '',
+  REACT_APP_OPENAI_API_ENDPOINT: 'https://api.openai.com/v1/chat/completions',
+  REACT_APP_OPENAI_MODEL: 'gpt-4o-mini',
   REACT_APP_OPENAI_API_KEY: '',
   REACT_APP_SUPABASE_URL: '',
   REACT_APP_SUPABASE_ANON_KEY: '',

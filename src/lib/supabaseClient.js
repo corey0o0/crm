@@ -1,13 +1,24 @@
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.REACT_APP_SUPABASE_URL
-const supabaseKey = process.env.REACT_APP_SUPABASE_ANON_KEY
+const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY
 
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('Missing Supabase environment variables')
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Supabase URL과 Anon Key가 설정되지 않았습니다.')
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true
+  },
+  storage: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true
+  }
+})
 
 // 연결 상태 확인 (개발 환경에서만 실행)
 if (process.env.NODE_ENV === 'development') {

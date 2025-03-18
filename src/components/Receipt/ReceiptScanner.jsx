@@ -64,10 +64,6 @@ import { API_CONFIG } from '../../config/api';
 // pdf.js 설정 - Worker 없이 동작하도록 설정
 pdfjsLib.GlobalWorkerOptions.workerSrc = '';
 
-// OpenAI API 설정 제거
-// const OPENAI_API_ENDPOINT = 'https://api.openai.com/v1/chat/completions';
-// const OPENAI_API_KEY = process.env.REACT_APP_OPENAI_API_KEY || '';
-
 // 접수방법과 배송방법 옵션
 const RECEPTION_TYPES = ['방문', '전화', '대리점','기타'];
 
@@ -550,14 +546,14 @@ function ReceiptScanner({
     const width = imageData.width;
     const height = imageData.height;
     
-    // 그레이스케일 변환 및 대비 향상
+    // 그레이스케일 변환 및 대비 향상 (모바일 환경에 맞게 조정)
     for (let i = 0; i < data.length; i += 4) {
       // 그레이스케일 변환 (가중치 적용)
       const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
       
-      // 대비 향상 (임계값 기반)
+      // 대비 향상 (모바일 환경에 맞게 조정)
       const threshold = 128;
-      const contrast = 1.5; // 대비 증가 계수
+      const contrast = 1.3; // 대비 증가 계수 조정
       
       // 대비 향상 적용
       let enhancedValue;
@@ -568,7 +564,7 @@ function ReceiptScanner({
       }
       
       // 이진화 처리 (텍스트 선명도 향상)
-      const binaryThreshold = 160;
+      const binaryThreshold = 150; // 임계값 조정
       const finalValue = enhancedValue < binaryThreshold ? 0 : 255;
       
       // RGB 채널에 동일한 값 적용 (그레이스케일)
@@ -1319,7 +1315,11 @@ function ReceiptScanner({
       
       {/* 서비스 ID 입력 다이얼로그 - 다이얼로그 모드가 아닐 때만 표시 */}
       {!isDialogMode && (
-        <Dialog open={serviceIdDialog.open} onClose={() => setServiceIdDialog(prev => ({ ...prev, open: false }))}>
+        <Dialog 
+          open={serviceIdDialog.open} 
+          onClose={() => setServiceIdDialog(prev => ({ ...prev, open: false }))}
+          keepMounted={false}
+        >
           <DialogTitle>A/S 서비스에 상품 추가</DialogTitle>
           <DialogContent>
             <TextField
@@ -1331,11 +1331,23 @@ function ReceiptScanner({
               value={serviceIdDialog.serviceId}
               onChange={handleServiceIdChange}
               helperText="추가할 A/S 서비스의 ID를 입력하세요"
+              aria-label="A/S 서비스 ID 입력"
             />
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setServiceIdDialog(prev => ({ ...prev, open: false }))}>취소</Button>
-            <Button onClick={handleConfirmAddToService} color="primary">추가</Button>
+            <Button 
+              onClick={() => setServiceIdDialog(prev => ({ ...prev, open: false }))}
+              aria-label="취소"
+            >
+              취소
+            </Button>
+            <Button 
+              onClick={handleConfirmAddToService} 
+              color="primary"
+              aria-label="추가"
+            >
+              추가
+            </Button>
           </DialogActions>
         </Dialog>
       )}

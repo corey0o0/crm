@@ -22,7 +22,7 @@ function TabPanel(props) {
   return (
     <div
       role="tabpanel"
-      hidden={value !== index}
+      inert={value !== index ? "" : undefined}
       id={`customer-tabpanel-${index}`}
       aria-labelledby={`customer-tab-${index}`}
       {...other}

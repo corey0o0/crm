@@ -718,11 +718,21 @@ function ServiceList() {
         </Alert>
       </Snackbar>
 
-      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="md" fullWidth>
+      <Dialog 
+        open={openDialog} 
+        onClose={() => setOpenDialog(false)} 
+        maxWidth="md" 
+        fullWidth
+        keepMounted={false}
+      >
         <DialogTitle>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="h6">A/S 작업</Typography>
-            <IconButton onClick={() => setOpenDialog(false)} size="small">
+            <IconButton 
+              onClick={() => setOpenDialog(false)} 
+              size="small"
+              aria-label="닫기"
+            >
               <DeleteIcon />
             </IconButton>
           </Box>

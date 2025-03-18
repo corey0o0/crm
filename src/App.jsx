@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from './lib/supabaseClient';
 import theme from './theme';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
-import { setupAllBuckets } from './utils/setupStorage';
+import { setupStorage } from './lib/setupStorage';
 
 // 컴포넌트 import
 import Dashboard from './components/Dashboard';
@@ -39,21 +39,19 @@ function App() {
 
   // 스토리지 버킷 초기화
   useEffect(() => {
-    if (session) {
-      // 로그인된 경우에만 스토리지 버킷 설정
-      const initializeStorage = async () => {
-        try {
-          await setupAllBuckets();
-          setStorageInitialized(true);
-          console.log('스토리지 버킷 초기화 완료');
-        } catch (error) {
-          console.error('스토리지 버킷 초기화 실패:', error);
+    const initializeApp = async () => {
+      try {
+        const storageInitialized = await setupStorage();
+        if (!storageInitialized) {
+          console.warn('스토리지 초기화에 실패했습니다. 일부 기능이 제한될 수 있습니다.');
         }
-      };
+      } catch (error) {
+        console.error('앱 초기화 중 오류 발생:', error);
+      }
+    };
 
-      initializeStorage();
-    }
-  }, [session]);
+    initializeApp();
+  }, []);
 
   return (
     <ThemeProvider theme={theme}>
