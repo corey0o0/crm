@@ -10,7 +10,7 @@ console.log('Current environment variables:', {
 // 환경 변수 템플릿
 const envTemplate = `window._env_ = {
   REACT_APP_OPENAI_API_ENDPOINT: 'https://api.openai.com/v1/chat/completions',
-  REACT_APP_OPENAI_MODEL: '${process.env.REACT_APP_OPENAI_MODEL || 'gpt-4-vision-preview'}',
+  REACT_APP_OPENAI_MODEL: '${process.env.REACT_APP_OPENAI_MODEL || 'gpt-4o-mini'}',
   REACT_APP_OPENAI_API_KEY: '${process.env.REACT_APP_OPENAI_API_KEY || ''}',
   REACT_APP_SUPABASE_URL: '${process.env.REACT_APP_SUPABASE_URL || ''}',
   REACT_APP_SUPABASE_ANON_KEY: '${process.env.REACT_APP_SUPABASE_ANON_KEY || ''}',

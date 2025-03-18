@@ -5,6 +5,7 @@
 [build.environment]
   NODE_VERSION = "18"
   NPM_VERSION = "9"
+  REACT_APP_OPENAI_MODEL = "gpt-4o-mini"
 
 [[redirects]]
   from = "/*"
@@ -12,4 +13,5 @@
   status = 200
 
 [context.production.environment]
-  REACT_APP_OPENAI_MODEL = "gpt-4o-mini" 
+  REACT_APP_OPENAI_MODEL = "gpt-4o-mini"
+  NODE_ENV = "production" 
