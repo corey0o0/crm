@@ -35,7 +35,7 @@
   },
   "scripts": {
     "start": "react-scripts --openssl-legacy-provider start",
-    "build": "react-scripts build && node scripts/generate-env.js",
+    "build": "CI=false react-scripts build && node scripts/generate-env.js",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
