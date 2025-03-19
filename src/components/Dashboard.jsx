@@ -144,6 +144,7 @@ function Dashboard() {
           .select(`
             id,
             customer_name,
+            customer_phone,
             product_name,
             status,
             created_at,
@@ -151,7 +152,7 @@ function Dashboard() {
             brand
           `)
           .order('created_at', { ascending: false })
-          .limit(5);
+          .limit(10);
 
         if (recentShipmentsError) {
           console.error('최근 출고 데이터 조회 오류:', recentShipmentsError);
@@ -286,6 +287,7 @@ function Dashboard() {
       const processedRecentShipments = safeRecentShipments.map(shipment => ({
         id: shipment.id,
         customerName: shipment.customer_name || '이름 없음',
+        customerPhone: shipment.customer_phone || '전화번호 없음',
         productName: shipment.product_name || '제품명 없음',
         status: shipment.shipment_date ? '출고완료' : '출고대기',
         brand: shipment.brand || 'UNKNOWN',
@@ -357,8 +359,17 @@ function Dashboard() {
       setLoading(true);
       let query = supabase
         .from('shipments')
-        .select('*')
-        .order('shipment_date', { ascending: false })
+        .select(`
+          id,
+          customer_name,
+          customer_phone,
+          product_name,
+          status,
+          created_at,
+          shipment_date,
+          brand
+        `)
+        .order('created_at', { ascending: false })
         .limit(10);
 
       // ALL이 아닐 때만 브랜드 필터링 적용
@@ -370,7 +381,20 @@ function Dashboard() {
 
       if (error) throw error;
 
-      setRecentShipments(data || []);
+      // 데이터 처리 개선
+      const processedShipments = data.map(shipment => ({
+        id: shipment.id,
+        customerName: shipment.customer_name || '이름 없음',
+        customerPhone: shipment.customer_phone || '전화번호 없음',
+        productName: shipment.product_name || '제품명 없음',
+        status: shipment.shipment_date ? '출고완료' : '출고대기',
+        brand: shipment.brand || 'UNKNOWN',
+        shipDate: shipment.shipment_date ? 
+          new Date(shipment.shipment_date).toLocaleDateString('ko-KR') :
+          new Date(shipment.created_at).toLocaleDateString('ko-KR')
+      }));
+
+      setRecentShipments(processedShipments);
     } catch (err) {
       console.error('Error fetching recent shipments:', err);
     } finally {
@@ -412,7 +436,9 @@ function Dashboard() {
         justifyContent: 'space-between', 
         alignItems: 'center', 
         mb: 3,
-        width: '100%'
+        width: '100%',
+        flexDirection: { xs: 'column', sm: 'row' },
+        gap: { xs: 2, sm: 0 }
       }}>
         <Typography variant="h5" sx={{ fontWeight: 600, color: 'text.primary' }}>
           대시보드
@@ -420,10 +446,12 @@ function Dashboard() {
         <Button 
           startIcon={<RefreshIcon />} 
           onClick={fetchDashboardData}
+          size="small"
           sx={{ 
             color: 'primary.main',
             bgcolor: 'primary.light',
-            '&:hover': { bgcolor: 'primary.light', opacity: 0.9 }
+            '&:hover': { bgcolor: 'primary.light', opacity: 0.9 },
+            width: { xs: '100%', sm: 'auto' }
           }}
         >
           새로고침
@@ -438,7 +466,16 @@ function Dashboard() {
               <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary' }}>
                 A/S 상태 현황
               </Typography>
-              <Box sx={{ display: 'flex', gap: 1 }}>
+              <Box sx={{ 
+                display: 'flex', 
+                gap: 1,
+                flexWrap: 'wrap',
+                '& .MuiButton-root': {
+                  minWidth: { xs: '45%', sm: 'auto' },
+                  fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                  padding: { xs: '4px 8px', sm: '6px 16px' }
+                }
+              }}>
                 <Button 
                   size="small"
                   variant={selectedStatusBrand === 'ALL' ? 'contained' : 'outlined'}
@@ -498,7 +535,16 @@ function Dashboard() {
               <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary' }}>
                 출고 현황
               </Typography>
-              <Box sx={{ display: 'flex', gap: 1 }}>
+              <Box sx={{ 
+                display: 'flex', 
+                gap: 1,
+                flexWrap: 'wrap',
+                '& .MuiButton-root': {
+                  minWidth: { xs: '45%', sm: 'auto' },
+                  fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                  padding: { xs: '4px 8px', sm: '6px 16px' }
+                }
+              }}>
                 <Button 
                   size="small"
                   variant={selectedShipmentBrand === 'ALL' ? 'contained' : 'outlined'}
@@ -564,7 +610,16 @@ function Dashboard() {
               <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary' }}>
                 최근 A/S 현황
               </Typography>
-              <Box sx={{ display: 'flex', gap: 1 }}>
+              <Box sx={{ 
+                display: 'flex', 
+                gap: 1,
+                flexWrap: 'wrap',
+                '& .MuiButton-root': {
+                  minWidth: { xs: '45%', sm: 'auto' },
+                  fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                  padding: { xs: '4px 8px', sm: '6px 16px' }
+                }
+              }}>
                 <Button 
                   size="small"
                   variant={selectedRecentBrand === 'ALL' ? 'contained' : 'outlined'}
@@ -637,7 +692,15 @@ function Dashboard() {
                 </Typography>
               </Box>
             )}
-            <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+            <Box sx={{ 
+              mt: 2, 
+              display: 'flex', 
+              justifyContent: 'flex-end',
+              '& .MuiButton-root': {
+                width: { xs: '100%', sm: 'auto' },
+                fontSize: { xs: '0.875rem', sm: '0.875rem' }
+              }
+            }}>
               <Button 
                 variant="outlined" 
                 onClick={() => navigate('/services')}
@@ -660,7 +723,16 @@ function Dashboard() {
               <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, color: 'text.primary' }}>
                 최근 출고 현황
               </Typography>
-              <Box sx={{ display: 'flex', gap: 1 }}>
+              <Box sx={{ 
+                display: 'flex', 
+                gap: 1,
+                flexWrap: 'wrap',
+                '& .MuiButton-root': {
+                  minWidth: { xs: '45%', sm: 'auto' },
+                  fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                  padding: { xs: '4px 8px', sm: '6px 16px' }
+                }
+              }}>
                 <Button 
                   size="small"
                   variant={selectedBrand === 'ALL' ? 'contained' : 'outlined'}
@@ -700,19 +772,27 @@ function Dashboard() {
                   >
                     <ListItemText
                       primary={
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
-                            {shipment.customerName} - {shipment.productName}
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
+                              {shipment.customerName}
+                            </Typography>
+                            <Chip 
+                              label={shipment.brand === 'XRB' ? 'X-RIDER' : 'NEARBIKE'} 
+                              size="small"
+                              sx={{ 
+                                bgcolor: shipment.brand === 'XRB' ? '#e3f2fd' : '#e8f5e9',
+                                color: shipment.brand === 'XRB' ? '#1976d2' : '#2e7d32',
+                                fontWeight: 600
+                              }}
+                            />
+                          </Box>
+                          <Typography variant="body2" color="text.secondary">
+                            {shipment.productName}
                           </Typography>
-                          <Chip 
-                            label={shipment.brand === 'XRB' ? 'X-RIDER' : 'NEARBIKE'} 
-                            size="small"
-                            sx={{ 
-                              bgcolor: shipment.brand === 'XRB' ? '#e3f2fd' : '#e8f5e9',
-                              color: shipment.brand === 'XRB' ? '#1976d2' : '#2e7d32',
-                              fontWeight: 600
-                            }}
-                          />
+                          <Typography variant="caption" color="text.secondary">
+                            {shipment.customerPhone}
+                          </Typography>
                         </Box>
                       }
                       secondary={shipment.shipDate}
@@ -733,7 +813,15 @@ function Dashboard() {
                 </Typography>
               </Box>
             )}
-            <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+            <Box sx={{ 
+              mt: 2, 
+              display: 'flex', 
+              justifyContent: 'flex-end',
+              '& .MuiButton-root': {
+                width: { xs: '100%', sm: 'auto' },
+                fontSize: { xs: '0.875rem', sm: '0.875rem' }
+              }
+            }}>
               <Button 
                 variant="outlined" 
                 onClick={() => navigate('/shipments')}

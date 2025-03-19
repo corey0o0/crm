@@ -313,20 +313,23 @@ function CustomerList() {
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell>고객명</TableCell>
-              <TableCell>연락처</TableCell>
-              <TableCell>주소</TableCell>
-              <TableCell>등급</TableCell>
-              <TableCell>최근 A/S</TableCell>
-              <TableCell align="center">상세보기</TableCell>
+              <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>고객명</TableCell>
+              <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>연락처</TableCell>
+              <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>주소</TableCell>
+              <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>등급</TableCell>
+              <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>최근 A/S</TableCell>
+              <TableCell align="center" sx={{ display: { xs: 'none', sm: 'table-cell' } }}>상세보기</TableCell>
+              {/* 모바일용 헤더 */}
+              <TableCell sx={{ display: { xs: 'table-cell', sm: 'none' } }}>고객 정보</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {filteredCustomers.map((customer) => (
               <TableRow key={customer.phone} hover>
-                <TableCell>{customer.name}</TableCell>
-                <TableCell>{customer.phone}</TableCell>
-                <TableCell>
+                {/* PC용 셀 */}
+                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{customer.name}</TableCell>
+                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{customer.phone}</TableCell>
+                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                   <TextField
                     defaultValue={customer.address}
                     size="small"
@@ -360,7 +363,7 @@ function CustomerList() {
                     }}
                   />
                 </TableCell>
-                <TableCell>
+                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                   <FormControl size="small">
                     <Select
                       value={customer.grade || 'V3'}
@@ -389,7 +392,7 @@ function CustomerList() {
                     </Select>
                   </FormControl>
                 </TableCell>
-                <TableCell>
+                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                   <Box>
                     <Typography variant="body2" color="text.secondary">
                       최근: {customer.lastServiceDate 
@@ -415,7 +418,7 @@ function CustomerList() {
                     </Box>
                   </Box>
                 </TableCell>
-                <TableCell align="center">
+                <TableCell align="center" sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                   <Box sx={{ display: 'flex', gap: 1 }}>
                     <Button
                       onClick={() => handleCustomerClick(customer)}
@@ -451,6 +454,143 @@ function CustomerList() {
                     >
                       출고 등록
                     </Button>
+                  </Box>
+                </TableCell>
+                {/* 모바일용 셀 */}
+                <TableCell sx={{ display: { xs: 'table-cell', sm: 'none' } }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{customer.name}</Typography>
+                      <FormControl size="small">
+                        <Select
+                          value={customer.grade || 'V3'}
+                          onChange={(e) => handleGradeChange(customer.phone, e.target.value)}
+                          sx={{
+                            minWidth: 80,
+                            '& .MuiSelect-select': {
+                              color: getGradeColor(customer.grade).color,
+                              bgcolor: getGradeColor(customer.grade).bgcolor,
+                              fontWeight: 500,
+                              fontSize: '0.75rem',
+                            },
+                            '& .MuiOutlinedInput-notchedOutline': {
+                              borderColor: 'transparent'
+                            },
+                            '&:hover .MuiOutlinedInput-notchedOutline': {
+                              borderColor: '#3182f6'
+                            },
+                            '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                              borderColor: '#3182f6'
+                            }
+                          }}
+                        >
+                          <MenuItem value="V1" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>V1</MenuItem>
+                          <MenuItem value="V2" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>V2</MenuItem>
+                          <MenuItem value="V3" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>V3</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Box>
+                    <Typography variant="body2" color="text.secondary">{customer.phone}</Typography>
+                    <TextField
+                      defaultValue={customer.address}
+                      size="small"
+                      onBlur={async (e) => {
+                        const newAddress = e.target.value;
+                        if (newAddress !== customer.address) {
+                          try {
+                            const { error } = await supabase
+                              .from('customers')
+                              .update({ address: newAddress })
+                              .eq('phone', customer.phone);
+                            
+                            if (error) throw error;
+                            
+                            setCustomers(prev => prev.map(c => 
+                              c.phone === customer.phone 
+                                ? { ...c, address: newAddress }
+                                : c
+                            ));
+                          } catch (err) {
+                            console.error('Error updating address:', err);
+                          }
+                        }
+                      }}
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          '& fieldset': { border: 'none' },
+                          '&:hover fieldset': { border: '1px solid #3182f6' },
+                          '&.Mui-focused fieldset': { border: '1px solid #3182f6' }
+                        }
+                      }}
+                    />
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                      <Typography variant="body2" color="text.secondary">
+                        최근: {customer.lastServiceDate 
+                          ? new Date(customer.lastServiceDate).toLocaleDateString()
+                          : '-'}
+                      </Typography>
+                      <Typography variant="body2" color="primary">
+                        총 {customer.serviceCount}건
+                      </Typography>
+                      {customer.recentTag && (
+                        <Chip
+                          label={customer.recentTag}
+                          size="small"
+                          sx={{
+                            height: '20px',
+                            fontSize: '0.75rem',
+                            bgcolor: 'primary.lighter',
+                            color: 'primary.main'
+                          }}
+                        />
+                      )}
+                    </Box>
+                    <Box sx={{ 
+                      display: 'flex', 
+                      gap: 1,
+                      flexWrap: 'wrap',
+                      '& .MuiButton-root': {
+                        flex: { xs: '1 1 calc(50% - 4px)', sm: 'none' },
+                        minWidth: { xs: 'calc(50% - 4px)', sm: 'auto' },
+                        fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                        padding: { xs: '4px 8px', sm: '6px 16px' }
+                      }
+                    }}>
+                      <Button
+                        onClick={() => handleCustomerClick(customer)}
+                        startIcon={<VisibilityIcon />}
+                        size="small"
+                        sx={{
+                          color: 'primary.main',
+                          '&:hover': { bgcolor: 'primary.lighter' }
+                        }}
+                      >
+                        A/S 이력
+                      </Button>
+                      <Button
+                        onClick={() => handleAddService(customer)}
+                        startIcon={<BuildIcon />}
+                        size="small"
+                        variant="outlined"
+                        sx={{
+                          '&:hover': { bgcolor: 'primary.lighter' }
+                        }}
+                      >
+                        A/S 등록
+                      </Button>
+                      <Button
+                        onClick={() => handleAddShipment(customer)}
+                        startIcon={<AddIcon />}
+                        size="small"
+                        variant="outlined"
+                        color="success"
+                        sx={{
+                          '&:hover': { bgcolor: 'success.lighter' }
+                        }}
+                      >
+                        출고 등록
+                      </Button>
+                    </Box>
                   </Box>
                 </TableCell>
               </TableRow>
@@ -498,32 +638,35 @@ function CustomerList() {
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell>접수일</TableCell>
-                    <TableCell>제품</TableCell>
-                    <TableCell>증상</TableCell>
-                    <TableCell>주행거리</TableCell>
-                    <TableCell>상태</TableCell>
-                    <TableCell>태그</TableCell>
-                    <TableCell align="center">상세</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>접수일</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>제품</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>증상</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>주행거리</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>상태</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>태그</TableCell>
+                    <TableCell align="center" sx={{ display: { xs: 'none', sm: 'table-cell' } }}>상세</TableCell>
+                    {/* 모바일용 헤더 */}
+                    <TableCell sx={{ display: { xs: 'table-cell', sm: 'none' } }}>A/S 정보</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {serviceHistory.map((service) => (
                     <TableRow key={service.id} hover>
-                      <TableCell>
+                      {/* PC용 셀 */}
+                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                         {new Date(service.reception_date).toLocaleDateString()}
                       </TableCell>
-                      <TableCell>{service.product_name}</TableCell>
-                      <TableCell>{service.symptom}</TableCell>
-                      <TableCell>{service.mileage ? `${service.mileage}km` : '-'}</TableCell>
-                      <TableCell>
+                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{service.product_name}</TableCell>
+                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{service.symptom}</TableCell>
+                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{service.mileage ? `${service.mileage}km` : '-'}</TableCell>
+                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                         <Chip
                           label={service.status}
                           size="small"
                           color={getStatusColor(service.status)}
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                         <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
                           {service.tags?.map((tag, index) => (
                             <Chip
@@ -540,7 +683,7 @@ function CustomerList() {
                           ))}
                         </Box>
                       </TableCell>
-                      <TableCell align="center">
+                      <TableCell align="center" sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                         <IconButton
                           component={RouterLink}
                           to={`/services/${service.id}`}
@@ -549,6 +692,62 @@ function CustomerList() {
                         >
                           <VisibilityIcon fontSize="small" />
                         </IconButton>
+                      </TableCell>
+                      {/* 모바일용 셀 */}
+                      <TableCell sx={{ display: { xs: 'table-cell', sm: 'none' } }}>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                              {new Date(service.reception_date).toLocaleDateString()}
+                            </Typography>
+                            <Chip
+                              label={service.status}
+                              size="small"
+                              color={getStatusColor(service.status)}
+                              sx={{ fontSize: '0.75rem' }}
+                            />
+                          </Box>
+                          <Typography variant="body2">
+                            <strong>제품:</strong> {service.product_name}
+                          </Typography>
+                          <Typography variant="body2">
+                            <strong>증상:</strong> {service.symptom}
+                          </Typography>
+                          <Typography variant="body2">
+                            <strong>주행거리:</strong> {service.mileage ? `${service.mileage}km` : '-'}
+                          </Typography>
+                          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                            {service.tags?.map((tag, index) => (
+                              <Chip
+                                key={index}
+                                label={tag}
+                                size="small"
+                                sx={{
+                                  height: '20px',
+                                  fontSize: '0.75rem',
+                                  bgcolor: 'primary.lighter',
+                                  color: 'primary.main'
+                                }}
+                              />
+                            ))}
+                          </Box>
+                          <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                            <Button
+                              component={RouterLink}
+                              to={`/services/${service.id}`}
+                              startIcon={<VisibilityIcon />}
+                              size="small"
+                              sx={{
+                                color: 'primary.main',
+                                fontSize: '0.75rem',
+                                padding: '4px 8px',
+                                '&:hover': { bgcolor: 'primary.lighter' }
+                              }}
+                            >
+                              상세보기
+                            </Button>
+                          </Box>
+                        </Box>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -570,28 +769,56 @@ function CustomerList() {
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell>출고일</TableCell>
-                    <TableCell>제품</TableCell>
-                    <TableCell>수량</TableCell>
-                    <TableCell>배송방법</TableCell>
-                    <TableCell>상태</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>출고일</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>제품</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>수량</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>배송방법</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>상태</TableCell>
+                    {/* 모바일용 헤더 */}
+                    <TableCell sx={{ display: { xs: 'table-cell', sm: 'none' } }}>출고 정보</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {shipmentHistory.map((shipment) => (
                     <TableRow key={shipment.id} hover>
-                      <TableCell>
+                      {/* PC용 셀 */}
+                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                         {new Date(shipment.shipment_date).toLocaleDateString()}
                       </TableCell>
-                      <TableCell>{shipment.product_name}</TableCell>
-                      <TableCell>{shipment.quantity}</TableCell>
-                      <TableCell>{shipment.delivery_method}</TableCell>
-                      <TableCell>
+                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{shipment.product_name}</TableCell>
+                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{shipment.quantity}</TableCell>
+                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{shipment.delivery_method}</TableCell>
+                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                         <Chip
                           label={shipment.status}
                           size="small"
                           color={getStatusColor(shipment.status)}
                         />
+                      </TableCell>
+                      {/* 모바일용 셀 */}
+                      <TableCell sx={{ display: { xs: 'table-cell', sm: 'none' } }}>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                              {new Date(shipment.shipment_date).toLocaleDateString()}
+                            </Typography>
+                            <Chip
+                              label={shipment.status}
+                              size="small"
+                              color={getStatusColor(shipment.status)}
+                              sx={{ fontSize: '0.75rem' }}
+                            />
+                          </Box>
+                          <Typography variant="body2">
+                            <strong>제품:</strong> {shipment.product_name}
+                          </Typography>
+                          <Typography variant="body2">
+                            <strong>수량:</strong> {shipment.quantity}
+                          </Typography>
+                          <Typography variant="body2">
+                            <strong>배송방법:</strong> {shipment.delivery_method}
+                          </Typography>
+                        </Box>
                       </TableCell>
                     </TableRow>
                   ))}

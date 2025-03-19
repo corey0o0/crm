@@ -361,24 +361,25 @@ function ReceiptScanner({
         const blob = await heic2any({
           blob: file,
           toType: 'image/jpeg',
-          quality: 0.8
+          quality: 0.7 // 품질 낮춤
         });
         processedFile = new File([blob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), {
           type: 'image/jpeg'
         });
       }
 
-      // EXIF 방향 정보 확인 및 수정
-      const orientation = await getImageOrientation(processedFile);
-      console.log('이미지 방향 정보:', orientation);
-
-      // 이미지 압축 옵션
+      // 이미지 압축 옵션 (속도 최적화)
       const options = {
-        maxSizeMB: 1,              // 최대 1MB
-        maxWidthOrHeight: 2048,    // 최대 너비/높이
-        useWebWorker: true,        // WebWorker 사용
-        fileType: 'image/jpeg',    // JPEG로 변환
-        initialQuality: 0.9,       // 초기 품질 향상 (0.8 -> 0.9)
+        maxSizeMB: 0.8, // 파일 크기 제한
+        maxWidthOrHeight: 1200, // 해상도 제한
+        useWebWorker: true,
+        fileType: 'image/jpeg',
+        initialQuality: 0.7, // 초기 품질 낮춤
+        maxIteration: 5, // 반복 횟수 제한
+        exifOrientation: 1,
+        onProgress: (progress) => {
+          setUploadProgress(Math.round(progress * 100));
+        }
       };
 
       // 이미지 압축
@@ -386,8 +387,9 @@ function ReceiptScanner({
 
       // 이미지를 로드하여 캔버스에 그리기
       const img = new Image();
-      const imgLoaded = new Promise((resolve) => {
+      const imgLoaded = new Promise((resolve, reject) => {
         img.onload = () => resolve();
+        img.onerror = (error) => reject(error);
         img.src = URL.createObjectURL(compressedFile);
       });
       
@@ -395,42 +397,46 @@ function ReceiptScanner({
       
       // 캔버스 생성 및 크기 설정
       const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
       
-      // 방향에 따라 캔버스 크기 조정
+      // 이미지 크기 조정 (더 작게)
+      const maxDimension = 1200;
       let width = img.width;
       let height = img.height;
       
-      // 90도 또는 270도 회전된 이미지인 경우 캔버스 크기 교체
-      if (orientation >= 5 && orientation <= 8) {
-        canvas.width = height;
-        canvas.height = width;
-      } else {
-        canvas.width = width;
-        canvas.height = height;
+      if (width > maxDimension || height > maxDimension) {
+        if (width > height) {
+          height = Math.round((height * maxDimension) / width);
+          width = maxDimension;
+        } else {
+          width = Math.round((width * maxDimension) / height);
+          height = maxDimension;
+        }
       }
       
-      const ctx = canvas.getContext('2d');
-      
-      // 변환 원점을 캔버스 중앙으로 설정
-      ctx.save();
-      
-      // 방향에 따른 변환 적용
-      applyOrientation(ctx, orientation, width, height);
+      canvas.width = width;
+      canvas.height = height;
       
       // 이미지 그리기
       ctx.drawImage(img, 0, 0, width, height);
       
-      // 변환 복원
-      ctx.restore();
-      
-      // 이미지 향상 처리 (대비 증가, 선명도 향상)
+      // 이미지 향상 처리 (최소화)
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const enhancedImageData = enhanceImageForOCR(imageData);
-      ctx.putImageData(enhancedImageData, 0, 0);
+      const data = imageData.data;
+      
+      // 대비 향상 (단순화)
+      const factor = 1.1; // 대비 증가 계수 낮춤
+      for (let i = 0; i < data.length; i += 4) {
+        data[i] = Math.min(255, Math.max(0, (data[i] - 128) * factor + 128));
+        data[i + 1] = Math.min(255, Math.max(0, (data[i + 1] - 128) * factor + 128));
+        data[i + 2] = Math.min(255, Math.max(0, (data[i + 2] - 128) * factor + 128));
+      }
+      
+      ctx.putImageData(imageData, 0, 0);
 
-      // Canvas를 Blob으로 변환
+      // Canvas를 Blob으로 변환 (품질 낮춤)
       const blob = await new Promise(resolve => {
-        canvas.toBlob(resolve, 'image/jpeg', 0.9); // 품질 향상
+        canvas.toBlob(resolve, 'image/jpeg', 0.7);
       });
 
       // 객체 URL 해제
@@ -811,7 +817,44 @@ function ReceiptScanner({
         };
       }
 
-      const result = await callOpenAIAPI(base64Data, promptText);
+      // 이미지 크기 최적화
+      const maxImageSize = 1024 * 1024; // 1MB
+      let optimizedBase64 = base64Data;
+      
+      if (base64Data.length > maxImageSize) {
+        // 이미지 크기가 큰 경우 추가 압축
+        const img = new Image();
+        await new Promise((resolve) => {
+          img.onload = resolve;
+          img.src = base64Data;
+        });
+        
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // 이미지 크기 조정
+        let width = img.width;
+        let height = img.height;
+        const maxDimension = 800;
+        
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        optimizedBase64 = canvas.toDataURL('image/jpeg', 0.6);
+      }
+
+      const result = await callOpenAIAPI(optimizedBase64, promptText);
       
       try {
         // JSON 부분 추출 및 파싱
