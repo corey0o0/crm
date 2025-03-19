@@ -638,35 +638,32 @@ function CustomerList() {
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>접수일</TableCell>
-                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>제품</TableCell>
-                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>증상</TableCell>
-                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>주행거리</TableCell>
-                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>상태</TableCell>
-                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>태그</TableCell>
-                    <TableCell align="center" sx={{ display: { xs: 'none', sm: 'table-cell' } }}>상세</TableCell>
-                    {/* 모바일용 헤더 */}
-                    <TableCell sx={{ display: { xs: 'table-cell', sm: 'none' } }}>A/S 정보</TableCell>
+                    <TableCell>접수일</TableCell>
+                    <TableCell>제품</TableCell>
+                    <TableCell>증상</TableCell>
+                    <TableCell>주행거리</TableCell>
+                    <TableCell>상태</TableCell>
+                    <TableCell>태그</TableCell>
+                    <TableCell align="center">상세</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {serviceHistory.map((service) => (
                     <TableRow key={service.id} hover>
-                      {/* PC용 셀 */}
-                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+                      <TableCell>
                         {new Date(service.reception_date).toLocaleDateString()}
                       </TableCell>
-                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{service.product_name}</TableCell>
-                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{service.symptom}</TableCell>
-                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{service.mileage ? `${service.mileage}km` : '-'}</TableCell>
-                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+                      <TableCell>{service.product_name}</TableCell>
+                      <TableCell>{service.symptom}</TableCell>
+                      <TableCell>{service.mileage ? `${service.mileage}km` : '-'}</TableCell>
+                      <TableCell>
                         <Chip
                           label={service.status}
                           size="small"
                           color={getStatusColor(service.status)}
                         />
                       </TableCell>
-                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+                      <TableCell>
                         <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
                           {service.tags?.map((tag, index) => (
                             <Chip
@@ -683,7 +680,7 @@ function CustomerList() {
                           ))}
                         </Box>
                       </TableCell>
-                      <TableCell align="center" sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+                      <TableCell align="center">
                         <IconButton
                           component={RouterLink}
                           to={`/services/${service.id}`}
@@ -692,62 +689,6 @@ function CustomerList() {
                         >
                           <VisibilityIcon fontSize="small" />
                         </IconButton>
-                      </TableCell>
-                      {/* 모바일용 셀 */}
-                      <TableCell sx={{ display: { xs: 'table-cell', sm: 'none' } }}>
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                              {new Date(service.reception_date).toLocaleDateString()}
-                            </Typography>
-                            <Chip
-                              label={service.status}
-                              size="small"
-                              color={getStatusColor(service.status)}
-                              sx={{ fontSize: '0.75rem' }}
-                            />
-                          </Box>
-                          <Typography variant="body2">
-                            <strong>제품:</strong> {service.product_name}
-                          </Typography>
-                          <Typography variant="body2">
-                            <strong>증상:</strong> {service.symptom}
-                          </Typography>
-                          <Typography variant="body2">
-                            <strong>주행거리:</strong> {service.mileage ? `${service.mileage}km` : '-'}
-                          </Typography>
-                          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                            {service.tags?.map((tag, index) => (
-                              <Chip
-                                key={index}
-                                label={tag}
-                                size="small"
-                                sx={{
-                                  height: '20px',
-                                  fontSize: '0.75rem',
-                                  bgcolor: 'primary.lighter',
-                                  color: 'primary.main'
-                                }}
-                              />
-                            ))}
-                          </Box>
-                          <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                            <Button
-                              component={RouterLink}
-                              to={`/services/${service.id}`}
-                              startIcon={<VisibilityIcon />}
-                              size="small"
-                              sx={{
-                                color: 'primary.main',
-                                fontSize: '0.75rem',
-                                padding: '4px 8px',
-                                '&:hover': { bgcolor: 'primary.lighter' }
-                              }}
-                            >
-                              상세보기
-                            </Button>
-                          </Box>
-                        </Box>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -769,56 +710,28 @@ function CustomerList() {
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>출고일</TableCell>
-                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>제품</TableCell>
-                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>수량</TableCell>
-                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>배송방법</TableCell>
-                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>상태</TableCell>
-                    {/* 모바일용 헤더 */}
-                    <TableCell sx={{ display: { xs: 'table-cell', sm: 'none' } }}>출고 정보</TableCell>
+                    <TableCell>출고일</TableCell>
+                    <TableCell>제품</TableCell>
+                    <TableCell>수량</TableCell>
+                    <TableCell>배송방법</TableCell>
+                    <TableCell>상태</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {shipmentHistory.map((shipment) => (
                     <TableRow key={shipment.id} hover>
-                      {/* PC용 셀 */}
-                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+                      <TableCell>
                         {new Date(shipment.shipment_date).toLocaleDateString()}
                       </TableCell>
-                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{shipment.product_name}</TableCell>
-                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{shipment.quantity}</TableCell>
-                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{shipment.delivery_method}</TableCell>
-                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+                      <TableCell>{shipment.product_name}</TableCell>
+                      <TableCell>{shipment.quantity}</TableCell>
+                      <TableCell>{shipment.delivery_method}</TableCell>
+                      <TableCell>
                         <Chip
                           label={shipment.status}
                           size="small"
                           color={getStatusColor(shipment.status)}
                         />
-                      </TableCell>
-                      {/* 모바일용 셀 */}
-                      <TableCell sx={{ display: { xs: 'table-cell', sm: 'none' } }}>
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                              {new Date(shipment.shipment_date).toLocaleDateString()}
-                            </Typography>
-                            <Chip
-                              label={shipment.status}
-                              size="small"
-                              color={getStatusColor(shipment.status)}
-                              sx={{ fontSize: '0.75rem' }}
-                            />
-                          </Box>
-                          <Typography variant="body2">
-                            <strong>제품:</strong> {shipment.product_name}
-                          </Typography>
-                          <Typography variant="body2">
-                            <strong>수량:</strong> {shipment.quantity}
-                          </Typography>
-                          <Typography variant="body2">
-                            <strong>배송방법:</strong> {shipment.delivery_method}
-                          </Typography>
-                        </Box>
                       </TableCell>
                     </TableRow>
                   ))}

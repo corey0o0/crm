@@ -57,22 +57,26 @@ const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' })(
   }),
 );
 
-const AppBarStyled = styled(AppBar, { shouldForwardProp: (prop) => prop !== 'open' })(
-  ({ theme, open }) => ({
-    transition: theme.transitions.create(['margin', 'width'], {
+const AppBarStyled = styled(AppBar)(({ theme, open }) => ({
+  zIndex: theme.zIndex.drawer + 1,
+  transition: theme.transitions.create(['width', 'margin'], {
+    easing: theme.transitions.easing.sharp,
+    duration: theme.transitions.duration.leavingScreen,
+  }),
+  ...(open && {
+    marginLeft: drawerWidth,
+    width: `calc(100% - ${drawerWidth}px)`,
+    transition: theme.transitions.create(['width', 'margin'], {
       easing: theme.transitions.easing.sharp,
-      duration: theme.transitions.duration.leavingScreen,
-    }),
-    ...(open && {
-      width: `calc(100% - ${drawerWidth}px)`,
-      marginLeft: `${drawerWidth}px`,
-      transition: theme.transitions.create(['margin', 'width'], {
-        easing: theme.transitions.easing.easeOut,
-        duration: theme.transitions.duration.enteringScreen,
-      }),
+      duration: theme.transitions.duration.enteringScreen,
     }),
   }),
-);
+  borderRadius: 0,
+  elevation: 0,
+  '& .MuiAppBar-root': {
+    borderRadius: 0,
+  }
+}));
 
 const DrawerHeader = styled('div')(({ theme }) => ({
   display: 'flex',
@@ -132,7 +136,7 @@ function Layout() {
             <MenuIcon />
           </IconButton>
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            CRM System
+            고객관리시스템
           </Typography>
           <Button color="inherit" onClick={handleSignOut}>
             로그아웃
