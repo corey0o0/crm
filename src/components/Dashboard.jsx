@@ -33,6 +33,9 @@ import { supabase } from '../lib/supabaseClient';
 function Dashboard() {
   const navigate = useNavigate();
   const [selectedBrand, setSelectedBrand] = useState('ALL');
+  const [selectedStatusBrand, setSelectedStatusBrand] = useState('ALL');
+  const [selectedShipmentBrand, setSelectedShipmentBrand] = useState('ALL');
+  const [selectedRecentBrand, setSelectedRecentBrand] = useState('ALL');
   const [stats, setStats] = useState({
     totalCustomers: 0,
     totalServices: 0,
@@ -337,15 +340,33 @@ function Dashboard() {
     setSelectedBrand(newValue);
   };
 
+  const handleStatusBrandChange = (brand) => {
+    setSelectedStatusBrand(brand);
+  };
+
+  const handleShipmentBrandChange = (brand) => {
+    setSelectedShipmentBrand(brand);
+  };
+
+  const handleRecentBrandChange = (brand) => {
+    setSelectedRecentBrand(brand);
+  };
+
   const fetchRecentShipments = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      let query = supabase
         .from('shipments')
         .select('*')
-        .eq('brand', selectedBrand)
         .order('shipment_date', { ascending: false })
         .limit(10);
+
+      // ALL이 아닐 때만 브랜드 필터링 적용
+      if (selectedBrand !== 'ALL') {
+        query = query.eq('brand', selectedBrand);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
@@ -409,160 +430,63 @@ function Dashboard() {
         </Button>
       </Box>
 
-      {/* 주요 통계 카드 */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ height: '100%', bgcolor: 'primary.light' }}>
-            <CardContent>
-              <Stack direction="row" alignItems="center" spacing={2}>
-                <PersonIcon sx={{ fontSize: 40, color: 'primary.main' }} />
-                <Box>
-                  <Typography color="text.secondary" variant="body2" gutterBottom>
-                    전체 고객 수
-                  </Typography>
-                  <Typography variant="h4" sx={{ fontWeight: 600, color: 'primary.main' }}>
-                    {stats.totalCustomers}
-                  </Typography>
-                </Box>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ height: '100%', bgcolor: '#e3f2fd' }}>
-            <CardContent>
-              <Stack direction="row" alignItems="center" spacing={2}>
-                <BuildIcon sx={{ fontSize: 40, color: '#1976d2' }} />
-                <Box>
-                  <Typography color="text.secondary" variant="body2" gutterBottom>
-                    전체 A/S 건수
-                  </Typography>
-                  <Typography variant="h4" sx={{ fontWeight: 600, color: '#1976d2' }}>
-                    {stats.totalServices}
-                  </Typography>
-                </Box>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ height: '100%', bgcolor: '#fff3e0' }}>
-            <CardContent>
-              <Stack direction="row" alignItems="center" spacing={2}>
-                <TimelineIcon sx={{ fontSize: 40, color: '#ed6c02' }} />
-                <Box>
-                  <Typography color="text.secondary" variant="body2" gutterBottom>
-                    처리중 A/S
-                  </Typography>
-                  <Typography variant="h4" sx={{ fontWeight: 600, color: '#ed6c02' }}>
-                    {stats.pendingServices}
-                  </Typography>
-                </Box>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ height: '100%', bgcolor: '#e8f5e9' }}>
-            <CardContent>
-              <Stack direction="row" alignItems="center" spacing={2}>
-                <SpeedIcon sx={{ fontSize: 40, color: '#2e7d32' }} />
-                <Box>
-                  <Typography color="text.secondary" variant="body2" gutterBottom>
-                    평균 처리 기간
-                  </Typography>
-                  <Typography variant="h4" sx={{ fontWeight: 600, color: '#2e7d32' }}>
-                    {stats.monthlyStats.avgProcessingDays}일
-                  </Typography>
-                </Box>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
       {/* A/S 상태 및 출고 현황 */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} md={6}>
           <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, color: 'text.primary', mb: 3 }}>
-              A/S 상태 현황
-            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                A/S 상태 현황
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button 
+                  size="small"
+                  variant={selectedStatusBrand === 'ALL' ? 'contained' : 'outlined'}
+                  onClick={() => handleStatusBrandChange('ALL')}
+                >
+                  전체
+                </Button>
+                <Button 
+                  size="small"
+                  variant={selectedStatusBrand === 'XRB' ? 'contained' : 'outlined'}
+                  onClick={() => handleStatusBrandChange('XRB')}
+                >
+                  X-RIDER
+                </Button>
+                <Button 
+                  size="small"
+                  variant={selectedStatusBrand === 'NBK' ? 'contained' : 'outlined'}
+                  onClick={() => handleStatusBrandChange('NBK')}
+                >
+                  NEARBIKE
+                </Button>
+              </Box>
+            </Box>
+            <Divider sx={{ my: 2 }} />
             <Stack spacing={2}>
               <Box>
-                <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
                   <Typography variant="body2" color="text.secondary">접수</Typography>
                   <Typography variant="body2" color="text.primary">{stats.statusCounts.접수}건</Typography>
                 </Stack>
-                <LinearProgress 
-                  variant="determinate" 
-                  value={(stats.statusCounts.접수 / stats.totalServices) * 100}
-                  sx={{ 
-                    height: 10, 
-                    borderRadius: 5,
-                    bgcolor: '#e3f2fd',
-                    '& .MuiLinearProgress-bar': {
-                      bgcolor: statusColors.접수
-                    }
-                  }} 
-                />
               </Box>
               <Box>
-                <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
                   <Typography variant="body2" color="text.secondary">처리중</Typography>
                   <Typography variant="body2" color="text.primary">{stats.statusCounts.처리중}건</Typography>
                 </Stack>
-                <LinearProgress 
-                  variant="determinate" 
-                  value={(stats.statusCounts.처리중 / stats.totalServices) * 100}
-                  sx={{ 
-                    height: 10, 
-                    borderRadius: 5,
-                    bgcolor: '#fff3e0',
-                    '& .MuiLinearProgress-bar': {
-                      bgcolor: statusColors.처리중
-                    }
-                  }} 
-                />
               </Box>
               <Box>
-                <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
                   <Typography variant="body2" color="text.secondary">부분완료</Typography>
                   <Typography variant="body2" color="text.primary">{stats.statusCounts.부분완료}건</Typography>
                 </Stack>
-                <LinearProgress 
-                  variant="determinate" 
-                  value={(stats.statusCounts.부분완료 / stats.totalServices) * 100}
-                  sx={{ 
-                    height: 10, 
-                    borderRadius: 5,
-                    bgcolor: '#f5f5f5',
-                    '& .MuiLinearProgress-bar': {
-                      bgcolor: statusColors.부분완료
-                    }
-                  }} 
-                />
               </Box>
               <Box>
-                <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
                   <Typography variant="body2" color="text.secondary">완료</Typography>
                   <Typography variant="body2" color="text.primary">{stats.statusCounts.완료}건</Typography>
                 </Stack>
-                <LinearProgress 
-                  variant="determinate" 
-                  value={(stats.statusCounts.완료 / stats.totalServices) * 100}
-                  sx={{ 
-                    height: 10, 
-                    borderRadius: 5,
-                    bgcolor: '#e8f5e9',
-                    '& .MuiLinearProgress-bar': {
-                      bgcolor: statusColors.완료
-                    }
-                  }} 
-                />
               </Box>
             </Stack>
           </Paper>
@@ -570,9 +494,35 @@ function Dashboard() {
 
         <Grid item xs={12} md={6}>
           <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, color: 'text.primary', mb: 3 }}>
-              출고 현황
-            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                출고 현황
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button 
+                  size="small"
+                  variant={selectedShipmentBrand === 'ALL' ? 'contained' : 'outlined'}
+                  onClick={() => handleShipmentBrandChange('ALL')}
+                >
+                  전체
+                </Button>
+                <Button 
+                  size="small"
+                  variant={selectedShipmentBrand === 'XRB' ? 'contained' : 'outlined'}
+                  onClick={() => handleShipmentBrandChange('XRB')}
+                >
+                  X-RIDER
+                </Button>
+                <Button 
+                  size="small"
+                  variant={selectedShipmentBrand === 'NBK' ? 'contained' : 'outlined'}
+                  onClick={() => handleShipmentBrandChange('NBK')}
+                >
+                  NEARBIKE
+                </Button>
+              </Box>
+            </Box>
+            <Divider sx={{ my: 2 }} />
             <Grid container spacing={3}>
               <Grid item xs={6}>
                 <Card sx={{ bgcolor: '#e3f2fd', p: 2 }}>
@@ -601,24 +551,6 @@ function Dashboard() {
                 </Card>
               </Grid>
             </Grid>
-            <Box sx={{ mt: 3 }}>
-              <Typography variant="subtitle2" gutterBottom>출고 진행률</Typography>
-              <LinearProgress 
-                variant="determinate" 
-                value={(stats.shipmentStats.completed / stats.shipmentStats.total) * 100}
-                sx={{ 
-                  height: 20, 
-                  borderRadius: 10,
-                  bgcolor: '#f5f5f5',
-                  '& .MuiLinearProgress-bar': {
-                    bgcolor: '#2e7d32'
-                  }
-                }} 
-              />
-              <Typography variant="caption" sx={{ mt: 1, display: 'block', textAlign: 'right' }}>
-                {stats.shipmentStats.completed} / {stats.shipmentStats.total} 완료
-              </Typography>
-            </Box>
           </Paper>
         </Grid>
       </Grid>
@@ -635,31 +567,31 @@ function Dashboard() {
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <Button 
                   size="small"
-                  variant={selectedBrand === 'ALL' ? 'contained' : 'outlined'}
-                  onClick={() => setSelectedBrand('ALL')}
+                  variant={selectedRecentBrand === 'ALL' ? 'contained' : 'outlined'}
+                  onClick={() => handleRecentBrandChange('ALL')}
                 >
                   전체
                 </Button>
                 <Button 
                   size="small"
-                  variant={selectedBrand === 'XRB' ? 'contained' : 'outlined'}
-                  onClick={() => setSelectedBrand('XRB')}
+                  variant={selectedRecentBrand === 'XRB' ? 'contained' : 'outlined'}
+                  onClick={() => handleRecentBrandChange('XRB')}
                 >
                   X-RIDER
                 </Button>
                 <Button 
                   size="small"
-                  variant={selectedBrand === 'NBK' ? 'contained' : 'outlined'}
-                  onClick={() => setSelectedBrand('NBK')}
+                  variant={selectedRecentBrand === 'NBK' ? 'contained' : 'outlined'}
+                  onClick={() => handleRecentBrandChange('NBK')}
                 >
                   NEARBIKE
                 </Button>
               </Box>
             </Box>
             <Divider sx={{ my: 2 }} />
-            {stats.recentServices[selectedBrand].length > 0 ? (
+            {stats.recentServices[selectedRecentBrand].length > 0 ? (
               <List>
-                {stats.recentServices[selectedBrand].map((service) => (
+                {stats.recentServices[selectedRecentBrand].map((service) => (
                   <ListItem 
                     key={service.id} 
                     sx={{ 
@@ -724,9 +656,34 @@ function Dashboard() {
         {/* 최근 출고 현황 */}
         <Grid item xs={12} md={6}>
           <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, color: 'text.primary' }}>
-              최근 출고 현황
-            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, color: 'text.primary' }}>
+                최근 출고 현황
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button 
+                  size="small"
+                  variant={selectedBrand === 'ALL' ? 'contained' : 'outlined'}
+                  onClick={() => handleBrandChange(null, 'ALL')}
+                >
+                  전체
+                </Button>
+                <Button 
+                  size="small"
+                  variant={selectedBrand === 'XRB' ? 'contained' : 'outlined'}
+                  onClick={() => handleBrandChange(null, 'XRB')}
+                >
+                  X-RIDER
+                </Button>
+                <Button 
+                  size="small"
+                  variant={selectedBrand === 'NBK' ? 'contained' : 'outlined'}
+                  onClick={() => handleBrandChange(null, 'NBK')}
+                >
+                  NEARBIKE
+                </Button>
+              </Box>
+            </Box>
             <Divider sx={{ my: 2 }} />
             {recentShipments.length > 0 ? (
               <List>

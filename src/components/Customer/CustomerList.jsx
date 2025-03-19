@@ -33,7 +33,6 @@ import {
   Close as CloseIcon,
   Build as BuildIcon,
   Visibility as VisibilityIcon,
-  Download as DownloadIcon,
   Add as AddIcon
 } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
@@ -234,140 +233,6 @@ function CustomerList() {
     setFilteredCustomers(filtered);
   };
 
-  // 엑셀 다운로드 함수 추가
-  const handleDownloadExcel = async () => {
-    try {
-      // 1. 서비스 데이터와 태그 정보 함께 조회
-      const { data: servicesData, error: servicesError } = await supabase
-        .from('services')
-        .select(`
-          customer_name,
-          customer_phone,
-          customer_address,
-          reception_date,
-          product_name,
-          symptom,
-          solution,
-          status,
-          total_cost,
-          service_tags (
-            tag_name
-          )
-        `)
-        .order('reception_date', { ascending: false });
-
-      if (servicesError) throw servicesError;
-
-      // 2. 고객별 데이터 정리
-      const customerMap = new Map();
-
-      servicesData.forEach(service => {
-        const key = service.customer_phone;
-        if (!customerMap.has(key)) {
-          customerMap.set(key, {
-            고객명: service.customer_name,
-            연락처: service.customer_phone,
-            주소: service.customer_address,
-            총_AS건수: 1,
-            최근_AS일자: service.reception_date,
-            AS_이력: [{
-              접수일자: service.reception_date,
-              제품명: service.product_name,
-              증상: service.symptom,
-              처리내용: service.solution,
-              상태: service.status,
-              비용: service.total_cost,
-              태그: service.service_tags?.map(tag => tag.tag_name).join(', ') || ''
-            }]
-          });
-        } else {
-          const customer = customerMap.get(key);
-          customer.총_AS건수++;
-          if (service.reception_date > customer.최근_AS일자) {
-            customer.최근_AS일자 = service.reception_date;
-          }
-          customer.AS_이력.push({
-            접수일자: service.reception_date,
-            제품명: service.product_name,
-            증상: service.symptom,
-            처리내용: service.solution,
-            상태: service.status,
-            비용: service.total_cost,
-            태그: service.service_tags?.map(tag => tag.tag_name).join(', ') || ''
-          });
-        }
-      });
-
-      // 3. 엑셀 데이터 생성
-      const excelData = [];
-      customerMap.forEach(customer => {
-        // 고객 기본 정보 행
-        excelData.push({
-          '구분': '고객정보',
-          '고객명': customer.고객명,
-          '연락처': customer.연락처,
-          '주소': customer.주소,
-          '총 AS건수': customer.총_AS건수,
-          '최근 AS일자': new Date(customer.최근_AS일자).toLocaleDateString()
-        });
-
-        // AS 이력 헤더 행
-        excelData.push({
-          '구분': 'AS이력',
-          '접수일자': '접수일자',
-          '제품명': '제품명',
-          '증상': '증상',
-          '처리내용': '처리내용',
-          '상태': '상태',
-          '비용': '비용',
-          '태그': '태그'
-        });
-
-        // AS 이력 데이터 행들
-        customer.AS_이력.forEach(history => {
-          excelData.push({
-            '구분': '',
-            '접수일자': new Date(history.접수일자).toLocaleDateString(),
-            '제품명': history.제품명,
-            '증상': history.증상,
-            '처리내용': history.처리내용,
-            '상태': history.상태,
-            '비용': history.비용?.toLocaleString() || '',
-            '태그': history.태그
-          });
-        });
-
-        // 구분선 추가
-        excelData.push({});
-      });
-
-      // 4. 엑셀 워크시트 생성
-      const ws = XLSX.utils.json_to_sheet(excelData, { skipHeader: true });
-
-      // 5. 컬럼 너비 설정
-      const wscols = [
-        { wch: 10 },  // 구분
-        { wch: 15 },  // 고객명/접수일자
-        { wch: 15 },  // 연락처/제품명
-        { wch: 40 },  // 주소/증상
-        { wch: 40 },  // 총 AS건수/처리내용
-        { wch: 15 },  // 최근 AS일자/상태
-        { wch: 12 },  // 비용
-        { wch: 30 },  // 태그
-      ];
-      ws['!cols'] = wscols;
-
-      // 6. 워크북 생성 및 다운로드
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "고객목록");
-      XLSX.writeFile(wb, `고객목록_${new Date().toLocaleDateString()}.xlsx`);
-
-    } catch (error) {
-      console.error('Error downloading excel:', error);
-      setError('엑셀 다운로드 중 오류가 발생했습니다.');
-    }
-  };
-
   // A/S 등록 페이지로 이동하는 함수 수정
   const handleAddService = (customer) => {
     // URL 쿼리 파라미터로 고객 정보 전달
@@ -421,15 +286,6 @@ function CustomerList() {
           }}>
             고객 관리
           </Typography>
-          <Tooltip title="고객 목록 다운로드">
-            <Button
-              variant="outlined"
-              startIcon={<DownloadIcon />}
-              onClick={handleDownloadExcel}
-            >
-              엑셀 다운로드
-            </Button>
-          </Tooltip>
         </Stack>
       </Box>
 
@@ -645,6 +501,7 @@ function CustomerList() {
                     <TableCell>접수일</TableCell>
                     <TableCell>제품</TableCell>
                     <TableCell>증상</TableCell>
+                    <TableCell>주행거리</TableCell>
                     <TableCell>상태</TableCell>
                     <TableCell>태그</TableCell>
                     <TableCell align="center">상세</TableCell>
@@ -658,6 +515,7 @@ function CustomerList() {
                       </TableCell>
                       <TableCell>{service.product_name}</TableCell>
                       <TableCell>{service.symptom}</TableCell>
+                      <TableCell>{service.mileage ? `${service.mileage}km` : '-'}</TableCell>
                       <TableCell>
                         <Chip
                           label={service.status}
@@ -696,7 +554,7 @@ function CustomerList() {
                   ))}
                   {serviceHistory.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                      <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
                         A/S 이력이 없습니다.
                       </TableCell>
                     </TableRow>
