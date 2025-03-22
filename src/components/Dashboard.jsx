@@ -462,7 +462,7 @@ function Dashboard() {
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} md={6}>
           <Paper sx={{ p: 3 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 2, sm: 0 } }}>
               <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary' }}>
                 A/S 상태 현황
               </Typography>
@@ -470,8 +470,11 @@ function Dashboard() {
                 display: 'flex', 
                 gap: 1,
                 flexWrap: 'wrap',
+                width: { xs: '100%', sm: 'auto' },
+                justifyContent: { xs: 'space-between', sm: 'flex-start' },
                 '& .MuiButton-root': {
-                  minWidth: { xs: '45%', sm: 'auto' },
+                  flex: { xs: '1 1 calc(33% - 4px)', sm: 'none' },
+                  minWidth: { xs: 'calc(33% - 4px)', sm: 'auto' },
                   fontSize: { xs: '0.75rem', sm: '0.875rem' },
                   padding: { xs: '4px 8px', sm: '6px 16px' }
                 }
@@ -531,7 +534,7 @@ function Dashboard() {
 
         <Grid item xs={12} md={6}>
           <Paper sx={{ p: 3 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 2, sm: 0 } }}>
               <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary' }}>
                 출고 현황
               </Typography>
@@ -539,8 +542,11 @@ function Dashboard() {
                 display: 'flex', 
                 gap: 1,
                 flexWrap: 'wrap',
+                width: { xs: '100%', sm: 'auto' },
+                justifyContent: { xs: 'space-between', sm: 'flex-start' },
                 '& .MuiButton-root': {
-                  minWidth: { xs: '45%', sm: 'auto' },
+                  flex: { xs: '1 1 calc(33% - 4px)', sm: 'none' },
+                  minWidth: { xs: 'calc(33% - 4px)', sm: 'auto' },
                   fontSize: { xs: '0.75rem', sm: '0.875rem' },
                   padding: { xs: '4px 8px', sm: '6px 16px' }
                 }
@@ -606,7 +612,7 @@ function Dashboard() {
         {/* 최근 A/S 현황 */}
         <Grid item xs={12} md={6}>
           <Paper sx={{ p: 3 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 2, sm: 0 } }}>
               <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary' }}>
                 최근 A/S 현황
               </Typography>
@@ -614,8 +620,11 @@ function Dashboard() {
                 display: 'flex', 
                 gap: 1,
                 flexWrap: 'wrap',
+                width: { xs: '100%', sm: 'auto' },
+                justifyContent: { xs: 'space-between', sm: 'flex-start' },
                 '& .MuiButton-root': {
-                  minWidth: { xs: '45%', sm: 'auto' },
+                  flex: { xs: '1 1 calc(33% - 4px)', sm: 'none' },
+                  minWidth: { xs: 'calc(33% - 4px)', sm: 'auto' },
                   fontSize: { xs: '0.75rem', sm: '0.875rem' },
                   padding: { xs: '4px 8px', sm: '6px 16px' }
                 }
@@ -719,7 +728,7 @@ function Dashboard() {
         {/* 최근 출고 현황 */}
         <Grid item xs={12} md={6}>
           <Paper sx={{ p: 3 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 2, sm: 0 } }}>
               <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, color: 'text.primary' }}>
                 최근 출고 현황
               </Typography>
@@ -727,8 +736,11 @@ function Dashboard() {
                 display: 'flex', 
                 gap: 1,
                 flexWrap: 'wrap',
+                width: { xs: '100%', sm: 'auto' },
+                justifyContent: { xs: 'space-between', sm: 'flex-start' },
                 '& .MuiButton-root': {
-                  minWidth: { xs: '45%', sm: 'auto' },
+                  flex: { xs: '1 1 calc(33% - 4px)', sm: 'none' },
+                  minWidth: { xs: 'calc(33% - 4px)', sm: 'auto' },
                   fontSize: { xs: '0.75rem', sm: '0.875rem' },
                   padding: { xs: '4px 8px', sm: '6px 16px' }
                 }

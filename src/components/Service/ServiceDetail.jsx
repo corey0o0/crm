@@ -636,7 +636,7 @@ function ServiceDetail() {
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
-      <Box component="form" onSubmit={handleSubmit} sx={{ mt: 3, mx: 'auto', maxWidth: 1000 }}>
+      <Box component="form" onSubmit={handleSubmit} sx={{ mt: 3, mx: 'auto', width: '90%', maxWidth: 1400 }}>
         <Box sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
           <Button
             onClick={() => navigate('/services')}
@@ -664,264 +664,253 @@ function ServiceDetail() {
           </Typography>
 
           <Grid container spacing={4}>
-            {/* 1. 기본 정보 섹션 */}
-            <Grid item xs={12}>
-              <Typography variant="subtitle1" sx={sectionStyle}>
-                기본 정보
-              </Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
-                  <DatePicker
-                    label="접수일"
-                    value={formData.reception_date}
-                    onChange={(newValue) => {
-                      handleChange({
-                        target: { name: 'reception_date', value: newValue }
-                      });
-                    }}
-                    renderInput={(params) => (
-                      <TextField 
-                        {...params} 
-                        fullWidth
-                        sx={{
-                          '& .MuiOutlinedInput-root': {
-                            borderRadius: 2,
-                            bgcolor: '#f9fafb'
-                          }
-                        }}
-                      />
-                    )}
-                  />
+            {/* 왼쪽 컬럼: 기본 정보, 고객 정보와 제품 정보 */}
+            <Grid item xs={12} md={6}>
+              {/* 기본 정보 섹션 */}
+              <Box sx={{ mb: 4 }}>
+                <Typography variant="subtitle1" sx={sectionStyle}>
+                  기본 정보
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <DatePicker
+                      label="접수일"
+                      value={formData.reception_date}
+                      onChange={(newValue) => {
+                        handleChange({
+                          target: { name: 'reception_date', value: newValue }
+                        });
+                      }}
+                      renderInput={(params) => (
+                        <TextField 
+                          {...params} 
+                          fullWidth
+                          size="small"
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              borderRadius: 1,
+                              bgcolor: '#f9fafb'
+                            }
+                          }}
+                        />
+                      )}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <DatePicker
+                      label="완료일"
+                      value={formData.completion_date}
+                      onChange={(newValue) => {
+                        handleChange({
+                          target: { name: 'completion_date', value: newValue }
+                        });
+                      }}
+                      renderInput={(params) => (
+                        <TextField 
+                          {...params} 
+                          fullWidth
+                          size="small"
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              borderRadius: 1,
+                              bgcolor: '#f9fafb'
+                            }
+                          }}
+                        />
+                      )}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sx={{ display: 'flex', gap: 1 }}>
+                    <Button 
+                      onClick={() => handleStatusChange('접수')}
+                      variant="contained"
+                      size="small"
+                      sx={buttonStyle(formData.status === '접수')}
+                    >
+                      접수
+                    </Button>
+                    <Button 
+                      onClick={() => handleStatusChange('처리중')}
+                      variant="contained"
+                      size="small"
+                      sx={buttonStyle(formData.status === '처리중')}
+                    >
+                      처리중
+                    </Button>
+                    <Button 
+                      onClick={() => handleStatusChange('완료')}
+                      variant="contained"
+                      size="small"
+                      sx={buttonStyle(formData.status === '완료')}
+                    >
+                      완료
+                    </Button>
+                  </Grid>
                 </Grid>
-                <Grid item xs={12} sm={6} sx={{ display: 'flex', gap: 1 }}>
-                  <Button 
-                    onClick={() => handleStatusChange('접수')}
-                    variant="contained"
-                    sx={buttonStyle(formData.status === '접수')}
-                  >
-                    접수
-                  </Button>
-                  <Button 
-                    onClick={() => handleStatusChange('처리중')}
-                    variant="contained"
-                    sx={buttonStyle(formData.status === '처리중')}
-                  >
-                    처리중
-                  </Button>
-                  <Button 
-                    onClick={() => handleStatusChange('완료')}
-                    variant="contained"
-                    sx={buttonStyle(formData.status === '완료')}
-                  >
-                    완료
-                  </Button>
-                </Grid>
-              </Grid>
-            </Grid>
-
-            {/* 2. 고객 정보 섹션 */}
-            <Grid item xs={12}>
-              <Typography variant="subtitle1" sx={sectionStyle}>
-                고객 정보
-              </Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    name="customer_name"
-                    label="고객명"
-                    value={formData.customer_name}
-                    onChange={handleChange}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    name="customer_phone"
-                    label="연락처"
-                    value={formData.customer_phone}
-                    onChange={handleChange}
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    name="customer_address"
-                    label="주소"
-                    value={formData.customer_address}
-                    onChange={handleChange}
-                  />
-                </Grid>
-              </Grid>
-            </Grid>
-
-            {/* 3. 제품 정보 섹션 */}
-            <Grid item xs={12}>
-              <Typography variant="subtitle1" sx={sectionStyle}>
-                제품 정보
-              </Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    select
-                    fullWidth
-                    name="brand"
-                    label="브랜드"
-                    value={formData.brand}
-                    onChange={handleChange}
-                  >
-                    <MenuItem value="XRB">X-RIDER</MenuItem>
-                    <MenuItem value="NB">NEARBIKE</MenuItem>
-                  </TextField>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    name="product_name"
-                    label="제품명"
-                    value={formData.product_name}
-                    onChange={handleChange}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    name="mileage"
-                    label="주행거리"
-                    value={formData.mileage}
-                    onChange={handleChange}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    select
-                    fullWidth
-                    name="reception_type"
-                    label="접수방법"
-                    value={formData.reception_type}
-                    onChange={handleChange}
-                  >
-                    <MenuItem value="방문">방문</MenuItem>
-                    <MenuItem value="전화">전화</MenuItem>
-                    <MenuItem value="온라인">온라인</MenuItem>
-                  </TextField>
-                </Grid>
-              </Grid>
-            </Grid>
-
-            {/* 4. A/S 내역 섹션 */}
-            <Grid item xs={12}>
-              <Typography variant="subtitle1" sx={sectionStyle}>
-                A/S 내역
-              </Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    multiline
-                    rows={3}
-                    name="symptom"
-                    label="증상"
-                    value={formData.symptom}
-                    onChange={handleChange}
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    multiline
-                    rows={3}
-                    name="solution"
-                    label="처리내역"
-                    value={formData.solution}
-                    onChange={handleChange}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    name="note"
-                    label="구매처"
-                    value={formData.note}
-                    onChange={handleChange}
-                    placeholder="구매처를 입력하세요"
-                  />
-                </Grid>
-              </Grid>
-            </Grid>
-
-            {/* 5. 태그 섹션 */}
-            <Grid item xs={12}>
-              <Typography variant="subtitle1" sx={{ 
-                pb: 1, 
-                mb: 2, 
-                borderBottom: '1px solid #f2f2f2',
-                color: 'primary.main',
-                fontWeight: 600
-              }}>
-                태그 목록
-              </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-                {tags.map((tag, index) => (
-                  <Chip
-                    key={index}
-                    label={tag}
-                    sx={{
-                      bgcolor: 'primary.light',
-                      color: 'primary.main',
-                      fontWeight: 500,
-                      '& .MuiChip-label': {
-                        fontSize: '0.875rem'
-                      }
-                    }}
-                  />
-                ))}
               </Box>
-              <Autocomplete
-                multiple
-                freeSolo
-                options={availableTags}
-                value={tags}
-                onChange={(_, newValue) => {
-                  if (newValue.length <= 10) {
-                    setTags(newValue.map(tag => tag.startsWith('#') ? tag : `#${tag}`));
-                  }
-                }}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    label="태그 입력"
-                    placeholder={tags.length >= 10 ? "최대 10개까지 입력 가능합니다" : "태그 입력 또는 선택"}
-                    helperText="부품명이나 증상을 입력해주세요 (최대 10개)"
-                    error={tags.length >= 10}
-                  />
-                )}
-                renderTags={(value, getTagProps) =>
-                  value.map((option, index) => (
-                    <Chip
-                      label={option}
-                      {...getTagProps({ index })}
+
+              {/* 고객 정보 섹션 */}
+              <Box sx={{ mb: 4 }}>
+                <Typography variant="subtitle1" sx={sectionStyle}>
+                  고객 정보
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      name="customer_name"
+                      label="고객명"
+                      value={formData.customer_name}
+                      onChange={handleChange}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      name="customer_phone"
+                      label="연락처"
+                      value={formData.customer_phone}
+                      onChange={handleChange}
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      name="customer_address"
+                      label="주소"
+                      value={formData.customer_address}
+                      onChange={handleChange}
+                    />
+                  </Grid>
+                </Grid>
+              </Box>
+
+              {/* 제품 정보 섹션 */}
+              <Box>
+                <Typography variant="subtitle1" sx={sectionStyle}>
+                  제품 정보
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12}>
+                    <TextField
+                      select
+                      fullWidth
+                      size="small"
+                      name="brand"
+                      label="브랜드"
+                      value={formData.brand}
+                      onChange={handleChange}
+                    >
+                      <MenuItem value="XRB">X-RIDER</MenuItem>
+                      <MenuItem value="NB">NEARBIKE</MenuItem>
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      name="product_name"
+                      label="제품명"
+                      value={formData.product_name}
+                      onChange={handleChange}
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      name="mileage"
+                      label="주행거리"
+                      value={formData.mileage}
+                      onChange={handleChange}
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      select
+                      fullWidth
+                      size="small"
+                      name="reception_type"
+                      label="접수방법"
+                      value={formData.reception_type}
+                      onChange={handleChange}
+                    >
+                      <MenuItem value="방문">방문</MenuItem>
+                      <MenuItem value="전화">전화</MenuItem>
+                      <MenuItem value="온라인">온라인</MenuItem>
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      name="note"
+                      label="구매처"
+                      value={formData.note}
+                      onChange={handleChange}
+                      placeholder="구매처를 입력하세요"
+                    />
+                  </Grid>
+                </Grid>
+              </Box>
+            </Grid>
+
+            {/* 오른쪽 컬럼: A/S 내역 */}
+            <Grid item xs={12} md={6}>
+              {/* A/S 내역 섹션 */}
+              <Box>
+                <Typography variant="subtitle1" sx={sectionStyle}>
+                  A/S 내역
+                </Typography>
+                <Grid container spacing={3}>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      multiline
+                      rows={5}
+                      name="symptom"
+                      label="증상"
+                      value={formData.symptom}
+                      onChange={handleChange}
                       sx={{
-                        bgcolor: 'primary.light',
-                        color: 'primary.main',
-                        fontWeight: 500,
-                        '& .MuiChip-label': {
-                          fontSize: '0.875rem'
+                        '& .MuiInputBase-root': {
+                          fontSize: '1.1rem',
+                          lineHeight: '1.6'
                         }
                       }}
                     />
-                  ))
-                }
-              />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      multiline
+                      rows={5}
+                      name="solution"
+                      label="처리내역"
+                      value={formData.solution}
+                      onChange={handleChange}
+                      sx={{
+                        '& .MuiInputBase-root': {
+                          fontSize: '1.1rem',
+                          lineHeight: '1.6'
+                        }
+                      }}
+                    />
+                  </Grid>
+                </Grid>
+              </Box>
             </Grid>
+          </Grid>
 
-            {/* 6. 부품 정보 섹션 */}
-            <Grid item xs={12}>
-              <Typography variant="subtitle1" sx={sectionStyle}>
-                사용 부품
-              </Typography>
-              {partsSection}
-            </Grid>
+          {/* 부품 정보 섹션 */}
+          <Grid item xs={12}>
+            <Typography variant="subtitle1" sx={sectionStyle}>
+              사용 부품
+            </Typography>
+            {partsSection}
           </Grid>
 
           <Box sx={{ 
