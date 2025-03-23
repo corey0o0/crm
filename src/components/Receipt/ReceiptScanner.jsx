@@ -36,7 +36,9 @@ import {
   Dialog,
   DialogContent,
   DialogActions,
-  DialogTitle
+  DialogTitle,
+  Tab,
+  Tabs
 } from '@mui/material';
 import {
   CloudUpload as CloudUploadIcon,
@@ -49,7 +51,8 @@ import {
   Receipt as ReceiptIcon,
   PictureAsPdf as PdfIcon,
   HelpOutline as HelpOutlineIcon,
-  Add as AddIcon
+  Add as AddIcon,
+  Link as LinkIcon
 } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
 import * as XLSX from 'xlsx';
@@ -113,6 +116,10 @@ function ReceiptScanner({
     '처리 완료'
   ];
 
+  // 업로드 방식 선택을 위한 상태 추가
+  const [uploadMethod, setUploadMethod] = useState('file');
+  const [imageUrl, setImageUrl] = useState('');
+  
   // 파츠 데이터 로드
   useEffect(() => {
     fetchPartsData();
@@ -1106,6 +1113,94 @@ function ReceiptScanner({
     }
   };
 
+  // URL 유효성 검사 함수
+  const isValidImageUrl = (url) => {
+    return url.match(/\.(jpg|jpeg|png|gif|heic|heif)$/i);
+  };
+
+  // URL을 통한 이미지 처리
+  const handleUrlUpload = async () => {
+    if (!imageUrl) {
+      setSnackbar({
+        open: true,
+        message: '이미지 URL을 입력해주세요.',
+        severity: 'warning'
+      });
+      return;
+    }
+
+    if (!isValidImageUrl(imageUrl)) {
+      setSnackbar({
+        open: true,
+        message: '유효한 이미지 URL이 아닙니다.',
+        severity: 'error'
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setActiveStep(1);
+      setUploadProgress(0);
+      setOcrResults([]);
+      setSelectedItems({});
+      setMatchedProducts([]);
+      setTotalAmount(0);
+
+      // URL에서 이미지 가져오기
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const file = new File([blob], 'image_from_url.jpg', { type: blob.type });
+
+      // 이미지 전처리
+      const processedFile = await preprocessImage(file);
+      const base64Data = await convertToBase64(processedFile);
+
+      // 이미지 파일 표시
+      setUploadedFiles([{
+        url: base64Data,
+        name: 'image_from_url.jpg',
+        type: blob.type
+      }]);
+
+      // 이미지 분석
+      setActiveStep(2);
+      setOcrProgress(30);
+      const startTime = Date.now();
+      const jsonResult = await processWithClaude(base64Data, blob.type);
+      const endTime = Date.now();
+      setProcessingTime(endTime - startTime);
+      setOcrResults(jsonResult.items);
+      setOcrProgress(100);
+
+      const allIds = jsonResult.items.reduce((acc, item) => {
+        acc[item.id] = true;
+        return acc;
+      }, {});
+      setSelectedItems(allIds);
+
+      setActiveStep(3);
+      setSnackbar({
+        open: true,
+        message: '파일이 성공적으로 처리되었습니다.',
+        severity: 'success'
+      });
+
+    } catch (err) {
+      console.error('Error processing URL:', err);
+      setError(err.message);
+      setSnackbar({
+        open: true,
+        message: '이미지 처리 중 오류가 발생했습니다: ' + err.message,
+        severity: 'error'
+      });
+    } finally {
+      setLoading(false);
+      setUploadProgress(0);
+      setOcrProgress(0);
+    }
+  };
+
   return (
     <Box sx={{ p: isDialogMode ? 2 : 3 }}>
       {!isDialogMode && (
@@ -1139,28 +1234,59 @@ function ReceiptScanner({
         </Box>
         
         <Alert severity="info" sx={{ mb: 2 }}>
-          이미지 파일(JPG, PNG, HEIC 등)을 업로드하거나 카메라로 촬영하여 영수증을 분석할 수 있습니다.
+          이미지 파일(JPG, PNG, HEIC 등)을 업로드하거나 이미지 URL을 입력하여 영수증을 분석할 수 있습니다.
         </Alert>
         
+        <Tabs
+          value={uploadMethod}
+          onChange={(e, newValue) => setUploadMethod(newValue)}
+          sx={{ mb: 2 }}
+        >
+          <Tab value="file" label="파일 업로드" icon={<CloudUploadIcon />} iconPosition="start" />
+          <Tab value="url" label="URL 입력" icon={<LinkIcon />} iconPosition="start" />
+        </Tabs>
+
         <Grid container spacing={2}>
-          <Grid item xs={12}>
-            <Button
-              variant="contained"
-              component="label"
-              startIcon={<CloudUploadIcon />}
-              disabled={loading}
-              fullWidth
-            >
-              영수증 이미지 업로드
-              <input
-                type="file"
-                hidden
-                accept="image/*,.heic,.heif"
-                multiple
-                onChange={handleFileUpload}
-              />
-            </Button>
-          </Grid>
+          {uploadMethod === 'file' ? (
+            <Grid item xs={12}>
+              <Button
+                variant="contained"
+                component="label"
+                startIcon={<CloudUploadIcon />}
+                disabled={loading}
+                fullWidth
+              >
+                영수증 이미지 업로드
+                <input
+                  type="file"
+                  hidden
+                  accept="image/*,.heic,.heif"
+                  multiple
+                  onChange={handleFileUpload}
+                />
+              </Button>
+            </Grid>
+          ) : (
+            <Grid item xs={12}>
+              <Stack direction="row" spacing={2}>
+                <TextField
+                  fullWidth
+                  placeholder="이미지 URL을 입력하세요"
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                  disabled={loading}
+                />
+                <Button
+                  variant="contained"
+                  onClick={handleUrlUpload}
+                  disabled={loading || !imageUrl}
+                  startIcon={<LinkIcon />}
+                >
+                  분석
+                </Button>
+              </Stack>
+            </Grid>
+          )}
         </Grid>
         
         {(uploadProgress > 0 && uploadProgress < 100) && (

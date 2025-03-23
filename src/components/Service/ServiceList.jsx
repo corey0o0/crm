@@ -634,7 +634,11 @@ function ServiceList() {
   }
 
   return (
-    <Box>
+    <Box sx={{ 
+      maxWidth: '1800px', 
+      width: '95%', 
+      mx: 'auto' // 가운데 정렬을 위해 margin auto 추가
+    }}>
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
           <Tabs 
