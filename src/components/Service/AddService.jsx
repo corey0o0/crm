@@ -675,321 +675,318 @@ function AddService() {
 
           <form onSubmit={handleSubmit}>
             <Grid container spacing={4}>
-              {/* 1. 기본 정보 섹션 */}
-              <Grid item xs={12}>
-                <Typography variant="subtitle1" sx={sectionStyle}>
-                  기본 정보
-                </Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      required
-                      label="접수일자"
-                      type="date"
-                      name="reception_date"
-                      value={formData.reception_date}
-                      onChange={handleInputChange}
-                      InputLabelProps={{ shrink: true }}
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 2,
-                          bgcolor: '#f9fafb'
-                        }
-                      }}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      label="완료일"
-                      type="date"
-                      name="repair_date"
-                      value={formData.repair_date}
-                      onChange={handleInputChange}
-                      InputLabelProps={{ shrink: true }}
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 2,
-                          bgcolor: '#f9fafb'
-                        }
-                      }}
-                    />
-                  </Grid>
-                </Grid>
-              </Grid>
-
-              {/* 2. 고객 정보 섹션 */}
-              <Grid item xs={12}>
-                <Typography variant="subtitle1" sx={sectionStyle}>
-                  고객 정보
-                </Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      required
-                      label="고객명"
-                      name="customer_name"
-                      value={formData.customer_name}
-                      onChange={handleInputChange}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      required
-                      label="연락처"
-                      name="customer_phone"
-                      value={formData.customer_phone}
-                      onChange={handleInputChange}
-                    />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      label="주소"
-                      name="customer_address"
-                      value={formData.customer_address}
-                      onChange={handleInputChange}
-                    />
-                  </Grid>
-                </Grid>
-              </Grid>
-
-              {/* 3. 제품 정보 섹션 */}
-              <Grid item xs={12}>
-                <Typography variant="subtitle1" sx={sectionStyle}>
-                  제품 정보
-                </Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      required
-                      label="제품"
-                      name="product_name"
-                      value={formData.product_name}
-                      onChange={handleInputChange}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      label="주행거리"
-                      name="mileage"
-                      value={formData.mileage}
-                      onChange={handleInputChange}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <FormControl fullWidth>
-                      <InputLabel>접수방법</InputLabel>
-                      <Select
-                        name="reception_type"
-                        value={formData.reception_type}
-                        label="접수방법"
+              {/* 왼쪽 컬럼: 기본 정보, 고객 정보와 제품 정보 */}
+              <Grid item xs={12} md={6}>
+                {/* 기본 정보 섹션 */}
+                <Box sx={{ mb: 4 }}>
+                  <Typography variant="subtitle1" sx={sectionStyle}>
+                    기본 정보
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        required
+                        label="접수일자"
+                        type="date"
+                        name="reception_date"
+                        value={formData.reception_date}
                         onChange={handleInputChange}
-                      >
-                        {RECEPTION_TYPES.map((type) => (
-                          <MenuItem key={type} value={type}>{type}</MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <FormControl fullWidth>
-                      <InputLabel>배송방법</InputLabel>
-                      <Select
-                        name="delivery_method"
-                        value={formData.delivery_method}
-                        label="배송방법"
-                        onChange={handleInputChange}
-                      >
-                        {DELIVERY_METHODS.map((method) => (
-                          <MenuItem key={method} value={method}>{method}</MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                </Grid>
-              </Grid>
-
-              {/* 4. A/S 내역 섹션 */}
-              <Grid item xs={12}>
-                <Typography variant="subtitle1" sx={sectionStyle}>
-                  A/S 내역
-                </Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      required
-                      multiline
-                      rows={4}
-                      name="symptom"
-                      label="증상"
-                      value={formData.symptom}
-                      onChange={handleInputChange}
-                      sx={{ '& .MuiInputBase-root': { fontSize: '1.1rem' } }}
-                    />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      multiline
-                      rows={4}
-                      name="solution"
-                      label="처리내역"
-                      value={formData.solution}
-                      onChange={handleInputChange}
-                      sx={{ '& .MuiInputBase-root': { fontSize: '1.1rem' } }}
-                    />
-                  </Grid>
-                </Grid>
-              </Grid>
-
-              {/* 5. 태그 섹션 */}
-              <Grid item xs={12}>
-                <Typography variant="subtitle1" sx={{ 
-                  pb: 1, 
-                  mb: 2, 
-                  borderBottom: '1px solid #f2f2f2',
-                  color: 'primary.main',
-                  fontWeight: 600
-                }}>
-                  태그 목록
-                </Typography>
-                <Autocomplete
-                  multiple
-                  freeSolo
-                  options={PREDEFINED_TAGS}
-                  value={tags}
-                  onChange={(_, newValue) => {
-                    if (newValue.length <= 10) {
-                      setTags(newValue.map(tag => tag.startsWith('#') ? tag : `#${tag}`));
-                    }
-                  }}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label="태그 입력"
-                      placeholder={tags.length >= 10 ? "최대 10개까지 입력 가능합니다" : "태그 입력 또는 선택"}
-                      helperText="부품명이나 증상을 입력해주세요 (최대 10개)"
-                      error={tags.length >= 10}
-                    />
-                  )}
-                  renderTags={(value, getTagProps) =>
-                    value.map((option, index) => (
-                      <Chip
-                        label={option}
-                        {...getTagProps({ index })}
+                        InputLabelProps={{ shrink: true }}
+                        size="small"
                         sx={{
-                          bgcolor: 'primary.light',
-                          color: 'primary.main',
-                          fontWeight: 500,
-                          '& .MuiChip-label': {
-                            fontSize: '0.875rem'
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 1,
+                            bgcolor: '#f9fafb'
                           }
                         }}
                       />
-                    ))
-                  }
-                />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        label="완료일"
+                        type="date"
+                        name="repair_date"
+                        value={formData.repair_date}
+                        onChange={handleInputChange}
+                        InputLabelProps={{ shrink: true }}
+                        size="small"
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 1,
+                            bgcolor: '#f9fafb'
+                          }
+                        }}
+                      />
+                    </Grid>
+                  </Grid>
+                </Box>
+
+                {/* 고객 정보와 제품 정보를 나란히 배치 */}
+                <Grid container spacing={4}>
+                  {/* 고객 정보 섹션 */}
+                  <Grid item xs={12} sm={6}>
+                    <Box>
+                      <Typography variant="subtitle1" sx={sectionStyle}>
+                        고객 정보
+                      </Typography>
+                      <Grid container spacing={2}>
+                        <Grid item xs={12}>
+                          <TextField
+                            fullWidth
+                            required
+                            size="small"
+                            label="고객명"
+                            name="customer_name"
+                            value={formData.customer_name}
+                            onChange={handleInputChange}
+                          />
+                        </Grid>
+                        <Grid item xs={12}>
+                          <TextField
+                            fullWidth
+                            required
+                            size="small"
+                            label="연락처"
+                            name="customer_phone"
+                            value={formData.customer_phone}
+                            onChange={handleInputChange}
+                          />
+                        </Grid>
+                        <Grid item xs={12}>
+                          <TextField
+                            fullWidth
+                            size="small"
+                            label="주소"
+                            name="customer_address"
+                            value={formData.customer_address}
+                            onChange={handleInputChange}
+                          />
+                        </Grid>
+                      </Grid>
+                    </Box>
+                  </Grid>
+
+                  {/* 제품 정보 섹션 */}
+                  <Grid item xs={12} sm={6}>
+                    <Box>
+                      <Typography variant="subtitle1" sx={sectionStyle}>
+                        제품 정보
+                      </Typography>
+                      <Grid container spacing={2}>
+                        <Grid item xs={12}>
+                          <TextField
+                            select
+                            fullWidth
+                            size="small"
+                            name="brand"
+                            label="브랜드"
+                            value={selectedBrand}
+                            onChange={(e) => {
+                              setSelectedBrand(e.target.value);
+                              setFormData(prev => ({ ...prev, brand: e.target.value }));
+                            }}
+                          >
+                            <MenuItem value="XRB">X-RIDER</MenuItem>
+                            <MenuItem value="NRB">NEARBIKE</MenuItem>
+                          </TextField>
+                        </Grid>
+                        <Grid item xs={12}>
+                          <TextField
+                            fullWidth
+                            required
+                            size="small"
+                            label="제품"
+                            name="product_name"
+                            value={formData.product_name}
+                            onChange={handleInputChange}
+                          />
+                        </Grid>
+                        <Grid item xs={12}>
+                          <TextField
+                            fullWidth
+                            size="small"
+                            label="주행거리"
+                            name="mileage"
+                            value={formData.mileage}
+                            onChange={handleInputChange}
+                          />
+                        </Grid>
+                        <Grid item xs={12}>
+                          <TextField
+                            select
+                            fullWidth
+                            size="small"
+                            name="reception_type"
+                            label="접수방법"
+                            value={formData.reception_type}
+                            onChange={handleInputChange}
+                          >
+                            {RECEPTION_TYPES.map((type) => (
+                              <MenuItem key={type} value={type}>{type}</MenuItem>
+                            ))}
+                          </TextField>
+                        </Grid>
+                        <Grid item xs={12}>
+                          <TextField
+                            select
+                            fullWidth
+                            size="small"
+                            name="delivery_method"
+                            label="배송방법"
+                            value={formData.delivery_method}
+                            onChange={handleInputChange}
+                          >
+                            {DELIVERY_METHODS.map((method) => (
+                              <MenuItem key={method} value={method}>{method}</MenuItem>
+                            ))}
+                          </TextField>
+                        </Grid>
+                      </Grid>
+                    </Box>
+                  </Grid>
+                </Grid>
               </Grid>
 
-              {/* 6. 부품 섹션 */}
-              <Grid item xs={12}>
-                <Typography variant="subtitle1" sx={sectionStyle}>
-                  사용 부품
-                </Typography>
-                <Box sx={{ mt: 2 }}>
-                  <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-                    <Button
-                      startIcon={<SearchIcon />}
-                      variant="contained"
-                      onClick={handleOpenPartsDialog}
-                      sx={{ 
-                        bgcolor: '#3182f6',
-                        '&:hover': { bgcolor: '#1b64da' }
-                      }}
-                    >
-                      수동으로 부품 추가
-                    </Button>
-                    <Button
-                      startIcon={<ReceiptIcon />}
-                      variant="outlined"
-                      onClick={handleOpenReceiptScanner}
-                      sx={{ 
-                        color: '#3182f6',
-                        borderColor: '#3182f6',
-                        '&:hover': { 
-                          bgcolor: 'rgba(49, 130, 246, 0.04)',
-                          borderColor: '#1b64da'
-                        }
-                      }}
-                    >
-                      영수증으로 부품 추가
-                    </Button>
-                  </Box>
-                  {selectedParts.length > 0 && (
-                    <TableContainer component={Paper} sx={{ mt: 2 }}>
-                      <Table size="small">
-                        <TableHead>
-                          <TableRow>
-                            <TableCell>부품명</TableCell>
-                            <TableCell>코드</TableCell>
-                            <TableCell align="right">단가</TableCell>
-                            <TableCell align="right">수량</TableCell>
-                            <TableCell align="right">금액</TableCell>
-                            <TableCell align="center">삭제</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {selectedParts.map((part) => (
-                            <TableRow key={part.id}>
-                              <TableCell>{part.name}</TableCell>
-                              <TableCell>{part.code}</TableCell>
-                              <TableCell align="right">
-                                {part.price ? part.price.toLocaleString() : '0'}원
-                              </TableCell>
-                              <TableCell align="right">{part.quantity}</TableCell>
-                              <TableCell align="right">
-                                {((part.price || 0) * part.quantity).toLocaleString()}원
-                              </TableCell>
-                              <TableCell align="center">
-                                <IconButton
-                                  size="small"
-                                  onClick={() => handleRemovePart(part.id)}
-                                  color="error"
-                                >
-                                  <DeleteIcon fontSize="small" />
-                                </IconButton>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                          <TableRow>
-                            <TableCell colSpan={4} align="right">
-                              <Typography variant="subtitle2">합계</Typography>
-                            </TableCell>
-                            <TableCell align="right">
-                              <Typography variant="subtitle2">
-                                {selectedParts.reduce((sum, part) => {
-                                  const partTotal = part.price && part.quantity 
-                                    ? part.price * part.quantity 
-                                    : 0;
-                                  return sum + partTotal;
-                                }, 0).toLocaleString()}원
-                              </Typography>
-                            </TableCell>
-                            <TableCell />
-                          </TableRow>
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  )}
+              {/* 오른쪽 컬럼: A/S 내역 */}
+              <Grid item xs={12} md={6}>
+                <Box>
+                  <Typography variant="subtitle1" sx={sectionStyle}>
+                    A/S 내역
+                  </Typography>
+                  <Grid container spacing={3}>
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        required
+                        multiline
+                        rows={5}
+                        name="symptom"
+                        label="증상"
+                        value={formData.symptom}
+                        onChange={handleInputChange}
+                        sx={{
+                          '& .MuiInputBase-root': {
+                            fontSize: '1.1rem',
+                            lineHeight: '1.6'
+                          }
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        multiline
+                        rows={5}
+                        name="solution"
+                        label="처리내역"
+                        value={formData.solution}
+                        onChange={handleInputChange}
+                        sx={{
+                          '& .MuiInputBase-root': {
+                            fontSize: '1.1rem',
+                            lineHeight: '1.6'
+                          }
+                        }}
+                      />
+                    </Grid>
+                  </Grid>
                 </Box>
               </Grid>
+            </Grid>
+
+            {/* 부품 정보 섹션 */}
+            <Grid item xs={12}>
+              <Typography variant="subtitle1" sx={sectionStyle}>
+                사용 부품
+              </Typography>
+              <Box sx={{ mt: 2 }}>
+                <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                  <Button
+                    startIcon={<SearchIcon />}
+                    variant="contained"
+                    onClick={handleOpenPartsDialog}
+                    sx={{ 
+                      bgcolor: '#3182f6',
+                      '&:hover': { bgcolor: '#1b64da' }
+                    }}
+                  >
+                    수동으로 부품 추가
+                  </Button>
+                  <Button
+                    startIcon={<ReceiptIcon />}
+                    variant="outlined"
+                    onClick={handleOpenReceiptScanner}
+                    sx={{ 
+                      color: '#3182f6',
+                      borderColor: '#3182f6',
+                      '&:hover': { 
+                        bgcolor: 'rgba(49, 130, 246, 0.04)',
+                        borderColor: '#1b64da'
+                      }
+                    }}
+                  >
+                    영수증으로 부품 추가
+                  </Button>
+                </Box>
+                {selectedParts.length > 0 && (
+                  <TableContainer component={Paper} sx={{ mt: 2 }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>부품명</TableCell>
+                          <TableCell>코드</TableCell>
+                          <TableCell align="right">단가</TableCell>
+                          <TableCell align="right">수량</TableCell>
+                          <TableCell align="right">금액</TableCell>
+                          <TableCell align="center">삭제</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {selectedParts.map((part) => (
+                          <TableRow key={part.id}>
+                            <TableCell>{part.name}</TableCell>
+                            <TableCell>{part.code}</TableCell>
+                            <TableCell align="right">
+                              {part.price ? part.price.toLocaleString() : '0'}원
+                            </TableCell>
+                            <TableCell align="right">{part.quantity}</TableCell>
+                            <TableCell align="right">
+                              {((part.price || 0) * part.quantity).toLocaleString()}원
+                            </TableCell>
+                            <TableCell align="center">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleRemovePart(part.id)}
+                                color="error"
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        <TableRow>
+                          <TableCell colSpan={4} align="right">
+                            <Typography variant="subtitle2">합계</Typography>
+                          </TableCell>
+                          <TableCell align="right">
+                            <Typography variant="subtitle2">
+                              {selectedParts.reduce((sum, part) => {
+                                const partTotal = part.price && part.quantity 
+                                  ? part.price * part.quantity 
+                                  : 0;
+                                return sum + partTotal;
+                              }, 0).toLocaleString()}원
+                            </Typography>
+                          </TableCell>
+                          <TableCell />
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+              </Box>
             </Grid>
 
             <Box sx={{ 

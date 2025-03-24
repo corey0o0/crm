@@ -15,7 +15,7 @@ import {
   Paper
 } from '@mui/material';
 
-function ResponsiveTable({ columns, data, renderMobileCard }) {
+function ResponsiveTable({ columns, data, renderMobileCard, onRowClick, hoverEffect = false }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -39,7 +39,17 @@ function ResponsiveTable({ columns, data, renderMobileCard }) {
         </TableHead>
         <TableBody>
           {data.map((row, index) => (
-            <TableRow key={index}>
+            <TableRow 
+              key={index}
+              onClick={() => onRowClick && onRowClick(row)}
+              sx={{
+                cursor: onRowClick ? 'pointer' : 'default',
+                '&:hover': hoverEffect ? {
+                  backgroundColor: 'action.hover',
+                  transition: 'background-color 0.2s ease'
+                } : {}
+              }}
+            >
               {columns.map((column) => (
                 <TableCell key={column.id}>
                   {column.render ? column.render(row) : row[column.id]}

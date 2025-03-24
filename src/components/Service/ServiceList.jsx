@@ -39,7 +39,8 @@ import {
   CircularProgress,
   Tooltip,
   Card,
-  CardContent
+  CardContent,
+  TableSortLabel,
 } from '@mui/material';
 import { 
   Edit as EditIcon,
@@ -47,7 +48,8 @@ import {
   Add as AddIcon,
   CloudUpload as CloudUploadIcon,
   Description as DescriptionIcon,
-  Download as DownloadIcon
+  Download as DownloadIcon,
+  Close as CloseIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -80,6 +82,9 @@ function ServiceList() {
   const [selectedOcrItems, setSelectedOcrItems] = useState({});
   const [ocrBoxes, setOcrBoxes] = useState([]);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [orderBy, setOrderBy] = useState('reception_date');
+  const [order, setOrder] = useState('desc');
 
   const brandColors = {
     xlider: {
@@ -510,10 +515,49 @@ function ServiceList() {
     }
   };
 
+  const handleRowClick = (service) => {
+    navigate(`/services/${service.id}`);
+  };
+
+  const handleSort = (property) => {
+    const isAsc = orderBy === property && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(property);
+  };
+
+  const sortData = (data) => {
+    return [...data].sort((a, b) => {
+      if (!a[orderBy] || !b[orderBy]) return 0;
+      
+      let comparison = 0;
+      if (orderBy === 'customer_info') {
+        // 고객 정보는 고객명으로 정렬
+        comparison = a.customer_name.localeCompare(b.customer_name);
+      } else if (orderBy === 'tags') {
+        // 태그는 첫 번째 태그로 정렬
+        const tagA = a.tags?.[0] || '';
+        const tagB = b.tags?.[0] || '';
+        comparison = tagA.localeCompare(tagB);
+      } else {
+        // 나머지 필드는 직접 비교
+        comparison = String(a[orderBy]).localeCompare(String(b[orderBy]));
+      }
+      
+      return order === 'desc' ? -comparison : comparison;
+    });
+  };
+
   // 테이블 컬럼 정의
   const columns = [
-    { id: 'reception_date', label: '접수일자' },
-    { id: 'customer_info', label: '고객정보', 
+    { 
+      id: 'reception_date', 
+      label: '접수일자',
+      sortable: true
+    },
+    { 
+      id: 'customer_info', 
+      label: '고객정보',
+      sortable: true,
       render: (row) => (
         <Box>
           <Typography>{row.customer_name}</Typography>
@@ -523,9 +567,20 @@ function ServiceList() {
         </Box>
       )
     },
-    { id: 'product_name', label: '제품' },
-    { id: 'symptom', label: '증상' },
-    { id: 'tags', label: '태그',
+    { 
+      id: 'product_name', 
+      label: '제품',
+      sortable: true
+    },
+    { 
+      id: 'symptom', 
+      label: '증상',
+      sortable: true
+    },
+    { 
+      id: 'tags', 
+      label: '태그',
+      sortable: true,
       render: (row) => (
         <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
           {row.tags?.map((tag, index) => (
@@ -544,7 +599,10 @@ function ServiceList() {
         </Box>
       )
     },
-    { id: 'status', label: '상태',
+    { 
+      id: 'status', 
+      label: '상태',
+      sortable: true,
       render: (row) => (
         <Chip
           label={row.status}
@@ -553,13 +611,22 @@ function ServiceList() {
         />
       )
     },
-    { id: 'actions', label: '관리',
+    { 
+      id: 'actions', 
+      label: '관리',
+      sortable: false,
       render: (row) => (
         <Box>
-          <IconButton size="small" onClick={() => handleEdit(row.id)}>
+          <IconButton size="small" onClick={(e) => {
+            e.stopPropagation();
+            handleEdit(row.id);
+          }}>
             <EditIcon />
           </IconButton>
-          <IconButton size="small" onClick={() => handleDeleteClick(row)}>
+          <IconButton size="small" onClick={(e) => {
+            e.stopPropagation();
+            handleDeleteClick(row);
+          }}>
             <DeleteIcon />
           </IconButton>
         </Box>
@@ -569,7 +636,7 @@ function ServiceList() {
 
   // 모바일용 카드 렌더링 함수
   const renderMobileCard = (row, index) => (
-    <Card key={index}>
+    <Card key={index} onClick={() => handleRowClick(row)} sx={{ cursor: 'pointer' }}>
       <CardContent>
         <Typography variant="subtitle1" gutterBottom>
           {row.customer_name}
@@ -605,10 +672,16 @@ function ServiceList() {
             size="small"
           />
           <Box>
-            <IconButton size="small" onClick={() => handleEdit(row.id)}>
+            <IconButton size="small" onClick={(e) => {
+              e.stopPropagation();
+              handleEdit(row.id);
+            }}>
               <EditIcon />
             </IconButton>
-            <IconButton size="small" onClick={() => handleDeleteClick(row)}>
+            <IconButton size="small" onClick={(e) => {
+              e.stopPropagation();
+              handleDeleteClick(row);
+            }}>
               <DeleteIcon />
             </IconButton>
           </Box>
@@ -637,7 +710,7 @@ function ServiceList() {
     <Box sx={{ 
       maxWidth: '1800px', 
       width: '95%', 
-      mx: 'auto' // 가운데 정렬을 위해 margin auto 추가
+      mx: 'auto'
     }}>
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
@@ -703,9 +776,22 @@ function ServiceList() {
 
       {/* A/S 목록 테이블 */}
       <ResponsiveTable
-        columns={columns}
-        data={filteredServices}
+        columns={columns.map(column => ({
+          ...column,
+          label: column.sortable ? (
+            <TableSortLabel
+              active={orderBy === column.id}
+              direction={orderBy === column.id ? order : 'asc'}
+              onClick={() => handleSort(column.id)}
+            >
+              {column.label}
+            </TableSortLabel>
+          ) : column.label
+        }))}
+        data={sortData(filteredServices)}
         renderMobileCard={renderMobileCard}
+        onRowClick={handleRowClick}
+        hoverEffect={true}
       />
 
       <Snackbar
@@ -1128,6 +1214,80 @@ function ServiceList() {
         <DialogActions>
           <Button onClick={() => setDeleteDialogOpen(false)}>취소</Button>
           <Button onClick={handleDeleteConfirm} color="error">삭제</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 상세 정보 다이얼로그 */}
+      <Dialog
+        open={detailDialogOpen}
+        onClose={() => setDetailDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h6">A/S 상세 정보</Typography>
+            <IconButton onClick={() => setDetailDialogOpen(false)}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {selectedService && (
+            <Grid container spacing={3}>
+              <Grid item xs={12} sm={6}>
+                <Typography variant="subtitle2" color="textSecondary">고객 정보</Typography>
+                <Typography variant="body1">{selectedService.customer_name}</Typography>
+                <Typography variant="body2" color="textSecondary">{selectedService.customer_phone}</Typography>
+                <Typography variant="body2" color="textSecondary">{selectedService.customer_address}</Typography>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <Typography variant="subtitle2" color="textSecondary">제품 정보</Typography>
+                <Typography variant="body1">{selectedService.product_name}</Typography>
+                <Typography variant="body2" color="textSecondary">
+                  주행거리: {selectedService.mileage || '-'}
+                </Typography>
+              </Grid>
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" color="textSecondary">증상</Typography>
+                <Typography variant="body1">{selectedService.symptom}</Typography>
+              </Grid>
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" color="textSecondary">처리내역</Typography>
+                <Typography variant="body1">{selectedService.solution || '-'}</Typography>
+              </Grid>
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" color="textSecondary">태그</Typography>
+                <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 1 }}>
+                  {selectedService.tags?.map((tag, index) => (
+                    <Chip
+                      key={index}
+                      label={tag}
+                      size="small"
+                      sx={{
+                        height: '20px',
+                        fontSize: '0.75rem',
+                        bgcolor: 'primary.lighter',
+                        color: 'primary.main'
+                      }}
+                    />
+                  ))}
+                </Box>
+              </Grid>
+            </Grid>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDetailDialogOpen(false)}>닫기</Button>
+          <Button 
+            variant="contained" 
+            onClick={() => {
+              setDetailDialogOpen(false);
+              handleEdit(selectedService.id);
+            }}
+          >
+            수정하기
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

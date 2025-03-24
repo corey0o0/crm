@@ -259,6 +259,18 @@ function CustomerList() {
     navigate(`/shipments?${queryParams}`);
   };
 
+  // 고객 A/S 이력 페이지로 이동하는 함수 추가
+  const handleRowClick = (customer) => {
+    // URL 쿼리 파라미터로 고객 정보 전달
+    const queryParams = new URLSearchParams({
+      name: customer.name,
+      phone: customer.phone,
+      address: customer.address
+    }).toString();
+    
+    navigate(`/services?${queryParams}`);
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -313,94 +325,44 @@ function CustomerList() {
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>고객명</TableCell>
-              <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>연락처</TableCell>
-              <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>주소</TableCell>
-              <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>등급</TableCell>
-              <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>최근 A/S</TableCell>
-              <TableCell align="center" sx={{ display: { xs: 'none', sm: 'table-cell' } }}>상세보기</TableCell>
-              {/* 모바일용 헤더 */}
-              <TableCell sx={{ display: { xs: 'table-cell', sm: 'none' } }}>고객 정보</TableCell>
+              <TableCell width="15%">고객명</TableCell>
+              <TableCell width="15%">연락처</TableCell>
+              <TableCell width="50%">최근 이력</TableCell>
+              <TableCell width="20%" align="center">관리</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {filteredCustomers.map((customer) => (
-              <TableRow key={customer.phone} hover>
-                {/* PC용 셀 */}
-                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{customer.name}</TableCell>
-                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{customer.phone}</TableCell>
-                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
-                  <TextField
-                    defaultValue={customer.address}
-                    size="small"
-                    onBlur={async (e) => {
-                      const newAddress = e.target.value;
-                      if (newAddress !== customer.address) {
-                        try {
-                          const { error } = await supabase
-                            .from('customers')
-                            .update({ address: newAddress })
-                            .eq('phone', customer.phone);
-                          
-                          if (error) throw error;
-                          
-                          setCustomers(prev => prev.map(c => 
-                            c.phone === customer.phone 
-                              ? { ...c, address: newAddress }
-                              : c
-                          ));
-                        } catch (err) {
-                          console.error('Error updating address:', err);
-                        }
-                      }
-                    }}
-                    sx={{
-                      '& .MuiOutlinedInput-root': {
-                        '& fieldset': { border: 'none' },
-                        '&:hover fieldset': { border: '1px solid #3182f6' },
-                        '&.Mui-focused fieldset': { border: '1px solid #3182f6' }
-                      }
-                    }}
-                  />
-                </TableCell>
-                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
-                  <FormControl size="small">
-                    <Select
-                      value={customer.grade || 'V3'}
-                      onChange={(e) => handleGradeChange(customer.phone, e.target.value)}
-                      sx={{
-                        minWidth: 100,
-                        '& .MuiSelect-select': {
-                          color: getGradeColor(customer.grade).color,
-                          bgcolor: getGradeColor(customer.grade).bgcolor,
-                          fontWeight: 500,
-                        },
-                        '& .MuiOutlinedInput-notchedOutline': {
-                          borderColor: 'transparent'
-                        },
-                        '&:hover .MuiOutlinedInput-notchedOutline': {
-                          borderColor: '#3182f6'
-                        },
-                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                          borderColor: '#3182f6'
-                        }
-                      }}
-                    >
-                      <MenuItem value="V1" sx={{ fontWeight: 500 }}>V1 (VIP)</MenuItem>
-                      <MenuItem value="V2" sx={{ fontWeight: 500 }}>V2 (우수)</MenuItem>
-                      <MenuItem value="V3" sx={{ fontWeight: 500 }}>V3 (일반)</MenuItem>
-                    </Select>
-                  </FormControl>
-                </TableCell>
-                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+              <TableRow 
+                key={customer.phone} 
+                hover 
+                sx={{ 
+                  cursor: 'pointer',
+                  '&:hover': { bgcolor: 'action.hover' }
+                }}
+                onClick={() => handleRowClick(customer)}
+              >
+                <TableCell>{customer.name}</TableCell>
+                <TableCell>{customer.phone}</TableCell>
+                <TableCell>
                   <Box>
-                    <Typography variant="body2" color="text.secondary">
-                      최근: {customer.lastServiceDate 
-                        ? new Date(customer.lastServiceDate).toLocaleDateString()
-                        : '-'}
-                    </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography variant="body2" color="primary">
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        최근 A/S: {customer.lastServiceDate 
+                          ? new Date(customer.lastServiceDate).toLocaleDateString()
+                          : '-'}
+                      </Typography>
+                      <Typography 
+                        variant="body2" 
+                        sx={{ 
+                          color: 'primary.main',
+                          bgcolor: 'primary.lighter',
+                          px: 1,
+                          py: 0.25,
+                          borderRadius: 1,
+                          fontSize: '0.75rem'
+                        }}
+                      >
                         총 {customer.serviceCount}건
                       </Typography>
                       {customer.recentTag && (
@@ -416,23 +378,33 @@ function CustomerList() {
                         />
                       )}
                     </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <Typography 
+                        variant="caption" 
+                        sx={{ 
+                          color: getGradeColor(customer.grade).color,
+                          bgcolor: getGradeColor(customer.grade).bgcolor,
+                          px: 1,
+                          py: 0.25,
+                          borderRadius: 1,
+                          fontSize: '0.75rem'
+                        }}
+                      >
+                        {customer.grade}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {customer.address}
+                      </Typography>
+                    </Box>
                   </Box>
                 </TableCell>
-                <TableCell align="center" sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
-                  <Box sx={{ display: 'flex', gap: 1 }}>
+                <TableCell align="center">
+                  <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
                     <Button
-                      onClick={() => handleCustomerClick(customer)}
-                      startIcon={<VisibilityIcon />}
-                      size="small"
-                      sx={{
-                        color: 'primary.main',
-                        '&:hover': { bgcolor: 'primary.lighter' }
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAddService(customer);
                       }}
-                    >
-                      A/S 이력
-                    </Button>
-                    <Button
-                      onClick={() => handleAddService(customer)}
                       startIcon={<BuildIcon />}
                       size="small"
                       variant="outlined"
@@ -443,7 +415,10 @@ function CustomerList() {
                       A/S 등록
                     </Button>
                     <Button
-                      onClick={() => handleAddShipment(customer)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAddShipment(customer);
+                      }}
                       startIcon={<AddIcon />}
                       size="small"
                       variant="outlined"
@@ -454,143 +429,6 @@ function CustomerList() {
                     >
                       출고 등록
                     </Button>
-                  </Box>
-                </TableCell>
-                {/* 모바일용 셀 */}
-                <TableCell sx={{ display: { xs: 'table-cell', sm: 'none' } }}>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{customer.name}</Typography>
-                      <FormControl size="small">
-                        <Select
-                          value={customer.grade || 'V3'}
-                          onChange={(e) => handleGradeChange(customer.phone, e.target.value)}
-                          sx={{
-                            minWidth: 80,
-                            '& .MuiSelect-select': {
-                              color: getGradeColor(customer.grade).color,
-                              bgcolor: getGradeColor(customer.grade).bgcolor,
-                              fontWeight: 500,
-                              fontSize: '0.75rem',
-                            },
-                            '& .MuiOutlinedInput-notchedOutline': {
-                              borderColor: 'transparent'
-                            },
-                            '&:hover .MuiOutlinedInput-notchedOutline': {
-                              borderColor: '#3182f6'
-                            },
-                            '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                              borderColor: '#3182f6'
-                            }
-                          }}
-                        >
-                          <MenuItem value="V1" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>V1</MenuItem>
-                          <MenuItem value="V2" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>V2</MenuItem>
-                          <MenuItem value="V3" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>V3</MenuItem>
-                        </Select>
-                      </FormControl>
-                    </Box>
-                    <Typography variant="body2" color="text.secondary">{customer.phone}</Typography>
-                    <TextField
-                      defaultValue={customer.address}
-                      size="small"
-                      onBlur={async (e) => {
-                        const newAddress = e.target.value;
-                        if (newAddress !== customer.address) {
-                          try {
-                            const { error } = await supabase
-                              .from('customers')
-                              .update({ address: newAddress })
-                              .eq('phone', customer.phone);
-                            
-                            if (error) throw error;
-                            
-                            setCustomers(prev => prev.map(c => 
-                              c.phone === customer.phone 
-                                ? { ...c, address: newAddress }
-                                : c
-                            ));
-                          } catch (err) {
-                            console.error('Error updating address:', err);
-                          }
-                        }
-                      }}
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          '& fieldset': { border: 'none' },
-                          '&:hover fieldset': { border: '1px solid #3182f6' },
-                          '&.Mui-focused fieldset': { border: '1px solid #3182f6' }
-                        }
-                      }}
-                    />
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                      <Typography variant="body2" color="text.secondary">
-                        최근: {customer.lastServiceDate 
-                          ? new Date(customer.lastServiceDate).toLocaleDateString()
-                          : '-'}
-                      </Typography>
-                      <Typography variant="body2" color="primary">
-                        총 {customer.serviceCount}건
-                      </Typography>
-                      {customer.recentTag && (
-                        <Chip
-                          label={customer.recentTag}
-                          size="small"
-                          sx={{
-                            height: '20px',
-                            fontSize: '0.75rem',
-                            bgcolor: 'primary.lighter',
-                            color: 'primary.main'
-                          }}
-                        />
-                      )}
-                    </Box>
-                    <Box sx={{ 
-                      display: 'flex', 
-                      gap: 1,
-                      flexWrap: 'wrap',
-                      '& .MuiButton-root': {
-                        flex: { xs: '1 1 calc(50% - 4px)', sm: 'none' },
-                        minWidth: { xs: 'calc(50% - 4px)', sm: 'auto' },
-                        fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                        padding: { xs: '4px 8px', sm: '6px 16px' }
-                      }
-                    }}>
-                      <Button
-                        onClick={() => handleCustomerClick(customer)}
-                        startIcon={<VisibilityIcon />}
-                        size="small"
-                        sx={{
-                          color: 'primary.main',
-                          '&:hover': { bgcolor: 'primary.lighter' }
-                        }}
-                      >
-                        A/S 이력
-                      </Button>
-                      <Button
-                        onClick={() => handleAddService(customer)}
-                        startIcon={<BuildIcon />}
-                        size="small"
-                        variant="outlined"
-                        sx={{
-                          '&:hover': { bgcolor: 'primary.lighter' }
-                        }}
-                      >
-                        A/S 등록
-                      </Button>
-                      <Button
-                        onClick={() => handleAddShipment(customer)}
-                        startIcon={<AddIcon />}
-                        size="small"
-                        variant="outlined"
-                        color="success"
-                        sx={{
-                          '&:hover': { bgcolor: 'success.lighter' }
-                        }}
-                      >
-                        출고 등록
-                      </Button>
-                    </Box>
                   </Box>
                 </TableCell>
               </TableRow>
