@@ -593,7 +593,7 @@ function AddService() {
   };
 
   return (
-    <Container maxWidth="md">
+    <Box sx={{ maxWidth: '1800px', width: '95%', mx: 'auto' }}>
       <Box sx={{ mt: 3, mx: 'auto' }}>
         <Box sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
           <Button
@@ -1153,7 +1153,7 @@ function AddService() {
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </Container>
+    </Box>
   );
 }
 

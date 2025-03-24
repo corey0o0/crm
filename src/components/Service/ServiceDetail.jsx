@@ -636,7 +636,7 @@ function ServiceDetail() {
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
-      <Box component="form" onSubmit={handleSubmit} sx={{ mt: 3, mx: 'auto', width: '90%', maxWidth: 1400 }}>
+      <Box component="form" onSubmit={handleSubmit} sx={{ mt: 3, mx: 'auto', width: '95%', maxWidth: 1400 }}>
         <Box sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
           <Button
             onClick={() => navigate('/services')}
