@@ -41,6 +41,7 @@ import {
   Card,
   CardContent,
   TableSortLabel,
+  TablePagination,
 } from '@mui/material';
 import { 
   Edit as EditIcon,
@@ -85,6 +86,8 @@ function ServiceList() {
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [orderBy, setOrderBy] = useState('reception_date');
   const [order, setOrder] = useState('desc');
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(20);
 
   const brandColors = {
     xlider: {
@@ -175,11 +178,11 @@ function ServiceList() {
     // 브랜드와 검색어, 상태 필터 모두 적용
     const filtered = services.filter(service => {
       const matchesBrand = service.brand === selectedBrand;
-      const matchesSearch = 
-        service.customer_name.includes(searchTerm) ||
-        service.customer_phone.includes(searchTerm) ||
-        service.product_name.includes(searchTerm) ||
-        service.symptom.includes(searchTerm);
+      const matchesSearch = searchTerm === '' || 
+        service.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        service.customer_phone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        service.product_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        service.symptom?.toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchesStatus = 
         statusFilter === 'all' || service.status === statusFilter;
@@ -187,6 +190,8 @@ function ServiceList() {
       return matchesBrand && matchesSearch && matchesStatus;
     });
     setFilteredServices(filtered);
+    // 검색 결과가 변경될 때마다 첫 페이지로 이동
+    setPage(0);
   }, [searchTerm, statusFilter, services, selectedBrand]);
 
   // 데이터 로딩 상태 확인을 위한 useEffect
@@ -547,6 +552,23 @@ function ServiceList() {
     });
   };
 
+  // 페이지 변경 핸들러
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
+  };
+
+  // 페이지당 행 수 변경 핸들러
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  // 현재 페이지에 표시할 데이터 계산
+  const paginatedServices = sortData(filteredServices).slice(
+    page * rowsPerPage,
+    page * rowsPerPage + rowsPerPage
+  );
+
   // 테이블 컬럼 정의
   const columns = [
     { 
@@ -767,11 +789,16 @@ function ServiceList() {
       <Box sx={{ mb: 2, display: 'flex', gap: 2 }}>
         <TextField
           size="small"
-          placeholder="검색..."
+          placeholder="고객명, 연락처, 제품명, 증상으로 검색..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           sx={{ flexGrow: 1 }}
         />
+        {searchTerm && (
+          <Typography variant="body2" color="textSecondary" sx={{ alignSelf: 'center' }}>
+            검색 결과: {filteredServices.length}건
+          </Typography>
+        )}
       </Box>
 
       {/* A/S 목록 테이블 */}
@@ -788,10 +815,34 @@ function ServiceList() {
             </TableSortLabel>
           ) : column.label
         }))}
-        data={sortData(filteredServices)}
+        data={paginatedServices}
         renderMobileCard={renderMobileCard}
         onRowClick={handleRowClick}
         hoverEffect={true}
+      />
+
+      {/* 페이지네이션 추가 */}
+      <TablePagination
+        component="div"
+        count={filteredServices.length}
+        page={page}
+        onPageChange={handleChangePage}
+        rowsPerPage={rowsPerPage}
+        onRowsPerPageChange={handleChangeRowsPerPage}
+        rowsPerPageOptions={[10, 20, 50, 100]}
+        labelRowsPerPage="페이지당 행 수"
+        labelDisplayedRows={({ from, to, count }) => 
+          `${count}개 중 ${from}-${to}`
+        }
+        sx={{
+          '.MuiTablePagination-select': {
+            paddingTop: '6px',
+            paddingBottom: '6px',
+          },
+          '.MuiTablePagination-selectLabel, .MuiTablePagination-displayedRows': {
+            fontSize: '0.875rem',
+          }
+        }}
       />
 
       <Snackbar

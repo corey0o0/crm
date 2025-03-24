@@ -25,7 +25,9 @@ import {
   Tabs,
   Tab,
   LinearProgress,
-  TableSortLabel
+  TableSortLabel,
+  Switch,
+  FormControlLabel
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -70,6 +72,7 @@ function PartsManagement() {
   
   const [order, setOrder] = useState('asc');
   const [orderBy, setOrderBy] = useState('code');
+  const [showSupplyPrice, setShowSupplyPrice] = useState(false);
 
   const brands = ['XRB', 'NB']; // 브랜드 목록 수정
   const navigate = useNavigate();
@@ -487,7 +490,18 @@ function PartsManagement() {
     <Box>
       <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Typography variant="h6">파츠 관리</Typography>
-        <Box sx={{ display: 'flex', gap: 1 }}>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={showSupplyPrice}
+                onChange={(e) => setShowSupplyPrice(e.target.checked)}
+                size="small"
+              />
+            }
+            label="공급가 표시"
+            sx={{ mr: 2 }}
+          />
           <Tooltip title="엑셀 템플릿 다운로드">
             <Button
               variant="outlined"
@@ -561,10 +575,10 @@ function PartsManagement() {
           <TableHead>
             <TableRow>
               {renderSortableHeader('code', '상품코드')}
-              {renderSortableHeader('name', '파츠명')}
-              {renderSortableHeader('supply_price', '공급가', 'right')}
-              {renderSortableHeader('price', '판매가', 'right')}
               {renderSortableHeader('barcode', '바코드', 'center')}
+              {renderSortableHeader('name', '파츠명')}
+              {showSupplyPrice && renderSortableHeader('supply_price', '공급가', 'right')}
+              {renderSortableHeader('price', '판매가', 'right')}
               {renderSortableHeader('note', '비고')}
               <TableCell align="center" sx={{ width: '14%' }}>관리</TableCell>
             </TableRow>
@@ -574,6 +588,7 @@ function PartsManagement() {
               sortedParts.map((part) => (
                 <TableRow 
                   key={part.id} 
+                  onClick={() => handleOpenDialog(part)}
                   sx={{ 
                     '& td': { py: 1 },
                     '&:hover': {
@@ -583,16 +598,28 @@ function PartsManagement() {
                   }}
                 >
                   <TableCell>{part.code}</TableCell>
-                  <TableCell>{part.name}</TableCell>
-                  <TableCell align="right">{part.supply_price?.toLocaleString()}원</TableCell>
-                  <TableCell align="right">{part.price?.toLocaleString()}원</TableCell>
                   <TableCell align="center">{part.barcode}</TableCell>
+                  <TableCell>{part.name}</TableCell>
+                  {showSupplyPrice && <TableCell align="right">{part.supply_price?.toLocaleString()}원</TableCell>}
+                  <TableCell align="right">{part.price?.toLocaleString()}원</TableCell>
                   <TableCell>{part.note}</TableCell>
                   <TableCell align="center">
-                    <IconButton size="small" onClick={() => handleOpenDialog(part)}>
+                    <IconButton 
+                      size="small" 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenDialog(part);
+                      }}
+                    >
                       <EditIcon fontSize="small" />
                     </IconButton>
-                    <IconButton size="small" onClick={() => handleDelete(part.id)}>
+                    <IconButton 
+                      size="small" 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(part.id);
+                      }}
+                    >
                       <DeleteIcon fontSize="small" />
                     </IconButton>
                   </TableCell>
@@ -600,7 +627,7 @@ function PartsManagement() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={7} align="center" sx={{ py: 3 }}>
+                <TableCell colSpan={showSupplyPrice ? 7 : 6} align="center" sx={{ py: 3 }}>
                   검색 결과가 없습니다.
                 </TableCell>
               </TableRow>
