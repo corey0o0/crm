@@ -259,7 +259,7 @@ function CustomerList() {
     navigate(`/shipments?${queryParams}`);
   };
 
-  // 고객 A/S 이력 페이지로 이동하는 함수 추가
+  // 고객 A/S 이력 페이지로 이동하는 함수 수정
   const handleRowClick = (customer) => {
     // URL 쿼리 파라미터로 고객 정보 전달
     const queryParams = new URLSearchParams({
@@ -268,7 +268,7 @@ function CustomerList() {
       address: customer.address
     }).toString();
     
-    navigate(`/services?${queryParams}`);
+    navigate(`/customer-management?${queryParams}`);
   };
 
   if (loading) {
