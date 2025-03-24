@@ -572,7 +572,16 @@ function PartsManagement() {
           <TableBody>
             {sortedParts.length > 0 ? (
               sortedParts.map((part) => (
-                <TableRow key={part.id} sx={{ '& td': { py: 1 } }}>
+                <TableRow 
+                  key={part.id} 
+                  sx={{ 
+                    '& td': { py: 1 },
+                    '&:hover': {
+                      backgroundColor: '#e3f2fd !important',
+                      cursor: 'pointer'
+                    }
+                  }}
+                >
                   <TableCell>{part.code}</TableCell>
                   <TableCell>{part.name}</TableCell>
                   <TableCell align="right">{part.supply_price?.toLocaleString()}원</TableCell>

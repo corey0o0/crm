@@ -22,7 +22,20 @@ function ResponsiveTable({ columns, data, renderMobileCard, onRowClick, hoverEff
   if (isMobile) {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {data.map((row, index) => renderMobileCard(row, index))}
+        {data.map((row, index) => (
+          <Card 
+            key={index}
+            onClick={() => onRowClick && onRowClick(row)}
+            sx={{
+              cursor: onRowClick ? 'pointer' : 'default',
+              '&:hover': {
+                backgroundColor: '#e3f2fd'
+              }
+            }}
+          >
+            {renderMobileCard(row, index)}
+          </Card>
+        ))}
       </Box>
     );
   }
@@ -33,7 +46,15 @@ function ResponsiveTable({ columns, data, renderMobileCard, onRowClick, hoverEff
         <TableHead>
           <TableRow>
             {columns.map((column) => (
-              <TableCell key={column.id}>{column.label}</TableCell>
+              <TableCell 
+                key={column.id}
+                sx={{
+                  backgroundColor: '#fafafa',
+                  fontWeight: 'bold'
+                }}
+              >
+                {column.label}
+              </TableCell>
             ))}
           </TableRow>
         </TableHead>
@@ -42,11 +63,11 @@ function ResponsiveTable({ columns, data, renderMobileCard, onRowClick, hoverEff
             <TableRow 
               key={index}
               onClick={() => onRowClick && onRowClick(row)}
+              hover={hoverEffect}
               sx={{
                 cursor: onRowClick ? 'pointer' : 'default',
                 '&:hover': hoverEffect ? {
-                  backgroundColor: 'action.hover',
-                  transition: 'background-color 0.2s ease'
+                  backgroundColor: '#e3f2fd !important'
                 } : {}
               }}
             >
