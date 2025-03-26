@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
   <head>
     <meta charset="utf-8" />
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#000000" />
     <meta
       name="description"
-      content="Web site created using create-react-app"
+      content="CRM Application"
     />
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <!--
@@ -35,9 +35,13 @@
         REACT_APP_SUPABASE_URL: '%REACT_APP_SUPABASE_URL%',
         REACT_APP_SUPABASE_ANON_KEY: '%REACT_APP_SUPABASE_ANON_KEY%',
         REACT_APP_CLAUDE_API_KEY: '%REACT_APP_CLAUDE_API_KEY%',
-        REACT_APP_CLOUDMARSSIVE_API_KEY: '%REACT_APP_CLOUDMARSSIVE_API_KEY%'
+        REACT_APP_CLOUDMARSSIVE_API_KEY: '%REACT_APP_CLOUDMARSSIVE_API_KEY%',
+        REACT_APP_GOOGLE_CLIENT_ID: '%REACT_APP_GOOGLE_CLIENT_ID%'
       };
     </script>
+    <!-- Google OAuth 및 API 클라이언트 라이브러리 -->
+    <script src="https://accounts.google.com/gsi/client"></script>
+    <script async defer src="https://apis.google.com/js/api.js"></script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
