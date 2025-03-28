@@ -289,302 +289,299 @@ function CustomerList() {
 
   return (
     <Box>
-      {/* 헤더 영역 */}
-      <Box sx={{ mb: 4 }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Typography variant="h5" sx={{ 
-            color: 'text.primary',
-            fontWeight: 600,
-          }}>
-            고객 관리
-          </Typography>
-        </Stack>
-      </Box>
-
-      {/* 검색 및 필터 영역 */}
-      <Box sx={{ mb: 3, display: 'flex', gap: 2 }}>
+      <Box sx={{ mb: 2 }}>
         <TextField
-          size="small"
-          placeholder="고객명, 연락처, 주소 검색..."
+          fullWidth
+          variant="outlined"
+          placeholder="고객명, 연락처, 주소로 검색"
           value={searchTerm}
           onChange={handleSearch}
-          sx={{ 
-            flexGrow: 1,
-            bgcolor: 'background.paper',
-            '& .MuiOutlinedInput-root': {
-              '&:hover': {
-                bgcolor: '#f2f4f6'
-              }
-            }
-          }}
+          sx={{ mb: 2 }}
         />
       </Box>
-
-      {/* 고객 목록 테이블 */}
-      <TableContainer component={Paper} sx={{ mb: 4 }}>
+      <TableContainer component={Paper}>
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell width="15%">고객명</TableCell>
-              <TableCell width="15%">연락처</TableCell>
-              <TableCell width="50%">최근 이력</TableCell>
-              <TableCell width="20%" align="center">관리</TableCell>
+              <TableCell>고객명</TableCell>
+              <TableCell>연락처</TableCell>
+              <TableCell>주소</TableCell>
+              <TableCell>등급</TableCell>
+              <TableCell>최근 A/S</TableCell>
+              <TableCell>A/S 건수</TableCell>
+              <TableCell align="center">관리</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {filteredCustomers.map((customer) => (
-              <TableRow 
-                key={customer.phone} 
-                hover 
-                sx={{ 
-                  cursor: 'pointer',
-                  '&:hover': { bgcolor: 'action.hover' }
-                }}
-                onClick={() => handleRowClick(customer)}
-              >
-                <TableCell>{customer.name}</TableCell>
-                <TableCell>{customer.phone}</TableCell>
-                <TableCell>
-                  <Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                      <Typography variant="body2" color="text.secondary">
-                        최근 A/S: {customer.lastServiceDate 
-                          ? new Date(customer.lastServiceDate).toLocaleDateString()
-                          : '-'}
-                      </Typography>
-                      <Typography 
-                        variant="body2" 
-                        sx={{ 
-                          color: 'primary.main',
-                          bgcolor: 'primary.lighter',
-                          px: 1,
-                          py: 0.25,
-                          borderRadius: 1,
-                          fontSize: '0.75rem'
-                        }}
-                      >
-                        총 {customer.serviceCount}건
-                      </Typography>
-                      {customer.recentTag && (
-                        <Chip
-                          label={customer.recentTag}
-                          size="small"
-                          sx={{
-                            height: '20px',
-                            fontSize: '0.75rem',
-                            bgcolor: 'primary.lighter',
-                            color: 'primary.main'
-                          }}
-                        />
-                      )}
-                    </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      <Typography 
-                        variant="caption" 
-                        sx={{ 
-                          color: getGradeColor(customer.grade).color,
-                          bgcolor: getGradeColor(customer.grade).bgcolor,
-                          px: 1,
-                          py: 0.25,
-                          borderRadius: 1,
-                          fontSize: '0.75rem'
-                        }}
-                      >
-                        {customer.grade}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {customer.address}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </TableCell>
-                <TableCell align="center">
-                  <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
-                    <Button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleAddService(customer);
-                      }}
-                      startIcon={<BuildIcon />}
-                      size="small"
-                      variant="outlined"
-                      sx={{
-                        '&:hover': { bgcolor: 'primary.lighter' }
-                      }}
-                    >
-                      A/S 등록
-                    </Button>
-                    <Button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleAddShipment(customer);
-                      }}
-                      startIcon={<AddIcon />}
-                      size="small"
-                      variant="outlined"
-                      color="success"
-                      sx={{
-                        '&:hover': { bgcolor: 'success.lighter' }
-                      }}
-                    >
-                      출고 등록
-                    </Button>
-                  </Box>
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={7} align="center">
+                  <CircularProgress />
                 </TableCell>
               </TableRow>
-            ))}
+            ) : error ? (
+              <TableRow>
+                <TableCell colSpan={7} align="center">
+                  <Typography color="error">{error}</Typography>
+                </TableCell>
+              </TableRow>
+            ) : filteredCustomers.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} align="center">
+                  검색 결과가 없습니다.
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredCustomers.map((customer) => (
+                <TableRow 
+                  key={customer.phone}
+                  onClick={() => handleCustomerClick(customer)}
+                  sx={{ 
+                    cursor: 'pointer',
+                    '&:hover': {
+                      backgroundColor: 'rgba(0, 0, 0, 0.04)'
+                    }
+                  }}
+                >
+                  <TableCell>{customer.name}</TableCell>
+                  <TableCell>{customer.phone}</TableCell>
+                  <TableCell>{customer.address}</TableCell>
+                  <TableCell>
+                    <FormControl size="small">
+                      <Select
+                        value={customer.grade || 'V3'}
+                        onChange={(e) => {
+                          e.stopPropagation(); // 이벤트 버블링 방지
+                          handleGradeChange(customer.phone, e.target.value);
+                        }}
+                        onClick={(e) => e.stopPropagation()} // 클릭 이벤트 버블링 방지
+                        sx={(theme) => ({
+                          ...getGradeColor(customer.grade),
+                          minWidth: 100,
+                          '& .MuiSelect-select': {
+                            py: 1
+                          }
+                        })}
+                      >
+                        <MenuItem value="V1">V1 (VIP)</MenuItem>
+                        <MenuItem value="V2">V2 (우수)</MenuItem>
+                        <MenuItem value="V3">V3 (일반)</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </TableCell>
+                  <TableCell>
+                    {customer.lastServiceDate ? new Date(customer.lastServiceDate).toLocaleDateString() : '-'}
+                  </TableCell>
+                  <TableCell>{customer.serviceCount || 0}</TableCell>
+                  <TableCell align="center">
+                    <Stack direction="row" spacing={1} justifyContent="center">
+                      <Tooltip title="A/S 등록">
+                        <IconButton 
+                          size="small" 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAddService(customer);
+                          }}
+                        >
+                          <BuildIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </Stack>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </TableContainer>
 
-      {/* A/S 이력 다이얼로그 */}
       <Dialog 
         open={openDialog} 
         onClose={() => setOpenDialog(false)}
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography variant="h6">
-              {selectedCustomer?.name} 고객님의 A/S 이력
-            </Typography>
-            <IconButton onClick={() => setOpenDialog(false)}>
-              <CloseIcon />
-            </IconButton>
-          </Box>
-        </DialogTitle>
-        <DialogContent>
-          {/* 고객 정보 요약 */}
-          <Box sx={{ mb: 3, p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
-            <Typography variant="body2" color="text.secondary">
-              연락처: {selectedCustomer?.phone} | 주소: {selectedCustomer?.address}
-            </Typography>
-          </Box>
+        {selectedCustomer && (
+          <>
+            <DialogTitle>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Typography variant="h6">
+                  고객 상세 정보
+                </Typography>
+                <IconButton onClick={() => setOpenDialog(false)}>
+                  <CloseIcon />
+                </IconButton>
+              </Stack>
+            </DialogTitle>
+            <DialogContent>
+              <Box sx={{ mb: 3 }}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>
+                      기본 정보
+                    </Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} sm={6}>
+                        <Typography variant="subtitle2" color="text.secondary">
+                          고객명
+                        </Typography>
+                        <Typography variant="body1">
+                          {selectedCustomer.name}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <Typography variant="subtitle2" color="text.secondary">
+                          연락처
+                        </Typography>
+                        <Typography variant="body1">
+                          {selectedCustomer.phone}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={12}>
+                        <Typography variant="subtitle2" color="text.secondary">
+                          주소
+                        </Typography>
+                        <Typography variant="body1">
+                          {selectedCustomer.address}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <Typography variant="subtitle2" color="text.secondary">
+                          고객 등급
+                        </Typography>
+                        <Typography variant="body1">
+                          {selectedCustomer.grade === 'V1' ? 'V1 (VIP)' :
+                           selectedCustomer.grade === 'V2' ? 'V2 (우수)' : 'V3 (일반)'}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <Typography variant="subtitle2" color="text.secondary">
+                          총 A/S 건수
+                        </Typography>
+                        <Typography variant="body1">
+                          {selectedCustomer.serviceCount || 0}건
+                        </Typography>
+                      </Grid>
+                    </Grid>
+                  </CardContent>
+                </Card>
+              </Box>
 
-          {/* 탭 추가 */}
-          <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
-            <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)}>
-              <Tab label="A/S 이력" value="service" />
-              <Tab label="출고 이력" value="shipment" />
-            </Tabs>
-          </Box>
+              <Box sx={{ mb: 2 }}>
+                <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)}>
+                  <Tab value="service" label="A/S 이력" />
+                  <Tab value="shipment" label="출고 이력" />
+                </Tabs>
+              </Box>
 
-          {/* A/S 이력 테이블 */}
-          {activeTab === 'service' && (
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>접수일</TableCell>
-                    <TableCell>제품</TableCell>
-                    <TableCell>증상</TableCell>
-                    <TableCell>주행거리</TableCell>
-                    <TableCell>상태</TableCell>
-                    <TableCell>태그</TableCell>
-                    <TableCell align="center">상세</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {serviceHistory.map((service) => (
-                    <TableRow key={service.id} hover>
-                      <TableCell>
-                        {new Date(service.reception_date).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell>{service.product_name}</TableCell>
-                      <TableCell>{service.symptom}</TableCell>
-                      <TableCell>{service.mileage ? `${service.mileage}km` : '-'}</TableCell>
-                      <TableCell>
-                        <Chip
-                          label={service.status}
-                          size="small"
-                          color={getStatusColor(service.status)}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                          {service.tags?.map((tag, index) => (
-                            <Chip
-                              key={index}
-                              label={tag}
-                              size="small"
-                              sx={{
-                                height: '20px',
-                                fontSize: '0.75rem',
-                                bgcolor: 'primary.lighter',
-                                color: 'primary.main'
-                              }}
-                            />
-                          ))}
-                        </Box>
-                      </TableCell>
-                      <TableCell align="center">
-                        <IconButton
-                          component={RouterLink}
-                          to={`/services/${service.id}`}
-                          size="small"
-                          sx={{ color: 'primary.main' }}
-                        >
-                          <VisibilityIcon fontSize="small" />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {serviceHistory.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
-                        A/S 이력이 없습니다.
-                      </TableCell>
-                    </TableRow>
+              {activeTab === 'service' && (
+                <Box>
+                  <Typography variant="h6" gutterBottom>
+                    A/S 이력
+                  </Typography>
+                  {serviceHistory.length > 0 ? (
+                    serviceHistory.map((service, index) => (
+                      <Card key={index} variant="outlined" sx={{ mb: 2 }}>
+                        <CardContent>
+                          <Grid container spacing={2}>
+                            <Grid item xs={12} sm={6}>
+                              <Typography variant="subtitle2" color="text.secondary">
+                                접수일
+                              </Typography>
+                              <Typography variant="body1">
+                                {new Date(service.reception_date).toLocaleDateString()}
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                              <Typography variant="subtitle2" color="text.secondary">
+                                상태
+                              </Typography>
+                              <Chip 
+                                label={service.status} 
+                                color={getStatusColor(service.status)}
+                                size="small"
+                              />
+                            </Grid>
+                            <Grid item xs={12}>
+                              <Typography variant="subtitle2" color="text.secondary">
+                                증상
+                              </Typography>
+                              <Typography variant="body1">
+                                {service.symptom}
+                              </Typography>
+                            </Grid>
+                            {service.tags && service.tags.length > 0 && (
+                              <Grid item xs={12}>
+                                <Typography variant="subtitle2" color="text.secondary">
+                                  태그
+                                </Typography>
+                                <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                                  {service.tags.map((tag, idx) => (
+                                    <Chip key={idx} label={tag} size="small" />
+                                  ))}
+                                </Stack>
+                              </Grid>
+                            )}
+                          </Grid>
+                        </CardContent>
+                      </Card>
+                    ))
+                  ) : (
+                    <Typography color="text.secondary">
+                      A/S 이력이 없습니다.
+                    </Typography>
                   )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
+                </Box>
+              )}
 
-          {/* 출고 이력 테이블 */}
-          {activeTab === 'shipment' && (
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>출고일</TableCell>
-                    <TableCell>제품</TableCell>
-                    <TableCell>수량</TableCell>
-                    <TableCell>배송방법</TableCell>
-                    <TableCell>상태</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {shipmentHistory.map((shipment) => (
-                    <TableRow key={shipment.id} hover>
-                      <TableCell>
-                        {new Date(shipment.shipment_date).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell>{shipment.product_name}</TableCell>
-                      <TableCell>{shipment.quantity}</TableCell>
-                      <TableCell>{shipment.delivery_method}</TableCell>
-                      <TableCell>
-                        <Chip
-                          label={shipment.status}
-                          size="small"
-                          color={getStatusColor(shipment.status)}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {shipmentHistory.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
-                        출고 이력이 없습니다.
-                      </TableCell>
-                    </TableRow>
+              {activeTab === 'shipment' && (
+                <Box>
+                  <Typography variant="h6" gutterBottom>
+                    출고 이력
+                  </Typography>
+                  {shipmentHistory.length > 0 ? (
+                    shipmentHistory.map((shipment, index) => (
+                      <Card key={index} variant="outlined" sx={{ mb: 2 }}>
+                        <CardContent>
+                          <Grid container spacing={2}>
+                            <Grid item xs={12} sm={6}>
+                              <Typography variant="subtitle2" color="text.secondary">
+                                출고일
+                              </Typography>
+                              <Typography variant="body1">
+                                {new Date(shipment.shipment_date).toLocaleDateString()}
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                              <Typography variant="subtitle2" color="text.secondary">
+                                제품
+                              </Typography>
+                              <Typography variant="body1">
+                                {shipment.product_name}
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={12}>
+                              <Typography variant="subtitle2" color="text.secondary">
+                                메모
+                              </Typography>
+                              <Typography variant="body1">
+                                {shipment.memo || '-'}
+                              </Typography>
+                            </Grid>
+                          </Grid>
+                        </CardContent>
+                      </Card>
+                    ))
+                  ) : (
+                    <Typography color="text.secondary">
+                      출고 이력이 없습니다.
+                    </Typography>
                   )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
-        </DialogContent>
+                </Box>
+              )}
+            </DialogContent>
+          </>
+        )}
       </Dialog>
     </Box>
   );

@@ -4,6 +4,11 @@ const API_KEY = process.env.REACT_APP_GOOGLE_API_KEY;
 const DISCOVERY_DOCS = ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'];
 const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 
+// 환경에 따른 리디렉션 URI 설정
+const REDIRECT_URI = process.env.NODE_ENV === 'production' 
+  ? 'https://crmapp8893.netlify.app'
+  : window.location.origin;
+
 let tokenClient;
 let gapiInited = false;
 let gisInited = false;
@@ -37,9 +42,10 @@ export const initializeGoogleAPI = () => {
         callback: '', // 콜백은 요청 시 정의
         prompt: 'consent',
         ux_mode: 'popup',
-        redirect_uri: window.location.origin, // 기본 도메인으로 변경
-        access_type: 'offline',
-        include_granted_scopes: true
+        redirect_uri: REDIRECT_URI,
+        access_type: 'online',
+        include_granted_scopes: true,
+        enable_serial_consent: true
       });
       gisInited = true;
       maybeResolve();
