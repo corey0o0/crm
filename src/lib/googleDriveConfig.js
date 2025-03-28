@@ -1,58 +1,83 @@
-import { google } from 'googleapis';
-
 // Google OAuth 및 Drive API 설정
-const SCOPES = ['https://www.googleapis.com/auth/drive.file'];
 const CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID;
+const API_KEY = process.env.REACT_APP_GOOGLE_API_KEY;
+const DISCOVERY_DOCS = ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'];
+const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 
 let tokenClient;
-let accessToken = null;
+let gapiInited = false;
+let gisInited = false;
 
-// Google OAuth 초기화
-const initializeGoogleOAuth = () => {
+export const initializeGoogleAPI = () => {
+  return new Promise((resolve, reject) => {
+    const script1 = document.createElement('script');
+    script1.src = 'https://apis.google.com/js/api.js';
+    script1.onload = () => {
+      window.gapi.load('client', async () => {
+        try {
+          await window.gapi.client.init({
+            apiKey: API_KEY,
+            discoveryDocs: DISCOVERY_DOCS,
+          });
+          gapiInited = true;
+          maybeResolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+    };
+    document.body.appendChild(script1);
+
+    const script2 = document.createElement('script');
+    script2.src = 'https://accounts.google.com/gsi/client';
+    script2.onload = () => {
+      tokenClient = window.google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        callback: '', // 콜백은 요청 시 정의
+        prompt: 'consent',
+        ux_mode: 'popup',
+        redirect_uri: window.location.origin, // 기본 도메인으로 변경
+        access_type: 'offline',
+        include_granted_scopes: true
+      });
+      gisInited = true;
+      maybeResolve();
+    };
+    document.body.appendChild(script2);
+
+    function maybeResolve() {
+      if (gapiInited && gisInited) {
+        resolve();
+      }
+    }
+  });
+};
+
+export const getAccessToken = () => {
   return new Promise((resolve, reject) => {
     try {
-      tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPES.join(' '),
-        callback: (tokenResponse) => {
-          if (tokenResponse.error !== undefined) {
-            reject(tokenResponse);
-          }
-          accessToken = tokenResponse.access_token;
-          resolve(tokenResponse);
-        },
-      });
+      tokenClient.callback = (response) => {
+        if (response.error) {
+          reject(response);
+        }
+        resolve(response.access_token);
+      };
+      if (window.gapi.client.getToken() === null) {
+        tokenClient.requestAccessToken({ prompt: 'consent' });
+      } else {
+        tokenClient.requestAccessToken({ prompt: '' });
+      }
     } catch (err) {
       reject(err);
     }
   });
 };
 
-// 액세스 토큰 가져오기
-const getAccessToken = async () => {
-  if (!tokenClient) {
-    await initializeGoogleOAuth();
-  }
-  
-  if (!accessToken) {
-    return new Promise((resolve, reject) => {
-      try {
-        tokenClient.requestAccessToken();
-        resolve();
-      } catch (err) {
-        reject(err);
-      }
-    });
-  }
-  return Promise.resolve();
-};
-
-// Google Drive에 파일 업로드
 export const uploadToGoogleDrive = async (file, fileName) => {
   try {
     await getAccessToken();
 
-    // 파일을 FormData로 변환
     const metadata = {
       name: fileName,
       parents: [process.env.REACT_APP_GOOGLE_DRIVE_RECEIPT_FOLDER_ID]
@@ -62,12 +87,11 @@ export const uploadToGoogleDrive = async (file, fileName) => {
     form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
     form.append('file', file);
 
-    // fetch API를 사용하여 파일 업로드
     const response = await fetch(
       'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${accessToken}`,
+          Authorization: `Bearer ${window.gapi.client.getToken().access_token}`,
         },
         body: form,
       }
@@ -88,25 +112,16 @@ export const uploadToGoogleDrive = async (file, fileName) => {
   }
 };
 
-// 파일 링크 가져오기
 export const getFileLink = async (fileId) => {
   try {
     await getAccessToken();
 
-    const response = await fetch(
-      `https://www.googleapis.com/drive/v3/files/${fileId}?fields=webViewLink`, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      }
-    );
+    const response = await window.gapi.client.drive.files.get({
+      fileId: fileId,
+      fields: 'webViewLink'
+    });
 
-    if (!response.ok) {
-      throw new Error('Failed to get file link');
-    }
-
-    const result = await response.json();
-    return result.webViewLink;
+    return response.result.webViewLink;
   } catch (error) {
     console.error('Error getting file link:', error);
     throw error;

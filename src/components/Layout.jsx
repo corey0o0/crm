@@ -25,7 +25,8 @@ import {
   BarChart as BarChartIcon,
   Inventory as InventoryIcon,
   LocalShipping as LocalShippingIcon,
-  Receipt as ReceiptIcon
+  Receipt as ReceiptIcon,
+  DriveFileMove as DriveIcon
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
@@ -100,7 +101,8 @@ function Layout() {
     { text: 'A/S 통계', icon: <BarChartIcon />, path: '/service-statistics' },
     { text: '파츠 관리', icon: <InventoryIcon />, path: '/parts' },
     { text: '출고 관리', icon: <LocalShippingIcon />, path: '/shipments' },
-    { text: '영수증 스캔', icon: <ReceiptIcon />, path: '/receipts' }
+    { text: '영수증 스캔', icon: <ReceiptIcon />, path: '/receipts' },
+    { text: '드라이브 테스트', icon: <DriveIcon />, path: '/google-drive-test' }
   ];
 
   const handleDrawerToggle = () => {
