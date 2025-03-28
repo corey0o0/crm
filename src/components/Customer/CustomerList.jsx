@@ -27,7 +27,8 @@ import {
   Tabs,
   Tab,
   Card,
-  CardContent
+  CardContent,
+  Grid
 } from '@mui/material';
 import {
   Close as CloseIcon,
