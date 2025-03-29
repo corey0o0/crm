@@ -521,6 +521,14 @@ function ServiceList() {
   };
 
   const handleRowClick = (service) => {
+    if (!service || !service.id) {
+      setSnackbar({
+        open: true,
+        message: 'A/S 정보를 찾을 수 없습니다.',
+        severity: 'error'
+      });
+      return;
+    }
     navigate(`/services/${service.id}`);
   };
 

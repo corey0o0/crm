@@ -291,11 +291,13 @@ function ProductShipment() {
     }
   };
 
-  const handleEdit = (shipmentId) => {
-    const shipment = shipments.find(s => s.id === shipmentId);
+  const handleEdit = (shipmentIdOrObject) => {
+    const shipment = typeof shipmentIdOrObject === 'object' 
+      ? shipmentIdOrObject 
+      : shipments.find(s => s.id === shipmentIdOrObject);
     
     if (!shipment) {
-      console.error(`Shipment with id ${shipmentId} not found`);
+      console.error(`Shipment not found`);
       setSnackbar({
         open: true,
         message: '출고 정보를 찾을 수 없습니다.',
@@ -1097,6 +1099,12 @@ function ProductShipment() {
         columns={columns}
         data={filteredShipments}
         renderMobileCard={renderMobileCard}
+        onRowClick={(id) => handleEdit(id)}
+        rowSx={{
+          '&:hover': {
+            backgroundColor: theme.palette.primary.lighter,
+          }
+        }}
       />
 
       {/* 모바일 카드 뷰 */}

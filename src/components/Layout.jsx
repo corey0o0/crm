@@ -96,11 +96,11 @@ function Layout() {
 
   const menuItems = [
     { text: '대시보드', icon: <DashboardIcon />, path: '/' },
-    { text: '고객 관리', icon: <PeopleIcon />, path: '/customers' },
     { text: 'A/S 관리', icon: <BuildIcon />, path: '/services' },
-    { text: 'A/S 통계', icon: <BarChartIcon />, path: '/service-statistics' },
-    { text: '파츠 관리', icon: <InventoryIcon />, path: '/parts' },
     { text: '출고 관리', icon: <LocalShippingIcon />, path: '/shipments' },
+    { text: '고객 관리', icon: <PeopleIcon />, path: '/customers' },
+    { text: '파츠 관리', icon: <InventoryIcon />, path: '/parts' },
+    { text: 'A/S 통계', icon: <BarChartIcon />, path: '/service-statistics' },    
     { text: '영수증 스캔', icon: <ReceiptIcon />, path: '/receipts' },
     { text: '드라이브 테스트', icon: <DriveIcon />, path: '/google-drive-test' }
   ];

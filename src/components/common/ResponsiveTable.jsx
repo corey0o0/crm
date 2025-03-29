@@ -15,7 +15,7 @@ import {
   Paper
 } from '@mui/material';
 
-function ResponsiveTable({ columns, data, renderMobileCard, onRowClick, hoverEffect = false }) {
+function ResponsiveTable({ columns, data, renderMobileCard, onRowClick, rowSx = {} }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -29,8 +29,9 @@ function ResponsiveTable({ columns, data, renderMobileCard, onRowClick, hoverEff
             sx={{
               cursor: onRowClick ? 'pointer' : 'default',
               '&:hover': {
-                backgroundColor: '#e3f2fd'
-              }
+                backgroundColor: theme.palette.primary.lighter
+              },
+              ...rowSx
             }}
           >
             {renderMobileCard(row, index)}
@@ -49,7 +50,7 @@ function ResponsiveTable({ columns, data, renderMobileCard, onRowClick, hoverEff
               <TableCell 
                 key={column.id}
                 sx={{
-                  backgroundColor: '#fafafa',
+                  backgroundColor: theme.palette.grey[50],
                   fontWeight: 'bold'
                 }}
               >
@@ -63,12 +64,13 @@ function ResponsiveTable({ columns, data, renderMobileCard, onRowClick, hoverEff
             <TableRow 
               key={index}
               onClick={() => onRowClick && onRowClick(row)}
-              hover={hoverEffect}
+              hover
               sx={{
                 cursor: onRowClick ? 'pointer' : 'default',
-                '&:hover': hoverEffect ? {
-                  backgroundColor: '#e3f2fd !important'
-                } : {}
+                '&:hover': {
+                  backgroundColor: `${theme.palette.primary.lighter} !important`
+                },
+                ...rowSx
               }}
             >
               {columns.map((column) => (
