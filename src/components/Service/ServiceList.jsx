@@ -586,14 +586,21 @@ function ServiceList() {
     },
     { 
       id: 'customer_info', 
-      label: '고객정보',
+      label: '이름',
       sortable: true,
       render: (row) => (
         <Box>
-          <Typography>{row.customer_name}</Typography>
-          <Typography variant="caption" color="textSecondary">
-            {row.customer_phone}
-          </Typography>
+          <Typography>{row.customer_name}</Typography>          
+        </Box>
+      )
+    },
+    { 
+      id: 'customer_info', 
+      label: '연락처',
+      sortable: true,
+      render: (row) => (
+        <Box>
+          <Typography>{row.customer_phone}</Typography>
         </Box>
       )
     },
