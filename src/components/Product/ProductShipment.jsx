@@ -731,21 +731,21 @@ function ProductShipment() {
 
   const columns = [
     { id: 'shipment_date', label: '주문일자' },
-    { id: 'customer_info', label: '고객정보',
+    { id: 'customer_name', label: '이름',
       render: (row) => (
-        <Box>
-          <Typography>{row.customer_name}</Typography>
-          <Typography variant="caption" color="textSecondary">
-            {row.customer_phone}
-          </Typography>
-        </Box>
+        <Typography>{row.customer_name}</Typography>
+      )
+    },
+    { id: 'customer_phone', label: '연락처',
+      render: (row) => (
+        <Typography variant="body2">{row.customer_phone}</Typography>
       )
     },
     { id: 'sales_channel', label: '판매처',
       render: (row) => {
         const salesChannelMatch = row.note?.match(/\[판매처: (.*?)\]/);
         const salesChannel = salesChannelMatch ? salesChannelMatch[1] : '공홈';
-  return (
+        return (
           <Chip
             label={salesChannel}
             size="small"
@@ -811,45 +811,63 @@ function ProductShipment() {
   const renderMobileCard = (row) => (
     <Card sx={{ mb: 1 }}>
       <CardContent>
-        <Typography variant="subtitle1" gutterBottom>
-          {row.customer_name}
-        </Typography>
-        <Typography variant="body2" color="textSecondary">
-          {row.customer_phone}
-        </Typography>
-        <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-            판매처:
-          </Typography>
-          <Chip
-            label={(() => {
-              const salesChannelMatch = row.note?.match(/\[판매처: (.*?)\]/);
-              return salesChannelMatch ? salesChannelMatch[1] : '공홈';
-            })()}
-            size="small"
-            color="primary"
-            variant="outlined"
-          />
-        </Box>
-        <Typography variant="body2" sx={{ mt: 1 }}>
-          배송: {row.delivery_method}
-          {row.tracking_number && ` (${row.tracking_number})`}
-        </Typography>
-        <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Chip
-            label={row.status}
-            color={getStatusColor(row.status)}
-            size="small"
-          />
-          <Box>
-            <IconButton size="small" onClick={() => handleEdit(row.id)}>
-              <EditIcon />
+        <Grid container spacing={1}>
+          <Grid item xs={6}>
+            <Typography variant="subtitle1" gutterBottom>
+              {row.customer_name}
+            </Typography>
+            <Typography variant="body2" color="textSecondary">
+              {row.customer_phone}
+            </Typography>
+          </Grid>
+          <Grid item xs={6} sx={{ textAlign: 'right' }}>
+            <Chip
+              label={(() => {
+                const salesChannelMatch = row.note?.match(/\[판매처: (.*?)\]/);
+                return salesChannelMatch ? salesChannelMatch[1] : '공홈';
+              })()}
+              size="small"
+              color="primary"
+              variant="outlined"
+            />
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              {isValid(parseISO(row.shipment_date)) 
+                ? format(parseISO(row.shipment_date), 'yyyy-MM-dd') 
+                : '-'}
+            </Typography>
+          </Grid>
+          
+          <Grid item xs={12}>
+            <Divider sx={{ my: 1 }} />
+          </Grid>
+          
+          <Grid item xs={12}>
+            <Typography variant="body2">
+              {row.product_name} ({row.quantity}개)
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {row.product_code}
+            </Typography>
+          </Grid>
+          
+          <Grid item xs={6}>
+            <Typography variant="body2" color="text.secondary">
+              송장번호:
+            </Typography>
+            <Typography variant="body2">
+              {row.tracking_number || '-'}
+            </Typography>
+          </Grid>
+          
+          <Grid item xs={6} sx={{ textAlign: 'right' }}>
+            <IconButton size="small" color="primary" onClick={() => handleEdit(row.id)}>
+              <EditIcon fontSize="small" />
             </IconButton>
-            <IconButton size="small" onClick={() => handleDeleteClick(row)}>
-              <DeleteIcon />
+            <IconButton size="small" color="error" onClick={() => handleDelete(row.id)}>
+              <DeleteIcon fontSize="small" />
             </IconButton>
-          </Box>
-        </Box>
+          </Grid>
+        </Grid>
       </CardContent>
     </Card>
   );

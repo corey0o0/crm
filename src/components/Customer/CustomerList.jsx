@@ -375,7 +375,7 @@ function CustomerList() {
         <TextField
           fullWidth
           variant="outlined"
-          placeholder="고객명, 연락처, 주소로 검색"
+          placeholder="이름, 연락처, 제품으로 검색"
           value={searchTerm}
           onChange={handleSearch}
           sx={{ mb: 2 }}
@@ -385,9 +385,9 @@ function CustomerList() {
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell>고객명</TableCell>
+              <TableCell>이름</TableCell>
               <TableCell>연락처</TableCell>
-              <TableCell>주소</TableCell>
+              <TableCell>제품</TableCell>
               <TableCell>최근 A/S</TableCell>
               <TableCell>건수</TableCell>
               <TableCell align="center">관리</TableCell>
@@ -426,7 +426,7 @@ function CustomerList() {
                 >
                   <TableCell>{customer.name}</TableCell>
                   <TableCell>{customer.phone}</TableCell>
-                  <TableCell>{customer.address}</TableCell>
+                  <TableCell>{customer.recentTag || '-'}</TableCell>
                   <TableCell>
                     {customer.lastServiceDate ? new Date(customer.lastServiceDate).toLocaleDateString() : '-'}
                   </TableCell>
@@ -517,46 +517,30 @@ function CustomerList() {
               </Stack>
             </DialogTitle>
             <DialogContent sx={{ p: 3 }}>
-              {/* 기본 정보 카드 */}
-              <Card variant="outlined" sx={{ mb: 3, boxShadow: 'none', border: '1px solid #eee' }}>
-                <CardContent sx={{ p: 2 }}>
-                  <Grid container spacing={2}>
-                    <Grid item xs={12} sm={6}>
-                      <Box sx={{ mb: 2 }}>
-                        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                          연락처
-                        </Typography>
-                        <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                          {selectedCustomer.phone}
-                        </Typography>
-                      </Box>
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <Box sx={{ mb: 2 }}>
-                        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                          총 A/S 건수
-                        </Typography>
-                        <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                          {selectedCustomer.serviceCount || 0}건
-                        </Typography>
-                      </Box>
-                    </Grid>
-                    <Grid item xs={12}>
-                      <Box>
-                        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                          주소
-                        </Typography>
-                        <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                          {selectedCustomer.address}
-                        </Typography>
-                      </Box>
-                    </Grid>
+              {/* 기본 정보 */}
+              <Box sx={{ mb: 1 }}>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={4}>
+                    <Typography variant="subtitle2" color="text.secondary">연락처</Typography>
+                    <Typography variant="body1">{selectedCustomer.phone}</Typography>
                   </Grid>
-                </CardContent>
-              </Card>
+                  <Grid item xs={12} sm={4}>
+                    <Typography variant="subtitle2" color="text.secondary">A/S 건수</Typography>
+                    <Typography variant="body1">{selectedCustomer.serviceCount || 0}건</Typography>
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <Typography variant="subtitle2" color="text.secondary">출고 건수</Typography>
+                    <Typography variant="body1">{selectedCustomer.shipmentCount || 0}건</Typography>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Typography variant="subtitle2" color="text.secondary">주소</Typography>
+                    <Typography variant="body1">{selectedCustomer.address}</Typography>
+                  </Grid>
+                </Grid>
+              </Box>
 
               {/* 탭 메뉴 */}
-              <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+              <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
                 <Tabs 
                   value={activeTab} 
                   onChange={(e, newValue) => setActiveTab(newValue)}
@@ -576,86 +560,53 @@ function CustomerList() {
               {activeTab === 'service' && (
                 <Box>
                   {serviceHistory.length > 0 ? (
-                    serviceHistory.map((service, index) => (
-                      <Card 
-                        key={index} 
-                        variant="outlined" 
-                        sx={{ 
-                          mb: 2, 
-                          boxShadow: 'none',
-                          border: '1px solid #eee',
-                          '&:hover': {
-                            borderColor: 'primary.main',
-                            bgcolor: 'primary.lighter'
-                          }
-                        }}
-                      >
-                        <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                          <Grid container spacing={2}>
-                            <Grid item xs={12} sm={6}>
-                              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                                접수일
-                              </Typography>
-                              <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                                {new Date(service.reception_date).toLocaleDateString()}
-                              </Typography>
-                            </Grid>
-                            <Grid item xs={12} sm={6}>
-                              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                                상태
-                              </Typography>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>접수일</TableCell>
+                          <TableCell>증상</TableCell>
+                          <TableCell>상태</TableCell>
+                          <TableCell>태그</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {serviceHistory.map((service, index) => (
+                          <TableRow key={index} hover>
+                            <TableCell>
+                              {new Date(service.reception_date).toLocaleDateString()}
+                            </TableCell>
+                            <TableCell>{service.symptom}</TableCell>
+                            <TableCell>
                               <Chip 
                                 label={service.status} 
                                 color={getStatusColor(service.status)}
                                 size="small"
-                                sx={{ fontWeight: 500 }}
                               />
-                            </Grid>
-                            <Grid item xs={12}>
-                              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                                증상
-                              </Typography>
-                              <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                                {service.symptom}
-                              </Typography>
-                            </Grid>
-                            {service.tags && service.tags.length > 0 && (
-                              <Grid item xs={12}>
-                                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                                  태그
-                                </Typography>
-                                <Stack direction="row" spacing={1}>
-                                  {service.tags.map((tag, idx) => (
-                                    <Chip 
-                                      key={idx} 
-                                      label={tag} 
-                                      size="small"
-                                      sx={{
-                                        bgcolor: 'primary.lighter',
-                                        color: 'primary.main',
-                                        fontWeight: 500
-                                      }}
-                                    />
-                                  ))}
-                                </Stack>
-                              </Grid>
-                            )}
-                          </Grid>
-                        </CardContent>
-                      </Card>
-                    ))
+                            </TableCell>
+                            <TableCell>
+                              <Stack direction="row" spacing={0.5}>
+                                {service.tags?.map((tag, idx) => (
+                                  <Chip 
+                                    key={idx} 
+                                    label={tag} 
+                                    size="small"
+                                    sx={{
+                                      height: '20px',
+                                      fontSize: '0.75rem',
+                                      bgcolor: 'primary.lighter',
+                                      color: 'primary.main'
+                                    }}
+                                  />
+                                ))}
+                              </Stack>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
                   ) : (
-                    <Box 
-                      sx={{ 
-                        p: 3, 
-                        textAlign: 'center',
-                        bgcolor: 'grey.50',
-                        borderRadius: 1
-                      }}
-                    >
-                      <Typography color="text.secondary">
-                        A/S 이력이 없습니다.
-                      </Typography>
+                    <Box sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>
+                      A/S 이력이 없습니다.
                     </Box>
                   )}
                 </Box>
@@ -665,64 +616,29 @@ function CustomerList() {
               {activeTab === 'shipment' && (
                 <Box>
                   {shipmentHistory.length > 0 ? (
-                    shipmentHistory.map((shipment, index) => (
-                      <Card 
-                        key={index} 
-                        variant="outlined" 
-                        sx={{ 
-                          mb: 2, 
-                          boxShadow: 'none',
-                          border: '1px solid #eee',
-                          '&:hover': {
-                            borderColor: 'primary.main',
-                            bgcolor: 'primary.lighter'
-                          }
-                        }}
-                      >
-                        <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                          <Grid container spacing={2}>
-                            <Grid item xs={12} sm={6}>
-                              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                                출고일
-                              </Typography>
-                              <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                                {new Date(shipment.shipment_date).toLocaleDateString()}
-                              </Typography>
-                            </Grid>
-                            <Grid item xs={12} sm={6}>
-                              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                                제품
-                              </Typography>
-                              <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                                {shipment.product_name}
-                              </Typography>
-                            </Grid>
-                            {shipment.memo && (
-                              <Grid item xs={12}>
-                                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                                  메모
-                                </Typography>
-                                <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                                  {shipment.memo}
-                                </Typography>
-                              </Grid>
-                            )}
-                          </Grid>
-                        </CardContent>
-                      </Card>
-                    ))
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>출고일</TableCell>
+                          <TableCell>제품</TableCell>
+                          <TableCell>메모</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {shipmentHistory.map((shipment, index) => (
+                          <TableRow key={index} hover>
+                            <TableCell>
+                              {new Date(shipment.shipment_date).toLocaleDateString()}
+                            </TableCell>
+                            <TableCell>{shipment.product_name}</TableCell>
+                            <TableCell>{shipment.memo || '-'}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
                   ) : (
-                    <Box 
-                      sx={{ 
-                        p: 3, 
-                        textAlign: 'center',
-                        bgcolor: 'grey.50',
-                        borderRadius: 1
-                      }}
-                    >
-                      <Typography color="text.secondary">
-                        출고 이력이 없습니다.
-                      </Typography>
+                    <Box sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>
+                      출고 이력이 없습니다.
                     </Box>
                   )}
                 </Box>
