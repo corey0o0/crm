@@ -372,12 +372,33 @@ function AddService() {
               const completionMatch = row['완료 여부']?.match(/완료\((.*?)\)/);
               const completionDate = completionMatch ? parseDate(completionMatch[1]) : null;
 
-              // 영수증 이미지 처리
-              let receiptAnalysisResult = null;
-              if (row['JPG']) {
-                const imageBlob = await fetchImageFromUrl(row['JPG']);
-                if (imageBlob) {
-                  receiptAnalysisResult = await analyzeReceiptImage(imageBlob);
+              // L열(구매처) 데이터를 부품 정보로 파싱
+              let matchedParts = [];
+              if (row['L'] || row['l'] || row['구매처']) {
+                const partsData = row['L'] || row['l'] || row['구매처'];
+                if (partsData) {
+                  // 부품 정보 파싱 (예: "부품명1:수량1:가격1,부품명2:수량2:가격2" 형식)
+                  const partsArray = partsData.split(',').map(part => part.trim());
+                  for (const partInfo of partsArray) {
+                    const [name, quantity = "1", price = "0"] = partInfo.split(':').map(item => item.trim());
+                    if (name) {
+                      // 부품 데이터베이스에서 매칭
+                      const { data: matchedPart, error: matchError } = await supabase
+                        .from('parts')
+                        .select('*')
+                        .eq('brand', selectedBrand)
+                        .ilike('name', `%${name}%`)
+                        .single();
+
+                      if (!matchError && matchedPart) {
+                        matchedParts.push({
+                          part_id: matchedPart.id,
+                          quantity: parseInt(quantity) || 1,
+                          price: parseInt(price) || matchedPart.price
+                        });
+                      }
+                    }
+                  }
                 }
               }
 
@@ -413,22 +434,16 @@ function AddService() {
 
               if (serviceError) throw serviceError;
 
-              // 영수증 분석 결과가 있는 경우 부품 매칭 및 등록
-              if (receiptAnalysisResult && receiptAnalysisResult.items) {
-                const matchedParts = await matchPartsWithItems(receiptAnalysisResult.items);
-                
-                if (matchedParts.length > 0) {
-                  const { error: partsError } = await supabase
-                    .from('service_parts')
-                    .insert(matchedParts.map(part => ({
-                      service_id: newService.id,
-                      part_id: part.part_id,
-                      quantity: part.quantity,
-                      price: part.price
-                    })));
+              // 매칭된 부품 정보가 있는 경우 등록
+              if (matchedParts.length > 0) {
+                const { error: partsError } = await supabase
+                  .from('service_parts')
+                  .insert(matchedParts.map(part => ({
+                    service_id: newService.id,
+                    ...part
+                  })));
 
-                  if (partsError) throw partsError;
-                }
+                if (partsError) throw partsError;
               }
 
             } catch (rowError) {
@@ -613,51 +628,57 @@ function AddService() {
         </Box>
 
         <Paper sx={paperStyle}>
-          <Typography variant="h5" gutterBottom sx={{ 
+          <Box sx={{ 
             mb: 4, 
-            color: '#191f28',
-            fontWeight: 600 
+            display: 'flex', 
+            justifyContent: 'space-between',
+            alignItems: 'center'
           }}>
-            A/S 등록
-          </Typography>
-
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mb: 3 }}>
-            <Button
-              variant="outlined"
-              startIcon={<DownloadIcon />}
-              onClick={handleDownloadTemplate}
-              sx={{ 
-                color: '#3182f6',
-                borderColor: '#3182f6',
-                '&:hover': { 
-                  bgcolor: 'rgba(49, 130, 246, 0.04)',
-                  borderColor: '#1b64da'
-                }
-              }}
-            >
-              엑셀 템플릿
-            </Button>
-            <Button
-              variant="outlined"
-              startIcon={<CloudUploadIcon />}
-              component="label"
-              sx={{ 
-                color: '#3182f6',
-                borderColor: '#3182f6',
-                '&:hover': { 
-                  bgcolor: 'rgba(49, 130, 246, 0.04)',
-                  borderColor: '#1b64da'
-                }
-              }}
-            >
-              엑셀 등록
-              <input
-                type="file"
-                hidden
-                accept=".xlsx,.xls"
-                onChange={handleExcelUpload}
-              />
-            </Button>
+            <Typography variant="h5" sx={{ 
+              color: '#191f28',
+              fontWeight: 600 
+            }}>
+              A/S 등록
+            </Typography>
+            
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <Button
+                variant="outlined"
+                startIcon={<DownloadIcon />}
+                onClick={handleDownloadTemplate}
+                sx={{ 
+                  color: '#3182f6',
+                  borderColor: '#3182f6',
+                  '&:hover': { 
+                    bgcolor: 'rgba(49, 130, 246, 0.04)',
+                    borderColor: '#1b64da'
+                  }
+                }}
+              >
+                엑셀 템플릿
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<CloudUploadIcon />}
+                component="label"
+                sx={{ 
+                  color: '#3182f6',
+                  borderColor: '#3182f6',
+                  '&:hover': { 
+                    bgcolor: 'rgba(49, 130, 246, 0.04)',
+                    borderColor: '#1b64da'
+                  }
+                }}
+              >
+                엑셀 등록
+                <input
+                  type="file"
+                  hidden
+                  accept=".xlsx,.xls"
+                  onChange={handleExcelUpload}
+                />
+              </Button>
+            </Box>
           </Box>
 
           <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
