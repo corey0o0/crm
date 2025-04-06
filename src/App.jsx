@@ -16,7 +16,7 @@ import CustomerManagement from './components/Customer/CustomerManagement';
 import ServiceList from './components/Service/ServiceList';
 import AddService from './components/Service/AddService';
 import ServiceDetail from './components/Service/ServiceDetail';
-import ServiceStatistics from './components/Service/ServiceStatistics';
+import ServiceStatistics from './components/Statistics/ServiceStatistics';
 import PartsManagement from './components/Service/PartsManagement';
 import ProductShipment from './components/Product/ProductShipment';
 import ReceiptScanner from './components/Receipt/ReceiptScanner';
