@@ -39,6 +39,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ReceiptIcon from '@mui/icons-material/Receipt';
 import CloseIcon from '@mui/icons-material/Close';
 import ReceiptScanner from '../Receipt/ReceiptScanner';
+import RemoveIcon from '@mui/icons-material/Remove';
 
 function ServiceDetail() {
   const { id } = useParams();
@@ -485,7 +486,7 @@ function ServiceDetail() {
               <TableCell>부품명</TableCell>
               <TableCell>코드</TableCell>
               <TableCell align="right">단가</TableCell>
-              <TableCell align="right">수량</TableCell>
+              <TableCell align="center">수량</TableCell>
               <TableCell align="right">금액</TableCell>
               <TableCell align="center">작업</TableCell>
             </TableRow>
@@ -498,11 +499,59 @@ function ServiceDetail() {
                 <TableCell align="right">
                   {part.price ? part.price.toLocaleString() : '0'}원
                 </TableCell>
-                <TableCell align="right">{part.quantity}</TableCell>
+                <TableCell align="center">
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                    <IconButton 
+                      size="small"
+                      onClick={() => {
+                        if (part.quantity > 1) {
+                          setSelectedParts(prev => prev.map(p => 
+                            p.id === part.id 
+                              ? { ...p, quantity: p.quantity - 1 }
+                              : p
+                          ));
+                        }
+                      }}
+                    >
+                      <RemoveIcon fontSize="small" />
+                    </IconButton>
+                    <TextField
+                      type="number"
+                      size="small"
+                      value={part.quantity}
+                      onChange={(e) => {
+                        const newQuantity = Math.max(1, parseInt(e.target.value) || 1);
+                        setSelectedParts(prev => prev.map(p => 
+                          p.id === part.id 
+                            ? { ...p, quantity: newQuantity }
+                            : p
+                        ));
+                      }}
+                      inputProps={{ 
+                        min: 1,
+                        style: { 
+                          textAlign: 'center',
+                          width: '50px',
+                          padding: '4px'
+                        }
+                      }}
+                    />
+                    <IconButton 
+                      size="small"
+                      onClick={() => {
+                        setSelectedParts(prev => prev.map(p => 
+                          p.id === part.id 
+                            ? { ...p, quantity: p.quantity + 1 }
+                            : p
+                        ));
+                      }}
+                    >
+                      <AddIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                </TableCell>
                 <TableCell align="right">
-                  {part.price && part.quantity
-                    ? (part.price * part.quantity).toLocaleString()
-                    : '0'}원
+                  {((part.price || 0) * part.quantity).toLocaleString()}원
                 </TableCell>
                 <TableCell align="center">
                   <IconButton

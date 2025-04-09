@@ -40,6 +40,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SearchIcon from '@mui/icons-material/Search';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
+import RemoveIcon from '@mui/icons-material/Remove';
 import { API_CONFIG } from '../../config/api';
 
 // 접수방법과 배송방법 옵션
@@ -959,7 +960,7 @@ function AddService() {
                           <TableCell>부품명</TableCell>
                           <TableCell>코드</TableCell>
                           <TableCell align="right">단가</TableCell>
-                          <TableCell align="right">수량</TableCell>
+                          <TableCell align="center">수량</TableCell>
                           <TableCell align="right">금액</TableCell>
                           <TableCell align="center">삭제</TableCell>
                         </TableRow>
@@ -972,7 +973,57 @@ function AddService() {
                             <TableCell align="right">
                               {part.price ? part.price.toLocaleString() : '0'}원
                             </TableCell>
-                            <TableCell align="right">{part.quantity}</TableCell>
+                            <TableCell align="center">
+                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                                <IconButton 
+                                  size="small"
+                                  onClick={() => {
+                                    if (part.quantity > 1) {
+                                      setSelectedParts(prev => prev.map(p => 
+                                        p.id === part.id 
+                                          ? { ...p, quantity: p.quantity - 1 }
+                                          : p
+                                      ));
+                                    }
+                                  }}
+                                >
+                                  <RemoveIcon fontSize="small" />
+                                </IconButton>
+                                <TextField
+                                  type="number"
+                                  size="small"
+                                  value={part.quantity}
+                                  onChange={(e) => {
+                                    const newQuantity = Math.max(1, parseInt(e.target.value) || 1);
+                                    setSelectedParts(prev => prev.map(p => 
+                                      p.id === part.id 
+                                        ? { ...p, quantity: newQuantity }
+                                        : p
+                                    ));
+                                  }}
+                                  inputProps={{ 
+                                    min: 1,
+                                    style: { 
+                                      textAlign: 'center',
+                                      width: '50px',
+                                      padding: '4px'
+                                    }
+                                  }}
+                                />
+                                <IconButton 
+                                  size="small"
+                                  onClick={() => {
+                                    setSelectedParts(prev => prev.map(p => 
+                                      p.id === part.id 
+                                        ? { ...p, quantity: p.quantity + 1 }
+                                        : p
+                                    ));
+                                  }}
+                                >
+                                  <AddIcon fontSize="small" />
+                                </IconButton>
+                              </Box>
+                            </TableCell>
                             <TableCell align="right">
                               {((part.price || 0) * part.quantity).toLocaleString()}원
                             </TableCell>

@@ -610,19 +610,8 @@ function ServiceList() {
       label: '제품',
       sortable: true,
       render: (row) => (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box>
           <Typography>{row.product_name}</Typography>
-          {row.note && row.note.includes('JPG:') && (
-            <Tooltip title="영수증 첨부됨">
-              <ReceiptIcon 
-                sx={{ 
-                  fontSize: '1rem', 
-                  color: 'primary.main',
-                  opacity: 0.7 
-                }} 
-              />
-            </Tooltip>
-          )}
         </Box>
       )
     },
@@ -658,11 +647,24 @@ function ServiceList() {
       label: '상태',
       sortable: true,
       render: (row) => (
-        <Chip
-          label={row.status}
-          color={getStatusColor(row.status)}
-          size="small"
-        />
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Chip
+            label={row.status}
+            color={getStatusColor(row.status)}
+            size="small"
+          />
+          {row.note && row.note.includes('JPG:') && (
+            <Tooltip title="영수증 첨부됨">
+              <ReceiptIcon 
+                sx={{ 
+                  fontSize: '1rem', 
+                  color: 'primary.main',
+                  opacity: 0.7 
+                }} 
+              />
+            </Tooltip>
+          )}
+        </Box>
       )
     },
     { 
@@ -698,22 +700,9 @@ function ServiceList() {
         <Typography variant="body2" color="textSecondary">
           {row.customer_phone}
         </Typography>
-        <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography variant="body2">
-            제품: {row.product_name}
-          </Typography>
-          {row.note && row.note.includes('JPG:') && (
-            <Tooltip title="영수증 첨부됨">
-              <ReceiptIcon 
-                sx={{ 
-                  fontSize: '1rem', 
-                  color: 'primary.main',
-                  opacity: 0.7 
-                }} 
-              />
-            </Tooltip>
-          )}
-        </Box>
+        <Typography variant="body2" sx={{ mt: 1 }}>
+          제품: {row.product_name}
+        </Typography>
         <Typography variant="body2" sx={{ mt: 1 }}>
           증상: {row.symptom}
         </Typography>
@@ -733,11 +722,24 @@ function ServiceList() {
           ))}
         </Box>
         <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Chip
-            label={row.status}
-            color={getStatusColor(row.status)}
-            size="small"
-          />
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Chip
+              label={row.status}
+              color={getStatusColor(row.status)}
+              size="small"
+            />
+            {row.note && row.note.includes('JPG:') && (
+              <Tooltip title="영수증 첨부됨">
+                <ReceiptIcon 
+                  sx={{ 
+                    fontSize: '1rem', 
+                    color: 'primary.main',
+                    opacity: 0.7 
+                  }} 
+                />
+              </Tooltip>
+            )}
+          </Box>
           <Box>
             <IconButton size="small" onClick={(e) => {
               e.stopPropagation();
