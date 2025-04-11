@@ -84,6 +84,7 @@ function ServiceDetail() {
   });
   const [modifiedPrice, setModifiedPrice] = useState('');
   const [partDialogOpen, setPartDialogOpen] = useState(false);
+  const [tag, setTag] = useState('');
 
   const fetchServiceDetail = React.useCallback(async () => {
     try {
@@ -1123,6 +1124,33 @@ function ServiceDetail() {
             </Button>
           </DialogActions>
         </Dialog>
+
+        {/* Add Tag Input Field */}
+        <Box sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+          <TextField
+            label="태그"
+            value={tag}
+            onChange={(e) => setTag(e.target.value)}
+            sx={{ flex: 1 }}
+          />
+        </Box>
+
+        {/* Enable Price Modification for Parts */}
+        {selectedParts.map((part, index) => (
+          <Box key={index} sx={{ display: 'flex', alignItems: 'center' }}>
+            <TextField
+              type="number"
+              label="가격"
+              value={modifiedPrice || part.price}
+              onChange={(e) => setModifiedPrice(e.target.value)}
+              sx={{ flex: 1 }}
+              InputProps={{
+                inputProps: { min: 0 },
+                startAdornment: <InputAdornment position="start">₩</InputAdornment>
+              }}
+            />
+          </Box>
+        ))}
       </Box>
     </LocalizationProvider>
   );
