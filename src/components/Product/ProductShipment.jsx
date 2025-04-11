@@ -45,7 +45,8 @@ import {
   Divider,
   FormControl,
   InputLabel,
-  Select
+  Select,
+  Radio
 } from '@mui/material';
 import {
   Edit as EditIcon,
@@ -60,9 +61,7 @@ import {
   ExpandMore as ExpandMoreIcon,
   DateRange as DateRangeIcon,
   Store as StoreIcon,
-  FilterAlt as FilterAltIcon,
-  Receipt as ReceiptIcon,
-  Remove as RemoveIcon
+  FilterAlt as FilterAltIcon
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -73,7 +72,6 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ko } from 'date-fns/locale';
 import { format, parseISO, isValid } from 'date-fns';
-import ReceiptScanner from '../Receipt/ReceiptScanner';
 
 function ProductShipment() {
   const [selectedBrand, setSelectedBrand] = useState('XRB');
@@ -99,7 +97,6 @@ function ProductShipment() {
   const [selectedPart, setSelectedPart] = useState(null);
   const [partsQuantity, setPartsQuantity] = useState(1);
   const [selectedParts, setSelectedParts] = useState([]);
-  const [availableParts, setAvailableParts] = useState([]);
   const location = useLocation();
   
   // 추가: 페이지네이션 상태
@@ -127,8 +124,6 @@ function ProductShipment() {
   
   // 추가: 판매처 목록
   const [salesChannels, setSalesChannels] = useState([]);
-  
-  const [openReceiptDialog, setOpenReceiptDialog] = useState(false);
   
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -264,7 +259,7 @@ function ProductShipment() {
         .order('name');
       
       if (error) throw error;
-      setAvailableParts(data || []);
+      setParts(data || []);
       setFilteredParts(data || []);
     } catch (err) {
       console.error('Error fetching parts:', err);
@@ -431,15 +426,23 @@ function ProductShipment() {
         return;
       }
       
-      if (!selectedShipment.products || selectedShipment.products.length === 0) {
+      // selectedParts 배열로 제품 검증
+      if (!selectedParts || selectedParts.length === 0) {
         setSnackbar({
           open: true,
-          message: '최소 하나 이상의 제품을 추가해주세요.',
+          message: '하나 이상의 제품을 추가해주세요.',
           severity: 'warning'
         });
         return;
       }
 
+      // 첫 번째 제품 정보를 기본 필드에 저장
+      const mainProduct = selectedParts[0];
+      
+      // 모든 제품의 총 수량과 총 금액 계산
+      const totalQuantity = selectedParts.reduce((sum, product) => sum + (parseInt(product.quantity) || 0), 0);
+      const totalPrice = selectedParts.reduce((sum, product) => sum + ((parseFloat(product.price) || 0) * (parseInt(product.quantity) || 0)), 0);
+      
       // 판매처 정보를 note에 포함
       const noteWithSalesChannel = `[판매처: ${selectedShipment.sales_channel || '공홈'}] ${selectedShipment.note?.trim() || ''}`;
 
@@ -449,11 +452,6 @@ function ProductShipment() {
         finalNote = selectedShipment.note.replace(/\[판매처: .*?\]/, `[판매처: ${selectedShipment.sales_channel || '공홈'}]`);
       }
 
-      // 선택된 부품들의 총 금액 계산
-      const totalPartsPrice = selectedParts.reduce((sum, part) => {
-        return sum + (part.price * part.quantity);
-      }, 0);
-
       const shipmentData = {
         brand: selectedShipment.brand,
         shipment_date: selectedShipment.shipment_date,
@@ -461,13 +459,13 @@ function ProductShipment() {
         customer_name: selectedShipment.customer_name?.trim(),
         customer_phone: selectedShipment.customer_phone?.trim(),
         customer_address: selectedShipment.customer_address?.trim(),
-        delivery_method: selectedShipment.delivery_method,
+        delivery_method: selectedShipment.delivery_method || '택배',
         tracking_number: selectedShipment.tracking_number?.trim() || '',
         note: finalNote,
-        product_name: selectedShipment.product_name?.trim(),
-        product_code: selectedShipment.product_code,
-        quantity: selectedShipment.quantity,
-        price: totalPartsPrice, // 부품 총액으로 설정
+        product_name: selectedParts.map(p => p.name).join(', '),
+        product_code: mainProduct.code,
+        quantity: totalQuantity,
+        price: totalPrice,
         updated_at: new Date().toISOString()
       };
 
@@ -476,42 +474,21 @@ function ProductShipment() {
         shipmentData.id = selectedShipment.id;
       }
 
-      // 1. 출고 정보 저장
-      const { data: shipmentResult, error: shipmentError } = await supabase
+      console.log('Saving shipment data:', shipmentData);
+
+      // 출고 정보 저장
+      const { data, error } = await supabase
         .from('shipments')
         .upsert(shipmentData)
         .select()
         .single();
 
-      if (shipmentError) throw shipmentError;
-
-      // 2. 기존 부품 정보 삭제 (수정의 경우)
-      if (selectedShipment.id) {
-        const { error: deletePartsError } = await supabase
-          .from('shipment_parts')
-          .delete()
-          .eq('shipment_id', selectedShipment.id);
-
-        if (deletePartsError) throw deletePartsError;
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
       }
 
-      // 3. 새 부품 정보 저장
-      if (selectedParts.length > 0) {
-        const partsData = selectedParts.map(part => ({
-          shipment_id: shipmentResult.id,
-          part_id: part.id,
-          quantity: part.quantity,
-          price: part.price || 0
-        }));
-
-        const { error: insertPartsError } = await supabase
-          .from('shipment_parts')
-          .insert(partsData);
-
-        if (insertPartsError) throw insertPartsError;
-      }
-
-      // 4. 고객 정보 저장 - 먼저 동일한 연락처의 고객이 있는지 확인
+      // 고객 정보 저장 - 먼저 동일한 연락처의 고객이 있는지 확인
       const { data: existingCustomers, error: customerCheckError } = await supabase
         .from('customers')
         .select('*')
@@ -520,17 +497,19 @@ function ProductShipment() {
 
       if (customerCheckError) {
         console.error('Error checking existing customer:', customerCheckError);
+        // 고객 정보 저장 실패해도 출고 정보는 저장되었으므로 계속 진행
       } else {
-        // 고객 정보 데이터 준비
+        // 고객 정보 데이터 준비 (brand 필드 제거)
         const customerData = {
           name: selectedShipment.customer_name?.trim(),
           phone: selectedShipment.customer_phone?.trim(),
           address: selectedShipment.customer_address?.trim(),
-          grade: 'V3',
+          grade: 'V3', // 기본 등급 설정
           note: `출고 관리에서 등록됨 (${new Date().toLocaleDateString()})`,
           updated_at: new Date().toISOString()
         };
 
+        // 고객이 존재하지 않으면 새로 추가, 존재하면 업데이트
         if (!existingCustomers || existingCustomers.length === 0) {
           // 새 고객 추가
           const { error: addCustomerError } = await supabase
@@ -544,15 +523,23 @@ function ProductShipment() {
               message: '출고 정보는 저장되었으나, 고객 정보 등록에 실패했습니다.',
               severity: 'warning'
             });
+          } else {
+            console.log('New customer added to customer management');
+            setSnackbar({
+              open: true,
+              message: '출고 정보가 저장되었으며, 고객 정보도 등록되었습니다.',
+              severity: 'success'
+            });
           }
         } else {
-          // 기존 고객 정보 업데이트
+          // 기존 고객 정보 업데이트 (이름, 주소, 메모 업데이트)
           const updateData = {
             name: selectedShipment.customer_name?.trim(),
             address: selectedShipment.customer_address?.trim(),
             updated_at: new Date().toISOString()
           };
           
+          // 기존 메모가 있으면 보존하고 새 메모 추가
           if (existingCustomers[0].note) {
             updateData.note = `${existingCustomers[0].note}\n출고 관리에서 업데이트됨 (${new Date().toLocaleDateString()})`;
           } else {
@@ -571,6 +558,13 @@ function ProductShipment() {
               message: '출고 정보는 저장되었으나, 고객 정보 업데이트에 실패했습니다.',
               severity: 'warning'
             });
+          } else {
+            console.log('Existing customer updated in customer management');
+            setSnackbar({
+              open: true,
+              message: '출고 정보가 저장되었으며, 고객 정보도 업데이트되었습니다.',
+              severity: 'success'
+            });
           }
         }
       }
@@ -578,12 +572,6 @@ function ProductShipment() {
       setOpenDialog(false);
       setSelectedParts([]);
       fetchShipments();
-      setSnackbar({
-        open: true,
-        message: '출고 정보가 성공적으로 저장되었습니다.',
-        severity: 'success'
-      });
-
     } catch (err) {
       console.error('Error saving shipment:', err);
       setSnackbar({
@@ -695,9 +683,9 @@ function ProductShipment() {
   };
 
   const handleOpenPartsDialog = () => {
-    fetchParts();
     setOpenPartsDialog(true);
-    setSearchTerm('');
+    setSelectedPart(null);
+    setPartsQuantity(1);
   };
 
   const handleClosePartsDialog = () => {
@@ -706,38 +694,33 @@ function ProductShipment() {
     setPartsQuantity(1);
   };
 
-  const handlePartSelect = (part) => {
-    setSelectedPart(part);
-  };
-
   const handleAddPart = () => {
-    if (selectedPart) {
-      // 이미 추가된 부품인지 확인
-      const existingPartIndex = selectedParts.findIndex(p => p.id === selectedPart.id);
-      
-      if (existingPartIndex >= 0) {
-        // 이미 추가된 부품이면 수량만 증가
-        const updatedParts = [...selectedParts];
-        updatedParts[existingPartIndex].quantity += partsQuantity;
-        setSelectedParts(updatedParts);
-      } else {
-        // 새 부품 추가
-        const newPart = {
-          ...selectedPart,
-          quantity: partsQuantity,
-          price: selectedPart.price || 0
-        };
-        setSelectedParts(prev => [...prev, newPart]);
-      }
-      
-      setOpenPartsDialog(false);
-      setSelectedPart(null);
-      setPartsQuantity(1);
+    if (selectedPart && partsQuantity > 0) {
+      const newPart = {
+        id: selectedPart.id,
+        brand: selectedPart.brand,
+        code: selectedPart.code,
+        name: selectedPart.name,
+        supply_price: selectedPart.supply_price,
+        price: selectedPart.price,
+        barcode: selectedPart.barcode,
+        note: selectedPart.note,
+        quantity: partsQuantity,
+        totalPrice: selectedPart.price * partsQuantity
+      };
+
+      // 새 제품 추가
+      setSelectedParts(prev => [...prev, newPart]);
+      handleClosePartsDialog();
     }
   };
 
   const handleRemovePart = (partId) => {
-    setSelectedParts(prev => prev.filter(part => part.id !== partId));
+    setSelectedParts(prev => prev.filter(p => p.id !== partId));
+    setSelectedShipment(prev => ({
+      ...prev,
+      products: (prev.products || []).filter(p => p.id !== partId)
+    }));
   };
 
   const columns = [
@@ -863,7 +846,7 @@ function ProductShipment() {
           
           <Grid item xs={6}>
             <Typography variant="body2" color="text.secondary">
-              송장번호:
+              배송방법:
             </Typography>
             <Typography variant="body2">
               {row.tracking_number || '-'}
@@ -1220,362 +1203,289 @@ function ProductShipment() {
         </DialogTitle>
         <DialogContent>
           {selectedShipment && (
-            <>
-              <Grid container spacing={2} sx={{ mt: 1 }}>
-                <Grid item xs={12} md={4}>
-                  <TextField
-                    fullWidth
-                    label="고객명"
-                    name="customer_name"
-                    value={selectedShipment.customer_name || ''}
-                    onChange={handleChange}
-                    required
-                  />
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <TextField
-                    fullWidth
-                    label="연락처"
-                    name="customer_phone"
-                    value={selectedShipment.customer_phone || ''}
-                    onChange={handleChange}
-                  />
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <FormControl fullWidth>
-                    <InputLabel>판매처</InputLabel>
-                    <Select
-                      name="sales_channel"
-                      value={selectedShipment.sales_channel || '공홈'}
-                      onChange={handleChange}
-                      label="판매처"
-                    >
-                      <MenuItem value="공홈">공홈</MenuItem>
-                      <MenuItem value="스마트스토어">스마트스토어</MenuItem>
-                      <MenuItem value="쿠팡">쿠팡</MenuItem>
-                      <MenuItem value="11번가">11번가</MenuItem>
-                      <MenuItem value="G마켓">G마켓</MenuItem>
-                      <MenuItem value="옥션">옥션</MenuItem>
-                      <MenuItem value="인터파크">인터파크</MenuItem>
-                      <MenuItem value="기타">기타</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-                
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    label="주소"
-                    name="customer_address"
-                    value={selectedShipment.customer_address || ''}
-                    onChange={handleChange}
-                    multiline
-                    rows={2}
-                  />
-                </Grid>
-                
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    label="상품명"
-                    name="product_name"
-                    value={selectedShipment.product_name || ''}
-                    onChange={handleChange}
-                    required
-                  />
-                </Grid>
-                <Grid item xs={12} md={2}>
-                  <TextField
-                    fullWidth
-                    label="수량"
-                    name="quantity"
-                    type="number"
-                    value={selectedShipment.quantity || 1}
-                    onChange={handleChange}
-                    required
-                    InputProps={{ inputProps: { min: 1 } }}
-                  />
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
-                    <DatePicker
-                      label="출고일"
-                      value={selectedShipment.shipment_date ? new Date(selectedShipment.shipment_date) : null}
-                      onChange={handleDateChange}
-                      renderInput={(params) => <TextField {...params} fullWidth required />}
-                      inputFormat="yyyy-MM-dd"
-                    />
-                  </LocalizationProvider>
-                </Grid>
-                
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    label="송장번호"
-                    name="tracking_number"
-                    value={selectedShipment.tracking_number || ''}
-                    onChange={handleChange}
-                  />
-                </Grid>
-                
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    label="메모"
-                    name="note"
-                    value={selectedShipment.note || ''}
-                    onChange={handleChange}
-                    multiline
-                    rows={3}
-                  />
-                </Grid>
+            <Grid container spacing={2} sx={{ mt: 1 }}>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  label="고객명"
+                  name="customer_name"
+                  value={selectedShipment.customer_name || ''}
+                  onChange={handleChange}
+                  required
+                />
               </Grid>
-
-              {/* 부품 섹션 추가 */}
-              <Box sx={{ mt: 4 }}>
-                <Typography variant="h6" gutterBottom>
-                  사용 부품
-                </Typography>
-                <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
-                  <Button
-                    startIcon={<AddIcon />}
-                    variant="contained"
-                    onClick={handleOpenPartsDialog}
-                    sx={{ 
-                      bgcolor: '#3182f6',
-                      '&:hover': { bgcolor: '#1b64da' }
-                    }}
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  label="연락처"
+                  name="customer_phone"
+                  value={selectedShipment.customer_phone || ''}
+                  onChange={handleChange}
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <FormControl fullWidth>
+                  <InputLabel>판매처</InputLabel>
+                  <Select
+                    name="sales_channel"
+                    value={selectedShipment.sales_channel || '공홈'}
+                    onChange={handleChange}
+                    label="판매처"
                   >
-                    수동으로 부품 추가
-                  </Button>
+                    <MenuItem value="공홈">공홈</MenuItem>
+                    <MenuItem value="청담메장">청담매장</MenuItem>
+                    <MenuItem value="기타">기타</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="주소"
+                  name="customer_address"
+                  value={selectedShipment.customer_address || ''}
+                  onChange={handleChange}
+                  multiline
+                  rows={2}
+                />
+              </Grid>
+              
+              {/* 제품 관련 섹션 */}
+              <Grid item xs={12}>
+                <Box sx={{ mb: 2 }}>
                   <Button
-                    startIcon={<ReceiptIcon />}
                     variant="outlined"
-                    onClick={() => setOpenReceiptDialog(true)}
-                    sx={{ 
-                      color: '#3182f6',
-                      borderColor: '#3182f6',
-                      '&:hover': { 
-                        bgcolor: 'rgba(49, 130, 246, 0.04)',
-                        borderColor: '#1b64da'
-                      }
-                    }}
+                    startIcon={<AddIcon />}
+                    onClick={handleOpenPartsDialog}
+                    fullWidth
                   >
-                    영수증으로 부품 추가
+                    제품 추가
                   </Button>
-                </Stack>
+                </Box>
                 
-                <TableContainer component={Paper} sx={{ mt: 2 }}>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>부품명</TableCell>
-                        <TableCell>코드</TableCell>
-                        <TableCell align="right">단가</TableCell>
-                        <TableCell align="right">수량</TableCell>
-                        <TableCell align="right">금액</TableCell>
-                        <TableCell align="center">작업</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {selectedParts.map((part) => (
-                        <TableRow key={part.id}>
-                          <TableCell>{part.name}</TableCell>
-                          <TableCell>{part.code}</TableCell>
-                          <TableCell align="right">
-                            {part.price ? part.price.toLocaleString() : '0'}원
-                          </TableCell>
-                          <TableCell align="center">
-                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-                              <IconButton 
-                                size="small"
-                                onClick={() => {
-                                  if (part.quantity > 1) {
-                                    setSelectedParts(prev => prev.map(p => 
-                                      p.id === part.id 
-                                        ? { ...p, quantity: p.quantity - 1 }
-                                        : p
-                                    ));
-                                  }
-                                }}
-                              >
-                                <RemoveIcon fontSize="small" />
-                              </IconButton>
-                              <TextField
-                                type="number"
-                                size="small"
-                                value={part.quantity}
-                                onChange={(e) => {
-                                  const newQuantity = Math.max(1, parseInt(e.target.value) || 1);
-                                  setSelectedParts(prev => prev.map(p => 
-                                    p.id === part.id 
-                                      ? { ...p, quantity: newQuantity }
-                                      : p
-                                  ));
-                                }}
-                                inputProps={{ 
-                                  min: 1,
-                                  style: { 
-                                    textAlign: 'center',
-                                    width: '50px',
-                                    padding: '4px'
-                                  }
-                                }}
-                              />
-                              <IconButton 
-                                size="small"
-                                onClick={() => {
-                                  setSelectedParts(prev => prev.map(p => 
-                                    p.id === part.id 
-                                      ? { ...p, quantity: p.quantity + 1 }
-                                      : p
-                                  ));
-                                }}
-                              >
-                                <AddIcon fontSize="small" />
-                              </IconButton>
-                            </Box>
-                          </TableCell>
-                          <TableCell align="right">
-                            {((part.price || 0) * part.quantity).toLocaleString()}원
-                          </TableCell>
-                          <TableCell align="center">
-                            <IconButton
-                              size="small"
-                              onClick={() => handleRemovePart(part.id)}
-                              color="error"
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </TableCell>
+                {selectedParts.length > 0 && (
+                  <TableContainer component={Paper} variant="outlined">
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>제품명</TableCell>
+                          <TableCell align="right">수량</TableCell>
+                          <TableCell align="right">가격</TableCell>
+                          <TableCell align="right">합계</TableCell>
+                          <TableCell></TableCell>
                         </TableRow>
-                      ))}
-                      <TableRow>
-                        <TableCell colSpan={4} align="right">
-                          <Typography variant="subtitle2">합계</Typography>
-                        </TableCell>
-                        <TableCell align="right">
-                          <Typography variant="subtitle2">
-                            {selectedParts.reduce((sum, part) => {
-                              const partTotal = part.price && part.quantity 
-                                ? part.price * part.quantity 
-                                : 0;
-                              return sum + partTotal;
-                            }, 0).toLocaleString()}원
-                          </Typography>
-                        </TableCell>
-                        <TableCell />
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Box>
-            </>
+                      </TableHead>
+                      <TableBody>
+                        {selectedParts.map((part) => (
+                          <TableRow key={part.id}>
+                            <TableCell>{part.name}</TableCell>
+                            <TableCell align="right">{part.quantity}</TableCell>
+                            <TableCell align="right">{part.price?.toLocaleString()}원</TableCell>
+                            <TableCell align="right">{(part.price * part.quantity)?.toLocaleString()}원</TableCell>
+                            <TableCell align="right">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleRemovePart(part.id)}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+              </Grid>
+              
+              <Grid item xs={12} md={6}>
+                <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
+                  <DatePicker
+                    label="출고일"
+                    value={selectedShipment.shipment_date ? new Date(selectedShipment.shipment_date) : null}
+                    onChange={handleDateChange}
+                    renderInput={(params) => <TextField {...params} fullWidth required />}
+                    inputFormat="yyyy-MM-dd"
+                  />
+                </LocalizationProvider>
+              </Grid>
+              
+              <Grid item xs={12} md={6}>
+                <FormControl fullWidth>
+                  <InputLabel>배송 방법</InputLabel>
+                  <Select
+                    name="delivery_method"
+                    value={selectedShipment.delivery_method || '택배'}
+                    onChange={handleChange}
+                    label="배송 방법"
+                  >
+                    <MenuItem value="택배">택배</MenuItem>
+                    <MenuItem value="방문수령">방문수령</MenuItem>
+                    <MenuItem value="기타">기타</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="송장번호"
+                  name="tracking_number"
+                  value={selectedShipment.tracking_number || ''}
+                  onChange={handleChange}
+                />
+              </Grid>
+              
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="메모"
+                  name="note"
+                  value={selectedShipment.note || ''}
+                  onChange={handleChange}
+                  multiline
+                  rows={3}
+                />
+              </Grid>
+            </Grid>
           )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenDialog(false)}>취소</Button>
+          {selectedShipment && selectedShipment.id && (
+            <Button 
+              onClick={() => handleDeleteClick(selectedShipment)}
+              color="error"
+              startIcon={<DeleteIcon />}
+            >
+              삭제
+            </Button>
+          )}
           <Button onClick={handleSave} variant="contained" color="primary" disabled={!selectedShipment}>
             저장
           </Button>
         </DialogActions>
       </Dialog>
       
-      {/* 부품 추가 다이얼로그 */}
-      <Dialog open={openPartsDialog} onClose={() => setOpenPartsDialog(false)}>
-        <DialogTitle>부품 추가</DialogTitle>
+      {/* 제품 선택 다이얼로그 */}
+      <Dialog open={openPartsDialog} onClose={handleClosePartsDialog} maxWidth="md" fullWidth>
+        <DialogTitle>제품 선택</DialogTitle>
         <DialogContent>
-          <TextField
-            fullWidth
-            placeholder="부품명, 코드, 브랜드로 검색"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            sx={{ mb: 2, mt: 1 }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              ),
-            }}
-          />
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>부품명</TableCell>
-                  <TableCell>코드</TableCell>
-                  <TableCell>브랜드</TableCell>
-                  <TableCell align="right">단가</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredParts.map((part) => (
-                  <TableRow 
-                    key={part.id}
-                    selected={selectedPart?.id === part.id}
-                    onClick={() => handlePartSelect(part)}
-                    sx={{ cursor: 'pointer' }}
-                  >
-                    <TableCell>{part.name}</TableCell>
-                    <TableCell>{part.code}</TableCell>
-                    <TableCell>{part.brand}</TableCell>
-                    <TableCell align="right">{part.price.toLocaleString()}원</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-          {selectedPart && (
+          <Box sx={{ mt: 2 }}>
             <TextField
-              type="number"
-              label="수량"
-              value={partsQuantity}
-              onChange={(e) => setPartsQuantity(Number(e.target.value))}
-              sx={{ mt: 2 }}
               fullWidth
-              InputProps={{
-                inputProps: { min: 1 }
-              }}
+              label="제품 검색"
+              value={partSearchTerm}
+              onChange={(e) => setPartSearchTerm(e.target.value)}
+              placeholder="제품명 또는 코드로 검색"
+              sx={{ mb: 2 }}
             />
-          )}
+            
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>제품명</TableCell>
+                    <TableCell>코드</TableCell>
+                    <TableCell align="right">가격</TableCell>
+                    <TableCell>선택</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredParts.map((part) => (
+                    <TableRow 
+                      key={part.id}
+                      selected={selectedPart?.id === part.id}
+                      hover
+                      onClick={() => setSelectedPart(part)}
+                      sx={{ cursor: 'pointer' }}
+                    >
+                      <TableCell>{part.name}</TableCell>
+                      <TableCell>{part.code}</TableCell>
+                      <TableCell align="right">{part.price?.toLocaleString()}원</TableCell>
+                      <TableCell>
+                        <Radio
+                          checked={selectedPart?.id === part.id}
+                          onChange={() => setSelectedPart(part)}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            
+            {selectedPart && (
+              <Box sx={{ mt: 2 }}>
+                <TextField
+                  label="수량"
+                  type="number"
+                  value={partsQuantity}
+                  onChange={(e) => setPartsQuantity(parseInt(e.target.value) || 1)}
+                  InputProps={{ inputProps: { min: 1 } }}
+                  size="small"
+                />
+              </Box>
+            )}
+          </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenPartsDialog(false)}>취소</Button>
-          <Button onClick={handleAddPart} disabled={!selectedPart}>
+          <Button onClick={handleClosePartsDialog}>취소</Button>
+          <Button 
+            onClick={handleAddPart}
+            variant="contained" 
+            disabled={!selectedPart || partsQuantity < 1}
+          >
             추가
           </Button>
         </DialogActions>
       </Dialog>
-
-      {/* 영수증 스캐너 다이얼로그 */}
-      <Dialog 
-        open={openReceiptDialog} 
-        onClose={() => setOpenReceiptDialog(false)}
-        maxWidth="xl"
+      
+      {/* 삭제 확인 다이얼로그 */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        maxWidth="sm"
         fullWidth
       >
-        <DialogTitle sx={{ 
-          pb: 1,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          영수증으로 부품 추가
-          <IconButton onClick={() => setOpenReceiptDialog(false)}>
-            <CloseIcon />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent sx={{ p: 0 }}>
-          <ReceiptScanner 
-            onPartsSelected={(selectedParts) => {
-              setSelectedParts(prev => [...prev, ...selectedParts]);
-              setOpenReceiptDialog(false);
-            }}
-            currentServiceId={selectedShipment?.id}
-            isDialogMode={true}
-          />
+        <DialogTitle>출고 정보 삭제</DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 1 }}>
+            <Typography>
+              다음 출고 정보를 삭제하시겠습니까?
+            </Typography>
+            {selectedShipment && (
+              <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+                <Typography variant="subtitle2" gutterBottom>
+                  고객명: {selectedShipment.customer_name}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  연락처: {selectedShipment.customer_phone}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  제품: {selectedShipment.product_name}
+                </Typography>
+              </Box>
+            )}
+            <Typography color="error" sx={{ mt: 2 }}>
+              * 삭제된 정보는 복구할 수 없습니다.
+            </Typography>
+          </Box>
         </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)}>
+            취소
+          </Button>
+          <Button 
+            onClick={handleDeleteConfirm}
+            variant="contained" 
+            color="error"
+            startIcon={<DeleteIcon />}
+          >
+            삭제
+          </Button>
+        </DialogActions>
       </Dialog>
       
       {/* 스낵바 */}

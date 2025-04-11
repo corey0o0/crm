@@ -69,6 +69,8 @@ function App() {
             <Route path="service-statistics" element={<ServiceStatistics />} />
             <Route path="parts" element={<PartsManagement />} />
             <Route path="shipments" element={<ProductShipment />} />
+            <Route path="shipments/:id" element={<ProductShipment />} />
+            <Route path="shipments/new" element={<ProductShipment />} />
             <Route path="receipts" element={<ReceiptScanner />} />
             <Route path="google-drive-test" element={<GoogleDriveTest />} />
           </Route>

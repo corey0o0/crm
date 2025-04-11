@@ -39,7 +39,6 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ReceiptIcon from '@mui/icons-material/Receipt';
 import CloseIcon from '@mui/icons-material/Close';
 import ReceiptScanner from '../Receipt/ReceiptScanner';
-import RemoveIcon from '@mui/icons-material/Remove';
 
 function ServiceDetail() {
   const { id } = useParams();
@@ -83,6 +82,8 @@ function ServiceDetail() {
     message: '',
     onConfirm: null
   });
+  const [modifiedPrice, setModifiedPrice] = useState('');
+  const [partDialogOpen, setPartDialogOpen] = useState(false);
 
   const fetchServiceDetail = React.useCallback(async () => {
     try {
@@ -296,9 +297,19 @@ function ServiceDetail() {
     setSelectedPart(part);
   };
 
-  // 부품 추가
+  const handleOpenPartDialog = () => {
+    setPartDialogOpen(true);
+  };
+
+  const handleClosePartDialog = () => {
+    setPartDialogOpen(false);
+    setSelectedPart(null);
+    setPartQuantity(1);
+    setModifiedPrice('');
+  };
+
   const handleAddPart = () => {
-    if (selectedPart) {
+    if (selectedPart && partQuantity > 0) {
       // 이미 추가된 부품인지 확인
       const existingPartIndex = selectedParts.findIndex(p => p.id === selectedPart.id);
       
@@ -306,21 +317,24 @@ function ServiceDetail() {
         // 이미 추가된 부품이면 수량만 증가
         const updatedParts = [...selectedParts];
         updatedParts[existingPartIndex].quantity += partQuantity;
+        updatedParts[existingPartIndex].total = updatedParts[existingPartIndex].price * updatedParts[existingPartIndex].quantity;
         setSelectedParts(updatedParts);
       } else {
         // 새 부품 추가
         const newPart = {
-          ...selectedPart,
+          id: selectedPart.id,
+          name: selectedPart.name,
           quantity: partQuantity,
-          // price가 없는 경우 0으로 설정
-          price: selectedPart.price || 0
+          price: modifiedPrice || selectedPart.price || 0,
+          total: (modifiedPrice || selectedPart.price || 0) * partQuantity
         };
         setSelectedParts(prev => [...prev, newPart]);
       }
       
-      setOpenPartsDialog(false);
       setSelectedPart(null);
       setPartQuantity(1);
+      setModifiedPrice('');
+      handleClosePartDialog();
     }
   };
 
@@ -428,6 +442,62 @@ function ServiceDetail() {
     }
   };
 
+  const handleDelete = async () => {
+    setConfirmDialog({
+      open: true,
+      title: '출고 정보 삭제',
+      message: '해당 출고 정보를 삭제하시겠습니까?',
+      onConfirm: async () => {
+        try {
+          setSubmitting(true);
+          
+          // 1. 기존 태그 삭제
+          const { error: deleteTagsError } = await supabase
+            .from('service_tags')
+            .delete()
+            .eq('service_id', id);
+
+          if (deleteTagsError) throw deleteTagsError;
+
+          // 2. 기존 부품 삭제
+          const { error: deletePartsError } = await supabase
+            .from('service_parts')
+            .delete()
+            .eq('service_id', id);
+
+          if (deletePartsError) throw deletePartsError;
+
+          // 3. 서비스 데이터 삭제
+          const { error: deleteServiceError } = await supabase
+            .from('services')
+            .delete()
+            .eq('id', id);
+
+          if (deleteServiceError) throw deleteServiceError;
+
+          setSnackbar({
+            open: true,
+            message: '출고 정보가 삭제되었습니다.',
+            severity: 'success'
+          });
+
+          // 목록 페이지로 이동
+          navigate('/services');
+        } catch (err) {
+          console.error('Error deleting service:', err);
+          setSnackbar({
+            open: true,
+            message: `오류가 발생했습니다: ${err.message}`,
+            severity: 'error'
+          });
+        } finally {
+          setSubmitting(false);
+          setConfirmDialog({ ...confirmDialog, open: false });
+        }
+      }
+    });
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -486,7 +556,7 @@ function ServiceDetail() {
               <TableCell>부품명</TableCell>
               <TableCell>코드</TableCell>
               <TableCell align="right">단가</TableCell>
-              <TableCell align="center">수량</TableCell>
+              <TableCell align="right">수량</TableCell>
               <TableCell align="right">금액</TableCell>
               <TableCell align="center">작업</TableCell>
             </TableRow>
@@ -499,59 +569,11 @@ function ServiceDetail() {
                 <TableCell align="right">
                   {part.price ? part.price.toLocaleString() : '0'}원
                 </TableCell>
-                <TableCell align="center">
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-                    <IconButton 
-                      size="small"
-                      onClick={() => {
-                        if (part.quantity > 1) {
-                          setSelectedParts(prev => prev.map(p => 
-                            p.id === part.id 
-                              ? { ...p, quantity: p.quantity - 1 }
-                              : p
-                          ));
-                        }
-                      }}
-                    >
-                      <RemoveIcon fontSize="small" />
-                    </IconButton>
-                    <TextField
-                      type="number"
-                      size="small"
-                      value={part.quantity}
-                      onChange={(e) => {
-                        const newQuantity = Math.max(1, parseInt(e.target.value) || 1);
-                        setSelectedParts(prev => prev.map(p => 
-                          p.id === part.id 
-                            ? { ...p, quantity: newQuantity }
-                            : p
-                        ));
-                      }}
-                      inputProps={{ 
-                        min: 1,
-                        style: { 
-                          textAlign: 'center',
-                          width: '50px',
-                          padding: '4px'
-                        }
-                      }}
-                    />
-                    <IconButton 
-                      size="small"
-                      onClick={() => {
-                        setSelectedParts(prev => prev.map(p => 
-                          p.id === part.id 
-                            ? { ...p, quantity: p.quantity + 1 }
-                            : p
-                        ));
-                      }}
-                    >
-                      <AddIcon fontSize="small" />
-                    </IconButton>
-                  </Box>
-                </TableCell>
+                <TableCell align="right">{part.quantity}</TableCell>
                 <TableCell align="right">
-                  {((part.price || 0) * part.quantity).toLocaleString()}원
+                  {part.price && part.quantity
+                    ? (part.price * part.quantity).toLocaleString()
+                    : '0'}원
                 </TableCell>
                 <TableCell align="center">
                   <IconButton
@@ -629,17 +651,29 @@ function ServiceDetail() {
             </Table>
           </TableContainer>
           {selectedPart && (
-            <TextField
-              type="number"
-              label="수량"
-              value={partQuantity}
-              onChange={(e) => setPartQuantity(Number(e.target.value))}
-              sx={{ mt: 2 }}
-              fullWidth
-              InputProps={{
-                inputProps: { min: 1 }
-              }}
-            />
+            <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
+              <TextField
+                type="number"
+                label="수량"
+                value={partQuantity}
+                onChange={(e) => setPartQuantity(Number(e.target.value))}
+                sx={{ flex: 1 }}
+                InputProps={{
+                  inputProps: { min: 1 }
+                }}
+              />
+              <TextField
+                type="number"
+                label="가격"
+                value={modifiedPrice || selectedPart.price}
+                onChange={(e) => setModifiedPrice(e.target.value)}
+                sx={{ flex: 1 }}
+                InputProps={{
+                  inputProps: { min: 0 },
+                  startAdornment: <InputAdornment position="start">₩</InputAdornment>
+                }}
+              />
+            </Box>
           )}
         </DialogContent>
         <DialogActions>
@@ -973,40 +1007,57 @@ function ServiceDetail() {
             mt: 5, 
             pt: 3, 
             display: 'flex', 
-            justifyContent: 'flex-end', 
+            justifyContent: 'space-between', 
             gap: 2,
             borderTop: '1px solid #f2f2f2' 
           }}>
             <Button 
-              onClick={() => navigate('/services')}
+              onClick={handleDelete}
               sx={{
-                color: '#4e5968',
+                color: '#f04452',
                 fontSize: '0.95rem',
                 fontWeight: 600,
                 textTransform: 'none',
                 '&:hover': {
-                  bgcolor: '#f2f4f6'
+                  bgcolor: 'rgba(240, 68, 82, 0.04)'
                 }
               }}
             >
-              취소
+              삭제
             </Button>
-            <Button 
-              type="submit" 
-              variant="contained"
-              sx={{
-                bgcolor: '#3182f6',
-                fontSize: '0.95rem',
-                fontWeight: 600,
-                textTransform: 'none',
-                px: 4,
-                '&:hover': {
-                  bgcolor: '#1b64da'
-                }
-              }}
-            >
-              수정
-            </Button>
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <Button 
+                onClick={() => navigate('/services')}
+                sx={{
+                  color: '#4e5968',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  textTransform: 'none',
+                  '&:hover': {
+                    bgcolor: '#f2f4f6'
+                  }
+                }}
+              >
+                취소
+              </Button>
+              <Button 
+                type="submit" 
+                variant="contained"
+                disabled={submitting}
+                sx={{
+                  bgcolor: '#3182f6',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  textTransform: 'none',
+                  px: 4,
+                  '&:hover': {
+                    bgcolor: '#1b64da'
+                  }
+                }}
+              >
+                수정
+              </Button>
+            </Box>
           </Box>
         </Paper>
 
