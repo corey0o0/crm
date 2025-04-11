@@ -113,13 +113,42 @@ function Dashboard() {
           return;
         }
 
+        // 먼저 메모 데이터가 있는지 확인
+        const { data: existingMemo, error: checkError } = await supabase
+          .from('user_memos')
+          .select('*')
+          .eq('user_id', userId);
+
+        // 메모 데이터가 없으면 새로 생성
+        if (!existingMemo || existingMemo.length === 0) {
+          const { error: insertError } = await supabase
+            .from('user_memos')
+            .insert([
+              {
+                user_id: userId,
+                memo1: '',
+                memo2: '',
+                updated_at: new Date().toISOString()
+              }
+            ]);
+
+          if (insertError) {
+            console.error('새 메모 생성 중 오류:', insertError);
+            return;
+          }
+        }
+
+        // 메모 데이터 다시 조회
         const { data, error } = await supabase
           .from('user_memos')
           .select('*')
           .eq('user_id', userId)
           .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error('메모 조회 중 오류:', error);
+          return;
+        }
 
         if (data) {
           setMemo1(data.memo1 || '');
@@ -133,26 +162,20 @@ function Dashboard() {
       }
     };
 
-    fetchMemos();
+    if (user) {
+      fetchMemos();
+    }
   }, [user]);
 
   // 메모 저장
   const saveMemos = async () => {
     try {
-      if (!user) {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user) {
-          console.error('사용자 세션이 없습니다.');
-          // 필요한 경우 로그인 페이지로 리다이렉션
-          return;
-        }
-        // 세션이 있으면 user 상태 업데이트
-        setUser(session.user);
-      }
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = user?.id || session?.user?.id;
 
-      const userId = user?.id || (await supabase.auth.getSession()).data.session?.user?.id;
       if (!userId) {
-        throw new Error('사용자 ID를 찾을 수 없습니다.');
+        console.error('사용자 인증이 필요합니다.');
+        return;
       }
 
       const now = new Date().toISOString();
@@ -160,21 +183,23 @@ function Dashboard() {
         .from('user_memos')
         .upsert({
           user_id: userId,
-          memo1: memo1,
-          memo2: memo2,
+          memo1: memo1 || '',
+          memo2: memo2 || '',
           updated_at: now
         }, {
           onConflict: 'user_id'
         });
 
-      if (error) throw error;
-      
+      if (error) {
+        console.error('메모 저장 중 오류:', error);
+        throw error;
+      }
+
       setLastSaved1(now);
       setLastSaved2(now);
       console.log('메모가 성공적으로 저장되었습니다.');
     } catch (err) {
       console.error('메모 저장 중 오류:', err);
-      // 사용자에게 오류 메시지 표시
       setError(err.message);
     }
   };
