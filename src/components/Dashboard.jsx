@@ -80,6 +80,7 @@ function Dashboard() {
 
   // 메모 불러오기
   useEffect(() => {
+    console.log('User object:', user); // user 객체를 콘솔에 출력
     const fetchMemos = async () => {
       try {
         const { data, error } = await supabase
