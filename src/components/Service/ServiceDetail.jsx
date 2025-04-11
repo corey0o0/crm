@@ -85,6 +85,7 @@ function ServiceDetail() {
   const [modifiedPrice, setModifiedPrice] = useState('');
   const [partDialogOpen, setPartDialogOpen] = useState(false);
   const [tag, setTag] = useState('');
+  const [receiptLink, setReceiptLink] = useState('');
 
   const fetchServiceDetail = React.useCallback(async () => {
     try {
@@ -499,6 +500,14 @@ function ServiceDetail() {
     });
   };
 
+  // Enable Price Modification for Parts
+  const handlePriceChange = (index, newPrice) => {
+    const updatedParts = [...selectedParts];
+    updatedParts[index].price = Number(newPrice) || 0;
+    updatedParts[index].total = updatedParts[index].price * updatedParts[index].quantity;
+    setSelectedParts(updatedParts);
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -563,7 +572,7 @@ function ServiceDetail() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {selectedParts.map((part) => (
+            {selectedParts.map((part, index) => (
               <TableRow key={part.id}>
                 <TableCell>{part.name}</TableCell>
                 <TableCell>{part.code}</TableCell>
@@ -1137,13 +1146,15 @@ function ServiceDetail() {
 
         {/* Enable Price Modification for Parts */}
         {selectedParts.map((part, index) => (
-          <Box key={index} sx={{ display: 'flex', alignItems: 'center' }}>
+          <Box key={index} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography variant="body1">{part.name}</Typography>
+            <Typography variant="body1">₩{part.price}</Typography>
             <TextField
               type="number"
-              label="가격"
-              value={modifiedPrice || part.price}
-              onChange={(e) => setModifiedPrice(e.target.value)}
-              sx={{ flex: 1 }}
+              label="가격 수정"
+              value={part.modifiedPrice || part.price}
+              onChange={(e) => handlePriceChange(index, e.target.value)}
+              sx={{ flex: 1, ml: 2 }}
               InputProps={{
                 inputProps: { min: 0 },
                 startAdornment: <InputAdornment position="start">₩</InputAdornment>
@@ -1151,6 +1162,16 @@ function ServiceDetail() {
             />
           </Box>
         ))}
+
+        {/* Add Receipt Link Input Field */}
+        <Box sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+          <TextField
+            label="영수증 링크"
+            value={receiptLink}
+            onChange={(e) => setReceiptLink(e.target.value)}
+            sx={{ flex: 1 }}
+          />
+        </Box>
       </Box>
     </LocalizationProvider>
   );
