@@ -1465,12 +1465,12 @@ function ProductShipment() {
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   제품: {selectedShipment.product_name}
-                </Typography>
+        </Typography>
               </Box>
             )}
             <Typography color="error" sx={{ mt: 2 }}>
               * 삭제된 정보는 복구할 수 없습니다.
-            </Typography>
+        </Typography>
           </Box>
         </DialogContent>
         <DialogActions>

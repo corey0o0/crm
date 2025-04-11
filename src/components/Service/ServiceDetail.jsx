@@ -27,7 +27,8 @@ import {
   ButtonGroup,
   Chip,
   Autocomplete,
-  Stack
+  Stack,
+  Popover
 } from '@mui/material';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
@@ -39,6 +40,12 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ReceiptIcon from '@mui/icons-material/Receipt';
 import CloseIcon from '@mui/icons-material/Close';
 import ReceiptScanner from '../Receipt/ReceiptScanner';
+import { Document, Page, pdfjs } from 'react-pdf';
+import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
+import 'react-pdf/dist/esm/Page/TextLayer.css';
+
+// PDF worker 설정
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
 
 function ServiceDetail() {
   const { id } = useParams();
@@ -86,6 +93,10 @@ function ServiceDetail() {
   const [partDialogOpen, setPartDialogOpen] = useState(false);
   const [tag, setTag] = useState('');
   const [receiptLink, setReceiptLink] = useState('');
+  const [receiptPreviewAnchor, setReceiptPreviewAnchor] = useState(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [numPages, setNumPages] = useState(null);
+  const [pageNumber, setPageNumber] = useState(1);
 
   const fetchServiceDetail = React.useCallback(async () => {
     try {
@@ -503,9 +514,42 @@ function ServiceDetail() {
   // Enable Price Modification for Parts
   const handlePriceChange = (index, newPrice) => {
     const updatedParts = [...selectedParts];
-    updatedParts[index].price = Number(newPrice) || 0;
-    updatedParts[index].total = updatedParts[index].price * updatedParts[index].quantity;
+    // 빈 문자열이나 0도 허용
+    updatedParts[index] = {
+      ...updatedParts[index],
+      price: newPrice === '' ? '' : Number(newPrice),
+      total: newPrice === '' ? 0 : Number(newPrice) * updatedParts[index].quantity
+    };
     setSelectedParts(updatedParts);
+  };
+
+  // Handle mouse enter for receipt preview
+  const handleReceiptMouseEnter = (event) => {
+    if (receiptLink) {
+      setReceiptPreviewAnchor(event.currentTarget);
+    }
+  };
+
+  // Handle mouse leave for receipt preview
+  const handleReceiptMouseLeave = () => {
+    setReceiptPreviewAnchor(null);
+  };
+
+  // PDF 로드 성공 핸들러
+  const onDocumentLoadSuccess = ({ numPages }) => {
+    setNumPages(numPages);
+    setPageNumber(1);
+  };
+
+  // Add tag input handler
+  const handleTagInput = (event, value, reason) => {
+    if (reason === 'input') {
+      // 직접 입력한 경우
+      setTags(value ? [...new Set([...tags, value])] : tags);
+    } else {
+      // 추천 태그에서 선택한 경우
+      setTags(value);
+    }
   };
 
   if (loading) {
@@ -527,36 +571,61 @@ function ServiceDetail() {
   // 부품 관련 UI
   const partsSection = (
     <Box sx={{ mt: 4 }}>
-      <Typography variant="h6" gutterBottom>
+      <Typography variant="h6" sx={{ 
+        mb: 2,
+        color: '#191f28',
+        fontWeight: 600,
+        // 언더라인 스타일 제거
+        '&::after': {
+          display: 'none'
+        }
+      }}>
         사용 부품
       </Typography>
-      <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
-        <Button
-          startIcon={<AddIcon />}
-          variant="contained"
-          onClick={handleOpenPartsDialog}
+      <Stack direction="row" spacing={2} sx={{ mb: 2, display: 'flex', justifyContent: 'space-between' }}>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <Button
+            startIcon={<AddIcon />}
+            variant="contained"
+            onClick={handleOpenPartsDialog}
+            sx={{ 
+              bgcolor: '#3182f6',
+              '&:hover': { bgcolor: '#1b64da' }
+            }}
+          >
+            수동으로 부품 추가
+          </Button>
+          <Button
+            startIcon={<ReceiptIcon />}
+            variant="outlined"
+            onClick={() => setOpenReceiptDialog(true)}
+            sx={{ 
+              color: '#3182f6',
+              borderColor: '#3182f6',
+              '&:hover': { 
+                bgcolor: 'rgba(49, 130, 246, 0.04)',
+                borderColor: '#1b64da'
+              }
+            }}
+          >
+            영수증으로 부품 추가
+          </Button>
+        </Box>
+        <TextField
+          label="영수증 링크"
+          value={receiptLink}
+          onChange={(e) => setReceiptLink(e.target.value)}
+          onMouseEnter={handleReceiptMouseEnter}
+          onMouseLeave={handleReceiptMouseLeave}
           sx={{ 
-            bgcolor: '#3182f6',
-            '&:hover': { bgcolor: '#1b64da' }
-          }}
-        >
-          수동으로 부품 추가
-        </Button>
-        <Button
-          startIcon={<ReceiptIcon />}
-          variant="outlined"
-          onClick={() => setOpenReceiptDialog(true)}
-          sx={{ 
-            color: '#3182f6',
-            borderColor: '#3182f6',
-            '&:hover': { 
-              bgcolor: 'rgba(49, 130, 246, 0.04)',
-              borderColor: '#1b64da'
+            width: '300px',
+            '& .MuiOutlinedInput-root': {
+              borderRadius: 1,
+              bgcolor: '#f9fafb'
             }
           }}
-        >
-          영수증으로 부품 추가
-        </Button>
+          size="small"
+        />
       </Stack>
       
       <TableContainer component={Paper} sx={{ mt: 2 }}>
@@ -568,6 +637,7 @@ function ServiceDetail() {
               <TableCell align="right">단가</TableCell>
               <TableCell align="right">수량</TableCell>
               <TableCell align="right">금액</TableCell>
+              <TableCell align="right">가격 수정</TableCell>
               <TableCell align="center">작업</TableCell>
             </TableRow>
           </TableHead>
@@ -577,7 +647,40 @@ function ServiceDetail() {
                 <TableCell>{part.name}</TableCell>
                 <TableCell>{part.code}</TableCell>
                 <TableCell align="right">
-                  {part.price ? part.price.toLocaleString() : '0'}원
+                  <TextField
+                    type="number"
+                    size="small"
+                    value={part.price === '' ? '' : part.price}
+                    onChange={(e) => handlePriceChange(index, e.target.value)}
+                    sx={{ 
+                      width: '120px',
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: 1,
+                        bgcolor: '#f9fafb'
+                      }
+                    }}
+                    InputProps={{
+                      inputProps: { 
+                        min: 0,
+                        step: "any" // 소수점 입력 허용
+                      },
+                      startAdornment: <InputAdornment position="start">₩</InputAdornment>
+                    }}
+                  />
+                  <Button
+                    size="small"
+                    variant="contained"
+                    onClick={() => handlePriceChange(index, part.price)}
+                    sx={{ 
+                      minWidth: 'auto',
+                      ml: 1,
+                      px: 2,
+                      bgcolor: '#3182f6',
+                      '&:hover': { bgcolor: '#1b64da' }
+                    }}
+                  >
+                    저장
+                  </Button>
                 </TableCell>
                 <TableCell align="right">{part.quantity}</TableCell>
                 <TableCell align="right">
@@ -1000,6 +1103,62 @@ function ServiceDetail() {
                       }}
                     />
                   </Grid>
+                  <Grid item xs={12}>
+                    <Autocomplete
+                      multiple
+                      freeSolo
+                      options={availableTags}
+                      value={tags}
+                      onChange={handleTagInput}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="태그"
+                          placeholder="태그를 입력하거나 선택하세요"
+                          helperText="엔터를 눌러 새 태그를 추가하세요"
+                        />
+                      )}
+                      renderTags={(value, getTagProps) =>
+                        value.map((option, index) => (
+                          <Chip
+                            label={option}
+                            {...getTagProps({ index })}
+                            sx={{
+                              bgcolor: '#e8f3ff',
+                              color: '#3182f6',
+                              '& .MuiChip-deleteIcon': {
+                                color: '#3182f6',
+                                '&:hover': {
+                                  color: '#1b64da'
+                                }
+                              }
+                            }}
+                          />
+                        ))
+                      }
+                    />
+                    <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                      {availableTags.map((tag) => (
+                        <Chip
+                          key={tag}
+                          label={tag}
+                          onClick={() => {
+                            if (!tags.includes(tag)) {
+                              setTags([...tags, tag]);
+                            }
+                          }}
+                          sx={{
+                            bgcolor: tags.includes(tag) ? '#e8f3ff' : '#f2f4f6',
+                            color: tags.includes(tag) ? '#3182f6' : '#4e5968',
+                            cursor: 'pointer',
+                            '&:hover': {
+                              bgcolor: tags.includes(tag) ? '#e8f3ff' : '#e5e8eb'
+                            }
+                          }}
+                        />
+                      ))}
+                    </Box>
+                  </Grid>
                 </Grid>
               </Box>
             </Grid>
@@ -1133,45 +1292,6 @@ function ServiceDetail() {
             </Button>
           </DialogActions>
         </Dialog>
-
-        {/* Add Tag Input Field */}
-        <Box sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
-          <TextField
-            label="태그"
-            value={tag}
-            onChange={(e) => setTag(e.target.value)}
-            sx={{ flex: 1 }}
-          />
-        </Box>
-
-        {/* Enable Price Modification for Parts */}
-        {selectedParts.map((part, index) => (
-          <Box key={index} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Typography variant="body1">{part.name}</Typography>
-            <Typography variant="body1">₩{part.price}</Typography>
-            <TextField
-              type="number"
-              label="가격 수정"
-              value={part.modifiedPrice || part.price}
-              onChange={(e) => handlePriceChange(index, e.target.value)}
-              sx={{ flex: 1, ml: 2 }}
-              InputProps={{
-                inputProps: { min: 0 },
-                startAdornment: <InputAdornment position="start">₩</InputAdornment>
-              }}
-            />
-          </Box>
-        ))}
-
-        {/* Add Receipt Link Input Field */}
-        <Box sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
-          <TextField
-            label="영수증 링크"
-            value={receiptLink}
-            onChange={(e) => setReceiptLink(e.target.value)}
-            sx={{ flex: 1 }}
-          />
-        </Box>
       </Box>
     </LocalizationProvider>
   );

@@ -36,7 +36,7 @@ import 'dayjs/locale/ko';
 
 function Dashboard() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: authLoading, setUser } = useAuth();
   const [selectedBrand, setSelectedBrand] = useState('ALL');
   const [selectedStatusBrand, setSelectedStatusBrand] = useState('ALL');
   const [selectedShipmentBrand, setSelectedShipmentBrand] = useState('ALL');
@@ -78,18 +78,49 @@ function Dashboard() {
   const [error, setError] = useState(null);
   const [recentShipments, setRecentShipments] = useState([]);
 
+  // 초기 사용자 세션 확인
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session && !authLoading) {
+          // 세션이 없는 경우 자동 로그인 시도
+          const { data: { user: signInUser }, error: signInError } = await supabase.auth.signInWithPassword({
+            email: localStorage.getItem('userEmail'),
+            password: localStorage.getItem('userPassword')
+          });
+
+          if (signInError) throw signInError;
+        }
+      } catch (err) {
+        console.error('세션 확인 중 오류:', err);
+        setError(err.message);
+      }
+    };
+
+    checkSession();
+  }, [authLoading]);
+
   // 메모 불러오기
   useEffect(() => {
-    console.log('User object:', user); // user 객체를 콘솔에 출력
     const fetchMemos = async () => {
       try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = user?.id || session?.user?.id;
+        
+        if (!userId) {
+          console.log('사용자 인증 대기 중...');
+          return;
+        }
+
         const { data, error } = await supabase
           .from('user_memos')
-          .select('memo1, memo2, updated_at')
-          .eq('user_id', user.id)
+          .select('*')
+          .eq('user_id', userId)
           .single();
-          
+
         if (error) throw error;
+
         if (data) {
           setMemo1(data.memo1 || '');
           setMemo2(data.memo2 || '');
@@ -97,33 +128,54 @@ function Dashboard() {
           setLastSaved2(data.updated_at);
         }
       } catch (err) {
-        console.error('Error fetching memos:', err);
+        console.error('메모 불러오기 오류:', err);
+        setError(err.message);
       }
     };
-    
-    if (user) fetchMemos();
+
+    fetchMemos();
   }, [user]);
-  
+
   // 메모 저장
   const saveMemos = async () => {
     try {
+      if (!user) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) {
+          console.error('사용자 세션이 없습니다.');
+          // 필요한 경우 로그인 페이지로 리다이렉션
+          return;
+        }
+        // 세션이 있으면 user 상태 업데이트
+        setUser(session.user);
+      }
+
+      const userId = user?.id || (await supabase.auth.getSession()).data.session?.user?.id;
+      if (!userId) {
+        throw new Error('사용자 ID를 찾을 수 없습니다.');
+      }
+
       const now = new Date().toISOString();
       const { error } = await supabase
         .from('user_memos')
         .upsert({
-          user_id: user.id,
+          user_id: userId,
           memo1: memo1,
           memo2: memo2,
           updated_at: now
         }, {
           onConflict: 'user_id'
         });
-        
+
       if (error) throw error;
+      
       setLastSaved1(now);
       setLastSaved2(now);
+      console.log('메모가 성공적으로 저장되었습니다.');
     } catch (err) {
-      console.error('Error saving memos:', err);
+      console.error('메모 저장 중 오류:', err);
+      // 사용자에게 오류 메시지 표시
+      setError(err.message);
     }
   };
   
