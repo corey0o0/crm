@@ -17,7 +17,8 @@ import {
   Stack,
   LinearProgress,
   Tabs,
-  Tab
+  Tab,
+  TextField
 } from '@mui/material';
 import {
   Build as BuildIcon,
@@ -29,13 +30,20 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
+import { useAuth } from '../contexts/AuthContext';
+import dayjs from 'dayjs';
+import 'dayjs/locale/ko';
 
 function Dashboard() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [selectedBrand, setSelectedBrand] = useState('ALL');
   const [selectedStatusBrand, setSelectedStatusBrand] = useState('ALL');
   const [selectedShipmentBrand, setSelectedShipmentBrand] = useState('ALL');
   const [selectedRecentBrand, setSelectedRecentBrand] = useState('ALL');
+  const [memo, setMemo] = useState('');
+  const [saveTimeout, setSaveTimeout] = useState(null);
+  const [lastSaved, setLastSaved] = useState(null);
   const [stats, setStats] = useState({
     totalCustomers: 0,
     totalServices: 0,
@@ -68,6 +76,66 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [recentShipments, setRecentShipments] = useState([]);
+
+  // 메모 불러오기
+  useEffect(() => {
+    const fetchMemo = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('user_memos')
+          .select('content, updated_at')
+          .eq('user_id', user.id)
+          .single();
+          
+        if (error) throw error;
+        if (data) {
+          setMemo(data.content);
+          setLastSaved(data.updated_at);
+        }
+      } catch (err) {
+        console.error('Error fetching memo:', err);
+      }
+    };
+    
+    if (user) fetchMemo();
+  }, [user]);
+  
+  // 메모 자동저장
+  const saveMemo = async (content) => {
+    try {
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from('user_memos')
+        .upsert({
+          user_id: user.id,
+          content: content,
+          updated_at: now
+        }, {
+          onConflict: 'user_id'
+        });
+        
+      if (error) throw error;
+      setLastSaved(now);
+    } catch (err) {
+      console.error('Error saving memo:', err);
+    }
+  };
+  
+  // 메모 내용 변경 시 자동저장
+  const handleMemoChange = (e) => {
+    const newContent = e.target.value;
+    setMemo(newContent);
+    
+    // 이전 타이머 취소
+    if (saveTimeout) clearTimeout(saveTimeout);
+    
+    // 새로운 타이머 설정 (1초 후 저장)
+    const timeoutId = setTimeout(() => {
+      saveMemo(newContent);
+    }, 1000);
+    
+    setSaveTimeout(timeoutId);
+  };
 
   // 상태별 색상 정의
   const statusColors = {
@@ -457,6 +525,80 @@ function Dashboard() {
           새로고침
         </Button>
       </Box>
+
+      {/* 메모 섹션 */}
+      <Paper 
+        elevation={0}
+        sx={{ 
+          p: 2, 
+          mb: 3, 
+          bgcolor: '#f8f9fa',
+          border: '1px solid #e9ecef',
+          height: '100%',
+          minHeight: '200px',
+          display: 'flex',
+          flexDirection: 'column'
+        }}
+      >
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          mb: 1
+        }}>
+          <Typography 
+            variant="subtitle2" 
+            sx={{ 
+              color: '#4e5968',
+              fontSize: '0.875rem',
+              fontWeight: 600 
+            }}
+          >
+            메모
+          </Typography>
+          {lastSaved && (
+            <Typography 
+              variant="caption" 
+              sx={{ 
+                color: '#868e96',
+                fontSize: '0.75rem'
+              }}
+            >
+              마지막 저장: {dayjs(lastSaved).locale('ko').format('YYYY.MM.DD HH:mm')}
+            </Typography>
+          )}
+        </Box>
+        <TextField
+          multiline
+          fullWidth
+          minRows={6}
+          maxRows={6}
+          value={memo}
+          onChange={handleMemoChange}
+          placeholder="메모를 입력하세요..."
+          variant="outlined"
+          sx={{
+            flex: 1,
+            '& .MuiOutlinedInput-root': {
+              height: '100%',
+              bgcolor: '#fff',
+              fontSize: '0.875rem',
+              '& fieldset': {
+                borderColor: '#e9ecef'
+              },
+              '&:hover fieldset': {
+                borderColor: '#dee2e6'
+              },
+              '&.Mui-focused fieldset': {
+                borderColor: '#3182f6'
+              },
+              '& textarea': {
+                height: '100% !important'
+              }
+            }
+          }}
+        />
+      </Paper>
 
       {/* A/S 상태 및 출고 현황 */}
       <Grid container spacing={3} sx={{ mb: 4 }}>

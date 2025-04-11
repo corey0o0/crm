@@ -19,6 +19,7 @@
     "browser-image-compression": "^2.0.2",
     "cors": "^2.8.5",
     "date-fns": "^2.30.0",
+    "dayjs": "^1.11.13",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "googleapis": "^148.0.0",
