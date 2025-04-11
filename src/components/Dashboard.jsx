@@ -41,9 +41,10 @@ function Dashboard() {
   const [selectedStatusBrand, setSelectedStatusBrand] = useState('ALL');
   const [selectedShipmentBrand, setSelectedShipmentBrand] = useState('ALL');
   const [selectedRecentBrand, setSelectedRecentBrand] = useState('ALL');
-  const [memo, setMemo] = useState('');
-  const [saveTimeout, setSaveTimeout] = useState(null);
-  const [lastSaved, setLastSaved] = useState(null);
+  const [memo1, setMemo1] = useState('');
+  const [memo2, setMemo2] = useState('');
+  const [lastSaved1, setLastSaved1] = useState(null);
+  const [lastSaved2, setLastSaved2] = useState(null);
   const [stats, setStats] = useState({
     totalCustomers: 0,
     totalServices: 0,
@@ -79,62 +80,62 @@ function Dashboard() {
 
   // 메모 불러오기
   useEffect(() => {
-    const fetchMemo = async () => {
+    const fetchMemos = async () => {
       try {
         const { data, error } = await supabase
           .from('user_memos')
-          .select('content, updated_at')
+          .select('memo1, memo2, updated_at')
           .eq('user_id', user.id)
           .single();
           
         if (error) throw error;
         if (data) {
-          setMemo(data.content);
-          setLastSaved(data.updated_at);
+          setMemo1(data.memo1 || '');
+          setMemo2(data.memo2 || '');
+          setLastSaved1(data.updated_at);
+          setLastSaved2(data.updated_at);
         }
       } catch (err) {
-        console.error('Error fetching memo:', err);
+        console.error('Error fetching memos:', err);
       }
     };
     
-    if (user) fetchMemo();
+    if (user) fetchMemos();
   }, [user]);
   
-  // 메모 자동저장
-  const saveMemo = async (content) => {
+  // 메모 저장
+  const saveMemos = async () => {
     try {
       const now = new Date().toISOString();
       const { error } = await supabase
         .from('user_memos')
         .upsert({
           user_id: user.id,
-          content: content,
+          memo1: memo1,
+          memo2: memo2,
           updated_at: now
         }, {
           onConflict: 'user_id'
         });
         
       if (error) throw error;
-      setLastSaved(now);
+      setLastSaved1(now);
+      setLastSaved2(now);
     } catch (err) {
-      console.error('Error saving memo:', err);
+      console.error('Error saving memos:', err);
     }
   };
   
-  // 메모 내용 변경 시 자동저장
-  const handleMemoChange = (e) => {
+  // 메모1 내용 변경
+  const handleMemo1Change = (e) => {
     const newContent = e.target.value;
-    setMemo(newContent);
-    
-    // 이전 타이머 취소
-    if (saveTimeout) clearTimeout(saveTimeout);
-    
-    // 새로운 타이머 설정 (1초 후 저장)
-    const timeoutId = setTimeout(() => {
-      saveMemo(newContent);
-    }, 1000);
-    
-    setSaveTimeout(timeoutId);
+    setMemo1(newContent);
+  };
+
+  // 메모2 내용 변경
+  const handleMemo2Change = (e) => {
+    const newContent = e.target.value;
+    setMemo2(newContent);
   };
 
   // 상태별 색상 정의
@@ -527,78 +528,199 @@ function Dashboard() {
       </Box>
 
       {/* 메모 섹션 */}
-      <Paper 
-        elevation={0}
-        sx={{ 
-          p: 2, 
-          mb: 3, 
-          bgcolor: '#f8f9fa',
-          border: '1px solid #e9ecef',
-          height: '100%',
-          minHeight: '200px',
-          display: 'flex',
-          flexDirection: 'column'
-        }}
-      >
-        <Box sx={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center',
-          mb: 1
-        }}>
-          <Typography 
-            variant="subtitle2" 
+      <Grid container spacing={3} sx={{ mb: 3 }}>
+        {/* 메모 1 */}
+        <Grid item xs={12} md={6}>
+          <Paper 
+            elevation={0}
             sx={{ 
-              color: '#4e5968',
-              fontSize: '0.875rem',
-              fontWeight: 600 
+              p: 2, 
+              bgcolor: '#f8f9fa',
+              border: '1px solid #e9ecef',
+              minHeight: '200px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2
             }}
           >
-            메모
-          </Typography>
-          {lastSaved && (
-            <Typography 
-              variant="caption" 
-              sx={{ 
-                color: '#868e96',
-                fontSize: '0.75rem'
+            <Box sx={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center'
+            }}>
+              <Typography 
+                variant="subtitle2" 
+                sx={{ 
+                  color: '#4e5968',
+                  fontSize: '0.875rem',
+                  fontWeight: 600 
+                }}
+              >
+                메모 1
+              </Typography>
+              {lastSaved1 && (
+                <Typography 
+                  variant="caption" 
+                  sx={{ 
+                    color: '#868e96',
+                    fontSize: '0.75rem'
+                  }}
+                >
+                  마지막 저장: {dayjs(lastSaved1).locale('ko').format('YYYY.MM.DD HH:mm')}
+                </Typography>
+              )}
+            </Box>
+            <Box sx={{ 
+              flex: 1, 
+              display: 'flex', 
+              flexDirection: 'column',
+              minHeight: 0
+            }}>
+              <TextField
+                multiline
+                fullWidth
+                value={memo1}
+                onChange={handleMemo1Change}
+                placeholder="메모를 입력하세요..."
+                variant="outlined"
+                sx={{
+                  flex: 1,
+                  display: 'flex',
+                  '& .MuiInputBase-root': {
+                    flex: 1,
+                    display: 'flex',
+                    bgcolor: '#fff',
+                    fontSize: '0.875rem',
+                    '& textarea': {
+                      flex: 1,
+                      resize: 'vertical',
+                      minHeight: '100px',
+                      maxHeight: '500px'
+                    }
+                  },
+                  '& .MuiOutlinedInput-root': {
+                    '& fieldset': {
+                      borderColor: '#e9ecef'
+                    },
+                    '&:hover fieldset': {
+                      borderColor: '#dee2e6'
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: '#3182f6'
+                    }
+                  }
+                }}
+              />
+            </Box>
+            <Button
+              variant="contained"
+              onClick={saveMemos}
+              sx={{
+                bgcolor: '#3182f6',
+                '&:hover': { bgcolor: '#1b64da' }
               }}
             >
-              마지막 저장: {dayjs(lastSaved).locale('ko').format('YYYY.MM.DD HH:mm')}
-            </Typography>
-          )}
-        </Box>
-        <TextField
-          multiline
-          fullWidth
-          minRows={6}
-          maxRows={6}
-          value={memo}
-          onChange={handleMemoChange}
-          placeholder="메모를 입력하세요..."
-          variant="outlined"
-          sx={{
-            flex: 1,
-            '& .MuiOutlinedInput-root': {
-              height: '100%',
-              bgcolor: '#fff',
-              fontSize: '0.875rem',
-              '& fieldset': {
-                borderColor: '#e9ecef'
-              },
-              '&:hover fieldset': {
-                borderColor: '#dee2e6'
-              },
-              '&.Mui-focused fieldset': {
-                borderColor: '#3182f6'
-              },
-              '& textarea': {
-                height: '100% !important'
-              }
-            }
-          }}
-        />
-      </Paper>
+              저장
+            </Button>
+          </Paper>
+        </Grid>
+
+        {/* 메모 2 */}
+        <Grid item xs={12} md={6}>
+          <Paper 
+            elevation={0}
+            sx={{ 
+              p: 2, 
+              bgcolor: '#f8f9fa',
+              border: '1px solid #e9ecef',
+              minHeight: '200px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2
+            }}
+          >
+            <Box sx={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center'
+            }}>
+              <Typography 
+                variant="subtitle2" 
+                sx={{ 
+                  color: '#4e5968',
+                  fontSize: '0.875rem',
+                  fontWeight: 600 
+                }}
+              >
+                메모 2
+              </Typography>
+              {lastSaved2 && (
+                <Typography 
+                  variant="caption" 
+                  sx={{ 
+                    color: '#868e96',
+                    fontSize: '0.75rem'
+                  }}
+                >
+                  마지막 저장: {dayjs(lastSaved2).locale('ko').format('YYYY.MM.DD HH:mm')}
+                </Typography>
+              )}
+            </Box>
+            <Box sx={{ 
+              flex: 1, 
+              display: 'flex', 
+              flexDirection: 'column',
+              minHeight: 0
+            }}>
+              <TextField
+                multiline
+                fullWidth
+                value={memo2}
+                onChange={handleMemo2Change}
+                placeholder="메모를 입력하세요..."
+                variant="outlined"
+                sx={{
+                  flex: 1,
+                  display: 'flex',
+                  '& .MuiInputBase-root': {
+                    flex: 1,
+                    display: 'flex',
+                    bgcolor: '#fff',
+                    fontSize: '0.875rem',
+                    '& textarea': {
+                      flex: 1,
+                      resize: 'vertical',
+                      minHeight: '100px',
+                      maxHeight: '500px'
+                    }
+                  },
+                  '& .MuiOutlinedInput-root': {
+                    '& fieldset': {
+                      borderColor: '#e9ecef'
+                    },
+                    '&:hover fieldset': {
+                      borderColor: '#dee2e6'
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: '#3182f6'
+                    }
+                  }
+                }}
+              />
+            </Box>
+            <Button
+              variant="contained"
+              onClick={saveMemos}
+              sx={{
+                bgcolor: '#3182f6',
+                '&:hover': { bgcolor: '#1b64da' }
+              }}
+            >
+              저장
+            </Button>
+          </Paper>
+        </Grid>
+      </Grid>
 
       {/* A/S 상태 및 출고 현황 */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
