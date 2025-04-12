@@ -514,6 +514,13 @@ function ServiceDetail() {
   // 가격 수정 핸들러 수정
   const handlePriceChange = (index, newPrice) => {
     try {
+      console.log('가격 수정 시작:', {
+        index,
+        newPrice,
+        '기존 가격': selectedParts[index].price,
+        '기존 총액': selectedParts[index].total
+      });
+
       const updatedParts = [...selectedParts];
       const priceValue = newPrice === '' ? 0 : Number(newPrice);
       
@@ -522,8 +529,17 @@ function ServiceDetail() {
         price: priceValue,
         total: priceValue * updatedParts[index].quantity
       };
+
+      console.log('수정된 부품 정보:', {
+        '부품명': updatedParts[index].name,
+        '수정된 가격': priceValue,
+        '수량': updatedParts[index].quantity,
+        '새로운 총액': updatedParts[index].total
+      });
       
       setSelectedParts(updatedParts);
+      
+      console.log('전체 선택된 부품 목록:', updatedParts);
     } catch (err) {
       console.error('가격 수정 중 오류:', err);
       setSnackbar({
@@ -540,7 +556,53 @@ function ServiceDetail() {
       const updatedParts = [...selectedParts];
       const part = updatedParts[index];
       
-      // 여기서 실제 DB 업데이트 로직 추가 가능
+      console.log('가격 저장 시작:', {
+        '부품명': part.name,
+        '부품 ID': part.id,
+        '새 가격': part.price,
+        '수량': part.quantity,
+        '총액': part.total
+      });
+
+      // 서비스 데이터에서 parts 필드 업데이트
+      const { data: currentService, error: fetchError } = await supabase
+        .from('services')
+        .select('parts')
+        .eq('id', id)
+        .single();
+
+      if (fetchError) {
+        console.error('서비스 데이터 조회 중 오류:', fetchError);
+        throw fetchError;
+      }
+
+      console.log('현재 서비스의 부품 데이터:', currentService.parts);
+
+      const updatedServiceParts = currentService.parts.map(servicePart => 
+        servicePart.id === part.id ? 
+        { ...servicePart, price: part.price, total: part.total } : 
+        servicePart
+      );
+
+      console.log('업데이트될 서비스의 부품 데이터:', updatedServiceParts);
+
+      const { error: updateError } = await supabase
+        .from('services')
+        .update({ 
+          parts: updatedServiceParts,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
+
+      if (updateError) {
+        console.error('서비스 데이터 업데이트 중 오류:', updateError);
+        throw updateError;
+      }
+
+      console.log('가격 저장 완료:', {
+        '서비스 ID': id,
+        '업데이트된 부품 수': updatedServiceParts.length
+      });
       
       setSnackbar({
         open: true,
@@ -694,6 +756,11 @@ function ServiceDetail() {
                       size="small"
                       value={part.price}
                       onChange={(e) => handlePriceChange(index, e.target.value)}
+                      onBlur={() => console.log('가격 입력 필드 blur - 현재 값:', {
+                        '부품명': part.name,
+                        '가격': part.price,
+                        '총액': part.total
+                      })}
                       sx={{ 
                         width: '120px',
                         '& .MuiOutlinedInput-root': {
