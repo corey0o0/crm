@@ -65,7 +65,6 @@ import {
   CloudUpload as CloudUploadIcon
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
-import * as XLSX from 'xlsx';
 import { supabase } from '../../lib/supabaseClient';
 import ResponsiveTable from '../common/ResponsiveTable';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -73,6 +72,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ko } from 'date-fns/locale';
 import { format, parseISO, isValid } from 'date-fns';
+import * as XLSX from 'xlsx';
 
 function ProductShipment() {
   const [selectedBrand, setSelectedBrand] = useState('XRB');
@@ -634,52 +634,44 @@ function ProductShipment() {
     setOpenDialog(true);
   };
 
-  const handleDownloadExcel = async () => {
+  const handleExcelDownload = () => {
     try {
-      const { data, error } = await supabase
-        .from('shipments')
-        .select('*')
-        .eq('brand', selectedBrand)
-        .order('shipment_date', { ascending: false });
-
-      if (error) throw error;
-
-      const exportData = data.map(shipment => ({
-        주문일자: shipment.shipment_date || '',
-        고객명: shipment.customer_name || '',
-        연락처: shipment.customer_phone || '',
-        주소: shipment.customer_address || '',
-        제품: shipment.product_name || '',
-        수량: shipment.quantity || '',
-        배송방법: shipment.delivery_method || '',
-        '운송장번호/날짜': shipment.tracking_number || '',
-        상태: shipment.status || '',
-        메모: shipment.note || ''
+      const exportData = shipments.map(shipment => ({
+        '고객명': shipment.customer_name,
+        '연락처': shipment.customer_phone,
+        '주소': shipment.customer_address,
+        '제품명': shipment.product_name,
+        '수량': shipment.quantity,
+        '판매처': shipment.sales_channel,
+        '배송방법': shipment.delivery_method,
+        '출고일': shipment.shipment_date,
+        '메모': shipment.note,
+        '상태': shipment.status
       }));
 
-      const ws = XLSX.utils.json_to_sheet(exportData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "출고목록");
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "출고목록");
 
       const wscols = [
-        { wch: 12 },  // 주문일자
-        { wch: 12 },  // 고객명
+        { wch: 15 },  // 고객명
         { wch: 15 },  // 연락처
-        { wch: 40 },  // 주소
-        { wch: 20 },  // 제품
+        { wch: 30 },  // 주소
+        { wch: 30 },  // 제품명
         { wch: 8 },   // 수량
-        { wch: 12 },  // 배송방법
-        { wch: 15 },  // 운송장번호/날짜
-        { wch: 10 },  // 상태
+        { wch: 10 },  // 판매처
+        { wch: 10 },  // 배송방법
+        { wch: 12 },  // 출고일
         { wch: 30 },  // 메모
+        { wch: 10 }   // 상태
       ];
-      ws['!cols'] = wscols;
+      worksheet['!cols'] = wscols;
 
       const brandName = selectedBrand === 'XRB' ? 'X-RIDER' : 'NEARBIKE';
-      XLSX.writeFile(wb, `출고목록_${brandName}_${new Date().toLocaleDateString()}.xlsx`);
+      XLSX.writeFile(workbook, `출고목록_${brandName}_${new Date().toLocaleDateString()}.xlsx`);
 
     } catch (error) {
-      console.error('Error downloading excel:', error);
+      console.error('엑셀 다운로드 중 오류:', error);
       setSnackbar({
         open: true,
         message: '엑셀 다운로드 중 오류가 발생했습니다.',
@@ -1034,7 +1026,7 @@ function ProductShipment() {
     setPage(0);
   };
 
-  // 엑셀 템플릿 다운로드 함수
+  // 엑셀 템플릿 다운로드 함수 수정
   const handleDownloadTemplate = () => {
     try {
       // 템플릿 데이터 생성
@@ -1053,7 +1045,7 @@ function ProductShipment() {
       ];
 
       // 워크시트 생성
-      const ws = XLSX.utils.json_to_sheet(templateData);
+      const worksheet = XLSX.utils.json_to_sheet(templateData);
 
       // 열 너비 설정
       const wscols = [
@@ -1067,14 +1059,14 @@ function ProductShipment() {
         { wch: 12 },  // 출고일
         { wch: 30 },  // 메모
       ];
-      ws['!cols'] = wscols;
+      worksheet['!cols'] = wscols;
 
       // 워크북 생성
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "출고등록템플릿");
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "출고등록템플릿");
 
       // 파일 다운로드
-      XLSX.writeFile(wb, `출고등록템플릿_${selectedBrand}.xlsx`);
+      XLSX.writeFile(workbook, `출고등록템플릿_${selectedBrand}.xlsx`);
 
       setSnackbar({
         open: true,
@@ -1091,8 +1083,8 @@ function ProductShipment() {
     }
   };
 
-  // 엑셀 파일 업로드 처리 함수
-  const handleFileUpload = async (event) => {
+  // 엑셀 파일 업로드 처리 함수 수정
+  const handleFileUpload = (event) => {
     try {
       const file = event.target.files[0];
       if (!file) return;
@@ -1104,15 +1096,15 @@ function ProductShipment() {
           const workbook = XLSX.read(data, { type: 'array' });
           const sheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[sheetName];
-          const jsonData = XLSX.utils.sheet_to_json(worksheet);
+          const excelData = XLSX.utils.sheet_to_json(worksheet);
 
-          console.log('엑셀 데이터 파싱 결과:', jsonData);
+          console.log('엑셀 데이터 파싱 결과:', excelData);
 
           // 데이터 유효성 검사
           const invalidRows = [];
-          const validData = jsonData.map((row, index) => {
+          const validData = excelData.map((row, index) => {
             if (!row['고객명'] || !row['연락처'] || !row['제품명']) {
-              invalidRows.push(index + 2); // Excel은 1부터 시작, 헤더가 1행
+              invalidRows.push(index + 2);
               return null;
             }
 
@@ -1157,6 +1149,9 @@ function ProductShipment() {
             severity: 'success'
           });
 
+          // 다이얼로그 닫기
+          setOpenDialog(false);
+          
           // 목록 새로고침
           fetchShipments();
         } catch (err) {
@@ -1218,7 +1213,7 @@ function ProductShipment() {
               <Button
                 variant="outlined"
                 startIcon={<DownloadIcon />}
-                onClick={handleDownloadExcel}
+                onClick={handleExcelDownload}
               >
                 엑셀 다운로드
               </Button>
@@ -1382,6 +1377,50 @@ function ProductShipment() {
           {selectedShipment && selectedShipment.id ? '출고 정보 수정' : '신규 출고 등록'}
         </DialogTitle>
         <DialogContent>
+          {/* 엑셀 관련 버튼 추가 */}
+          <Stack 
+            direction="row" 
+            spacing={2} 
+            sx={{ mb: 3 }}
+          >
+            <Button
+              variant="outlined"
+              startIcon={<DownloadIcon />}
+              onClick={handleDownloadTemplate}
+              sx={{ 
+                color: '#3182f6',
+                borderColor: '#3182f6',
+                '&:hover': { 
+                  bgcolor: 'rgba(49, 130, 246, 0.04)',
+                  borderColor: '#1b64da'
+                }
+              }}
+            >
+              엑셀 템플릿
+            </Button>
+            <Button
+              component="label"
+              variant="outlined"
+              startIcon={<CloudUploadIcon />}
+              sx={{ 
+                color: '#3182f6',
+                borderColor: '#3182f6',
+                '&:hover': { 
+                  bgcolor: 'rgba(49, 130, 246, 0.04)',
+                  borderColor: '#1b64da'
+                }
+              }}
+            >
+              엑셀 등록
+              <input
+                type="file"
+                accept=".xlsx, .xls"
+                hidden
+                onChange={handleFileUpload}
+              />
+            </Button>
+          </Stack>
+
           {selectedShipment && (
             <Grid container spacing={2} sx={{ mt: 1 }}>
               <Grid item xs={12} md={4}>
@@ -1645,12 +1684,12 @@ function ProductShipment() {
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   제품: {selectedShipment.product_name}
-        </Typography>
+                </Typography>
               </Box>
             )}
             <Typography color="error" sx={{ mt: 2 }}>
               * 삭제된 정보는 복구할 수 없습니다.
-        </Typography>
+            </Typography>
           </Box>
         </DialogContent>
         <DialogActions>
