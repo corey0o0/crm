@@ -564,10 +564,10 @@ function ServiceDetail() {
         '총액': part.total
       });
 
-      // 서비스 데이터에서 parts 필드 업데이트
+      // 서비스 데이터에서 selected_parts 필드 업데이트
       const { data: currentService, error: fetchError } = await supabase
         .from('services')
-        .select('parts')
+        .select('selected_parts')
         .eq('id', id)
         .single();
 
@@ -576,9 +576,9 @@ function ServiceDetail() {
         throw fetchError;
       }
 
-      console.log('현재 서비스의 부품 데이터:', currentService.parts);
+      console.log('현재 서비스의 부품 데이터:', currentService.selected_parts);
 
-      const updatedServiceParts = currentService.parts.map(servicePart => 
+      const updatedServiceParts = currentService.selected_parts.map(servicePart => 
         servicePart.id === part.id ? 
         { ...servicePart, price: part.price, total: part.total } : 
         servicePart
@@ -589,7 +589,7 @@ function ServiceDetail() {
       const { error: updateError } = await supabase
         .from('services')
         .update({ 
-          parts: updatedServiceParts,
+          selected_parts: updatedServiceParts,
           updated_at: new Date().toISOString()
         })
         .eq('id', id);
@@ -601,8 +601,12 @@ function ServiceDetail() {
 
       console.log('가격 저장 완료:', {
         '서비스 ID': id,
-        '업데이트된 부품 수': updatedServiceParts.length
+        '업데이트된 부품 수': updatedServiceParts.length,
+        '업데이트된 데이터': updatedServiceParts
       });
+      
+      // 성공적으로 저장된 후 현재 상태 업데이트
+      setSelectedParts(updatedServiceParts);
       
       setSnackbar({
         open: true,
@@ -613,7 +617,7 @@ function ServiceDetail() {
       console.error('가격 저장 중 오류:', err);
       setSnackbar({
         open: true,
-        message: '가격 저장 중 오류가 발생했습니다.',
+        message: `가격 저장 중 오류가 발생했습니다: ${err.message}`,
         severity: 'error'
       });
     }
