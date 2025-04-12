@@ -42,6 +42,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import { API_CONFIG } from '../../config/api';
+import XLSX from 'xlsx';
 
 // 접수방법과 배송방법 옵션
 const RECEPTION_TYPES = ['방문', '전화', '대리점','기타'];
@@ -84,6 +85,16 @@ function AddService() {
   const [availableParts, setAvailableParts] = useState([]);
   const [selectedParts, setSelectedParts] = useState([]);
   const [partQuantity, setPartQuantity] = useState(1);
+  const [status, setStatus] = useState('접수');
+  const [availableTags] = useState([
+    '전체점검', '브레이크-패드', '브레이크-로터', '브레이크-교체', '배터리',
+    '충전기', '모터', '워런티', '사고-보험', 'E07','E09','E010'
+  ]);
+  const [receiptLink, setReceiptLink] = useState('');
+  const [receiptPreviewAnchor, setReceiptPreviewAnchor] = useState(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [numPages, setNumPages] = useState(null);
+  const [pageNumber, setPageNumber] = useState(1);
 
   // 부품 목록 조회
   const fetchParts = async () => {
@@ -230,60 +241,51 @@ function AddService() {
       // 템플릿 데이터 생성
       const templateData = [
         {
-          '날짜': new Date().toLocaleDateString(),
-          '완료 여부': '',
-          '작성자': '',
-          '이름': '홍길동',
+          '고객명': '홍길동',
           '연락처': '010-1234-5678',
-          '기종명': 'X200T',
-          '누적 주행거리': '1000',
-          '구입처': '',
-          '문의내용': '브레이크 소음',
-          '처리내용': '',
-          'PDF': '',
-          'JPG': '',
-          '기타': '',
-          '문의 위치': '방문'
+          '주소': '서울시 강남구',
+          '제품명': 'X-RIDER 전기자전거',
+          '수량': '1',
+          '판매처': '공홈',
+          '배송방법': '택배',
+          '출고일': '2024-03-20',
+          '메모': '배송 전 연락 요망',
+          '영수증': 'https://example.com/receipt.pdf'  // 영수증 필드 추가
         }
       ];
 
       // 워크시트 생성
-      const ws = utils.json_to_sheet(templateData);
+      const ws = XLSX.utils.json_to_sheet(templateData);
 
-      // 컬럼 너비 설정
+      // 열 너비 설정
       const wscols = [
-        { wch: 12 },  // 날짜
-        { wch: 12 },  // 완료 여부
-        { wch: 10 },  // 작성자
-        { wch: 10 },  // 이름
+        { wch: 15 },  // 고객명
         { wch: 15 },  // 연락처
-        { wch: 15 },  // 기종명
-        { wch: 12 },  // 누적 주행거리
-        { wch: 12 },  // 구입처
-        { wch: 40 },  // 문의내용
-        { wch: 40 },  // 처리내용
-        { wch: 40 },  // PDF
-        { wch: 40 },  // JPG
-        { wch: 20 },  // 기타
-        { wch: 15 },  // 문의 위치
+        { wch: 30 },  // 주소
+        { wch: 30 },  // 제품명
+        { wch: 8 },   // 수량
+        { wch: 10 },  // 판매처
+        { wch: 10 },  // 배송방법
+        { wch: 12 },  // 출고일
+        { wch: 30 },  // 메모
+        { wch: 40 }   // 영수증
       ];
       ws['!cols'] = wscols;
 
       // 워크북 생성
-      const wb = utils.book_new();
-      utils.book_append_sheet(wb, ws, "Template");
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "A/S등록템플릿");
 
       // 파일 다운로드
-      const brandName = selectedBrand === 'XRB' ? 'X-RIDER' : 'NEARBIKE';
-      writeFile(wb, `AS등록_${brandName}_템플릿.xlsx`);
+      XLSX.writeFile(wb, `A/S등록템플릿_${selectedBrand}.xlsx`);
 
       setSnackbar({
         open: true,
         message: '템플릿이 다운로드되었습니다.',
         severity: 'success'
       });
-    } catch (error) {
-      console.error('Error downloading template:', error);
+    } catch (err) {
+      console.error('템플릿 다운로드 중 오류:', err);
       setSnackbar({
         open: true,
         message: '템플릿 다운로드 중 오류가 발생했습니다.',
@@ -352,136 +354,96 @@ function AddService() {
   };
 
   // 엑셀 업로드 처리 함수 수정
-  const handleExcelUpload = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
+  const handleFileUpload = async (event) => {
     try {
+      const file = event.target.files[0];
+      if (!file) return;
+
       const reader = new FileReader();
       reader.onload = async (e) => {
         try {
           const data = new Uint8Array(e.target.result);
-          const workbook = read(data, { type: 'array', cellDates: true });
+          const workbook = XLSX.read(data, { type: 'array' });
           const sheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[sheetName];
-          const jsonData = utils.sheet_to_json(worksheet);
+          const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
-          // 각 행에 대해 처리
-          for (const row of jsonData) {
-            try {
-              // 완료 여부에서 날짜 추출
-              const completionMatch = row['완료 여부']?.match(/완료\((.*?)\)/);
-              const completionDate = completionMatch ? parseDate(completionMatch[1]) : null;
+          console.log('엑셀 데이터 파싱 결과:', jsonData);
 
-              // L열(구매처) 데이터를 부품 정보로 파싱
-              let matchedParts = [];
-              if (row['L'] || row['l'] || row['구매처']) {
-                const partsData = row['L'] || row['l'] || row['구매처'];
-                if (partsData) {
-                  // 부품 정보 파싱 (예: "부품명1:수량1:가격1,부품명2:수량2:가격2" 형식)
-                  const partsArray = partsData.split(',').map(part => part.trim());
-                  for (const partInfo of partsArray) {
-                    const [name, quantity = "1", price = "0"] = partInfo.split(':').map(item => item.trim());
-                    if (name) {
-                      // 부품 데이터베이스에서 매칭
-                      const { data: matchedPart, error: matchError } = await supabase
-                        .from('parts')
-                        .select('*')
-                        .eq('brand', selectedBrand)
-                        .ilike('name', `%${name}%`)
-                        .single();
-
-                      if (!matchError && matchedPart) {
-                        matchedParts.push({
-                          part_id: matchedPart.id,
-                          quantity: parseInt(quantity) || 1,
-                          price: parseInt(price) || matchedPart.price
-                        });
-                      }
-                    }
-                  }
-                }
-              }
-
-              // 서비스 데이터 구성
-              const serviceData = {
-                brand: selectedBrand,
-                reception_date: parseDate(row['날짜']) || new Date().toISOString().split('T')[0],
-                repair_date: completionDate,
-                completion_date: completionDate,
-                reception_type: row['문의 위치'] || '',
-                customer_name: row['이름'] || '',
-                customer_phone: row['연락처'] || '',
-                product_name: row['기종명'] || '',
-                mileage: row['누적 주행거리'] || '',
-                symptom: row['문의내용'] || '',
-                solution: row['처리내용'] || '',
-                note: `작성자: ${row['작성자'] || ''}\n구입처: ${row['구입처'] || ''}\n기타: ${row['기타'] || ''}\nPDF: ${row['PDF'] || ''}\nJPG: ${row['JPG'] || ''}`,
-                status: completionDate ? '완료' : '접수'
-              };
-
-              // 필수 필드 검증
-              if (!serviceData.customer_name || !serviceData.customer_phone || !serviceData.product_name || !serviceData.symptom) {
-                console.warn('필수 정보 누락:', serviceData);
-                continue;
-              }
-
-              // 서비스 등록
-              const { data: newService, error: serviceError } = await supabase
-                .from('services')
-                .insert(serviceData)
-                .select()
-                .single();
-
-              if (serviceError) throw serviceError;
-
-              // 매칭된 부품 정보가 있는 경우 등록
-              if (matchedParts.length > 0) {
-                const { error: partsError } = await supabase
-                  .from('service_parts')
-                  .insert(matchedParts.map(part => ({
-                    service_id: newService.id,
-                    ...part
-                  })));
-
-                if (partsError) throw partsError;
-              }
-
-            } catch (rowError) {
-              console.error('행 처리 중 오류:', rowError);
-              continue;
-            }
+          // PDF 파일 링크 확인 및 설정
+          if (jsonData[0] && jsonData[0]['영수증']) {
+            setReceiptLink(jsonData[0]['영수증']);
           }
 
+          // 데이터 유효성 검사
+          const invalidRows = [];
+          const validData = jsonData.map((row, index) => {
+            if (!row['고객명'] || !row['연락처'] || !row['제품명']) {
+              invalidRows.push(index + 2);
+              return null;
+            }
+
+            return {
+              brand: selectedBrand,
+              customer_name: row['고객명'],
+              customer_phone: row['연락처'],
+              customer_address: row['주소'] || '',
+              product_name: row['제품명'],
+              quantity: parseInt(row['수량']) || 1,
+              sales_channel: row['판매처'] || '공홈',
+              delivery_method: row['배송방법'] || '택배',
+              shipment_date: row['출고일'] || new Date().toISOString().split('T')[0],
+              note: row['메모'] || '',
+              receipt_link: row['영수증'] || '',
+              status: '준비중',
+              created_at: new Date().toISOString()
+            };
+          }).filter(item => item !== null);
+
+          if (invalidRows.length > 0) {
+            setSnackbar({
+              open: true,
+              message: `다음 행에 필수 정보가 누락되었습니다: ${invalidRows.join(', ')}`,
+              severity: 'warning'
+            });
+            return;
+          }
+
+          // 데이터 일괄 등록
+          const { data: insertedData, error } = await supabase
+            .from('services')
+            .insert(validData)
+            .select();
+
+          if (error) throw error;
+
+          console.log('등록된 데이터:', insertedData);
+          
           setSnackbar({
             open: true,
-            message: `${jsonData.length}개의 A/S가 성공적으로 등록되었습니다.`,
+            message: `${validData.length}건의 A/S 정보가 등록되었습니다.`,
             severity: 'success'
           });
 
-          // 3초 후 목록 페이지로 이동
-          setTimeout(() => {
-            navigate('/services');
-          }, 3000);
-
-        } catch (error) {
-          console.error('Excel processing error:', error);
-          setSnackbar({
-            open: true,
-            message: '엑셀 처리 중 오류가 발생했습니다.',
-            severity: 'error'
-          });
+          // 목록 새로고침
+          fetchServices();
+        } catch (err) {
+          console.error('엑셀 데이터 처리 중 오류:', err);
+          throw err;
         }
       };
+
       reader.readAsArrayBuffer(file);
-    } catch (error) {
-      console.error('File reading error:', error);
+    } catch (err) {
+      console.error('파일 업로드 중 오류:', err);
       setSnackbar({
         open: true,
-        message: '파일 읽기 중 오류가 발생했습니다.',
+        message: '파일 업로드 중 오류가 발생했습니다.',
         severity: 'error'
       });
     }
+    // 파일 입력 초기화
+    event.target.value = '';
   };
 
   const handleInputChange = (event) => {
@@ -492,39 +454,18 @@ function AddService() {
     }));
   };
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     try {
-      // 필수 필드 검증
-      if (!formData.customer_name || !formData.customer_phone || !formData.product_name || !formData.symptom) {
-        setSnackbar({
-          open: true,
-          message: '필수 정보를 모두 입력해주세요.',
-          severity: 'error'
-        });
-        return;
-      }
+      setSubmitting(true);
 
       // 1. 서비스 등록
       const { data: newService, error: serviceError } = await supabase
         .from('services')
         .insert({
-          brand: selectedBrand,
-          reception_date: formData.reception_date,
-          repair_date: formData.repair_date || null,
-          completion_date: formData.completion_date || null,
-          reception_type: formData.reception_type,
-          delivery_method: formData.delivery_method,
-          customer_name: formData.customer_name,
-          customer_phone: formData.customer_phone,
-          customer_address: formData.customer_address,
-          product_name: formData.product_name,
-          mileage: formData.mileage,
-          symptom: formData.symptom,
-          solution: formData.solution,
-          note: formData.note,
-          status: '접수'
+          ...formData,
+          status: status,
+          receipt_link: receiptLink
         })
         .select()
         .single();
@@ -537,7 +478,7 @@ function AddService() {
           .from('service_tags')
           .insert(tags.map(tag => ({
             service_id: newService.id,
-            tag_name: tag
+            tag_name: tag.startsWith('#') ? tag : `#${tag}`
           })));
 
         if (tagsError) throw tagsError;
@@ -575,6 +516,8 @@ function AddService() {
         message: '서비스 등록 중 오류가 발생했습니다.',
         severity: 'error'
       });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -606,6 +549,45 @@ function AddService() {
     borderRadius: 3,
     boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)',
     bgcolor: '#ffffff'
+  };
+
+  // 태그 입력 핸들러
+  const handleTagInput = (event, value, reason) => {
+    if (reason === 'input') {
+      setTags(value ? [...new Set([...tags, value])] : tags);
+    } else {
+      setTags(value);
+    }
+  };
+
+  // 영수증 미리보기 핸들러
+  const handleReceiptMouseEnter = (event) => {
+    if (receiptLink) {
+      setReceiptPreviewAnchor(event.currentTarget);
+    }
+  };
+
+  const handleReceiptMouseLeave = () => {
+    setReceiptPreviewAnchor(null);
+  };
+
+  // PDF 로드 성공 핸들러
+  const onDocumentLoadSuccess = ({ numPages }) => {
+    setNumPages(numPages);
+    setPageNumber(1);
+  };
+
+  // 상태 변경 핸들러
+  const handleStatusChange = (newStatus) => {
+    setStatus(newStatus);
+    if (newStatus === '완료') {
+      const currentDate = new Date().toISOString().split('T')[0];
+      setFormData(prev => ({
+        ...prev,
+        completion_date: currentDate,
+        repair_date: currentDate
+      }));
+    }
   };
 
   return (
@@ -676,7 +658,7 @@ function AddService() {
                   type="file"
                   hidden
                   accept=".xlsx,.xls"
-                  onChange={handleExcelUpload}
+                  onChange={handleFileUpload}
                 />
               </Button>
             </Box>
@@ -916,6 +898,111 @@ function AddService() {
                   </Grid>
                 </Box>
               </Grid>
+            </Grid>
+
+            {/* 상태 버튼 추가 */}
+            <Grid item xs={12} sx={{ display: 'flex', gap: 1, mb: 3 }}>
+              <Button 
+                onClick={() => handleStatusChange('접수')}
+                variant="contained"
+                size="small"
+                sx={buttonStyle(status === '접수')}
+              >
+                접수
+              </Button>
+              <Button 
+                onClick={() => handleStatusChange('처리중')}
+                variant="contained"
+                size="small"
+                sx={buttonStyle(status === '처리중')}
+              >
+                처리중
+              </Button>
+              <Button 
+                onClick={() => handleStatusChange('완료')}
+                variant="contained"
+                size="small"
+                sx={buttonStyle(status === '완료')}
+              >
+                완료
+              </Button>
+            </Grid>
+
+            {/* A/S 내역 섹션에 태그 입력 추가 */}
+            <Grid item xs={12}>
+              <Autocomplete
+                multiple
+                freeSolo
+                options={availableTags}
+                value={tags}
+                onChange={handleTagInput}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="태그"
+                    placeholder="태그를 입력하거나 선택하세요"
+                    helperText="엔터를 눌러 새 태그를 추가하세요"
+                  />
+                )}
+                renderTags={(value, getTagProps) =>
+                  value.map((option, index) => (
+                    <Chip
+                      label={option}
+                      {...getTagProps({ index })}
+                      sx={{
+                        bgcolor: '#e8f3ff',
+                        color: '#3182f6',
+                        '& .MuiChip-deleteIcon': {
+                          color: '#3182f6',
+                          '&:hover': {
+                            color: '#1b64da'
+                          }
+                        }
+                      }}
+                    />
+                  ))
+                }
+              />
+              <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                {availableTags.map((tag) => (
+                  <Chip
+                    key={tag}
+                    label={tag}
+                    onClick={() => {
+                      if (!tags.includes(tag)) {
+                        setTags([...tags, tag]);
+                      }
+                    }}
+                    sx={{
+                      bgcolor: tags.includes(tag) ? '#e8f3ff' : '#f2f4f6',
+                      color: tags.includes(tag) ? '#3182f6' : '#4e5968',
+                      cursor: 'pointer',
+                      '&:hover': {
+                        bgcolor: tags.includes(tag) ? '#e8f3ff' : '#e5e8eb'
+                      }
+                    }}
+                  />
+                ))}
+              </Box>
+            </Grid>
+
+            {/* 영수증 링크 입력 필드 추가 */}
+            <Grid item xs={12}>
+              <TextField
+                label="영수증 링크"
+                value={receiptLink}
+                onChange={(e) => setReceiptLink(e.target.value)}
+                onMouseEnter={handleReceiptMouseEnter}
+                onMouseLeave={handleReceiptMouseLeave}
+                sx={{ 
+                  width: '300px',
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 1,
+                    bgcolor: '#f9fafb'
+                  }
+                }}
+                size="small"
+              />
             </Grid>
 
             {/* 부품 정보 섹션 */}

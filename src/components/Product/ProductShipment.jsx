@@ -61,7 +61,8 @@ import {
   ExpandMore as ExpandMoreIcon,
   DateRange as DateRangeIcon,
   Store as StoreIcon,
-  FilterAlt as FilterAltIcon
+  FilterAlt as FilterAltIcon,
+  CloudUpload as CloudUploadIcon
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -385,11 +386,16 @@ function ProductShipment() {
 
       setShipments(prev => prev.filter(s => s.id !== selectedShipment.id));
       setDeleteDialogOpen(false);
+      setOpenDialog(false); // 메인 다이얼로그도 닫기
+      
       setSnackbar({
         open: true,
         message: '출고 정보가 삭제되었습니다.',
         severity: 'success'
       });
+
+      // 출고 목록 새로고침
+      fetchShipments();
     } catch (err) {
       console.error('Error deleting shipment:', err);
       setSnackbar({
@@ -1028,6 +1034,150 @@ function ProductShipment() {
     setPage(0);
   };
 
+  // 엑셀 템플릿 다운로드 함수
+  const handleDownloadTemplate = () => {
+    try {
+      // 템플릿 데이터 생성
+      const templateData = [
+        {
+          '고객명': '홍길동',
+          '연락처': '010-1234-5678',
+          '주소': '서울시 강남구',
+          '제품명': 'X-RIDER 전기자전거',
+          '수량': '1',
+          '판매처': '공홈',
+          '배송방법': '택배',
+          '출고일': '2024-03-20',
+          '메모': '배송 전 연락 요망'
+        }
+      ];
+
+      // 워크시트 생성
+      const ws = XLSX.utils.json_to_sheet(templateData);
+
+      // 열 너비 설정
+      const wscols = [
+        { wch: 15 },  // 고객명
+        { wch: 15 },  // 연락처
+        { wch: 30 },  // 주소
+        { wch: 30 },  // 제품명
+        { wch: 8 },   // 수량
+        { wch: 10 },  // 판매처
+        { wch: 10 },  // 배송방법
+        { wch: 12 },  // 출고일
+        { wch: 30 },  // 메모
+      ];
+      ws['!cols'] = wscols;
+
+      // 워크북 생성
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "출고등록템플릿");
+
+      // 파일 다운로드
+      XLSX.writeFile(wb, `출고등록템플릿_${selectedBrand}.xlsx`);
+
+      setSnackbar({
+        open: true,
+        message: '템플릿이 다운로드되었습니다.',
+        severity: 'success'
+      });
+    } catch (err) {
+      console.error('템플릿 다운로드 중 오류:', err);
+      setSnackbar({
+        open: true,
+        message: '템플릿 다운로드 중 오류가 발생했습니다.',
+        severity: 'error'
+      });
+    }
+  };
+
+  // 엑셀 파일 업로드 처리 함수
+  const handleFileUpload = async (event) => {
+    try {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+          console.log('엑셀 데이터 파싱 결과:', jsonData);
+
+          // 데이터 유효성 검사
+          const invalidRows = [];
+          const validData = jsonData.map((row, index) => {
+            if (!row['고객명'] || !row['연락처'] || !row['제품명']) {
+              invalidRows.push(index + 2); // Excel은 1부터 시작, 헤더가 1행
+              return null;
+            }
+
+            return {
+              brand: selectedBrand,
+              customer_name: row['고객명'],
+              customer_phone: row['연락처'],
+              customer_address: row['주소'] || '',
+              product_name: row['제품명'],
+              quantity: parseInt(row['수량']) || 1,
+              sales_channel: row['판매처'] || '공홈',
+              delivery_method: row['배송방법'] || '택배',
+              shipment_date: row['출고일'] || new Date().toISOString().split('T')[0],
+              note: row['메모'] || '',
+              status: '준비중',
+              created_at: new Date().toISOString()
+            };
+          }).filter(item => item !== null);
+
+          if (invalidRows.length > 0) {
+            setSnackbar({
+              open: true,
+              message: `다음 행에 필수 정보가 누락되었습니다: ${invalidRows.join(', ')}`,
+              severity: 'warning'
+            });
+            return;
+          }
+
+          // 데이터 일괄 등록
+          const { data: insertedData, error } = await supabase
+            .from('shipments')
+            .insert(validData)
+            .select();
+
+          if (error) throw error;
+
+          console.log('등록된 데이터:', insertedData);
+          
+          setSnackbar({
+            open: true,
+            message: `${validData.length}건의 출고 정보가 등록되었습니다.`,
+            severity: 'success'
+          });
+
+          // 목록 새로고침
+          fetchShipments();
+        } catch (err) {
+          console.error('엑셀 데이터 처리 중 오류:', err);
+          throw err;
+        }
+      };
+
+      reader.readAsArrayBuffer(file);
+    } catch (err) {
+      console.error('파일 업로드 중 오류:', err);
+      setSnackbar({
+        open: true,
+        message: '파일 업로드 중 오류가 발생했습니다.',
+        severity: 'error'
+      });
+    }
+    // 파일 입력 초기화
+    event.target.value = '';
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -1063,7 +1213,7 @@ function ProductShipment() {
               sx={{ fontWeight: 'bold' }}
             />
           </Tabs>
-          <Stack direction="row" spacing={2}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <Tooltip title="출고 목록 다운로드">
               <Button
                 variant="outlined"
@@ -1074,10 +1224,40 @@ function ProductShipment() {
               </Button>
             </Tooltip>
             <Button
-              variant="contained"
-              onClick={handleAddShipment}
+              variant="outlined"
+              startIcon={<CloudUploadIcon />}
+              onClick={handleDownloadTemplate}
+              sx={{ 
+                color: '#3182f6',
+                borderColor: '#3182f6',
+                '&:hover': { 
+                  bgcolor: 'rgba(49, 130, 246, 0.04)',
+                  borderColor: '#1b64da'
+                }
+              }}
             >
-              신규 등록
+              엑셀 템플릿
+            </Button>
+            <Button
+              component="label"
+              variant="outlined"
+              startIcon={<CloudUploadIcon />}
+              sx={{ 
+                color: '#3182f6',
+                borderColor: '#3182f6',
+                '&:hover': { 
+                  bgcolor: 'rgba(49, 130, 246, 0.04)',
+                  borderColor: '#1b64da'
+                }
+              }}
+            >
+              엑셀 등록
+              <input
+                type="file"
+                accept=".xlsx, .xls"
+                hidden
+                onChange={handleFileUpload}
+              />
             </Button>
           </Stack>
         </Stack>
