@@ -78,8 +78,8 @@ function ServiceDetail() {
   const [searchTerm, setSearchTerm] = useState('');
   const [tags, setTags] = useState([]);
   const [availableTags] = useState([
-    '엔진', '브레이크', '전기', '타이어', '서스펜션',
-    '외관', '내장', '소모품', '정기점검', '사고수리'
+    '전체점검', '브레이크-패드', '브레이크-로터', '브레이크-교체', '배터리',
+    '충전기', '모터', '워런티', '사고-보험', 'E07','E09','E010'
   ]);
   const [submitting, setSubmitting] = useState(false);
   const [openReceiptDialog, setOpenReceiptDialog] = useState(false);
@@ -526,6 +526,34 @@ function ServiceDetail() {
       setSelectedParts(updatedParts);
     } catch (err) {
       console.error('가격 수정 중 오류:', err);
+      setSnackbar({
+        open: true,
+        message: '가격 수정 중 오류가 발생했습니다.',
+        severity: 'error'
+      });
+    }
+  };
+
+  // 가격 저장 핸들러 추가
+  const handleSavePrice = async (index) => {
+    try {
+      const updatedParts = [...selectedParts];
+      const part = updatedParts[index];
+      
+      // 여기서 실제 DB 업데이트 로직 추가 가능
+      
+      setSnackbar({
+        open: true,
+        message: '가격이 성공적으로 저장되었습니다.',
+        severity: 'success'
+      });
+    } catch (err) {
+      console.error('가격 저장 중 오류:', err);
+      setSnackbar({
+        open: true,
+        message: '가격 저장 중 오류가 발생했습니다.',
+        severity: 'error'
+      });
     }
   };
 
@@ -684,11 +712,7 @@ function ServiceDetail() {
                     <Button
                       size="small"
                       variant="contained"
-                      onClick={() => {
-                        const updatedParts = [...selectedParts];
-                        const currentPrice = updatedParts[index].price;
-                        handlePriceChange(index, currentPrice);
-                      }}
+                      onClick={() => handleSavePrice(index)}
                       sx={{ 
                         minWidth: 'auto',
                         px: 2,

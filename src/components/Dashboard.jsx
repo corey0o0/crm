@@ -117,10 +117,16 @@ function Dashboard() {
         const { data: existingMemo, error: checkError } = await supabase
           .from('user_memos')
           .select('*')
-          .eq('user_id', userId);
+          .eq('user_id', userId)
+          .single();
+
+        if (checkError && checkError.code !== 'PGRST116') {
+          console.error('메모 조회 중 오류:', checkError);
+          return;
+        }
 
         // 메모 데이터가 없으면 새로 생성
-        if (!existingMemo || existingMemo.length === 0) {
+        if (!existingMemo) {
           const { error: insertError } = await supabase
             .from('user_memos')
             .insert([
@@ -136,25 +142,28 @@ function Dashboard() {
             console.error('새 메모 생성 중 오류:', insertError);
             return;
           }
-        }
 
-        // 메모 데이터 다시 조회
-        const { data, error } = await supabase
-          .from('user_memos')
-          .select('*')
-          .eq('user_id', userId)
-          .single();
+          // 새로 생성된 메모 데이터 조회
+          const { data: newMemo, error: fetchError } = await supabase
+            .from('user_memos')
+            .select('*')
+            .eq('user_id', userId)
+            .single();
 
-        if (error) {
-          console.error('메모 조회 중 오류:', error);
-          return;
-        }
+          if (fetchError) {
+            console.error('새 메모 조회 중 오류:', fetchError);
+            return;
+          }
 
-        if (data) {
-          setMemo1(data.memo1 || '');
-          setMemo2(data.memo2 || '');
-          setLastSaved1(data.updated_at);
-          setLastSaved2(data.updated_at);
+          setMemo1(newMemo.memo1 || '');
+          setMemo2(newMemo.memo2 || '');
+          setLastSaved1(newMemo.updated_at);
+          setLastSaved2(newMemo.updated_at);
+        } else {
+          setMemo1(existingMemo.memo1 || '');
+          setMemo2(existingMemo.memo2 || '');
+          setLastSaved1(existingMemo.updated_at);
+          setLastSaved2(existingMemo.updated_at);
         }
       } catch (err) {
         console.error('메모 불러오기 오류:', err);
@@ -162,9 +171,32 @@ function Dashboard() {
       }
     };
 
-    if (user) {
-      fetchMemos();
-    }
+    fetchMemos();
+
+    // 실시간 업데이트를 위한 구독 설정
+    const channel = supabase
+      .channel('user_memos_changes')
+      .on('postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_memos',
+          filter: `user_id=eq.${user?.id}`
+        },
+        payload => {
+          if (payload.new) {
+            setMemo1(payload.new.memo1 || '');
+            setMemo2(payload.new.memo2 || '');
+            setLastSaved1(payload.new.updated_at);
+            setLastSaved2(payload.new.updated_at);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
   }, [user]);
 
   // 메모 저장
@@ -552,6 +584,17 @@ function Dashboard() {
   useEffect(() => {
     fetchRecentShipments();
   }, [selectedBrand]);
+
+  // 자동 저장을 위한 useEffect
+  useEffect(() => {
+    const autoSaveTimer = setTimeout(() => {
+      if (user && (memo1 || memo2)) {
+        saveMemos();
+      }
+    }, 30000); // 30초마다 자동 저장
+
+    return () => clearTimeout(autoSaveTimer);
+  }, [memo1, memo2, user]);
 
   if (loading) {
     return (
