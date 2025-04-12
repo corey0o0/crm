@@ -14,7 +14,8 @@ import {
   Button,
   useTheme,
   useMediaQuery,
-  SwipeableDrawer
+  SwipeableDrawer,
+  Link
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -26,7 +27,8 @@ import {
   Inventory as InventoryIcon,
   LocalShipping as LocalShippingIcon,
   Receipt as ReceiptIcon,
-  DriveFileMove as DriveIcon
+  DriveFileMove as DriveIcon,
+  Message as MessageIcon
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
@@ -100,9 +102,9 @@ function Layout() {
     { text: '출고 관리', icon: <LocalShippingIcon />, path: '/shipments' },
     { text: '고객 관리', icon: <PeopleIcon />, path: '/customers' },
     { text: '파츠 관리', icon: <InventoryIcon />, path: '/parts' },
-    { text: 'A/S 통계', icon: <BarChartIcon />, path: '/service-statistics' },    
-    { text: '영수증 스캔', icon: <ReceiptIcon />, path: '/receipts' },
-    { text: '드라이브 테스트', icon: <DriveIcon />, path: '/google-drive-test' }
+    { text: 'A/S 통계', icon: <BarChartIcon />, path: '/service-statistics' }
+    // { text: '영수증 스캔', icon: <ReceiptIcon />, path: '/receipts' },
+    // { text: '드라이브 테스트', icon: <DriveIcon />, path: '/google-drive-test' }
   ];
 
   const handleDrawerToggle = () => {
@@ -140,6 +142,17 @@ function Layout() {
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
             고객관리시스템
           </Typography>
+          <Button
+            color="inherit"
+            startIcon={<MessageIcon />}
+            component={Link}
+            href="https://messages.google.com/web/conversations"
+            target="_blank"
+            rel="noopener noreferrer"
+            sx={{ mr: 1 }}
+          >
+            구글 메시지
+          </Button>
           <Button color="inherit" onClick={handleSignOut}>
             로그아웃
           </Button>

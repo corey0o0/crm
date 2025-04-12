@@ -511,16 +511,22 @@ function ServiceDetail() {
     });
   };
 
-  // Enable Price Modification for Parts
+  // 가격 수정 핸들러 수정
   const handlePriceChange = (index, newPrice) => {
-    const updatedParts = [...selectedParts];
-    // 빈 문자열이나 0도 허용
-    updatedParts[index] = {
-      ...updatedParts[index],
-      price: newPrice === '' ? '' : Number(newPrice),
-      total: newPrice === '' ? 0 : Number(newPrice) * updatedParts[index].quantity
-    };
-    setSelectedParts(updatedParts);
+    try {
+      const updatedParts = [...selectedParts];
+      const priceValue = newPrice === '' ? 0 : Number(newPrice);
+      
+      updatedParts[index] = {
+        ...updatedParts[index],
+        price: priceValue,
+        total: priceValue * updatedParts[index].quantity
+      };
+      
+      setSelectedParts(updatedParts);
+    } catch (err) {
+      console.error('가격 수정 중 오류:', err);
+    }
   };
 
   // Handle mouse enter for receipt preview
@@ -647,46 +653,52 @@ function ServiceDetail() {
                 <TableCell>{part.name}</TableCell>
                 <TableCell>{part.code}</TableCell>
                 <TableCell align="right">
-                  <TextField
-                    type="number"
-                    size="small"
-                    value={part.price === '' ? '' : part.price}
-                    onChange={(e) => handlePriceChange(index, e.target.value)}
-                    sx={{ 
-                      width: '120px',
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: 1,
-                        bgcolor: '#f9fafb'
-                      }
-                    }}
-                    InputProps={{
-                      inputProps: { 
-                        min: 0,
-                        step: "any" // 소수점 입력 허용
-                      },
-                      startAdornment: <InputAdornment position="start">₩</InputAdornment>
-                    }}
-                  />
-                  <Button
-                    size="small"
-                    variant="contained"
-                    onClick={() => handlePriceChange(index, part.price)}
-                    sx={{ 
-                      minWidth: 'auto',
-                      ml: 1,
-                      px: 2,
-                      bgcolor: '#3182f6',
-                      '&:hover': { bgcolor: '#1b64da' }
-                    }}
-                  >
-                    저장
-                  </Button>
+                  {part.price.toLocaleString()}원
                 </TableCell>
                 <TableCell align="right">{part.quantity}</TableCell>
                 <TableCell align="right">
-                  {part.price && part.quantity
-                    ? (part.price * part.quantity).toLocaleString()
-                    : '0'}원
+                  {(part.price * part.quantity).toLocaleString()}원
+                </TableCell>
+                <TableCell align="right" sx={{ minWidth: '200px' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'flex-end' }}>
+                    <TextField
+                      type="number"
+                      size="small"
+                      value={part.price}
+                      onChange={(e) => handlePriceChange(index, e.target.value)}
+                      sx={{ 
+                        width: '120px',
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: 1,
+                          bgcolor: '#f9fafb'
+                        }
+                      }}
+                      InputProps={{
+                        inputProps: { 
+                          min: 0,
+                          step: "1"
+                        },
+                        startAdornment: <InputAdornment position="start">₩</InputAdornment>
+                      }}
+                    />
+                    <Button
+                      size="small"
+                      variant="contained"
+                      onClick={() => {
+                        const updatedParts = [...selectedParts];
+                        const currentPrice = updatedParts[index].price;
+                        handlePriceChange(index, currentPrice);
+                      }}
+                      sx={{ 
+                        minWidth: 'auto',
+                        px: 2,
+                        bgcolor: '#3182f6',
+                        '&:hover': { bgcolor: '#1b64da' }
+                      }}
+                    >
+                      저장
+                    </Button>
+                  </Box>
                 </TableCell>
                 <TableCell align="center">
                   <IconButton
