@@ -451,8 +451,8 @@ function AddService() {
               symptom: row['문의내용'],
               solution: row['처리내용'],
               note: row['기타'],
-              location: row['문의 위치'],
               created_by: row['작성자'],
+              location: row['문의 위치'],
               attachment: row['첨부'],
               image: row['JPG'],
               created_at: new Date().toISOString()
