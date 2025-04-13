@@ -3,7 +3,7 @@ import { Box, Paper, Typography, Grid, TextField, Table, TableBody, TableCell, T
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { supabase } from '../../supabaseClient';
+import { supabase } from '../../lib/supabaseClient';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ko';
 

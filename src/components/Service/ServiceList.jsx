@@ -597,16 +597,21 @@ function ServiceList() {
     { 
       id: 'reception_date', 
       label: '접수일자',
-      sortable: true
+      sortable: true,
+      render: (row) => (
+        <Typography noWrap>
+          {row.reception_date}
+        </Typography>
+      )
     },
     { 
       id: 'customer_info', 
       label: '이름',
       sortable: true,
       render: (row) => (
-        <Box>
-          <Typography>{row.customer_name}</Typography>          
-        </Box>
+        <Typography noWrap>
+          {row.customer_name}
+        </Typography>
       )
     },
     { 
@@ -614,9 +619,9 @@ function ServiceList() {
       label: '연락처',
       sortable: true,
       render: (row) => (
-        <Box>
-          <Typography>{row.customer_phone}</Typography>
-        </Box>
+        <Typography noWrap>
+          {row.customer_phone}
+        </Typography>
       )
     },
     { 
@@ -624,15 +629,18 @@ function ServiceList() {
       label: '제품',
       sortable: true,
       render: (row) => (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography>{row.product_name}</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+          <Typography noWrap sx={{ flex: 1 }}>
+            {row.product_name}
+          </Typography>
           {row.note && row.note.includes('JPG:') && (
             <Tooltip title="영수증 첨부됨">
               <ReceiptIcon 
                 sx={{ 
                   fontSize: '1rem', 
                   color: 'primary.main',
-                  opacity: 0.7 
+                  opacity: 0.7,
+                  flexShrink: 0
                 }} 
               />
             </Tooltip>
@@ -643,7 +651,26 @@ function ServiceList() {
     { 
       id: 'symptom', 
       label: '증상',
-      sortable: true
+      sortable: true,
+      render: (row) => (
+        <Typography sx={{ 
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+          maxWidth: '300px'  // 최대 너비 설정
+        }}>
+          {row.symptom}
+        </Typography>
+      )
+    },
+    { 
+      id: 'mileage', 
+      label: '주행거리',
+      sortable: true,
+      render: (row) => (
+        <Typography>
+          {row.mileage || '-'}
+        </Typography>
+      )
     },
     { 
       id: 'tags', 
@@ -730,6 +757,9 @@ function ServiceList() {
         </Box>
         <Typography variant="body2" sx={{ mt: 1 }}>
           증상: {row.symptom}
+        </Typography>
+        <Typography variant="body2" sx={{ mt: 1 }}>
+          주행거리: {row.mileage || '-'}
         </Typography>
         <Box sx={{ mt: 1, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
           {row.tags?.map((tag, index) => (
@@ -961,9 +991,15 @@ function ServiceList() {
               direction={orderBy === column.id ? order : 'asc'}
               onClick={() => handleSort(column.id)}
             >
-              {column.label}
+              <Typography noWrap component="span" sx={{ fontWeight: 'bold' }}>
+                {column.label}
+              </Typography>
             </TableSortLabel>
-          ) : column.label
+          ) : (
+            <Typography noWrap component="span" sx={{ fontWeight: 'bold' }}>
+              {column.label}
+            </Typography>
+          )
         }))}
         data={paginatedServices}
         renderMobileCard={renderMobileCard}
