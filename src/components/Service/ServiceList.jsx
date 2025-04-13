@@ -633,7 +633,7 @@ function ServiceList() {
           <Typography noWrap sx={{ flex: 1 }}>
             {row.product_name}
           </Typography>
-          {row.note && row.note.includes('JPG:') && (
+          {(row.note?.includes('JPG:') || row.receipt_link) && (
             <Tooltip title="영수증 첨부됨">
               <ReceiptIcon 
                 sx={{ 
@@ -743,7 +743,7 @@ function ServiceList() {
           <Typography variant="body2">
             제품: {row.product_name}
           </Typography>
-          {row.note && row.note.includes('JPG:') && (
+          {(row.note?.includes('JPG:') || row.receipt_link) && (
             <Tooltip title="영수증 첨부됨">
               <ReceiptIcon 
                 sx={{ 

@@ -439,10 +439,27 @@ function AddService() {
               }
             });
 
+            // 완료 상태 처리
+            let status = row['완료 여부'] || '접수';
+            let completionDate = null;
+
+            // 완료(1) 처리
+            if (status === '완료(1)') {
+              status = '완료';
+            }
+            // 완료(날짜) 처리
+            else if (status && status.startsWith('완료(') && status.endsWith(')')) {
+              const dateMatch = status.match(/완료\(([\d-]+)\)/);
+              if (dateMatch) {
+                status = '완료';
+                completionDate = dateMatch[1];
+              }
+            }
+
             return {
               brand: selectedBrand,
               reception_date: parseDate(row['날짜']) || currentDate,
-              status: row['완료 여부'] || '접수',
+              status: status,
               customer_name: row['이름'],
               customer_phone: row['연락처'],
               product_name: row['기종명'],
@@ -451,10 +468,11 @@ function AddService() {
               symptom: row['문의내용'],
               solution: row['처리내용'],
               note: row['기타'],
-              created_by: row['작성자'],
               location: row['문의 위치'],
+              created_by: row['작성자'],
               attachment: row['첨부'],
               image: row['JPG'],
+              completion_date: completionDate,
               created_at: new Date().toISOString()
             };
           });

@@ -68,7 +68,8 @@ function ServiceDetail() {
     solution: '',
     reception_type: '',
     status: '',
-    delivery_method: ''
+    delivery_method: '',
+    seller: ''
   });
   const [openPartsDialog, setOpenPartsDialog] = useState(false);
   const [selectedParts, setSelectedParts] = useState([]);
@@ -120,9 +121,30 @@ function ServiceDetail() {
 
       if (serviceError) throw serviceError;
 
+      // 기존 note에서 구매처 정보가 있다면 seller 필드로 이전
+      if (serviceData.note && !serviceData.seller) {
+        const { error: updateError } = await supabase
+          .from('services')
+          .update({
+            seller: serviceData.note,
+            note: ''  // note 필드 초기화
+          })
+          .eq('id', id);
+          
+        if (!updateError) {
+          serviceData.seller = serviceData.note;
+          serviceData.note = '';
+        }
+      }
+
       // 태그 데이터 설정
       if (serviceData.service_tags) {
         setTags(serviceData.service_tags.map(t => t.tag_name));
+      }
+
+      // 영수증 링크 설정
+      if (serviceData.receipt_link) {
+        setReceiptLink(serviceData.receipt_link);
       }
 
       // 사용된 부품 정보 조회
@@ -152,6 +174,7 @@ function ServiceDetail() {
         reception_date: serviceData.reception_date ? new Date(serviceData.reception_date) : null,
         repair_date: serviceData.repair_date ? new Date(serviceData.repair_date) : null,
         completion_date: serviceData.completion_date ? new Date(serviceData.completion_date) : null,
+        service_parts: serviceData.service_parts || []
       });
     } catch (err) {
       console.error('Error fetching service detail:', err);
@@ -187,7 +210,9 @@ function ServiceDetail() {
           symptom: formData.symptom,
           solution: formData.solution,
           reception_type: formData.reception_type,
-          status: formData.status
+          status: formData.status,
+          receipt_link: receiptLink,
+          seller: formData.seller
         })
         .eq('id', id);
 
@@ -223,9 +248,8 @@ function ServiceDetail() {
 
       if (deletePartsError) throw deletePartsError;
 
-      // 5. 새 부품 추가 (UUID 오류 해결)
+      // 5. 새 부품 추가
       if (selectedParts.length > 0) {
-        // 부품 데이터 준비
         const partsData = selectedParts.map(part => ({
           service_id: id,
           part_id: part.id,
@@ -237,10 +261,7 @@ function ServiceDetail() {
           .from('service_parts')
           .insert(partsData);
 
-        if (insertPartsError) {
-          console.error('부품 추가 오류:', insertPartsError);
-          throw new Error(`부품 추가 중 오류가 발생했습니다: ${insertPartsError.message}`);
-        }
+        if (insertPartsError) throw insertPartsError;
       }
 
       setSnackbar({
@@ -1155,11 +1176,22 @@ function ServiceDetail() {
                         <TextField
                           fullWidth
                           size="small"
-                          name="note"
+                          name="seller"
                           label="구매처"
+                          value={formData.seller}
+                          onChange={handleChange}
+                        />
+                      </Grid>
+                      <Grid item xs={12}>
+                        <TextField
+                          fullWidth
+                          multiline
+                          rows={3}
+                          name="note"
+                          label="메모"
                           value={formData.note}
                           onChange={handleChange}
-                          placeholder="구매처를 입력하세요"
+                          placeholder="추가 참고사항이나 메모를 입력하세요"
                         />
                       </Grid>
                     </Grid>
