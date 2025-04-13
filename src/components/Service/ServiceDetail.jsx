@@ -1273,9 +1273,6 @@ function ServiceDetail() {
 
           {/* 부품 정보 섹션 */}
           <Grid item xs={12}>
-            <Typography variant="subtitle1" sx={sectionStyle}>
-              사용 부품
-            </Typography>
             {partsSection}
           </Grid>
 

@@ -737,7 +737,7 @@ function ProductShipment() {
       render: (row) => {
         const salesChannelMatch = row.note?.match(/\[판매처: (.*?)\]/);
         const salesChannel = salesChannelMatch ? salesChannelMatch[1] : '공홈';
-        return (
+  return (
           <Chip
             label={salesChannel}
             size="small"
@@ -756,11 +756,11 @@ function ProductShipment() {
               fontWeight: idx === 0 ? 'medium' : 'normal' 
             }}>
               {name.trim()}
-            </Typography>
+        </Typography>
           ))}
           <Typography variant="body2" color="primary" sx={{ mt: 0.5 }}>
             총 {row.quantity}개 / {row.price?.toLocaleString()}원
-          </Typography>
+        </Typography>
           <Typography variant="caption" color="textSecondary">
             {row.product_code}
           </Typography>
@@ -1209,6 +1209,17 @@ function ProductShipment() {
             />
           </Tabs>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={handleAddShipment}
+              sx={{
+                bgcolor: '#3182f6',
+                '&:hover': { bgcolor: '#1b64da' }
+              }}
+            >
+              신규 등록
+            </Button>
             <Tooltip title="출고 목록 다운로드">
               <Button
                 variant="outlined"
@@ -1280,6 +1291,20 @@ function ProductShipment() {
           onChange={(e) => setSearchTerm(e.target.value)}
           sx={{ flexGrow: 1 }}
         />
+      </Box>
+
+      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'flex-end' }}>
+        <Button
+          variant="contained"
+          onClick={handleAddShipment}
+          startIcon={<AddIcon />}
+          sx={{ 
+            bgcolor: '#3182f6',
+            '&:hover': { bgcolor: '#1b64da' }
+          }}
+        >
+          신규 등록
+        </Button>
       </Box>
 
       <ResponsiveTable

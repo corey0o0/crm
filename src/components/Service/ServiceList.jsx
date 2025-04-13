@@ -58,6 +58,7 @@ import * as XLSX from 'xlsx';
 import { serviceApi } from '../../api/services';
 import { supabase } from '../../lib/supabaseClient';
 import ResponsiveTable from '../common/ResponsiveTable';
+import AddService from './AddService';
 
 function ServiceList() {
   const [selectedBrand, setSelectedBrand] = useState('XRB');
@@ -89,6 +90,9 @@ function ServiceList() {
   const [order, setOrder] = useState('desc');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(20);
+  const [addServiceDialogOpen, setAddServiceDialogOpen] = useState(false);
+  const [excelUploadDialogOpen, setExcelUploadDialogOpen] = useState(false);
+  const [uploadLoading, setUploadLoading] = useState(false);
 
   const brandColors = {
     xlider: {
@@ -457,6 +461,15 @@ function ServiceList() {
     navigate('/add-service', { state: { selectedBrand } });
   };
 
+  const handleAddServiceSuccess = () => {
+    fetchServices(); // 목록 새로고침
+    setSnackbar({
+      open: true,
+      message: 'A/S가 성공적으로 등록되었습니다.',
+      severity: 'success'
+    });
+  };
+
   // 엑셀 다운로드 함수 추가
   const handleDownloadExcel = async () => {
     try {
@@ -757,6 +770,78 @@ function ServiceList() {
     </Card>
   );
 
+  // 엑셀 업로드 핸들러
+  const handleExcelUpload = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.xlsx, .xls';
+    
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      setUploadLoading(true);
+      try {
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+          const data = new Uint8Array(event.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+          // 데이터 형식 변환
+          const formattedData = jsonData.map(row => ({
+            brand: selectedBrand,
+            reception_date: row['접수일자'] || new Date().toISOString().split('T')[0],
+            reception_type: row['접수방법'] || '',
+            repair_date: row['입고일'] || '',
+            completion_date: row['출고일'] || '',
+            delivery_method: row['배송방법'] || '',
+            customer_name: row['고객명'] || '',
+            customer_phone: row['연락처'] || '',
+            customer_address: row['주소'] || '',
+            product_name: row['제품'] || '',
+            symptom: row['증상'] || '',
+            solution: row['처리내역'] || '',
+            status: row['상태'] || '접수',
+            note: row['메모'] || ''
+          }));
+
+          // 데이터 일괄 등록
+          const { data: insertedData, error } = await supabase
+            .from('services')
+            .insert(formattedData)
+            .select();
+
+          if (error) throw error;
+
+          // 성공 메시지 표시
+          setSnackbar({
+            open: true,
+            message: `${insertedData.length}건의 A/S 데이터가 등록되었습니다.`,
+            severity: 'success'
+          });
+
+          // 목록 새로고침
+          fetchServices();
+
+        };
+        reader.readAsArrayBuffer(file);
+      } catch (error) {
+        console.error('Error uploading excel:', error);
+        setSnackbar({
+          open: true,
+          message: '엑셀 업로드 중 오류가 발생했습니다.',
+          severity: 'error'
+        });
+      } finally {
+        setUploadLoading(false);
+      }
+    };
+
+    input.click();
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -797,6 +882,13 @@ function ServiceList() {
             />
           </Tabs>
           <Stack direction="row" spacing={2}>
+            <Button
+              variant="outlined"
+              startIcon={<CloudUploadIcon />}
+              onClick={handleExcelUpload}
+            >
+              엑셀 등록
+            </Button>
             <Tooltip title="A/S 목록 다운로드">
               <Button
                 variant="outlined"
@@ -808,7 +900,12 @@ function ServiceList() {
             </Tooltip>
             <Button
               variant="contained"
+              startIcon={<AddIcon />}
               onClick={handleAddService}
+              sx={{
+                bgcolor: '#3182f6',
+                '&:hover': { bgcolor: '#1b64da' }
+              }}
             >
               신규 등록
             </Button>
@@ -1386,6 +1483,19 @@ function ServiceList() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* 로딩 인디케이터 추가 */}
+      {uploadLoading && (
+        <Box sx={{ 
+          position: 'fixed', 
+          top: 0, 
+          left: 0, 
+          right: 0, 
+          zIndex: 9999 
+        }}>
+          <LinearProgress />
+        </Box>
+      )}
     </Box>
   );
 }

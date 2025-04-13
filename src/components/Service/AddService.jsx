@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
 import { read, utils, writeFile } from 'xlsx';
 import ReceiptScanner from '../Receipt/ReceiptScanner';
@@ -31,7 +31,9 @@ import {
   TableCell,
   TableContainer,
   TableHead,
-  TableRow
+  TableRow,
+  Popover,
+  CircularProgress
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -56,16 +58,23 @@ const PREDEFINED_TAGS = [
 ];
 
 // 버튼 스타일 정의
-const buttonStyle = {
+const buttonStyle = (isSelected) => ({
   marginLeft: '8px',
-};
+  backgroundColor: isSelected ? '#3182f6' : '#f2f4f6',
+  color: isSelected ? '#ffffff' : '#4e5968',
+  '&:hover': {
+    backgroundColor: isSelected ? '#1b64da' : '#e5e8eb'
+  }
+});
 
-function AddService({ open, onClose, onSuccess, selectedBrand }) {
+function AddService() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [selectedBrand, setSelectedBrand] = useState(location.state?.selectedBrand || 'XRB');
   const [submitting, setSubmitting] = useState(false);
   const [services, setServices] = useState([]);
   const [formData, setFormData] = useState({
-    brand: 'XRB',
+    brand: selectedBrand,
     reception_date: new Date().toISOString().split('T')[0],
     repair_date: '',
     completion_date: '',
@@ -481,14 +490,43 @@ function AddService({ open, onClose, onSuccess, selectedBrand }) {
     event.preventDefault();
     setSubmitting(true);
     try {
+      // 날짜 필드 처리
+      const processDate = (dateStr) => {
+        return dateStr && dateStr.trim() !== '' ? dateStr : null;
+      };
+
       // 1. 서비스 등록
+      const serviceData = {
+        brand: selectedBrand,
+        reception_date: processDate(formData.reception_date) || new Date().toISOString().split('T')[0],
+        repair_date: processDate(formData.repair_date),
+        completion_date: processDate(formData.completion_date),
+        reception_type: formData.reception_type || '',
+        delivery_method: formData.delivery_method || '',
+        customer_name: formData.customer_name || '',
+        customer_phone: formData.customer_phone || '',
+        customer_address: formData.customer_address || '',
+        product_name: formData.product_name || '',
+        mileage: formData.mileage || '',
+        symptom: formData.symptom || '',
+        solution: formData.solution || '',
+        note: formData.note || '',
+        status: status || '접수',
+        receipt_link: receiptLink || null
+      };
+
+      // 필수 필드 검증
+      if (!serviceData.customer_name) {
+        throw new Error('고객명은 필수 입력 항목입니다.');
+      }
+
+      if (!serviceData.product_name) {
+        throw new Error('제품명은 필수 입력 항목입니다.');
+      }
+
       const { data: newService, error: serviceError } = await supabase
         .from('services')
-        .insert({
-          ...formData,
-          status: status,
-          receipt_link: receiptLink
-        })
+        .insert(serviceData)
         .select()
         .single();
 
@@ -520,6 +558,7 @@ function AddService({ open, onClose, onSuccess, selectedBrand }) {
         if (partsError) throw partsError;
       }
 
+      // 성공 처리
       setSnackbar({
         open: true,
         message: 'A/S가 성공적으로 등록되었습니다.',
@@ -535,7 +574,7 @@ function AddService({ open, onClose, onSuccess, selectedBrand }) {
       console.error('Error adding service:', error);
       setSnackbar({
         open: true,
-        message: '서비스 등록 중 오류가 발생했습니다.',
+        message: error.message || '서비스 등록 중 오류가 발생했습니다.',
         severity: 'error'
       });
     } finally {
@@ -544,8 +583,7 @@ function AddService({ open, onClose, onSuccess, selectedBrand }) {
   };
 
   const handleCancel = () => {
-    setSubmitting(false);
-    onClose();
+    navigate(-1);
   };
 
   const handleOpenReceiptScanner = () => {
@@ -618,91 +656,61 @@ function AddService({ open, onClose, onSuccess, selectedBrand }) {
   };
 
   return (
-    <Dialog open={open} onClose={handleCancel} maxWidth="md" fullWidth>
-      <DialogTitle>
-        서비스 등록
-        <IconButton
-          aria-label="close"
-          onClick={handleCancel}
-          sx={{
-            position: 'absolute',
-            right: 8,
-            top: 8,
-          }}
-        >
-          <CloseIcon />
-        </IconButton>
-      </DialogTitle>
-      <form onSubmit={handleSubmit}>
-        <DialogContent>
+    <Box sx={{ maxWidth: '1200px', margin: '0 auto', p: 3 }}>
+      <Paper elevation={3} sx={{ p: 3 }}>
+        <Box sx={{ mb: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <IconButton onClick={handleCancel}>
+                <ArrowBackIcon />
+              </IconButton>
+              <Typography variant="h5">A/S 신규 등록</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <Button
+                variant="outlined"
+                startIcon={<DownloadIcon />}
+                onClick={handleDownloadTemplate}
+                sx={{ 
+                  color: '#3182f6',
+                  borderColor: '#3182f6',
+                  '&:hover': { 
+                    bgcolor: 'rgba(49, 130, 246, 0.04)',
+                    borderColor: '#1b64da'
+                  }
+                }}
+              >
+                엑셀 템플릿
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<CloudUploadIcon />}
+                component="label"
+                sx={{ 
+                  color: '#3182f6',
+                  borderColor: '#3182f6',
+                  '&:hover': { 
+                    bgcolor: 'rgba(49, 130, 246, 0.04)',
+                    borderColor: '#1b64da'
+                  }
+                }}
+              >
+                엑셀 등록
+                <input
+                  type="file"
+                  hidden
+                  accept=".xlsx, .xls"
+                  onChange={handleFileUpload}
+                />
+              </Button>
+            </Box>
+          </Box>
+        </Box>
+
+        <form onSubmit={handleSubmit}>
           <Box sx={{ maxWidth: '1800px', width: '95%', mx: 'auto' }}>
             <Box sx={{ mt: 3, mx: 'auto' }}>
-              <Paper sx={paperStyle}>
-                <Box sx={{ 
-                  mb: 4, 
-                  display: 'flex', 
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
-                  <Typography variant="h5" sx={{ 
-                    color: '#191f28',
-                    fontWeight: 600 
-                  }}>
-                    A/S 등록
-                  </Typography>
-                  
-                  <Box sx={{ display: 'flex', gap: 2 }}>
-                    <Button
-                      variant="outlined"
-                      startIcon={<DownloadIcon />}
-                      onClick={handleDownloadTemplate}
-                      sx={{ 
-                        color: '#3182f6',
-                        borderColor: '#3182f6',
-                        '&:hover': { 
-                          bgcolor: 'rgba(49, 130, 246, 0.04)',
-                          borderColor: '#1b64da'
-                        }
-                      }}
-                    >
-                      엑셀 템플릿
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      startIcon={<CloudUploadIcon />}
-                      component="label"
-                      sx={{ 
-                        color: '#3182f6',
-                        borderColor: '#3182f6',
-                        '&:hover': { 
-                          bgcolor: 'rgba(49, 130, 246, 0.04)',
-                          borderColor: '#1b64da'
-                        }
-                      }}
-                    >
-                      엑셀 등록
-                      <input
-                        type="file"
-                        hidden
-                        accept=".xlsx,.xls"
-                        onChange={handleFileUpload}
-                      />
-                    </Button>
-                  </Box>
-                </Box>
-
-                <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-                  <Tabs 
-                    value={selectedBrand} 
-                    onChange={(e, newValue) => {
-                      setFormData(prev => ({ ...prev, brand: newValue }));
-                    }}
-                  >
-                    <Tab value="XRB" label="X-RIDER" />
-                    <Tab value="NRB" label="NEARBIKE" />
-                  </Tabs>
-                </Box>
-
+              <Box>
                 <Grid container spacing={4}>
                   {/* 왼쪽 컬럼: 기본 정보, 고객 정보와 제품 정보 */}
                   <Grid item xs={12} md={6}>
@@ -812,6 +820,7 @@ function AddService({ open, onClose, onSuccess, selectedBrand }) {
                                 name="brand"
                                 label="브랜드"
                                 value={selectedBrand}
+                                disabled
                                 onChange={(e) => {
                                   setFormData(prev => ({ ...prev, brand: e.target.value }));
                                 }}
@@ -928,7 +937,7 @@ function AddService({ open, onClose, onSuccess, selectedBrand }) {
                 <Grid item xs={12} sx={{ display: 'flex', gap: 1, mb: 3 }}>
                   <Button 
                     onClick={() => handleStatusChange('접수')}
-                    variant="contained"
+                    variant={status === '접수' ? "contained" : "outlined"}
                     size="small"
                     sx={buttonStyle(status === '접수')}
                   >
@@ -936,7 +945,7 @@ function AddService({ open, onClose, onSuccess, selectedBrand }) {
                   </Button>
                   <Button 
                     onClick={() => handleStatusChange('처리중')}
-                    variant="contained"
+                    variant={status === '처리중' ? "contained" : "outlined"}
                     size="small"
                     sx={buttonStyle(status === '처리중')}
                   >
@@ -944,7 +953,7 @@ function AddService({ open, onClose, onSuccess, selectedBrand }) {
                   </Button>
                   <Button 
                     onClick={() => handleStatusChange('완료')}
-                    variant="contained"
+                    variant={status === '완료' ? "contained" : "outlined"}
                     size="small"
                     sx={buttonStyle(status === '완료')}
                   >
@@ -971,6 +980,7 @@ function AddService({ open, onClose, onSuccess, selectedBrand }) {
                     renderTags={(value, getTagProps) =>
                       value.map((option, index) => (
                         <Chip
+                          key={index}
                           label={option}
                           {...getTagProps({ index })}
                           sx={{
@@ -987,27 +997,6 @@ function AddService({ open, onClose, onSuccess, selectedBrand }) {
                       ))
                     }
                   />
-                  <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                    {availableTags.map((tag) => (
-                      <Chip
-                        key={tag}
-                        label={tag}
-                        onClick={() => {
-                          if (!tags.includes(tag)) {
-                            setTags([...tags, tag]);
-                          }
-                        }}
-                        sx={{
-                          bgcolor: tags.includes(tag) ? '#e8f3ff' : '#f2f4f6',
-                          color: tags.includes(tag) ? '#3182f6' : '#4e5968',
-                          cursor: 'pointer',
-                          '&:hover': {
-                            bgcolor: tags.includes(tag) ? '#e8f3ff' : '#e5e8eb'
-                          }
-                        }}
-                      />
-                    ))}
-                  </Box>
                 </Grid>
 
                 {/* 영수증 링크 입력 필드 추가 */}
@@ -1171,33 +1160,46 @@ function AddService({ open, onClose, onSuccess, selectedBrand }) {
                     )}
                   </Box>
                 </Grid>
-              </Paper>
+              </Box>
             </Box>
           </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCancel} style={buttonStyle}>
-            취소
-          </Button>
-          <Button
-            type="submit"
-            variant="contained"
-            color="primary"
-            disabled={submitting}
-            style={buttonStyle}
-          >
-            등록
-          </Button>
-          <Button
-            onClick={handleCancel}
-            variant="outlined"
-            color="secondary"
-            style={buttonStyle}
-          >
-            닫기
-          </Button>
-        </DialogActions>
-      </form>
+
+          <Box sx={{ mt: 3, display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+            <Button
+              variant="outlined"
+              onClick={handleCancel}
+              disabled={submitting}
+            >
+              취소
+            </Button>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={submitting}
+              sx={{
+                bgcolor: '#3182f6',
+                '&:hover': { bgcolor: '#1b64da' }
+              }}
+            >
+              등록
+            </Button>
+          </Box>
+        </form>
+      </Paper>
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
 
       {/* 영수증 스캐너 다이얼로그 */}
       <Dialog
@@ -1307,20 +1309,7 @@ function AddService({ open, onClose, onSuccess, selectedBrand }) {
           <Button onClick={handleClosePartsDialog}>닫기</Button>
         </DialogActions>
       </Dialog>
-
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={6000}
-        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
-      >
-        <Alert 
-          onClose={() => setSnackbar(prev => ({ ...prev, open: false }))} 
-          severity={snackbar.severity}
-        >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
-    </Dialog>
+    </Box>
   );
 }
 
