@@ -51,7 +51,8 @@ import {
   Description as DescriptionIcon,
   Download as DownloadIcon,
   Close as CloseIcon,
-  Receipt as ReceiptIcon
+  Receipt as ReceiptIcon,
+  BarChart as BarChartIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -883,6 +884,24 @@ function ServiceList() {
           </Tabs>
           <Stack direction="row" spacing={2}>
             <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => navigate('/service/add', { state: { brand: selectedBrand } })}
+              sx={{
+                bgcolor: '#3182f6',
+                '&:hover': { bgcolor: '#1b64da' }
+              }}
+            >
+              신규 등록
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<BarChartIcon />}
+              onClick={() => navigate('/service/stats')}
+            >
+              통계
+            </Button>
+            <Button
               variant="outlined"
               startIcon={<CloudUploadIcon />}
               onClick={handleExcelUpload}
@@ -898,17 +917,6 @@ function ServiceList() {
                 엑셀 다운로드
               </Button>
             </Tooltip>
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={handleAddService}
-              sx={{
-                bgcolor: '#3182f6',
-                '&:hover': { bgcolor: '#1b64da' }
-              }}
-            >
-              신규 등록
-            </Button>
           </Stack>
         </Stack>
       </Box>

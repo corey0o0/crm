@@ -21,6 +21,7 @@ import PartsManagement from './components/Service/PartsManagement';
 import ProductShipment from './components/Product/ProductShipment';
 import ReceiptScanner from './components/Receipt/ReceiptScanner';
 import GoogleDriveTest from './components/Test/GoogleDriveTest';
+import ServiceStats from './components/Service/ServiceStats';
 
 function App() {
   const [session, setSession] = useState(null);
@@ -73,6 +74,10 @@ function App() {
             <Route path="shipments/new" element={<ProductShipment />} />
             <Route path="receipts" element={<ReceiptScanner />} />
             <Route path="google-drive-test" element={<GoogleDriveTest />} />
+            <Route path="service" element={<ServiceList />} />
+            <Route path="service/add" element={<AddService />} />
+            <Route path="service/stats" element={<ServiceStats />} />
+            <Route path="service/:id" element={<ServiceDetail />} />
           </Route>
         </Routes>
       </Router>
