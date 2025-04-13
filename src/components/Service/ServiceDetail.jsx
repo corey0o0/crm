@@ -43,6 +43,10 @@ import ReceiptScanner from '../Receipt/ReceiptScanner';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
 import 'react-pdf/dist/esm/Page/TextLayer.css';
+import { 
+  Close as CloseIconMui,
+  ZoomIn as ZoomInIcon,
+} from '@mui/icons-material';
 
 // PDF worker 설정
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
@@ -98,6 +102,9 @@ function ServiceDetail() {
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [numPages, setNumPages] = useState(null);
   const [pageNumber, setPageNumber] = useState(1);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [previewType, setPreviewType] = useState('');
 
   const fetchServiceDetail = React.useCallback(async () => {
     try {
@@ -673,6 +680,74 @@ function ServiceDetail() {
     }
   };
 
+  // 미리보기 처리 함수
+  const handlePreview = (url) => {
+    if (!url) return;
+    
+    const fileType = url.toLowerCase().endsWith('.pdf') ? 'pdf' : 'image';
+    setPreviewType(fileType);
+    setPreviewUrl(url);
+    setPreviewOpen(true);
+  };
+
+  const handleDateChange = (newValue, field) => {
+    if (field === 'completion_date' && newValue) {
+      // 완료일이 지정되면 상태를 '완료'로 변경
+      setFormData(prev => ({
+        ...prev,
+        [field]: newValue,
+        status: '완료'
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [field]: newValue
+      }));
+    }
+  };
+
+  const handleComplete = async () => {
+    try {
+      let completionDate = formData.completion_date;
+      
+      // 완료일이 지정되어 있지 않으면 현재 날짜로 설정
+      if (!completionDate) {
+        completionDate = new Date();
+      }
+
+      const { error } = await supabase
+        .from('services')
+        .update({
+          status: '완료',
+          completion_date: completionDate
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      // 폼 데이터 업데이트
+      setFormData(prev => ({
+        ...prev,
+        status: '완료',
+        completion_date: completionDate
+      }));
+
+      setSnackbar({
+        open: true,
+        message: 'A/S가 완료 처리되었습니다.',
+        severity: 'success'
+      });
+
+    } catch (error) {
+      console.error('Error completing service:', error);
+      setSnackbar({
+        open: true,
+        message: '완료 처리 중 오류가 발생했습니다.',
+        severity: 'error'
+      });
+    }
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -1024,11 +1099,7 @@ function ServiceDetail() {
                     <DatePicker
                       label="완료일"
                       value={formData.completion_date}
-                      onChange={(newValue) => {
-                        handleChange({
-                          target: { name: 'completion_date', value: newValue }
-                        });
-                      }}
+                      onChange={(newValue) => handleDateChange(newValue, 'completion_date')}
                       renderInput={(params) => (
                         <TextField 
                           {...params} 
@@ -1427,6 +1498,52 @@ function ServiceDetail() {
               확인
             </Button>
           </DialogActions>
+        </Dialog>
+
+        {/* 미리보기 다이얼로그 */}
+        <Dialog
+          open={previewOpen}
+          onClose={() => setPreviewOpen(false)}
+          maxWidth="lg"
+          fullWidth
+        >
+          <DialogTitle>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography>영수증 미리보기</Typography>
+              <IconButton onClick={() => setPreviewOpen(false)}>
+                <CloseIcon />
+              </IconButton>
+            </Box>
+          </DialogTitle>
+          <DialogContent>
+            <Box sx={{ 
+              width: '100%', 
+              height: '80vh', 
+              display: 'flex', 
+              justifyContent: 'center', 
+              alignItems: 'center' 
+            }}>
+              {previewType === 'pdf' ? (
+                <iframe
+                  src={`${previewUrl}#toolbar=0`}
+                  width="100%"
+                  height="100%"
+                  style={{ border: 'none' }}
+                  title="PDF 미리보기"
+                />
+              ) : (
+                <img
+                  src={previewUrl}
+                  alt="영수증 이미지"
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: '100%',
+                    objectFit: 'contain'
+                  }}
+                />
+              )}
+            </Box>
+          </DialogContent>
         </Dialog>
       </Box>
     </LocalizationProvider>
