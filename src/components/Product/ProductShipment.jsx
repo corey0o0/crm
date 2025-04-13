@@ -480,19 +480,14 @@ function ProductShipment() {
         shipmentData.id = selectedShipment.id;
       }
 
-      console.log('Saving shipment data:', shipmentData);
-
       // 출고 정보 저장
-      const { data, error } = await supabase
+      const { data: savedShipment, error: shipmentError } = await supabase
         .from('shipments')
         .upsert(shipmentData)
         .select()
         .single();
 
-      if (error) {
-        console.error('Supabase error:', error);
-        throw error;
-      }
+      if (shipmentError) throw shipmentError;
 
       // 고객 정보 저장 - 먼저 동일한 연락처의 고객이 있는지 확인
       const { data: existingCustomers, error: customerCheckError } = await supabase
@@ -501,88 +496,74 @@ function ProductShipment() {
         .eq('phone', selectedShipment.customer_phone?.trim())
         .limit(1);
 
-      if (customerCheckError) {
-        console.error('Error checking existing customer:', customerCheckError);
-        // 고객 정보 저장 실패해도 출고 정보는 저장되었으므로 계속 진행
+      if (customerCheckError) throw customerCheckError;
+
+      // 고객 정보 데이터 준비
+      const customerData = {
+        brand: selectedShipment.brand,  // 브랜드 정보 추가
+        name: selectedShipment.customer_name?.trim(),
+        phone: selectedShipment.customer_phone?.trim(),
+        address: selectedShipment.customer_address?.trim(),
+        grade: 'V3',  // 기본 등급
+        total_purchase_amount: totalPrice,  // 구매 금액 추가
+        purchase_count: 1,  // 구매 횟수 초기값
+        last_purchase_date: selectedShipment.shipment_date,  // 최근 구매일
+        note: `출고 관리에서 등록됨 (${new Date().toLocaleDateString()})`,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      if (!existingCustomers || existingCustomers.length === 0) {
+        // 새 고객 추가
+        const { error: addCustomerError } = await supabase
+          .from('customers')
+          .insert(customerData);
+
+        if (addCustomerError) throw addCustomerError;
+
+        setSnackbar({
+          open: true,
+          message: '출고 정보가 저장되었으며, 새로운 고객이 등록되었습니다.',
+          severity: 'success'
+        });
       } else {
-        // 고객 정보 데이터 준비 (brand 필드 제거)
-        const customerData = {
+        // 기존 고객 정보 업데이트
+        const existingCustomer = existingCustomers[0];
+        const updatedCustomerData = {
           name: selectedShipment.customer_name?.trim(),
-          phone: selectedShipment.customer_phone?.trim(),
           address: selectedShipment.customer_address?.trim(),
-          grade: 'V3', // 기본 등급 설정
-          note: `출고 관리에서 등록됨 (${new Date().toLocaleDateString()})`,
+          total_purchase_amount: (existingCustomer.total_purchase_amount || 0) + totalPrice,
+          purchase_count: (existingCustomer.purchase_count || 0) + 1,
+          last_purchase_date: selectedShipment.shipment_date,
+          note: existingCustomer.note 
+            ? `${existingCustomer.note}\n출고 관리에서 업데이트됨 (${new Date().toLocaleDateString()})`
+            : `출고 관리에서 업데이트됨 (${new Date().toLocaleDateString()})`,
           updated_at: new Date().toISOString()
         };
 
-        // 고객이 존재하지 않으면 새로 추가, 존재하면 업데이트
-        if (!existingCustomers || existingCustomers.length === 0) {
-          // 새 고객 추가
-          const { error: addCustomerError } = await supabase
-            .from('customers')
-            .insert(customerData);
+        const { error: updateCustomerError } = await supabase
+          .from('customers')
+          .update(updatedCustomerData)
+          .eq('id', existingCustomer.id);
 
-          if (addCustomerError) {
-            console.error('Error adding customer:', addCustomerError);
-            setSnackbar({
-              open: true,
-              message: '출고 정보는 저장되었으나, 고객 정보 등록에 실패했습니다.',
-              severity: 'warning'
-            });
-          } else {
-            console.log('New customer added to customer management');
-            setSnackbar({
-              open: true,
-              message: '출고 정보가 저장되었으며, 고객 정보도 등록되었습니다.',
-              severity: 'success'
-            });
-          }
-        } else {
-          // 기존 고객 정보 업데이트 (이름, 주소, 메모 업데이트)
-          const updateData = {
-            name: selectedShipment.customer_name?.trim(),
-            address: selectedShipment.customer_address?.trim(),
-            updated_at: new Date().toISOString()
-          };
-          
-          // 기존 메모가 있으면 보존하고 새 메모 추가
-          if (existingCustomers[0].note) {
-            updateData.note = `${existingCustomers[0].note}\n출고 관리에서 업데이트됨 (${new Date().toLocaleDateString()})`;
-          } else {
-            updateData.note = `출고 관리에서 업데이트됨 (${new Date().toLocaleDateString()})`;
-          }
+        if (updateCustomerError) throw updateCustomerError;
 
-          const { error: updateCustomerError } = await supabase
-            .from('customers')
-            .update(updateData)
-            .eq('id', existingCustomers[0].id);
-
-          if (updateCustomerError) {
-            console.error('Error updating customer:', updateCustomerError);
-            setSnackbar({
-              open: true,
-              message: '출고 정보는 저장되었으나, 고객 정보 업데이트에 실패했습니다.',
-              severity: 'warning'
-            });
-          } else {
-            console.log('Existing customer updated in customer management');
-            setSnackbar({
-              open: true,
-              message: '출고 정보가 저장되었으며, 고객 정보도 업데이트되었습니다.',
-              severity: 'success'
-            });
-          }
-        }
+        setSnackbar({
+          open: true,
+          message: '출고 정보가 저장되었으며, 고객 정보가 업데이트되었습니다.',
+          severity: 'success'
+        });
       }
 
       setOpenDialog(false);
       setSelectedParts([]);
       fetchShipments();
+
     } catch (err) {
       console.error('Error saving shipment:', err);
       setSnackbar({
         open: true,
-        message: `출고 정보 저장 중 오류가 발생했습니다: ${err.message || '알 수 없는 오류가 발생했습니다.'}`,
+        message: `저장 중 오류가 발생했습니다: ${err.message}`,
         severity: 'error'
       });
     }
@@ -1291,20 +1272,6 @@ function ProductShipment() {
           onChange={(e) => setSearchTerm(e.target.value)}
           sx={{ flexGrow: 1 }}
         />
-      </Box>
-
-      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'flex-end' }}>
-        <Button
-          variant="contained"
-          onClick={handleAddShipment}
-          startIcon={<AddIcon />}
-          sx={{ 
-            bgcolor: '#3182f6',
-            '&:hover': { bgcolor: '#1b64da' }
-          }}
-        >
-          신규 등록
-        </Button>
       </Box>
 
       <ResponsiveTable

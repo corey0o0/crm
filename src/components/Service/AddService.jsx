@@ -273,16 +273,20 @@ function AddService() {
       // 템플릿 데이터 생성
       const templateData = [
         {
-          '고객명': '홍길동',
+          '날짜': '2024-03-20',
+          '완료 여부': '접수',
+          '작성자': '',
+          '이름': '홍길동',
           '연락처': '010-1234-5678',
-          '주소': '서울시 강남구',
-          '제품명': 'X-RIDER 전기자전거',
-          '수량': '1',
-          '판매처': '공홈',
-          '배송방법': '택배',
-          '출고일': '2024-03-20',
-          '메모': '배송 전 연락 요망',
-          '영수증': 'https://example.com/receipt.pdf'  // 영수증 필드 추가
+          '기종명': 'X-RIDER 전기자전거',
+          '누적 주행거리': '100km',
+          '구입처': '',
+          '문의내용': '배터리 충전 안됨',
+          '처리내용': '',
+          '첨부': '',
+          'JPG': '',
+          '기타': '',
+          '문의 위치': ''
         }
       ];
 
@@ -291,16 +295,20 @@ function AddService() {
 
       // 열 너비 설정
       const wscols = [
-        { wch: 15 },  // 고객명
+        { wch: 12 },  // 날짜
+        { wch: 10 },  // 완료 여부
+        { wch: 10 },  // 작성자
+        { wch: 15 },  // 이름
         { wch: 15 },  // 연락처
-        { wch: 30 },  // 주소
-        { wch: 30 },  // 제품명
-        { wch: 8 },   // 수량
-        { wch: 10 },  // 판매처
-        { wch: 10 },  // 배송방법
-        { wch: 12 },  // 출고일
-        { wch: 30 },  // 메모
-        { wch: 40 }   // 영수증
+        { wch: 30 },  // 기종명
+        { wch: 15 },  // 누적 주행거리
+        { wch: 15 },  // 구입처
+        { wch: 40 },  // 문의내용
+        { wch: 40 },  // 처리내용
+        { wch: 30 },  // 첨부
+        { wch: 30 },  // JPG
+        { wch: 30 },  // 기타
+        { wch: 20 }   // 문의 위치
       ];
       ws['!cols'] = wscols;
 
@@ -402,32 +410,30 @@ function AddService() {
 
           console.log('엑셀 데이터 파싱 결과:', jsonData);
 
-          // PDF 파일 링크 확인 및 설정
-          if (jsonData[0] && jsonData[0]['영수증']) {
-            setReceiptLink(jsonData[0]['영수증']);
-          }
-
           // 데이터 유효성 검사
           const invalidRows = [];
           const validData = jsonData.map((row, index) => {
-            if (!row['고객명'] || !row['연락처'] || !row['제품명']) {
+            if (!row['이름'] || !row['기종명']) {
               invalidRows.push(index + 2);
               return null;
             }
 
             return {
               brand: selectedBrand,
-              customer_name: row['고객명'],
-              customer_phone: row['연락처'],
-              customer_address: row['주소'] || '',
-              product_name: row['제품명'],
-              quantity: parseInt(row['수량']) || 1,
-              sales_channel: row['판매처'] || '공홈',
-              delivery_method: row['배송방법'] || '택배',
-              shipment_date: row['출고일'] || new Date().toISOString().split('T')[0],
-              note: row['메모'] || '',
-              receipt_link: row['영수증'] || '',
-              status: '준비중',
+              reception_date: parseDate(row['날짜']) || new Date().toISOString().split('T')[0],
+              status: row['완료 여부'] || '접수',
+              customer_name: row['이름'],
+              customer_phone: row['연락처'] || '',
+              product_name: row['기종명'],
+              mileage: row['누적 주행거리'] || '',
+              sales_channel: row['구입처'] || '',
+              symptom: row['문의내용'] || '',
+              solution: row['처리내용'] || '',
+              note: row['기타'] || '',
+              location: row['문의 위치'] || '',
+              created_by: row['작성자'] || '',
+              attachment: row['첨부'] || '',
+              image: row['JPG'] || '',
               created_at: new Date().toISOString()
             };
           }).filter(item => item !== null);
@@ -757,6 +763,46 @@ function AddService() {
                             }}
                           />
                         </Grid>
+                        <Grid item xs={12}>
+                          <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+                            <Button 
+                              onClick={() => handleStatusChange('접수')}
+                              variant={status === '접수' ? "contained" : "outlined"}
+                              size="small"
+                              sx={{
+                                ...buttonStyle(status === '접수'),
+                                borderRadius: '20px',
+                                minWidth: '80px'
+                              }}
+                            >
+                              접수
+                            </Button>
+                            <Button 
+                              onClick={() => handleStatusChange('처리중')}
+                              variant={status === '처리중' ? "contained" : "outlined"}
+                              size="small"
+                              sx={{
+                                ...buttonStyle(status === '처리중'),
+                                borderRadius: '20px',
+                                minWidth: '80px'
+                              }}
+                            >
+                              처리중
+                            </Button>
+                            <Button 
+                              onClick={() => handleStatusChange('완료')}
+                              variant={status === '완료' ? "contained" : "outlined"}
+                              size="small"
+                              sx={{
+                                ...buttonStyle(status === '완료'),
+                                borderRadius: '20px',
+                                minWidth: '80px'
+                              }}
+                            >
+                              완료
+                            </Button>
+                          </Box>
+                        </Grid>
                       </Grid>
                     </Box>
 
@@ -825,8 +871,8 @@ function AddService() {
                                   setFormData(prev => ({ ...prev, brand: e.target.value }));
                                 }}
                               >
-                                <MenuItem value="XRB">X-RIDER</MenuItem>
-                                <MenuItem value="NRB">NEARBIKE</MenuItem>
+                                <MenuItem value="XRB">X-RIDER BIKE</MenuItem>
+                                <MenuItem value="NB">NEARBIKE</MenuItem>
                               </TextField>
                             </Grid>
                             <Grid item xs={12}>
@@ -931,34 +977,6 @@ function AddService() {
                       </Grid>
                     </Box>
                   </Grid>
-                </Grid>
-
-                {/* 상태 버튼 추가 */}
-                <Grid item xs={12} sx={{ display: 'flex', gap: 1, mb: 3 }}>
-                  <Button 
-                    onClick={() => handleStatusChange('접수')}
-                    variant={status === '접수' ? "contained" : "outlined"}
-                    size="small"
-                    sx={buttonStyle(status === '접수')}
-                  >
-                    접수
-                  </Button>
-                  <Button 
-                    onClick={() => handleStatusChange('처리중')}
-                    variant={status === '처리중' ? "contained" : "outlined"}
-                    size="small"
-                    sx={buttonStyle(status === '처리중')}
-                  >
-                    처리중
-                  </Button>
-                  <Button 
-                    onClick={() => handleStatusChange('완료')}
-                    variant={status === '완료' ? "contained" : "outlined"}
-                    size="small"
-                    sx={buttonStyle(status === '완료')}
-                  >
-                    완료
-                  </Button>
                 </Grid>
 
                 {/* A/S 내역 섹션에 태그 입력 추가 */}
