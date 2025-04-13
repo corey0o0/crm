@@ -410,42 +410,54 @@ function AddService() {
 
           console.log('엑셀 데이터 파싱 결과:', jsonData);
 
-          // 데이터 유효성 검사
-          const invalidRows = [];
+          // 데이터 처리
           const validData = jsonData.map((row, index) => {
-            if (!row['이름'] || !row['기종명']) {
-              invalidRows.push(index + 2);
-              return null;
-            }
+            const currentDate = new Date().toISOString().split('T')[0];
+            
+            // 기본값 설정
+            const defaultValues = {
+              '날짜': currentDate,
+              '완료 여부': '접수',
+              '작성자': '시스템',
+              '이름': '미입력',
+              '연락처': '000-0000-0000',
+              '기종명': '미입력',
+              '누적 주행거리': '0km',
+              '구입처': '미입력',
+              '문의내용': '내용 없음',
+              '처리내용': '',
+              '첨부': '',
+              'JPG': '',
+              '기타': '',
+              '문의 위치': ''
+            };
+
+            // 빈 값을 기본값으로 대체
+            Object.keys(defaultValues).forEach(key => {
+              if (!row[key] || row[key].toString().trim() === '') {
+                row[key] = defaultValues[key];
+              }
+            });
 
             return {
               brand: selectedBrand,
-              reception_date: parseDate(row['날짜']) || new Date().toISOString().split('T')[0],
+              reception_date: parseDate(row['날짜']) || currentDate,
               status: row['완료 여부'] || '접수',
               customer_name: row['이름'],
-              customer_phone: row['연락처'] || '',
+              customer_phone: row['연락처'],
               product_name: row['기종명'],
-              mileage: row['누적 주행거리'] || '',
-              sales_channel: row['구입처'] || '',
-              symptom: row['문의내용'] || '',
-              solution: row['처리내용'] || '',
-              note: row['기타'] || '',
-              location: row['문의 위치'] || '',
-              created_by: row['작성자'] || '',
-              attachment: row['첨부'] || '',
-              image: row['JPG'] || '',
+              mileage: row['누적 주행거리'],
+              sales_channel: row['구입처'],
+              symptom: row['문의내용'],
+              solution: row['처리내용'],
+              note: row['기타'],
+              location: row['문의 위치'],
+              created_by: row['작성자'],
+              attachment: row['첨부'],
+              image: row['JPG'],
               created_at: new Date().toISOString()
             };
-          }).filter(item => item !== null);
-
-          if (invalidRows.length > 0) {
-            setSnackbar({
-              open: true,
-              message: `다음 행에 필수 정보가 누락되었습니다: ${invalidRows.join(', ')}`,
-              severity: 'warning'
-            });
-            return;
-          }
+          });
 
           // 데이터 일괄 등록
           const { data: insertedData, error } = await supabase
@@ -467,7 +479,11 @@ function AddService() {
           fetchServices();
         } catch (err) {
           console.error('엑셀 데이터 처리 중 오류:', err);
-          throw err;
+          setSnackbar({
+            open: true,
+            message: '엑셀 데이터 처리 중 오류가 발생했습니다.',
+            severity: 'error'
+          });
         }
       };
 
