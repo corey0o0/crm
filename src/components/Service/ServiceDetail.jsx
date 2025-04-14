@@ -28,7 +28,14 @@ import {
   Chip,
   Autocomplete,
   Stack,
-  Popover
+  Popover,
+  ImageList,
+  ImageListItem,
+  Link,
+  Tooltip,
+  FormControl,
+  InputLabel,
+  Select
 } from '@mui/material';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
@@ -46,6 +53,7 @@ import 'react-pdf/dist/esm/Page/TextLayer.css';
 import { 
   Close as CloseIconMui,
   ZoomIn as ZoomInIcon,
+  Preview as PreviewIcon
 } from '@mui/icons-material';
 
 // PDF worker 설정
@@ -752,6 +760,84 @@ function ServiceDetail() {
     }
   };
 
+  // 구글 드라이브 링크 처리 함수 추가
+  const getGoogleDriveImageUrl = (url) => {
+    // 구글 드라이브 공유 링크를 이미지 직접 링크로 변환
+    const fileId = url.match(/[-\w]{25,}/);
+    if (fileId && fileId[0]) {
+      return `https://drive.google.com/uc?export=view&id=${fileId[0]}`;
+    }
+    return url;
+  };
+
+  // 영수증 링크 미리보기 컴포넌트
+  const ReceiptPreview = ({ url }) => {
+    const [open, setOpen] = useState(false);
+    const [previewUrl, setPreviewUrl] = useState('');
+
+    useEffect(() => {
+      if (url) {
+        // 구글 드라이브 링크인지 확인하고 처리
+        if (url.includes('drive.google.com')) {
+          setPreviewUrl(getGoogleDriveImageUrl(url));
+        } else {
+          setPreviewUrl(url);
+        }
+      }
+    }, [url]);
+
+    if (!url) return null;
+
+    return (
+      <>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+          <Link href={url} target="_blank" rel="noopener noreferrer">
+            {url}
+          </Link>
+          <Tooltip title="미리보기">
+            <IconButton size="small" onClick={() => setOpen(true)}>
+              <PreviewIcon />
+            </IconButton>
+          </Tooltip>
+        </Box>
+        <Dialog
+          open={open}
+          onClose={() => setOpen(false)}
+          maxWidth="md"
+          fullWidth
+        >
+          <DialogTitle>영수증 미리보기</DialogTitle>
+          <DialogContent>
+            <Box sx={{ width: '100%', mt: 2 }}>
+              <img
+                src={previewUrl}
+                alt="영수증"
+                style={{ width: '100%', height: 'auto' }}
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = '/placeholder-image.png';
+                  console.error('이미지 로드 실패');
+                }}
+              />
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setOpen(false)}>닫기</Button>
+            <Button 
+              component="a" 
+              href={url} 
+              target="_blank"
+              rel="noopener noreferrer"
+              variant="contained"
+            >
+              원본 보기
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </>
+    );
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -813,10 +899,15 @@ function ServiceDetail() {
         </Box>
         <TextField
           label="영수증 링크"
-          value={receiptLink}
-          onChange={(e) => setReceiptLink(e.target.value)}
-          onMouseEnter={handleReceiptMouseEnter}
-          onMouseLeave={handleReceiptMouseLeave}
+          value={formData.receipt_link || ''}
+          onChange={(e) => {
+            const newUrl = e.target.value;
+            setFormData(prev => ({
+              ...prev,
+              receipt_link: newUrl
+            }));
+          }}
+          disabled={!isEditing}
           sx={{ 
             width: '300px',
             '& .MuiOutlinedInput-root': {
@@ -826,6 +917,9 @@ function ServiceDetail() {
           }}
           size="small"
         />
+        {formData.receipt_link && (
+          <ReceiptPreview url={formData.receipt_link} />
+        )}
       </Stack>
       
       <TableContainer component={Paper} sx={{ mt: 2 }}>
@@ -1248,14 +1342,21 @@ function ServiceDetail() {
                         </TextField>
                       </Grid>
                       <Grid item xs={12}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          name="seller"
-                          label="구매처"
-                          value={formData.seller}
-                          onChange={handleChange}
-                        />
+                        <FormControl fullWidth size="small">
+                          <InputLabel>판매처</InputLabel>
+                          <Select
+                            name="seller"
+                            value={formData.seller || ''}
+                            onChange={handleChange}
+                            label="판매처"
+                            disabled={!isEditing}
+                          >
+                            <MenuItem value="공홈">공홈</MenuItem>
+                            <MenuItem value="청담매장">청담매장</MenuItem>
+                            <MenuItem value="라이클-우리">라이클-우리</MenuItem>
+                            <MenuItem value="기타">기타</MenuItem>
+                          </Select>
+                        </FormControl>
                       </Grid>
                       <Grid item xs={12}>
                         <TextField

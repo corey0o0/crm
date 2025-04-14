@@ -1016,6 +1016,9 @@ function ServiceList() {
         renderMobileCard={renderMobileCard}
         onRowClick={handleRowClick}
         hoverEffect={true}
+        rowStyle={(row) => ({
+          bgcolor: row.status === '완료' ? 'rgba(0, 0, 0, 0.03)' : 'inherit'
+        })}
       />
 
       {/* 페이지네이션 추가 */}

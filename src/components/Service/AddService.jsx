@@ -89,6 +89,7 @@ function AddService() {
     solution: '',
     note: '',
     writer: '',
+    seller: '',
   });
   const [tags, setTags] = useState([]);
   const [snackbar, setSnackbar] = useState({
@@ -513,6 +514,7 @@ function AddService() {
         status: status || '접수',
         receipt_link: receiptLink || null,
         writer: formData.writer || '관리자',
+        seller: formData.seller || '',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -931,6 +933,22 @@ function AddService() {
                                   <MenuItem key={method} value={method}>{method}</MenuItem>
                                 ))}
                               </TextField>
+                            </Grid>
+                            <Grid item xs={12}>
+                              <FormControl fullWidth size="small">
+                                <InputLabel>판매처</InputLabel>
+                                <Select
+                                  name="seller"
+                                  value={formData.seller || ''}
+                                  onChange={handleInputChange}
+                                  label="판매처"
+                                >
+                                  <MenuItem value="공홈">공홈</MenuItem>
+                                  <MenuItem value="청담매장">청담매장</MenuItem>
+                                  <MenuItem value="라이클-우리">라이클-우리</MenuItem>
+                                  <MenuItem value="기타">기타</MenuItem>
+                                </Select>
+                              </FormControl>
                             </Grid>
                           </Grid>
                         </Box>
