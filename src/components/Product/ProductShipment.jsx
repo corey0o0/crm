@@ -494,6 +494,7 @@ function ProductShipment() {
         .from('customers')
         .select('*')
         .eq('phone', selectedShipment.customer_phone?.trim())
+        .eq('brand', selectedShipment.brand)  // 브랜드도 함께 확인
         .limit(1);
 
       if (customerCheckError) throw customerCheckError;
@@ -515,8 +516,7 @@ function ProductShipment() {
         // 새 고객 추가
         const { error: addCustomerError } = await supabase
           .from('customers')
-          .insert([customerData])
-          .select();
+          .insert([customerData]);
 
         if (addCustomerError) throw addCustomerError;
 
