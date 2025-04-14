@@ -117,6 +117,7 @@ function ServiceDetail() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState('');
   const [previewType, setPreviewType] = useState('');
+  const [productOptions, setProductOptions] = useState([]);
 
   const fetchServiceDetail = React.useCallback(async () => {
     try {
@@ -250,6 +251,46 @@ function ServiceDetail() {
         return;
       }
 
+      // 태그 정보 업데이트
+      if (tags.length > 0) {
+        // 기존 태그 데이터 삭제
+        const { error: deleteTagsError } = await supabase
+          .from('service_tags')
+          .delete()
+          .eq('service_id', id);
+
+        if (deleteTagsError) {
+          console.error('Error deleting tags:', deleteTagsError);
+          throw deleteTagsError;
+        }
+
+        // 새로운 태그 데이터 추가
+        const tagsData = tags.map(tag => ({
+          service_id: id,
+          tag_name: tag
+        }));
+
+        const { error: insertTagsError } = await supabase
+          .from('service_tags')
+          .insert(tagsData);
+
+        if (insertTagsError) {
+          console.error('Error inserting tags:', insertTagsError);
+          throw insertTagsError;
+        }
+      } else {
+        // 태그가 없는 경우 기존 태그 모두 삭제
+        const { error: deleteTagsError } = await supabase
+          .from('service_tags')
+          .delete()
+          .eq('service_id', id);
+
+        if (deleteTagsError) {
+          console.error('Error deleting all tags:', deleteTagsError);
+          throw deleteTagsError;
+        }
+      }
+
       // 부품 정보 업데이트
       if (selectedParts && selectedParts.length > 0) {
         // 기존 부품 데이터 삭제
@@ -320,6 +361,7 @@ function ServiceDetail() {
       const { data, error } = await supabase
         .from('parts')
         .select('*')
+        .eq('brand', formData.brand)  // 현재 선택된 브랜드로 필터링
         .order('name');
       
       if (error) throw error;
@@ -336,9 +378,9 @@ function ServiceDetail() {
 
   // 부품 검색 필터링
   const filteredParts = availableParts.filter(part => 
-    part.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (part.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     part.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    part.brand.toLowerCase().includes(searchTerm.toLowerCase())
+    part.brand.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   // 부품 추가 다이얼로그 열기
@@ -851,6 +893,37 @@ function ServiceDetail() {
     }));
   };
 
+  // 기존 제품명 목록 가져오기
+  const fetchProductNames = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('services')
+        .select('product_name, brand')
+        .not('product_name', 'is', null)
+        .order('product_name');
+
+      if (error) throw error;
+
+      // 중복 제거 및 현재 선택된 브랜드에 맞는 제품만 필터링
+      const uniqueProducts = [...new Set(
+        data
+          .filter(item => item.brand === formData.brand)
+          .map(item => item.product_name)
+      )].filter(Boolean); // null/empty 값 제거
+
+      setProductOptions(uniqueProducts);
+    } catch (err) {
+      console.error('제품명 목록 조회 중 오류:', err);
+    }
+  };
+
+  // 브랜드 변경 시 제품명 목록 업데이트
+  useEffect(() => {
+    if (formData.brand) {
+      fetchProductNames();
+    }
+  }, [formData.brand]);
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -881,7 +954,7 @@ function ServiceDetail() {
       }}>
         사용 부품
       </Typography>
-      <Stack direction="row" spacing={2} sx={{ mb: 2, display: 'flex', justifyContent: 'space-between' }}>
+      <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
         <Box sx={{ display: 'flex', gap: 2 }}>
           <Button
             startIcon={<AddIcon />}
@@ -910,47 +983,51 @@ function ServiceDetail() {
             영수증으로 부품 추가
           </Button>
         </Box>
-        <TextField
-          size="small"
-          label="영수증"
-          name="receipt_link"
-          value={receiptLink}
-          onChange={handleReceiptLinkChange}
-          sx={{
-            '& .MuiInputBase-root': {
-              bgcolor: '#ffffff'
-            },
-            width: '50%'
-          }}
-          InputProps={{
-            endAdornment: receiptLink && (
-              <InputAdornment position="end">
-                <IconButton
-                  onClick={() => window.open(receiptLink, '_blank')}
-                  size="small"
-                  title="새 창에서 보기"
-                  disabled={!receiptLink}
-                >
-                  <OpenInNewIcon />
-                </IconButton>
-                <IconButton
-                  onClick={() => {
-                    if (!receiptLink) return;
-                    const previewUrl = receiptLink.includes('drive.google.com') 
-                      ? receiptLink.replace('/view?usp=sharing', '/preview')
-                      : receiptLink;
-                    window.open(previewUrl, '_blank', 'width=800,height=600');
-                  }}
-                  size="small"
-                  title="미리보기"
-                  disabled={!receiptLink}
-                >
-                  <VisibilityIcon />
-                </IconButton>
-              </InputAdornment>
-            ),
-          }}
-        />
+        <Box sx={{ flex: 1 }}>
+          <TextField
+            size="small"
+            label="영수증"
+            name="receipt_link"
+            value={receiptLink}
+            onChange={handleReceiptLinkChange}
+            sx={{
+              '& .MuiInputBase-root': {
+                bgcolor: '#ffffff'
+              },
+              width: '100%',
+              maxWidth: '400px',
+              ml: 'auto'
+            }}
+            InputProps={{
+              endAdornment: receiptLink && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => window.open(receiptLink, '_blank')}
+                    size="small"
+                    title="새 창에서 보기"
+                    disabled={!receiptLink}
+                  >
+                    <OpenInNewIcon />
+                  </IconButton>
+                  <IconButton
+                    onClick={() => {
+                      if (!receiptLink) return;
+                      const previewUrl = receiptLink.includes('drive.google.com') 
+                        ? receiptLink.replace('/view?usp=sharing', '/preview')
+                        : receiptLink;
+                      window.open(previewUrl, '_blank', 'width=800,height=600');
+                    }}
+                    size="small"
+                    title="미리보기"
+                    disabled={!receiptLink}
+                  >
+                    <VisibilityIcon />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+          />
+        </Box>
       </Stack>
       
       <TableContainer component={Paper} sx={{ mt: 2 }}>
@@ -1245,30 +1322,67 @@ function ServiceDetail() {
                     />
                   </Grid>
                   <Grid item xs={12} sx={{ display: 'flex', gap: 1 }}>
-                    <Button 
-                      onClick={() => handleStatusChange('접수')}
-                      variant="contained"
+                    <Box sx={{ display: 'flex', gap: 1, flex: 1 }}>
+                      <Button 
+                        onClick={() => handleStatusChange('접수')}
+                        variant="contained"
+                        size="small"
+                        sx={{
+                          marginLeft: '8px',
+                          backgroundColor: formData.status === '접수' ? '#3182f6' : '#f2f4f6',
+                          color: formData.status === '접수' ? '#ffffff' : '#4e5968',
+                          '&:hover': {
+                            backgroundColor: formData.status === '접수' ? '#1b64da' : '#e5e8eb'
+                          }
+                        }}
+                      >
+                        접수
+                      </Button>
+                      <Button 
+                        onClick={() => handleStatusChange('처리중')}
+                        variant="contained"
+                        size="small"
+                        sx={{
+                          marginLeft: '8px',
+                          backgroundColor: formData.status === '처리중' ? '#3182f6' : '#f2f4f6',
+                          color: formData.status === '처리중' ? '#ffffff' : '#4e5968',
+                          '&:hover': {
+                            backgroundColor: formData.status === '처리중' ? '#1b64da' : '#e5e8eb'
+                          }
+                        }}
+                      >
+                        처리중
+                      </Button>
+                      <Button 
+                        onClick={() => handleStatusChange('완료')}
+                        variant="contained"
+                        size="small"
+                        sx={{
+                          marginLeft: '8px',
+                          backgroundColor: formData.status === '완료' ? '#3182f6' : '#f2f4f6',
+                          color: formData.status === '완료' ? '#ffffff' : '#4e5968',
+                          '&:hover': {
+                            backgroundColor: formData.status === '완료' ? '#1b64da' : '#e5e8eb'
+                          }
+                        }}
+                      >
+                        완료
+                      </Button>
+                    </Box>
+                    <TextField
                       size="small"
-                      sx={buttonStyle(formData.status === '접수')}
-                    >
-                      접수
-                    </Button>
-                    <Button 
-                      onClick={() => handleStatusChange('처리중')}
-                      variant="contained"
-                      size="small"
-                      sx={buttonStyle(formData.status === '처리중')}
-                    >
-                      처리중
-                    </Button>
-                    <Button 
-                      onClick={() => handleStatusChange('완료')}
-                      variant="contained"
-                      size="small"
-                      sx={buttonStyle(formData.status === '완료')}
-                    >
-                      완료
-                    </Button>
+                      name="writer"
+                      label="작성자"
+                      value={formData.writer || ''}
+                      onChange={handleChange}
+                      sx={{
+                        width: '150px',
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: 1,
+                          bgcolor: '#f9fafb'
+                        }
+                      }}
+                    />
                   </Grid>
                 </Grid>
               </Box>
@@ -1338,13 +1452,44 @@ function ServiceDetail() {
                         </TextField>
                       </Grid>
                       <Grid item xs={12}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          name="product_name"
-                          label="제품명"
+                        <Autocomplete
+                          freeSolo
+                          options={productOptions}
                           value={formData.product_name}
-                          onChange={handleChange}
+                          onChange={(event, newValue) => {
+                            setFormData(prev => ({
+                              ...prev,
+                              product_name: newValue || ''
+                            }));
+                          }}
+                          onInputChange={(event, newInputValue) => {
+                            setFormData(prev => ({
+                              ...prev,
+                              product_name: newInputValue
+                            }));
+                          }}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              fullWidth
+                              size="small"
+                              label="제품명"
+                              name="product_name"
+                              sx={{
+                                '& .MuiOutlinedInput-root': {
+                                  borderRadius: 1,
+                                  bgcolor: '#f9fafb'
+                                }
+                              }}
+                            />
+                          )}
+                          renderOption={(props, option) => (
+                            <li {...props}>
+                              <Typography noWrap>
+                                {option}
+                              </Typography>
+                            </li>
+                          )}
                         />
                       </Grid>
                       <Grid item xs={12}>
@@ -1373,43 +1518,29 @@ function ServiceDetail() {
                         </TextField>
                       </Grid>
                       <Grid item xs={12}>
-                        <FormControl fullWidth size="small">
-                          <InputLabel>판매처</InputLabel>
-                          <Select
-                            name="seller"
-                            value={formData.seller || ''}
-                            onChange={handleChange}
-                            label="판매처"
-                            disabled={!isEditing}
-                          >
-                            <MenuItem value="공홈">공홈</MenuItem>
-                            <MenuItem value="청담매장">청담매장</MenuItem>
-                            <MenuItem value="라이클-우리">라이클-우리</MenuItem>
-                            <MenuItem value="기타">기타</MenuItem>
-                          </Select>
-                        </FormControl>
+                        <TextField
+                          select
+                          fullWidth
+                          size="small"
+                          name="delivery_method"
+                          label="배송방법"
+                          value={formData.delivery_method || ''}
+                          onChange={handleChange}
+                        >
+                          <MenuItem value="방문수령">방문수령</MenuItem>
+                          <MenuItem value="택배">택배</MenuItem>
+                          <MenuItem value="퀵-선불">퀵-선불</MenuItem>
+                          <MenuItem value="퀵-착불">퀵-착불</MenuItem>
+                        </TextField>
                       </Grid>
                       <Grid item xs={12}>
                         <TextField
                           fullWidth
-                          multiline
-                          rows={3}
-                          name="note"
-                          label="메모"
-                          value={formData.note}
-                          onChange={handleChange}
-                          placeholder="추가 참고사항이나 메모를 입력하세요"
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          fullWidth
                           size="small"
-                          name="writer"
-                          label="작성자"
-                          value={formData.writer || '관리자'}
+                          name="seller"
+                          label="구입처"
+                          value={formData.seller || ''}
                           onChange={handleChange}
-                          disabled={!isEditing}
                         />
                       </Grid>
                     </Grid>
@@ -1526,6 +1657,7 @@ function ServiceDetail() {
             {partsSection}
           </Grid>
 
+          {/* 하단 버튼 영역 */}
           <Box sx={{ 
             mt: 5, 
             pt: 3, 
@@ -1548,7 +1680,7 @@ function ServiceDetail() {
             >
               삭제
             </Button>
-            <Box sx={{ display: 'flex', gap: 2 }}>
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
               <Button 
                 onClick={() => navigate('/services')}
                 sx={{

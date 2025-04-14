@@ -927,7 +927,7 @@ function ServiceList() {
             <Button
               variant="contained"
               startIcon={<AddIcon />}
-              onClick={() => navigate('/service/add', { state: { brand: selectedBrand } })}
+              onClick={() => navigate('/service/add', { state: { selectedBrand } })}
               sx={{
                 bgcolor: '#3182f6',
                 '&:hover': { bgcolor: '#1b64da' }
