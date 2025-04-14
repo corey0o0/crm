@@ -64,6 +64,7 @@ function ServiceDetail() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [formData, setFormData] = useState({
     brand: '',
@@ -288,6 +289,9 @@ function ServiceDetail() {
         message: 'A/S 정보가 업데이트되었습니다.',
         severity: 'success'
       });
+
+      // 편집 모드 해제
+      setIsEditing(false);
 
       // 데이터 다시 불러오기
       fetchServiceDetail();
@@ -1532,23 +1536,42 @@ function ServiceDetail() {
               >
                 취소
               </Button>
-              <Button 
-                type="submit" 
-                variant="contained"
-                disabled={submitting}
-                sx={{
-                  bgcolor: '#3182f6',
-                  fontSize: '0.95rem',
-                  fontWeight: 600,
-                  textTransform: 'none',
-                  px: 4,
-                  '&:hover': {
-                    bgcolor: '#1b64da'
-                  }
-                }}
-              >
-                수정
-              </Button>
+              {isEditing ? (
+                <Button 
+                  type="submit" 
+                  variant="contained"
+                  disabled={submitting}
+                  sx={{
+                    bgcolor: '#3182f6',
+                    fontSize: '0.95rem',
+                    fontWeight: 600,
+                    textTransform: 'none',
+                    px: 4,
+                    '&:hover': {
+                      bgcolor: '#1b64da'
+                    }
+                  }}
+                >
+                  저장
+                </Button>
+              ) : (
+                <Button 
+                  onClick={() => setIsEditing(true)}
+                  variant="contained"
+                  sx={{
+                    bgcolor: '#3182f6',
+                    fontSize: '0.95rem',
+                    fontWeight: 600,
+                    textTransform: 'none',
+                    px: 4,
+                    '&:hover': {
+                      bgcolor: '#1b64da'
+                    }
+                  }}
+                >
+                  수정
+                </Button>
+              )}
             </Box>
           </Box>
         </Paper>

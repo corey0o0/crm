@@ -1017,7 +1017,7 @@ function ServiceList() {
         onRowClick={handleRowClick}
         hoverEffect={true}
         rowStyle={(row) => ({
-          bgcolor: row.status === '완료' ? 'rgba(0, 0, 0, 0.03)' : 'inherit'
+          bgcolor: row.status === '완료' ? 'rgba(0, 0, 0, 0.05)' : 'inherit'
         })}
       />
 
