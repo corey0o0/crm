@@ -55,6 +55,8 @@ import {
   ZoomIn as ZoomInIcon,
   Preview as PreviewIcon
 } from '@mui/icons-material';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 
 // PDF worker 설정
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
@@ -208,102 +210,55 @@ function ServiceDetail() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    
     try {
-      setSubmitting(true);
-      
-      // 1. 서비스 데이터 업데이트
+      const updateData = {
+        ...formData,
+        receipt_link: receiptLink,
+        updated_at: new Date().toISOString()
+      };
+
+      delete updateData.id;  // id는 업데이트에서 제외
+      delete updateData.created_at;  // created_at은 업데이트에서 제외
+
       const { error: updateError } = await supabase
         .from('services')
-        .update({
-          brand: formData.brand,
-          reception_date: formData.reception_date,
-          repair_date: formData.repair_date,
-          completion_date: formData.completion_date,
-          customer_name: formData.customer_name,
-          customer_phone: formData.customer_phone,
-          customer_address: formData.customer_address,
-          product_name: formData.product_name,
-          mileage: formData.mileage,
-          note: formData.note,
-          symptom: formData.symptom,
-          solution: formData.solution,
-          reception_type: formData.reception_type,
-          status: formData.status,
-          receipt_link: receiptLink,
-          seller: formData.seller,
-          writer: formData.writer || '관리자',
-          updated_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('id', id);
 
-      if (updateError) throw updateError;
-
-      // 2. 기존 태그 삭제
-      const { error: deleteTagsError } = await supabase
-        .from('service_tags')
-        .delete()
-        .eq('service_id', id);
-
-      if (deleteTagsError) throw deleteTagsError;
-
-      // 3. 새 태그 추가
-      if (tags.length > 0) {
-        const tagData = tags.map(tag => ({
-          service_id: id,
-          tag_name: tag.startsWith('#') ? tag : `#${tag}`
-        }));
-
-        const { error: insertTagsError } = await supabase
-          .from('service_tags')
-          .insert(tagData);
-
-        if (insertTagsError) throw insertTagsError;
-      }
-
-      // 4. 기존 부품 삭제
-      const { error: deletePartsError } = await supabase
-        .from('service_parts')
-        .delete()
-        .eq('service_id', id);
-
-      if (deletePartsError) throw deletePartsError;
-
-      // 5. 새 부품 추가
-      if (selectedParts.length > 0) {
-        const partsData = selectedParts.map(part => ({
-          service_id: id,
-          part_id: part.id,
-          quantity: part.quantity,
-          price: part.price || 0
-        }));
-
-        const { error: insertPartsError } = await supabase
-          .from('service_parts')
-          .insert(partsData);
-
-        if (insertPartsError) throw insertPartsError;
+      if (updateError) {
+        console.error('Error updating service:', updateError);
+        setSnackbar({
+          open: true,
+          message: `수정 중 오류가 발생했습니다: ${updateError.message}`,
+          severity: 'error'
+        });
+        return;
       }
 
       setSnackbar({
         open: true,
-        message: 'A/S 정보가 업데이트되었습니다.',
+        message: 'A/S 정보가 성공적으로 수정되었습니다.',
         severity: 'success'
       });
-
-      // 편집 모드 해제
       setIsEditing(false);
-
-      // 데이터 다시 불러오기
-      fetchServiceDetail();
-    } catch (err) {
-      console.error('Error updating service:', err);
+      
+      // 수정된 데이터로 폼 데이터 업데이트
+      setFormData(prev => ({
+        ...prev,
+        ...updateData
+      }));
+      
+    } catch (error) {
+      console.error('Error in handleSubmit:', error);
       setSnackbar({
         open: true,
-        message: `오류가 발생했습니다: ${err.message}`,
+        message: `오류가 발생했습니다: ${error.message}`,
         severity: 'error'
       });
     } finally {
-      setSubmitting(false);
+      setLoading(false);
     }
   };
 
@@ -902,24 +857,38 @@ function ServiceDetail() {
           </Button>
         </Box>
         <TextField
-          label="영수증 링크"
-          value={formData.receipt_link || ''}
-          onChange={(e) => {
-            const newUrl = e.target.value;
-            setFormData(prev => ({
-              ...prev,
-              receipt_link: newUrl
-            }));
-          }}
-          disabled={!isEditing}
-          sx={{ 
-            width: '300px',
-            '& .MuiOutlinedInput-root': {
-              borderRadius: 1,
-              bgcolor: '#f9fafb'
-            }
-          }}
+          fullWidth
           size="small"
+          label="영수증"
+          name="receipt_link"
+          value={receiptLink || ''}
+          onChange={(e) => setReceiptLink(e.target.value)}
+          disabled={!isEditing}
+          InputProps={{
+            endAdornment: receiptLink && (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => window.open(receiptLink, '_blank')}
+                  size="small"
+                  title="새 창에서 보기"
+                >
+                  <OpenInNewIcon />
+                </IconButton>
+                <IconButton
+                  onClick={() => {
+                    const previewUrl = receiptLink.includes('drive.google.com') 
+                      ? receiptLink.replace('/view?usp=sharing', '/preview')
+                      : receiptLink;
+                    window.open(previewUrl, '_blank', 'width=800,height=600');
+                  }}
+                  size="small"
+                  title="미리보기"
+                >
+                  <VisibilityIcon />
+                </IconButton>
+              </InputAdornment>
+            ),
+          }}
         />
         {formData.receipt_link && (
           <ReceiptPreview url={formData.receipt_link} />
