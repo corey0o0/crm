@@ -911,13 +911,17 @@ function ServiceDetail() {
           </Button>
         </Box>
         <TextField
-          fullWidth
           size="small"
           label="영수증"
           name="receipt_link"
           value={receiptLink}
           onChange={handleReceiptLinkChange}
-          disabled={!isEditing}
+          sx={{
+            '& .MuiInputBase-root': {
+              bgcolor: '#ffffff'
+            },
+            width: '50%'  // 너비를 50%로 설정
+          }}
           InputProps={{
             endAdornment: receiptLink && (
               <InputAdornment position="end">
