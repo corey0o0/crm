@@ -85,8 +85,7 @@ function ServiceDetail() {
     status: '',
     delivery_method: '',
     seller: '',
-    writer: '',
-    receipt_link: ''
+    writer: ''
   });
   const [openPartsDialog, setOpenPartsDialog] = useState(false);
   const [selectedParts, setSelectedParts] = useState([]);
@@ -110,6 +109,7 @@ function ServiceDetail() {
   const [modifiedPrice, setModifiedPrice] = useState('');
   const [partDialogOpen, setPartDialogOpen] = useState(false);
   const [tag, setTag] = useState('');
+  const [receiptLink, setReceiptLink] = useState('');
   const [receiptPreviewAnchor, setReceiptPreviewAnchor] = useState(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [numPages, setNumPages] = useState(null);
@@ -189,8 +189,7 @@ function ServiceDetail() {
         repair_date: serviceData.repair_date ? new Date(serviceData.repair_date) : null,
         completion_date: serviceData.completion_date ? new Date(serviceData.completion_date) : null,
         service_parts: serviceData.service_parts || [],
-        writer: serviceData.writer || '관리자',
-        receipt_link: serviceData.receipt_link || ''
+        writer: serviceData.writer || '관리자'
       });
     } catch (err) {
       console.error('Error fetching service detail:', err);
@@ -203,6 +202,12 @@ function ServiceDetail() {
   useEffect(() => {
     fetchServiceDetail();
   }, [fetchServiceDetail]);
+
+  useEffect(() => {
+    if (formData?.receipt_link) {
+      setReceiptLink(formData.receipt_link);
+    }
+  }, [formData]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -225,9 +230,8 @@ function ServiceDetail() {
         solution: formData.solution,
         reception_type: formData.reception_type,
         status: formData.status,
-        receipt_link: formData.receipt_link,
+        receipt_link: receiptLink,
         seller: formData.seller,
-        writer: formData.writer || '관리자',
         updated_at: new Date().toISOString()
       };
 
@@ -664,7 +668,7 @@ function ServiceDetail() {
 
   // Handle mouse enter for receipt preview
   const handleReceiptMouseEnter = (event) => {
-    if (formData.receipt_link) {
+    if (receiptLink) {
       setReceiptPreviewAnchor(event.currentTarget);
     }
   };
@@ -837,9 +841,10 @@ function ServiceDetail() {
     );
   };
 
-  // 영수증 링크 변경 핸들러 추가
+  // 영수증 링크 변경 핸들러
   const handleReceiptLinkChange = (e) => {
     const newLink = e.target.value;
+    setReceiptLink(newLink);
     setFormData(prev => ({
       ...prev,
       receipt_link: newLink
@@ -910,28 +915,31 @@ function ServiceDetail() {
           size="small"
           label="영수증"
           name="receipt_link"
-          value={formData.receipt_link || ''}
+          value={receiptLink}
           onChange={handleReceiptLinkChange}
           disabled={!isEditing}
           InputProps={{
-            endAdornment: formData.receipt_link && (
+            endAdornment: receiptLink && (
               <InputAdornment position="end">
                 <IconButton
-                  onClick={() => window.open(formData.receipt_link, '_blank')}
+                  onClick={() => window.open(receiptLink, '_blank')}
                   size="small"
                   title="새 창에서 보기"
+                  disabled={!receiptLink}
                 >
                   <OpenInNewIcon />
                 </IconButton>
                 <IconButton
                   onClick={() => {
-                    const previewUrl = formData.receipt_link.includes('drive.google.com') 
-                      ? formData.receipt_link.replace('/view?usp=sharing', '/preview')
-                      : formData.receipt_link;
+                    if (!receiptLink) return;
+                    const previewUrl = receiptLink.includes('drive.google.com') 
+                      ? receiptLink.replace('/view?usp=sharing', '/preview')
+                      : receiptLink;
                     window.open(previewUrl, '_blank', 'width=800,height=600');
                   }}
                   size="small"
                   title="미리보기"
+                  disabled={!receiptLink}
                 >
                   <VisibilityIcon />
                 </IconButton>
