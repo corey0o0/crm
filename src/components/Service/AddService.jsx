@@ -726,13 +726,20 @@ function AddService() {
       const { data, error } = await supabase
         .from('customers')
         .select('*')
-        .or(`name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%`)
-        .eq('brand', selectedBrand)
-        .order('name');
+        .or(`name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,address.ilike.%${searchTerm}%`)
+        .order('created_at', { ascending: false })
+        .limit(10);
 
       if (error) throw error;
 
-      setCustomerSearchResults(data || []);
+      // 브랜드 필터링은 클라이언트 사이드에서 수행
+      const filteredData = selectedBrand 
+        ? data.filter(customer => customer.brand === selectedBrand)
+        : data;
+
+      console.log('검색 결과:', filteredData); // 디버깅을 위한 로그
+
+      setCustomerSearchResults(filteredData || []);
     } catch (err) {
       console.error('고객 검색 중 오류:', err);
       setSnackbar({
@@ -742,6 +749,18 @@ function AddService() {
       });
     } finally {
       setSearchLoading(false);
+    }
+  };
+
+  // 고객 검색 입력 핸들러 수정
+  const handleCustomerSearchChange = async (e) => {
+    const value = e.target.value;
+    setCustomerSearchTerm(value);
+    
+    if (value.length >= 2) {
+      await searchCustomers(value);
+    } else {
+      setCustomerSearchResults([]);
     }
   };
 
@@ -1571,12 +1590,7 @@ function AddService() {
               size="small"
               placeholder="고객명 또는 연락처로 검색"
               value={customerSearchTerm}
-              onChange={(e) => {
-                setCustomerSearchTerm(e.target.value);
-                if (e.target.value.length >= 2) {
-                  searchCustomers(e.target.value);
-                }
-              }}
+              onChange={handleCustomerSearchChange}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">

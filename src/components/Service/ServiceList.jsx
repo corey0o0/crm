@@ -52,7 +52,6 @@ import {
   Download as DownloadIcon,
   Close as CloseIcon,
   Receipt as ReceiptIcon,
-  BarChart as BarChartIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -934,13 +933,6 @@ function ServiceList() {
               }}
             >
               신규 등록
-            </Button>
-            <Button
-              variant="outlined"
-              startIcon={<BarChartIcon />}
-              onClick={() => navigate('/service/stats')}
-            >
-              통계
             </Button>
             <Button
               variant="outlined"

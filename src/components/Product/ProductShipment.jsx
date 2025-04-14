@@ -62,7 +62,8 @@ import {
   DateRange as DateRangeIcon,
   Store as StoreIcon,
   FilterAlt as FilterAltIcon,
-  CloudUpload as CloudUploadIcon
+  CloudUpload as CloudUploadIcon,
+  Print as PrintIcon
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
@@ -1150,6 +1151,86 @@ function ProductShipment() {
     event.target.value = '';
   };
 
+  // 프린터 출력 함수 추가
+  const handlePrint = () => {
+    const printContent = `
+      <html>
+        <head>
+          <title>출고 상세내역</title>
+          <style>
+            body { font-family: Arial, sans-serif; }
+            .header { text-align: center; margin-bottom: 20px; }
+            .section { margin-bottom: 15px; }
+            .label { font-weight: bold; }
+            table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f5f5f5; }
+            @media print {
+              body { padding: 20px; }
+              button { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h2>출고 상세내역</h2>
+            <p>출고일자: ${selectedShipment?.shipment_date || '-'}</p>
+          </div>
+          
+          <div class="section">
+            <div class="label">고객 정보</div>
+            <p>고객명: ${selectedShipment?.customer_name || '-'}</p>
+            <p>연락처: ${selectedShipment?.customer_phone || '-'}</p>
+            <p>주소: ${selectedShipment?.customer_address || '-'}</p>
+          </div>
+          
+          <div class="section">
+            <div class="label">배송 정보</div>
+            <p>배송방법: ${selectedShipment?.delivery_method || '-'}</p>
+            <p>송장번호: ${selectedShipment?.tracking_number || '-'}</p>
+            <p>판매처: ${selectedShipment?.sales_channel || '공홈'}</p>
+          </div>
+          
+          <div class="section">
+            <div class="label">제품 정보</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>제품명</th>
+                  <th>수량</th>
+                  <th>단가</th>
+                  <th>합계</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${selectedParts.map(part => `
+                  <tr>
+                    <td>${part.name}</td>
+                    <td>${part.quantity}</td>
+                    <td>${part.price?.toLocaleString()}원</td>
+                    <td>${(part.price * part.quantity)?.toLocaleString()}원</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+          
+          <div class="section">
+            <div class="label">메모</div>
+            <p>${selectedShipment?.note || '-'}</p>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -1564,13 +1645,22 @@ function ProductShipment() {
         <DialogActions>
           <Button onClick={() => setOpenDialog(false)}>취소</Button>
           {selectedShipment && selectedShipment.id && (
-            <Button 
-              onClick={() => handleDeleteClick(selectedShipment)}
-              color="error"
-              startIcon={<DeleteIcon />}
-            >
-              삭제
-            </Button>
+            <>
+              <Button 
+                onClick={handlePrint}
+                color="primary"
+                startIcon={<PrintIcon />}
+              >
+                프린트
+              </Button>
+              <Button 
+                onClick={() => handleDeleteClick(selectedShipment)}
+                color="error"
+                startIcon={<DeleteIcon />}
+              >
+                삭제
+              </Button>
+            </>
           )}
           <Button onClick={handleSave} variant="contained" color="primary" disabled={!selectedShipment}>
             저장
