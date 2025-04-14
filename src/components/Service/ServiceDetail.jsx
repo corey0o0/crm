@@ -73,7 +73,8 @@ function ServiceDetail() {
     reception_type: '',
     status: '',
     delivery_method: '',
-    seller: ''
+    seller: '',
+    writer: ''
   });
   const [openPartsDialog, setOpenPartsDialog] = useState(false);
   const [selectedParts, setSelectedParts] = useState([]);
@@ -181,7 +182,8 @@ function ServiceDetail() {
         reception_date: serviceData.reception_date ? new Date(serviceData.reception_date) : null,
         repair_date: serviceData.repair_date ? new Date(serviceData.repair_date) : null,
         completion_date: serviceData.completion_date ? new Date(serviceData.completion_date) : null,
-        service_parts: serviceData.service_parts || []
+        service_parts: serviceData.service_parts || [],
+        writer: serviceData.writer || '관리자'
       });
     } catch (err) {
       console.error('Error fetching service detail:', err);
@@ -219,7 +221,9 @@ function ServiceDetail() {
           reception_type: formData.reception_type,
           status: formData.status,
           receipt_link: receiptLink,
-          seller: formData.seller
+          seller: formData.seller,
+          writer: formData.writer || '관리자',
+          updated_at: new Date().toISOString()
         })
         .eq('id', id);
 
@@ -1263,6 +1267,17 @@ function ServiceDetail() {
                           value={formData.note}
                           onChange={handleChange}
                           placeholder="추가 참고사항이나 메모를 입력하세요"
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          name="writer"
+                          label="작성자"
+                          value={formData.writer || '관리자'}
+                          onChange={handleChange}
+                          disabled={!isEditing}
                         />
                       </Grid>
                     </Grid>

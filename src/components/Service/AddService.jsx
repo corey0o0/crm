@@ -87,7 +87,8 @@ function AddService() {
     mileage: '',
     symptom: '',
     solution: '',
-    note: ''
+    note: '',
+    writer: '',
   });
   const [tags, setTags] = useState([]);
   const [snackbar, setSnackbar] = useState({
@@ -510,7 +511,10 @@ function AddService() {
         solution: formData.solution || '',
         note: formData.note || '',
         status: status || '접수',
-        receipt_link: receiptLink || null
+        receipt_link: receiptLink || null,
+        writer: formData.writer || '관리자',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       };
 
       // 필수 필드 검증
@@ -794,6 +798,16 @@ function AddService() {
                               완료
                             </Button>
                           </Box>
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                          <TextField
+                            fullWidth
+                            size="small"
+                            name="writer"
+                            label="작성자"
+                            value={formData.writer}
+                            onChange={handleInputChange}
+                          />
                         </Grid>
                       </Grid>
                     </Box>

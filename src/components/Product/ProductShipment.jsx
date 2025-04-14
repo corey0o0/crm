@@ -505,16 +505,11 @@ function ProductShipment() {
         phone: selectedShipment.customer_phone?.trim(),
         address: selectedShipment.customer_address?.trim(),
         grade: selectedShipment.brand === 'XRB' ? 'NORMAL' : 'V3',
-        total_purchase_amount: totalPrice,
+        purchase_count: 1,
+        note: `출고 관리에서 등록됨 (${new Date().toLocaleDateString()})`,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
-
-      // 니어바이크인 경우에만 purchase_count 추가
-      if (selectedShipment.brand === 'NB') {
-        customerData.purchase_count = 1;
-        customerData.note = `출고 관리에서 등록됨 (${new Date().toLocaleDateString()})`;
-      }
 
       if (!existingCustomers || existingCustomers.length === 0) {
         // 새 고객 추가
@@ -536,17 +531,12 @@ function ProductShipment() {
         const updatedCustomerData = {
           name: selectedShipment.customer_name?.trim(),
           address: selectedShipment.customer_address?.trim(),
-          total_purchase_amount: (existingCustomer.total_purchase_amount || 0) + totalPrice,
+          purchase_count: (existingCustomer.purchase_count || 0) + 1,
+          note: existingCustomer.note 
+            ? `${existingCustomer.note}\n출고 관리에서 업데이트됨 (${new Date().toLocaleDateString()})`
+            : `출고 관리에서 업데이트됨 (${new Date().toLocaleDateString()})`,
           updated_at: new Date().toISOString()
         };
-
-        // 니어바이크인 경우에만 purchase_count 업데이트
-        if (selectedShipment.brand === 'NB') {
-          updatedCustomerData.purchase_count = (existingCustomer.purchase_count || 0) + 1;
-          updatedCustomerData.note = existingCustomer.note 
-            ? `${existingCustomer.note}\n출고 관리에서 업데이트됨 (${new Date().toLocaleDateString()})`
-            : `출고 관리에서 업데이트됨 (${new Date().toLocaleDateString()})`;
-        }
 
         const { error: updateCustomerError } = await supabase
           .from('customers')
@@ -1452,7 +1442,8 @@ function ProductShipment() {
                     label="판매처"
                   >
                     <MenuItem value="공홈">공홈</MenuItem>
-                    <MenuItem value="청담메장">청담매장</MenuItem>
+                    <MenuItem value="청담매장">청담매장</MenuItem>
+                    <MenuItem value="라이클-우리">라이클-우리</MenuItem>
                     <MenuItem value="기타">기타</MenuItem>
                   </Select>
                 </FormControl>
@@ -1541,6 +1532,8 @@ function ProductShipment() {
                   >
                     <MenuItem value="택배">택배</MenuItem>
                     <MenuItem value="방문수령">방문수령</MenuItem>
+                    <MenuItem value="퀵-선불">퀵-선불</MenuItem>
+                    <MenuItem value="퀵-착불">퀵-착불</MenuItem>
                     <MenuItem value="기타">기타</MenuItem>
                   </Select>
                 </FormControl>
