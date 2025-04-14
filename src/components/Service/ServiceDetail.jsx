@@ -920,7 +920,7 @@ function ServiceDetail() {
             '& .MuiInputBase-root': {
               bgcolor: '#ffffff'
             },
-            width: '50%'  // 너비를 50%로 설정
+            width: '50%'
           }}
           InputProps={{
             endAdornment: receiptLink && (
@@ -951,9 +951,6 @@ function ServiceDetail() {
             ),
           }}
         />
-        {formData.receipt_link && (
-          <ReceiptPreview url={formData.receipt_link} />
-        )}
       </Stack>
       
       <TableContainer component={Paper} sx={{ mt: 2 }}>
