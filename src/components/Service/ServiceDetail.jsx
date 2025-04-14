@@ -213,14 +213,27 @@ function ServiceDetail() {
     setLoading(true);
     
     try {
+      // 업데이트할 필드만 선택
       const updateData = {
-        ...formData,
+        brand: formData.brand,
+        reception_date: formData.reception_date,
+        repair_date: formData.repair_date,
+        completion_date: formData.completion_date,
+        customer_name: formData.customer_name,
+        customer_phone: formData.customer_phone,
+        customer_address: formData.customer_address,
+        product_name: formData.product_name,
+        mileage: formData.mileage,
+        note: formData.note,
+        symptom: formData.symptom,
+        solution: formData.solution,
+        reception_type: formData.reception_type,
+        status: formData.status,
         receipt_link: receiptLink,
+        seller: formData.seller,
+        writer: formData.writer || '관리자',
         updated_at: new Date().toISOString()
       };
-
-      delete updateData.id;  // id는 업데이트에서 제외
-      delete updateData.created_at;  // created_at은 업데이트에서 제외
 
       const { error: updateError } = await supabase
         .from('services')
@@ -235,6 +248,37 @@ function ServiceDetail() {
           severity: 'error'
         });
         return;
+      }
+
+      // 부품 정보 업데이트
+      if (selectedParts && selectedParts.length > 0) {
+        // 기존 부품 데이터 삭제
+        const { error: deletePartsError } = await supabase
+          .from('service_parts')
+          .delete()
+          .eq('service_id', id);
+
+        if (deletePartsError) {
+          console.error('Error deleting parts:', deletePartsError);
+          throw deletePartsError;
+        }
+
+        // 새로운 부품 데이터 추가
+        const partsData = selectedParts.map(part => ({
+          service_id: id,
+          part_id: part.id,
+          quantity: part.quantity,
+          price: part.price || 0
+        }));
+
+        const { error: insertPartsError } = await supabase
+          .from('service_parts')
+          .insert(partsData);
+
+        if (insertPartsError) {
+          console.error('Error inserting parts:', insertPartsError);
+          throw insertPartsError;
+        }
       }
 
       setSnackbar({
