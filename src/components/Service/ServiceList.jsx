@@ -208,6 +208,9 @@ function ServiceList() {
   }, [services, loading, error]);
 
   const getStatusColor = (status) => {
+    if (status.includes('완료')) {
+      return 'success';
+    }
     switch(status) {
       case '접수':
         return 'info';
@@ -215,11 +218,13 @@ function ServiceList() {
         return 'warning';
       case '부분완료':
         return 'secondary';
-      case '완료':
-        return 'success';
       default:
         return 'default';
     }
+  };
+
+  const getDisplayStatus = (status) => {
+    return status.includes('완료(**)')  ? '완료' : status;
   };
 
   const handleEdit = (serviceId) => {
@@ -498,7 +503,9 @@ function ServiceList() {
         처리내역: service.solution || '',
         상태: service.status || '',
         총비용: service.total_cost || 0,
-        메모: service.note || ''
+        메모: service.note || '',
+        JPG: service.receipt_link || '',
+        구매처: service.seller || ''
       }));
 
       // 엑셀 워크북 생성
@@ -522,6 +529,8 @@ function ServiceList() {
         { wch: 10 },  // 상태
         { wch: 12 },  // 총비용
         { wch: 30 },  // 메모
+        { wch: 10 },  // JPG
+        { wch: 20 },  // 구매처
       ];
       ws['!cols'] = wscols;
 
@@ -700,7 +709,7 @@ function ServiceList() {
       sortable: true,
       render: (row) => (
         <Chip
-          label={row.status}
+          label={getDisplayStatus(row.status)}
           color={getStatusColor(row.status)}
           size="small"
         />
@@ -778,7 +787,7 @@ function ServiceList() {
         </Box>
         <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Chip
-            label={row.status}
+            label={getDisplayStatus(row.status)}
             color={getStatusColor(row.status)}
             size="small"
           />
@@ -835,7 +844,9 @@ function ServiceList() {
             symptom: row['증상'] || '',
             solution: row['처리내역'] || '',
             status: row['상태'] || '접수',
-            note: row['메모'] || ''
+            note: row['메모'] || '',
+            receipt_link: row['JPG'] || '',
+            seller: row['구매처'] || ''
           }));
 
           // 데이터 일괄 등록

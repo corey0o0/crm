@@ -306,7 +306,7 @@ function AddService() {
         { wch: 40 },  // 문의내용
         { wch: 40 },  // 처리내용
         { wch: 30 },  // 첨부
-        { wch: 30 },  // JPG
+        { wch: 10 },  // JPG
         { wch: 30 },  // 기타
         { wch: 20 }   // 문의 위치
       ];
@@ -414,65 +414,23 @@ function AddService() {
           const validData = jsonData.map((row, index) => {
             const currentDate = new Date().toISOString().split('T')[0];
             
-            // 기본값 설정
-            const defaultValues = {
-              '날짜': currentDate,
-              '완료 여부': '접수',
-              '작성자': '시스템',
-              '이름': '미입력',
-              '연락처': '000-0000-0000',
-              '기종명': '미입력',
-              '누적 주행거리': '0km',
-              '구입처': '미입력',
-              '문의내용': '내용 없음',
-              '처리내용': '',
-              '첨부': '',
-              'JPG': '',
-              '기타': '',
-              '문의 위치': ''
-            };
-
-            // 빈 값을 기본값으로 대체
-            Object.keys(defaultValues).forEach(key => {
-              if (!row[key] || row[key].toString().trim() === '') {
-                row[key] = defaultValues[key];
-              }
-            });
-
-            // 완료 상태 처리
-            let status = row['완료 여부'] || '접수';
-            let completionDate = null;
-
-            // 완료(1) 처리
-            if (status === '완료(1)') {
-              status = '완료';
-            }
-            // 완료(날짜) 처리
-            else if (status && status.startsWith('완료(') && status.endsWith(')')) {
-              const dateMatch = status.match(/완료\(([\d-]+)\)/);
-              if (dateMatch) {
-                status = '완료';
-                completionDate = dateMatch[1];
-              }
-            }
-
             return {
               brand: selectedBrand,
-              reception_date: parseDate(row['날짜']) || currentDate,
-              status: status,
-              customer_name: row['이름'],
-              customer_phone: row['연락처'],
-              product_name: row['기종명'],
-              mileage: row['누적 주행거리'],
-              sales_channel: row['구입처'],
-              symptom: row['문의내용'],
-              solution: row['처리내용'],
-              note: row['기타'],
-              location: row['문의 위치'],
-              created_by: row['작성자'],
-              attachment: row['첨부'],
-              image: row['JPG'],
-              completion_date: completionDate,
+              reception_date: parseDate(row['접수일자']) || currentDate,
+              reception_type: row['접수방법'] || '',
+              repair_date: parseDate(row['입고일']) || '',
+              completion_date: parseDate(row['출고일']) || '',
+              delivery_method: row['배송방법'] || '',
+              customer_name: row['고객명'] || '',
+              customer_phone: row['연락처'] || '',
+              customer_address: row['주소'] || '',
+              product_name: row['제품'] || '',
+              symptom: row['증상'] || '',
+              solution: row['처리내역'] || '',
+              status: row['상태'] || '접수',
+              note: row['메모'] || '',
+              receipt_link: row['JPG'] || '',
+              seller: row['구매처'] || '',
               created_at: new Date().toISOString()
             };
           });
