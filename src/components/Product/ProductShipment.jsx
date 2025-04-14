@@ -500,14 +500,13 @@ function ProductShipment() {
 
       // 고객 정보 데이터 준비
       const customerData = {
-        brand: selectedShipment.brand,  // 브랜드 정보 추가
+        brand: selectedShipment.brand,
         name: selectedShipment.customer_name?.trim(),
         phone: selectedShipment.customer_phone?.trim(),
         address: selectedShipment.customer_address?.trim(),
-        grade: 'V3',  // 기본 등급
-        total_purchase_amount: totalPrice,  // 구매 금액 추가
-        purchase_count: 1,  // 구매 횟수 초기값
-        last_purchase_date: selectedShipment.shipment_date,  // 최근 구매일
+        grade: 'V3',
+        total_purchase_amount: totalPrice,
+        purchase_count: 1,
         note: `출고 관리에서 등록됨 (${new Date().toLocaleDateString()})`,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -534,7 +533,6 @@ function ProductShipment() {
           address: selectedShipment.customer_address?.trim(),
           total_purchase_amount: (existingCustomer.total_purchase_amount || 0) + totalPrice,
           purchase_count: (existingCustomer.purchase_count || 0) + 1,
-          last_purchase_date: selectedShipment.shipment_date,
           note: existingCustomer.note 
             ? `${existingCustomer.note}\n출고 관리에서 업데이트됨 (${new Date().toLocaleDateString()})`
             : `출고 관리에서 업데이트됨 (${new Date().toLocaleDateString()})`,
