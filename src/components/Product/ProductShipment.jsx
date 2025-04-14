@@ -506,7 +506,6 @@ function ProductShipment() {
         phone: selectedShipment.customer_phone?.trim(),
         address: selectedShipment.customer_address?.trim(),
         grade: selectedShipment.brand === 'XRB' ? 'NORMAL' : 'V3',
-        purchase_count: 1,
         note: `출고 관리에서 등록됨 (${new Date().toLocaleDateString()})`,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -531,7 +530,6 @@ function ProductShipment() {
         const updatedCustomerData = {
           name: selectedShipment.customer_name?.trim(),
           address: selectedShipment.customer_address?.trim(),
-          purchase_count: (existingCustomer.purchase_count || 0) + 1,
           note: existingCustomer.note 
             ? `${existingCustomer.note}\n출고 관리에서 업데이트됨 (${new Date().toLocaleDateString()})`
             : `출고 관리에서 업데이트됨 (${new Date().toLocaleDateString()})`,
