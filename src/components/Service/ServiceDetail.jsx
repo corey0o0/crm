@@ -85,7 +85,8 @@ function ServiceDetail() {
     status: '',
     delivery_method: '',
     seller: '',
-    writer: ''
+    writer: '',
+    receipt_link: ''
   });
   const [openPartsDialog, setOpenPartsDialog] = useState(false);
   const [selectedParts, setSelectedParts] = useState([]);
@@ -109,7 +110,6 @@ function ServiceDetail() {
   const [modifiedPrice, setModifiedPrice] = useState('');
   const [partDialogOpen, setPartDialogOpen] = useState(false);
   const [tag, setTag] = useState('');
-  const [receiptLink, setReceiptLink] = useState('');
   const [receiptPreviewAnchor, setReceiptPreviewAnchor] = useState(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [numPages, setNumPages] = useState(null);
@@ -161,11 +161,6 @@ function ServiceDetail() {
         setTags(serviceData.service_tags.map(t => t.tag_name));
       }
 
-      // 영수증 링크 설정
-      if (serviceData.receipt_link) {
-        setReceiptLink(serviceData.receipt_link);
-      }
-
       // 사용된 부품 정보 조회
       if (serviceData.service_parts?.length > 0) {
         const partIds = serviceData.service_parts.map(sp => sp.part_id);
@@ -194,7 +189,8 @@ function ServiceDetail() {
         repair_date: serviceData.repair_date ? new Date(serviceData.repair_date) : null,
         completion_date: serviceData.completion_date ? new Date(serviceData.completion_date) : null,
         service_parts: serviceData.service_parts || [],
-        writer: serviceData.writer || '관리자'
+        writer: serviceData.writer || '관리자',
+        receipt_link: serviceData.receipt_link || ''
       });
     } catch (err) {
       console.error('Error fetching service detail:', err);
@@ -229,7 +225,7 @@ function ServiceDetail() {
         solution: formData.solution,
         reception_type: formData.reception_type,
         status: formData.status,
-        receipt_link: receiptLink,
+        receipt_link: formData.receipt_link,
         seller: formData.seller,
         writer: formData.writer || '관리자',
         updated_at: new Date().toISOString()
@@ -668,7 +664,7 @@ function ServiceDetail() {
 
   // Handle mouse enter for receipt preview
   const handleReceiptMouseEnter = (event) => {
-    if (receiptLink) {
+    if (formData.receipt_link) {
       setReceiptPreviewAnchor(event.currentTarget);
     }
   };
@@ -841,6 +837,15 @@ function ServiceDetail() {
     );
   };
 
+  // 영수증 링크 변경 핸들러 추가
+  const handleReceiptLinkChange = (e) => {
+    const newLink = e.target.value;
+    setFormData(prev => ({
+      ...prev,
+      receipt_link: newLink
+    }));
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -905,14 +910,14 @@ function ServiceDetail() {
           size="small"
           label="영수증"
           name="receipt_link"
-          value={receiptLink || ''}
-          onChange={(e) => setReceiptLink(e.target.value)}
+          value={formData.receipt_link || ''}
+          onChange={handleReceiptLinkChange}
           disabled={!isEditing}
           InputProps={{
-            endAdornment: receiptLink && (
+            endAdornment: formData.receipt_link && (
               <InputAdornment position="end">
                 <IconButton
-                  onClick={() => window.open(receiptLink, '_blank')}
+                  onClick={() => window.open(formData.receipt_link, '_blank')}
                   size="small"
                   title="새 창에서 보기"
                 >
@@ -920,9 +925,9 @@ function ServiceDetail() {
                 </IconButton>
                 <IconButton
                   onClick={() => {
-                    const previewUrl = receiptLink.includes('drive.google.com') 
-                      ? receiptLink.replace('/view?usp=sharing', '/preview')
-                      : receiptLink;
+                    const previewUrl = formData.receipt_link.includes('drive.google.com') 
+                      ? formData.receipt_link.replace('/view?usp=sharing', '/preview')
+                      : formData.receipt_link;
                     window.open(previewUrl, '_blank', 'width=800,height=600');
                   }}
                   size="small"
