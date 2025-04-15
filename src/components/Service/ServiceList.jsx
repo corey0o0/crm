@@ -160,10 +160,17 @@ function ServiceList() {
         payload => {
           console.log('Received real-time update:', payload); // 디버깅용
           if (payload.eventType === 'INSERT' && payload.new.brand === selectedBrand) {
-            setServices(prev => [payload.new, ...prev]);
+            // 새로운 서비스를 배열의 맨 앞에 추가
+            setServices(prev => [{
+              ...payload.new,
+              tags: []  // 새로운 서비스의 태그 초기화
+            }, ...prev]);
           } else if (payload.eventType === 'UPDATE') {
             setServices(prev => prev.map(service => 
-              service.id === payload.new.id ? payload.new : service
+              service.id === payload.new.id ? {
+                ...payload.new,
+                tags: service.tags || []  // 기존 태그 유지
+              } : service
             ));
           } else if (payload.eventType === 'DELETE') {
             setServices(prev => prev.filter(service => 
@@ -475,72 +482,141 @@ function ServiceList() {
     });
   };
 
-  // 엑셀 다운로드 함수 추가
-  const handleDownloadExcel = async () => {
+  // 날짜 변환 함수 추가
+  const parseDate = (dateStr) => {
+    if (!dateStr) return null;
+    
     try {
-      // 현재 선택된 브랜드의 서비스 데이터 가져오기
-      const { data, error } = await supabase
-        .from('services')
-        .select('*')
-        .eq('brand', selectedBrand)
-        .order('reception_date', { ascending: false });
+      // 날짜가 이미 Date 객체인 경우
+      if (dateStr instanceof Date) {
+        return dateStr.toISOString().split('T')[0];
+      }
 
-      if (error) throw error;
+      // 문자열이 아닌 경우 문자열로 변환
+      const dateString = String(dateStr).trim();
+      
+      // 빈 문자열 처리
+      if (dateString === '') return null;
 
-      // 데이터 가공
-      const exportData = data.map(service => ({
-        접수일자: service.reception_date || '',
-        접수방법: service.reception_type || '',
-        입고일: service.repair_date || '',
-        출고일: service.completion_date || '',
-        배송방법: service.delivery_method || '',
-        고객명: service.customer_name || '',
-        연락처: service.customer_phone || '',
-        주소: service.customer_address || '',
-        제품: service.product_name || '',
-        증상: service.symptom || '',
-        처리내역: service.solution || '',
-        상태: service.status || '',
-        총비용: service.total_cost || 0,
-        메모: service.note || '',
-        JPG: service.receipt_link || '',
-        구매처: service.seller || ''
-      }));
+      // 8/1 형식 처리
+      if (dateString.includes('/')) {
+        const [month, day] = dateString.split('/').map(num => String(num).trim());
+        const year = new Date().getFullYear();
+        const formattedMonth = month.padStart(2, '0');
+        const formattedDay = day.padStart(2, '0');
+        return `${year}-${formattedMonth}-${formattedDay}`;
+      }
 
-      // 엑셀 워크북 생성
-      const ws = XLSX.utils.json_to_sheet(exportData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "AS목록");
+      // Excel의 날짜 형식(시리얼 넘버) 처리
+      const excelDate = parseInt(dateString);
+      if (!isNaN(excelDate)) {
+        const date = new Date((excelDate - 25569) * 86400 * 1000);
+        return date.toISOString().split('T')[0];
+      }
 
-      // 컬럼 너비 설정
-      const wscols = [
-        { wch: 12 },  // 접수일자
-        { wch: 10 },  // 접수방법
-        { wch: 12 },  // 입고일
-        { wch: 12 },  // 출고일
-        { wch: 10 },  // 배송방법
-        { wch: 12 },  // 고객명
-        { wch: 15 },  // 연락처
-        { wch: 40 },  // 주소
-        { wch: 20 },  // 제품
-        { wch: 40 },  // 증상
-        { wch: 40 },  // 처리내역
-        { wch: 10 },  // 상태
-        { wch: 12 },  // 총비용
-        { wch: 30 },  // 메모
-        { wch: 10 },  // JPG
-        { wch: 20 },  // 구매처
-      ];
-      ws['!cols'] = wscols;
+      // 기타 형식의 날짜 문자열 처리
+      const date = new Date(dateString);
+      if (!isNaN(date.getTime())) {
+        return date.toISOString().split('T')[0];
+      }
 
-      // 파일 다운로드 (브랜드명 포함)
-      const brandName = selectedBrand === 'XRB' ? 'X-RIDER' : 'NEARBIKE';
-      XLSX.writeFile(wb, `AS목록_${brandName}_${new Date().toLocaleDateString()}.xlsx`);
-
+      return null;
     } catch (error) {
-      console.error('Error downloading excel:', error);
-      alert('엑셀 다운로드 중 오류가 발생했습니다.');
+      console.error('날짜 변환 중 오류:', error);
+      return null;
     }
+  };
+
+  // 엑셀 업로드 핸들러 수정
+  const handleExcelUpload = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.xlsx, .xls';
+    
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      setUploadLoading(true);
+      try {
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+          try {
+            const data = new Uint8Array(event.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+            const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+            // 데이터 형식 변환
+            const formattedData = jsonData.map(row => {
+              const currentDate = new Date().toISOString().split('T')[0];
+              
+              return {
+                brand: selectedBrand,
+                reception_date: parseDate(row['접수일자']) || currentDate,
+                reception_type: row['접수방법'] || '',
+                repair_date: parseDate(row['입고일']) || null,
+                completion_date: parseDate(row['출고일']) || null,
+                delivery_method: row['배송방법'] || '',
+                customer_name: row['고객명'] || '',
+                customer_phone: row['연락처'] || '',
+                customer_address: row['주소'] || '',
+                product_name: row['제품'] || '',
+                symptom: row['증상'] || '',
+                solution: row['처리내역'] || '',
+                status: row['상태'] || '접수',
+                note: row['메모'] || '',
+                receipt_link: row['JPG'] || '',
+                seller: row['구매처'] || '',
+                mileage: row['주행거리'] || '',
+                writer: row['작성자'] || '관리자',
+                service_parts: [],
+                service_tags: [],
+                created_at: new Date().toISOString()
+              };
+            });
+
+            // 데이터 일괄 등록
+            const { data: insertedData, error } = await supabase
+              .from('services')
+              .insert(formattedData)
+              .select();
+
+            if (error) throw error;
+
+            // 성공 메시지 표시
+            setSnackbar({
+              open: true,
+              message: `${insertedData.length}건의 A/S 데이터가 등록되었습니다.`,
+              severity: 'success'
+            });
+
+            // 목록 새로고침
+            fetchServices();
+
+          } catch (error) {
+            console.error('Error processing excel:', error);
+            setSnackbar({
+              open: true,
+              message: '엑셀 데이터 처리 중 오류가 발생했습니다: ' + error.message,
+              severity: 'error'
+            });
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      } catch (error) {
+        console.error('Error uploading excel:', error);
+        setSnackbar({
+          open: true,
+          message: '엑셀 업로드 중 오류가 발생했습니다.',
+          severity: 'error'
+        });
+      } finally {
+        setUploadLoading(false);
+      }
+    };
+
+    input.click();
   };
 
   const handleRowClick = (service) => {
@@ -739,7 +815,17 @@ function ServiceList() {
 
   // 모바일용 카드 렌더링 함수
   const renderMobileCard = (row, index) => (
-    <Card key={index} onClick={() => handleRowClick(row)} sx={{ cursor: 'pointer' }}>
+    <Card 
+      key={index} 
+      onClick={() => handleRowClick(row)} 
+      sx={{ 
+        cursor: 'pointer',
+        backgroundColor: row.status.includes('완료') ? '#f5f5f5' : 'inherit',
+        '&:hover': {
+          backgroundColor: row.status.includes('완료') ? '#f5f5f5' : '#f0f0f0'
+        }
+      }}
+    >
       <CardContent>
         <Typography variant="subtitle1" gutterBottom>
           {row.customer_name}
@@ -809,78 +895,78 @@ function ServiceList() {
     </Card>
   );
 
-  // 엑셀 업로드 핸들러
-  const handleExcelUpload = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.xlsx, .xls';
-    
-    input.onchange = async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
+  // 엑셀 다운로드 함수 추가
+  const handleDownloadExcel = async () => {
+    try {
+      // 현재 선택된 브랜드의 서비스 데이터 가져오기
+      const { data, error } = await supabase
+        .from('services')
+        .select('*')
+        .eq('brand', selectedBrand)
+        .order('reception_date', { ascending: false });
 
-      setUploadLoading(true);
-      try {
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-          const data = new Uint8Array(event.target.result);
-          const workbook = XLSX.read(data, { type: 'array' });
-          const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-          const jsonData = XLSX.utils.sheet_to_json(worksheet);
+      if (error) throw error;
 
-          // 데이터 형식 변환
-          const formattedData = jsonData.map(row => ({
-            brand: selectedBrand,
-            reception_date: row['접수일자'] || new Date().toISOString().split('T')[0],
-            reception_type: row['접수방법'] || '',
-            repair_date: row['입고일'] || '',
-            completion_date: row['출고일'] || '',
-            delivery_method: row['배송방법'] || '',
-            customer_name: row['고객명'] || '',
-            customer_phone: row['연락처'] || '',
-            customer_address: row['주소'] || '',
-            product_name: row['제품'] || '',
-            symptom: row['증상'] || '',
-            solution: row['처리내역'] || '',
-            status: row['상태'] || '접수',
-            note: row['메모'] || '',
-            receipt_link: row['JPG'] || '',
-            seller: row['구매처'] || ''
-          }));
+      // 데이터 가공
+      const exportData = data.map(service => ({
+        접수일자: service.reception_date || '',
+        접수방법: service.reception_type || '',
+        입고일: service.repair_date || '',
+        출고일: service.completion_date || '',
+        배송방법: service.delivery_method || '',
+        고객명: service.customer_name || '',
+        연락처: service.customer_phone || '',
+        주소: service.customer_address || '',
+        제품: service.product_name || '',
+        주행거리: service.mileage || '',
+        증상: service.symptom || '',
+        처리내역: service.solution || '',
+        상태: service.status || '',
+        메모: service.note || '',
+        JPG: service.receipt_link || '',
+        구매처: service.seller || '',
+        작성자: service.writer || '관리자'
+      }));
 
-          // 데이터 일괄 등록
-          const { data: insertedData, error } = await supabase
-            .from('services')
-            .insert(formattedData)
-            .select();
+      // 엑셀 워크북 생성
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "AS목록");
 
-          if (error) throw error;
+      // 컬럼 너비 설정
+      const wscols = [
+        { wch: 12 },  // 접수일자
+        { wch: 10 },  // 접수방법
+        { wch: 12 },  // 입고일
+        { wch: 12 },  // 출고일
+        { wch: 10 },  // 배송방법
+        { wch: 12 },  // 고객명
+        { wch: 15 },  // 연락처
+        { wch: 40 },  // 주소
+        { wch: 20 },  // 제품
+        { wch: 10 },  // 주행거리
+        { wch: 40 },  // 증상
+        { wch: 40 },  // 처리내역
+        { wch: 10 },  // 상태
+        { wch: 30 },  // 메모
+        { wch: 10 },  // JPG
+        { wch: 20 },  // 구매처
+        { wch: 10 },  // 작성자
+      ];
+      ws['!cols'] = wscols;
 
-          // 성공 메시지 표시
-          setSnackbar({
-            open: true,
-            message: `${insertedData.length}건의 A/S 데이터가 등록되었습니다.`,
-            severity: 'success'
-          });
+      // 파일 다운로드 (브랜드명 포함)
+      const brandName = selectedBrand === 'XRB' ? 'X-RIDER' : 'NEARBIKE';
+      XLSX.writeFile(wb, `AS목록_${brandName}_${new Date().toLocaleDateString()}.xlsx`);
 
-          // 목록 새로고침
-          fetchServices();
-
-        };
-        reader.readAsArrayBuffer(file);
-      } catch (error) {
-        console.error('Error uploading excel:', error);
-        setSnackbar({
-          open: true,
-          message: '엑셀 업로드 중 오류가 발생했습니다.',
-          severity: 'error'
-        });
-      } finally {
-        setUploadLoading(false);
-      }
-    };
-
-    input.click();
+    } catch (error) {
+      console.error('Error downloading excel:', error);
+      setSnackbar({
+        open: true,
+        message: '엑셀 다운로드 중 오류가 발생했습니다.',
+        severity: 'error'
+      });
+    }
   };
 
   if (loading) {
@@ -1009,8 +1095,18 @@ function ServiceList() {
         onRowClick={handleRowClick}
         hoverEffect={true}
         rowStyle={(row) => ({
-          bgcolor: row.status === '완료' ? 'rgba(0, 0, 0, 0.05)' : 'inherit'
+          backgroundColor: row.status.includes('완료') ? '#f5f5f5' : 'inherit',
+          '&:hover': {
+            backgroundColor: row.status.includes('완료') ? '#f5f5f5' : '#f0f0f0'
+          }
         })}
+        sx={{
+          '& .MuiTableRow-root': {
+            '&:hover': {
+              backgroundColor: (theme) => theme.palette.action.hover
+            }
+          }
+        }}
       />
 
       {/* 페이지네이션 추가 */}

@@ -4,8 +4,6 @@ import {
   Paper,
   Typography,
   Grid,
-  Tabs,
-  Tab,
   Table,
   TableBody,
   TableCell,
@@ -21,6 +19,11 @@ import {
   InputLabel,
   ToggleButton,
   ToggleButtonGroup,
+  Divider,
+  useTheme,
+  IconButton,
+  Tooltip,
+  Stack,
 } from '@mui/material';
 import {
   BarChart,
@@ -28,11 +31,9 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   Legend,
   ResponsiveContainer,
-  LineChart,
-  Line,
   PieChart,
   Pie,
   Cell
@@ -40,8 +41,14 @@ import {
 import { supabase } from '../../lib/supabaseClient';
 import { startOfWeek, endOfWeek, format, parseISO, addDays } from 'date-fns';
 import { ko } from 'date-fns/locale';
+import DownloadIcon from '@mui/icons-material/Download';
+import PrintIcon from '@mui/icons-material/Print';
+import CalendarViewDayIcon from '@mui/icons-material/CalendarViewDay';
+import CalendarViewWeekIcon from '@mui/icons-material/CalendarViewWeek';
+import CalendarViewMonthIcon from '@mui/icons-material/CalendarViewMonth';
 
 function ServiceStatistics() {
+  const theme = useTheme();
   const [selectedBrand, setSelectedBrand] = useState('XRB');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [loading, setLoading] = useState(true);
@@ -50,7 +57,7 @@ function ServiceStatistics() {
   const [weeklyData, setWeeklyData] = useState([]);
   const [monthlyData, setMonthlyData] = useState([]);
   const [yearlyComparison, setYearlyComparison] = useState([]);
-  const [profitAnalysis, setProfitAnalysis] = useState([]);
+  const [profitAnalysis, setProfitAnalysis] = useState({});
 
   useEffect(() => {
     fetchStatisticsData();
@@ -244,6 +251,70 @@ function ServiceStatistics() {
     return totalStats;
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleExportCSV = () => {
+    let data = viewMode === 'daily' ? dailyData : 
+               viewMode === 'weekly' ? weeklyData : monthlyData;
+    
+    let csvContent = "data:text/csv;charset=utf-8,";
+    
+    // 헤더 추가
+    csvContent += "기간,건수,파츠매출,파츠비용,공임,총매출,순이익,이익률\n";
+    
+    // 데이터 행 추가
+    data.forEach(row => {
+      const period = viewMode === 'monthly' ? `${row.month}월` : 
+                    viewMode === 'weekly' ? format(parseISO(row.week.split('~')[0]), 'MM/dd') : 
+                    format(parseISO(row.date), 'MM/dd');
+      const profit = row.totalProfit;
+      const margin = row.totalRevenue ? ((row.totalProfit / row.totalRevenue) * 100).toFixed(1) : 0;
+      
+      csvContent += `${period},${row.count},${row.partsRevenue},${row.partsCost},${row.laborRevenue},${row.totalRevenue},${profit},${margin}%\n`;
+    });
+    
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `${selectedBrand}_${selectedYear}_${viewMode}_statistics.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const renderProfitPieChart = () => {
+    const data = [
+      { name: '파츠 이익', value: profitAnalysis.partsRevenue - profitAnalysis.partsCost },
+      { name: '공임', value: profitAnalysis.laborRevenue }
+    ];
+    const COLORS = [theme.palette.primary.main, theme.palette.secondary.main];
+
+    return (
+      <ResponsiveContainer width="100%" height={200}>
+        <PieChart>
+          <Pie
+            data={data}
+            cx="50%"
+            cy="50%"
+            innerRadius={60}
+            outerRadius={80}
+            fill="#8884d8"
+            paddingAngle={5}
+            dataKey="value"
+            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`}
+          >
+            {data.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+            ))}
+          </Pie>
+          <RechartsTooltip formatter={(value) => value.toLocaleString() + '원'} />
+        </PieChart>
+      </ResponsiveContainer>
+    );
+  };
+
   const renderChart = () => {
     let data = [];
     let xAxisKey = '';
@@ -273,15 +344,62 @@ function ServiceStatistics() {
     return (
       <ResponsiveContainer width="100%" height={400}>
         <BarChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey={xAxisKey} tickFormatter={xAxisFormatter} />
-          <YAxis yAxisId="left" />
-          <YAxis yAxisId="right" orientation="right" />
-          <Tooltip />
+          <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
+          <XAxis 
+            dataKey={xAxisKey} 
+            tickFormatter={xAxisFormatter}
+            stroke={theme.palette.text.primary}
+          />
+          <YAxis 
+            yAxisId="left"
+            stroke={theme.palette.primary.main}
+            label={{ 
+              value: '매출액 (원)', 
+              angle: -90, 
+              position: 'insideLeft',
+              style: { fill: theme.palette.text.primary }
+            }}
+          />
+          <YAxis 
+            yAxisId="right" 
+            orientation="right"
+            stroke={theme.palette.secondary.main}
+            label={{ 
+              value: '건수', 
+              angle: 90, 
+              position: 'insideRight',
+              style: { fill: theme.palette.text.primary }
+            }}
+          />
+          <RechartsTooltip 
+            formatter={(value) => value.toLocaleString()}
+            contentStyle={{
+              backgroundColor: theme.palette.background.paper,
+              border: `1px solid ${theme.palette.divider}`
+            }}
+          />
           <Legend />
-          <Bar yAxisId="left" dataKey="partsRevenue" name="파츠 매출" fill="#8884d8" />
-          <Bar yAxisId="left" dataKey="laborRevenue" name="공임 매출" fill="#82ca9d" />
-          <Bar yAxisId="right" dataKey="count" name="건수" fill="#ffc658" />
+          <Bar 
+            yAxisId="left" 
+            dataKey="partsRevenue" 
+            name="파츠 매출" 
+            fill={theme.palette.primary.main}
+            radius={[4, 4, 0, 0]}
+          />
+          <Bar 
+            yAxisId="left" 
+            dataKey="laborRevenue" 
+            name="공임 매출" 
+            fill={theme.palette.secondary.main}
+            radius={[4, 4, 0, 0]}
+          />
+          <Bar 
+            yAxisId="right" 
+            dataKey="count" 
+            name="건수" 
+            fill={theme.palette.info.main}
+            radius={[4, 4, 0, 0]}
+          />
         </BarChart>
       </ResponsiveContainer>
     );
@@ -289,7 +407,12 @@ function ServiceStatistics() {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center',
+        height: '100vh'
+      }}>
         <CircularProgress />
       </Box>
     );
@@ -297,90 +420,173 @@ function ServiceStatistics() {
 
   return (
     <Box sx={{ maxWidth: '1800px', mx: 'auto', p: 3 }}>
-      {/* 필터 영역 */}
-      <Box sx={{ mb: 4, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-        <FormControl sx={{ minWidth: 120 }}>
-          <InputLabel>브랜드</InputLabel>
-          <Select
-            value={selectedBrand}
-            onChange={(e) => setSelectedBrand(e.target.value)}
-            label="브랜드"
-          >
-            <MenuItem value="XRB">X-RIDER</MenuItem>
-            <MenuItem value="NB">NEARBIKE</MenuItem>
-          </Select>
-        </FormControl>
-        <FormControl sx={{ minWidth: 120 }}>
-          <InputLabel>연도</InputLabel>
-          <Select
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(e.target.value)}
-            label="연도"
-          >
-            {[...Array(5)].map((_, i) => {
-              const year = new Date().getFullYear() - i;
-              return (
-                <MenuItem key={year} value={year}>{year}년</MenuItem>
-              );
-            })}
-          </Select>
-        </FormControl>
-        <ToggleButtonGroup
-          value={viewMode}
-          exclusive
-          onChange={(e, newMode) => newMode && setViewMode(newMode)}
-          aria-label="통계 보기 모드"
-        >
-          <ToggleButton value="daily">일별</ToggleButton>
-          <ToggleButton value="weekly">주별</ToggleButton>
-          <ToggleButton value="monthly">월별</ToggleButton>
-        </ToggleButtonGroup>
+      {/* 헤더 영역 */}
+      <Box sx={{ 
+        mb: 4, 
+        display: 'flex', 
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: 2
+      }}>
+        <Typography variant="h4" component="h1" gutterBottom>
+          A/S 통계 분석
+        </Typography>
+        
+        <Stack direction="row" spacing={2}>
+          <Tooltip title="CSV 다운로드">
+            <IconButton onClick={handleExportCSV}>
+              <DownloadIcon />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="프린트">
+            <IconButton onClick={handlePrint}>
+              <PrintIcon />
+            </IconButton>
+          </Tooltip>
+        </Stack>
       </Box>
+
+      {/* 필터 영역 */}
+      <Paper sx={{ p: 2, mb: 4 }}>
+        <Stack 
+          direction="row" 
+          spacing={2} 
+          alignItems="center"
+          flexWrap="wrap"
+          sx={{ mb: 2 }}
+        >
+          <FormControl sx={{ minWidth: 120 }}>
+            <InputLabel>브랜드</InputLabel>
+            <Select
+              value={selectedBrand}
+              onChange={(e) => setSelectedBrand(e.target.value)}
+              label="브랜드"
+              size="small"
+            >
+              <MenuItem value="XRB">X-RIDER</MenuItem>
+              <MenuItem value="NB">NEARBIKE</MenuItem>
+            </Select>
+          </FormControl>
+          <FormControl sx={{ minWidth: 120 }}>
+            <InputLabel>연도</InputLabel>
+            <Select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(e.target.value)}
+              label="연도"
+              size="small"
+            >
+              {[...Array(5)].map((_, i) => {
+                const year = new Date().getFullYear() - i;
+                return (
+                  <MenuItem key={year} value={year}>{year}년</MenuItem>
+                );
+              })}
+            </Select>
+          </FormControl>
+          <ToggleButtonGroup
+            value={viewMode}
+            exclusive
+            onChange={(e, newMode) => newMode && setViewMode(newMode)}
+            aria-label="통계 보기 모드"
+            size="small"
+          >
+            <ToggleButton value="daily">
+              <Tooltip title="일별 보기">
+                <CalendarViewDayIcon />
+              </Tooltip>
+            </ToggleButton>
+            <ToggleButton value="weekly">
+              <Tooltip title="주별 보기">
+                <CalendarViewWeekIcon />
+              </Tooltip>
+            </ToggleButton>
+            <ToggleButton value="monthly">
+              <Tooltip title="월별 보기">
+                <CalendarViewMonthIcon />
+              </Tooltip>
+            </ToggleButton>
+          </ToggleButtonGroup>
+        </Stack>
+      </Paper>
 
       {/* 요약 카드 */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} md={4}>
           <Card>
             <CardContent>
-              <Typography color="textSecondary" gutterBottom>파츠 매출/비용</Typography>
-              <Typography variant="h6" color="primary">
-                매출: {profitAnalysis.partsRevenue?.toLocaleString()}원
+              <Typography variant="h6" color="textSecondary" gutterBottom>
+                파츠 매출/비용
               </Typography>
-              <Typography variant="h6" color="error">
-                비용: {profitAnalysis.partsCost?.toLocaleString()}원
-              </Typography>
-              <Typography variant="h6" color="success.main">
-                이익: {(profitAnalysis.partsRevenue - profitAnalysis.partsCost)?.toLocaleString()}원
-              </Typography>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="body2" color="textSecondary">매출</Typography>
+                <Typography variant="h5" color="primary">
+                  {profitAnalysis.partsRevenue?.toLocaleString()}원
+                </Typography>
+              </Box>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="body2" color="textSecondary">비용</Typography>
+                <Typography variant="h5" color="error">
+                  {profitAnalysis.partsCost?.toLocaleString()}원
+                </Typography>
+              </Box>
+              <Divider sx={{ my: 2 }} />
+              <Box>
+                <Typography variant="body2" color="textSecondary">순이익</Typography>
+                <Typography variant="h5" color="success.main">
+                  {(profitAnalysis.partsRevenue - profitAnalysis.partsCost)?.toLocaleString()}원
+                </Typography>
+              </Box>
             </CardContent>
           </Card>
         </Grid>
         <Grid item xs={12} md={4}>
           <Card>
             <CardContent>
-              <Typography color="textSecondary" gutterBottom>공임</Typography>
-              <Typography variant="h6" color="primary">
-                {profitAnalysis.laborRevenue?.toLocaleString()}원
+              <Typography variant="h6" color="textSecondary" gutterBottom>
+                공임
               </Typography>
-              <Typography variant="body2" color="textSecondary">
-                전체 매출 대비: {((profitAnalysis.laborRevenue / profitAnalysis.totalRevenue) * 100).toFixed(1)}%
-              </Typography>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="h5" color="primary">
+                  {profitAnalysis.laborRevenue?.toLocaleString()}원
+                </Typography>
+                <Typography variant="body2" color="textSecondary">
+                  전체 매출 대비: {((profitAnalysis.laborRevenue / profitAnalysis.totalRevenue) * 100).toFixed(1)}%
+                </Typography>
+              </Box>
+              {renderProfitPieChart()}
             </CardContent>
           </Card>
         </Grid>
         <Grid item xs={12} md={4}>
           <Card>
             <CardContent>
-              <Typography color="textSecondary" gutterBottom>총 실적</Typography>
-              <Typography variant="h6" color="primary">
-                매출: {profitAnalysis.totalRevenue?.toLocaleString()}원
+              <Typography variant="h6" color="textSecondary" gutterBottom>
+                총 실적
               </Typography>
-              <Typography variant="h6" color="success.main">
-                순이익: {profitAnalysis.totalProfit?.toLocaleString()}원
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                이익률: {((profitAnalysis.totalProfit / profitAnalysis.totalRevenue) * 100).toFixed(1)}%
-              </Typography>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="body2" color="textSecondary">총 매출</Typography>
+                <Typography variant="h5" color="primary">
+                  {profitAnalysis.totalRevenue?.toLocaleString()}원
+                </Typography>
+              </Box>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="body2" color="textSecondary">순이익</Typography>
+                <Typography variant="h5" color="success.main">
+                  {profitAnalysis.totalProfit?.toLocaleString()}원
+                </Typography>
+              </Box>
+              <Divider sx={{ my: 2 }} />
+              <Box>
+                <Typography variant="body2" color="textSecondary">이익률</Typography>
+                <Typography variant="h5" color={
+                  ((profitAnalysis.totalProfit / profitAnalysis.totalRevenue) * 100) > 20 
+                    ? 'success.main' 
+                    : 'warning.main'
+                }>
+                  {((profitAnalysis.totalProfit / profitAnalysis.totalRevenue) * 100).toFixed(1)}%
+                </Typography>
+              </Box>
             </CardContent>
           </Card>
         </Grid>
@@ -388,13 +594,17 @@ function ServiceStatistics() {
 
       {/* 차트 */}
       <Paper sx={{ p: 3, mb: 4 }}>
-        <Typography variant="h6" gutterBottom>매출 추이</Typography>
+        <Typography variant="h6" gutterBottom sx={{ mb: 3 }}>
+          매출 추이
+        </Typography>
         {renderChart()}
       </Paper>
 
       {/* 상세 테이블 */}
       <Paper sx={{ p: 3 }}>
-        <Typography variant="h6" gutterBottom>상세 내역</Typography>
+        <Typography variant="h6" gutterBottom sx={{ mb: 3 }}>
+          상세 내역
+        </Typography>
         <TableContainer>
           <Table>
             <TableHead>
@@ -411,7 +621,10 @@ function ServiceStatistics() {
             </TableHead>
             <TableBody>
               {(viewMode === 'daily' ? dailyData : viewMode === 'weekly' ? weeklyData : monthlyData).map((row) => (
-                <TableRow key={viewMode === 'monthly' ? row.month : viewMode === 'weekly' ? row.week : row.date}>
+                <TableRow 
+                  key={viewMode === 'monthly' ? row.month : viewMode === 'weekly' ? row.week : row.date}
+                  hover
+                >
                   <TableCell>
                     {viewMode === 'monthly' ? `${row.month}월` : 
                      viewMode === 'weekly' ? format(parseISO(row.week.split('~')[0]), 'MM/dd') : 
@@ -423,7 +636,14 @@ function ServiceStatistics() {
                   <TableCell align="right">{row.laborRevenue?.toLocaleString()}원</TableCell>
                   <TableCell align="right">{row.totalRevenue?.toLocaleString()}원</TableCell>
                   <TableCell align="right">{row.totalProfit?.toLocaleString()}원</TableCell>
-                  <TableCell align="right">
+                  <TableCell 
+                    align="right"
+                    sx={{
+                      color: row.totalRevenue && ((row.totalProfit / row.totalRevenue) * 100) > 20 
+                        ? 'success.main' 
+                        : 'warning.main'
+                    }}
+                  >
                     {row.totalRevenue ? ((row.totalProfit / row.totalRevenue) * 100).toFixed(1) : 0}%
                   </TableCell>
                 </TableRow>

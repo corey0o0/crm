@@ -1642,29 +1642,68 @@ function ProductShipment() {
             </Grid>
           )}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenDialog(false)}>취소</Button>
-          {selectedShipment && selectedShipment.id && (
-            <>
-              <Button 
-                onClick={handlePrint}
-                color="primary"
-                startIcon={<PrintIcon />}
+        <DialogActions sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1.5 }}>
+          <Box>
+            {selectedShipment && selectedShipment.id && (
+              <ButtonGroup 
+                variant="outlined" 
+                size="medium"
+                sx={{ 
+                  '& .MuiButton-root': {
+                    borderRadius: '20px !important',
+                    mx: 0.5,
+                    px: 2
+                  }
+                }}
               >
-                프린트
-              </Button>
-              <Button 
-                onClick={() => handleDeleteClick(selectedShipment)}
-                color="error"
-                startIcon={<DeleteIcon />}
-              >
-                삭제
-              </Button>
-            </>
-          )}
-          <Button onClick={handleSave} variant="contained" color="primary" disabled={!selectedShipment}>
-            저장
-          </Button>
+                <Button
+                  onClick={() => handleChange({ target: { name: 'status', value: '준비중' } })}
+                  color={selectedShipment.status === '준비중' ? 'info' : 'inherit'}
+                  variant={selectedShipment.status === '준비중' ? 'contained' : 'outlined'}
+                >
+                  준비중
+                </Button>
+                <Button
+                  onClick={() => handleChange({ target: { name: 'status', value: '배송중' } })}
+                  color={selectedShipment.status === '배송중' ? 'warning' : 'inherit'}
+                  variant={selectedShipment.status === '배송중' ? 'contained' : 'outlined'}
+                >
+                  배송중
+                </Button>
+                <Button
+                  onClick={() => handleChange({ target: { name: 'status', value: '출고완료' } })}
+                  color={selectedShipment.status === '출고완료' ? 'success' : 'inherit'}
+                  variant={selectedShipment.status === '출고완료' ? 'contained' : 'outlined'}
+                >
+                  출고완료
+                </Button>
+              </ButtonGroup>
+            )}
+          </Box>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button onClick={() => setOpenDialog(false)}>취소</Button>
+            {selectedShipment && selectedShipment.id && (
+              <>
+                <Button 
+                  onClick={handlePrint}
+                  color="primary"
+                  startIcon={<PrintIcon />}
+                >
+                  프린트
+                </Button>
+                <Button 
+                  onClick={() => handleDeleteClick(selectedShipment)}
+                  color="error"
+                  startIcon={<DeleteIcon />}
+                >
+                  삭제
+                </Button>
+              </>
+            )}
+            <Button onClick={handleSave} variant="contained" color="primary" disabled={!selectedShipment}>
+              저장
+            </Button>
+          </Box>
         </DialogActions>
       </Dialog>
       
