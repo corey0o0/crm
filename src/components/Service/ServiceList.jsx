@@ -791,8 +791,8 @@ function ServiceList() {
             size="small"
           />
           {row.status.includes('완료') && row.completion_date && (
-            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-              {row.completion_date}
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
+              {row.completion_date.replace(/\d{4}-(\d{2})-(\d{2})/, '$1-$2')}
             </Typography>
           )}
         </Box>
@@ -887,8 +887,8 @@ function ServiceList() {
               size="small"
             />
             {row.status.includes('완료') && row.completion_date && (
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-                {row.completion_date}
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
+                {row.completion_date.replace(/\d{4}-(\d{2})-(\d{2})/, '$1-$2')}
               </Typography>
             )}
           </Box>
