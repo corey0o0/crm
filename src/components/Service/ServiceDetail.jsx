@@ -35,7 +35,9 @@ import {
   Tooltip,
   FormControl,
   InputLabel,
-  Select
+  Select,
+  Checkbox,
+  FormControlLabel
 } from '@mui/material';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
@@ -118,6 +120,7 @@ function ServiceDetail() {
   const [previewUrl, setPreviewUrl] = useState('');
   const [previewType, setPreviewType] = useState('');
   const [productOptions, setProductOptions] = useState([]);
+  const [showPriceEdit, setShowPriceEdit] = useState(false);
 
   const fetchServiceDetail = React.useCallback(async () => {
     try {
@@ -130,7 +133,8 @@ function ServiceDetail() {
             id,
             part_id,
             quantity,
-            price
+            price,
+            usage
           ),
           service_tags (
             tag_name
@@ -177,6 +181,8 @@ function ServiceDetail() {
           return {
             ...part,
             quantity: sp.quantity,
+            price: sp.price,
+            usage: sp.usage || 'A/S',
             totalPrice: sp.price * sp.quantity
           };
         });
@@ -309,7 +315,8 @@ function ServiceDetail() {
           service_id: id,
           part_id: part.id,
           quantity: part.quantity,
-          price: part.price || 0
+          price: part.price || 0,
+          usage: part.usage || 'A/S'
         }));
 
         const { error: insertPartsError } = await supabase
@@ -422,9 +429,11 @@ function ServiceDetail() {
         const newPart = {
           id: selectedPart.id,
           name: selectedPart.name,
+          code: selectedPart.code,
           quantity: partQuantity,
           price: modifiedPrice || selectedPart.price || 0,
-          total: (modifiedPrice || selectedPart.price || 0) * partQuantity
+          total: (modifiedPrice || selectedPart.price || 0) * partQuantity,
+          usage: 'A/S' // 기본값으로 A/S 설정
         };
         setSelectedParts(prev => [...prev, newPart]);
       }
@@ -635,63 +644,40 @@ function ServiceDetail() {
     }
   };
 
-  // 가격 저장 핸들러 추가
+  // 가격 저장 핸들러 수정
   const handleSavePrice = async (index) => {
     try {
-      const updatedParts = [...selectedParts];
-      const part = updatedParts[index];
+      const updatedPart = selectedParts[index];
       
       console.log('가격 저장 시작:', {
-        '부품명': part.name,
-        '부품 ID': part.id,
-        '새 가격': part.price,
-        '수량': part.quantity,
-        '총액': part.total
+        '부품명': updatedPart.name,
+        '부품 ID': updatedPart.id,
+        '새 가격': updatedPart.price,
+        '수량': updatedPart.quantity,
+        '총액': updatedPart.total
       });
 
-      // 서비스 데이터에서 selected_parts 필드 업데이트
-      const { data: currentService, error: fetchError } = await supabase
-        .from('services')
-        .select('selected_parts')
-        .eq('id', id)
-        .single();
-
-      if (fetchError) {
-        console.error('서비스 데이터 조회 중 오류:', fetchError);
-        throw fetchError;
-      }
-
-      console.log('현재 서비스의 부품 데이터:', currentService.selected_parts);
-
-      const updatedServiceParts = currentService.selected_parts.map(servicePart => 
-        servicePart.id === part.id ? 
-        { ...servicePart, price: part.price, total: part.total } : 
-        servicePart
-      );
-
-      console.log('업데이트될 서비스의 부품 데이터:', updatedServiceParts);
-
+      // service_parts 테이블 업데이트
       const { error: updateError } = await supabase
-        .from('services')
+        .from('service_parts')
         .update({ 
-          selected_parts: updatedServiceParts,
-          updated_at: new Date().toISOString()
+          price: updatedPart.price,
+          quantity: updatedPart.quantity,
+          usage: updatedPart.usage || 'A/S'
         })
-        .eq('id', id);
+        .eq('service_id', id)
+        .eq('part_id', updatedPart.id);
 
       if (updateError) {
-        console.error('서비스 데이터 업데이트 중 오류:', updateError);
+        console.error('부품 데이터 업데이트 중 오류:', updateError);
         throw updateError;
       }
 
       console.log('가격 저장 완료:', {
         '서비스 ID': id,
-        '업데이트된 부품 수': updatedServiceParts.length,
-        '업데이트된 데이터': updatedServiceParts
+        '부품 ID': updatedPart.id,
+        '업데이트된 가격': updatedPart.price
       });
-      
-      // 성공적으로 저장된 후 현재 상태 업데이트
-      setSelectedParts(updatedServiceParts);
       
       setSnackbar({
         open: true,
@@ -924,6 +910,28 @@ function ServiceDetail() {
     }
   }, [formData.brand]);
 
+  // handleUsageChange 함수 추가 (컴포넌트 내부의 다른 함수들과 같은 레벨에 추가)
+  const handleUsageChange = (index, newUsage) => {
+    const updatedParts = [...selectedParts];
+    updatedParts[index] = {
+      ...updatedParts[index],
+      usage: newUsage
+    };
+    setSelectedParts(updatedParts);
+  };
+
+  // handleQuantityChange 함수 추가 (컴포넌트 내부의 다른 함수들과 같은 레벨에 추가)
+  const handleQuantityChange = (index, newQuantity) => {
+    const updatedParts = [...selectedParts];
+    const qty = Math.max(1, Number(newQuantity) || 1);
+    updatedParts[index] = {
+      ...updatedParts[index],
+      quantity: qty,
+      total: updatedParts[index].price * qty
+    };
+    setSelectedParts(updatedParts);
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -954,6 +962,18 @@ function ServiceDetail() {
       }}>
         사용 부품
       </Typography>
+      <Box sx={{ mb: 1 }}>
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={showPriceEdit}
+              onChange={e => setShowPriceEdit(e.target.checked)}
+              color="primary"
+            />
+          }
+          label="가격 수정"
+        />
+      </Box>
       <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
         <Box sx={{ display: 'flex', gap: 2 }}>
           <Button
@@ -1040,6 +1060,7 @@ function ServiceDetail() {
               <TableCell align="right">수량</TableCell>
               <TableCell align="right">금액</TableCell>
               <TableCell align="right">가격 수정</TableCell>
+              <TableCell align="center">용도</TableCell>
               <TableCell align="center">작업</TableCell>
             </TableRow>
           </TableHead>
@@ -1051,51 +1072,88 @@ function ServiceDetail() {
                 <TableCell align="right">
                   {part.price.toLocaleString()}원
                 </TableCell>
-                <TableCell align="right">{part.quantity}</TableCell>
+                <TableCell align="right">
+                  <TextField
+                    type="number"
+                    size="small"
+                    value={part.quantity}
+                    onChange={e => handleQuantityChange(index, e.target.value)}
+                    sx={{
+                      width: '80px',
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: 1,
+                        bgcolor: '#f9fafb'
+                      }
+                    }}
+                    InputProps={{
+                      inputProps: { min: 1, step: '1' }
+                    }}
+                  />
+                </TableCell>
                 <TableCell align="right">
                   {(part.price * part.quantity).toLocaleString()}원
                 </TableCell>
                 <TableCell align="right" sx={{ minWidth: '200px' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'flex-end' }}>
-                    <TextField
-                      type="number"
-                      size="small"
-                      value={part.price}
-                      onChange={(e) => handlePriceChange(index, e.target.value)}
-                      onBlur={() => console.log('가격 입력 필드 blur - 현재 값:', {
-                        '부품명': part.name,
-                        '가격': part.price,
-                        '총액': part.total
-                      })}
-                      sx={{ 
-                        width: '120px',
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 1,
-                          bgcolor: '#f9fafb'
-                        }
-                      }}
-                      InputProps={{
-                        inputProps: { 
-                          min: 0,
-                          step: "1"
-                        },
-                        startAdornment: <InputAdornment position="start">₩</InputAdornment>
-                      }}
-                    />
-                    <Button
-                      size="small"
-                      variant="contained"
-                      onClick={() => handleSavePrice(index)}
-                      sx={{ 
-                        minWidth: 'auto',
-                        px: 2,
-                        bgcolor: '#3182f6',
-                        '&:hover': { bgcolor: '#1b64da' }
-                      }}
-                    >
-                      저장
-                    </Button>
-                  </Box>
+                  {showPriceEdit && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'flex-end' }}>
+                      <TextField
+                        type="number"
+                        size="small"
+                        value={part.price}
+                        onChange={(e) => handlePriceChange(index, e.target.value)}
+                        onBlur={() => console.log('가격 입력 필드 blur - 현재 값:', {
+                          '부품명': part.name,
+                          '가격': part.price,
+                          '총액': part.total
+                        })}
+                        sx={{ 
+                          width: '120px',
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 1,
+                            bgcolor: '#f9fafb'
+                          }
+                        }}
+                        InputProps={{
+                          inputProps: { 
+                            min: 0,
+                            step: "1"
+                          },
+                          startAdornment: <InputAdornment position="start">₩</InputAdornment>
+                        }}
+                      />
+                      <Button
+                        size="small"
+                        variant="contained"
+                        onClick={() => handleSavePrice(index)}
+                        sx={{ 
+                          minWidth: 'auto',
+                          px: 2,
+                          bgcolor: '#3182f6',
+                          '&:hover': { bgcolor: '#1b64da' }
+                        }}
+                      >
+                        저장
+                      </Button>
+                    </Box>
+                  )}
+                </TableCell>
+                <TableCell align="center">
+                  <Select
+                    size="small"
+                    value={part.usage || 'A/S'}
+                    onChange={(e) => handleUsageChange(index, e.target.value)}
+                    sx={{ 
+                      minWidth: 100,
+                      height: '32px',
+                      '& .MuiSelect-select': {
+                        py: 0.5
+                      }
+                    }}
+                  >
+                    <MenuItem value="A/S">A/S</MenuItem>
+                    <MenuItem value="판매">판매</MenuItem>
+                    <MenuItem value="워런티">워런티</MenuItem>
+                  </Select>
                 </TableCell>
                 <TableCell align="center">
                   <IconButton
@@ -1321,68 +1379,64 @@ function ServiceDetail() {
                       )}
                     />
                   </Grid>
-                  <Grid item xs={12} sx={{ display: 'flex', gap: 1 }}>
-                    <Box sx={{ display: 'flex', gap: 1, flex: 1 }}>
-                      <Button 
-                        onClick={() => handleStatusChange('접수')}
-                        variant="contained"
+                  <Grid item xs={12}>
+                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button 
+                          onClick={() => handleStatusChange('접수')}
+                          variant="contained"
+                          size="small"
+                          sx={{
+                            marginLeft: '8px',
+                            backgroundColor: formData.status === '접수' ? '#3182f6' : '#f2f4f6',
+                            color: formData.status === '접수' ? '#ffffff' : '#4e5968',
+                            '&:hover': {
+                              backgroundColor: formData.status === '접수' ? '#1b64da' : '#e5e8eb'
+                            }
+                          }}
+                        >
+                          접수
+                        </Button>
+                        <Button 
+                          onClick={() => handleStatusChange('처리중')}
+                          variant="contained"
+                          size="small"
+                          sx={{
+                            marginLeft: '8px',
+                            backgroundColor: formData.status === '처리중' ? '#3182f6' : '#f2f4f6',
+                            color: formData.status === '처리중' ? '#ffffff' : '#4e5968',
+                            '&:hover': {
+                              backgroundColor: formData.status === '처리중' ? '#1b64da' : '#e5e8eb'
+                            }
+                          }}
+                        >
+                          처리중
+                        </Button>
+                        <Button 
+                          onClick={() => handleStatusChange('완료')}
+                          variant="contained"
+                          size="small"
+                          sx={{
+                            marginLeft: '8px',
+                            backgroundColor: formData.status === '완료' ? '#3182f6' : '#f2f4f6',
+                            color: formData.status === '완료' ? '#ffffff' : '#4e5968',
+                            '&:hover': {
+                              backgroundColor: formData.status === '완료' ? '#1b64da' : '#e5e8eb'
+                            }
+                          }}
+                        >
+                          완료
+                        </Button>
+                      </Box>
+                      <TextField
                         size="small"
-                        sx={{
-                          marginLeft: '8px',
-                          backgroundColor: formData.status === '접수' ? '#3182f6' : '#f2f4f6',
-                          color: formData.status === '접수' ? '#ffffff' : '#4e5968',
-                          '&:hover': {
-                            backgroundColor: formData.status === '접수' ? '#1b64da' : '#e5e8eb'
-                          }
-                        }}
-                      >
-                        접수
-                      </Button>
-                      <Button 
-                        onClick={() => handleStatusChange('처리중')}
-                        variant="contained"
-                        size="small"
-                        sx={{
-                          marginLeft: '8px',
-                          backgroundColor: formData.status === '처리중' ? '#3182f6' : '#f2f4f6',
-                          color: formData.status === '처리중' ? '#ffffff' : '#4e5968',
-                          '&:hover': {
-                            backgroundColor: formData.status === '처리중' ? '#1b64da' : '#e5e8eb'
-                          }
-                        }}
-                      >
-                        처리중
-                      </Button>
-                      <Button 
-                        onClick={() => handleStatusChange('완료')}
-                        variant="contained"
-                        size="small"
-                        sx={{
-                          marginLeft: '8px',
-                          backgroundColor: formData.status === '완료' ? '#3182f6' : '#f2f4f6',
-                          color: formData.status === '완료' ? '#ffffff' : '#4e5968',
-                          '&:hover': {
-                            backgroundColor: formData.status === '완료' ? '#1b64da' : '#e5e8eb'
-                          }
-                        }}
-                      >
-                        완료
-                      </Button>
+                        name="writer"
+                        label="작성자"
+                        value={formData.writer}
+                        onChange={handleChange}
+                        sx={{ width: '150px' }}
+                      />
                     </Box>
-                    <TextField
-                      size="small"
-                      name="writer"
-                      label="작성자"
-                      value={formData.writer || ''}
-                      onChange={handleChange}
-                      sx={{
-                        width: '150px',
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 1,
-                          bgcolor: '#f9fafb'
-                        }
-                      }}
-                    />
                   </Grid>
                 </Grid>
               </Box>

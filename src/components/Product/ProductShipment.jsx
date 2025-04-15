@@ -460,7 +460,7 @@ function ProductShipment() {
       }
 
       const shipmentData = {
-        brand: selectedShipment.brand,
+        brand: selectedBrand,
         shipment_date: selectedShipment.shipment_date,
         status: selectedShipment.status || '준비중',
         customer_name: selectedShipment.customer_name?.trim(),
@@ -1463,50 +1463,6 @@ function ProductShipment() {
           {selectedShipment && selectedShipment.id ? '출고 정보 수정' : '신규 출고 등록'}
         </DialogTitle>
         <DialogContent>
-          {/* 엑셀 관련 버튼 추가 */}
-          <Stack 
-            direction="row" 
-            spacing={2} 
-            sx={{ mb: 3 }}
-          >
-            <Button
-              variant="outlined"
-              startIcon={<DownloadIcon />}
-              onClick={handleDownloadTemplate}
-              sx={{ 
-                color: '#3182f6',
-                borderColor: '#3182f6',
-                '&:hover': { 
-                  bgcolor: 'rgba(49, 130, 246, 0.04)',
-                  borderColor: '#1b64da'
-                }
-              }}
-            >
-              엑셀 템플릿
-            </Button>
-            <Button
-              component="label"
-              variant="outlined"
-              startIcon={<CloudUploadIcon />}
-              sx={{ 
-                color: '#3182f6',
-                borderColor: '#3182f6',
-                '&:hover': { 
-                  bgcolor: 'rgba(49, 130, 246, 0.04)',
-                  borderColor: '#1b64da'
-                }
-              }}
-            >
-              엑셀 등록
-              <input
-                type="file"
-                accept=".xlsx, .xls"
-                hidden
-                onChange={handleFileUpload}
-              />
-            </Button>
-          </Stack>
-
           {selectedShipment && (
             <Grid container spacing={2} sx={{ mt: 1 }}>
               <Grid item xs={12} md={4}>
