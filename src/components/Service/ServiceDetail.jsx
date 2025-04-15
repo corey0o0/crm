@@ -1512,6 +1512,7 @@ function ServiceDetail() {
                           value={formData.reception_type}
                           onChange={handleChange}
                         >
+                          <MenuItem value="공홈">공홈</MenuItem>
                           <MenuItem value="방문">방문</MenuItem>
                           <MenuItem value="전화">전화</MenuItem>
                           <MenuItem value="온라인">온라인</MenuItem>
@@ -1563,7 +1564,7 @@ function ServiceDetail() {
                       multiline
                       rows={5}
                       name="symptom"
-                      label="증상"
+                      label="문의내용"
                       value={formData.symptom}
                       onChange={handleChange}
                       sx={{

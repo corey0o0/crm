@@ -93,6 +93,11 @@ function ServiceList() {
   const [addServiceDialogOpen, setAddServiceDialogOpen] = useState(false);
   const [excelUploadDialogOpen, setExcelUploadDialogOpen] = useState(false);
   const [uploadLoading, setUploadLoading] = useState(false);
+  const [dateFilter, setDateFilter] = useState({
+    type: 'reception_date',
+    startDate: '',
+    endDate: ''
+  });
 
   const brandColors = {
     xlider: {
@@ -187,7 +192,7 @@ function ServiceList() {
   }, [selectedBrand]);
 
   useEffect(() => {
-    // 브랜드와 검색어, 상태 필터 모두 적용
+    // 브랜드와 검색어, 상태 필터, 날짜 필터 모두 적용
     const filtered = services.filter(service => {
       const matchesBrand = service.brand === selectedBrand;
       const matchesSearch = searchTerm === '' || 
@@ -199,12 +204,23 @@ function ServiceList() {
       const matchesStatus = 
         statusFilter === 'all' || service.status === statusFilter;
 
-      return matchesBrand && matchesSearch && matchesStatus;
+      // 날짜 필터링 추가
+      let matchesDate = true;
+      if (dateFilter.startDate || dateFilter.endDate) {
+        const serviceDate = service[dateFilter.type];
+        if (dateFilter.startDate && (!serviceDate || serviceDate < dateFilter.startDate)) {
+          matchesDate = false;
+        }
+        if (dateFilter.endDate && (!serviceDate || serviceDate > dateFilter.endDate)) {
+          matchesDate = false;
+        }
+      }
+
+      return matchesBrand && matchesSearch && matchesStatus && matchesDate;
     });
     setFilteredServices(filtered);
-    // 검색 결과가 변경될 때마다 첫 페이지로 이동
     setPage(0);
-  }, [searchTerm, statusFilter, services, selectedBrand]);
+  }, [searchTerm, statusFilter, services, selectedBrand, dateFilter]);
 
   // 데이터 로딩 상태 확인을 위한 useEffect
   useEffect(() => {
@@ -735,16 +751,25 @@ function ServiceList() {
     },
     { 
       id: 'symptom', 
-      label: '증상',
+      label: '문의내용',
       sortable: true,
       render: (row) => (
-        <Typography sx={{ 
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word',
-          maxWidth: '300px'  // 최대 너비 설정
-        }}>
-          {row.symptom}
-        </Typography>
+        <Tooltip title={row.symptom} placement="top-start">
+          <Typography sx={{ 
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+            maxWidth: '300px',
+            display: '-webkit-box',
+            WebkitLineClamp: 4,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            lineHeight: '1.2em',
+            maxHeight: '4.8em' // lineHeight * WebkitLineClamp
+          }}>
+            {row.symptom}
+          </Typography>
+        </Tooltip>
       )
     },
     { 
@@ -791,8 +816,8 @@ function ServiceList() {
             size="small"
           />
           {row.status.includes('완료') && row.completion_date && (
-            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
-              {row.completion_date.replace(/\d{4}-(\d{2})-(\d{2})/, '$1-$2')}
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.9rem' }}>
+              {row.completion_date.replace(/(\d{4})-(\d{2})-(\d{2})/, (_, y, m, d) => `${y.slice(-2)}-${m}-${d}`)}
             </Typography>
           )}
         </Box>
@@ -859,7 +884,7 @@ function ServiceList() {
           )}
         </Box>
         <Typography variant="body2" sx={{ mt: 1 }}>
-          증상: {row.symptom}
+          문의내용: {row.symptom}
         </Typography>
         <Typography variant="body2" sx={{ mt: 1 }}>
           주행거리: {row.mileage || '-'}
@@ -887,8 +912,8 @@ function ServiceList() {
               size="small"
             />
             {row.status.includes('완료') && row.completion_date && (
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
-                {row.completion_date.replace(/\d{4}-(\d{2})-(\d{2})/, '$1-$2')}
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.9rem' }}>
+                {row.completion_date.replace(/(\d{4})-(\d{2})-(\d{2})/, (_, y, m, d) => `${y.slice(-2)}-${m}-${d}`)}
               </Typography>
             )}
           </Box>
@@ -1057,17 +1082,49 @@ function ServiceList() {
       </Box>
 
       <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <TextField
-          select
-          value={statusFilter}
-          onChange={handleStatusFilterChange}
-          sx={{ width: 150 }}
-        >
-          <MenuItem value="all">전체 상태</MenuItem>
-          <MenuItem value="접수">접수</MenuItem>
-          <MenuItem value="처리중">처리중</MenuItem>
-          <MenuItem value="완료">완료</MenuItem>
-        </TextField>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          <TextField
+            select
+            value={statusFilter}
+            onChange={handleStatusFilterChange}
+            sx={{ width: 150 }}
+            size="small"
+          >
+            <MenuItem value="all">전체 상태</MenuItem>
+            <MenuItem value="접수">접수</MenuItem>
+            <MenuItem value="처리중">처리중</MenuItem>
+            <MenuItem value="완료">완료</MenuItem>
+          </TextField>
+
+          <TextField
+            select
+            value={dateFilter.type}
+            onChange={(e) => setDateFilter(prev => ({ ...prev, type: e.target.value }))}
+            sx={{ width: 150 }}
+            size="small"
+          >
+            <MenuItem value="reception_date">접수일자</MenuItem>
+            <MenuItem value="completion_date">완료일자</MenuItem>
+          </TextField>
+
+          <TextField
+            type="date"
+            value={dateFilter.startDate}
+            onChange={(e) => setDateFilter(prev => ({ ...prev, startDate: e.target.value }))}
+            sx={{ width: 150 }}
+            size="small"
+            InputLabelProps={{ shrink: true }}
+          />
+          <Typography variant="body2" sx={{ mx: 1 }}>~</Typography>
+          <TextField
+            type="date"
+            value={dateFilter.endDate}
+            onChange={(e) => setDateFilter(prev => ({ ...prev, endDate: e.target.value }))}
+            sx={{ width: 150 }}
+            size="small"
+            InputLabelProps={{ shrink: true }}
+          />
+        </Box>
       </Box>
 
       {/* 검색 및 필터 영역 */}
@@ -1604,7 +1661,7 @@ function ServiceList() {
                 </Typography>
               </Grid>
               <Grid item xs={12}>
-                <Typography variant="subtitle2" color="textSecondary">증상</Typography>
+                <Typography variant="subtitle2" color="textSecondary">문의내용</Typography>
                 <Typography variant="body1">{selectedService.symptom}</Typography>
               </Grid>
               <Grid item xs={12}>

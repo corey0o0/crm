@@ -52,7 +52,7 @@ import XLSX from 'xlsx';
 import { Close as CloseIcon } from '@mui/icons-material';
 
 // 접수방법과 배송방법 옵션
-const RECEPTION_TYPES = ['방문', '전화', '대리점','기타'];
+const RECEPTION_TYPES = ['공홈', '방문', '전화', '대리점', '기타'];
 const DELIVERY_METHODS = ['방문수령', '택배', '퀵-선불', '퀵-착불'];
 
 // 사전 정의된 태그 목록
@@ -446,7 +446,7 @@ function AddService() {
               customer_phone: row['연락처'] || '',
               customer_address: row['주소'] || '',
               product_name: row['제품'] || '',
-              symptom: row['증상'] || '',
+              symptom: row['문의내용'] || '',
               solution: row['처리내역'] || '',
               status: row['상태'] || '접수',
               note: row['메모'] || '',
@@ -1089,7 +1089,7 @@ function AddService() {
                       multiline
                       rows={5}
                       name="symptom"
-                      label="증상"
+                      label="문의내용"
                       value={formData.symptom}
                       onChange={handleInputChange}
                       sx={{
