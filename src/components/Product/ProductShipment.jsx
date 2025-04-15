@@ -700,7 +700,24 @@ function ProductShipment() {
   };
 
   const columns = [
-    { id: 'shipment_date', label: '주문일자' },
+    { id: 'created_at', label: '주문일자',
+      render: (row) => (
+        <Typography>
+          {isValid(parseISO(row.created_at)) 
+            ? format(parseISO(row.created_at), 'yyyy-MM-dd')
+            : '-'}
+        </Typography>
+      )
+    },
+    { id: 'shipment_date', label: '출고일자',
+      render: (row) => (
+        <Typography>
+          {isValid(parseISO(row.shipment_date)) 
+            ? format(parseISO(row.shipment_date), 'yyyy-MM-dd')
+            : '-'}
+        </Typography>
+      )
+    },
     { id: 'customer_name', label: '이름',
       render: (row) => (
         <Typography>{row.customer_name}</Typography>

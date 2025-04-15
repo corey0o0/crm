@@ -711,7 +711,7 @@ function ServiceList() {
     },
     { 
       id: 'product_name', 
-      label: '제품',
+      label: '내역',
       sortable: true,
       render: (row) => (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
@@ -784,11 +784,18 @@ function ServiceList() {
       label: '상태',
       sortable: true,
       render: (row) => (
-        <Chip
-          label={getDisplayStatus(row.status)}
-          color={getStatusColor(row.status)}
-          size="small"
-        />
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
+          <Chip
+            label={getDisplayStatus(row.status)}
+            color={getStatusColor(row.status)}
+            size="small"
+          />
+          {row.status.includes('완료') && row.completion_date && (
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+              {row.completion_date}
+            </Typography>
+          )}
+        </Box>
       )
     },
     { 
@@ -836,7 +843,7 @@ function ServiceList() {
         </Typography>
         <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
           <Typography variant="body2">
-            제품: {row.product_name}
+            내역: {row.product_name}
           </Typography>
           {(row.note?.includes('JPG:') || row.receipt_link) && (
             <Tooltip title="영수증 첨부됨">
@@ -844,7 +851,8 @@ function ServiceList() {
                 sx={{ 
                   fontSize: '1rem', 
                   color: 'primary.main',
-                  opacity: 0.7 
+                  opacity: 0.7,
+                  flexShrink: 0
                 }} 
               />
             </Tooltip>
@@ -872,11 +880,18 @@ function ServiceList() {
           ))}
         </Box>
         <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Chip
-            label={getDisplayStatus(row.status)}
-            color={getStatusColor(row.status)}
-            size="small"
-          />
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 0.5 }}>
+            <Chip
+              label={getDisplayStatus(row.status)}
+              color={getStatusColor(row.status)}
+              size="small"
+            />
+            {row.status.includes('완료') && row.completion_date && (
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                {row.completion_date}
+              </Typography>
+            )}
+          </Box>
           <Box>
             <IconButton size="small" onClick={(e) => {
               e.stopPropagation();
