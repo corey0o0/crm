@@ -572,7 +572,8 @@ function ServiceList() {
                 writer: row['작성자'] || '관리자',
                 service_parts: [],
                 service_tags: [],
-                created_at: new Date().toISOString()
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
               };
             });
 
