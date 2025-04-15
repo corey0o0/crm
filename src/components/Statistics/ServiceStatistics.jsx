@@ -19,6 +19,8 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material';
 import {
   BarChart,
@@ -30,27 +32,34 @@ import {
   Legend,
   ResponsiveContainer,
   LineChart,
-  Line
+  Line,
+  PieChart,
+  Pie,
+  Cell
 } from 'recharts';
 import { supabase } from '../../lib/supabaseClient';
+import { startOfWeek, endOfWeek, format, parseISO, addDays } from 'date-fns';
+import { ko } from 'date-fns/locale';
 
 function ServiceStatistics() {
   const [selectedBrand, setSelectedBrand] = useState('XRB');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState('monthly');
+  const [dailyData, setDailyData] = useState([]);
+  const [weeklyData, setWeeklyData] = useState([]);
   const [monthlyData, setMonthlyData] = useState([]);
   const [yearlyComparison, setYearlyComparison] = useState([]);
   const [profitAnalysis, setProfitAnalysis] = useState([]);
 
   useEffect(() => {
     fetchStatisticsData();
-  }, [selectedBrand, selectedYear]);
+  }, [selectedBrand, selectedYear, viewMode]);
 
   const fetchStatisticsData = async () => {
     setLoading(true);
     try {
-      // 1. 월별 통계 데이터 가져오기
-      const { data: currentYearData, error: currentYearError } = await supabase
+      const { data: servicesData, error } = await supabase
         .from('services')
         .select(`
           *,
@@ -59,44 +68,27 @@ function ServiceStatistics() {
             quantity,
             price,
             parts (
-              cost_price
+              cost_price,
+              name
             )
-          )
+          ),
+          labor_cost
         `)
         .eq('brand', selectedBrand)
         .gte('reception_date', `${selectedYear}-01-01`)
         .lte('reception_date', `${selectedYear}-12-31`);
 
-      if (currentYearError) throw currentYearError;
+      if (error) throw error;
 
-      // 2. 전년도 데이터 가져오기
-      const { data: previousYearData, error: previousYearError } = await supabase
-        .from('services')
-        .select(`
-          *,
-          service_parts (
-            part_id,
-            quantity,
-            price,
-            parts (
-              cost_price
-            )
-          )
-        `)
-        .eq('brand', selectedBrand)
-        .gte('reception_date', `${selectedYear - 1}-01-01`)
-        .lte('reception_date', `${selectedYear - 1}-12-31`);
+      // 일별, 주별, 월별 데이터 처리
+      const daily = processDailyData(servicesData);
+      const weekly = processWeeklyData(servicesData);
+      const monthly = processMonthlyData(servicesData);
 
-      if (previousYearError) throw previousYearError;
-
-      // 3. 데이터 가공
-      const monthlyStats = processMonthlyData(currentYearData);
-      const yearComparison = compareYearlyData(currentYearData, previousYearData);
-      const profitStats = calculateProfitAnalysis(currentYearData);
-
-      setMonthlyData(monthlyStats);
-      setYearlyComparison(yearComparison);
-      setProfitAnalysis(profitStats);
+      setDailyData(daily);
+      setWeeklyData(weekly);
+      setMonthlyData(monthly);
+      setProfitAnalysis(calculateProfitAnalysis(servicesData));
 
     } catch (error) {
       console.error('통계 데이터 조회 중 오류:', error);
@@ -105,98 +97,194 @@ function ServiceStatistics() {
     }
   };
 
-  // 월별 데이터 처리
+  const processDailyData = (data) => {
+    const dailyStats = {};
+    
+    data.forEach(service => {
+      const date = service.reception_date;
+      if (!dailyStats[date]) {
+        dailyStats[date] = {
+          date,
+          count: 0,
+          partsRevenue: 0,
+          partsCost: 0,
+          laborRevenue: 0,
+          totalRevenue: 0,
+          totalProfit: 0
+        };
+      }
+
+      // 파츠 매출과 비용 계산
+      let partsRevenue = 0;
+      let partsCost = 0;
+      service.service_parts?.forEach(part => {
+        partsRevenue += part.price * part.quantity;
+        partsCost += (part.parts?.cost_price || 0) * part.quantity;
+      });
+
+      // 공임 매출 계산
+      const laborRevenue = service.labor_cost || 0;
+
+      dailyStats[date].count++;
+      dailyStats[date].partsRevenue += partsRevenue;
+      dailyStats[date].partsCost += partsCost;
+      dailyStats[date].laborRevenue += laborRevenue;
+      dailyStats[date].totalRevenue += (partsRevenue + laborRevenue);
+      dailyStats[date].totalProfit += (partsRevenue - partsCost + laborRevenue);
+    });
+
+    return Object.values(dailyStats).sort((a, b) => a.date.localeCompare(b.date));
+  };
+
+  const processWeeklyData = (data) => {
+    const weeklyStats = {};
+    
+    data.forEach(service => {
+      const date = parseISO(service.reception_date);
+      const weekStart = format(startOfWeek(date, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+      const weekEnd = format(endOfWeek(date, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+      const weekKey = `${weekStart}~${weekEnd}`;
+
+      if (!weeklyStats[weekKey]) {
+        weeklyStats[weekKey] = {
+          week: weekKey,
+          count: 0,
+          partsRevenue: 0,
+          partsCost: 0,
+          laborRevenue: 0,
+          totalRevenue: 0,
+          totalProfit: 0
+        };
+      }
+
+      // 파츠 매출과 비용 계산
+      let partsRevenue = 0;
+      let partsCost = 0;
+      service.service_parts?.forEach(part => {
+        partsRevenue += part.price * part.quantity;
+        partsCost += (part.parts?.cost_price || 0) * part.quantity;
+      });
+
+      // 공임 매출 계산
+      const laborRevenue = service.labor_cost || 0;
+
+      weeklyStats[weekKey].count++;
+      weeklyStats[weekKey].partsRevenue += partsRevenue;
+      weeklyStats[weekKey].partsCost += partsCost;
+      weeklyStats[weekKey].laborRevenue += laborRevenue;
+      weeklyStats[weekKey].totalRevenue += (partsRevenue + laborRevenue);
+      weeklyStats[weekKey].totalProfit += (partsRevenue - partsCost + laborRevenue);
+    });
+
+    return Object.values(weeklyStats).sort((a, b) => a.week.localeCompare(b.week));
+  };
+
   const processMonthlyData = (data) => {
     const months = Array(12).fill(0).map((_, i) => ({
       month: i + 1,
       count: 0,
-      revenue: 0,
-      cost: 0,
-      profit: 0
+      partsRevenue: 0,
+      partsCost: 0,
+      laborRevenue: 0,
+      totalRevenue: 0,
+      totalProfit: 0
     }));
 
     data.forEach(service => {
       const month = new Date(service.reception_date).getMonth();
+      
+      // 파츠 매출과 비용 계산
+      let partsRevenue = 0;
+      let partsCost = 0;
+      service.service_parts?.forEach(part => {
+        partsRevenue += part.price * part.quantity;
+        partsCost += (part.parts?.cost_price || 0) * part.quantity;
+      });
+
+      // 공임 매출 계산
+      const laborRevenue = service.labor_cost || 0;
+
       months[month].count++;
-      
-      // 매출액, 원가, 이익 계산
-      let revenue = 0;
-      let cost = 0;
-      
-      service.service_parts?.forEach(part => {
-        revenue += part.price * part.quantity;
-        cost += (part.parts?.cost_price || 0) * part.quantity;
-      });
-
-      months[month].revenue += revenue;
-      months[month].cost += cost;
-      months[month].profit += (revenue - cost);
+      months[month].partsRevenue += partsRevenue;
+      months[month].partsCost += partsCost;
+      months[month].laborRevenue += laborRevenue;
+      months[month].totalRevenue += (partsRevenue + laborRevenue);
+      months[month].totalProfit += (partsRevenue - partsCost + laborRevenue);
     });
 
     return months;
   };
 
-  // 전년도 비교 데이터 처리
-  const compareYearlyData = (currentData, previousData) => {
-    const months = Array(12).fill(0).map((_, i) => ({
-      month: i + 1,
-      currentYear: 0,
-      previousYear: 0,
-      growth: 0
-    }));
-
-    // 현재년도 데이터 처리
-    currentData.forEach(service => {
-      const month = new Date(service.reception_date).getMonth();
-      months[month].currentYear++;
-    });
-
-    // 전년도 데이터 처리
-    previousData.forEach(service => {
-      const month = new Date(service.reception_date).getMonth();
-      months[month].previousYear++;
-    });
-
-    // 성장률 계산
-    months.forEach(month => {
-      month.growth = month.previousYear === 0 ? 100 :
-        ((month.currentYear - month.previousYear) / month.previousYear) * 100;
-    });
-
-    return months;
-  };
-
-  // 영업이익 분석
   const calculateProfitAnalysis = (data) => {
-    const months = Array(12).fill(0).map((_, i) => ({
-      month: i + 1,
-      revenue: 0,
-      cost: 0,
-      profit: 0,
-      margin: 0
-    }));
+    const totalStats = {
+      partsRevenue: 0,
+      partsCost: 0,
+      laborRevenue: 0,
+      totalRevenue: 0,
+      totalProfit: 0
+    };
 
     data.forEach(service => {
-      const month = new Date(service.reception_date).getMonth();
-      
+      let partsRevenue = 0;
+      let partsCost = 0;
       service.service_parts?.forEach(part => {
-        const revenue = part.price * part.quantity;
-        const cost = (part.parts?.cost_price || 0) * part.quantity;
-        const profit = revenue - cost;
-
-        months[month].revenue += revenue;
-        months[month].cost += cost;
-        months[month].profit += profit;
+        partsRevenue += part.price * part.quantity;
+        partsCost += (part.parts?.cost_price || 0) * part.quantity;
       });
+
+      const laborRevenue = service.labor_cost || 0;
+
+      totalStats.partsRevenue += partsRevenue;
+      totalStats.partsCost += partsCost;
+      totalStats.laborRevenue += laborRevenue;
+      totalStats.totalRevenue += (partsRevenue + laborRevenue);
+      totalStats.totalProfit += (partsRevenue - partsCost + laborRevenue);
     });
 
-    // 이익률 계산
-    months.forEach(month => {
-      month.margin = month.revenue === 0 ? 0 :
-        (month.profit / month.revenue) * 100;
-    });
+    return totalStats;
+  };
 
-    return months;
+  const renderChart = () => {
+    let data = [];
+    let xAxisKey = '';
+    let xAxisFormatter = (value) => value;
+
+    switch (viewMode) {
+      case 'daily':
+        data = dailyData;
+        xAxisKey = 'date';
+        xAxisFormatter = (value) => format(parseISO(value), 'MM/dd');
+        break;
+      case 'weekly':
+        data = weeklyData;
+        xAxisKey = 'week';
+        xAxisFormatter = (value) => {
+          const [start] = value.split('~');
+          return format(parseISO(start), 'MM/dd');
+        };
+        break;
+      case 'monthly':
+        data = monthlyData;
+        xAxisKey = 'month';
+        xAxisFormatter = (value) => `${value}월`;
+        break;
+    }
+
+    return (
+      <ResponsiveContainer width="100%" height={400}>
+        <BarChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey={xAxisKey} tickFormatter={xAxisFormatter} />
+          <YAxis yAxisId="left" />
+          <YAxis yAxisId="right" orientation="right" />
+          <Tooltip />
+          <Legend />
+          <Bar yAxisId="left" dataKey="partsRevenue" name="파츠 매출" fill="#8884d8" />
+          <Bar yAxisId="left" dataKey="laborRevenue" name="공임 매출" fill="#82ca9d" />
+          <Bar yAxisId="right" dataKey="count" name="건수" fill="#ffc658" />
+        </BarChart>
+      </ResponsiveContainer>
+    );
   };
 
   if (loading) {
@@ -210,7 +298,7 @@ function ServiceStatistics() {
   return (
     <Box sx={{ maxWidth: '1800px', mx: 'auto', p: 3 }}>
       {/* 필터 영역 */}
-      <Box sx={{ mb: 4, display: 'flex', gap: 2 }}>
+      <Box sx={{ mb: 4, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
         <FormControl sx={{ minWidth: 120 }}>
           <InputLabel>브랜드</InputLabel>
           <Select
@@ -237,124 +325,107 @@ function ServiceStatistics() {
             })}
           </Select>
         </FormControl>
+        <ToggleButtonGroup
+          value={viewMode}
+          exclusive
+          onChange={(e, newMode) => newMode && setViewMode(newMode)}
+          aria-label="통계 보기 모드"
+        >
+          <ToggleButton value="daily">일별</ToggleButton>
+          <ToggleButton value="weekly">주별</ToggleButton>
+          <ToggleButton value="monthly">월별</ToggleButton>
+        </ToggleButtonGroup>
       </Box>
 
       {/* 요약 카드 */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} md={3}>
+        <Grid item xs={12} md={4}>
           <Card>
             <CardContent>
-              <Typography color="textSecondary" gutterBottom>
-                총 A/S 건수
+              <Typography color="textSecondary" gutterBottom>파츠 매출/비용</Typography>
+              <Typography variant="h6" color="primary">
+                매출: {profitAnalysis.partsRevenue?.toLocaleString()}원
               </Typography>
-              <Typography variant="h4">
-                {monthlyData.reduce((sum, month) => sum + month.count, 0)}건
+              <Typography variant="h6" color="error">
+                비용: {profitAnalysis.partsCost?.toLocaleString()}원
+              </Typography>
+              <Typography variant="h6" color="success.main">
+                이익: {(profitAnalysis.partsRevenue - profitAnalysis.partsCost)?.toLocaleString()}원
               </Typography>
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} md={3}>
+        <Grid item xs={12} md={4}>
           <Card>
             <CardContent>
-              <Typography color="textSecondary" gutterBottom>
-                총 매출
+              <Typography color="textSecondary" gutterBottom>공임</Typography>
+              <Typography variant="h6" color="primary">
+                {profitAnalysis.laborRevenue?.toLocaleString()}원
               </Typography>
-              <Typography variant="h4">
-                {monthlyData.reduce((sum, month) => sum + month.revenue, 0).toLocaleString()}원
+              <Typography variant="body2" color="textSecondary">
+                전체 매출 대비: {((profitAnalysis.laborRevenue / profitAnalysis.totalRevenue) * 100).toFixed(1)}%
               </Typography>
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} md={3}>
+        <Grid item xs={12} md={4}>
           <Card>
             <CardContent>
-              <Typography color="textSecondary" gutterBottom>
-                총 영업이익
+              <Typography color="textSecondary" gutterBottom>총 실적</Typography>
+              <Typography variant="h6" color="primary">
+                매출: {profitAnalysis.totalRevenue?.toLocaleString()}원
               </Typography>
-              <Typography variant="h4">
-                {monthlyData.reduce((sum, month) => sum + month.profit, 0).toLocaleString()}원
+              <Typography variant="h6" color="success.main">
+                순이익: {profitAnalysis.totalProfit?.toLocaleString()}원
               </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Typography color="textSecondary" gutterBottom>
-                평균 이익률
-              </Typography>
-              <Typography variant="h4">
-                {(monthlyData.reduce((sum, month) => sum + month.profit, 0) / 
-                  monthlyData.reduce((sum, month) => sum + month.revenue, 0) * 100).toFixed(1)}%
+              <Typography variant="body2" color="textSecondary">
+                이익률: {((profitAnalysis.totalProfit / profitAnalysis.totalRevenue) * 100).toFixed(1)}%
               </Typography>
             </CardContent>
           </Card>
         </Grid>
       </Grid>
 
-      {/* 월별 통계 차트 */}
+      {/* 차트 */}
       <Paper sx={{ p: 3, mb: 4 }}>
-        <Typography variant="h6" gutterBottom>월별 A/S 건수</Typography>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={monthlyData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="month" tickFormatter={(value) => `${value}월`} />
-            <YAxis />
-            <Tooltip />
-            <Legend />
-            <Bar dataKey="count" name="A/S 건수" fill="#8884d8" />
-          </BarChart>
-        </ResponsiveContainer>
+        <Typography variant="h6" gutterBottom>매출 추이</Typography>
+        {renderChart()}
       </Paper>
 
-      {/* 전년도 비교 차트 */}
-      <Paper sx={{ p: 3, mb: 4 }}>
-        <Typography variant="h6" gutterBottom>전년도 비교</Typography>
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={yearlyComparison}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="month" tickFormatter={(value) => `${value}월`} />
-            <YAxis />
-            <Tooltip />
-            <Legend />
-            <Line 
-              type="monotone" 
-              dataKey="currentYear" 
-              name={`${selectedYear}년`} 
-              stroke="#8884d8" 
-            />
-            <Line 
-              type="monotone" 
-              dataKey="previousYear" 
-              name={`${selectedYear-1}년`} 
-              stroke="#82ca9d" 
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      </Paper>
-
-      {/* 영업이익 분석 */}
+      {/* 상세 테이블 */}
       <Paper sx={{ p: 3 }}>
-        <Typography variant="h6" gutterBottom>영업이익 분석</Typography>
+        <Typography variant="h6" gutterBottom>상세 내역</Typography>
         <TableContainer>
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>월</TableCell>
-                <TableCell align="right">매출액</TableCell>
-                <TableCell align="right">원가</TableCell>
-                <TableCell align="right">영업이익</TableCell>
+                <TableCell>{viewMode === 'daily' ? '날짜' : viewMode === 'weekly' ? '주차' : '월'}</TableCell>
+                <TableCell align="right">건수</TableCell>
+                <TableCell align="right">파츠 매출</TableCell>
+                <TableCell align="right">파츠 비용</TableCell>
+                <TableCell align="right">공임</TableCell>
+                <TableCell align="right">총 매출</TableCell>
+                <TableCell align="right">순이익</TableCell>
                 <TableCell align="right">이익률</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {profitAnalysis.map((row) => (
-                <TableRow key={row.month}>
-                  <TableCell>{row.month}월</TableCell>
-                  <TableCell align="right">{row.revenue.toLocaleString()}원</TableCell>
-                  <TableCell align="right">{row.cost.toLocaleString()}원</TableCell>
-                  <TableCell align="right">{row.profit.toLocaleString()}원</TableCell>
-                  <TableCell align="right">{row.margin.toFixed(1)}%</TableCell>
+              {(viewMode === 'daily' ? dailyData : viewMode === 'weekly' ? weeklyData : monthlyData).map((row) => (
+                <TableRow key={viewMode === 'monthly' ? row.month : viewMode === 'weekly' ? row.week : row.date}>
+                  <TableCell>
+                    {viewMode === 'monthly' ? `${row.month}월` : 
+                     viewMode === 'weekly' ? format(parseISO(row.week.split('~')[0]), 'MM/dd') : 
+                     format(parseISO(row.date), 'MM/dd')}
+                  </TableCell>
+                  <TableCell align="right">{row.count}건</TableCell>
+                  <TableCell align="right">{row.partsRevenue?.toLocaleString()}원</TableCell>
+                  <TableCell align="right">{row.partsCost?.toLocaleString()}원</TableCell>
+                  <TableCell align="right">{row.laborRevenue?.toLocaleString()}원</TableCell>
+                  <TableCell align="right">{row.totalRevenue?.toLocaleString()}원</TableCell>
+                  <TableCell align="right">{row.totalProfit?.toLocaleString()}원</TableCell>
+                  <TableCell align="right">
+                    {row.totalRevenue ? ((row.totalProfit / row.totalRevenue) * 100).toFixed(1) : 0}%
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
