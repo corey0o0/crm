@@ -48,7 +48,7 @@ function SalesStats() {
     totalShipmentSales: 0,
     totalSales: 0
   });
-  const brandOptions = ['전체', 'X-RIDER', 'NEARBIKE'];
+  const brandOptions = ['전체', 'XRB', 'NB'];
 
   const fetchSalesData = async () => {
     try {
