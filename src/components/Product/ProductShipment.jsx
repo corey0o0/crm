@@ -127,6 +127,12 @@ function ProductShipment() {
   // 추가: 판매처 목록
   const [salesChannels, setSalesChannels] = useState([]);
   
+  const [dateFilter, setDateFilter] = useState({
+    type: 'order_date',
+    startDate: '',
+    endDate: ''
+  });
+  
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
@@ -233,20 +239,34 @@ function ProductShipment() {
   }, [selectedBrand]);
 
   useEffect(() => {
+    // 브랜드와 검색어, 상태 필터, 날짜 필터 모두 적용
     const filtered = shipments.filter(shipment => {
       const matchesBrand = shipment.brand === selectedBrand;
-      const matchesSearch =
-        shipment.customer_name?.includes(searchTerm) ||
-        shipment.customer_phone?.includes(searchTerm) ||
-        shipment.product_name?.includes(searchTerm);
-
-      const matchesStatus =
+      const matchesSearch = searchTerm === '' || 
+        shipment.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        shipment.customer_phone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        shipment.product_name?.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesStatus = 
         statusFilter === 'all' || shipment.status === statusFilter;
 
-      return matchesBrand && matchesSearch && matchesStatus;
+      // 날짜 필터링 추가
+      let matchesDate = true;
+      if (dateFilter.startDate || dateFilter.endDate) {
+        const shipmentDate = shipment[dateFilter.type];
+        if (dateFilter.startDate && (!shipmentDate || shipmentDate < dateFilter.startDate)) {
+          matchesDate = false;
+        }
+        if (dateFilter.endDate && (!shipmentDate || shipmentDate > dateFilter.endDate)) {
+          matchesDate = false;
+        }
+      }
+
+      return matchesBrand && matchesSearch && matchesStatus && matchesDate;
     });
     setFilteredShipments(filtered);
-  }, [searchTerm, statusFilter, shipments, selectedBrand]);
+    setPage(0);
+  }, [searchTerm, statusFilter, shipments, selectedBrand, dateFilter]);
 
   useEffect(() => {
     fetchParts();
@@ -774,11 +794,18 @@ function ProductShipment() {
     },
     { id: 'status', label: '상태',
       render: (row) => (
-        <Chip
-          label={row.status}
-          color={getStatusColor(row.status)}
-          size="small"
-        />
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
+          <Chip
+            label={row.status}
+            color={getStatusColor(row.status)}
+            size="small"
+          />
+          {row.status === '출고완료' && row.shipment_date && (
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.9rem' }}>
+              {format(parseISO(row.shipment_date), 'yyyy-MM-dd')}
+            </Typography>
+          )}
+        </Box>
       )
     },
     { id: 'actions', label: '관리',
@@ -983,7 +1010,10 @@ function ProductShipment() {
     const { name, value } = e.target;
     setSelectedShipment(prev => ({
       ...prev,
-      [name]: value
+      [name]: value,
+      ...(name === 'status' && value === '출고완료' ? {
+        completion_date: new Date().toISOString()
+      } : {})
     }));
   };
 
@@ -1265,7 +1295,7 @@ function ProductShipment() {
   }
 
   return (
-    <Box>
+    <Box sx={{ maxWidth: '1800px', width: 'auto', mx: 'auto' }}>
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
           <Tabs
@@ -1345,27 +1375,64 @@ function ProductShipment() {
       </Box>
 
       <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <TextField
-          select
-          value={statusFilter}
-          onChange={handleStatusFilterChange}
-          sx={{ width: 150 }}
-        >
-          <MenuItem value="all">전체 상태</MenuItem>
-          <MenuItem value="준비중">준비중</MenuItem>
-          <MenuItem value="배송중">배송중</MenuItem>
-          <MenuItem value="출고완료">출고완료</MenuItem>
-        </TextField>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          <TextField
+            select
+            value={statusFilter}
+            onChange={handleStatusFilterChange}
+            sx={{ width: 150 }}
+            size="small"
+          >
+            <MenuItem value="all">전체 상태</MenuItem>
+            <MenuItem value="접수">접수</MenuItem>
+            <MenuItem value="출고준비">출고준비</MenuItem>
+            <MenuItem value="출고완료">출고완료</MenuItem>
+          </TextField>
+
+          <TextField
+            select
+            value={dateFilter.type}
+            onChange={(e) => setDateFilter(prev => ({ ...prev, type: e.target.value }))}
+            sx={{ width: 150 }}
+            size="small"
+          >
+            <MenuItem value="order_date">주문일자</MenuItem>
+            <MenuItem value="completion_date">출고일자</MenuItem>
+          </TextField>
+
+          <TextField
+            type="date"
+            value={dateFilter.startDate}
+            onChange={(e) => setDateFilter(prev => ({ ...prev, startDate: e.target.value }))}
+            sx={{ width: 150 }}
+            size="small"
+            InputLabelProps={{ shrink: true }}
+          />
+          <Typography variant="body2" sx={{ mx: 1 }}>~</Typography>
+          <TextField
+            type="date"
+            value={dateFilter.endDate}
+            onChange={(e) => setDateFilter(prev => ({ ...prev, endDate: e.target.value }))}
+            sx={{ width: 150 }}
+            size="small"
+            InputLabelProps={{ shrink: true }}
+          />
+        </Box>
       </Box>
 
       <Box sx={{ mb: 2, display: 'flex', gap: 2 }}>
         <TextField
           size="small"
-          placeholder="검색..."
+          placeholder="고객명, 연락처, 제품명으로 검색..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           sx={{ flexGrow: 1 }}
         />
+        {searchTerm && (
+          <Typography variant="body2" color="textSecondary" sx={{ alignSelf: 'center' }}>
+            검색 결과: {filteredShipments.length}건
+          </Typography>
+        )}
       </Box>
 
       <ResponsiveTable

@@ -1335,49 +1335,51 @@ function ServiceDetail() {
                   기본 정보
                 </Typography>
                 <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6}>
-                    <DatePicker
-                      label="접수일"
-                      value={formData.reception_date}
-                      onChange={(newValue) => {
-                        handleChange({
-                          target: { name: 'reception_date', value: newValue }
-                        });
-                      }}
-                      renderInput={(params) => (
-                        <TextField 
-                          {...params} 
-                          fullWidth
-                          size="small"
-                          sx={{
-                            '& .MuiOutlinedInput-root': {
-                              borderRadius: 1,
-                              bgcolor: '#f9fafb'
-                            }
-                          }}
-                        />
-                      )}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <DatePicker
-                      label="완료일"
-                      value={formData.completion_date}
-                      onChange={(newValue) => handleDateChange(newValue, 'completion_date')}
-                      renderInput={(params) => (
-                        <TextField 
-                          {...params} 
-                          fullWidth
-                          size="small"
-                          sx={{
-                            '& .MuiOutlinedInput-root': {
-                              borderRadius: 1,
-                              bgcolor: '#f9fafb'
-                            }
-                          }}
-                        />
-                      )}
-                    />
+                  <Grid item xs={12}>
+                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 2 }}>
+                      <DatePicker
+                        label="접수일"
+                        value={formData.reception_date}
+                        onChange={(newValue) => {
+                          handleChange({
+                            target: { name: 'reception_date', value: newValue }
+                          });
+                        }}
+                        renderInput={(params) => (
+                          <TextField 
+                            {...params} 
+                            size="small"
+                            sx={{
+                              width: '150px',
+                              '& .MuiOutlinedInput-root': {
+                                height: '36px',
+                                borderRadius: 1,
+                                bgcolor: '#f9fafb'
+                              }
+                            }}
+                          />
+                        )}
+                      />
+                      <DatePicker
+                        label="완료일"
+                        value={formData.completion_date}
+                        onChange={(newValue) => handleDateChange(newValue, 'completion_date')}
+                        renderInput={(params) => (
+                          <TextField 
+                            {...params} 
+                            size="small"
+                            sx={{
+                              width: '150px',
+                              '& .MuiOutlinedInput-root': {
+                                height: '36px',
+                                borderRadius: 1,
+                                bgcolor: '#f9fafb'
+                              }
+                            }}
+                          />
+                        )}
+                      />
+                    </Box>
                   </Grid>
                   <Grid item xs={12}>
                     <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', justifyContent: 'space-between' }}>
@@ -1434,7 +1436,12 @@ function ServiceDetail() {
                         label="작성자"
                         value={formData.writer}
                         onChange={handleChange}
-                        sx={{ width: '150px' }}
+                        sx={{ 
+                          width: '150px',
+                          '& .MuiOutlinedInput-root': {
+                            height: '36px'
+                          }
+                        }}
                       />
                     </Box>
                   </Grid>

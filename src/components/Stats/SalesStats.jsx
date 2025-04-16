@@ -35,6 +35,8 @@ import {
   Legend,
   ResponsiveContainer
 } from 'recharts';
+import InventoryIcon from '@mui/icons-material/Inventory';
+import BuildIcon from '@mui/icons-material/Build';
 
 function SalesStats() {
   const [loading, setLoading] = useState(true);
@@ -48,14 +50,18 @@ function SalesStats() {
     totalShipmentSales: 0,
     totalSales: 0
   });
+  const [partsData, setPartsData] = useState({
+    servicePartsByDate: {},
+    shipmentPartsByDate: {}
+  });
   const brandOptions = ['전체', 'XRB', 'NB'];
 
   const fetchSalesData = async () => {
     try {
       setLoading(true);
 
-      // A/S 매출 데이터 조회
-      let serviceQuery = supabase
+      // A/S 부품 데이터 조회
+      let servicePartsQuery = supabase
         .from('service_parts')
         .select(`
           price,
@@ -64,34 +70,111 @@ function SalesStats() {
           services!inner (
             reception_date,
             brand
+          ),
+          parts!inner (
+            name,
+            code
           )
         `)
         .gte('services.reception_date', format(startDate, 'yyyy-MM-dd'))
         .lte('services.reception_date', format(endDate, 'yyyy-MM-dd'));
+      
       if (brand !== '전체') {
-        serviceQuery = serviceQuery.eq('services.brand', brand);
+        servicePartsQuery = servicePartsQuery.eq('services.brand', brand);
       }
-      const { data: serviceData, error: serviceError } = await serviceQuery;
-      if (serviceError) throw serviceError;
+      
+      const { data: servicePartsData, error: servicePartsError } = await servicePartsQuery;
+      if (servicePartsError) throw servicePartsError;
 
-      // 출고 매출 데이터 조회 (brand 컬럼이 있다고 가정)
+      // 데이터를 저장할 객체 초기화
+      const servicePartsByDate = {};
+      const shipmentPartsByDate = {};
+
+      // A/S 부품 데이터 가공
+      if (servicePartsData) {
+        servicePartsData.forEach(item => {
+          if (item.services && item.parts) {
+            const date = format(parseISO(item.services.reception_date), 'yyyy-MM-dd');
+            if (!servicePartsByDate[date]) {
+              servicePartsByDate[date] = [];
+            }
+            servicePartsByDate[date].push({
+              name: item.parts.name,
+              code: item.parts.code,
+              quantity: item.quantity || 0,
+              price: item.price || 0,
+              total: (item.quantity || 0) * (item.price || 0),
+              usage: item.usage
+            });
+          }
+        });
+      }
+
+      // 출고 부품 데이터 조회
+      // 1. 먼저 해당 기간의 출고 정보를 가져옴
       let shipmentQuery = supabase
         .from('product_shipments')
-        .select('shipment_date, total_price, brand')
+        .select('id, shipment_date, brand')
         .gte('shipment_date', format(startDate, 'yyyy-MM-dd'))
         .lte('shipment_date', format(endDate, 'yyyy-MM-dd'));
+
       if (brand !== '전체') {
         shipmentQuery = shipmentQuery.eq('brand', brand);
       }
-      const { data: shipmentData, error: shipmentError } = await shipmentQuery;
-      if (shipmentError) throw shipmentError;
 
-      // 데이터 가공
+      const { data: shipmentsData, error: shipmentsError } = await shipmentQuery;
+      if (shipmentsError) throw shipmentsError;
+
+      // 2. 출고 ID들을 이용하여 출고 항목들을 가져옴
+      if (shipmentsData && shipmentsData.length > 0) {
+        const shipmentIds = shipmentsData.map(s => s.id);
+        const { data: itemsData, error: itemsError } = await supabase
+          .from('shipment_items')
+          .select(`
+            quantity,
+            price,
+            product_shipment_id,
+            product:product_id (
+              name,
+              code
+            )
+          `)
+          .in('product_shipment_id', shipmentIds);
+
+        if (itemsError) throw itemsError;
+
+        // 각 출고 항목을 해당 출고일자에 매핑
+        if (itemsData) {
+          itemsData.forEach(item => {
+            const shipment = shipmentsData.find(s => s.id === item.product_shipment_id);
+            if (shipment && item.product) {
+              const date = format(parseISO(shipment.shipment_date), 'yyyy-MM-dd');
+              if (!shipmentPartsByDate[date]) {
+                shipmentPartsByDate[date] = [];
+              }
+              shipmentPartsByDate[date].push({
+                name: item.product.name,
+                code: item.product.code,
+                quantity: item.quantity || 0,
+                price: item.price || 0,
+                total: (item.quantity || 0) * (item.price || 0)
+              });
+            }
+          });
+        }
+      }
+
+      // 부품 데이터 상태 업데이트
+      setPartsData({
+        servicePartsByDate,
+        shipmentPartsByDate
+      });
+
+      // 매출 데이터 처리를 위한 salesByDate 객체 초기화
       const salesByDate = {};
 
-      // A/S 데이터 처리
-      serviceData.forEach(item => {
-        const date = format(parseISO(item.services.reception_date), 'yyyy-MM-dd');
+      // 날짜별 초기 데이터 구조 설정
+      [...Object.keys(servicePartsByDate), ...Object.keys(shipmentPartsByDate)].forEach(date => {
         if (!salesByDate[date]) {
           salesByDate[date] = {
             date,
@@ -101,30 +184,28 @@ function SalesStats() {
             shipmentSales: 0,
             totalSales: 0
           };
-        }
-        const amount = (item.price || 0) * (item.quantity || 0);
-        salesByDate[date].serviceSales += amount;
-        if (item.usage === 'A/S') {
-          salesByDate[date].serviceSalesAS += amount;
-        } else if (item.usage === '판매') {
-          salesByDate[date].serviceSalesSell += amount;
         }
       });
 
-      // 출고 데이터 처리
-      shipmentData.forEach(item => {
-        const date = format(parseISO(item.shipment_date), 'yyyy-MM-dd');
-        if (!salesByDate[date]) {
-          salesByDate[date] = {
-            date,
-            serviceSales: 0,
-            serviceSalesAS: 0,
-            serviceSalesSell: 0,
-            shipmentSales: 0,
-            totalSales: 0
-          };
-        }
-        salesByDate[date].shipmentSales += item.total_price || 0;
+      // A/S 매출 데이터 처리
+      Object.entries(servicePartsByDate).forEach(([date, parts]) => {
+        parts.forEach(part => {
+          const amount = (part.price || 0) * (part.quantity || 0);
+          salesByDate[date].serviceSales += amount;
+          if (part.usage === 'A/S') {
+            salesByDate[date].serviceSalesAS += amount;
+          } else if (part.usage === '판매') {
+            salesByDate[date].serviceSalesSell += amount;
+          }
+        });
+      });
+
+      // 출고 매출 데이터 처리
+      Object.entries(shipmentPartsByDate).forEach(([date, parts]) => {
+        parts.forEach(part => {
+          const amount = (part.price || 0) * (part.quantity || 0);
+          salesByDate[date].shipmentSales += amount;
+        });
       });
 
       // 총계 계산
@@ -138,11 +219,11 @@ function SalesStats() {
       );
 
       // 총계 통계 계산
-      const totalServiceSales = sortedData.reduce((sum, item) => sum + item.serviceSales, 0);
-      const totalShipmentSales = sortedData.reduce((sum, item) => sum + item.shipmentSales, 0);
+      const totalServiceSales = sortedData.reduce((sum, item) => sum + (item.serviceSales || 0), 0);
+      const totalShipmentSales = sortedData.reduce((sum, item) => sum + (item.shipmentSales || 0), 0);
       const totalSales = totalServiceSales + totalShipmentSales;
-      const totalServiceSalesAS = sortedData.reduce((sum, item) => sum + item.serviceSalesAS, 0);
-      const totalServiceSalesSell = sortedData.reduce((sum, item) => sum + item.serviceSalesSell, 0);
+      const totalServiceSalesAS = sortedData.reduce((sum, item) => sum + (item.serviceSalesAS || 0), 0);
+      const totalServiceSalesSell = sortedData.reduce((sum, item) => sum + (item.serviceSalesSell || 0), 0);
 
       setTotalStats({
         totalServiceSales,
@@ -154,7 +235,7 @@ function SalesStats() {
       setSalesData(sortedData);
 
     } catch (error) {
-      console.error('매출 데이터 조회 중 오류:', error);
+      console.error('데이터 조회 중 오류:', error);
     } finally {
       setLoading(false);
     }
@@ -170,6 +251,97 @@ function SalesStats() {
 
   const formatCurrency = (amount) => {
     return amount.toLocaleString('ko-KR') + '원';
+  };
+
+  const renderPartsDetail = () => {
+    const dates = [...new Set([
+      ...Object.keys(partsData.servicePartsByDate),
+      ...Object.keys(partsData.shipmentPartsByDate)
+    ])].sort();
+
+    return (
+      <Box>
+        {dates.map(date => (
+          <Box key={date} sx={{ mb: 4 }}>
+            <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+              {date}
+            </Typography>
+            
+            {/* A/S 부품 사용 내역 */}
+            {partsData.servicePartsByDate[date]?.length > 0 && (
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="subtitle1" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <BuildIcon fontSize="small" />
+                  A/S 부품 사용 내역
+                </Typography>
+                <TableContainer component={Paper} variant="outlined">
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>부품명</TableCell>
+                        <TableCell>코드</TableCell>
+                        <TableCell align="right">수량</TableCell>
+                        <TableCell align="right">단가</TableCell>
+                        <TableCell align="right">금액</TableCell>
+                        <TableCell>용도</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {partsData.servicePartsByDate[date].map((part, idx) => (
+                        <TableRow key={`service-${idx}`}>
+                          <TableCell>{part.name}</TableCell>
+                          <TableCell>{part.code}</TableCell>
+                          <TableCell align="right">{part.quantity}</TableCell>
+                          <TableCell align="right">{formatCurrency(part.price)}</TableCell>
+                          <TableCell align="right">{formatCurrency(part.total)}</TableCell>
+                          <TableCell>{part.usage}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Box>
+            )}
+
+            {/* 출고 부품 내역 */}
+            {partsData.shipmentPartsByDate[date]?.length > 0 && (
+              <Box>
+                <Typography variant="subtitle1" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <InventoryIcon fontSize="small" />
+                  출고 부품 내역
+                </Typography>
+                <TableContainer component={Paper} variant="outlined">
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>제품명</TableCell>
+                        <TableCell>코드</TableCell>
+                        <TableCell align="right">수량</TableCell>
+                        <TableCell align="right">단가</TableCell>
+                        <TableCell align="right">금액</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {partsData.shipmentPartsByDate[date].map((part, idx) => (
+                        <TableRow key={`shipment-${idx}`}>
+                          <TableCell>{part.name}</TableCell>
+                          <TableCell>{part.code}</TableCell>
+                          <TableCell align="right">{part.quantity}</TableCell>
+                          <TableCell align="right">{formatCurrency(part.price)}</TableCell>
+                          <TableCell align="right">{formatCurrency(part.total)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Box>
+            )}
+            
+            <Divider sx={{ mt: 3 }} />
+          </Box>
+        ))}
+      </Box>
+    );
   };
 
   if (loading) {
@@ -286,7 +458,8 @@ function SalesStats() {
         <Paper sx={{ mb: 3 }}>
           <Tabs value={tabValue} onChange={handleTabChange} sx={{ borderBottom: 1, borderColor: 'divider' }}>
             <Tab label="차트" />
-            <Tab label="테이블" />
+            <Tab label="매출 요약" />
+            <Tab label="부품 상세" />
           </Tabs>
           
           <Box sx={{ p: 3 }}>
@@ -305,7 +478,7 @@ function SalesStats() {
                   </BarChart>
                 </ResponsiveContainer>
               </Box>
-            ) : (
+            ) : tabValue === 1 ? (
               <TableContainer>
                 <Table>
                   <TableHead>
@@ -330,6 +503,8 @@ function SalesStats() {
                   </TableBody>
                 </Table>
               </TableContainer>
+            ) : (
+              renderPartsDetail()
             )}
           </Box>
         </Paper>
