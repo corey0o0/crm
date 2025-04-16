@@ -250,14 +250,26 @@ function ProductShipment() {
       const matchesStatus = 
         statusFilter === 'all' || shipment.status === statusFilter;
 
-      // 날짜 필터링 추가
+      // 날짜 필터링 수정
       let matchesDate = true;
       if (dateFilter.startDate || dateFilter.endDate) {
-        const shipmentDate = shipment[dateFilter.type];
-        if (dateFilter.startDate && (!shipmentDate || shipmentDate < dateFilter.startDate)) {
-          matchesDate = false;
+        let targetDate;
+        if (dateFilter.type === 'order_date') {
+          targetDate = shipment.created_at;
+        } else if (dateFilter.type === 'completion_date') {
+          targetDate = shipment.shipment_date;
         }
-        if (dateFilter.endDate && (!shipmentDate || shipmentDate > dateFilter.endDate)) {
+
+        if (targetDate) {
+          const shipmentDate = format(parseISO(targetDate), 'yyyy-MM-dd');
+          
+          if (dateFilter.startDate && shipmentDate < dateFilter.startDate) {
+            matchesDate = false;
+          }
+          if (dateFilter.endDate && shipmentDate > dateFilter.endDate) {
+            matchesDate = false;
+          }
+        } else {
           matchesDate = false;
         }
       }
@@ -1278,6 +1290,15 @@ function ProductShipment() {
     printWindow.close();
   };
 
+  // 날짜 필터 초기화 함수 추가
+  const resetDateFilter = () => {
+    setDateFilter({
+      type: 'order_date',
+      startDate: '',
+      endDate: ''
+    });
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -1384,8 +1405,8 @@ function ProductShipment() {
             size="small"
           >
             <MenuItem value="all">전체 상태</MenuItem>
-            <MenuItem value="접수">접수</MenuItem>
-            <MenuItem value="출고준비">출고준비</MenuItem>
+            <MenuItem value="준비중">준비중</MenuItem>
+            <MenuItem value="배송중">배송중</MenuItem>
             <MenuItem value="출고완료">출고완료</MenuItem>
           </TextField>
 
@@ -1400,23 +1421,52 @@ function ProductShipment() {
             <MenuItem value="completion_date">출고일자</MenuItem>
           </TextField>
 
-          <TextField
-            type="date"
-            value={dateFilter.startDate}
-            onChange={(e) => setDateFilter(prev => ({ ...prev, startDate: e.target.value }))}
-            sx={{ width: 150 }}
-            size="small"
-            InputLabelProps={{ shrink: true }}
-          />
-          <Typography variant="body2" sx={{ mx: 1 }}>~</Typography>
-          <TextField
-            type="date"
-            value={dateFilter.endDate}
-            onChange={(e) => setDateFilter(prev => ({ ...prev, endDate: e.target.value }))}
-            sx={{ width: 150 }}
-            size="small"
-            InputLabelProps={{ shrink: true }}
-          />
+          <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <DatePicker
+                value={dateFilter.startDate ? parseISO(dateFilter.startDate) : null}
+                onChange={(newValue) => {
+                  setDateFilter(prev => ({
+                    ...prev,
+                    startDate: newValue ? format(newValue, 'yyyy-MM-dd') : ''
+                  }));
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    size="small"
+                    sx={{ width: 150 }}
+                  />
+                )}
+              />
+              <Typography variant="body2">~</Typography>
+              <DatePicker
+                value={dateFilter.endDate ? parseISO(dateFilter.endDate) : null}
+                onChange={(newValue) => {
+                  setDateFilter(prev => ({
+                    ...prev,
+                    endDate: newValue ? format(newValue, 'yyyy-MM-dd') : ''
+                  }));
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    size="small"
+                    sx={{ width: 150 }}
+                  />
+                )}
+              />
+              {(dateFilter.startDate || dateFilter.endDate) && (
+                <IconButton 
+                  size="small" 
+                  onClick={resetDateFilter}
+                  sx={{ ml: 1 }}
+                >
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              )}
+            </Box>
+          </LocalizationProvider>
         </Box>
       </Box>
 

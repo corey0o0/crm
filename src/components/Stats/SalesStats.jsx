@@ -111,58 +111,66 @@ function SalesStats() {
       }
 
       // 출고 부품 데이터 조회
-      // 1. 먼저 해당 기간의 출고 정보를 가져옴
+      const formattedStartDate = format(startDate, 'yyyy-MM-dd');
+      const formattedEndDate = format(endDate, 'yyyy-MM-dd');
+      
+      console.log('조회 기간:', {
+        시작일: formattedStartDate,
+        종료일: formattedEndDate,
+        브랜드: brand
+      });
+
+      // 출고 데이터 조회 수정
       let shipmentQuery = supabase
-        .from('product_shipments')
-        .select('id, shipment_date, brand')
-        .gte('shipment_date', format(startDate, 'yyyy-MM-dd'))
-        .lte('shipment_date', format(endDate, 'yyyy-MM-dd'));
+        .from('shipments')
+        .select(`
+          id,
+          brand,
+          shipment_date,
+          product_name,
+          quantity,
+          price,
+          status
+        `)
+        .gte('shipment_date', formattedStartDate)
+        .lte('shipment_date', formattedEndDate);
 
       if (brand !== '전체') {
         shipmentQuery = shipmentQuery.eq('brand', brand);
       }
 
       const { data: shipmentsData, error: shipmentsError } = await shipmentQuery;
-      if (shipmentsError) throw shipmentsError;
-
-      // 2. 출고 ID들을 이용하여 출고 항목들을 가져옴
-      if (shipmentsData && shipmentsData.length > 0) {
-        const shipmentIds = shipmentsData.map(s => s.id);
-        const { data: itemsData, error: itemsError } = await supabase
-          .from('shipment_items')
-          .select(`
-            quantity,
-            price,
-            product_shipment_id,
-            product:product_id (
-              name,
-              code
-            )
-          `)
-          .in('product_shipment_id', shipmentIds);
-
-        if (itemsError) throw itemsError;
-
-        // 각 출고 항목을 해당 출고일자에 매핑
-        if (itemsData) {
-          itemsData.forEach(item => {
-            const shipment = shipmentsData.find(s => s.id === item.product_shipment_id);
-            if (shipment && item.product) {
-              const date = format(parseISO(shipment.shipment_date), 'yyyy-MM-dd');
-              if (!shipmentPartsByDate[date]) {
-                shipmentPartsByDate[date] = [];
-              }
-              shipmentPartsByDate[date].push({
-                name: item.product.name,
-                code: item.product.code,
-                quantity: item.quantity || 0,
-                price: item.price || 0,
-                total: (item.quantity || 0) * (item.price || 0)
-              });
-            }
-          });
-        }
+      
+      if (shipmentsError) {
+        console.error('출고 데이터 조회 오류:', shipmentsError);
+        throw shipmentsError;
       }
+
+      console.log('조회된 출고 데이터:', shipmentsData);
+
+      // 출고 데이터 처리
+      if (shipmentsData && shipmentsData.length > 0) {
+        shipmentsData.forEach(shipment => {
+          const date = format(parseISO(shipment.shipment_date), 'yyyy-MM-dd');
+          if (!shipmentPartsByDate[date]) {
+            shipmentPartsByDate[date] = [];
+          }
+
+          // 제품 정보를 직접 처리
+          const partData = {
+            name: shipment.product_name,
+            code: '',  // 코드가 없는 경우 빈 문자열로 처리
+            quantity: Number(shipment.quantity) || 0,
+            price: Number(shipment.price) || 0,
+            total: (Number(shipment.quantity) || 0) * (Number(shipment.price) || 0)
+          };
+          
+          console.log('처리된 출고 항목:', partData);
+          shipmentPartsByDate[date].push(partData);
+        });
+      }
+
+      console.log('날짜별 출고 부품 데이터:', shipmentPartsByDate);
 
       // 부품 데이터 상태 업데이트
       setPartsData({
@@ -190,7 +198,7 @@ function SalesStats() {
       // A/S 매출 데이터 처리
       Object.entries(servicePartsByDate).forEach(([date, parts]) => {
         parts.forEach(part => {
-          const amount = (part.price || 0) * (part.quantity || 0);
+          const amount = Number(part.price || 0) * Number(part.quantity || 0);
           salesByDate[date].serviceSales += amount;
           if (part.usage === 'A/S') {
             salesByDate[date].serviceSalesAS += amount;
@@ -202,15 +210,25 @@ function SalesStats() {
 
       // 출고 매출 데이터 처리
       Object.entries(shipmentPartsByDate).forEach(([date, parts]) => {
+        console.log(`${date} 출고 부품 처리:`, parts);
+        let dailyShipmentSales = 0;
         parts.forEach(part => {
-          const amount = (part.price || 0) * (part.quantity || 0);
-          salesByDate[date].shipmentSales += amount;
+          const amount = Number(part.price || 0) * Number(part.quantity || 0);
+          console.log(`${date} 출고 매출 계산:`, {
+            제품명: part.name,
+            수량: part.quantity,
+            단가: part.price,
+            계산금액: amount
+          });
+          dailyShipmentSales += amount;
         });
+        salesByDate[date].shipmentSales = dailyShipmentSales;
+        console.log(`${date} 최종 출고 매출:`, dailyShipmentSales);
       });
 
       // 총계 계산
       Object.values(salesByDate).forEach(item => {
-        item.totalSales = item.serviceSales + item.shipmentSales;
+        item.totalSales = Number(item.serviceSales || 0) + Number(item.shipmentSales || 0);
       });
 
       // 날짜순으로 정렬
@@ -218,19 +236,27 @@ function SalesStats() {
         new Date(a.date) - new Date(b.date)
       );
 
+      console.log('최종 정렬된 매출 데이터:', sortedData);
+
       // 총계 통계 계산
-      const totalServiceSales = sortedData.reduce((sum, item) => sum + (item.serviceSales || 0), 0);
-      const totalShipmentSales = sortedData.reduce((sum, item) => sum + (item.shipmentSales || 0), 0);
+      const totalServiceSales = sortedData.reduce((sum, item) => sum + Number(item.serviceSales || 0), 0);
+      const totalShipmentSales = sortedData.reduce((sum, item) => sum + Number(item.shipmentSales || 0), 0);
       const totalSales = totalServiceSales + totalShipmentSales;
-      const totalServiceSalesAS = sortedData.reduce((sum, item) => sum + (item.serviceSalesAS || 0), 0);
-      const totalServiceSalesSell = sortedData.reduce((sum, item) => sum + (item.serviceSalesSell || 0), 0);
+      const totalServiceSalesAS = sortedData.reduce((sum, item) => sum + Number(item.serviceSalesAS || 0), 0);
+      const totalServiceSalesSell = sortedData.reduce((sum, item) => sum + Number(item.serviceSalesSell || 0), 0);
+
+      console.log('최종 집계:', {
+        서비스매출: totalServiceSales,
+        출고매출: totalShipmentSales,
+        총매출: totalSales
+      });
 
       setTotalStats({
-        totalServiceSales,
-        totalShipmentSales,
-        totalSales,
-        totalServiceSalesAS,
-        totalServiceSalesSell
+        totalServiceSales: Number(totalServiceSales || 0),
+        totalShipmentSales: Number(totalShipmentSales || 0),
+        totalSales: Number(totalSales || 0),
+        totalServiceSalesAS: Number(totalServiceSalesAS || 0),
+        totalServiceSalesSell: Number(totalServiceSalesSell || 0)
       });
       setSalesData(sortedData);
 
