@@ -23,6 +23,7 @@ import ReceiptScanner from './components/Receipt/ReceiptScanner';
 import GoogleDriveTest from './components/Test/GoogleDriveTest';
 import ServiceStats from './components/Service/ServiceStats';
 import SalesStats from './components/Stats/SalesStats';
+import StockList from './components/Stock/StockList';
 
 function App() {
   const [session, setSession] = useState(null);
@@ -80,6 +81,7 @@ function App() {
             <Route path="service/stats" element={<ServiceStats />} />
             <Route path="service/:id" element={<ServiceDetail />} />
             <Route path="sales/stats" element={<SalesStats />} />
+            <Route path="stocks" element={<StockList />} />
           </Route>
         </Routes>
       </Router>

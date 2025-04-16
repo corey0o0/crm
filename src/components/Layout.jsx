@@ -102,6 +102,7 @@ function Layout() {
     { text: '출고 관리', icon: <LocalShippingIcon />, path: '/shipments' },
     { text: '고객 관리', icon: <PeopleIcon />, path: '/customers' },
     { text: '파츠 관리', icon: <InventoryIcon />, path: '/parts' },
+    { text: '재고 관리', icon: <InventoryIcon />, path: '/stocks' },
     // { text: 'A/S 통계', icon: <BarChartIcon />, path: '/service-statistics' },
     { text: '매출 통계', icon: <BarChartIcon />, path: '/sales/stats' }
     // { text: '영수증 스캔', icon: <ReceiptIcon />, path: '/receipts' },
