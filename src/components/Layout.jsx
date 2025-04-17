@@ -112,6 +112,7 @@ function Layout() {
   const handleDrawerToggle = () => {
     setOpen(!open);
   };
+  
 
   const handleSignOut = async () => {
     const { error } = await supabase.auth.signOut();

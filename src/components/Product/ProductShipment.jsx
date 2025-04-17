@@ -213,29 +213,86 @@ function ProductShipment() {
   };
 
   useEffect(() => {
-    const channel = supabase
-      .channel('shipments-changes')
-      .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'shipments' },
-        payload => {
-          if (payload.eventType === 'INSERT' && payload.new.brand === selectedBrand) {
-            setShipments(prev => [payload.new, ...prev]);
-          } else if (payload.eventType === 'UPDATE') {
-            setShipments(prev => prev.map(shipment =>
-              shipment.id === payload.new.id ? payload.new : shipment
-            ));
-          } else if (payload.eventType === 'DELETE') {
-            setShipments(prev => prev.filter(shipment =>
-              shipment.id !== payload.old.id
-            ));
-          }
-        }
-      )
-      .subscribe();
+    let retryCount = 0;
+    const maxRetries = 3;
+    const retryDelay = 5000; // 5초
 
-    return () => {
-      channel.unsubscribe();
+    const setupRealtimeSubscription = async () => {
+      try {
+        // 기존 구독이 있다면 제거
+        if (window.shipmentSubscription) {
+          await window.shipmentSubscription.unsubscribe();
+        }
+
+        const channel = supabase
+          .channel('shipments-changes')
+          .on('postgres_changes',
+            { 
+              event: '*', 
+              schema: 'public', 
+              table: 'shipments',
+              filter: `brand=eq.${selectedBrand}`
+            },
+            payload => {
+              console.log('Realtime update received:', payload);
+              
+              try {
+                if (payload.eventType === 'INSERT') {
+                  setShipments(prev => [payload.new, ...prev]);
+                } else if (payload.eventType === 'UPDATE') {
+                  setShipments(prev => prev.map(shipment =>
+                    shipment.id === payload.new.id ? payload.new : shipment
+                  ));
+                } else if (payload.eventType === 'DELETE') {
+                  setShipments(prev => prev.filter(shipment =>
+                    shipment.id !== payload.old.id
+                  ));
+                }
+              } catch (error) {
+                console.error('Error handling realtime update:', error);
+              }
+            }
+          );
+
+        const subscription = await channel.subscribe((status) => {
+          console.log('Realtime subscription status:', status);
+          
+          if (status === 'SUBSCRIBED') {
+            console.log('Successfully subscribed to realtime changes');
+            window.shipmentSubscription = channel;
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error('Channel error occurred');
+            retrySubscription();
+          }
+        });
+
+        return () => {
+          if (window.shipmentSubscription) {
+            window.shipmentSubscription.unsubscribe();
+          }
+        };
+      } catch (error) {
+        console.error('Error setting up realtime subscription:', error);
+        retrySubscription();
+      }
     };
+
+    const retrySubscription = () => {
+      if (retryCount < maxRetries) {
+        retryCount++;
+        console.log(`Retrying subscription (attempt ${retryCount}/${maxRetries})...`);
+        setTimeout(setupRealtimeSubscription, retryDelay);
+      } else {
+        console.error('Max retry attempts reached for realtime subscription');
+        setSnackbar({
+          open: true,
+          message: '실시간 업데이트 연결에 실패했습니다. 페이지를 새로고침해주세요.',
+          severity: 'error'
+        });
+      }
+    };
+
+    setupRealtimeSubscription();
   }, [selectedBrand]);
 
   useEffect(() => {
@@ -522,71 +579,85 @@ function ProductShipment() {
 
       if (shipmentError) throw shipmentError;
 
-      // 고객 정보 저장 - 먼저 동일한 연락처의 고객이 있는지 확인
-      const { data: existingCustomers, error: customerCheckError } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('phone', selectedShipment.customer_phone?.trim())
-        .eq('brand', selectedShipment.brand)  // 브랜드도 함께 확인
-        .limit(1);
-
-      if (customerCheckError) throw customerCheckError;
-
-      // 고객 정보 데이터 준비
-      const customerData = {
-        brand: selectedShipment.brand,
-        name: selectedShipment.customer_name?.trim(),
-        phone: selectedShipment.customer_phone?.trim(),
-        address: selectedShipment.customer_address?.trim(),
-        grade: selectedShipment.brand === 'XRB' ? 'NORMAL' : 'V3',
-        note: `출고 관리에서 등록됨 (${new Date().toLocaleDateString()})`,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-
-      if (!existingCustomers || existingCustomers.length === 0) {
-        // 새 고객 추가
-        const { error: addCustomerError } = await supabase
-          .from('customers')
-          .insert([customerData]);
-
-        if (addCustomerError) throw addCustomerError;
-
-        setSnackbar({
-          open: true,
-          message: '출고 정보가 저장되었으며, 새로운 고객이 등록되었습니다.',
-          severity: 'success'
-        });
-      } else {
-        // 기존 고객 정보 업데이트
-        const existingCustomer = existingCustomers[0];
-        const updatedCustomerData = {
+      // 고객 정보 저장 로직 수정
+      try {
+        // 고객 정보 데이터 준비
+        const customerData = {
+          brand: selectedBrand,
           name: selectedShipment.customer_name?.trim(),
+          phone: selectedShipment.customer_phone?.trim(),
           address: selectedShipment.customer_address?.trim(),
-          note: existingCustomer.note 
-            ? `${existingCustomer.note}\n출고 관리에서 업데이트됨 (${new Date().toLocaleDateString()})`
-            : `출고 관리에서 업데이트됨 (${new Date().toLocaleDateString()})`,
+          grade: selectedBrand === 'XRB' ? 'NORMAL' : 'V3',
+          created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         };
 
-        const { error: updateCustomerError } = await supabase
+        // 기존 고객 검색 (전화번호와 브랜드로)
+        const { data: existingCustomers, error: customerCheckError } = await supabase
           .from('customers')
-          .update(updatedCustomerData)
-          .eq('id', existingCustomer.id)
-          .eq('brand', selectedShipment.brand);
+          .select('*')
+          .eq('phone', customerData.phone)
+          .eq('brand', customerData.brand);
 
-        if (updateCustomerError) throw updateCustomerError;
+        if (customerCheckError) throw customerCheckError;
 
-        setSnackbar({
-          open: true,
-          message: '출고 정보가 저장되었으며, 고객 정보가 업데이트되었습니다.',
-          severity: 'success'
-        });
+        if (!existingCustomers || existingCustomers.length === 0) {
+          // 새 고객 추가
+          const { error: addCustomerError } = await supabase
+            .from('customers')
+            .insert([{
+              ...customerData,
+              note: `출고 관리에서 등록됨 (${format(new Date(), 'yyyy-MM-dd')})`
+            }]);
+
+          if (addCustomerError) {
+            console.error('고객 추가 중 오류:', addCustomerError);
+            throw addCustomerError;
+          }
+
+          setSnackbar({
+            open: true,
+            message: '출고 정보가 저장되었으며, 새로운 고객이 등록되었습니다.',
+            severity: 'success'
+          });
+        } else {
+          // 기존 고객 정보 업데이트
+          const existingCustomer = existingCustomers[0];
+          const updatedCustomerData = {
+            name: customerData.name,
+            address: customerData.address,
+            updated_at: new Date().toISOString(),
+            note: existingCustomer.note 
+              ? `${existingCustomer.note}\n출고 관리에서 업데이트됨 (${format(new Date(), 'yyyy-MM-dd')})`
+              : `출고 관리에서 업데이트됨 (${format(new Date(), 'yyyy-MM-dd')})`
+          };
+
+          const { error: updateCustomerError } = await supabase
+            .from('customers')
+            .update(updatedCustomerData)
+            .eq('id', existingCustomer.id)
+            .eq('brand', customerData.brand);
+
+          if (updateCustomerError) {
+            console.error('고객 정보 업데이트 중 오류:', updateCustomerError);
+            throw updateCustomerError;
+          }
+
+          setSnackbar({
+            open: true,
+            message: '출고 정보가 저장되었으며, 고객 정보가 업데이트되었습니다.',
+            severity: 'success'
+          });
+        }
+
+        setOpenDialog(false);
+        setSelectedParts([]);
+        fetchShipments();
+
+      } catch (err) {
+        console.error('고객 정보 저장 중 오류:', err);
+        throw err;
       }
-
-      setOpenDialog(false);
-      setSelectedParts([]);
-      fetchShipments();
 
     } catch (err) {
       console.error('Error saving shipment:', err);

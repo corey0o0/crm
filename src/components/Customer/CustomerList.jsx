@@ -80,13 +80,20 @@ function CustomerList() {
   const fetchCustomers = async () => {
     try {
       setLoading(true);
-      // 서비스 데이터와 태그 정보 함께 조회
+      
+      // 고객 정보 조회
+      const { data: customersData, error: customersError } = await supabase
+        .from('customers')
+        .select('*')
+        .order('updated_at', { ascending: false });
+
+      if (customersError) throw customersError;
+
+      // 서비스 데이터와 태그 정보 조회
       const { data: servicesData, error: servicesError } = await supabase
         .from('services')
         .select(`
-          customer_name,
           customer_phone,
-          customer_address,
           reception_date,
           service_tags (
             tag_name
@@ -109,42 +116,37 @@ function CustomerList() {
         return acc;
       }, {});
 
-      // 고객별 최근 A/S 정보, 건수, 첫 번째 태그를 포함한 목록 생성
-      const uniqueCustomers = servicesData.reduce((acc, curr) => {
-        const existingCustomer = acc.find(c => c.phone === curr.customer_phone);
-        if (!existingCustomer) {
-          acc.push({
-            name: curr.customer_name,
-            phone: curr.customer_phone,
-            address: curr.customer_address,
-            lastServiceDate: curr.reception_date,
-            serviceCount: 1,
-            shipmentCount: shipmentCounts[curr.customer_phone] || 0,
-            recentTag: curr.service_tags?.[0]?.tag_name || null
-          });
-        } else {
-          existingCustomer.serviceCount += 1;
+      // 고객별 서비스 정보 계산
+      const serviceInfo = servicesData.reduce((acc, curr) => {
+        if (!acc[curr.customer_phone]) {
+          acc[curr.customer_phone] = {
+            serviceCount: 0,
+            lastServiceDate: null,
+            recentTag: null
+          };
         }
+        
+        const info = acc[curr.customer_phone];
+        info.serviceCount++;
+        
+        if (!info.lastServiceDate || curr.reception_date > info.lastServiceDate) {
+          info.lastServiceDate = curr.reception_date;
+          info.recentTag = curr.service_tags?.[0]?.tag_name;
+        }
+        
         return acc;
-      }, []);
+      }, {});
 
-      // 고객 등급 정보 가져오기
-      const { data: customerGrades, error: gradesError } = await supabase
-        .from('customers')
-        .select('phone, grade');
+      // 모든 정보 병합
+      const enrichedCustomers = customersData.map(customer => ({
+        ...customer,
+        serviceCount: serviceInfo[customer.phone]?.serviceCount || 0,
+        lastServiceDate: serviceInfo[customer.phone]?.lastServiceDate || null,
+        recentTag: serviceInfo[customer.phone]?.recentTag || null,
+        shipmentCount: shipmentCounts[customer.phone] || 0
+      }));
 
-      if (gradesError) throw gradesError;
-
-      // 등급 정보 병합
-      const customersWithGrades = uniqueCustomers.map(customer => {
-        const gradeInfo = customerGrades?.find(g => g.phone === customer.phone);
-        return {
-          ...customer,
-          grade: gradeInfo?.grade || 'V3'
-        };
-      });
-
-      setCustomers(customersWithGrades);
+      setCustomers(enrichedCustomers);
     } catch (err) {
       console.error('Error fetching customers:', err);
       setError(err.message);

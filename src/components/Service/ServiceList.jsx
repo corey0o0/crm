@@ -667,6 +667,9 @@ function ServiceList() {
         const tagA = a.tags?.[0] || '';
         const tagB = b.tags?.[0] || '';
         comparison = tagA.localeCompare(tagB);
+      } else if (orderBy === 'reception_date') {
+        // 접수일자는 날짜 비교
+        comparison = new Date(a[orderBy]) - new Date(b[orderBy]);
       } else {
         // 나머지 필드는 직접 비교
         comparison = String(a[orderBy]).localeCompare(String(b[orderBy]));

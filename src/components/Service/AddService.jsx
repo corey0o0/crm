@@ -35,7 +35,9 @@ import {
   Popover,
   CircularProgress,
   Stack,
-  InputAdornment
+  InputAdornment,
+  FormControlLabel,
+  Checkbox
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -125,6 +127,9 @@ function AddService() {
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
   const [customerSearchResults, setCustomerSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [showPriceEdit, setShowPriceEdit] = useState(false);
+  const [modifiedPrice, setModifiedPrice] = useState('');
+  const [selectedPart, setSelectedPart] = useState(null);
 
   useEffect(() => {
     if (location.state?.selectedBrand) {
@@ -184,19 +189,88 @@ function AddService() {
     setPartQuantity(1);
   };
 
-  // 부품 추가
-  const handleAddPart = (part) => {
-    const existingPart = selectedParts.find(p => p.id === part.id);
-    if (existingPart) {
-      setSelectedParts(prev => prev.map(p => 
-        p.id === part.id 
-          ? { ...p, quantity: p.quantity + partQuantity }
-          : p
-      ));
-    } else {
-      setSelectedParts(prev => [...prev, { ...part, quantity: partQuantity }]);
+  // 부품 선택 핸들러
+  const handlePartSelect = (part) => {
+    setSelectedPart(part);
+    setModifiedPrice(part.price || '');
+  };
+
+  // 부품 추가 핸들러
+  const handleAddPart = () => {
+    if (selectedPart && partQuantity > 0) {
+      // 이미 추가된 부품인지 확인
+      const existingPartIndex = selectedParts.findIndex(p => p.id === selectedPart.id);
+      
+      if (existingPartIndex >= 0) {
+        // 이미 추가된 부품이면 수량만 증가
+        const updatedParts = [...selectedParts];
+        updatedParts[existingPartIndex].quantity += partQuantity;
+        updatedParts[existingPartIndex].total = updatedParts[existingPartIndex].price * updatedParts[existingPartIndex].quantity;
+        setSelectedParts(updatedParts);
+      } else {
+        // 새 부품 추가
+        const newPart = {
+          id: selectedPart.id,
+          name: selectedPart.name,
+          code: selectedPart.code,
+          quantity: partQuantity,
+          price: modifiedPrice || selectedPart.price || 0,
+          total: (modifiedPrice || selectedPart.price || 0) * partQuantity,
+          usage: 'A/S' // 기본값으로 A/S 설정
+        };
+        setSelectedParts(prev => [...prev, newPart]);
+      }
+      
+      setSelectedPart(null);
+      setPartQuantity(1);
+      setModifiedPrice('');
+      setOpenPartsDialog(false);
     }
-    setPartQuantity(1);
+  };
+
+  // 가격 수정 핸들러
+  const handlePriceChange = (index, newPrice) => {
+    try {
+      const updatedParts = [...selectedParts];
+      const priceValue = newPrice === '' ? 0 : Number(newPrice);
+      
+      updatedParts[index] = {
+        ...updatedParts[index],
+        price: priceValue,
+        total: priceValue * updatedParts[index].quantity
+      };
+      
+      setSelectedParts(updatedParts);
+    } catch (err) {
+      console.error('가격 수정 중 오류:', err);
+      setSnackbar({
+        open: true,
+        message: '가격 수정 중 오류가 발생했습니다.',
+        severity: 'error'
+      });
+    }
+  };
+
+  // 용도 변경 핸들러
+  const handleUsageChange = (index, newUsage) => {
+    const updatedParts = [...selectedParts];
+    updatedParts[index] = {
+      ...updatedParts[index],
+      usage: newUsage
+    };
+    setSelectedParts(updatedParts);
+  };
+
+  // 수량 변경 핸들러
+  const handleQuantityChange = (index, newQuantity) => {
+    const updatedParts = [...selectedParts];
+    const qty = Math.max(1, Number(newQuantity) || 1);
+    updatedParts[index] = {
+      ...updatedParts[index],
+      quantity: qty,
+      total: updatedParts[index].price * qty
+    };
+    setSelectedParts(updatedParts);
   };
 
   // 부품 삭제
@@ -1164,10 +1238,25 @@ function AddService() {
               <Typography variant="h6" sx={{ 
                 mb: 2,
                 color: '#191f28',
-                fontWeight: 600
+                fontWeight: 600,
+                '&::after': {
+                  display: 'none'
+                }
               }}>
                 사용 부품
               </Typography>
+              <Box sx={{ mb: 1 }}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={showPriceEdit}
+                      onChange={e => setShowPriceEdit(e.target.checked)}
+                      color="primary"
+                    />
+                  }
+                  label="가격 수정"
+                />
+              </Box>
               <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
                 <Box sx={{ display: 'flex', gap: 2 }}>
                   <Button
@@ -1246,72 +1335,85 @@ function AddService() {
                         <TableCell>부품명</TableCell>
                         <TableCell>코드</TableCell>
                         <TableCell align="right">단가</TableCell>
-                        <TableCell align="center">수량</TableCell>
+                        <TableCell align="right">수량</TableCell>
                         <TableCell align="right">금액</TableCell>
+                        <TableCell align="right">가격 수정</TableCell>
+                        <TableCell align="center">용도</TableCell>
                         <TableCell align="center">삭제</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {selectedParts.map((part) => (
+                      {selectedParts.map((part, index) => (
                         <TableRow key={part.id}>
                           <TableCell>{part.name}</TableCell>
                           <TableCell>{part.code}</TableCell>
                           <TableCell align="right">
-                            {part.price ? part.price.toLocaleString() : '0'}원
-                          </TableCell>
-                          <TableCell align="center">
-                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-                              <IconButton 
-                                size="small"
-                                onClick={() => {
-                                  if (part.quantity > 1) {
-                                    setSelectedParts(prev => prev.map(p => 
-                                      p.id === part.id 
-                                        ? { ...p, quantity: p.quantity - 1 }
-                                        : p
-                                    ));
-                                  }
-                                }}
-                              >
-                                <RemoveIcon fontSize="small" />
-                              </IconButton>
-                              <TextField
-                                type="number"
-                                size="small"
-                                value={part.quantity}
-                                onChange={(e) => {
-                                  const newQuantity = Math.max(1, parseInt(e.target.value) || 1);
-                                  setSelectedParts(prev => prev.map(p => 
-                                    p.id === part.id 
-                                      ? { ...p, quantity: newQuantity }
-                                      : p
-                                  ));
-                                }}
-                                inputProps={{ 
-                                  min: 1,
-                                  style: { 
-                                    textAlign: 'center',
-                                    width: '50px',
-                                    padding: '4px'
-                                  }
-                                }}
-                              />
-                              <IconButton 
-                                size="small"
-                                onClick={() => {
-                                  setSelectedParts(prev => prev.map(p => 
-                                    p.id === part.id 
-                                      ? { ...p, quantity: p.quantity + 1 }
-                                      : p
-                                  ));
-                                }}
-                              >
-                                <AddIcon fontSize="small" />
-                              </IconButton>
-                            </Box>
+                            {part.price.toLocaleString()}원
                           </TableCell>
                           <TableCell align="right">
-                            {((part.price || 0) * part.quantity).toLocaleString()}원
+                            <TextField
+                              type="number"
+                              size="small"
+                              value={part.quantity}
+                              onChange={e => handleQuantityChange(index, e.target.value)}
+                              sx={{
+                                width: '80px',
+                                '& .MuiOutlinedInput-root': {
+                                  borderRadius: 1,
+                                  bgcolor: '#f9fafb'
+                                }
+                              }}
+                              InputProps={{
+                                inputProps: { min: 1, step: '1' }
+                              }}
+                            />
+                          </TableCell>
+                          <TableCell align="right">
+                            {(part.price * part.quantity).toLocaleString()}원
+                          </TableCell>
+                          <TableCell align="right" sx={{ minWidth: '200px' }}>
+                            {showPriceEdit && (
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'flex-end' }}>
+                                <TextField
+                                  type="number"
+                                  size="small"
+                                  value={part.price}
+                                  onChange={(e) => handlePriceChange(index, e.target.value)}
+                                  sx={{ 
+                                    width: '120px',
+                                    '& .MuiOutlinedInput-root': {
+                                      borderRadius: 1,
+                                      bgcolor: '#f9fafb'
+                                    }
+                                  }}
+                                  InputProps={{
+                                    inputProps: { 
+                                      min: 0,
+                                      step: "1"
+                                    },
+                                    startAdornment: <InputAdornment position="start">₩</InputAdornment>
+                                  }}
+                                />
+                              </Box>
+                            )}
+                          </TableCell>
+                          <TableCell align="center">
+                            <Select
+                              size="small"
+                              value={part.usage || 'A/S'}
+                              onChange={(e) => handleUsageChange(index, e.target.value)}
+                              sx={{ 
+                                minWidth: 100,
+                                height: '32px',
+                                '& .MuiSelect-select': {
+                                  py: 0.5
+                                }
+                              }}
+                            >
+                              <MenuItem value="A/S">A/S</MenuItem>
+                              <MenuItem value="판매">판매</MenuItem>
+                              <MenuItem value="워런티">워런티</MenuItem>
+                            </Select>
                           </TableCell>
                           <TableCell align="center">
                             <IconButton
@@ -1338,7 +1440,7 @@ function AddService() {
                             }, 0).toLocaleString()}원
                           </Typography>
                         </TableCell>
-                        <TableCell />
+                        <TableCell colSpan={3} />
                       </TableRow>
                     </TableBody>
                   </Table>
@@ -1455,15 +1557,15 @@ function AddService() {
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle>부품 검색</DialogTitle>
+        <DialogTitle>부품 추가</DialogTitle>
         <DialogContent>
           <Box sx={{ mb: 2 }}>
             <TextField
               fullWidth
-              label="부품명 또는 코드 검색"
+              size="small"
+              placeholder="부품명 또는 코드로 검색"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              sx={{ mt: 2 }}
             />
           </Box>
           <TableContainer>
@@ -1472,40 +1574,28 @@ function AddService() {
                 <TableRow>
                   <TableCell>부품명</TableCell>
                   <TableCell>코드</TableCell>
+                  <TableCell>브랜드</TableCell>
                   <TableCell align="right">단가</TableCell>
-                  <TableCell align="center">수량</TableCell>
-                  <TableCell align="center">추가</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {availableParts
                   .filter(part => 
                     part.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    part.code.toLowerCase().includes(searchTerm.toLowerCase())
+                    part.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    part.brand.toLowerCase().includes(searchTerm.toLowerCase())
                   )
                   .map((part) => (
-                    <TableRow key={part.id}>
+                    <TableRow 
+                      key={part.id}
+                      selected={selectedPart?.id === part.id}
+                      onClick={() => handlePartSelect(part)}
+                      sx={{ cursor: 'pointer' }}
+                    >
                       <TableCell>{part.name}</TableCell>
                       <TableCell>{part.code}</TableCell>
-                      <TableCell align="right">{part.price?.toLocaleString()}원</TableCell>
-                      <TableCell align="center">
-                        <TextField
-                          type="number"
-                          size="small"
-                          value={partQuantity}
-                          onChange={(e) => setPartQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                          inputProps={{ min: 1, style: { textAlign: 'center' } }}
-                          sx={{ width: 80 }}
-                        />
-                      </TableCell>
-                      <TableCell align="center">
-                        <IconButton 
-                          color="primary"
-                          onClick={() => handleAddPart(part)}
-                        >
-                          <AddIcon />
-                        </IconButton>
-                      </TableCell>
+                      <TableCell>{part.brand}</TableCell>
+                      <TableCell align="right">{part.price.toLocaleString()}원</TableCell>
                     </TableRow>
                   ))}
               </TableBody>
@@ -1513,7 +1603,14 @@ function AddService() {
           </TableContainer>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleClosePartsDialog}>닫기</Button>
+          <Button onClick={handleClosePartsDialog}>취소</Button>
+          <Button 
+            onClick={handleAddPart} 
+            variant="contained" 
+            disabled={!selectedPart}
+          >
+            추가
+          </Button>
         </DialogActions>
       </Dialog>
 
