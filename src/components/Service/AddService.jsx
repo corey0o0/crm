@@ -797,23 +797,142 @@ function AddService() {
   const searchCustomers = async (searchTerm) => {
     try {
       setSearchLoading(true);
-      const { data, error } = await supabase
+      console.log('검색 시작:', { searchTerm, selectedBrand });
+
+      // 검색어가 2글자 미만이면 통합 고객 목록 표시
+      if (searchTerm.length < 2) {
+        // customers 테이블에서 검색
+        const { data: customerData, error: customerError } = await supabase
+          .from('customers')
+          .select('*')
+          .eq('brand', selectedBrand)
+          .order('created_at', { ascending: false });
+
+        // services 테이블에서 고객 정보 검색
+        const { data: serviceData, error: serviceError } = await supabase
+          .from('services')
+          .select('id, customer_name, customer_phone, brand, created_at')
+          .eq('brand', selectedBrand)
+          .order('created_at', { ascending: false });
+
+        if (customerError) throw customerError;
+        if (serviceError) throw serviceError;
+
+        // 두 결과를 통합하고 중복 제거
+        const combinedResults = [
+          ...(customerData || []).map(c => ({
+            id: c.id,
+            name: c.name,
+            phone: c.phone,
+            brand: c.brand,
+            created_at: c.created_at,
+            source: 'customers'
+          })),
+          ...(serviceData || []).map(s => ({
+            id: `service_${s.id}`,
+            name: s.customer_name,
+            phone: s.customer_phone,
+            brand: s.brand,
+            created_at: s.created_at,
+            source: 'services'
+          }))
+        ];
+
+        // 전화번호 기준으로 중복 제거 (최신 데이터 유지)
+        const uniqueResults = Object.values(
+          combinedResults.reduce((acc, curr) => {
+            if (!acc[curr.phone] || new Date(curr.created_at) > new Date(acc[curr.phone].created_at)) {
+              acc[curr.phone] = curr;
+            }
+            return acc;
+          }, {})
+        ).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+        console.log('전체 고객 데이터:', uniqueResults);
+        setCustomerSearchResults(uniqueResults);
+        return;
+      }
+
+      // 전화번호 검색 (customers 테이블)
+      const cleanSearchTerm = searchTerm.replace(/-/g, '');
+      const { data: phoneResults, error: phoneError } = await supabase
         .from('customers')
         .select('*')
-        .or(`name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,address.ilike.%${searchTerm}%`)
-        .order('created_at', { ascending: false })
-        .limit(10);
+        .eq('brand', selectedBrand)
+        .or(`phone.ilike.%${cleanSearchTerm}%,phone.ilike.%${searchTerm}%`)
+        .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      // 전화번호 검색 (services 테이블)
+      const { data: servicePhoneResults, error: servicePhoneError } = await supabase
+        .from('services')
+        .select('id, customer_name, customer_phone, brand, created_at')
+        .eq('brand', selectedBrand)
+        .or(`customer_phone.ilike.%${cleanSearchTerm}%,customer_phone.ilike.%${searchTerm}%`)
+        .order('created_at', { ascending: false });
 
-      // 브랜드 필터링은 클라이언트 사이드에서 수행
-      const filteredData = selectedBrand 
-        ? data.filter(customer => customer.brand === selectedBrand)
-        : data;
+      // 이름 검색 (customers 테이블)
+      const { data: nameResults, error: nameError } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('brand', selectedBrand)
+        .ilike('name', `%${searchTerm}%`)
+        .order('created_at', { ascending: false });
 
-      console.log('검색 결과:', filteredData); // 디버깅을 위한 로그
+      // 이름 검색 (services 테이블)
+      const { data: serviceNameResults, error: serviceNameError } = await supabase
+        .from('services')
+        .select('id, customer_name, customer_phone, brand, created_at')
+        .eq('brand', selectedBrand)
+        .ilike('customer_name', `%${searchTerm}%`)
+        .order('created_at', { ascending: false });
 
-      setCustomerSearchResults(filteredData || []);
+      if (phoneError) throw phoneError;
+      if (servicePhoneError) throw servicePhoneError;
+      if (nameError) throw nameError;
+      if (serviceNameError) throw serviceNameError;
+
+      // 모든 결과 통합
+      const allResults = [
+        ...(phoneResults || []).map(c => ({ ...c, source: 'customers' })),
+        ...(nameResults || []).map(c => ({ ...c, source: 'customers' })),
+        ...(servicePhoneResults || []).map(s => ({
+          id: `service_${s.id}`,
+          name: s.customer_name,
+          phone: s.customer_phone,
+          brand: s.brand,
+          created_at: s.created_at,
+          source: 'services'
+        })),
+        ...(serviceNameResults || []).map(s => ({
+          id: `service_${s.id}`,
+          name: s.customer_name,
+          phone: s.customer_phone,
+          brand: s.brand,
+          created_at: s.created_at,
+          source: 'services'
+        }))
+      ];
+
+      // 전화번호 기준으로 중복 제거 (최신 데이터 유지)
+      const uniqueResults = Object.values(
+        allResults.reduce((acc, curr) => {
+          if (!acc[curr.phone] || new Date(curr.created_at) > new Date(acc[curr.phone].created_at)) {
+            acc[curr.phone] = curr;
+          }
+          return acc;
+        }, {})
+      ).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+      console.log('검색 결과:', {
+        검색조건: { searchTerm, cleanSearchTerm, selectedBrand },
+        customers_전화번호: phoneResults?.length,
+        customers_이름: nameResults?.length,
+        services_전화번호: servicePhoneResults?.length,
+        services_이름: serviceNameResults?.length,
+        최종결과: uniqueResults?.length
+      });
+
+      setCustomerSearchResults(uniqueResults);
     } catch (err) {
       console.error('고객 검색 중 오류:', err);
       setSnackbar({
@@ -826,16 +945,11 @@ function AddService() {
     }
   };
 
-  // 고객 검색 입력 핸들러 수정
+  // 고객 검색 입력 핸들러
   const handleCustomerSearchChange = async (e) => {
     const value = e.target.value;
     setCustomerSearchTerm(value);
-    
-    if (value.length >= 2) {
-      await searchCustomers(value);
-    } else {
-      setCustomerSearchResults([]);
-    }
+    await searchCustomers(value);
   };
 
   // 고객 선택 핸들러

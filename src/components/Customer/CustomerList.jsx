@@ -30,7 +30,8 @@ import {
   CardContent,
   Grid,
   Snackbar,
-  Alert
+  Alert,
+  TablePagination
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -67,6 +68,8 @@ function CustomerList() {
     phone: '',
     address: ''
   });
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(20);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -81,7 +84,7 @@ function CustomerList() {
     try {
       setLoading(true);
       
-      // 고객 정보 조회
+      // 1. 고객 정보 조회
       const { data: customersData, error: customersError } = await supabase
         .from('customers')
         .select('*')
@@ -89,12 +92,14 @@ function CustomerList() {
 
       if (customersError) throw customersError;
 
-      // 서비스 데이터와 태그 정보 조회
+      // 2. A/S 서비스 데이터와 태그 정보 조회
       const { data: servicesData, error: servicesError } = await supabase
         .from('services')
         .select(`
           customer_phone,
+          customer_name,
           reception_date,
+          brand,
           service_tags (
             tag_name
           )
@@ -103,50 +108,108 @@ function CustomerList() {
 
       if (servicesError) throw servicesError;
 
-      // 출고 데이터 조회
+      // 3. 출고 데이터 조회
       const { data: shipmentsData, error: shipmentsError } = await supabase
-        .from('shipments')
-        .select('customer_phone');
+        .from('product_shipments')
+        .select('*')
+        .order('shipment_date', { ascending: false });
 
       if (shipmentsError) throw shipmentsError;
 
-      // 고객별 출고 건수 계산
-      const shipmentCounts = shipmentsData.reduce((acc, curr) => {
-        acc[curr.customer_phone] = (acc[curr.customer_phone] || 0) + 1;
-        return acc;
-      }, {});
+      console.log('Services data:', servicesData); // 서비스 데이터 구조 확인
+      console.log('Shipments data:', shipmentsData); // 출고 데이터 구조 확인
 
-      // 고객별 서비스 정보 계산
-      const serviceInfo = servicesData.reduce((acc, curr) => {
-        if (!acc[curr.customer_phone]) {
-          acc[curr.customer_phone] = {
-            serviceCount: 0,
+      // 4. 모든 고객 데이터 통합 (서비스와 출고 데이터에서 고객 정보 추출)
+      const allCustomers = new Map();
+
+      // 기존 고객 데이터 추가
+      customersData.forEach(customer => {
+        allCustomers.set(customer.phone, {
+          ...customer,
+          serviceCount: {
+            XRB: 0,
+            NB: 0
+          },
+          lastServiceDate: null,
+          recentTag: null,
+          shipmentCount: 0,
+          lastShipmentDate: null,
+          brands: new Set() // 고객이 이용한 브랜드 추적
+        });
+      });
+
+      // 서비스 데이터에서 고객 정보 추가/업데이트
+      servicesData.forEach(service => {
+        if (!service.customer_phone) return;
+        
+        if (!allCustomers.has(service.customer_phone)) {
+          allCustomers.set(service.customer_phone, {
+            phone: service.customer_phone,
+            name: service.customer_name,
+            serviceCount: {
+              XRB: 0,
+              NB: 0
+            },
             lastServiceDate: null,
-            recentTag: null
-          };
+            recentTag: null,
+            shipmentCount: 0,
+            lastShipmentDate: null,
+            brands: new Set()
+          });
         }
         
-        const info = acc[curr.customer_phone];
-        info.serviceCount++;
+        const customer = allCustomers.get(service.customer_phone);
+        customer.serviceCount[service.brand] = (customer.serviceCount[service.brand] || 0) + 1;
+        customer.brands.add(service.brand);
         
-        if (!info.lastServiceDate || curr.reception_date > info.lastServiceDate) {
-          info.lastServiceDate = curr.reception_date;
-          info.recentTag = curr.service_tags?.[0]?.tag_name;
+        if (!customer.lastServiceDate || service.reception_date > customer.lastServiceDate) {
+          customer.lastServiceDate = service.reception_date;
+          customer.recentTag = service.service_tags?.[0]?.tag_name;
         }
-        
-        return acc;
-      }, {});
+      });
 
-      // 모든 정보 병합
-      const enrichedCustomers = customersData.map(customer => ({
+      // 출고 데이터에서 고객 정보 추가/업데이트
+      shipmentsData.forEach(shipment => {
+        // 실제 데이터 구조에 맞게 필드명 수정 필요
+        const phone = shipment.phone || shipment.customer_phone;
+        const name = shipment.name || shipment.customer_name;
+        const brand = shipment.brand;
+        
+        if (!phone) return;
+        
+        if (!allCustomers.has(phone)) {
+          allCustomers.set(phone, {
+            phone: phone,
+            name: name,
+            serviceCount: {
+              XRB: 0,
+              NB: 0
+            },
+            lastServiceDate: null,
+            recentTag: null,
+            shipmentCount: 0,
+            lastShipmentDate: null,
+            brands: new Set()
+          });
+        }
+        
+        const customer = allCustomers.get(phone);
+        customer.shipmentCount++;
+        if (brand) customer.brands.add(brand);
+        
+        if (!customer.lastShipmentDate || shipment.shipment_date > customer.lastShipmentDate) {
+          customer.lastShipmentDate = shipment.shipment_date;
+        }
+      });
+
+      // Set을 Array로 변환하여 저장
+      const customersArray = Array.from(allCustomers.values()).map(customer => ({
         ...customer,
-        serviceCount: serviceInfo[customer.phone]?.serviceCount || 0,
-        lastServiceDate: serviceInfo[customer.phone]?.lastServiceDate || null,
-        recentTag: serviceInfo[customer.phone]?.recentTag || null,
-        shipmentCount: shipmentCounts[customer.phone] || 0
+        brands: Array.from(customer.brands)
       }));
 
-      setCustomers(enrichedCustomers);
+      console.log('All customers:', customersArray); // 최종 데이터 확인용
+      setCustomers(customersArray);
     } catch (err) {
       console.error('Error fetching customers:', err);
       setError(err.message);
@@ -355,6 +418,23 @@ function CustomerList() {
     }
   };
 
+  // 페이지 변경 핸들러
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
+  };
+
+  // 페이지당 행 수 변경 핸들러
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  // 현재 페이지에 표시할 데이터 계산
+  const paginatedCustomers = filteredCustomers.slice(
+    page * rowsPerPage,
+    page * rowsPerPage + rowsPerPage
+  );
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -389,8 +469,8 @@ function CustomerList() {
             <TableRow>
               <TableCell>이름</TableCell>
               <TableCell>연락처</TableCell>
-              <TableCell>제품</TableCell>
               <TableCell>최근 A/S</TableCell>
+              <TableCell>최근 출고</TableCell>
               <TableCell>건수</TableCell>
               <TableCell align="center">관리</TableCell>
             </TableRow>
@@ -415,7 +495,7 @@ function CustomerList() {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredCustomers.map((customer) => (
+              paginatedCustomers.map((customer) => (
                 <TableRow 
                   key={customer.phone}
                   onClick={() => handleCustomerClick(customer)}
@@ -428,16 +508,34 @@ function CustomerList() {
                 >
                   <TableCell>{customer.name}</TableCell>
                   <TableCell>{customer.phone}</TableCell>
-                  <TableCell>{customer.recentTag || '-'}</TableCell>
                   <TableCell>
-                    {customer.lastServiceDate ? new Date(customer.lastServiceDate).toLocaleDateString() : '-'}
+                    <Stack direction="column" spacing={0.5}>
+                      <Typography variant="body2">
+                        {customer.lastServiceDate ? new Date(customer.lastServiceDate).toLocaleDateString() : '-'}
+                      </Typography>
+                      {customer.recentTag && (
+                        <Chip 
+                          label={customer.recentTag}
+                          size="small"
+                          sx={{
+                            height: '20px',
+                            fontSize: '0.75rem',
+                            bgcolor: 'primary.lighter',
+                            color: 'primary.main'
+                          }}
+                        />
+                      )}
+                    </Stack>
+                  </TableCell>
+                  <TableCell>
+                    {customer.lastShipmentDate ? new Date(customer.lastShipmentDate).toLocaleDateString() : '-'}
                   </TableCell>
                   <TableCell>
                     <Stack direction="row" spacing={1}>
                       <Tooltip title="A/S 건수">
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                           <BuildIcon fontSize="small" color="action" />
-                          <Typography variant="body2">{customer.serviceCount || 0}</Typography>
+                          <Typography variant="body2">{customer.serviceCount.XRB + customer.serviceCount.NB || 0}</Typography>
                         </Box>
                       </Tooltip>
                       <Tooltip title="출고 건수">
@@ -489,6 +587,30 @@ function CustomerList() {
         </Table>
       </TableContainer>
 
+      {/* 페이지네이션 추가 */}
+      <TablePagination
+        component="div"
+        count={filteredCustomers.length}
+        page={page}
+        onPageChange={handleChangePage}
+        rowsPerPage={rowsPerPage}
+        onRowsPerPageChange={handleChangeRowsPerPage}
+        rowsPerPageOptions={[10, 20, 50, 100]}
+        labelRowsPerPage="페이지당 행 수"
+        labelDisplayedRows={({ from, to, count }) => 
+          `${count}개 중 ${from}-${to}`
+        }
+        sx={{
+          '.MuiTablePagination-select': {
+            paddingTop: '6px',
+            paddingBottom: '6px',
+          },
+          '.MuiTablePagination-selectLabel, .MuiTablePagination-displayedRows': {
+            fontSize: '0.875rem',
+          }
+        }}
+      />
+
       <Dialog 
         open={openDialog} 
         onClose={() => setOpenDialog(false)}
@@ -503,15 +625,6 @@ function CustomerList() {
                   <Typography variant="h6" sx={{ fontWeight: 600 }}>
                     {selectedCustomer.name}
                   </Typography>
-                  <Chip 
-                    label={selectedCustomer.grade === 'V1' ? 'VIP' : 
-                           selectedCustomer.grade === 'V2' ? '우수' : '일반'}
-                    size="small"
-                    sx={(theme) => ({
-                      ...getGradeColor(selectedCustomer.grade),
-                      fontWeight: 600
-                    })}
-                  />
                 </Stack>
                 <IconButton onClick={() => setOpenDialog(false)} size="small">
                   <CloseIcon />
@@ -520,7 +633,7 @@ function CustomerList() {
             </DialogTitle>
             <DialogContent sx={{ p: 3 }}>
               {/* 기본 정보 */}
-              <Box sx={{ mb: 1 }}>
+              <Box sx={{ mb: 3 }}>
                 <Grid container spacing={2}>
                   <Grid item xs={12} sm={4}>
                     <Typography variant="subtitle2" color="text.secondary">연락처</Typography>
@@ -528,15 +641,11 @@ function CustomerList() {
                   </Grid>
                   <Grid item xs={12} sm={4}>
                     <Typography variant="subtitle2" color="text.secondary">A/S 건수</Typography>
-                    <Typography variant="body1">{selectedCustomer.serviceCount || 0}건</Typography>
+                    <Typography variant="body1">{selectedCustomer.serviceCount.XRB + selectedCustomer.serviceCount.NB || 0}건</Typography>
                   </Grid>
                   <Grid item xs={12} sm={4}>
                     <Typography variant="subtitle2" color="text.secondary">출고 건수</Typography>
                     <Typography variant="body1">{selectedCustomer.shipmentCount || 0}건</Typography>
-                  </Grid>
-                  <Grid item xs={12}>
-                    <Typography variant="subtitle2" color="text.secondary">주소</Typography>
-                    <Typography variant="body1">{selectedCustomer.address}</Typography>
                   </Grid>
                 </Grid>
               </Box>
@@ -566,7 +675,7 @@ function CustomerList() {
                       <TableHead>
                         <TableRow>
                           <TableCell>접수일</TableCell>
-                          <TableCell>증상</TableCell>
+                          <TableCell>문의내용</TableCell>
                           <TableCell>상태</TableCell>
                           <TableCell>태그</TableCell>
                         </TableRow>
@@ -623,6 +732,7 @@ function CustomerList() {
                         <TableRow>
                           <TableCell>출고일</TableCell>
                           <TableCell>제품</TableCell>
+                          <TableCell>상태</TableCell>
                           <TableCell>메모</TableCell>
                         </TableRow>
                       </TableHead>
@@ -633,6 +743,13 @@ function CustomerList() {
                               {new Date(shipment.shipment_date).toLocaleDateString()}
                             </TableCell>
                             <TableCell>{shipment.product_name}</TableCell>
+                            <TableCell>
+                              <Chip 
+                                label={shipment.status} 
+                                color={getStatusColor(shipment.status)}
+                                size="small"
+                              />
+                            </TableCell>
                             <TableCell>{shipment.memo || '-'}</TableCell>
                           </TableRow>
                         ))}

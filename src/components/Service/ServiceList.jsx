@@ -231,15 +231,15 @@ function ServiceList() {
 
   const getStatusColor = (status) => {
     if (status.includes('완료')) {
-      return 'success';
+      return 'success';  // 완료는 초록색 계열
     }
     switch(status) {
       case '접수':
-        return 'info';
+        return 'info';   // 접수는 파란색 계열
       case '처리중':
-        return 'warning';
+        return 'warning';  // 처리중은 주황색 계열
       case '부분완료':
-        return 'secondary';
+        return 'secondary';  // 부분완료는 보라색 계열
       default:
         return 'default';
     }
@@ -703,7 +703,7 @@ function ServiceList() {
       label: '접수일자',
       sortable: true,
       render: (row) => (
-        <Typography noWrap>
+        <Typography noWrap sx={{ fontSize: '0.95rem', letterSpacing: '0.01em' }}>
           {row.reception_date}
         </Typography>
       )
@@ -713,7 +713,7 @@ function ServiceList() {
       label: '이름',
       sortable: true,
       render: (row) => (
-        <Typography noWrap>
+        <Typography noWrap sx={{ fontSize: '0.95rem', fontWeight: 500, letterSpacing: '0.01em' }}>
           {row.customer_name}
         </Typography>
       )
@@ -723,7 +723,7 @@ function ServiceList() {
       label: '연락처',
       sortable: true,
       render: (row) => (
-        <Typography noWrap>
+        <Typography noWrap sx={{ fontSize: '0.95rem', letterSpacing: '0.01em', color: 'text.secondary' }}>
           {row.customer_phone}
         </Typography>
       )
@@ -734,16 +734,22 @@ function ServiceList() {
       sortable: true,
       render: (row) => (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
-          <Typography noWrap sx={{ flex: 1 }}>
+          <Typography noWrap sx={{ 
+            flex: 1, 
+            fontSize: '0.95rem', 
+            fontWeight: 500,
+            letterSpacing: '0.01em',
+            color: 'text.primary' 
+          }}>
             {row.product_name}
           </Typography>
           {(row.note?.includes('JPG:') || row.receipt_link) && (
             <Tooltip title="영수증 첨부됨">
               <ReceiptIcon 
                 sx={{ 
-                  fontSize: '1rem', 
+                  fontSize: '1.1rem', 
                   color: 'primary.main',
-                  opacity: 0.7,
+                  opacity: 0.8,
                   flexShrink: 0
                 }} 
               />
@@ -767,8 +773,11 @@ function ServiceList() {
             WebkitBoxOrient: 'vertical',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
-            lineHeight: '1.2em',
-            maxHeight: '4.8em' // lineHeight * WebkitLineClamp
+            lineHeight: '1.4em',
+            maxHeight: '5.6em',
+            fontSize: '0.95rem',
+            letterSpacing: '0.01em',
+            color: 'text.primary'
           }}>
             {row.symptom}
           </Typography>
@@ -780,7 +789,11 @@ function ServiceList() {
       label: '주행거리',
       sortable: true,
       render: (row) => (
-        <Typography>
+        <Typography sx={{ 
+          fontSize: '0.95rem', 
+          letterSpacing: '0.01em',
+          color: row.mileage ? 'text.primary' : 'text.secondary'
+        }}>
           {row.mileage || '-'}
         </Typography>
       )
@@ -797,10 +810,15 @@ function ServiceList() {
               label={tag}
               size="small"
               sx={{
-                height: '20px',
-                fontSize: '0.75rem',
-                bgcolor: 'primary.lighter',
-                color: 'primary.main'
+                height: '22px',
+                fontSize: '0.85rem',
+                fontWeight: 500,
+                letterSpacing: '0.01em',
+                bgcolor: 'primary.50',
+                color: 'primary.700',
+                '&:hover': {
+                  bgcolor: 'primary.100'
+                }
               }}
             />
           ))}
@@ -812,14 +830,35 @@ function ServiceList() {
       label: '상태',
       sortable: true,
       render: (row) => (
-        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          alignItems: 'center', 
+          gap: 0.8 
+        }}>
           <Chip
             label={getDisplayStatus(row.status)}
             color={getStatusColor(row.status)}
             size="small"
+            sx={{
+              height: '24px',
+              fontSize: '0.9rem',
+              fontWeight: 500,
+              letterSpacing: '0.01em',
+              '& .MuiChip-label': {
+                px: 1.5
+              }
+            }}
           />
           {row.status.includes('완료') && row.completion_date && (
-            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.9rem' }}>
+            <Typography 
+              variant="caption" 
+              sx={{ 
+                fontSize: '0.85rem',
+                color: 'text.secondary',
+                letterSpacing: '0.02em'
+              }}
+            >
               {row.completion_date.replace(/(\d{4})-(\d{2})-(\d{2})/, (_, y, m, d) => `${y.slice(-2)}-${m}-${d}`)}
             </Typography>
           )}
@@ -856,81 +895,157 @@ function ServiceList() {
       onClick={() => handleRowClick(row)} 
       sx={{ 
         cursor: 'pointer',
-        backgroundColor: row.status.includes('완료') ? '#f5f5f5' : 'inherit',
+        backgroundColor: row.status.includes('완료') ? 'grey.50' : 'background.paper',
         '&:hover': {
-          backgroundColor: row.status.includes('완료') ? '#f5f5f5' : '#f0f0f0'
-        }
+          backgroundColor: row.status.includes('완료') ? 'grey.100' : 'grey.50'
+        },
+        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+        transition: 'all 0.2s ease'
       }}
     >
-      <CardContent>
-        <Typography variant="subtitle1" gutterBottom>
+      <CardContent sx={{ '&:last-child': { pb: 2 } }}>
+        <Typography variant="subtitle1" sx={{ 
+          fontSize: '1.1rem',
+          fontWeight: 500,
+          letterSpacing: '0.01em',
+          mb: 0.5
+        }}>
           {row.customer_name}
         </Typography>
-        <Typography variant="body2" color="textSecondary">
+        <Typography sx={{ 
+          fontSize: '0.95rem',
+          color: 'text.secondary',
+          letterSpacing: '0.01em',
+          mb: 1.5
+        }}>
           {row.customer_phone}
         </Typography>
         <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography variant="body2">
+          <Typography sx={{ 
+            fontSize: '0.95rem',
+            letterSpacing: '0.01em',
+            color: 'text.primary'
+          }}>
             내역: {row.product_name}
           </Typography>
           {(row.note?.includes('JPG:') || row.receipt_link) && (
             <Tooltip title="영수증 첨부됨">
               <ReceiptIcon 
                 sx={{ 
-                  fontSize: '1rem', 
+                  fontSize: '1.1rem', 
                   color: 'primary.main',
-                  opacity: 0.7,
+                  opacity: 0.8,
                   flexShrink: 0
                 }} 
               />
             </Tooltip>
           )}
         </Box>
-        <Typography variant="body2" sx={{ mt: 1 }}>
+        <Typography sx={{ 
+          mt: 1.5,
+          fontSize: '0.95rem',
+          letterSpacing: '0.01em',
+          color: 'text.primary',
+          lineHeight: 1.4
+        }}>
           문의내용: {row.symptom}
         </Typography>
-        <Typography variant="body2" sx={{ mt: 1 }}>
+        <Typography sx={{ 
+          mt: 1.5,
+          fontSize: '0.95rem',
+          letterSpacing: '0.01em',
+          color: row.mileage ? 'text.primary' : 'text.secondary'
+        }}>
           주행거리: {row.mileage || '-'}
         </Typography>
-        <Box sx={{ mt: 1, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+        <Box sx={{ mt: 1.5, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
           {row.tags?.map((tag, index) => (
             <Chip
               key={index}
               label={tag}
               size="small"
               sx={{
-                height: '20px',
-                fontSize: '0.75rem',
-                bgcolor: 'primary.lighter',
-                color: 'primary.main'
+                height: '22px',
+                fontSize: '0.85rem',
+                fontWeight: 500,
+                letterSpacing: '0.01em',
+                bgcolor: 'primary.50',
+                color: 'primary.700'
               }}
             />
           ))}
         </Box>
-        <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 0.5 }}>
+        <Box sx={{ 
+          mt: 2, 
+          pt: 1.5,
+          borderTop: '1px solid',
+          borderColor: 'divider',
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center' 
+        }}>
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'flex-start', 
+            gap: 0.8 
+          }}>
             <Chip
               label={getDisplayStatus(row.status)}
               color={getStatusColor(row.status)}
               size="small"
+              sx={{
+                height: '24px',
+                fontSize: '0.9rem',
+                fontWeight: 500,
+                letterSpacing: '0.01em',
+                '& .MuiChip-label': {
+                  px: 1.5
+                }
+              }}
             />
             {row.status.includes('완료') && row.completion_date && (
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.9rem' }}>
+              <Typography 
+                variant="caption" 
+                sx={{ 
+                  fontSize: '0.85rem',
+                  color: 'text.secondary',
+                  letterSpacing: '0.02em'
+                }}
+              >
                 {row.completion_date.replace(/(\d{4})-(\d{2})-(\d{2})/, (_, y, m, d) => `${y.slice(-2)}-${m}-${d}`)}
               </Typography>
             )}
           </Box>
           <Box>
-            <IconButton size="small" onClick={(e) => {
-              e.stopPropagation();
-              handleEdit(row.id);
-            }}>
+            <IconButton 
+              size="small" 
+              onClick={(e) => {
+                e.stopPropagation();
+                handleEdit(row.id);
+              }}
+              sx={{ 
+                color: 'primary.main',
+                '&:hover': { 
+                  backgroundColor: 'primary.50' 
+                }
+              }}
+            >
               <EditIcon />
             </IconButton>
-            <IconButton size="small" onClick={(e) => {
-              e.stopPropagation();
-              handleDeleteClick(row);
-            }}>
+            <IconButton 
+              size="small" 
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteClick(row);
+              }}
+              sx={{ 
+                color: 'error.main',
+                '&:hover': { 
+                  backgroundColor: 'error.50' 
+                }
+              }}
+            >
               <DeleteIcon />
             </IconButton>
           </Box>
