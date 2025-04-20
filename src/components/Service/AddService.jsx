@@ -579,99 +579,86 @@ function AddService() {
     }));
   };
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     setSubmitting(true);
+
     try {
-      // 날짜 필드 처리
-      const processDate = (dateStr) => {
-        return dateStr && dateStr.trim() !== '' ? dateStr : null;
-      };
-
-      // 1. 서비스 등록
-      const serviceData = {
-        brand: selectedBrand,
-        reception_date: processDate(formData.reception_date) || new Date().toISOString().split('T')[0],
-        repair_date: processDate(formData.repair_date),
-        completion_date: processDate(formData.completion_date),
-        reception_type: formData.reception_type || '',
-        delivery_method: formData.delivery_method || '',
-        customer_name: formData.customer_name || '',
-        customer_phone: formData.customer_phone || '',
-        customer_address: formData.customer_address || '',
-        product_name: formData.product_name || '',
-        mileage: formData.mileage || '',
-        symptom: formData.symptom || '',
-        solution: formData.solution || '',
-        note: formData.note || '',
-        status: status || '접수',
-        receipt_link: receiptLink || null,
-        writer: formData.writer || '관리자',
-        seller: formData.seller || '',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      // 필수 필드 검증
-      if (!serviceData.customer_name) {
-        throw new Error('고객명은 필수 입력 항목입니다.');
-      }
-
-      if (!serviceData.product_name) {
-        throw new Error('제품명은 필수 입력 항목입니다.');
-      }
-
-      const { data: newService, error: serviceError } = await supabase
+      // 서비스 데이터 등록
+      const { data: insertedService, error: insertError } = await supabase
         .from('services')
-        .insert(serviceData)
+        .insert([{
+          brand: selectedBrand,
+          reception_date: formData.reception_date,
+          customer_name: formData.customer_name,
+          customer_phone: formData.customer_phone,
+          customer_address: formData.customer_address,
+          product_name: formData.product_name,
+          mileage: formData.mileage,
+          symptom: formData.symptom,
+          solution: formData.solution,
+          reception_type: formData.reception_type,
+          status: formData.status,
+          delivery_method: formData.delivery_method,
+          seller: formData.seller,
+          receipt_link: receiptLink,
+          writer: formData.writer || '관리자'
+        }])
         .select()
         .single();
 
-      if (serviceError) throw serviceError;
+      if (insertError) throw insertError;
 
-      // 2. 태그 등록
+      // 태그 등록
       if (tags.length > 0) {
-        const { error: tagsError } = await supabase
-          .from('service_tags')
-          .insert(tags.map(tag => ({
-            service_id: newService.id,
-            tag_name: tag.startsWith('#') ? tag : `#${tag}`
-          })));
+        const formattedTags = tags.map(tag => ({
+          service_id: insertedService.id,
+          tag_name: tag.startsWith('#') ? tag : `#${tag}`
+        }));
 
-        if (tagsError) throw tagsError;
+        const { error: tagError } = await supabase
+          .from('service_tags')
+          .insert(formattedTags);
+
+        if (tagError) throw tagError;
       }
 
-      // 3. 부품 등록
+      // 부품 등록
       if (selectedParts.length > 0) {
+        const partsToInsert = selectedParts.map(part => ({
+          service_id: insertedService.id,
+          part_id: part.id,
+          quantity: part.quantity,
+          price: part.price,
+          usage: part.usage || 'A/S'
+        }));
+
         const { error: partsError } = await supabase
           .from('service_parts')
-          .insert(selectedParts.map(part => ({
-            service_id: newService.id,
-            part_id: part.id,
-            quantity: part.quantity,
-            price: part.price
-          })));
+          .insert(partsToInsert);
 
         if (partsError) throw partsError;
       }
 
-      // 성공 처리
+      // 로컬 스토리지에 새로 등록된 항목의 ID 저장
+      localStorage.setItem('highlightServiceId', String(insertedService.id));
+
       setSnackbar({
         open: true,
         message: 'A/S가 성공적으로 등록되었습니다.',
         severity: 'success'
       });
 
-      // 3초 후 목록 페이지로 이동
+      // 2초 후 리스트 페이지로 이동
       setTimeout(() => {
         navigate('/services');
-      }, 3000);
+      }, 2000);
 
     } catch (error) {
-      console.error('Error adding service:', error);
+      console.error('Error in handleSubmit:', error);
       setSnackbar({
         open: true,
-        message: error.message || '서비스 등록 중 오류가 발생했습니다.',
+        message: `오류가 발생했습니다: ${error.message}`,
         severity: 'error'
       });
     } finally {
@@ -1612,13 +1599,26 @@ function AddService() {
 
       <Snackbar
         open={snackbar.open}
-        autoHideDuration={6000}
+        autoHideDuration={2000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        sx={{
+          top: '50% !important',
+          transform: 'translateY(-50%)'
+        }}
       >
         <Alert
-          onClose={() => setSnackbar({ ...snackbar, open: false })}
           severity={snackbar.severity}
-          sx={{ width: '100%' }}
+          variant="filled"
+          sx={{
+            width: '100%',
+            minWidth: '300px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            fontSize: '1rem',
+            '.MuiAlert-icon': {
+              fontSize: '24px'
+            }
+          }}
         >
           {snackbar.message}
         </Alert>

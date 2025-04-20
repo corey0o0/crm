@@ -550,7 +550,7 @@ function PartsManagement() {
       <TextField
         fullWidth
         size="small"
-        placeholder="파츠명, 상품코드, 바코드, 비고 검색"
+        placeholder="파츠명, 상품코드, 바코드, 구분 검색"
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
         sx={{ mb: 2 }}
@@ -579,7 +579,7 @@ function PartsManagement() {
               {renderSortableHeader('name', '파츠명')}
               {showSupplyPrice && renderSortableHeader('supply_price', '공급가', 'right')}
               {renderSortableHeader('price', '판매가', 'right')}
-              {renderSortableHeader('note', '비고')}
+              {renderSortableHeader('note', '구분')}
               <TableCell align="center" sx={{ width: '14%' }}>관리</TableCell>
             </TableRow>
           </TableHead>
@@ -717,7 +717,7 @@ function PartsManagement() {
             <Grid item xs={12}>
               <TextField
                 fullWidth
-                label="비고"
+                label="구분"
                 name="note"
                 value={formData.note}
                 onChange={handleChange}

@@ -31,7 +31,9 @@ import {
   Grid,
   Snackbar,
   Alert,
-  TablePagination
+  TablePagination,
+  DialogActions,
+  DialogContentText
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -50,7 +52,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 
-function CustomerList() {
+function CustomerList({ refreshTrigger, onRefresh }) {
   const [customers, setCustomers] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [serviceHistory, setServiceHistory] = useState([]);
@@ -70,11 +72,12 @@ function CustomerList() {
   });
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(20);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchCustomers();
-  }, []);
+  }, [refreshTrigger]);
 
   useEffect(() => {
     setFilteredCustomers(customers);
@@ -413,6 +416,50 @@ function CustomerList() {
       setSnackbar({
         open: true,
         message: '고객 정보 수정 중 오류가 발생했습니다.',
+        severity: 'error'
+      });
+    }
+  };
+
+  // 고객 삭제 처리
+  const handleDeleteCustomer = async () => {
+    try {
+      const { error } = await supabase
+        .from('customers')
+        .delete()
+        .eq('phone', editCustomerData.phone);
+
+      if (error) throw error;
+
+      // 스낵바 메시지 표시
+      setSnackbar({
+        open: true,
+        message: '고객이 성공적으로 삭제되었습니다.',
+        severity: 'success'
+      });
+
+      // 다이얼로그 닫기
+      setDeleteConfirmOpen(false);
+      setEditDialogOpen(false);
+
+      // 부모 컴포넌트에 새로고침 알림
+      if (onRefresh) {
+        onRefresh();
+      }
+
+      // 로컬 상태도 업데이트
+      setCustomers(prevCustomers => 
+        prevCustomers.filter(customer => customer.phone !== editCustomerData.phone)
+      );
+      setFilteredCustomers(prevFiltered => 
+        prevFiltered.filter(customer => customer.phone !== editCustomerData.phone)
+      );
+
+    } catch (err) {
+      console.error('Error deleting customer:', err);
+      setSnackbar({
+        open: true,
+        message: '고객 삭제 중 오류가 발생했습니다.',
         severity: 'error'
       });
     }
@@ -767,56 +814,64 @@ function CustomerList() {
         )}
       </Dialog>
 
-      {/* 고객정보 수정 다이얼로그 추가 */}
-      <Dialog 
-        open={editDialogOpen} 
-        onClose={() => setEditDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>
-          <Stack direction="row" justifyContent="space-between" alignItems="center">
-            <Typography variant="h6">고객 정보 수정</Typography>
-            <IconButton onClick={() => setEditDialogOpen(false)} size="small">
-              <CloseIcon />
-            </IconButton>
-          </Stack>
-        </DialogTitle>
-        <DialogContent sx={{ pt: 2 }}>
-          <Stack spacing={2}>
-            <TextField
-              fullWidth
-              label="고객명"
-              name="name"
-              value={editCustomerData.name}
-              onChange={handleEditInputChange}
-            />
-            <TextField
-              fullWidth
-              label="연락처"
-              name="phone"
-              value={editCustomerData.phone}
-              onChange={handleEditInputChange}
-              disabled
-            />
-            <TextField
-              fullWidth
-              label="주소"
-              name="address"
-              value={editCustomerData.address}
-              onChange={handleEditInputChange}
-            />
-          </Stack>
+      {/* 고객정보 수정 다이얼로그 */}
+      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)}>
+        <DialogTitle>고객 정보 수정</DialogTitle>
+        <DialogContent>
+          <TextField
+            margin="dense"
+            label="이름"
+            name="name"
+            value={editCustomerData.name}
+            onChange={handleEditInputChange}
+            fullWidth
+          />
+          <TextField
+            margin="dense"
+            label="전화번호"
+            name="phone"
+            value={editCustomerData.phone}
+            onChange={handleEditInputChange}
+            fullWidth
+            disabled
+          />
+          <TextField
+            margin="dense"
+            label="주소"
+            name="address"
+            value={editCustomerData.address}
+            onChange={handleEditInputChange}
+            fullWidth
+          />
         </DialogContent>
-        <Box sx={{ p: 2, display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+        <DialogActions>
+          <Button onClick={() => setDeleteConfirmOpen(true)} color="error">
+            삭제
+          </Button>
           <Button onClick={() => setEditDialogOpen(false)}>취소</Button>
-          <Button 
-            variant="contained"
-            onClick={handleEditSubmit}
-          >
+          <Button onClick={handleEditSubmit} color="primary">
             수정
           </Button>
-        </Box>
+        </DialogActions>
+      </Dialog>
+
+      {/* 삭제 확인 다이얼로그 */}
+      <Dialog
+        open={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+      >
+        <DialogTitle>고객 삭제 확인</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            정말로 이 고객을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteConfirmOpen(false)}>취소</Button>
+          <Button onClick={handleDeleteCustomer} color="error" autoFocus>
+            삭제
+          </Button>
+        </DialogActions>
       </Dialog>
 
       <Snackbar

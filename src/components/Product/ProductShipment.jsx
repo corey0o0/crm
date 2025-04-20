@@ -79,6 +79,8 @@ function ProductShipment() {
   const [selectedBrand, setSelectedBrand] = useState('XRB');
   const [shipments, setShipments] = useState([]);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [sellerFilter, setSellerFilter] = useState('all');
+  const [sellers, setSellers] = useState(['전체']);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
@@ -186,27 +188,18 @@ function ProductShipment() {
 
       setShipments(data);
       
-      // 추가: 판매처 목록 추출
-      const channels = new Set();
+      // 판매처 목록 추출 및 설정
+      const uniqueSellers = new Set(['전체']);
       data.forEach(shipment => {
-        let salesChannel = '공홈';
-        const salesChannelMatch = shipment.note?.match(/\[판매처: (.*?)\]/);
-        if (salesChannelMatch && salesChannelMatch[1]) {
-          salesChannel = salesChannelMatch[1];
-        } else if (shipment.sales_channel) {
-          salesChannel = shipment.sales_channel;
+        if (shipment.seller) {
+          uniqueSellers.add(shipment.seller);
         }
-        channels.add(salesChannel);
       });
-      setSalesChannels(Array.from(channels));
-      
+      setSellers(Array.from(uniqueSellers));
+
     } catch (error) {
       console.error('Error fetching shipments:', error);
-      setSnackbar({
-        open: true,
-        message: '출고 정보를 불러오는데 실패했습니다.',
-        severity: 'error'
-      });
+      setError(error.message);
     } finally {
       setLoading(false);
     }
@@ -403,6 +396,8 @@ function ProductShipment() {
     const salesChannelMatch = shipment.note?.match(/\[판매처: (.*?)\]/);
     if (salesChannelMatch && salesChannelMatch[1]) {
       salesChannel = salesChannelMatch[1];
+    } else if (shipment.sales_channel) {
+      salesChannel = shipment.sales_channel;
     }
     
     // 제품명을 쉼표로 분리하여 여러 제품 정보로 나누기
@@ -454,7 +449,8 @@ function ProductShipment() {
     setSelectedParts(productParts);
     setSelectedShipment({
       ...shipment,
-      sales_channel: salesChannel, // 추출한 판매처 정보 설정
+      order_date: shipment.order_date || shipment.created_at?.split('T')[0],
+      sales_channel: salesChannel,
       products: productParts
     });
     setOpenDialog(true);
@@ -550,6 +546,7 @@ function ProductShipment() {
 
       const shipmentData = {
         brand: selectedBrand,
+        order_date: selectedShipment.order_date,
         shipment_date: selectedShipment.shipment_date,
         status: selectedShipment.status || '준비중',
         customer_name: selectedShipment.customer_name?.trim(),
@@ -677,6 +674,10 @@ function ProductShipment() {
     setStatusFilter(event.target.value);
   };
 
+  const handleSellerFilterChange = (event) => {
+    setSellerFilter(event.target.value);
+  };
+
   const handleAddShipment = () => {
     // localStorage에서 고객 정보 가져오기
     const selectedCustomer = localStorage.getItem('selectedCustomer');
@@ -701,6 +702,7 @@ function ProductShipment() {
     setSelectedParts([]);
     setSelectedShipment({
       brand: selectedBrand,
+      order_date: new Date().toISOString().split('T')[0],
       shipment_date: new Date().toISOString().split('T')[0],
       status: '준비중',
       sales_channel: '공홈',
@@ -803,12 +805,14 @@ function ProductShipment() {
   };
 
   const columns = [
-    { id: 'created_at', label: '주문일자',
+    { id: 'order_date', label: '주문일자',
       render: (row) => (
         <Typography>
-          {isValid(parseISO(row.created_at)) 
-            ? format(parseISO(row.created_at), 'yyyy-MM-dd')
-            : '-'}
+          {isValid(parseISO(row.order_date)) 
+            ? format(parseISO(row.order_date), 'yyyy-MM-dd')
+            : isValid(parseISO(row.created_at))
+              ? format(parseISO(row.created_at), 'yyyy-MM-dd')
+              : '-'}
         </Typography>
       )
     },
@@ -1483,6 +1487,21 @@ function ProductShipment() {
 
           <TextField
             select
+            value={sellerFilter}
+            onChange={handleSellerFilterChange}
+            sx={{ width: 150 }}
+            size="small"
+          >
+            <MenuItem value="all">전체 판매처</MenuItem>
+            {sellers.map((seller) => (
+              <MenuItem key={seller} value={seller}>
+                {seller}
+              </MenuItem>
+            ))}
+          </TextField>
+
+          <TextField
+            select
             value={dateFilter.type}
             onChange={(e) => setDateFilter(prev => ({ ...prev, type: e.target.value }))}
             sx={{ width: 150 }}
@@ -1749,19 +1768,61 @@ function ProductShipment() {
                 )}
               </Grid>
               
-              <Grid item xs={12} md={6}>
+              <Grid item xs={12} md={4}>
                 <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
                   <DatePicker
-                    label="출고일"
-                    value={selectedShipment.shipment_date ? new Date(selectedShipment.shipment_date) : null}
-                    onChange={handleDateChange}
-                    renderInput={(params) => <TextField {...params} fullWidth required />}
+                    label="주문일"
+                    value={selectedShipment.order_date ? new Date(selectedShipment.order_date) : null}
+                    onChange={(newDate) => {
+                      handleChange({
+                        target: {
+                          name: 'order_date',
+                          value: newDate ? format(newDate, 'yyyy-MM-dd') : null
+                        }
+                      });
+                    }}
+                    renderInput={(params) => (
+                      <TextField 
+                        {...params} 
+                        fullWidth 
+                        size="small"
+                        sx={{ 
+                          '& .MuiInputBase-root': { 
+                            height: 40 
+                          } 
+                        }}
+                      />
+                    )}
                     inputFormat="yyyy-MM-dd"
                   />
                 </LocalizationProvider>
               </Grid>
               
-              <Grid item xs={12} md={6}>
+              <Grid item xs={12} md={4}>
+                <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
+                  <DatePicker
+                    label="출고일"
+                    value={selectedShipment.shipment_date ? new Date(selectedShipment.shipment_date) : null}
+                    onChange={handleDateChange}
+                    renderInput={(params) => (
+                      <TextField 
+                        {...params} 
+                        fullWidth 
+                        required 
+                        size="small"
+                        sx={{ 
+                          '& .MuiInputBase-root': { 
+                            height: 40 
+                          } 
+                        }}
+                      />
+                    )}
+                    inputFormat="yyyy-MM-dd"
+                  />
+                </LocalizationProvider>
+              </Grid>
+              
+              <Grid item xs={12} md={4}>
                 <FormControl fullWidth>
                   <InputLabel>배송 방법</InputLabel>
                   <Select
@@ -1991,13 +2052,28 @@ function ProductShipment() {
       {/* 스낵바 */}
       <Snackbar
         open={snackbar.open}
-        autoHideDuration={6000}
+        autoHideDuration={2000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        sx={{
+          position: 'fixed',
+          top: '50% !important',
+          left: '50% !important',
+          transform: 'translate(-50%, -50%)',
+          width: 'auto'
+        }}
       >
         <Alert 
           onClose={() => setSnackbar({ ...snackbar, open: false })} 
           severity={snackbar.severity}
-          sx={{ width: '100%' }}
+          sx={{ 
+            minWidth: '300px',
+            bgcolor: snackbar.severity === 'success' ? '#3182f6' : '#f04452',
+            color: 'white',
+            '& .MuiAlert-icon': {
+              color: 'white'
+            }
+          }}
         >
           {snackbar.message}
         </Alert>

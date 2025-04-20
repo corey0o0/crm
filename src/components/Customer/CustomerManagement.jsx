@@ -38,9 +38,14 @@ function TabPanel(props) {
 
 function CustomerManagement() {
   const [tabValue, setTabValue] = useState(0);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const handleChange = (event, newValue) => {
     setTabValue(newValue);
+  };
+
+  const handleRefresh = () => {
+    setRefreshTrigger(prev => prev + 1);
   };
 
   // 고객 목록 엑셀 다운로드
@@ -114,10 +119,13 @@ function CustomerManagement() {
         </Stack>
       </Box>
       <TabPanel value={tabValue} index={0}>
-        <CustomerList />
+        <CustomerList refreshTrigger={refreshTrigger} onRefresh={handleRefresh} />
       </TabPanel>
       <TabPanel value={tabValue} index={1}>
-        <AddCustomer onSuccess={() => setTabValue(0)} />
+        <AddCustomer onSuccess={() => {
+          setTabValue(0);
+          handleRefresh();
+        }} />
       </TabPanel>
     </Paper>
   );

@@ -166,6 +166,19 @@ function ServiceDetail() {
         setTags(serviceData.service_tags.map(t => t.tag_name));
       }
 
+      // 주행거리 데이터 처리
+      const mileage = serviceData.mileage === null ? '' : serviceData.mileage;
+      
+      setFormData({
+        ...serviceData,
+        reception_date: serviceData.reception_date ? new Date(serviceData.reception_date) : null,
+        repair_date: serviceData.repair_date ? new Date(serviceData.repair_date) : null,
+        completion_date: serviceData.completion_date ? new Date(serviceData.completion_date) : null,
+        service_parts: serviceData.service_parts || [],
+        writer: serviceData.writer || '관리자',
+        mileage: mileage  // 처리된 주행거리 값 설정
+      });
+
       // 사용된 부품 정보 조회
       if (serviceData.service_parts?.length > 0) {
         const partIds = serviceData.service_parts.map(sp => sp.part_id);
@@ -189,15 +202,6 @@ function ServiceDetail() {
 
         setSelectedParts(selectedParts);
       }
-      
-      setFormData({
-        ...serviceData,
-        reception_date: serviceData.reception_date ? new Date(serviceData.reception_date) : null,
-        repair_date: serviceData.repair_date ? new Date(serviceData.repair_date) : null,
-        completion_date: serviceData.completion_date ? new Date(serviceData.completion_date) : null,
-        service_parts: serviceData.service_parts || [],
-        writer: serviceData.writer || '관리자'
-      });
     } catch (err) {
       console.error('Error fetching service detail:', err);
       setError(err.message);
@@ -221,6 +225,9 @@ function ServiceDetail() {
     setLoading(true);
     
     try {
+      // 주행거리 데이터 처리
+      const mileageValue = formData.mileage === '' ? null : formData.mileage;
+
       // 업데이트할 필드만 선택
       const updateData = {
         brand: formData.brand,
@@ -231,7 +238,7 @@ function ServiceDetail() {
         customer_phone: formData.customer_phone,
         customer_address: formData.customer_address,
         product_name: formData.product_name,
-        mileage: formData.mileage,
+        mileage: mileageValue,  // 처리된 주행거리 값 사용
         note: formData.note,
         symptom: formData.symptom,
         solution: formData.solution,
@@ -247,87 +254,10 @@ function ServiceDetail() {
         .update(updateData)
         .eq('id', id);
 
-      if (updateError) {
-        console.error('Error updating service:', updateError);
-        setSnackbar({
-          open: true,
-          message: `수정 중 오류가 발생했습니다: ${updateError.message}`,
-          severity: 'error'
-        });
-        return;
-      }
+      if (updateError) throw updateError;
 
-      // 태그 정보 업데이트
-      if (tags.length > 0) {
-        // 기존 태그 데이터 삭제
-        const { error: deleteTagsError } = await supabase
-          .from('service_tags')
-          .delete()
-          .eq('service_id', id);
-
-        if (deleteTagsError) {
-          console.error('Error deleting tags:', deleteTagsError);
-          throw deleteTagsError;
-        }
-
-        // 새로운 태그 데이터 추가
-        const tagsData = tags.map(tag => ({
-          service_id: id,
-          tag_name: tag
-        }));
-
-        const { error: insertTagsError } = await supabase
-          .from('service_tags')
-          .insert(tagsData);
-
-        if (insertTagsError) {
-          console.error('Error inserting tags:', insertTagsError);
-          throw insertTagsError;
-        }
-      } else {
-        // 태그가 없는 경우 기존 태그 모두 삭제
-        const { error: deleteTagsError } = await supabase
-          .from('service_tags')
-          .delete()
-          .eq('service_id', id);
-
-        if (deleteTagsError) {
-          console.error('Error deleting all tags:', deleteTagsError);
-          throw deleteTagsError;
-        }
-      }
-
-      // 부품 정보 업데이트
-      if (selectedParts && selectedParts.length > 0) {
-        // 기존 부품 데이터 삭제
-        const { error: deletePartsError } = await supabase
-          .from('service_parts')
-          .delete()
-          .eq('service_id', id);
-
-        if (deletePartsError) {
-          console.error('Error deleting parts:', deletePartsError);
-          throw deletePartsError;
-        }
-
-        // 새로운 부품 데이터 추가
-        const partsData = selectedParts.map(part => ({
-          service_id: id,
-          part_id: part.id,
-          quantity: part.quantity,
-          price: part.price || 0,
-          usage: part.usage || 'A/S'
-        }));
-
-        const { error: insertPartsError } = await supabase
-          .from('service_parts')
-          .insert(partsData);
-
-        if (insertPartsError) {
-          console.error('Error inserting parts:', insertPartsError);
-          throw insertPartsError;
-        }
-      }
+      // 로컬 스토리지에 수정된 항목의 ID 저장
+      localStorage.setItem('highlightServiceId', String(id));
 
       setSnackbar({
         open: true,
@@ -336,11 +266,10 @@ function ServiceDetail() {
       });
       setIsEditing(false);
       
-      // 수정된 데이터로 폼 데이터 업데이트
-      setFormData(prev => ({
-        ...prev,
-        ...updateData
-      }));
+      // 2초 후 리스트 페이지로 이동
+      setTimeout(() => {
+        navigate('/services');
+      }, 2000);
       
     } catch (error) {
       console.error('Error in handleSubmit:', error);
@@ -588,8 +517,11 @@ function ServiceDetail() {
             severity: 'success'
           });
 
-          // 목록 페이지로 이동
-          navigate('/services');
+          // 2초 후 리스트 페이지로 이동
+          setTimeout(() => {
+            navigate('/services');
+          }, 2000);
+
         } catch (err) {
           console.error('Error deleting service:', err);
           setSnackbar({
@@ -1336,113 +1268,122 @@ function ServiceDetail() {
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid item xs={12}>
-                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 2 }}>
-                      <DatePicker
-                        label="접수일"
-                        value={formData.reception_date}
-                        onChange={(newValue) => {
-                          handleChange({
-                            target: { name: 'reception_date', value: newValue }
-                          });
-                        }}
-                        renderInput={(params) => (
-                          <TextField 
-                            {...params} 
-                            size="small"
-                            sx={{
-                              width: '150px',
-                              '& .MuiOutlinedInput-root': {
-                                height: '36px',
-                                borderRadius: 1,
-                                bgcolor: '#f9fafb'
-                              }
+                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                      <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flex: 1 }}>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                          <Typography variant="caption" sx={{ color: 'text.secondary', ml: 1 }}>
+                            접수일자*
+                          </Typography>
+                          <DatePicker
+                            value={formData.reception_date}
+                            onChange={(newValue) => {
+                              handleChange({
+                                target: { name: 'reception_date', value: newValue }
+                              });
                             }}
+                            renderInput={(params) => (
+                              <TextField 
+                                {...params} 
+                                size="small"
+                                sx={{
+                                  width: '150px',
+                                  '& .MuiOutlinedInput-root': {
+                                    height: '36px',
+                                    borderRadius: 1,
+                                    bgcolor: '#f9fafb'
+                                  }
+                                }}
+                              />
+                            )}
                           />
-                        )}
-                      />
-                      <DatePicker
-                        label="완료일"
-                        value={formData.completion_date}
-                        onChange={(newValue) => handleDateChange(newValue, 'completion_date')}
-                        renderInput={(params) => (
-                          <TextField 
-                            {...params} 
-                            size="small"
-                            sx={{
-                              width: '150px',
-                              '& .MuiOutlinedInput-root': {
-                                height: '36px',
-                                borderRadius: 1,
-                                bgcolor: '#f9fafb'
-                              }
-                            }}
+                        </Box>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                          <Typography variant="caption" sx={{ color: 'text.secondary', ml: 1 }}>
+                            완료일
+                          </Typography>
+                          <DatePicker
+                            value={formData.completion_date}
+                            onChange={(newValue) => handleDateChange(newValue, 'completion_date')}
+                            renderInput={(params) => (
+                              <TextField 
+                                {...params} 
+                                size="small"
+                                sx={{
+                                  width: '150px',
+                                  '& .MuiOutlinedInput-root': {
+                                    height: '36px',
+                                    borderRadius: 1,
+                                    bgcolor: '#f9fafb'
+                                  }
+                                }}
+                              />
+                            )}
                           />
-                        )}
-                      />
+                        </Box>
+                      </Box>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        <Typography variant="caption" sx={{ color: 'text.secondary', ml: 1 }}>
+                          작성자
+                        </Typography>
+                        <TextField
+                          size="small"
+                          name="writer"
+                          value={formData.writer}
+                          onChange={handleChange}
+                          sx={{ 
+                            width: '150px',
+                            '& .MuiOutlinedInput-root': {
+                              height: '36px'
+                            }
+                          }}
+                        />
+                      </Box>
                     </Box>
                   </Grid>
                   <Grid item xs={12}>
-                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Box sx={{ display: 'flex', gap: 1 }}>
-                        <Button 
-                          onClick={() => handleStatusChange('접수')}
-                          variant="contained"
-                          size="small"
-                          sx={{
-                            marginLeft: '8px',
-                            backgroundColor: formData.status === '접수' ? '#3182f6' : '#f2f4f6',
-                            color: formData.status === '접수' ? '#ffffff' : '#4e5968',
-                            '&:hover': {
-                              backgroundColor: formData.status === '접수' ? '#1b64da' : '#e5e8eb'
-                            }
-                          }}
-                        >
-                          접수
-                        </Button>
-                        <Button 
-                          onClick={() => handleStatusChange('처리중')}
-                          variant="contained"
-                          size="small"
-                          sx={{
-                            marginLeft: '8px',
-                            backgroundColor: formData.status === '처리중' ? '#3182f6' : '#f2f4f6',
-                            color: formData.status === '처리중' ? '#ffffff' : '#4e5968',
-                            '&:hover': {
-                              backgroundColor: formData.status === '처리중' ? '#1b64da' : '#e5e8eb'
-                            }
-                          }}
-                        >
-                          처리중
-                        </Button>
-                        <Button 
-                          onClick={() => handleStatusChange('완료')}
-                          variant="contained"
-                          size="small"
-                          sx={{
-                            marginLeft: '8px',
-                            backgroundColor: formData.status === '완료' ? '#3182f6' : '#f2f4f6',
-                            color: formData.status === '완료' ? '#ffffff' : '#4e5968',
-                            '&:hover': {
-                              backgroundColor: formData.status === '완료' ? '#1b64da' : '#e5e8eb'
-                            }
-                          }}
-                        >
-                          완료
-                        </Button>
-                      </Box>
-                      <TextField
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Button 
+                        onClick={() => handleStatusChange('접수')}
+                        variant="contained"
                         size="small"
-                        name="writer"
-                        label="작성자"
-                        value={formData.writer}
-                        onChange={handleChange}
-                        sx={{ 
-                          width: '150px',
-                          '& .MuiOutlinedInput-root': {
-                            height: '36px'
+                        sx={{
+                          backgroundColor: formData.status === '접수' ? '#3182f6' : '#f2f4f6',
+                          color: formData.status === '접수' ? '#ffffff' : '#4e5968',
+                          '&:hover': {
+                            backgroundColor: formData.status === '접수' ? '#1b64da' : '#e5e8eb'
                           }
                         }}
-                      />
+                      >
+                        접수
+                      </Button>
+                      <Button 
+                        onClick={() => handleStatusChange('처리중')}
+                        variant="contained"
+                        size="small"
+                        sx={{
+                          backgroundColor: formData.status === '처리중' ? '#3182f6' : '#f2f4f6',
+                          color: formData.status === '처리중' ? '#ffffff' : '#4e5968',
+                          '&:hover': {
+                            backgroundColor: formData.status === '처리중' ? '#1b64da' : '#e5e8eb'
+                          }
+                        }}
+                      >
+                        처리중
+                      </Button>
+                      <Button 
+                        onClick={() => handleStatusChange('완료')}
+                        variant="contained"
+                        size="small"
+                        sx={{
+                          backgroundColor: formData.status === '완료' ? '#3182f6' : '#f2f4f6',
+                          color: formData.status === '완료' ? '#ffffff' : '#4e5968',
+                          '&:hover': {
+                            backgroundColor: formData.status === '완료' ? '#1b64da' : '#e5e8eb'
+                          }
+                        }}
+                      >
+                        완료
+                      </Button>
                     </Box>
                   </Grid>
                 </Grid>
@@ -1799,18 +1740,25 @@ function ServiceDetail() {
 
         <Snackbar
           open={snackbar.open}
-          autoHideDuration={6000}
-          onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+          autoHideDuration={2000}
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+          sx={{
+            top: '50% !important',
+            transform: 'translateY(-50%)'
+          }}
         >
-          <Alert 
+          <Alert
+            onClose={() => setSnackbar({ ...snackbar, open: false })}
             severity={snackbar.severity}
+            variant="filled"
             sx={{
-              borderRadius: 2,
-              bgcolor: snackbar.severity === 'success' ? '#3182f6' : '#f04452',
-              color: 'white',
-              '& .MuiAlert-icon': {
-                color: 'white'
+              width: '100%',
+              minWidth: '300px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              fontSize: '1rem',
+              '.MuiAlert-icon': {
+                fontSize: '24px'
               }
             }}
           >

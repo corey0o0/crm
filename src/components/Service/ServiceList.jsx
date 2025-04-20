@@ -98,6 +98,7 @@ function ServiceList() {
     startDate: '',
     endDate: ''
   });
+  const [highlightedId, setHighlightedId] = useState(null);
 
   const brandColors = {
     xlider: {
@@ -713,7 +714,11 @@ function ServiceList() {
       label: '이름',
       sortable: true,
       render: (row) => (
-        <Typography noWrap sx={{ fontSize: '0.95rem', fontWeight: 500, letterSpacing: '0.01em' }}>
+        <Typography noWrap sx={{ 
+          fontSize: '0.95rem', 
+          fontWeight: 600,
+          letterSpacing: '0.01em' 
+        }}>
           {row.customer_name}
         </Typography>
       )
@@ -723,7 +728,12 @@ function ServiceList() {
       label: '연락처',
       sortable: true,
       render: (row) => (
-        <Typography noWrap sx={{ fontSize: '0.95rem', letterSpacing: '0.01em', color: 'text.secondary' }}>
+        <Typography noWrap sx={{ 
+          fontSize: '0.95rem', 
+          fontWeight: 600,
+          letterSpacing: '0.01em', 
+          color: 'text.primary' 
+        }}>
           {row.customer_phone}
         </Typography>
       )
@@ -888,25 +898,69 @@ function ServiceList() {
     }
   ];
 
-  // 모바일용 카드 렌더링 함수
+  // 로컬 스토리지에서 하이라이트할 ID를 가져옴
+  useEffect(() => {
+    const highlightId = localStorage.getItem('highlightServiceId');
+    console.log('Highlight ID from localStorage:', highlightId); // 디버깅용
+    if (highlightId) {
+      setHighlightedId(Number(highlightId));
+      // 3초 후 하이라이트 효과 제거
+      setTimeout(() => {
+        setHighlightedId(null);
+        localStorage.removeItem('highlightServiceId');
+      }, 3000);
+    }
+  }, [services]); // services가 변경될 때마다 체크
+
+  // TableRow 스타일 수정
+  const getRowStyle = (row) => {
+    console.log('Row ID:', row.id, 'Highlighted ID:', highlightedId); // 디버깅용
+    return {
+      backgroundColor: row.id === highlightedId 
+        ? 'rgba(49, 130, 246, 0.1)' // 하이라이트 색상
+        : row.status.includes('완료') 
+          ? '#f5f5f5' 
+          : 'inherit',
+      transition: 'background-color 0.3s ease',
+      '&:hover': {
+        backgroundColor: row.id === highlightedId 
+          ? 'rgba(49, 130, 246, 0.2)'
+          : row.status.includes('완료') 
+            ? '#f0f0f0' 
+            : '#f5f5f5'
+      }
+    };
+  };
+
+  // 모바일 카드 렌더링 함수 수정
   const renderMobileCard = (row, index) => (
     <Card 
       key={index} 
       onClick={() => handleRowClick(row)} 
       sx={{ 
         cursor: 'pointer',
-        backgroundColor: row.status.includes('완료') ? 'grey.50' : 'background.paper',
+        backgroundColor: row.id === highlightedId 
+          ? 'rgba(49, 130, 246, 0.1)'
+          : row.status.includes('완료') 
+            ? 'rgba(0, 0, 0, 0.02)' 
+            : '#ffffff',
+        transition: 'background-color 0.3s ease',
         '&:hover': {
-          backgroundColor: row.status.includes('완료') ? 'grey.100' : 'grey.50'
+          backgroundColor: row.id === highlightedId 
+            ? 'rgba(49, 130, 246, 0.2)'
+            : row.status.includes('완료') 
+              ? 'rgba(0, 0, 0, 0.04)' 
+              : 'rgba(0, 0, 0, 0.02)'
         },
-        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-        transition: 'all 0.2s ease'
+        boxShadow: row.id === highlightedId 
+          ? '0 2px 8px rgba(49, 130, 246, 0.2)'
+          : '0 1px 3px rgba(0,0,0,0.1)',
       }}
     >
       <CardContent sx={{ '&:last-child': { pb: 2 } }}>
         <Typography variant="subtitle1" sx={{ 
           fontSize: '1.1rem',
-          fontWeight: 500,
+          fontWeight: 600,
           letterSpacing: '0.01em',
           mb: 0.5
         }}>
@@ -914,9 +968,10 @@ function ServiceList() {
         </Typography>
         <Typography sx={{ 
           fontSize: '0.95rem',
-          color: 'text.secondary',
+          fontWeight: 600,
           letterSpacing: '0.01em',
-          mb: 1.5
+          mb: 1.5,
+          color: 'text.primary'
         }}>
           {row.customer_phone}
         </Typography>
@@ -1285,17 +1340,10 @@ function ServiceList() {
         renderMobileCard={renderMobileCard}
         onRowClick={handleRowClick}
         hoverEffect={true}
-        rowStyle={(row) => ({
-          backgroundColor: row.status.includes('완료') ? '#f5f5f5' : 'inherit',
-          '&:hover': {
-            backgroundColor: row.status.includes('완료') ? '#f5f5f5' : '#f0f0f0'
-          }
-        })}
+        rowStyle={getRowStyle}
         sx={{
           '& .MuiTableRow-root': {
-            '&:hover': {
-              backgroundColor: (theme) => theme.palette.action.hover
-            }
+            transition: 'background-color 0.3s ease',
           }
         }}
       />

@@ -323,6 +323,57 @@ function SalesStats() {
                           <TableCell>{part.usage}</TableCell>
                         </TableRow>
                       ))}
+                      {/* 용도별 합계 행 추가 */}
+                      <TableRow sx={{ bgcolor: '#f9fafb' }}>
+                        <TableCell colSpan={4} align="right" sx={{ fontWeight: 600 }}>
+                          용도별 합계
+                        </TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 600 }}>
+                          {formatCurrency(
+                            partsData.servicePartsByDate[date].reduce((sum, part) => sum + part.total, 0)
+                          )}
+                        </TableCell>
+                        <TableCell />
+                      </TableRow>
+                      <TableRow sx={{ bgcolor: '#f9fafb' }}>
+                        <TableCell colSpan={4} align="right">
+                          A/S
+                        </TableCell>
+                        <TableCell align="right">
+                          {formatCurrency(
+                            partsData.servicePartsByDate[date]
+                              .filter(part => part.usage === 'A/S')
+                              .reduce((sum, part) => sum + part.total, 0)
+                          )}
+                        </TableCell>
+                        <TableCell />
+                      </TableRow>
+                      <TableRow sx={{ bgcolor: '#f9fafb' }}>
+                        <TableCell colSpan={4} align="right">
+                          판매
+                        </TableCell>
+                        <TableCell align="right">
+                          {formatCurrency(
+                            partsData.servicePartsByDate[date]
+                              .filter(part => part.usage === '판매')
+                              .reduce((sum, part) => sum + part.total, 0)
+                          )}
+                        </TableCell>
+                        <TableCell />
+                      </TableRow>
+                      <TableRow sx={{ bgcolor: '#f9fafb' }}>
+                        <TableCell colSpan={4} align="right">
+                          워런티
+                        </TableCell>
+                        <TableCell align="right">
+                          {formatCurrency(
+                            partsData.servicePartsByDate[date]
+                              .filter(part => part.usage === '워런티')
+                              .reduce((sum, part) => sum + part.total, 0)
+                          )}
+                        </TableCell>
+                        <TableCell />
+                      </TableRow>
                     </TableBody>
                   </Table>
                 </TableContainer>
