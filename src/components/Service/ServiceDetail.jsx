@@ -238,7 +238,7 @@ function ServiceDetail() {
         customer_phone: formData.customer_phone,
         customer_address: formData.customer_address,
         product_name: formData.product_name,
-        mileage: mileageValue,  // 처리된 주행거리 값 사용
+        mileage: mileageValue,
         note: formData.note,
         symptom: formData.symptom,
         solution: formData.solution,
@@ -249,12 +249,60 @@ function ServiceDetail() {
         updated_at: new Date().toISOString()
       };
 
+      // 1. 서비스 정보 업데이트
       const { error: updateError } = await supabase
         .from('services')
         .update(updateData)
         .eq('id', id);
 
       if (updateError) throw updateError;
+
+      // 2. 기존 태그 삭제
+      const { error: deleteTagsError } = await supabase
+        .from('service_tags')
+        .delete()
+        .eq('service_id', id);
+
+      if (deleteTagsError) throw deleteTagsError;
+
+      // 3. 새로운 태그 추가
+      if (tags.length > 0) {
+        const tagData = tags.map(tag => ({
+          service_id: id,
+          tag_name: tag
+        }));
+
+        const { error: insertTagsError } = await supabase
+          .from('service_tags')
+          .insert(tagData);
+
+        if (insertTagsError) throw insertTagsError;
+      }
+
+      // 4. 기존 부품 삭제
+      const { error: deletePartsError } = await supabase
+        .from('service_parts')
+        .delete()
+        .eq('service_id', id);
+
+      if (deletePartsError) throw deletePartsError;
+
+      // 5. 새로운 부품 추가
+      if (selectedParts.length > 0) {
+        const partsData = selectedParts.map(part => ({
+          service_id: id,
+          part_id: part.id,
+          quantity: part.quantity,
+          price: part.price,
+          usage: part.usage || 'A/S'
+        }));
+
+        const { error: insertPartsError } = await supabase
+          .from('service_parts')
+          .insert(partsData);
+
+        if (insertPartsError) throw insertPartsError;
+      }
 
       // 로컬 스토리지에 수정된 항목의 ID 저장
       localStorage.setItem('highlightServiceId', String(id));
