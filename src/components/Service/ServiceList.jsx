@@ -703,6 +703,27 @@ function ServiceList() {
   // 테이블 컬럼 정의
   const columns = [
     { 
+      id: 'status_indicator', 
+      label: '',
+      sortable: false,
+      width: '6px',
+      render: (row) => (
+        <Box
+          sx={{
+            width: '6px',
+            height: '24px',
+            backgroundColor: row.id === highlightedId 
+              ? '#ffd700'  // 노란색으로 변경
+              : row.status?.includes('완료') 
+                ? '#2e7d32'
+                : row.status === '처리중'
+                  ? '#ed6c02'
+                  : '#1976d2',
+          }}
+        />
+      )
+    },
+    { 
       id: 'reception_date', 
       label: '접수일자',
       sortable: true,
@@ -907,33 +928,13 @@ function ServiceList() {
     console.log('Highlight ID from localStorage:', highlightId); // 디버깅용
     if (highlightId) {
       setHighlightedId(Number(highlightId));
-      // 3초 후 하이라이트 효과 제거
+      // 10초 후 하이라이트 효과 제거
       setTimeout(() => {
         setHighlightedId(null);
         localStorage.removeItem('highlightServiceId');
-      }, 3000);
+      }, 10000);
     }
   }, [services]); // services가 변경될 때마다 체크
-
-  // TableRow 스타일 수정
-  const getRowStyle = (row) => {
-    console.log('Row ID:', row.id, 'Highlighted ID:', highlightedId); // 디버깅용
-    return {
-      backgroundColor: row.id === highlightedId 
-        ? 'rgba(49, 130, 246, 0.1)' // 하이라이트 색상
-        : row.status.includes('완료') 
-          ? '#f5f5f5' 
-          : 'inherit',
-      transition: 'background-color 0.3s ease',
-      '&:hover': {
-        backgroundColor: row.id === highlightedId 
-          ? 'rgba(49, 130, 246, 0.2)'
-          : row.status.includes('완료') 
-            ? '#f0f0f0' 
-            : '#f5f5f5'
-      }
-    };
-  };
 
   // 모바일 카드 렌더링 함수 수정
   const renderMobileCard = (row, index) => (
@@ -942,33 +943,37 @@ function ServiceList() {
       onClick={() => handleRowClick(row)} 
       sx={{ 
         cursor: 'pointer',
-        backgroundColor: row.id === highlightedId 
-          ? 'rgba(49, 130, 246, 0.1)'
-          : row.status.includes('완료') 
-            ? 'rgba(0, 0, 0, 0.02)' 
-            : '#ffffff',
-        transition: 'background-color 0.3s ease',
+        position: 'relative',
         '&:hover': {
-          backgroundColor: row.id === highlightedId 
-            ? 'rgba(49, 130, 246, 0.2)'
-            : row.status.includes('완료') 
-              ? 'rgba(0, 0, 0, 0.04)' 
-              : 'rgba(0, 0, 0, 0.02)'
+          backgroundColor: 'rgba(0, 0, 0, 0.04)'
         },
-        boxShadow: row.id === highlightedId 
-          ? '0 2px 8px rgba(49, 130, 246, 0.2)'
-          : '0 1px 3px rgba(0,0,0,0.1)',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
       }}
     >
       <CardContent sx={{ '&:last-child': { pb: 2 } }}>
-        <Typography variant="subtitle1" sx={{ 
-          fontSize: '1.1rem',
-          fontWeight: 600,
-          letterSpacing: '0.01em',
-          mb: 0.5
-        }}>
-          {row.customer_name}
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+          <Box
+            sx={{
+              width: '6px',
+              height: '24px',
+              backgroundColor: row.id === highlightedId 
+                ? '#ffd700'  // 노란색으로 변경
+                : row.status?.includes('완료') 
+                  ? '#2e7d32'
+                  : row.status === '처리중'
+                    ? '#ed6c02'
+                    : '#1976d2',
+              flexShrink: 0
+            }}
+          />
+          <Typography variant="subtitle1" sx={{ 
+            fontSize: '1.1rem',
+            fontWeight: 600,
+            letterSpacing: '0.01em',
+          }}>
+            {row.customer_name}
+          </Typography>
+        </Box>
         <Typography sx={{ 
           fontSize: '0.95rem',
           fontWeight: 600,
@@ -1343,7 +1348,11 @@ function ServiceList() {
         renderMobileCard={renderMobileCard}
         onRowClick={handleRowClick}
         hoverEffect={true}
-        rowStyle={getRowStyle}
+        rowSx={(row) => ({
+          '&:hover': {
+            backgroundColor: 'rgba(0, 0, 0, 0.04)'
+          }
+        })}
         sx={{
           '& .MuiTableRow-root': {
             transition: 'background-color 0.3s ease',

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Drawer,
@@ -95,6 +95,26 @@ function Layout() {
   const [open, setOpen] = useState(!isMobile);
   const navigate = useNavigate();
   const location = useLocation();
+  const [currentDateTime, setCurrentDateTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentDateTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  const formatDateTime = (date) => {
+    return date.toLocaleString('ko-KR', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+  };
 
   const menuItems = [
     { text: '대시보드', icon: <DashboardIcon />, path: '/' },
@@ -144,6 +164,17 @@ function Layout() {
           </IconButton>
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
             고객관리시스템
+          </Typography>
+          <Typography
+            variant="body2"
+            sx={{
+              color: 'inherit',
+              fontSize: '0.875rem',
+              fontWeight: 500,
+              mr: 2
+            }}
+          >
+            {formatDateTime(currentDateTime)}
           </Typography>
           <Button
             color="inherit"
