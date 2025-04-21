@@ -145,6 +145,7 @@ function ServiceList() {
       // 2. 서비스와 태그 데이터 병합
       const servicesWithTags = servicesData.map(service => ({
         ...service,
+        status: service.status || '접수', // status가 없는 경우 기본값 설정
         tags: service.service_tags?.map(tag => tag.tag_name) || []
       }));
 
@@ -231,6 +232,7 @@ function ServiceList() {
   }, [services, loading, error]);
 
   const getStatusColor = (status) => {
+    if (!status) return 'default'; // null이나 undefined 처리
     if (status.includes('완료')) {
       return 'success';  // 완료는 초록색 계열
     }
@@ -247,6 +249,7 @@ function ServiceList() {
   };
 
   const getDisplayStatus = (status) => {
+    if (!status) return ''; // null이나 undefined 처리
     return status.includes('완료(**)')  ? '완료' : status;
   };
 
