@@ -144,9 +144,9 @@ function ProductShipment() {
   const [dateFilter, setDateFilter] = useState(() => {
     const savedDateFilter = localStorage.getItem('shipment_dateFilter');
     return savedDateFilter ? JSON.parse(savedDateFilter) : {
-      type: 'order_date',
-      startDate: '',
-      endDate: ''
+    type: 'order_date',
+    startDate: '',
+    endDate: ''
     };
   });
   
@@ -755,7 +755,7 @@ function ProductShipment() {
 
         // 저장 성공 후 하이라이트 제거
         setHighlightedId(null);
-        
+
         setOpenDialog(false);
         setSelectedParts([]);
         fetchShipments();

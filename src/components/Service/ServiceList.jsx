@@ -710,8 +710,8 @@ function ServiceList() {
       render: (row) => (
         <Box
           sx={{
-            width: '6px',
-            height: '24px',
+            width: row.id === highlightedId ? '12px' : '6px',
+            height: row.status === '접수' ? '12px' : '24px',  // 접수 상태일 때 높이 12px
             backgroundColor: row.id === highlightedId 
               ? '#ffd700'  // 노란색으로 변경
               : row.status?.includes('완료') 
@@ -954,8 +954,8 @@ function ServiceList() {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
           <Box
             sx={{
-              width: '6px',
-              height: '24px',
+              width: row.id === highlightedId ? '12px' : '6px',
+              height: row.status === '접수' ? '12px' : '24px',  // 접수 상태일 때 높이 12px
               backgroundColor: row.id === highlightedId 
                 ? '#ffd700'  // 노란색으로 변경
                 : row.status?.includes('완료') 
@@ -966,13 +966,13 @@ function ServiceList() {
               flexShrink: 0
             }}
           />
-          <Typography variant="subtitle1" sx={{ 
-            fontSize: '1.1rem',
-            fontWeight: 600,
-            letterSpacing: '0.01em',
-          }}>
-            {row.customer_name}
-          </Typography>
+        <Typography variant="subtitle1" sx={{ 
+          fontSize: '1.1rem',
+          fontWeight: 600,
+          letterSpacing: '0.01em',
+        }}>
+          {row.customer_name}
+        </Typography>
         </Box>
         <Typography sx={{ 
           fontSize: '0.95rem',
