@@ -33,15 +33,35 @@ function StockList() {
   };
 
   const handleStockChange = (id, value) => {
-    setParts(prev => prev.map(p => p.id === id ? { ...p, stock: value } : p));
+    // 숫자가 아닌 입력 제거
+    const numericValue = value.replace(/[^0-9]/g, '');
+    // 숫자로 변환
+    const stockValue = numericValue === '' ? 0 : parseInt(numericValue, 10);
+    setParts(prev => prev.map(p => p.id === id ? { ...p, stock: stockValue } : p));
   };
 
   const handleSaveStock = async (id, stock) => {
-    const { error } = await supabase.from('parts').update({ stock: Number(stock) }).eq('id', id);
-    if (error) {
-      setSnackbar({ open: true, message: '재고 저장 실패', severity: 'error' });
-    } else {
-      setSnackbar({ open: true, message: '재고가 저장되었습니다.', severity: 'success' });
+    try {
+      const stockValue = parseInt(stock, 10) || 0;
+      const { data, error } = await supabase
+        .from('parts')
+        .update({ stock: stockValue })
+        .eq('id', id)
+        .select();
+
+      if (error) {
+        console.error('재고 저장 오류:', error);
+        setSnackbar({ open: true, message: '재고 저장 실패: ' + error.message, severity: 'error' });
+      } else {
+        setSnackbar({ open: true, message: '재고가 저장되었습니다.', severity: 'success' });
+        // 업데이트된 데이터로 로컬 상태 갱신
+        setParts(prev => prev.map(p => 
+          p.id === id ? { ...p, stock: stockValue } : p
+        ));
+      }
+    } catch (error) {
+      console.error('재고 저장 중 오류 발생:', error);
+      setSnackbar({ open: true, message: '재고 저장 중 오류가 발생했습니다.', severity: 'error' });
     }
   };
 
@@ -138,8 +158,25 @@ function StockList() {
               {sortedParts.map(part => (
                 <TableRow key={part.id}>
                   <TableCell>{part.brand}</TableCell>
-                  <TableCell>{part.name}</TableCell>
-                  <TableCell>{part.code}</TableCell>
+                  <TableCell>
+                    <Typography sx={{ 
+                      fontSize: '0.95rem', 
+                      fontWeight: 700,
+                      letterSpacing: '0.01em' 
+                    }}>
+                      {part.name}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography sx={{ 
+                      fontSize: '0.95rem', 
+                      fontWeight: 700,
+                      letterSpacing: '0.01em',
+                      color: 'text.primary' 
+                    }}>
+                      {part.code}
+                    </Typography>
+                  </TableCell>
                   <TableCell align="right">{part.price?.toLocaleString()}원</TableCell>
                   <TableCell align="right">
                     <TextField

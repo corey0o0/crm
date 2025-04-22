@@ -738,9 +738,9 @@ function ServiceList() {
       label: '이름',
       sortable: true,
       render: (row) => (
-        <Typography noWrap sx={{ 
+        <Typography notwrap sx={{ 
           fontSize: '0.95rem', 
-          fontWeight: 600,
+          fontWeight: 700,
           letterSpacing: '0.01em' 
         }}>
           {row.customer_name}
@@ -754,7 +754,7 @@ function ServiceList() {
       render: (row) => (
         <Typography noWrap sx={{ 
           fontSize: '0.95rem', 
-          fontWeight: 600,
+          fontWeight: 700,
           letterSpacing: '0.01em', 
           color: 'text.primary' 
         }}>
@@ -976,7 +976,7 @@ function ServiceList() {
         </Box>
         <Typography sx={{ 
           fontSize: '0.95rem',
-          fontWeight: 600,
+          fontWeight: 700,
           letterSpacing: '0.01em',
           mb: 1.5,
           color: 'text.primary'

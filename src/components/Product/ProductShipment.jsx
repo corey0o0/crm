@@ -966,12 +966,12 @@ function ProductShipment() {
     },
     { id: 'customer_name', label: '이름',
       render: (row) => (
-        <Typography>{row.customer_name}</Typography>
+        <Typography sx={{ fontWeight: 700 }}>{row.customer_name}</Typography>
       )
     },
     { id: 'customer_phone', label: '연락처',
       render: (row) => (
-        <Typography variant="body2">{row.customer_phone}</Typography>
+        <Typography variant="body2" sx={{ fontWeight: 700 }}>{row.customer_phone}</Typography>
       )
     },
     { id: 'sales_channel', label: '판매처',
@@ -1756,11 +1756,11 @@ function ProductShipment() {
                     <CardContent>
                       <Grid container spacing={1}>
                         <Grid item xs={8}>
-                          <Typography variant="h6" component="div">
+                          <Typography variant="h6" component="div" sx={{ fontWeight: 700 }}>
                             {shipment.customer_name}
                           </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            {shipment.product_name} ({shipment.quantity}개)
+                          <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>
+                            {shipment.customer_phone}
                           </Typography>
                         </Grid>
                         <Grid item xs={4} sx={{ textAlign: 'right' }}>
