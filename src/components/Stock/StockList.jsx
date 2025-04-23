@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import {
-  Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Button, MenuItem, CircularProgress, Snackbar, Alert, IconButton
+  Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Button, MenuItem, CircularProgress, Snackbar, Alert, IconButton, Dialog, DialogTitle, DialogContent
 } from '@mui/material';
 import InventoryIcon from '@mui/icons-material/Inventory';
+import CloseIcon from '@mui/icons-material/Close';
+import HistoryIcon from '@mui/icons-material/History';
 
 function StockList() {
   const [loading, setLoading] = useState(true);
@@ -13,6 +15,12 @@ function StockList() {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [sortConfig, setSortConfig] = useState({ key: 'brand', direction: 'asc' });
   const brandOptions = ['전체', 'XRB', 'NB'];
+  const [showLogDialog, setShowLogDialog] = useState(false);
+  const [stockLogs, setStockLogs] = useState([]);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [showAllLogsDialog, setShowAllLogsDialog] = useState(false);
+  const [allStockLogs, setAllStockLogs] = useState([]);
+  const [logsLoading, setLogsLoading] = useState(false);
 
   useEffect(() => {
     fetchParts();
@@ -40,27 +48,35 @@ function StockList() {
     setParts(prev => prev.map(p => p.id === id ? { ...p, stock: stockValue } : p));
   };
 
-  const handleSaveStock = async (id, stock) => {
+  const handleSaveStock = async (id, currentStock, newStock) => {
     try {
-      const stockValue = parseInt(stock, 10) || 0;
-      const { data, error } = await supabase
+      const stockValue = parseInt(newStock, 10) || 0;
+      const { error: updateError } = await supabase
         .from('parts')
         .update({ stock: stockValue })
         .eq('id', id)
         .select();
 
-      if (error) {
-        console.error('재고 저장 오류:', error);
-        setSnackbar({ open: true, message: '재고 저장 실패: ' + error.message, severity: 'error' });
-      } else {
-        setSnackbar({ open: true, message: '재고가 저장되었습니다.', severity: 'success' });
-        // 업데이트된 데이터로 로컬 상태 갱신
-        setParts(prev => prev.map(p => 
-          p.id === id ? { ...p, stock: stockValue } : p
-        ));
-      }
+      if (updateError) throw updateError;
+
+      // 재고 로그 기록
+      const { error: logError } = await supabase
+        .from('stock_logs')
+        .insert({
+          product_id: id,
+          previous_quantity: currentStock,
+          new_quantity: stockValue,
+          change_quantity: stockValue - currentStock,
+          reason: '수동 재고 조정',
+          created_by: (await supabase.auth.getUser()).data.user?.email || '관리자'
+        });
+
+      if (logError) throw logError;
+
+      setSnackbar({ open: true, message: '재고가 저장되었습니다.', severity: 'success' });
+      fetchParts();
     } catch (error) {
-      console.error('재고 저장 중 오류 발생:', error);
+      console.error('재고 저장 중 오류:', error);
       setSnackbar({ open: true, message: '재고 저장 중 오류가 발생했습니다.', severity: 'error' });
     }
   };
@@ -99,6 +115,136 @@ function StockList() {
 
   const sortArrow = (key) => sortConfig.key === key ? (sortConfig.direction === 'asc' ? ' ▲' : ' ▼') : '';
 
+  // 재고 로그 조회 함수
+  const fetchStockLogs = async (productId) => {
+    try {
+      const { data, error } = await supabase
+        .from('stock_logs')
+        .select('*, parts(name, code)')
+        .eq('product_id', productId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setStockLogs(data || []);
+    } catch (err) {
+      console.error('재고 로그 조회 중 오류:', err);
+      setSnackbar({
+        open: true,
+        message: '재고 로그 조회 중 오류가 발생했습니다.',
+        severity: 'error'
+      });
+    }
+  };
+
+  // 재고 로그 기록 함수
+  const createStockLog = async (productId, oldQuantity, newQuantity, reason) => {
+    try {
+      const { error } = await supabase
+        .from('stock_logs')
+        .insert({
+          product_id: productId,
+          previous_quantity: oldQuantity,
+          new_quantity: newQuantity,
+          change_quantity: newQuantity - oldQuantity,
+          reason: reason,
+          created_by: '관리자', // 실제 사용자 정보로 대체 필요
+          created_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+    } catch (err) {
+      console.error('재고 로그 기록 중 오류:', err);
+    }
+  };
+
+  // 재고 수정 함수 수정
+  const handleQuantityChange = async (productId, newQuantity) => {
+    try {
+      // 현재 재고 정보 조회
+      const { data: currentStock, error: stockError } = await supabase
+        .from('products')
+        .select('quantity')
+        .eq('id', productId)
+        .single();
+
+      if (stockError) throw stockError;
+
+      // 재고 업데이트
+      const { error: updateError } = await supabase
+        .from('products')
+        .update({ quantity: newQuantity })
+        .eq('id', productId);
+
+      if (updateError) throw updateError;
+
+      // 재고 로그 기록
+      await createStockLog(
+        productId,
+        currentStock.quantity,
+        newQuantity,
+        '수동 재고 조정'
+      );
+
+      setSnackbar({
+        open: true,
+        message: '재고가 성공적으로 수정되었습니다.',
+        severity: 'success'
+      });
+
+      // 목록 새로고침
+      fetchParts();
+    } catch (err) {
+      console.error('재고 수정 중 오류:', err);
+      setSnackbar({
+        open: true,
+        message: '재고 수정 중 오류가 발생했습니다.',
+        severity: 'error'
+      });
+    }
+  };
+
+  // 재고 로그 다이얼로그 열기
+  const handleOpenLogDialog = (product) => {
+    setSelectedProduct(product);
+    fetchStockLogs(product.id);
+    setShowLogDialog(true);
+  };
+
+  // 전체 재고 변동 내역 조회
+  const fetchAllStockLogs = async () => {
+    setLogsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('stock_logs')
+        .select(`
+          *,
+          parts (
+            name,
+            code,
+            brand
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setAllStockLogs(data || []);
+    } catch (err) {
+      console.error('재고 변동 내역 조회 중 오류:', err);
+      setSnackbar({
+        open: true,
+        message: '재고 변동 내역 조회 중 오류가 발생했습니다.',
+        severity: 'error'
+      });
+    } finally {
+      setLogsLoading(false);
+    }
+  };
+
+  const handleOpenAllLogs = () => {
+    setShowAllLogsDialog(true);
+    fetchAllStockLogs();
+  };
+
   return (
     <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
       <Typography variant="h5" sx={{ mb: 3, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -123,6 +269,14 @@ function StockList() {
             onChange={e => setSearch(e.target.value)}
             sx={{ width: 300 }}
           />
+          <Button
+            variant="outlined"
+            startIcon={<HistoryIcon />}
+            onClick={handleOpenAllLogs}
+            sx={{ height: 40 }}
+          >
+            변동내역
+          </Button>
         </Box>
       </Paper>
       {loading ? (
@@ -190,7 +344,7 @@ function StockList() {
                     <Button
                       variant="contained"
                       size="small"
-                      onClick={() => handleSaveStock(part.id, part.stock)}
+                      onClick={() => handleSaveStock(part.id, part.stock, part.stock)}
                     >
                       저장
                     </Button>
@@ -210,6 +364,163 @@ function StockList() {
           {snackbar.message}
         </Alert>
       </Snackbar>
+      {/* 재고 로그 다이얼로그 */}
+      <Dialog
+        open={showLogDialog}
+        onClose={() => setShowLogDialog(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h6">
+              재고 변동 이력
+              {selectedProduct && ` - ${selectedProduct.name} (${selectedProduct.code})`}
+            </Typography>
+            <IconButton onClick={() => setShowLogDialog(false)}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>일자</TableCell>
+                  <TableCell align="right">이전 수량</TableCell>
+                  <TableCell align="right">변동 수량</TableCell>
+                  <TableCell align="right">변경 후 수량</TableCell>
+                  <TableCell>사유</TableCell>
+                  <TableCell>담당자</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {stockLogs.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} align="center">
+                      <Typography sx={{ py: 2, color: 'text.secondary' }}>
+                        재고 변동 이력이 없습니다.
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  stockLogs.map((log) => (
+                    <TableRow key={log.id}>
+                      <TableCell>
+                        {new Date(log.created_at).toLocaleString('ko-KR', {
+                          year: 'numeric',
+                          month: '2-digit',
+                          day: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </TableCell>
+                      <TableCell align="right">{log.previous_quantity}</TableCell>
+                      <TableCell 
+                        align="right"
+                        sx={{
+                          color: log.change_quantity > 0 ? 'success.main' : 'error.main',
+                          fontWeight: 500
+                        }}
+                      >
+                        {log.change_quantity > 0 ? '+' : ''}{log.change_quantity}
+                      </TableCell>
+                      <TableCell align="right">{log.new_quantity}</TableCell>
+                      <TableCell>{log.reason}</TableCell>
+                      <TableCell>{log.created_by}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </DialogContent>
+      </Dialog>
+      {/* 전체 재고 변동 내역 다이얼로그 */}
+      <Dialog
+        open={showAllLogsDialog}
+        onClose={() => setShowAllLogsDialog(false)}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h6">
+              전체 재고 변동 내역
+            </Typography>
+            <IconButton onClick={() => setShowAllLogsDialog(false)}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {logsLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+              <CircularProgress />
+            </Box>
+          ) : (
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>일자</TableCell>
+                    <TableCell>브랜드</TableCell>
+                    <TableCell>제품명</TableCell>
+                    <TableCell>제품코드</TableCell>
+                    <TableCell align="right">이전 수량</TableCell>
+                    <TableCell align="right">변동 수량</TableCell>
+                    <TableCell align="right">변경 후 수량</TableCell>
+                    <TableCell>사유</TableCell>
+                    <TableCell>담당자</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {allStockLogs.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={9} align="center">
+                        <Typography sx={{ py: 2, color: 'text.secondary' }}>
+                          재고 변동 내역이 없습니다.
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    allStockLogs.map((log) => (
+                      <TableRow key={log.id}>
+                        <TableCell>
+                          {new Date(log.created_at).toLocaleString('ko-KR', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </TableCell>
+                        <TableCell>{log.parts?.brand}</TableCell>
+                        <TableCell>{log.parts?.name}</TableCell>
+                        <TableCell>{log.parts?.code}</TableCell>
+                        <TableCell align="right">{log.previous_quantity}</TableCell>
+                        <TableCell 
+                          align="right"
+                          sx={{
+                            color: log.change_quantity > 0 ? 'success.main' : 'error.main',
+                            fontWeight: 500
+                          }}
+                        >
+                          {log.change_quantity > 0 ? '+' : ''}{log.change_quantity}
+                        </TableCell>
+                        <TableCell align="right">{log.new_quantity}</TableCell>
+                        <TableCell>{log.reason}</TableCell>
+                        <TableCell>{log.created_by}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 }

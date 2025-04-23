@@ -69,11 +69,7 @@ function ServiceDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [snackbar, setSnackbar] = useState({
-    open: false,
-    message: '',
-    severity: 'success'
-  });
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [formData, setFormData] = useState({
     brand: '',
     reception_date: null,
@@ -128,7 +124,6 @@ function ServiceDetail() {
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
   const [customerInputValue, setCustomerInputValue] = useState('');
   const [customerSearchResults, setCustomerSearchResults] = useState([]);
-  const [searchLoading, setSearchLoading] = useState(false);
 
   const fetchServiceDetail = React.useCallback(async () => {
     try {
@@ -920,50 +915,6 @@ function ServiceDetail() {
     setSelectedParts(updatedParts);
   };
 
-  // 고객 검색 함수
-  const searchCustomers = async (searchTerm) => {
-    try {
-      setSearchLoading(true);
-      
-      // 검색어가 2글자 미만이면 검색하지 않음
-      if (searchTerm.length < 2) {
-        setCustomerSearchResults([]);
-        return;
-      }
-
-      // 전화번호 검색
-      const { data: phoneResults, error: phoneError } = await supabase
-        .from('customers')
-        .select('*')
-        .ilike('phone', `%${searchTerm}%`);
-
-      // 이름 검색
-      const { data: nameResults, error: nameError } = await supabase
-        .from('customers')
-        .select('*')
-        .ilike('name', `%${searchTerm}%`);
-
-      if (phoneError) throw phoneError;
-      if (nameError) throw nameError;
-
-      // 결과 통합 및 중복 제거
-      const allResults = [...(phoneResults || []), ...(nameResults || [])];
-      const uniqueResults = Array.from(new Set(allResults.map(r => r.phone)))
-        .map(phone => allResults.find(r => r.phone === phone));
-
-      setCustomerSearchResults(uniqueResults);
-    } catch (err) {
-      console.error('고객 검색 중 오류:', err);
-      setSnackbar({
-        open: true,
-        message: '고객 검색 중 오류가 발생했습니다.',
-        severity: 'error'
-      });
-    } finally {
-      setSearchLoading(false);
-    }
-  };
-
   // 검색어 입력 처리 함수
   const handleCustomerSearchInput = (event) => {
     setCustomerInputValue(event.target.value);
@@ -980,6 +931,33 @@ function ServiceDetail() {
   const handleCustomerSearchKeyPress = (event) => {
     if (event.key === 'Enter') {
       executeCustomerSearch();
+    }
+  };
+
+  // 고객 검색 함수
+  const searchCustomers = async (searchTerm) => {
+    try {
+      if (!searchTerm || searchTerm.length < 2) {
+        setCustomerSearchResults([]);
+        return;
+      }
+
+      const { data: customerData, error } = await supabase
+        .from('customers')
+        .select('*')
+        .or(`name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%`)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      setCustomerSearchResults(customerData || []);
+    } catch (err) {
+      console.error('고객 검색 중 오류:', err);
+      setSnackbar({
+        open: true,
+        message: '고객 검색 중 오류가 발생했습니다.',
+        severity: 'error'
+      });
     }
   };
 

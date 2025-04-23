@@ -1219,13 +1219,6 @@ function ServiceList() {
     setFilteredServices(filtered);
   };
 
-  // 엔터키 처리 함수
-  const handleKeyPress = (event) => {
-    if (event.key === 'Enter') {
-      executeSearch();
-    }
-  };
-
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -1351,7 +1344,7 @@ function ServiceList() {
           placeholder="고객명, 연락처, 제품명으로 검색"
           value={inputValue}
           onChange={handleSearchInput}
-          onKeyPress={handleKeyPress}
+          onKeyPress={executeSearch}
           sx={{ mb: 2 }}
         />
         {searchTerm && (
