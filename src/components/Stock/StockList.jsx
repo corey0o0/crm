@@ -6,14 +6,17 @@ import {
 import InventoryIcon from '@mui/icons-material/Inventory';
 import CloseIcon from '@mui/icons-material/Close';
 import HistoryIcon from '@mui/icons-material/History';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 
 function StockList() {
   const [loading, setLoading] = useState(true);
   const [parts, setParts] = useState([]);
   const [brand, setBrand] = useState('전체');
   const [search, setSearch] = useState('');
+  const [stockFilter, setStockFilter] = useState('전체');
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
-  const [sortConfig, setSortConfig] = useState({ key: 'brand', direction: 'asc' });
+  const [sortConfig, setSortConfig] = useState({ key: 'code', direction: 'asc' });
   const brandOptions = ['전체', 'XRB', 'NB'];
   const [showLogDialog, setShowLogDialog] = useState(false);
   const [stockLogs, setStockLogs] = useState([]);
@@ -21,6 +24,11 @@ function StockList() {
   const [showAllLogsDialog, setShowAllLogsDialog] = useState(false);
   const [allStockLogs, setAllStockLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(false);
+  const [dateRange, setDateRange] = useState({
+    startDate: '',
+    endDate: ''
+  });
+  const [showSupplyPrice, setShowSupplyPrice] = useState(false);
 
   useEffect(() => {
     fetchParts();
@@ -91,10 +99,33 @@ function StockList() {
     });
   };
 
-  const filteredParts = parts.filter(part =>
-    part.name?.toLowerCase().includes(search.toLowerCase()) ||
-    part.code?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredParts = parts.filter(part => {
+    // 검색어 필터링
+    const searchMatch = 
+      part.name?.toLowerCase().includes(search.toLowerCase()) ||
+      part.code?.toLowerCase().includes(search.toLowerCase());
+
+    // 재고 필터링
+    let stockMatch = true;
+    switch (stockFilter) {
+      case '품절 제외':
+        stockMatch = part.stock > 0;
+        break;
+      case '품절':
+        stockMatch = part.stock === 0;
+        break;
+      case '3개 이하':
+        stockMatch = part.stock <= 3 && part.stock >= 0;
+        break;
+      case '1개 이하':
+        stockMatch = part.stock <= 1 && part.stock >= 0;
+        break;
+      default:
+        stockMatch = true;
+    }
+
+    return searchMatch && stockMatch;
+  });
 
   const sortedParts = [...filteredParts].sort((a, b) => {
     const { key, direction } = sortConfig;
@@ -214,7 +245,7 @@ function StockList() {
   const fetchAllStockLogs = async () => {
     setLogsLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('stock_logs')
         .select(`
           *,
@@ -225,6 +256,16 @@ function StockList() {
           )
         `)
         .order('created_at', { ascending: false });
+
+      // 날짜 필터 적용
+      if (dateRange.startDate) {
+        query = query.gte('created_at', dateRange.startDate + 'T00:00:00');
+      }
+      if (dateRange.endDate) {
+        query = query.lte('created_at', dateRange.endDate + 'T23:59:59');
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setAllStockLogs(data || []);
@@ -264,6 +305,19 @@ function StockList() {
             ))}
           </TextField>
           <TextField
+            select
+            label="재고 상태"
+            value={stockFilter}
+            onChange={e => setStockFilter(e.target.value)}
+            sx={{ width: 150 }}
+          >
+            <MenuItem value="전체">전체</MenuItem>
+            <MenuItem value="품절 제외">품절 제외</MenuItem>
+            <MenuItem value="품절">품절</MenuItem>
+            <MenuItem value="3개 이하">3개 이하</MenuItem>
+            <MenuItem value="1개 이하">1개 이하</MenuItem>
+          </TextField>
+          <TextField
             label="제품명/코드 검색"
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -277,6 +331,20 @@ function StockList() {
           >
             변동내역
           </Button>
+          <IconButton
+            onClick={() => setShowSupplyPrice(!showSupplyPrice)}
+            sx={{ 
+              ml: 'auto',
+              bgcolor: showSupplyPrice ? 'primary.main' : 'transparent',
+              color: showSupplyPrice ? 'white' : 'primary.main',
+              '&:hover': {
+                bgcolor: showSupplyPrice ? 'primary.dark' : 'action.hover'
+              }
+            }}
+            size="small"
+          >
+            {showSupplyPrice ? <VisibilityIcon /> : <VisibilityOffIcon />}
+          </IconButton>
         </Box>
       </Paper>
       {loading ? (
@@ -291,12 +359,17 @@ function StockList() {
                 <TableCell onClick={() => handleSort('brand')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
                   브랜드{sortArrow('brand')}
                 </TableCell>
-                <TableCell onClick={() => handleSort('name')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
-                  제품명{sortArrow('name')}
-                </TableCell>
                 <TableCell onClick={() => handleSort('code')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
                   코드{sortArrow('code')}
                 </TableCell>
+                <TableCell onClick={() => handleSort('name')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
+                  제품명{sortArrow('name')}
+                </TableCell>
+                {showSupplyPrice && (
+                  <TableCell align="right" onClick={() => handleSort('supply_price')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
+                    공급가{sortArrow('supply_price')}
+                  </TableCell>
+                )}
                 <TableCell align="right" onClick={() => handleSort('price')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
                   단가{sortArrow('price')}
                 </TableCell>
@@ -315,20 +388,23 @@ function StockList() {
                   <TableCell>
                     <Typography sx={{ 
                       fontSize: '0.95rem', 
-                      letterSpacing: '0.01em' 
-                    }}>
-                      {part.name}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography sx={{ 
-                      fontSize: '0.95rem', 
                       letterSpacing: '0.01em',
                       color: 'text.primary' 
                     }}>
                       {part.code}
                     </Typography>
                   </TableCell>
+                  <TableCell>
+                    <Typography sx={{ 
+                      fontSize: '0.95rem', 
+                      letterSpacing: '0.01em' 
+                    }}>
+                      {part.name}
+                    </Typography>
+                  </TableCell>
+                  {showSupplyPrice && (
+                    <TableCell align="right">{part.supply_price?.toLocaleString()}원</TableCell>
+                  )}
                   <TableCell align="right">{part.price?.toLocaleString()}원</TableCell>
                   <TableCell align="right">
                     <TextField
@@ -336,8 +412,19 @@ function StockList() {
                       size="small"
                       value={part.stock ?? 0}
                       onChange={e => handleStockChange(part.id, e.target.value)}
-                      sx={{ width: 80 }}
-                      inputProps={{ min: 0 }}
+                      sx={{ 
+                        width: 80,
+                        '& input': {
+                          fontWeight: (part.stock > 0) ? 700 : 400,
+                          color: (part.stock === 0) ? 'error.main' : 'inherit'
+                        }
+                      }}
+                      inputProps={{ 
+                        min: 0,
+                        style: { 
+                          textAlign: 'right',
+                        }
+                      }}
                     />
                   </TableCell>
                   <TableCell align="center">
@@ -455,6 +542,28 @@ function StockList() {
           </Box>
         </DialogTitle>
         <DialogContent>
+          <Box sx={{ mb: 2, mt: 1, display: 'flex', gap: 2, alignItems: 'center' }}>
+            <TextField
+              type="date"
+              label="시작일"
+              value={dateRange.startDate}
+              onChange={(e) => {
+                setDateRange(prev => ({ ...prev, startDate: e.target.value }));
+                fetchAllStockLogs();
+              }}
+              InputLabelProps={{ shrink: true }}
+            />
+            <TextField
+              type="date"
+              label="종료일"
+              value={dateRange.endDate}
+              onChange={(e) => {
+                setDateRange(prev => ({ ...prev, endDate: e.target.value }));
+                fetchAllStockLogs();
+              }}
+              InputLabelProps={{ shrink: true }}
+            />
+          </Box>
           {logsLoading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
               <CircularProgress />
@@ -471,14 +580,12 @@ function StockList() {
                     <TableCell align="right">이전 수량</TableCell>
                     <TableCell align="right">변동 수량</TableCell>
                     <TableCell align="right">변경 후 수량</TableCell>
-                    <TableCell>사유</TableCell>
-                    <TableCell>담당자</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {allStockLogs.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} align="center">
+                      <TableCell colSpan={7} align="center">
                         <Typography sx={{ py: 2, color: 'text.secondary' }}>
                           재고 변동 내역이 없습니다.
                         </Typography>
@@ -510,8 +617,6 @@ function StockList() {
                           {log.change_quantity > 0 ? '+' : ''}{log.change_quantity}
                         </TableCell>
                         <TableCell align="right">{log.new_quantity}</TableCell>
-                        <TableCell>{log.reason}</TableCell>
-                        <TableCell>{log.created_by}</TableCell>
                       </TableRow>
                     ))
                   )}
