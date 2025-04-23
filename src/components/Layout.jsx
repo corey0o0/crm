@@ -222,9 +222,29 @@ function Layout() {
                 key={item.text}
                 onClick={() => handleMenuClick(item.path)}
                 selected={location.pathname === item.path}
+                sx={{
+                  '&.Mui-selected': {
+                    backgroundColor: 'primary.main',
+                    color: 'white',
+                    '&:hover': {
+                      backgroundColor: 'primary.dark',
+                    },
+                    '& .MuiListItemIcon-root': {
+                      color: 'white',
+                    },
+                  },
+                  borderRadius: '4px',
+                  mx: 1,
+                  mb: 0.5
+                }}
               >
                 <ListItemIcon>{item.icon}</ListItemIcon>
-                <ListItemText primary={item.text} />
+                <ListItemText 
+                  primary={item.text} 
+                  primaryTypographyProps={{
+                    fontWeight: location.pathname === item.path ? 700 : 400
+                  }}
+                />
               </ListItem>
             ))}
           </List>
@@ -258,9 +278,29 @@ function Layout() {
                 key={item.text}
                 onClick={() => handleMenuClick(item.path)}
                 selected={location.pathname === item.path}
+                sx={{
+                  '&.Mui-selected': {
+                    backgroundColor: 'primary.main',
+                    color: 'white',
+                    '&:hover': {
+                      backgroundColor: 'primary.dark',
+                    },
+                    '& .MuiListItemIcon-root': {
+                      color: 'white',
+                    },
+                  },
+                  borderRadius: '4px',
+                  mx: 1,
+                  mb: 0.5
+                }}
               >
                 <ListItemIcon>{item.icon}</ListItemIcon>
-                <ListItemText primary={item.text} />
+                <ListItemText 
+                  primary={item.text} 
+                  primaryTypographyProps={{
+                    fontWeight: location.pathname === item.path ? 700 : 400
+                  }}
+                />
               </ListItem>
             ))}
           </List>
