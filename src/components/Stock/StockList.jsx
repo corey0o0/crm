@@ -161,7 +161,6 @@ function StockList() {
                   <TableCell>
                     <Typography sx={{ 
                       fontSize: '0.95rem', 
-                      fontWeight: 700,
                       letterSpacing: '0.01em' 
                     }}>
                       {part.name}
@@ -170,7 +169,6 @@ function StockList() {
                   <TableCell>
                     <Typography sx={{ 
                       fontSize: '0.95rem', 
-                      fontWeight: 700,
                       letterSpacing: '0.01em',
                       color: 'text.primary' 
                     }}>

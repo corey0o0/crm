@@ -263,11 +263,11 @@ function ProductShipment() {
 
       setShipments(data);
       
-      // 판매처 목록 추출 및 설정 (전체판매처 제거, 기본 판매처만 포함)
-      const uniqueSellers = new Set(['전체', '공홈', '청담매장', '라이클-우리', '기타']);
+      // 판매처 목록 추출 및 설정 (기본 판매처만 포함)
+      const uniqueSellers = new Set(['공홈', '청담매장', '라이클-우리', '기타']);
       data.forEach(shipment => {
         const salesChannelMatch = shipment.note?.match(/\[판매처: (.*?)\]/);
-        if (salesChannelMatch && salesChannelMatch[1] && salesChannelMatch[1] !== '전체판매처') {
+        if (salesChannelMatch && salesChannelMatch[1]) {
           uniqueSellers.add(salesChannelMatch[1]);
         }
       });
@@ -993,15 +993,14 @@ function ProductShipment() {
         <Box>
           {row.product_name?.split(',').map((name, idx) => (
             <Typography key={idx} sx={{ 
-              mb: idx < row.product_name.split(',').length - 1 ? 0.5 : 0,
-              fontWeight: idx === 0 ? 'medium' : 'normal' 
+              mb: idx < row.product_name.split(',').length - 1 ? 0.5 : 0
             }}>
               {name.trim()}
-        </Typography>
+            </Typography>
           ))}
           <Typography variant="body2" color="primary" sx={{ mt: 0.5 }}>
             총 {row.quantity}개 / {row.price?.toLocaleString()}원
-        </Typography>
+          </Typography>
           <Typography variant="caption" color="textSecondary">
             {row.product_code}
           </Typography>
