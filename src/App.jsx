@@ -21,7 +21,7 @@ import PartsManagement from './components/Service/PartsManagement';
 import ProductShipment from './components/Product/ProductShipment';
 import ReceiptScanner from './components/Receipt/ReceiptScanner';
 import GoogleDriveTest from './components/Test/GoogleDriveTest';
-import ServiceStats from './components/Service/ServiceStats';
+import ServiceStats from './components/Stats/ServiceStats';
 import SalesStats from './components/Stats/SalesStats';
 import StockList from './components/Stock/StockList';
 
@@ -82,6 +82,7 @@ function App() {
             <Route path="service/:id" element={<ServiceDetail />} />
             <Route path="sales/stats" element={<SalesStats />} />
             <Route path="stocks" element={<StockList />} />
+            <Route path="stats/service" element={<ServiceStats />} />
           </Route>
         </Routes>
       </Router>

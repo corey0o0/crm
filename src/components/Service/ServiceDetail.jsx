@@ -69,7 +69,11 @@ function ServiceDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'success'
+  });
   const [formData, setFormData] = useState({
     brand: '',
     reception_date: null,
@@ -121,6 +125,10 @@ function ServiceDetail() {
   const [previewType, setPreviewType] = useState('');
   const [productOptions, setProductOptions] = useState([]);
   const [showPriceEdit, setShowPriceEdit] = useState(false);
+  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+  const [customerInputValue, setCustomerInputValue] = useState('');
+  const [customerSearchResults, setCustomerSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
 
   const fetchServiceDetail = React.useCallback(async () => {
     try {
@@ -912,6 +920,69 @@ function ServiceDetail() {
     setSelectedParts(updatedParts);
   };
 
+  // 고객 검색 함수
+  const searchCustomers = async (searchTerm) => {
+    try {
+      setSearchLoading(true);
+      
+      // 검색어가 2글자 미만이면 검색하지 않음
+      if (searchTerm.length < 2) {
+        setCustomerSearchResults([]);
+        return;
+      }
+
+      // 전화번호 검색
+      const { data: phoneResults, error: phoneError } = await supabase
+        .from('customers')
+        .select('*')
+        .ilike('phone', `%${searchTerm}%`);
+
+      // 이름 검색
+      const { data: nameResults, error: nameError } = await supabase
+        .from('customers')
+        .select('*')
+        .ilike('name', `%${searchTerm}%`);
+
+      if (phoneError) throw phoneError;
+      if (nameError) throw nameError;
+
+      // 결과 통합 및 중복 제거
+      const allResults = [...(phoneResults || []), ...(nameResults || [])];
+      const uniqueResults = Array.from(new Set(allResults.map(r => r.phone)))
+        .map(phone => allResults.find(r => r.phone === phone));
+
+      setCustomerSearchResults(uniqueResults);
+    } catch (err) {
+      console.error('고객 검색 중 오류:', err);
+      setSnackbar({
+        open: true,
+        message: '고객 검색 중 오류가 발생했습니다.',
+        severity: 'error'
+      });
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  // 검색어 입력 처리 함수
+  const handleCustomerSearchInput = (event) => {
+    setCustomerInputValue(event.target.value);
+  };
+
+  // 검색 실행 함수
+  const executeCustomerSearch = async () => {
+    const term = customerInputValue.toLowerCase().trim();
+    setCustomerSearchTerm(term);
+    await searchCustomers(term);
+  };
+
+  // 엔터키 처리 함수
+  const handleCustomerSearchKeyPress = (event) => {
+    if (event.key === 'Enter') {
+      executeCustomerSearch();
+    }
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -1446,6 +1517,23 @@ function ServiceDetail() {
                       고객 정보
                     </Typography>
                     <Grid container spacing={2}>
+                      <Grid item xs={12}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          placeholder="고객명 또는 연락처로 검색"
+                          value={customerInputValue}
+                          onChange={handleCustomerSearchInput}
+                          onKeyPress={handleCustomerSearchKeyPress}
+                          InputProps={{
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                <SearchIcon />
+                              </InputAdornment>
+                            )
+                          }}
+                        />
+                      </Grid>
                       <Grid item xs={12}>
                         <TextField
                           fullWidth

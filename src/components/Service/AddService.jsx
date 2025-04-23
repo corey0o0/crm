@@ -125,6 +125,7 @@ function AddService() {
   const [productOptions, setProductOptions] = useState([]);
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+  const [customerInputValue, setCustomerInputValue] = useState('');
   const [customerSearchResults, setCustomerSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [showPriceEdit, setShowPriceEdit] = useState(false);
@@ -932,11 +933,23 @@ function AddService() {
     }
   };
 
-  // 고객 검색 입력 핸들러
-  const handleCustomerSearchChange = async (e) => {
-    const value = e.target.value;
-    setCustomerSearchTerm(value);
-    await searchCustomers(value);
+  // 검색어 입력 처리 함수
+  const handleCustomerSearchInput = (event) => {
+    setCustomerInputValue(event.target.value);
+  };
+
+  // 검색 실행 함수
+  const executeCustomerSearch = async () => {
+    const term = customerInputValue.toLowerCase().trim();
+    setCustomerSearchTerm(term);
+    await searchCustomers(term);
+  };
+
+  // 엔터키 처리 함수
+  const handleCustomerSearchKeyPress = (event) => {
+    if (event.key === 'Enter') {
+      executeCustomerSearch();
+    }
   };
 
   // 고객 선택 핸들러
@@ -1800,8 +1813,9 @@ function AddService() {
               fullWidth
               size="small"
               placeholder="고객명 또는 연락처로 검색"
-              value={customerSearchTerm}
-              onChange={handleCustomerSearchChange}
+              value={customerInputValue}
+              onChange={handleCustomerSearchInput}
+              onKeyPress={handleCustomerSearchKeyPress}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -1830,7 +1844,7 @@ function AddService() {
                 {customerSearchResults.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} align="center">
-                      {customerSearchTerm.length > 0 
+                      {customerInputValue.length > 0 
                         ? '검색 결과가 없습니다.'
                         : '검색어를 입력하세요. (2글자 이상)'}
                     </TableCell>

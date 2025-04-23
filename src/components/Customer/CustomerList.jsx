@@ -74,6 +74,7 @@ function CustomerList({ refreshTrigger, onRefresh }) {
   const [rowsPerPage, setRowsPerPage] = useState(20);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const navigate = useNavigate();
+  const [inputValue, setInputValue] = useState('');
 
   useEffect(() => {
     fetchCustomers();
@@ -319,17 +320,38 @@ function CustomerList({ refreshTrigger, onRefresh }) {
     }
   };
 
-  // 검색어 처리 함수
-  const handleSearch = (event) => {
-    const term = event.target.value.toLowerCase();
+  // 검색어 입력 처리 함수
+  const handleSearchInput = (event) => {
+    setInputValue(event.target.value);
+  };
+
+  // 검색 실행 함수
+  const executeSearch = () => {
+    const term = inputValue.toLowerCase().trim();
     setSearchTerm(term);
 
-    const filtered = customers.filter(customer => 
-      customer.name.toLowerCase().includes(term) ||
-      customer.phone.toLowerCase().includes(term) ||
-      customer.address.toLowerCase().includes(term)
-    );
+    if (!term) {
+      setFilteredCustomers(customers);
+      return;
+    }
+
+    const filtered = customers.filter(customer => {
+      const nameMatch = customer.name?.toLowerCase().includes(term);
+      const phoneMatch = customer.phone?.toLowerCase().replace(/-/g, '').includes(term.replace(/-/g, ''));
+      const addressMatch = customer.address?.toLowerCase().includes(term);
+      const brandMatch = customer.brands?.some(brand => brand.toLowerCase().includes(term));
+      
+      return nameMatch || phoneMatch || addressMatch || brandMatch;
+    });
+    
     setFilteredCustomers(filtered);
+  };
+
+  // 엔터키 처리 함수
+  const handleKeyPress = (event) => {
+    if (event.key === 'Enter') {
+      executeSearch();
+    }
   };
 
   // A/S 등록 페이지로 이동하는 함수 수정
@@ -505,8 +527,9 @@ function CustomerList({ refreshTrigger, onRefresh }) {
           fullWidth
           variant="outlined"
           placeholder="이름, 연락처, 제품으로 검색"
-          value={searchTerm}
-          onChange={handleSearch}
+          value={inputValue}
+          onChange={handleSearchInput}
+          onKeyPress={handleKeyPress}
           sx={{ mb: 2 }}
         />
       </Box>

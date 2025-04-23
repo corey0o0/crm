@@ -94,10 +94,8 @@ function ProductShipment() {
   const [error, setError] = useState(null);
   const navigate = useNavigate();
   const [filteredShipments, setFilteredShipments] = useState([]);
-  const [searchTerm, setSearchTerm] = useState(() => {
-    const savedSearch = localStorage.getItem('shipment_searchTerm');
-    return savedSearch || '';
-  });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [inputValue, setInputValue] = useState('');
   const [selectedShipment, setSelectedShipment] = useState(null);
   const [openDialog, setOpenDialog] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -1519,6 +1517,25 @@ function ProductShipment() {
     }
   });
 
+  // 검색어 입력 처리 함수
+  const handleSearchInput = (event) => {
+    setInputValue(event.target.value);
+  };
+
+  // 검색 실행 함수
+  const executeSearch = () => {
+    const term = inputValue.toLowerCase().trim();
+    setSearchTerm(term);
+    applyFiltersAndSort();
+  };
+
+  // 엔터키 처리 함수
+  const handleKeyPress = (event) => {
+    if (event.key === 'Enter') {
+      executeSearch();
+    }
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -1701,11 +1718,13 @@ function ProductShipment() {
 
       <Box sx={{ mb: 2, display: 'flex', gap: 2 }}>
         <TextField
-          size="small"
-          placeholder="고객명, 연락처, 제품명으로 검색..."
-          value={searchTerm}
-          onChange={handleSearchChange}
-          sx={{ flexGrow: 1 }}
+          fullWidth
+          variant="outlined"
+          placeholder="제품명, 연락처로 검색"
+          value={inputValue}
+          onChange={handleSearchInput}
+          onKeyPress={handleKeyPress}
+          sx={{ mb: 2 }}
         />
         {searchTerm && (
           <Typography variant="body2" color="textSecondary" sx={{ alignSelf: 'center' }}>
