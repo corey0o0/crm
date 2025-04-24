@@ -712,9 +712,9 @@ function ServiceList() {
         <Box
           sx={{
             width: row.id === highlightedId ? '12px' : '6px',
-            height: row.status === '접수' ? '12px' : '24px',  // 접수 상태일 때 높이 12px
+            height: row.status === '접수' ? '12px' : '24px',
             backgroundColor: row.id === highlightedId 
-              ? '#ffd700'  // 노란색으로 변경
+              ? '#ffd700'
               : row.status?.includes('완료') 
                 ? '#2e7d32'
                 : row.status === '처리중'
@@ -726,13 +726,19 @@ function ServiceList() {
     },
     { 
       id: 'reception_date', 
-      label: '접수일자',
+      label: '접수일시',
       sortable: true,
-      render: (row) => (
-        <Typography noWrap sx={{ fontSize: '0.95rem', letterSpacing: '0.01em' }}>
-          {row.reception_date}
-        </Typography>
-      )
+      render: (row) => {
+        const date = new Date(row.reception_date);
+        const formattedDate = row.reception_date.split('T')[0];
+        const formattedTime = date.getHours().toString().padStart(2, '0') + ':' + 
+                            (Math.floor(date.getMinutes() / 30) * 30).toString().padStart(2, '0');
+        return (
+          <Typography noWrap sx={{ fontSize: '0.95rem', letterSpacing: '0.01em' }}>
+            {formattedDate} {formattedTime}
+          </Typography>
+        );
+      }
     },
     { 
       id: 'customer_info', 

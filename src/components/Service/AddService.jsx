@@ -64,12 +64,20 @@ const PREDEFINED_TAGS = [
 ];
 
 // 버튼 스타일 정의
-const buttonStyle = (isSelected) => ({
+const buttonStyle = (isSelected, currentStatus) => ({
   marginLeft: '8px',
-  backgroundColor: isSelected ? '#3182f6' : '#f2f4f6',
+  backgroundColor: isSelected ? (
+    currentStatus === '접수' ? '#1976d2' :
+    currentStatus === '처리' ? '#ed6c02' :
+    currentStatus === '확인' ? '#2e7d32' : '#3182f6'
+  ) : '#f2f4f6',
   color: isSelected ? '#ffffff' : '#4e5968',
   '&:hover': {
-    backgroundColor: isSelected ? '#1b64da' : '#e5e8eb'
+    backgroundColor: isSelected ? (
+      currentStatus === '접수' ? '#1565c0' :
+      currentStatus === '처리' ? '#d65f02' :
+      currentStatus === '확인' ? '#1e5e20' : '#1b64da'
+    ) : '#e5e8eb'
   }
 });
 
@@ -82,6 +90,7 @@ function AddService() {
   const [formData, setFormData] = useState({
     brand: selectedBrand,
     reception_date: new Date().toISOString().split('T')[0],
+    reception_time: '00:00',
     repair_date: '',
     completion_date: '',
     reception_type: '',
@@ -96,6 +105,7 @@ function AddService() {
     note: '',
     writer: '',
     seller: '',
+    status: '접수'
   });
   const [tags, setTags] = useState([]);
   const [snackbar, setSnackbar] = useState({
@@ -131,6 +141,12 @@ function AddService() {
   const [showPriceEdit, setShowPriceEdit] = useState(false);
   const [modifiedPrice, setModifiedPrice] = useState('');
   const [selectedPart, setSelectedPart] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState({
+    open: false,
+    title: '',
+    message: '',
+    onConfirm: null
+  });
 
   useEffect(() => {
     if (location.state?.selectedBrand) {
@@ -513,6 +529,7 @@ function AddService() {
             return {
               brand: selectedBrand,
               reception_date: parseDate(row['접수일자']) || currentDate,
+              reception_time: row['접수시간'] || new Date().getHours() + ':' + (Math.floor(new Date().getMinutes() / 30) * 30).toString().padStart(2, '0'),
               reception_type: row['접수방법'] || '',
               repair_date: parseDate(row['입고일']) || '',
               completion_date: parseDate(row['출고일']) || '',
@@ -585,12 +602,15 @@ function AddService() {
     setSubmitting(true);
 
     try {
+      // 날짜와 시간 결합
+      const combinedReceptionDate = `${formData.reception_date}T${formData.reception_time}:00`;
+
       // 서비스 데이터 등록
       const { data: insertedService, error: insertError } = await supabase
         .from('services')
         .insert([{
           brand: selectedBrand,
-          reception_date: formData.reception_date,
+          reception_date: combinedReceptionDate,
           customer_name: formData.customer_name,
           customer_phone: formData.customer_phone,
           customer_address: formData.customer_address,
@@ -729,13 +749,29 @@ function AddService() {
 
   // 상태 변경 핸들러
   const handleStatusChange = (newStatus) => {
-    setStatus(newStatus);
     if (newStatus === '확인') {
-      const currentDate = new Date().toISOString().split('T')[0];
+      setConfirmDialog({
+        open: true,
+        title: 'A/S 완료 확인',
+        message: '해당 A/S를 완료 처리하시겠습니까?',
+        onConfirm: () => {
+          setStatus(newStatus);
+          setFormData(prev => {
+            const updatedData = { ...prev, status: newStatus };
+            if (!prev.completion_date) {
+              const currentDate = new Date().toISOString().split('T')[0];
+              updatedData.completion_date = currentDate;
+            }
+            return updatedData;
+          });
+          setConfirmDialog(prev => ({ ...prev, open: false }));
+        }
+      });
+    } else {
+      setStatus(newStatus);
       setFormData(prev => ({
         ...prev,
-        completion_date: currentDate,
-        repair_date: currentDate
+        status: newStatus
       }));
     }
   };
@@ -787,140 +823,56 @@ function AddService() {
       setSearchLoading(true);
       console.log('검색 시작:', { searchTerm, selectedBrand });
 
-      // 검색어가 2글자 미만이면 통합 고객 목록 표시
+      // 검색어가 2글자 미만이면 최근 고객 목록 표시
       if (searchTerm.length < 2) {
-        // customers 테이블에서 검색
-        const { data: customerData, error: customerError } = await supabase
-          .from('customers')
-          .select('*')
-          .eq('brand', selectedBrand)
-          .order('created_at', { ascending: false });
-
-        // services 테이블에서 고객 정보 검색
-        const { data: serviceData, error: serviceError } = await supabase
+        const { data: recentCustomers, error: recentError } = await supabase
           .from('services')
-          .select('id, customer_name, customer_phone, brand, created_at')
+          .select('customer_name, customer_phone, customer_address, brand')
           .eq('brand', selectedBrand)
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false })
+          .limit(10);
 
-        if (customerError) throw customerError;
-        if (serviceError) throw serviceError;
+        if (recentError) throw recentError;
 
-        // 두 결과를 통합하고 중복 제거
-        const combinedResults = [
-          ...(customerData || []).map(c => ({
-            id: c.id,
-            name: c.name,
-            phone: c.phone,
-            brand: c.brand,
-            created_at: c.created_at,
-            source: 'customers'
-          })),
-          ...(serviceData || []).map(s => ({
-            id: `service_${s.id}`,
-            name: s.customer_name,
-            phone: s.customer_phone,
-            brand: s.brand,
-            created_at: s.created_at,
-            source: 'services'
-          }))
-        ];
+        const uniqueCustomers = Array.from(new Set(recentCustomers.map(c => c.customer_phone)))
+          .map(phone => recentCustomers.find(c => c.customer_phone === phone))
+          .filter(customer => customer.customer_name && customer.customer_phone);
 
-        // 전화번호 기준으로 중복 제거 (최신 데이터 유지)
-        const uniqueResults = Object.values(
-          combinedResults.reduce((acc, curr) => {
-            if (!acc[curr.phone] || new Date(curr.created_at) > new Date(acc[curr.phone].created_at)) {
-              acc[curr.phone] = curr;
-            }
-            return acc;
-          }, {})
-        ).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-
-        console.log('전체 고객 데이터:', uniqueResults);
-        setCustomerSearchResults(uniqueResults);
+        setCustomerSearchResults(uniqueCustomers.map(c => ({
+          id: c.customer_phone,
+          name: c.customer_name,
+          phone: c.customer_phone,
+          address: c.customer_address || ''
+        })));
         return;
       }
 
-      // 전화번호 검색 (customers 테이블)
+      // 전화번호 검색을 위한 정규화
       const cleanSearchTerm = searchTerm.replace(/-/g, '');
-      const { data: phoneResults, error: phoneError } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('brand', selectedBrand)
-        .or(`phone.ilike.%${cleanSearchTerm}%,phone.ilike.%${searchTerm}%`)
-        .order('created_at', { ascending: false });
 
-      // 전화번호 검색 (services 테이블)
-      const { data: servicePhoneResults, error: servicePhoneError } = await supabase
+      // services 테이블에서 검색
+      const { data: serviceResults, error: serviceError } = await supabase
         .from('services')
-        .select('id, customer_name, customer_phone, brand, created_at')
+        .select('customer_name, customer_phone, customer_address, brand')
         .eq('brand', selectedBrand)
-        .or(`customer_phone.ilike.%${cleanSearchTerm}%,customer_phone.ilike.%${searchTerm}%`)
+        .or(`customer_phone.ilike.%${cleanSearchTerm}%,customer_name.ilike.%${searchTerm}%`)
         .order('created_at', { ascending: false });
 
-      // 이름 검색 (customers 테이블)
-      const { data: nameResults, error: nameError } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('brand', selectedBrand)
-        .ilike('name', `%${searchTerm}%`)
-        .order('created_at', { ascending: false });
+      if (serviceError) throw serviceError;
 
-      // 이름 검색 (services 테이블)
-      const { data: serviceNameResults, error: serviceNameError } = await supabase
-        .from('services')
-        .select('id, customer_name, customer_phone, brand, created_at')
-        .eq('brand', selectedBrand)
-        .ilike('customer_name', `%${searchTerm}%`)
-        .order('created_at', { ascending: false });
-
-      if (phoneError) throw phoneError;
-      if (servicePhoneError) throw servicePhoneError;
-      if (nameError) throw nameError;
-      if (serviceNameError) throw serviceNameError;
-
-      // 모든 결과 통합
-      const allResults = [
-        ...(phoneResults || []).map(c => ({ ...c, source: 'customers' })),
-        ...(nameResults || []).map(c => ({ ...c, source: 'customers' })),
-        ...(servicePhoneResults || []).map(s => ({
-          id: `service_${s.id}`,
-          name: s.customer_name,
-          phone: s.customer_phone,
-          brand: s.brand,
-          created_at: s.created_at,
-          source: 'services'
-        })),
-        ...(serviceNameResults || []).map(s => ({
-          id: `service_${s.id}`,
-          name: s.customer_name,
-          phone: s.customer_phone,
-          brand: s.brand,
-          created_at: s.created_at,
-          source: 'services'
-        }))
-      ];
-
-      // 전화번호 기준으로 중복 제거 (최신 데이터 유지)
-      const uniqueResults = Object.values(
-        allResults.reduce((acc, curr) => {
-          if (!acc[curr.phone] || new Date(curr.created_at) > new Date(acc[curr.phone].created_at)) {
-            acc[curr.phone] = curr;
-          }
-          return acc;
-        }, {})
-      ).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-
-      console.log('검색 결과:', {
-        검색조건: { searchTerm, cleanSearchTerm, selectedBrand },
-        customers_전화번호: phoneResults?.length,
-        customers_이름: nameResults?.length,
-        services_전화번호: servicePhoneResults?.length,
-        services_이름: serviceNameResults?.length,
-        최종결과: uniqueResults?.length
-      });
+      // 중복 제거 및 결과 포맷팅
+      const uniqueResults = Array.from(new Set(serviceResults.map(c => c.customer_phone)))
+        .map(phone => serviceResults.find(c => c.customer_phone === phone))
+        .filter(customer => customer.customer_name && customer.customer_phone)
+        .map(customer => ({
+          id: customer.customer_phone,
+          name: customer.customer_name,
+          phone: customer.customer_phone,
+          address: customer.customer_address || ''
+        }));
 
       setCustomerSearchResults(uniqueResults);
+      
     } catch (err) {
       console.error('고객 검색 중 오류:', err);
       setSnackbar({
@@ -940,7 +892,7 @@ function AddService() {
 
   // 검색 실행 함수
   const executeCustomerSearch = async () => {
-    const term = customerInputValue.toLowerCase().trim();
+    const term = customerInputValue.trim();
     setCustomerSearchTerm(term);
     await searchCustomers(term);
   };
@@ -961,6 +913,8 @@ function AddService() {
       customer_address: customer.address || ''
     }));
     setCustomerSearchOpen(false);
+    setCustomerInputValue('');
+    setCustomerSearchResults([]);
   };
 
   return (
@@ -1001,42 +955,79 @@ function AddService() {
                   기본 정보
                 </Typography>
                 <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      required
-                      label="접수일자"
-                      type="date"
-                      name="reception_date"
-                      value={formData.reception_date}
-                      onChange={handleInputChange}
-                      InputLabelProps={{ shrink: true }}
-                      size="small"
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 1,
-                          bgcolor: '#f9fafb'
-                        }
-                      }}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      label="완료일"
-                      type="date"
-                      name="repair_date"
-                      value={formData.repair_date}
-                      onChange={handleInputChange}
-                      InputLabelProps={{ shrink: true }}
-                      size="small"
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 1,
-                          bgcolor: '#f9fafb'
-                        }
-                      }}
-                    />
+                  <Grid item xs={12}>
+                    <Box sx={{ display: 'flex', gap: 2 }}>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 1 }}>
+                        <Typography variant="caption" sx={{ color: 'text.secondary', ml: 1 }}>
+                          접수일자*
+                        </Typography>
+                        <TextField
+                          fullWidth
+                          required
+                          type="date"
+                          name="reception_date"
+                          value={formData.reception_date}
+                          onChange={handleInputChange}
+                          size="small"
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              height: '36px',
+                              borderRadius: 1,
+                              bgcolor: '#f9fafb'
+                            }
+                          }}
+                        />
+                      </Box>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, width: '150px' }}>
+                        <Typography variant="caption" sx={{ color: 'text.secondary', ml: 1 }}>
+                          접수시간*
+                        </Typography>
+                        <TextField
+                          fullWidth
+                          required
+                          select
+                          name="reception_time"
+                          value={formData.reception_time}
+                          onChange={handleInputChange}
+                          size="small"
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              height: '36px',
+                              borderRadius: 1,
+                              bgcolor: '#f9fafb'
+                            }
+                          }}
+                        >
+                          {Array.from({ length: 48 }, (_, i) => {
+                            const hour = Math.floor(i / 2);
+                            const minute = (i % 2) * 30;
+                            return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+                          }).map((time) => (
+                            <MenuItem key={time} value={time}>{time}</MenuItem>
+                          ))}
+                        </TextField>
+                      </Box>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 1 }}>
+                        <Typography variant="caption" sx={{ color: 'text.secondary', ml: 1 }}>
+                          완료일자
+                        </Typography>
+                        <TextField
+                          fullWidth
+                          type="date"
+                          name="completion_date"
+                          value={formData.completion_date || ''}
+                          onChange={handleInputChange}
+                          size="small"
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              height: '36px',
+                              borderRadius: 1,
+                              bgcolor: '#f9fafb'
+                            }
+                          }}
+                        />
+                      </Box>
+                    </Box>
                   </Grid>
                   <Grid item xs={12}>
                     <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', justifyContent: 'space-between' }}>
@@ -1045,7 +1036,7 @@ function AddService() {
                           onClick={() => handleStatusChange('접수')}
                           variant={status === '접수' ? "contained" : "outlined"}
                           size="small"
-                          sx={buttonStyle(status === '접수')}
+                          sx={buttonStyle(status === '접수', status)}
                         >
                           접수
                         </Button>
@@ -1053,7 +1044,7 @@ function AddService() {
                           onClick={() => handleStatusChange('처리')}
                           variant={status === '처리' ? "contained" : "outlined"}
                           size="small"
-                          sx={buttonStyle(status === '처리')}
+                          sx={buttonStyle(status === '처리', status)}
                         >
                           처리
                         </Button>
@@ -1061,7 +1052,7 @@ function AddService() {
                           onClick={() => handleStatusChange('확인')}
                           variant={status === '확인' ? "contained" : "outlined"}
                           size="small"
-                          sx={buttonStyle(status === '확인')}
+                          sx={buttonStyle(status === '확인', status)}
                         >
                           확인
                         </Button>
@@ -1072,7 +1063,14 @@ function AddService() {
                         label="작성자"
                         value={formData.writer}
                         onChange={handleInputChange}
-                        sx={{ width: '150px' }}
+                        sx={{ 
+                          width: '150px',
+                          '& .MuiOutlinedInput-root': {
+                            height: '36px',
+                            borderRadius: 1,
+                            bgcolor: '#f9fafb'
+                          }
+                        }}
                       />
                     </Box>
                   </Grid>
@@ -1877,6 +1875,35 @@ function AddService() {
             </Table>
           </TableContainer>
         </DialogContent>
+      </Dialog>
+
+      {/* 확인 다이얼로그 */}
+      <Dialog
+        open={confirmDialog.open}
+        onClose={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
+      >
+        <DialogTitle>{confirmDialog.title}</DialogTitle>
+        <DialogContent>
+          <Typography>{confirmDialog.message}</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
+            sx={{ color: '#666' }}
+          >
+            취소
+          </Button>
+          <Button 
+            onClick={confirmDialog.onConfirm}
+            variant="contained"
+            sx={{ 
+              bgcolor: '#3182f6',
+              '&:hover': { bgcolor: '#1b64da' }
+            }}
+          >
+            확인
+          </Button>
+        </DialogActions>
       </Dialog>
     </Box>
   );

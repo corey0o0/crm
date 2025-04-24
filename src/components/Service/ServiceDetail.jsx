@@ -124,6 +124,9 @@ function ServiceDetail() {
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
   const [customerInputValue, setCustomerInputValue] = useState('');
   const [customerSearchResults, setCustomerSearchResults] = useState([]);
+  const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [brand, setBrand] = useState('');
 
   const fetchServiceDetail = React.useCallback(async () => {
     try {
@@ -431,20 +434,19 @@ function ServiceDetail() {
   };
 
   const handleStatusChange = (newStatus) => {
-    if (newStatus === '완료') {
+    if (newStatus === '확인') {
       setConfirmDialog({
         open: true,
         title: 'A/S 완료 확인',
         message: '해당 A/S를 완료 처리하시겠습니까?',
         onConfirm: () => {
-          const currentDate = new Date().toISOString().split('T')[0];
-          setFormData(prev => ({
-            ...prev,
-            status: newStatus,
-            completion_date: new Date(),
-            repair_date: new Date()
-          }));
-          setConfirmDialog({ ...confirmDialog, open: false });
+          const updatedData = { ...formData, status: newStatus };
+          if (!formData.completion_date) {
+            const currentDate = new Date().toISOString().split('T')[0];
+            updatedData.completion_date = currentDate;
+          }
+          setFormData(updatedData);
+          setConfirmDialog(prev => ({ ...prev, open: false }));
         }
       });
     } else {
@@ -490,25 +492,22 @@ function ServiceDetail() {
     bgcolor: '#ffffff'
   };
 
-  const buttonStyle = (isActive) => ({
-    borderRadius: 3,
-    flex: 1,
-    height: 44,
-    fontSize: '0.95rem',
-    fontWeight: 600,
-    textTransform: 'none',
-    ...(isActive ? {
-      bgcolor: '#3182f6',
-      '&:hover': {
-        bgcolor: '#1b64da'
-      }
-    } : {
-      bgcolor: '#f2f4f6',
-      color: '#4e5968',
-      '&:hover': {
-        bgcolor: '#e5e8eb'
-      }
-    })
+  // 버튼 스타일 정의
+  const buttonStyle = (isSelected, currentStatus) => ({
+    marginLeft: '8px',
+    backgroundColor: isSelected ? (
+      currentStatus === '접수' ? '#1976d2' :
+      currentStatus === '처리' ? '#ed6c02' :
+      currentStatus === '확인' ? '#2e7d32' : '#3182f6'
+    ) : '#f2f4f6',
+    color: isSelected ? '#ffffff' : '#4e5968',
+    '&:hover': {
+      backgroundColor: isSelected ? (
+        currentStatus === '접수' ? '#1565c0' :
+        currentStatus === '처리' ? '#d65f02' :
+        currentStatus === '확인' ? '#1e5e20' : '#1b64da'
+      ) : '#e5e8eb'
+    }
   });
 
   // 날짜 포맷팅 함수 추가
@@ -915,6 +914,74 @@ function ServiceDetail() {
     setSelectedParts(updatedParts);
   };
 
+  // 고객 검색 함수
+  const searchCustomers = async (searchTerm) => {
+    try {
+      setSearchLoading(true);
+      console.log('검색 시작:', { searchTerm, brand });
+
+      // 검색어가 2글자 미만이면 최근 고객 목록 표시
+      if (searchTerm.length < 2) {
+        const { data: recentCustomers, error: recentError } = await supabase
+          .from('services')
+          .select('customer_name, customer_phone, customer_address, brand')
+          .eq('brand', brand)
+          .order('created_at', { ascending: false })
+          .limit(10);
+
+        if (recentError) throw recentError;
+
+        const uniqueCustomers = Array.from(new Set(recentCustomers.map(c => c.customer_phone)))
+          .map(phone => recentCustomers.find(c => c.customer_phone === phone))
+          .filter(customer => customer.customer_name && customer.customer_phone);
+
+        setCustomerSearchResults(uniqueCustomers.map(c => ({
+          id: c.customer_phone,
+          name: c.customer_name,
+          phone: c.customer_phone,
+          address: c.customer_address || ''
+        })));
+        return;
+      }
+
+      // 전화번호 검색을 위한 정규화
+      const cleanSearchTerm = searchTerm.replace(/-/g, '');
+
+      // services 테이블에서 검색
+      const { data: serviceResults, error: serviceError } = await supabase
+        .from('services')
+        .select('customer_name, customer_phone, customer_address, brand')
+        .eq('brand', brand)
+        .or(`customer_phone.ilike.%${cleanSearchTerm}%,customer_name.ilike.%${searchTerm}%`)
+        .order('created_at', { ascending: false });
+
+      if (serviceError) throw serviceError;
+
+      // 중복 제거 및 결과 포맷팅
+      const uniqueResults = Array.from(new Set(serviceResults.map(c => c.customer_phone)))
+        .map(phone => serviceResults.find(c => c.customer_phone === phone))
+        .filter(customer => customer.customer_name && customer.customer_phone)
+        .map(customer => ({
+          id: customer.customer_phone,
+          name: customer.customer_name,
+          phone: customer.customer_phone,
+          address: customer.customer_address || ''
+        }));
+
+      setCustomerSearchResults(uniqueResults);
+      
+    } catch (err) {
+      console.error('고객 검색 중 오류:', err);
+      setSnackbar({
+        open: true,
+        message: '고객 검색 중 오류가 발생했습니다.',
+        severity: 'error'
+      });
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
   // 검색어 입력 처리 함수
   const handleCustomerSearchInput = (event) => {
     setCustomerInputValue(event.target.value);
@@ -922,7 +989,7 @@ function ServiceDetail() {
 
   // 검색 실행 함수
   const executeCustomerSearch = async () => {
-    const term = customerInputValue.toLowerCase().trim();
+    const term = customerInputValue.trim();
     setCustomerSearchTerm(term);
     await searchCustomers(term);
   };
@@ -934,31 +1001,17 @@ function ServiceDetail() {
     }
   };
 
-  // 고객 검색 함수
-  const searchCustomers = async (searchTerm) => {
-    try {
-      if (!searchTerm || searchTerm.length < 2) {
-        setCustomerSearchResults([]);
-        return;
-      }
-
-      const { data: customerData, error } = await supabase
-        .from('customers')
-        .select('*')
-        .or(`name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%`)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      setCustomerSearchResults(customerData || []);
-    } catch (err) {
-      console.error('고객 검색 중 오류:', err);
-      setSnackbar({
-        open: true,
-        message: '고객 검색 중 오류가 발생했습니다.',
-        severity: 'error'
-      });
-    }
+  // 고객 선택 핸들러
+  const handleCustomerSelect = (customer) => {
+    setFormData(prev => ({
+      ...prev,
+      customer_name: customer.name,
+      customer_phone: customer.phone,
+      customer_address: customer.address || ''
+    }));
+    setCustomerSearchOpen(false);
+    setCustomerInputValue('');
+    setCustomerSearchResults([]);
   };
 
   if (loading) {
@@ -1365,72 +1418,85 @@ function ServiceDetail() {
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid item xs={12}>
-                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                      <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flex: 1 }}>
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                          <Typography variant="caption" sx={{ color: 'text.secondary', ml: 1 }}>
-                            접수일자*
-                          </Typography>
-                          <DatePicker
-                            value={formData.reception_date}
-                            onChange={(newValue) => {
-                              handleChange({
-                                target: { name: 'reception_date', value: newValue }
-                              });
-                            }}
-                            renderInput={(params) => (
-                              <TextField 
-                                {...params} 
-                                size="small"
-                                sx={{
-                                  width: '150px',
-                                  '& .MuiOutlinedInput-root': {
-                                    height: '36px',
-                                    borderRadius: 1,
-                                    bgcolor: '#f9fafb'
-                                  }
-                                }}
-                              />
-                            )}
-                          />
-                        </Box>
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                          <Typography variant="caption" sx={{ color: 'text.secondary', ml: 1 }}>
-                            완료일
-                          </Typography>
-                          <DatePicker
-                            value={formData.completion_date}
-                            onChange={(newValue) => handleDateChange(newValue, 'completion_date')}
-                            renderInput={(params) => (
-                              <TextField 
-                                {...params} 
-                                size="small"
-                                sx={{
-                                  width: '150px',
-                                  '& .MuiOutlinedInput-root': {
-                                    height: '36px',
-                                    borderRadius: 1,
-                                    bgcolor: '#f9fafb'
-                                  }
-                                }}
-                              />
-                            )}
-                          />
-                        </Box>
-                      </Box>
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <Box sx={{ display: 'flex', gap: 2 }}>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 1 }}>
                         <Typography variant="caption" sx={{ color: 'text.secondary', ml: 1 }}>
-                          작성자
+                          접수일시*
                         </Typography>
                         <TextField
-                          size="small"
-                          name="writer"
-                          value={formData.writer}
+                          fullWidth
+                          required
+                          type="date"
+                          name="reception_date"
+                          value={formData.reception_date ? 
+                            (typeof formData.reception_date === 'string' ? 
+                              formData.reception_date.split('T')[0] : 
+                              new Date(formData.reception_date).toISOString().split('T')[0]
+                            ) : ''}
                           onChange={handleChange}
-                          sx={{ 
-                            width: '150px',
+                          size="small"
+                          sx={{
                             '& .MuiOutlinedInput-root': {
-                              height: '36px'
+                              height: '36px',
+                              borderRadius: 1,
+                              bgcolor: '#f9fafb'
+                            }
+                          }}
+                        />
+                      </Box>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, width: '150px' }}>
+                        <Typography variant="caption" sx={{ color: 'text.secondary', ml: 1 }}>
+                          접수시간*
+                        </Typography>
+                        <TextField
+                          fullWidth
+                          required
+                          select
+                          name="reception_time"
+                          value={formData.reception_date ? 
+                            (typeof formData.reception_date === 'string' ? 
+                              new Date(formData.reception_date).toTimeString().slice(0, 5) :
+                              new Date(formData.reception_date).toTimeString().slice(0, 5)
+                            ) : ''}
+                          onChange={handleChange}
+                          size="small"
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              height: '36px',
+                              borderRadius: 1,
+                              bgcolor: '#f9fafb'
+                            }
+                          }}
+                        >
+                          {Array.from({ length: 48 }, (_, i) => {
+                            const hour = Math.floor(i / 2);
+                            const minute = (i % 2) * 30;
+                            return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+                          }).map((time) => (
+                            <MenuItem key={time} value={time}>{time}</MenuItem>
+                          ))}
+                        </TextField>
+                      </Box>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 1 }}>
+                        <Typography variant="caption" sx={{ color: 'text.secondary', ml: 1 }}>
+                          완료일자
+                        </Typography>
+                        <TextField
+                          fullWidth
+                          type="date"
+                          name="completion_date"
+                          value={formData.completion_date ? 
+                            (typeof formData.completion_date === 'string' ? 
+                              formData.completion_date.split('T')[0] : 
+                              new Date(formData.completion_date).toISOString().split('T')[0]
+                            ) : ''}
+                          onChange={handleChange}
+                          size="small"
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              height: '36px',
+                              borderRadius: 1,
+                              bgcolor: '#f9fafb'
                             }
                           }}
                         />
@@ -1438,49 +1504,48 @@ function ServiceDetail() {
                     </Box>
                   </Grid>
                   <Grid item xs={12}>
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                      <Button 
-                        onClick={() => handleStatusChange('접수')}
-                        variant="contained"
+                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button 
+                          onClick={() => handleStatusChange('접수')}
+                          variant={formData.status === '접수' ? "contained" : "outlined"}
+                          size="small"
+                          sx={buttonStyle(formData.status === '접수', formData.status)}
+                        >
+                          접수
+                        </Button>
+                        <Button 
+                          onClick={() => handleStatusChange('처리')}
+                          variant={formData.status === '처리' ? "contained" : "outlined"}
+                          size="small"
+                          sx={buttonStyle(formData.status === '처리', formData.status)}
+                        >
+                          처리
+                        </Button>
+                        <Button 
+                          onClick={() => handleStatusChange('확인')}
+                          variant={formData.status === '확인' ? "contained" : "outlined"}
+                          size="small"
+                          sx={buttonStyle(formData.status === '확인', formData.status)}
+                        >
+                          확인
+                        </Button>
+                      </Box>
+                      <TextField
                         size="small"
-                        sx={{
-                          backgroundColor: formData.status === '접수' ? '#3182f6' : '#f2f4f6',
-                          color: formData.status === '접수' ? '#ffffff' : '#4e5968',
-                          '&:hover': {
-                            backgroundColor: formData.status === '접수' ? '#1b64da' : '#e5e8eb'
+                        name="writer"
+                        label="작성자"
+                        value={formData.writer || ''}
+                        onChange={handleChange}
+                        sx={{ 
+                          width: '150px',
+                          '& .MuiOutlinedInput-root': {
+                            height: '36px',
+                            borderRadius: 1,
+                            bgcolor: '#f9fafb'
                           }
                         }}
-                      >
-                        접수
-                      </Button>
-                      <Button 
-                        onClick={() => handleStatusChange('처리중')}
-                        variant="contained"
-                        size="small"
-                        sx={{
-                          backgroundColor: formData.status === '처리중' ? '#3182f6' : '#f2f4f6',
-                          color: formData.status === '처리중' ? '#ffffff' : '#4e5968',
-                          '&:hover': {
-                            backgroundColor: formData.status === '처리중' ? '#1b64da' : '#e5e8eb'
-                          }
-                        }}
-                      >
-                        처리중
-                      </Button>
-                      <Button 
-                        onClick={() => handleStatusChange('완료')}
-                        variant="contained"
-                        size="small"
-                        sx={{
-                          backgroundColor: formData.status === '완료' ? '#3182f6' : '#f2f4f6',
-                          color: formData.status === '완료' ? '#ffffff' : '#4e5968',
-                          '&:hover': {
-                            backgroundColor: formData.status === '완료' ? '#1b64da' : '#e5e8eb'
-                          }
-                        }}
-                      >
-                        완료
-                      </Button>
+                      />
                     </Box>
                   </Grid>
                 </Grid>
@@ -1493,31 +1558,30 @@ function ServiceDetail() {
                   <Box>
                     <Typography variant="subtitle1" sx={sectionStyle}>
                       고객 정보
+                      <Button
+                        size="small"
+                        startIcon={<SearchIcon />}
+                        onClick={() => setCustomerSearchOpen(true)}
+                        sx={{
+                          ml: 2,
+                          color: '#3182f6',
+                          fontSize: '0.875rem',
+                          '&:hover': {
+                            bgcolor: 'rgba(49, 130, 246, 0.04)'
+                          }
+                        }}
+                      >
+                        고객 검색
+                      </Button>
                     </Typography>
                     <Grid container spacing={2}>
                       <Grid item xs={12}>
                         <TextField
                           fullWidth
+                          required
                           size="small"
-                          placeholder="고객명 또는 연락처로 검색"
-                          value={customerInputValue}
-                          onChange={handleCustomerSearchInput}
-                          onKeyPress={handleCustomerSearchKeyPress}
-                          InputProps={{
-                            startAdornment: (
-                              <InputAdornment position="start">
-                                <SearchIcon />
-                              </InputAdornment>
-                            )
-                          }}
-                        />
-                      </Grid>
-                      <Grid item xs={12}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          name="customer_name"
                           label="고객명"
+                          name="customer_name"
                           value={formData.customer_name}
                           onChange={handleChange}
                         />
@@ -1525,9 +1589,10 @@ function ServiceDetail() {
                       <Grid item xs={12}>
                         <TextField
                           fullWidth
+                          required
                           size="small"
-                          name="customer_phone"
                           label="연락처"
+                          name="customer_phone"
                           value={formData.customer_phone}
                           onChange={handleChange}
                         />
@@ -1536,8 +1601,8 @@ function ServiceDetail() {
                         <TextField
                           fullWidth
                           size="small"
-                          name="customer_address"
                           label="주소"
+                          name="customer_address"
                           value={formData.customer_address}
                           onChange={handleChange}
                         />
@@ -1892,29 +1957,16 @@ function ServiceDetail() {
           <DialogActions>
             <Button 
               onClick={() => setConfirmDialog({ ...confirmDialog, open: false })}
-              sx={{
-                color: '#4e5968',
-                fontSize: '0.95rem',
-                fontWeight: 600,
-                textTransform: 'none',
-                '&:hover': {
-                  bgcolor: '#f2f4f6'
-                }
-              }}
+              sx={{ color: '#666' }}
             >
               취소
             </Button>
             <Button 
-              onClick={() => confirmDialog.onConfirm?.()}
+              onClick={confirmDialog.onConfirm}
               variant="contained"
-              sx={{
+              sx={{ 
                 bgcolor: '#3182f6',
-                fontSize: '0.95rem',
-                fontWeight: 600,
-                textTransform: 'none',
-                '&:hover': {
-                  bgcolor: '#1b64da'
-                }
+                '&:hover': { bgcolor: '#1b64da' }
               }}
             >
               확인
@@ -1965,6 +2017,98 @@ function ServiceDetail() {
                 />
               )}
             </Box>
+          </DialogContent>
+        </Dialog>
+
+        {/* 고객 검색 다이얼로그 */}
+        <Dialog
+          open={customerSearchOpen}
+          onClose={() => setCustomerSearchOpen(false)}
+          maxWidth="md"
+          fullWidth
+        >
+          <DialogTitle>
+            고객 검색
+            <IconButton
+              onClick={() => setCustomerSearchOpen(false)}
+              sx={{
+                position: 'absolute',
+                right: 8,
+                top: 8
+              }}
+            >
+              <CloseIcon />
+            </IconButton>
+          </DialogTitle>
+          <DialogContent>
+            <Box sx={{ mb: 2 }}>
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="고객명 또는 연락처로 검색"
+                value={customerInputValue}
+                onChange={handleCustomerSearchInput}
+                onKeyPress={handleCustomerSearchKeyPress}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon />
+                    </InputAdornment>
+                  ),
+                  endAdornment: searchLoading && (
+                    <InputAdornment position="end">
+                      <CircularProgress size={20} />
+                    </InputAdornment>
+                  )
+                }}
+              />
+            </Box>
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>고객명</TableCell>
+                    <TableCell>연락처</TableCell>
+                    <TableCell>주소</TableCell>
+                    <TableCell align="center">선택</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {customerSearchResults.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} align="center">
+                        {customerInputValue.length > 0 
+                          ? '검색 결과가 없습니다.'
+                          : '검색어를 입력하세요. (2글자 이상)'}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    customerSearchResults.map((customer) => (
+                      <TableRow key={customer.id} hover>
+                        <TableCell>{customer.name}</TableCell>
+                        <TableCell>{customer.phone}</TableCell>
+                        <TableCell>{customer.address}</TableCell>
+                        <TableCell align="center">
+                          <Button
+                            size="small"
+                            onClick={() => handleCustomerSelect(customer)}
+                            sx={{
+                              minWidth: 'auto',
+                              color: '#3182f6',
+                              '&:hover': {
+                                bgcolor: 'rgba(49, 130, 246, 0.04)'
+                              }
+                            }}
+                          >
+                            선택
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
           </DialogContent>
         </Dialog>
       </Box>
