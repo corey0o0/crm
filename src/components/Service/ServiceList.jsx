@@ -728,15 +728,33 @@ function ServiceList() {
       id: 'reception_date', 
       label: '접수일시',
       sortable: true,
-      render: (row) => {
-        const date = new Date(row.reception_date);
-        const formattedDate = row.reception_date.split('T')[0];
-        const formattedTime = date.getHours().toString().padStart(2, '0') + ':' + 
-                            (Math.floor(date.getMinutes() / 30) * 30).toString().padStart(2, '0');
+      width: 120,
+      renderCell: (params) => {
+        const date = new Date(params.value);
+        const formattedDate = date.toLocaleDateString('ko-KR', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit'
+        }).replace(/\. /g, '.').slice(0, -1);
+        
+        const formattedTime = date.toLocaleTimeString('ko-KR', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        });
+
         return (
-          <Typography noWrap sx={{ fontSize: '0.95rem', letterSpacing: '0.01em' }}>
-            {formattedDate} {formattedTime}
-          </Typography>
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'center',
+            borderBottom: '1px solid',
+            borderColor: 'divider',
+            pb: 0.5
+          }}>
+            <Typography variant="body2">{formattedDate}</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{formattedTime}</Typography>
+          </Box>
         );
       }
     },

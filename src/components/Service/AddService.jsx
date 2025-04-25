@@ -68,15 +68,15 @@ const buttonStyle = (isSelected, currentStatus) => ({
   marginLeft: '8px',
   backgroundColor: isSelected ? (
     currentStatus === '접수' ? '#1976d2' :
-    currentStatus === '처리' ? '#ed6c02' :
-    currentStatus === '확인' ? '#2e7d32' : '#3182f6'
+    currentStatus === '처리중' ? '#ed6c02' :
+    currentStatus === '완료' ? '#2e7d32' : '#3182f6'
   ) : '#f2f4f6',
   color: isSelected ? '#ffffff' : '#4e5968',
   '&:hover': {
     backgroundColor: isSelected ? (
       currentStatus === '접수' ? '#1565c0' :
-      currentStatus === '처리' ? '#d65f02' :
-      currentStatus === '확인' ? '#1e5e20' : '#1b64da'
+      currentStatus === '처리중' ? '#d65f02' :
+      currentStatus === '완료' ? '#1e5e20' : '#1b64da'
     ) : '#e5e8eb'
   }
 });
@@ -749,7 +749,7 @@ function AddService() {
 
   // 상태 변경 핸들러
   const handleStatusChange = (newStatus) => {
-    if (newStatus === '확인') {
+    if (newStatus === '완료') {
       setConfirmDialog({
         open: true,
         title: 'A/S 완료 확인',
@@ -759,7 +759,7 @@ function AddService() {
           setFormData(prev => {
             const updatedData = { ...prev, status: newStatus };
             if (!prev.completion_date) {
-              const currentDate = new Date().toISOString().split('T')[0];
+      const currentDate = new Date().toISOString().split('T')[0];
               updatedData.completion_date = currentDate;
             }
             return updatedData;
@@ -961,29 +961,29 @@ function AddService() {
                         <Typography variant="caption" sx={{ color: 'text.secondary', ml: 1 }}>
                           접수일자*
                         </Typography>
-                        <TextField
-                          fullWidth
-                          required
-                          type="date"
-                          name="reception_date"
-                          value={formData.reception_date}
-                          onChange={handleInputChange}
-                          size="small"
-                          sx={{
-                            '& .MuiOutlinedInput-root': {
+                    <TextField
+                      fullWidth
+                      required
+                      type="date"
+                      name="reception_date"
+                      value={formData.reception_date}
+                      onChange={handleInputChange}
+                      size="small"
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
                               height: '36px',
-                              borderRadius: 1,
-                              bgcolor: '#f9fafb'
-                            }
-                          }}
-                        />
+                          borderRadius: 1,
+                          bgcolor: '#f9fafb'
+                        }
+                      }}
+                    />
                       </Box>
                       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, width: '150px' }}>
                         <Typography variant="caption" sx={{ color: 'text.secondary', ml: 1 }}>
                           접수시간*
                         </Typography>
-                        <TextField
-                          fullWidth
+                    <TextField
+                      fullWidth
                           required
                           select
                           name="reception_time"
@@ -1013,19 +1013,19 @@ function AddService() {
                         </Typography>
                         <TextField
                           fullWidth
-                          type="date"
+                      type="date"
                           name="completion_date"
                           value={formData.completion_date || ''}
-                          onChange={handleInputChange}
-                          size="small"
-                          sx={{
-                            '& .MuiOutlinedInput-root': {
+                      onChange={handleInputChange}
+                      size="small"
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
                               height: '36px',
-                              borderRadius: 1,
-                              bgcolor: '#f9fafb'
-                            }
-                          }}
-                        />
+                          borderRadius: 1,
+                          bgcolor: '#f9fafb'
+                        }
+                      }}
+                    />
                       </Box>
                     </Box>
                   </Grid>
@@ -1041,20 +1041,20 @@ function AddService() {
                           접수
                         </Button>
                         <Button 
-                          onClick={() => handleStatusChange('처리')}
-                          variant={status === '처리' ? "contained" : "outlined"}
+                          onClick={() => handleStatusChange('처리중')}
+                          variant={status === '처리중' ? "contained" : "outlined"}
                           size="small"
-                          sx={buttonStyle(status === '처리', status)}
+                          sx={buttonStyle(status === '처리중', status)}
                         >
-                          처리
+                          처리중
                         </Button>
                         <Button 
-                          onClick={() => handleStatusChange('확인')}
-                          variant={status === '확인' ? "contained" : "outlined"}
+                          onClick={() => handleStatusChange('완료')}
+                          variant={status === '완료' ? "contained" : "outlined"}
                           size="small"
-                          sx={buttonStyle(status === '확인', status)}
+                          sx={buttonStyle(status === '완료', status)}
                         >
-                          확인
+                          완료
                         </Button>
                       </Box>
                       <TextField

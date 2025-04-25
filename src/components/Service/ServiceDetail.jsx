@@ -40,7 +40,7 @@ import {
   FormControlLabel
 } from '@mui/material';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
+import { LocalizationProvider, DatePicker, DateTimePicker } from '@mui/x-date-pickers';
 import { ko } from 'date-fns/locale';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -73,6 +73,7 @@ function ServiceDetail() {
   const [formData, setFormData] = useState({
     brand: '',
     reception_date: null,
+    reception_time: '',
     repair_date: null,
     completion_date: null,
     customer_name: '',
@@ -151,13 +152,19 @@ function ServiceDetail() {
 
       if (serviceError) throw serviceError;
 
+      // 날짜와 시간 분리
+      const receptionDate = serviceData.reception_date ? new Date(serviceData.reception_date) : null;
+      const receptionTime = receptionDate ? 
+        `${receptionDate.getHours().toString().padStart(2, '0')}:${(Math.floor(receptionDate.getMinutes() / 30) * 30).toString().padStart(2, '0')}` : 
+        '00:00';
+
       // 기존 note에서 구매처 정보가 있다면 seller 필드로 이전
       if (serviceData.note && !serviceData.seller) {
         const { error: updateError } = await supabase
           .from('services')
           .update({
             seller: serviceData.note,
-            note: ''  // note 필드 초기화
+            note: ''
           })
           .eq('id', id);
           
@@ -177,12 +184,13 @@ function ServiceDetail() {
       
       setFormData({
         ...serviceData,
-        reception_date: serviceData.reception_date ? new Date(serviceData.reception_date) : null,
-        repair_date: serviceData.repair_date ? new Date(serviceData.repair_date) : null,
-        completion_date: serviceData.completion_date ? new Date(serviceData.completion_date) : null,
+        reception_date: receptionDate ? receptionDate.toISOString().split('T')[0] : null,
+        reception_time: receptionTime,
+        repair_date: serviceData.repair_date ? new Date(serviceData.repair_date).toISOString().split('T')[0] : null,
+        completion_date: serviceData.completion_date ? new Date(serviceData.completion_date).toISOString().split('T')[0] : null,
         service_parts: serviceData.service_parts || [],
         writer: serviceData.writer || '관리자',
-        mileage: mileage  // 처리된 주행거리 값 설정
+        mileage: mileage
       });
 
       // 사용된 부품 정보 조회
@@ -226,110 +234,103 @@ function ServiceDetail() {
     }
   }, [formData]);
 
+  const handleStatusChange = (newStatus) => {
+    if (newStatus === '완료') {
+      setConfirmDialog({
+        open: true,
+        title: 'A/S 완료 확인',
+        message: '해당 A/S를 완료 처리하시겠습니까?',
+        onConfirm: () => {
+          setFormData(prev => {
+            const updatedData = { ...prev, status: newStatus };
+            if (!prev.completion_date) {
+              const currentDate = new Date().toISOString().split('T')[0];
+              updatedData.completion_date = currentDate;
+            }
+            return updatedData;
+          });
+          setIsEditing(true);
+          setConfirmDialog(prev => ({ ...prev, open: false }));
+        }
+      });
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        status: newStatus
+      }));
+      setIsEditing(true);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    
+
     try {
-      // 주행거리 데이터 처리
-      const mileageValue = formData.mileage === '' ? null : formData.mileage;
-
-      // 업데이트할 필드만 선택
-      const updateData = {
-        brand: formData.brand,
-        reception_date: formData.reception_date,
-        repair_date: formData.repair_date,
-        completion_date: formData.completion_date,
-        customer_name: formData.customer_name,
-        customer_phone: formData.customer_phone,
-        customer_address: formData.customer_address,
-        product_name: formData.product_name,
-        mileage: mileageValue,
-        note: formData.note,
-        symptom: formData.symptom,
-        solution: formData.solution,
-        reception_type: formData.reception_type,
-        status: formData.status,
-        receipt_link: receiptLink,
-        seller: formData.seller,
-        updated_at: new Date().toISOString()
-      };
-
-      // 1. 서비스 정보 업데이트
-      const { error: updateError } = await supabase
+      // 서비스 데이터 업데이트
+      const { error: serviceError } = await supabase
         .from('services')
-        .update(updateData)
+        .update({
+          reception_date: formData.reception_date,
+          reception_type: formData.reception_type,
+          repair_date: formData.repair_date,
+          completion_date: formData.completion_date,
+          delivery_method: formData.delivery_method,
+          customer_name: formData.customer_name,
+          customer_phone: formData.customer_phone,
+          customer_address: formData.customer_address,
+          product_name: formData.product_name,
+          symptom: formData.symptom,
+          solution: formData.solution,
+          status: formData.status,
+          note: formData.note,
+          receipt_link: formData.receipt_link,
+          seller: formData.seller,
+          mileage: formData.mileage,
+          writer: formData.writer,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', id);
 
-      if (updateError) throw updateError;
+      if (serviceError) throw serviceError;
 
-      // 2. 기존 태그 삭제
-      const { error: deleteTagsError } = await supabase
+      // 태그 업데이트
+      const { error: tagDeleteError } = await supabase
         .from('service_tags')
         .delete()
         .eq('service_id', id);
 
-      if (deleteTagsError) throw deleteTagsError;
+      if (tagDeleteError) throw tagDeleteError;
 
-      // 3. 새로운 태그 추가
       if (tags.length > 0) {
         const tagData = tags.map(tag => ({
           service_id: id,
           tag_name: tag
         }));
 
-        const { error: insertTagsError } = await supabase
+        const { error: tagInsertError } = await supabase
           .from('service_tags')
           .insert(tagData);
 
-        if (insertTagsError) throw insertTagsError;
+        if (tagInsertError) throw tagInsertError;
       }
-
-      // 4. 기존 부품 삭제
-      const { error: deletePartsError } = await supabase
-        .from('service_parts')
-        .delete()
-        .eq('service_id', id);
-
-      if (deletePartsError) throw deletePartsError;
-
-      // 5. 새로운 부품 추가
-      if (selectedParts.length > 0) {
-        const partsData = selectedParts.map(part => ({
-          service_id: id,
-          part_id: part.id,
-          quantity: part.quantity,
-          price: part.price,
-          usage: part.usage || 'A/S'
-        }));
-
-        const { error: insertPartsError } = await supabase
-          .from('service_parts')
-          .insert(partsData);
-
-        if (insertPartsError) throw insertPartsError;
-      }
-
-      // 로컬 스토리지에 수정된 항목의 ID 저장
-      localStorage.setItem('highlightServiceId', String(id));
 
       setSnackbar({
         open: true,
-        message: 'A/S 정보가 성공적으로 수정되었습니다.',
+        message: '성공적으로 저장되었습니다.',
         severity: 'success'
       });
-      setIsEditing(false);
-      
-      // 2초 후 리스트 페이지로 이동
+
+      // 1초 후에 목록 페이지로 이동
       setTimeout(() => {
         navigate('/services');
-      }, 2000);
-      
+      }, 1000);
+
     } catch (error) {
-      console.error('Error in handleSubmit:', error);
+      console.error('Error updating service:', error);
       setSnackbar({
         open: true,
-        message: `오류가 발생했습니다: ${error.message}`,
+        message: '저장 중 오류가 발생했습니다: ' + error.message,
         severity: 'error'
       });
     } finally {
@@ -339,10 +340,24 @@ function ServiceDetail() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    
+    if (name === 'completion_date') {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value ? new Date(value).toISOString() : '',
+        status: value ? '완료' : prev.status
+      }));
+    } else if (name === 'reception_date') {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value ? new Date(value).toISOString().split('T')[0] : ''
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   };
 
   // 부품 목록 불러오기
@@ -433,48 +448,35 @@ function ServiceDetail() {
     setSelectedParts(prev => prev.filter(part => part.id !== partId));
   };
 
-  const handleStatusChange = (newStatus) => {
-    if (newStatus === '확인') {
-      setConfirmDialog({
-        open: true,
-        title: 'A/S 완료 확인',
-        message: '해당 A/S를 완료 처리하시겠습니까?',
-        onConfirm: () => {
-          const updatedData = { ...formData, status: newStatus };
-          if (!formData.completion_date) {
-            const currentDate = new Date().toISOString().split('T')[0];
-            updatedData.completion_date = currentDate;
-          }
-          setFormData(updatedData);
-          setConfirmDialog(prev => ({ ...prev, open: false }));
-        }
-      });
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        status: newStatus
-      }));
+  const getStatusColor = (status) => {
+    switch (status) {
+      case '접수':
+        return 'info';
+      case '처리중':
+        return 'warning';
+      case '완료':
+        return 'success';
+      default:
+        return 'info';
     }
   };
 
-  const getStatusColor = (buttonStatus) => {
-    if (formData.status === buttonStatus) {
-      return { 
-        bgcolor: 'primary.main', 
-        color: 'white',
-        '&:hover': {
-          bgcolor: 'primary.dark'
-        }
-      };
+  const buttonStyle = (isSelected) => ({
+    marginLeft: '8px',
+    backgroundColor: isSelected ? (
+      formData.status === '접수' ? '#1976d2' :
+      formData.status === '처리중' ? '#ed6c02' :
+      formData.status === '완료' ? '#2e7d32' : '#3182f6'
+    ) : '#f2f4f6',
+    color: isSelected ? '#ffffff' : '#4e5968',
+    '&:hover': {
+      backgroundColor: isSelected ? (
+        formData.status === '접수' ? '#1565c0' :
+        formData.status === '처리중' ? '#d65f02' :
+        formData.status === '완료' ? '#1e5e20' : '#1b64da'
+      ) : '#e5e8eb'
     }
-    return { 
-      bgcolor: 'grey.100', 
-      color: 'text.primary',
-      '&:hover': {
-        bgcolor: 'grey.200'
-      }
-    };
-  };
+  });
 
   const sectionStyle = {
     pb: 1,
@@ -491,24 +493,6 @@ function ServiceDetail() {
     boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)',
     bgcolor: '#ffffff'
   };
-
-  // 버튼 스타일 정의
-  const buttonStyle = (isSelected, currentStatus) => ({
-    marginLeft: '8px',
-    backgroundColor: isSelected ? (
-      currentStatus === '접수' ? '#1976d2' :
-      currentStatus === '처리' ? '#ed6c02' :
-      currentStatus === '확인' ? '#2e7d32' : '#3182f6'
-    ) : '#f2f4f6',
-    color: isSelected ? '#ffffff' : '#4e5968',
-    '&:hover': {
-      backgroundColor: isSelected ? (
-        currentStatus === '접수' ? '#1565c0' :
-        currentStatus === '처리' ? '#d65f02' :
-        currentStatus === '확인' ? '#1e5e20' : '#1b64da'
-      ) : '#e5e8eb'
-    }
-  });
 
   // 날짜 포맷팅 함수 추가
   const formatDate = (dateString) => {
@@ -715,20 +699,11 @@ function ServiceDetail() {
     setPreviewOpen(true);
   };
 
-  const handleDateChange = (newValue, field) => {
-    if (field === 'completion_date' && newValue) {
-      // 완료일이 지정되면 상태를 '완료'로 변경
-      setFormData(prev => ({
-        ...prev,
-        [field]: newValue,
-        status: '완료'
-      }));
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        [field]: newValue
-      }));
-    }
+  const handleDateChange = (date, field) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: date
+    }));
   };
 
   const handleComplete = async () => {
@@ -1421,18 +1396,14 @@ function ServiceDetail() {
                     <Box sx={{ display: 'flex', gap: 2 }}>
                       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 1 }}>
                         <Typography variant="caption" sx={{ color: 'text.secondary', ml: 1 }}>
-                          접수일시*
+                          접수일자*
                         </Typography>
                         <TextField
                           fullWidth
                           required
                           type="date"
                           name="reception_date"
-                          value={formData.reception_date ? 
-                            (typeof formData.reception_date === 'string' ? 
-                              formData.reception_date.split('T')[0] : 
-                              new Date(formData.reception_date).toISOString().split('T')[0]
-                            ) : ''}
+                          value={formData.reception_date || ''}
                           onChange={handleChange}
                           size="small"
                           sx={{
@@ -1449,15 +1420,11 @@ function ServiceDetail() {
                           접수시간*
                         </Typography>
                         <TextField
+                          select
                           fullWidth
                           required
-                          select
                           name="reception_time"
-                          value={formData.reception_date ? 
-                            (typeof formData.reception_date === 'string' ? 
-                              new Date(formData.reception_date).toTimeString().slice(0, 5) :
-                              new Date(formData.reception_date).toTimeString().slice(0, 5)
-                            ) : ''}
+                          value={formData.reception_time}
                           onChange={handleChange}
                           size="small"
                           sx={{
@@ -1485,11 +1452,7 @@ function ServiceDetail() {
                           fullWidth
                           type="date"
                           name="completion_date"
-                          value={formData.completion_date ? 
-                            (typeof formData.completion_date === 'string' ? 
-                              formData.completion_date.split('T')[0] : 
-                              new Date(formData.completion_date).toISOString().split('T')[0]
-                            ) : ''}
+                          value={formData.completion_date || ''}
                           onChange={handleChange}
                           size="small"
                           sx={{
@@ -1504,48 +1467,28 @@ function ServiceDetail() {
                     </Box>
                   </Grid>
                   <Grid item xs={12}>
-                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Box sx={{ display: 'flex', gap: 1 }}>
-                        <Button 
-                          onClick={() => handleStatusChange('접수')}
-                          variant={formData.status === '접수' ? "contained" : "outlined"}
-                          size="small"
-                          sx={buttonStyle(formData.status === '접수', formData.status)}
-                        >
-                          접수
-                        </Button>
-                        <Button 
-                          onClick={() => handleStatusChange('처리')}
-                          variant={formData.status === '처리' ? "contained" : "outlined"}
-                          size="small"
-                          sx={buttonStyle(formData.status === '처리', formData.status)}
-                        >
-                          처리
-                        </Button>
-                        <Button 
-                          onClick={() => handleStatusChange('확인')}
-                          variant={formData.status === '확인' ? "contained" : "outlined"}
-                          size="small"
-                          sx={buttonStyle(formData.status === '확인', formData.status)}
-                        >
-                          확인
-                        </Button>
-                      </Box>
-                      <TextField
-                        size="small"
-                        name="writer"
-                        label="작성자"
-                        value={formData.writer || ''}
-                        onChange={handleChange}
-                        sx={{ 
-                          width: '150px',
-                          '& .MuiOutlinedInput-root': {
-                            height: '36px',
-                            borderRadius: 1,
-                            bgcolor: '#f9fafb'
-                          }
-                        }}
-                      />
+                    <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+                      <Button
+                        variant={formData.status === '접수' ? 'contained' : 'outlined'}
+                        onClick={() => handleStatusChange('접수')}
+                        sx={buttonStyle(formData.status === '접수')}
+                      >
+                        접수
+                      </Button>
+                      <Button
+                        variant={formData.status === '처리중' ? 'contained' : 'outlined'}
+                        onClick={() => handleStatusChange('처리중')}
+                        sx={buttonStyle(formData.status === '처리중')}
+                      >
+                        처리중
+                      </Button>
+                      <Button
+                        variant={formData.status === '완료' ? 'contained' : 'outlined'}
+                        onClick={() => handleStatusChange('완료')}
+                        sx={buttonStyle(formData.status === '완료')}
+                      >
+                        완료
+                      </Button>
                     </Box>
                   </Grid>
                 </Grid>
@@ -1948,7 +1891,7 @@ function ServiceDetail() {
         {/* 확인 대화상자 추가 */}
         <Dialog
           open={confirmDialog.open}
-          onClose={() => setConfirmDialog({ ...confirmDialog, open: false })}
+          onClose={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
         >
           <DialogTitle>{confirmDialog.title}</DialogTitle>
           <DialogContent>
@@ -1956,7 +1899,7 @@ function ServiceDetail() {
           </DialogContent>
           <DialogActions>
             <Button 
-              onClick={() => setConfirmDialog({ ...confirmDialog, open: false })}
+              onClick={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
               sx={{ color: '#666' }}
             >
               취소

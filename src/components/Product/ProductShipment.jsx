@@ -994,11 +994,11 @@ function ProductShipment() {
               mb: idx < row.product_name.split(',').length - 1 ? 0.5 : 0
             }}>
               {name.trim()}
-            </Typography>
+        </Typography>
           ))}
           <Typography variant="body2" color="primary" sx={{ mt: 0.5 }}>
             총 {row.quantity}개 / {row.price?.toLocaleString()}원
-          </Typography>
+        </Typography>
           <Typography variant="caption" color="textSecondary">
             {row.product_code}
           </Typography>

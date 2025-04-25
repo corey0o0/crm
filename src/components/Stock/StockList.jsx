@@ -102,7 +102,7 @@ function StockList() {
   const filteredParts = parts.filter(part => {
     // 검색어 필터링
     const searchMatch = 
-      part.name?.toLowerCase().includes(search.toLowerCase()) ||
+    part.name?.toLowerCase().includes(search.toLowerCase()) ||
       part.code?.toLowerCase().includes(search.toLowerCase());
 
     // 재고 필터링
@@ -368,7 +368,7 @@ function StockList() {
                 {showSupplyPrice && (
                   <TableCell align="right" onClick={() => handleSort('supply_price')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
                     공급가{sortArrow('supply_price')}
-                  </TableCell>
+                </TableCell>
                 )}
                 <TableCell align="right" onClick={() => handleSort('price')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
                   단가{sortArrow('price')}

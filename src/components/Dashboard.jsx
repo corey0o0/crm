@@ -18,7 +18,8 @@ import {
   LinearProgress,
   Tabs,
   Tab,
-  TextField
+  TextField,
+  Container
 } from '@mui/material';
 import {
   Build as BuildIcon,
@@ -33,6 +34,7 @@ import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ko';
+import ServiceCalendar from './ServiceCalendar';
 
 function Dashboard() {
   const navigate = useNavigate();
@@ -620,6 +622,10 @@ function Dashboard() {
   }
 
   return (
+    <Container maxWidth={false} sx={{ mt: 3 }}>
+      <Box sx={{ mb: 4 }}>
+        <ServiceCalendar />
+      </Box>
     <Box sx={{ width: '100%', maxWidth: '100%', margin: 0, padding: 0 }}>
       <Box sx={{ 
         display: 'flex', 
@@ -1235,6 +1241,7 @@ function Dashboard() {
         </Grid>
       </Grid>
     </Box>
+    </Container>
   );
 }
 
