@@ -294,6 +294,31 @@ function ServiceDetail() {
 
       if (serviceError) throw serviceError;
 
+      // 기존 부품 데이터 삭제
+      const { error: deletePartsError } = await supabase
+        .from('service_parts')
+        .delete()
+        .eq('service_id', id);
+
+      if (deletePartsError) throw deletePartsError;
+
+      // 새로운 부품 데이터 추가
+      if (selectedParts.length > 0) {
+        const partsData = selectedParts.map(part => ({
+          service_id: id,
+          part_id: part.id,
+          quantity: part.quantity,
+          price: part.price,
+          usage: part.usage || 'A/S'
+        }));
+
+        const { error: insertPartsError } = await supabase
+          .from('service_parts')
+          .insert(partsData);
+
+        if (insertPartsError) throw insertPartsError;
+      }
+
       // 태그 업데이트
       const { error: tagDeleteError } = await supabase
         .from('service_tags')

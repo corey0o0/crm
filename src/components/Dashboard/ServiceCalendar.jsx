@@ -22,7 +22,7 @@ const ServiceCalendar = () => {
 
       const { data, error } = await supabase
         .from('services')
-        .select('reception_date, status')
+        .select('reception_date, completion_date, status')
         .gte('reception_date', startOfMonth)
         .lte('reception_date', endOfMonth);
 
@@ -30,11 +30,22 @@ const ServiceCalendar = () => {
 
       // 날짜별로 상태 카운트를 집계
       const aggregatedData = data.reduce((acc, service) => {
-        const date = dayjs(service.reception_date).format('YYYY-MM-DD');
-        if (!acc[date]) {
-          acc[date] = { 접수: 0, 처리: 0, 확인: 0 };
+        // 접수일자 처리
+        const receptionDate = dayjs(service.reception_date).format('YYYY-MM-DD');
+        if (!acc[receptionDate]) {
+          acc[receptionDate] = { 접수: 0, 처리중: 0, 완료: 0, 출고: 0 };
         }
-        acc[date][service.status]++;
+        acc[receptionDate][service.status]++;
+        
+        // 출고일자 처리
+        if (service.completion_date) {
+          const completionDate = dayjs(service.completion_date).format('YYYY-MM-DD');
+          if (!acc[completionDate]) {
+            acc[completionDate] = { 접수: 0, 처리중: 0, 완료: 0, 출고: 0 };
+          }
+          acc[completionDate].출고++;
+        }
+        
         return acc;
       }, {});
 
@@ -46,8 +57,8 @@ const ServiceCalendar = () => {
 
   const renderDayContent = (date) => {
     const formattedDate = date.format('YYYY-MM-DD');
-    const dayData = serviceData[formattedDate] || { 접수: 0, 처리: 0, 확인: 0 };
-    const total = dayData.접수 + dayData.처리 + dayData.확인;
+    const dayData = serviceData[formattedDate] || { 접수: 0, 처리중: 0, 완료: 0, 출고: 0 };
+    const total = dayData.접수 + dayData.처리중 + dayData.완료 + dayData.출고;
 
     if (total === 0) return null;
 
@@ -68,17 +79,24 @@ const ServiceCalendar = () => {
             sx={{ '& .MuiBadge-badge': { fontSize: '0.6rem', height: '14px', minWidth: '14px' } }}
           />
         )}
-        {dayData.처리 > 0 && (
+        {dayData.처리중 > 0 && (
           <Badge 
-            badgeContent={dayData.처리} 
+            badgeContent={dayData.처리중} 
             color="warning"
             sx={{ '& .MuiBadge-badge': { fontSize: '0.6rem', height: '14px', minWidth: '14px' } }}
           />
         )}
-        {dayData.확인 > 0 && (
+        {dayData.완료 > 0 && (
           <Badge 
-            badgeContent={dayData.확인} 
+            badgeContent={dayData.완료} 
             color="success"
+            sx={{ '& .MuiBadge-badge': { fontSize: '0.6rem', height: '14px', minWidth: '14px' } }}
+          />
+        )}
+        {dayData.출고 > 0 && (
+          <Badge 
+            badgeContent={dayData.출고} 
+            color="secondary"
             sx={{ '& .MuiBadge-badge': { fontSize: '0.6rem', height: '14px', minWidth: '14px' } }}
           />
         )}
@@ -112,6 +130,10 @@ const ServiceCalendar = () => {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <Badge color="success" variant="dot" />
             <Typography variant="caption" color="text.secondary">완료</Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Badge color="secondary" variant="dot" />
+            <Typography variant="caption" color="text.secondary">출고</Typography>
           </Box>
         </Box>
       </Box>
