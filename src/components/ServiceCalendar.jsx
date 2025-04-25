@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Paper, Typography, Badge } from '@mui/material';
+import { Box, Paper, Typography, Badge, Tooltip } from '@mui/material';
 import { DateCalendar } from '@mui/x-date-pickers/DateCalendar';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
@@ -65,41 +65,101 @@ const ServiceCalendar = () => {
       return <PickersDay day={day} outsideCurrentMonth={outsideCurrentMonth} {...other} />;
     }
 
-    return (
-      <Box sx={{ position: 'relative' }}>
-        <PickersDay day={day} {...other} />
-        <Box sx={{ 
-          position: 'absolute', 
-          bottom: 4,
-          left: 0,
-          right: 0,
-          display: 'flex',
-          justifyContent: 'center',
-          gap: 0.5
-        }}>
-          {dayData.접수 > 0 && (
-            <Badge 
-              badgeContent={dayData.접수} 
-              color="info"
-              sx={{ '& .MuiBadge-badge': { fontSize: '0.6rem', height: '14px', minWidth: '14px' } }}
-            />
-          )}
-          {dayData.처리중 > 0 && (
-            <Badge 
-              badgeContent={dayData.처리중} 
-              color="warning"
-              sx={{ '& .MuiBadge-badge': { fontSize: '0.6rem', height: '14px', minWidth: '14px' } }}
-            />
-          )}
-          {dayData.완료 > 0 && (
-            <Badge 
-              badgeContent={dayData.완료} 
-              color="success"
-              sx={{ '& .MuiBadge-badge': { fontSize: '0.6rem', height: '14px', minWidth: '14px' } }}
-            />
-          )}
-        </Box>
+    const tooltipContent = (
+      <Box sx={{ p: 1 }}>
+        <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+          {day.format('YYYY년 MM월 DD일')}
+        </Typography>
+        {dayData.접수 > 0 && (
+          <Typography variant="body2" color="info.main">접수: {dayData.접수}건</Typography>
+        )}
+        {dayData.처리중 > 0 && (
+          <Typography variant="body2" color="warning.main">처리중: {dayData.처리중}건</Typography>
+        )}
+        {dayData.완료 > 0 && (
+          <Typography variant="body2" color="success.main">완료: {dayData.완료}건</Typography>
+        )}
       </Box>
+    );
+
+    return (
+      <Tooltip title={tooltipContent} arrow>
+        <Box sx={{ position: 'relative' }}>
+          <PickersDay 
+            day={day} 
+            {...other}
+            sx={{
+              ...other.sx,
+              backgroundColor: total > 0 ? 'rgba(25, 118, 210, 0.05)' : 'transparent',
+              '&:hover': {
+                backgroundColor: 'rgba(25, 118, 210, 0.1)',
+              }
+            }}
+          />
+          <Box sx={{ 
+            position: 'absolute',
+            top: 2,
+            right: 2,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '2px',
+            alignItems: 'flex-end'
+          }}>
+            {dayData.접수 > 0 && (
+              <Typography 
+                variant="caption" 
+                sx={{ 
+                  bgcolor: 'info.main',
+                  color: 'white',
+                  px: 0.5,
+                  py: 0.1,
+                  borderRadius: 1,
+                  fontSize: '0.65rem',
+                  lineHeight: 1,
+                  fontWeight: 'bold',
+                  minWidth: '16px',
+                  textAlign: 'center'
+                }}
+              >
+                {dayData.접수}
+              </Typography>
+            )}
+          </Box>
+          <Box sx={{ 
+            position: 'absolute', 
+            bottom: 2,
+            left: 0,
+            right: 0,
+            display: 'flex',
+            justifyContent: 'center',
+            gap: 0.5,
+            px: 0.5
+          }}>
+            <Box sx={{ 
+              display: 'flex',
+              gap: '2px',
+              height: '4px',
+              width: '100%',
+              maxWidth: '32px'
+            }}>
+              {dayData.처리중 > 0 && (
+                <Box sx={{ 
+                  flex: dayData.처리중, 
+                  bgcolor: 'warning.main',
+                  borderRadius: '2px'
+                }} />
+              )}
+              {dayData.완료 > 0 && (
+                <Box sx={{ 
+                  flex: dayData.완료, 
+                  bgcolor: 'success.main',
+                  borderRadius: '2px'
+                }} />
+              )}
+            </Box>
+          </Box>
+        </Box>
+      </Tooltip>
     );
   };
 

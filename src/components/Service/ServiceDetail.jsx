@@ -344,13 +344,13 @@ function ServiceDetail() {
     if (name === 'completion_date') {
       setFormData((prev) => ({
         ...prev,
-        [name]: value ? new Date(value).toISOString() : '',
+        [name]: value,
         status: value ? '완료' : prev.status
       }));
     } else if (name === 'reception_date') {
       setFormData((prev) => ({
         ...prev,
-        [name]: value ? new Date(value).toISOString().split('T')[0] : ''
+        [name]: value ? value : ''
       }));
     } else {
       setFormData((prev) => ({
@@ -358,6 +358,7 @@ function ServiceDetail() {
         [name]: value
       }));
     }
+    setIsEditing(true);
   };
 
   // 부품 목록 불러오기

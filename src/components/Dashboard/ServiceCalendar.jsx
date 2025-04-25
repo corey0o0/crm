@@ -138,7 +138,18 @@ const ServiceCalendar = () => {
             },
             '& .MuiPickersDay-root': {
               height: '45px',
-              width: '45px'
+              width: '45px',
+              backgroundColor: 'transparent',
+              '&:hover': {
+                backgroundColor: 'rgba(0, 0, 0, 0.04)'
+              },
+              '&.Mui-selected': {
+                backgroundColor: '#3182f6',
+                color: '#fff',
+                '&:hover': {
+                  backgroundColor: '#1b64da'
+                }
+              }
             }
           }}
         />

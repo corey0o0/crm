@@ -623,9 +623,6 @@ function Dashboard() {
 
   return (
     <Container maxWidth={false} sx={{ mt: 3 }}>
-      <Box sx={{ mb: 4 }}>
-        <ServiceCalendar />
-      </Box>
     <Box sx={{ width: '100%', maxWidth: '100%', margin: 0, padding: 0 }}>
       <Box sx={{ 
         display: 'flex', 
@@ -848,6 +845,11 @@ function Dashboard() {
           </Paper>
         </Grid>
       </Grid>
+
+      {/* 캘린더 섹션 */}
+      <Box sx={{ mb: 4 }}>
+        <ServiceCalendar />
+      </Box>
 
       {/* A/S 상태 및 출고 현황 */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
