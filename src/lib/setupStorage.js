@@ -52,7 +52,7 @@ export async function setupStorage() {
         });
         if (response.error) throw response.error;
         return response;
-      });
+        });
 
       if (createError) {
         console.error('버킷 생성 중 오류:', createError);

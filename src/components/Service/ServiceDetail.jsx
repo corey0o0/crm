@@ -324,7 +324,7 @@ function ServiceDetail() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
-
+    
     try {
       let receptionDateTime = null;
       let completionDateTime = null;
@@ -465,14 +465,14 @@ function ServiceDetail() {
       });
 
       await fetchServiceDetail();
-
+      
       // 하이라이트 ID 저장
       localStorage.setItem('highlightServiceId', id);
 
       setTimeout(() => {
         navigate('/services');
       }, 1000);
-
+      
     } catch (error) {
       console.error('Error updating service:', error);
       setSnackbar({
@@ -496,9 +496,9 @@ function ServiceDetail() {
       }));
     } else {
       setFormData((prev) => ({
-        ...prev,
-        [name]: value
-      }));
+      ...prev,
+      [name]: value
+    }));
     }
     setIsEditing(true);
   };
@@ -592,7 +592,7 @@ function ServiceDetail() {
         return 'success';
       default:
         return 'info';
-    }
+        }
   };
 
   const buttonStyle = (isSelected) => ({
@@ -603,13 +603,13 @@ function ServiceDetail() {
       formData.status === '완료' ? '#2e7d32' : '#3182f6'
     ) : '#f2f4f6',
     color: isSelected ? '#ffffff' : '#4e5968',
-    '&:hover': {
+        '&:hover': {
       backgroundColor: isSelected ? (
         formData.status === '접수' ? '#1565c0' :
         formData.status === '처리중' ? '#d65f02' :
         formData.status === '완료' ? '#1e5e20' : '#1b64da'
       ) : '#e5e8eb'
-    }
+      }
   });
 
   const sectionStyle = {
@@ -819,10 +819,10 @@ function ServiceDetail() {
   };
 
   const handleDateChange = (date, field) => {
-    setFormData(prev => ({
-      ...prev,
+      setFormData(prev => ({
+        ...prev,
       [field]: date
-    }));
+      }));
   };
 
   const handleComplete = async () => {
@@ -1417,7 +1417,7 @@ function ServiceDetail() {
         </DialogActions>
       </Dialog>
 
-      <Dialog
+      <Dialog 
         open={openReceiptDialog} 
         onClose={() => setOpenReceiptDialog(false)}
         maxWidth="xl"
@@ -1487,27 +1487,27 @@ function ServiceDetail() {
                   <Grid item xs={12}>
                     <Box sx={{ display: 'flex', gap: 2 }}>
                       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 2 }}>
-                        <Typography variant="caption" sx={{ color: 'text.secondary', ml: 1 }}>
+                          <Typography variant="caption" sx={{ color: 'text.secondary', ml: 1 }}>
                           접수일시*
-                        </Typography>
+                          </Typography>
                         <Box sx={{ display: 'flex', gap: 1 }}>
-                          <TextField
+                              <TextField 
                             required
                             type="date"
                             name="reception_date"
                             value={formData.reception_date || ''}
                             onChange={handleChange}
-                            size="small"
-                            sx={{
+                                size="small"
+                                sx={{
                               flex: 2,
-                              '& .MuiOutlinedInput-root': {
-                                height: '36px',
-                                borderRadius: 1,
-                                bgcolor: '#f9fafb'
-                              }
-                            }}
-                          />
-                          <TextField
+                                  '& .MuiOutlinedInput-root': {
+                                    height: '36px',
+                                    borderRadius: 1,
+                                    bgcolor: '#f9fafb'
+                                  }
+                                }}
+                              />
+                              <TextField 
                             select
                             required
                             name="reception_time"
@@ -1518,15 +1518,15 @@ function ServiceDetail() {
                                 value: `${e.target.value}:00`
                               }
                             })}
-                            size="small"
-                            sx={{
+                                size="small"
+                                sx={{
                               flex: 1,
-                              '& .MuiOutlinedInput-root': {
-                                height: '36px',
-                                borderRadius: 1,
-                                bgcolor: '#f9fafb'
-                              }
-                            }}
+                                  '& .MuiOutlinedInput-root': {
+                                    height: '36px',
+                                    borderRadius: 1,
+                                    bgcolor: '#f9fafb'
+                                  }
+                                }}
                           >
                             {Array.from({ length: 24 }, (_, i) => (
                               <MenuItem key={i} value={String(i).padStart(2, '0')}>
@@ -1541,21 +1541,21 @@ function ServiceDetail() {
                           완료일시
                         </Typography>
                         <Box sx={{ display: 'flex', gap: 1 }}>
-                          <TextField
+                        <TextField
                             type="date"
                             name="completion_date"
                             value={formData.completion_date || ''}
-                            onChange={handleChange}
+                          onChange={handleChange}
                             size="small"
-                            sx={{
+                          sx={{ 
                               flex: 2,
-                              '& .MuiOutlinedInput-root': {
+                            '& .MuiOutlinedInput-root': {
                                 height: '36px',
                                 borderRadius: 1,
                                 bgcolor: '#f9fafb'
-                              }
-                            }}
-                          />
+                            }
+                          }}
+                        />
                           <TextField
                             select
                             name="completion_time"
@@ -1588,24 +1588,24 @@ function ServiceDetail() {
                   </Grid>
                   <Grid item xs={12}>
                     <Box sx={{ display: 'flex', gap: 1, mb: 2, alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Box sx={{ display: 'flex', gap: 1 }}>
-                        <Button
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Button 
                           variant={formData.status === '접수' ? 'contained' : 'outlined'}
-                          onClick={() => handleStatusChange('접수')}
+                        onClick={() => handleStatusChange('접수')}
                           sx={buttonStyle(formData.status === '접수')}
-                        >
-                          접수
-                        </Button>
-                        <Button
+                      >
+                        접수
+                      </Button>
+                      <Button 
                           variant={formData.status === '처리중' ? 'contained' : 'outlined'}
-                          onClick={() => handleStatusChange('처리중')}
+                        onClick={() => handleStatusChange('처리중')}
                           sx={buttonStyle(formData.status === '처리중')}
-                        >
-                          처리중
-                        </Button>
-                        <Button
+                      >
+                        처리중
+                      </Button>
+                      <Button 
                           variant={formData.status === '완료' ? 'contained' : 'outlined'}
-                          onClick={() => handleStatusChange('완료')}
+                        onClick={() => handleStatusChange('완료')}
                           sx={buttonStyle(formData.status === '완료')}
                         >
                           완료
@@ -2036,7 +2036,7 @@ function ServiceDetail() {
             <Button 
               onClick={confirmDialog.onConfirm}
               variant="contained"
-              sx={{ 
+              sx={{
                 bgcolor: '#3182f6',
                 '&:hover': { bgcolor: '#1b64da' }
               }}

@@ -755,7 +755,7 @@ function AddService() {
         title: 'A/S 완료 확인',
         message: '해당 A/S를 완료 처리하시겠습니까?',
         onConfirm: () => {
-          setStatus(newStatus);
+    setStatus(newStatus);
           setFormData(prev => {
             const updatedData = { ...prev, status: newStatus };
             if (!prev.completion_date) {

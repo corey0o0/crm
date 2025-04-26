@@ -23,32 +23,25 @@ const ServiceCalendar = () => {
 
       const { data, error } = await supabase
         .from('services')
-        .select('reception_date, status')
+        .select('id, reception_date, status, customer_name, product_name')
         .gte('reception_date', startOfMonth)
         .lte('reception_date', endOfMonth);
 
       if (error) throw error;
 
-      // 날짜별로 상태 카운트를 집계
-      const aggregatedData = data.reduce((acc, service) => {
+      // 날짜별로 상태별 배열로 집계
+      const aggregatedData = {};
+      data.forEach(service => {
         const date = dayjs(service.reception_date).format('YYYY-MM-DD');
-        if (!acc[date]) {
-          acc[date] = { 접수: 0, 처리중: 0, 완료: 0 };
+        if (!aggregatedData[date]) {
+          aggregatedData[date] = { 접수: [], 처리중: [], 완료: [] };
         }
-        
-        // 상태 매핑
-        const statusMap = {
-          '접수': '접수',
-          '처리중': '처리중',
-          '부분완료': '처리중',
-          '완료': '완료'
-        };
-        
-        const mappedStatus = statusMap[service.status] || service.status;
-        acc[date][mappedStatus]++;
-        return acc;
-      }, {});
-
+        let status = service.status;
+        if (status === '부분완료') status = '처리중';
+        if (aggregatedData[date][status]) {
+          aggregatedData[date][status].push(service);
+        }
+      });
       setServiceData(aggregatedData);
     } catch (error) {
       console.error('서비스 데이터 조회 중 오류:', error);
@@ -58,8 +51,11 @@ const ServiceCalendar = () => {
   const ServerDay = (props) => {
     const { day, outsideCurrentMonth, ...other } = props;
     const formattedDate = day.format('YYYY-MM-DD');
-    const dayData = serviceData[formattedDate] || { 접수: 0, 처리중: 0, 완료: 0 };
-    const total = dayData.접수 + dayData.처리중 + dayData.완료;
+    const dayData = serviceData[formattedDate] || { 접수: [], 처리중: [], 완료: [] };
+    const 접수수 = dayData.접수.length;
+    const 처리중수 = dayData.처리중.length;
+    const 완료수 = dayData.완료.length;
+    const total = 접수수 + 처리중수 + 완료수;
 
     if (outsideCurrentMonth || total === 0) {
       return <PickersDay day={day} outsideCurrentMonth={outsideCurrentMonth} {...other} />;
@@ -70,14 +66,14 @@ const ServiceCalendar = () => {
         <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
           {day.format('YYYY년 MM월 DD일')}
         </Typography>
-        {dayData.접수 > 0 && (
-          <Typography variant="body2" color="info.main">접수: {dayData.접수}건</Typography>
-        )}
-        {dayData.처리중 > 0 && (
-          <Typography variant="body2" color="warning.main">처리중: {dayData.처리중}건</Typography>
-        )}
-        {dayData.완료 > 0 && (
-          <Typography variant="body2" color="success.main">완료: {dayData.완료}건</Typography>
+        {dayData.접수.length > 0 ? (
+          dayData.접수.map(s => (
+            <Typography key={s.id} variant="body2" sx={{ fontSize: '0.95em' }}>
+              {s.customer_name} {s.product_name ? `(${s.product_name})` : ''} - {dayjs(s.reception_date).format('HH:mm')}
+            </Typography>
+          ))
+        ) : (
+          <Typography variant="body2" color="text.secondary">접수건 없음</Typography>
         )}
       </Box>
     );
@@ -101,62 +97,17 @@ const ServiceCalendar = () => {
             top: 2,
             right: 2,
             display: 'flex',
-            flexDirection: 'column',
-            gap: '2px',
-            alignItems: 'flex-end'
+            gap: 0.5
           }}>
-            {dayData.접수 > 0 && (
-              <Typography 
-                variant="caption" 
-                sx={{ 
-                  bgcolor: 'info.main',
-                  color: 'white',
-                  px: 0.5,
-                  py: 0.1,
-                  borderRadius: 1,
-                  fontSize: '0.65rem',
-                  lineHeight: 1,
-                  fontWeight: 'bold',
-                  minWidth: '16px',
-                  textAlign: 'center'
-                }}
-              >
-                {dayData.접수}
-              </Typography>
+            {접수수 > 0 && (
+              <Typography variant="caption" sx={{ bgcolor: 'info.main', color: 'white', px: 0.5, borderRadius: 1, fontSize: '0.7em' }}>{접수수}</Typography>
             )}
-          </Box>
-          <Box sx={{ 
-            position: 'absolute', 
-            bottom: 2,
-            left: 0,
-            right: 0,
-            display: 'flex',
-            justifyContent: 'center',
-            gap: 0.5,
-            px: 0.5
-          }}>
-            <Box sx={{ 
-              display: 'flex',
-              gap: '2px',
-              height: '4px',
-              width: '100%',
-              maxWidth: '32px'
-            }}>
-              {dayData.처리중 > 0 && (
-                <Box sx={{ 
-                  flex: dayData.처리중, 
-                  bgcolor: 'warning.main',
-                  borderRadius: '2px'
-                }} />
-              )}
-              {dayData.완료 > 0 && (
-                <Box sx={{ 
-                  flex: dayData.완료, 
-                  bgcolor: 'success.main',
-                  borderRadius: '2px'
-                }} />
-              )}
-            </Box>
+            {처리중수 > 0 && (
+              <Typography variant="caption" sx={{ bgcolor: 'warning.main', color: 'white', px: 0.5, borderRadius: 1, fontSize: '0.7em' }}>{처리중수}</Typography>
+            )}
+            {완료수 > 0 && (
+              <Typography variant="caption" sx={{ bgcolor: 'success.main', color: 'white', px: 0.5, borderRadius: 1, fontSize: '0.7em' }}>{완료수}</Typography>
+            )}
           </Box>
         </Box>
       </Tooltip>
