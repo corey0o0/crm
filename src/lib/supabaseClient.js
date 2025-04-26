@@ -13,10 +13,20 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     detectSessionInUrl: true
   },
+  global: {
+    headers: {
+      'x-application-name': 'crm-app'
+    }
+  },
+  realtime: {
+    timeout: 60000
+  },
+  db: {
+    schema: 'public'
+  },
   storage: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true
+    retryInterval: 5000,
+    maxRetryCount: 3
   }
 })
 

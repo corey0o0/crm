@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Table, 
   TableBody, 
@@ -99,7 +99,71 @@ function ServiceList() {
     startDate: '',
     endDate: ''
   });
-  const [highlightedId, setHighlightedId] = useState(null);
+  const [highlightedId, setHighlightedId] = useState(() => {
+    const savedId = localStorage.getItem('highlightServiceId');
+    console.log('Initial highlightServiceId from localStorage (on mount):', savedId);
+    return savedId ? parseInt(savedId, 10) : null;
+  });
+
+  // 하이라이트 타이머 관리를 위한 ref
+  const highlightTimerRef = useRef(null);
+
+  // 하이라이트 설정 함수
+  const setHighlightWithTimeout = (id) => {
+    console.log('Setting highlight for ID:', id);
+    setHighlightedId(id);
+    localStorage.setItem('highlightServiceId', String(id));
+    console.log('Saved highlightServiceId to localStorage:', id);
+
+    // 이전 타이머가 있다면 제거
+    if (highlightTimerRef.current) {
+      clearTimeout(highlightTimerRef.current);
+    }
+
+    // 새로운 타이머 설정
+    highlightTimerRef.current = setTimeout(() => {
+      console.log('Clearing highlight for ID:', id);
+      setHighlightedId(null);
+      localStorage.removeItem('highlightServiceId');
+      highlightTimerRef.current = null;
+    }, 10000);
+  };
+
+  // 컴포넌트 언마운트 시 타이머 정리
+  useEffect(() => {
+    return () => {
+      if (highlightTimerRef.current) {
+        clearTimeout(highlightTimerRef.current);
+      }
+    };
+  }, []);
+
+  // 데이터 로드 완료 후 하이라이트 체크
+  useEffect(() => {
+    if (!loading && services.length > 0) {
+      const savedId = localStorage.getItem('highlightServiceId');
+      console.log('Checking highlight after data load. SavedId:', savedId, 'Loading:', loading);
+      
+      if (savedId) {
+        const numericId = parseInt(savedId, 10);
+        const serviceExists = services.some(service => service.id === numericId);
+        
+        if (serviceExists) {
+          console.log('Found service to highlight:', numericId);
+          setHighlightWithTimeout(numericId);
+        } else {
+          console.log('Service not found, clearing highlight');
+          localStorage.removeItem('highlightServiceId');
+          setHighlightedId(null);
+        }
+      }
+    }
+  }, [loading, services]);
+
+  // 하이라이트 ID가 변경될 때마다 콘솔에 출력
+  useEffect(() => {
+    console.log('Current highlightedId (state):', highlightedId);
+  }, [highlightedId]);
 
   const brandColors = {
     xlider: {
@@ -146,11 +210,36 @@ function ServiceList() {
       // 2. 서비스와 태그 데이터 병합
       const servicesWithTags = servicesData.map(service => ({
         ...service,
-        status: service.status || '접수', // status가 없는 경우 기본값 설정
+        status: service.status || '접수',
         tags: service.service_tags?.map(tag => tag.tag_name) || []
       }));
 
       setServices(servicesWithTags);
+      
+      // 데이터 로딩 완료 후 하이라이트 ID 체크
+      const savedId = localStorage.getItem('highlightServiceId');
+      console.log('Checking highlightServiceId after data load:', savedId);
+      
+      if (savedId) {
+        const numericId = parseInt(savedId, 10);
+        // 해당 ID가 현재 데이터에 존재하는지 확인
+        const serviceExists = servicesWithTags.some(service => service.id === numericId);
+        
+        if (serviceExists) {
+          console.log('Service found, setting highlight:', numericId);
+          setHighlightWithTimeout(numericId);
+          
+          // 10초 후 하이라이트 제거
+          setTimeout(() => {
+            console.log('Clearing highlight effect after timeout');
+            setHighlightedId(null);
+            localStorage.removeItem('highlightServiceId');
+          }, 10000);
+        } else {
+          console.log('Service not found, clearing highlight');
+          localStorage.removeItem('highlightServiceId');
+        }
+      }
     } catch (err) {
       console.error('Error fetching services:', err);
       setError(err.message);
@@ -166,13 +255,27 @@ function ServiceList() {
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'services' }, 
         payload => {
-          console.log('Received real-time update:', payload); // 디버깅용
+          console.log('Received real-time update:', payload);
           if (payload.eventType === 'INSERT' && payload.new.brand === selectedBrand) {
-            // 새로운 서비스를 배열의 맨 앞에 추가
+            const newServiceId = payload.new.id;
+            console.log('New service added, ID:', newServiceId);
+            
+            // 새로운 서비스 추가 및 하이라이트 설정
             setServices(prev => [{
               ...payload.new,
-              tags: []  // 새로운 서비스의 태그 초기화
+              tags: []
             }, ...prev]);
+            
+            // 하이라이트 ID 설정
+            setHighlightWithTimeout(newServiceId);
+            console.log('Highlight set for service:', newServiceId);
+            
+            // 10초 후 하이라이트 제거
+            setTimeout(() => {
+              console.log('Removing highlight for service:', newServiceId);
+              setHighlightedId(null);
+              localStorage.removeItem('highlightServiceId');
+            }, 10000);
           } else if (payload.eventType === 'UPDATE') {
             setServices(prev => prev.map(service => 
               service.id === payload.new.id ? {
@@ -711,15 +814,36 @@ function ServiceList() {
       render: (row) => (
         <Box
           sx={{
-            width: row.id === highlightedId ? '12px' : '6px',
-            height: row.status === '접수' ? '12px' : '24px',
+            width: '9px',
+            height: '9px',
+            borderRadius: '50%',
             backgroundColor: row.id === highlightedId 
               ? '#ffd700'
               : row.status?.includes('완료') 
                 ? '#2e7d32'
                 : row.status === '처리중'
                   ? '#ed6c02'
-                  : '#1976d2',
+                  : row.status === '접수'
+                    ? '#1976d2'
+                    : '#757575',
+            transition: 'all 0.3s ease',
+            animation: row.id === highlightedId 
+              ? 'pulse 1.5s ease-in-out infinite'
+              : 'none',
+            '@keyframes pulse': {
+              '0%': {
+                boxShadow: '0 0 0 0 rgba(255, 215, 0, 0.7)',
+                transform: 'scale(1)'
+              },
+              '50%': {
+                boxShadow: '0 0 0 6px rgba(255, 215, 0, 0)',
+                transform: 'scale(1.1)'
+              },
+              '100%': {
+                boxShadow: '0 0 0 0 rgba(255, 215, 0, 0)',
+                transform: 'scale(1)'
+              }
+            }
           }}
         />
       )
@@ -947,19 +1071,12 @@ function ServiceList() {
     }
   ];
 
-  // 로컬 스토리지에서 하이라이트할 ID를 가져옴
+  // 하이라이트 ID 모니터링
   useEffect(() => {
-    const highlightId = localStorage.getItem('highlightServiceId');
-    console.log('Highlight ID from localStorage:', highlightId); // 디버깅용
-    if (highlightId) {
-      setHighlightedId(Number(highlightId));
-      // 10초 후 하이라이트 효과 제거
-      setTimeout(() => {
-        setHighlightedId(null);
-        localStorage.removeItem('highlightServiceId');
-      }, 10000);
+    if (!loading && services.length > 0) {
+      console.log('Services loaded, current highlightedId:', highlightedId);
     }
-  }, [services]); // services가 변경될 때마다 체크
+  }, [loading, services, highlightedId]);
 
   // 모바일 카드 렌더링 함수 수정
   const renderMobileCard = (row, index) => (
@@ -979,15 +1096,36 @@ function ServiceList() {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
           <Box
             sx={{
-              width: row.id === highlightedId ? '12px' : '6px',
-              height: row.status === '접수' ? '12px' : '24px',  // 접수 상태일 때 높이 12px
+              width: '9px',
+              height: '9px',
+              borderRadius: '50%',
               backgroundColor: row.id === highlightedId 
-                ? '#ffd700'  // 노란색으로 변경
+                ? '#ffd700'
                 : row.status?.includes('완료') 
                   ? '#2e7d32'
                   : row.status === '처리중'
                     ? '#ed6c02'
-                    : '#1976d2',
+                    : row.status === '접수'
+                      ? '#1976d2'
+                      : '#757575',
+              transition: 'all 0.3s ease',
+              animation: row.id === highlightedId 
+                ? 'pulse 1.5s ease-in-out infinite'
+                : 'none',
+              '@keyframes pulse': {
+                '0%': {
+                  boxShadow: '0 0 0 0 rgba(255, 215, 0, 0.7)',
+                  transform: 'scale(1)'
+                },
+                '50%': {
+                  boxShadow: '0 0 0 6px rgba(255, 215, 0, 0)',
+                  transform: 'scale(1.1)'
+                },
+                '100%': {
+                  boxShadow: '0 0 0 0 rgba(255, 215, 0, 0)',
+                  transform: 'scale(1)'
+                }
+              },
               flexShrink: 0
             }}
           />

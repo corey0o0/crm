@@ -98,7 +98,7 @@ function ServiceDetail() {
   const [searchTerm, setSearchTerm] = useState('');
   const [tags, setTags] = useState([]);
   const [availableTags] = useState([
-    '전체점검', '브레이크-패드', '브레이크-로터', '브레이크-교체', '배터리',
+    '전체점검', '브레이크-패드', '브레이크-로터', '브레이크-교체', '배터리', '펑크',
     '충전기', '모터', '워런티', '사고-보험', 'E07','E09','E010'
   ]);
   const [submitting, setSubmitting] = useState(false);
@@ -152,13 +152,47 @@ function ServiceDetail() {
 
       if (serviceError) throw serviceError;
 
-      // 날짜와 시간 분리
-      const receptionDate = serviceData.reception_date ? new Date(serviceData.reception_date) : null;
-      const receptionTime = receptionDate ? 
-        `${receptionDate.getHours().toString().padStart(2, '0')}:${(Math.floor(receptionDate.getMinutes() / 30) * 30).toString().padStart(2, '0')}` : 
-        '00:00';
+      let receptionDate = null;
+      let receptionTime = '00:00';
+      let completionDate = null;
+      let completionTime = '00:00';
 
-      // 기존 note에서 구매처 정보가 있다면 seller 필드로 이전
+      if (serviceData.reception_date) {
+        const utcDate = new Date(serviceData.reception_date);
+        const utcHours = utcDate.getUTCHours();
+        const kstHours = (utcHours + 9) % 24;
+        
+        const dateStr = serviceData.reception_date.split('T')[0];
+        receptionDate = dateStr;
+        receptionTime = `${String(kstHours).padStart(2, '0')}:00`;
+
+        console.log('Loading Reception DateTime:', {
+          original: serviceData.reception_date,
+          utcHours,
+          kstHours,
+          convertedDate: receptionDate,
+          convertedTime: receptionTime
+        });
+      }
+
+      if (serviceData.completion_date) {
+        const utcDate = new Date(serviceData.completion_date);
+        const utcHours = utcDate.getUTCHours();
+        const kstHours = (utcHours + 9) % 24;
+        
+        const dateStr = serviceData.completion_date.split('T')[0];
+        completionDate = dateStr;
+        completionTime = `${String(kstHours).padStart(2, '0')}:00`;
+
+        console.log('Loading Completion DateTime:', {
+          original: serviceData.completion_date,
+          utcHours,
+          kstHours,
+          convertedDate: completionDate,
+          convertedTime: completionTime
+        });
+      }
+
       if (serviceData.note && !serviceData.seller) {
         const { error: updateError } = await supabase
           .from('services')
@@ -174,26 +208,30 @@ function ServiceDetail() {
         }
       }
 
-      // 태그 데이터 설정
       if (serviceData.service_tags) {
         setTags(serviceData.service_tags.map(t => t.tag_name));
       }
 
-      // 주행거리 데이터 처리
       const mileage = serviceData.mileage === null ? '' : serviceData.mileage;
       
       setFormData({
         ...serviceData,
-        reception_date: receptionDate ? receptionDate.toISOString().split('T')[0] : null,
+        reception_date: receptionDate,
         reception_time: receptionTime,
-        repair_date: serviceData.repair_date ? new Date(serviceData.repair_date).toISOString().split('T')[0] : null,
-        completion_date: serviceData.completion_date ? new Date(serviceData.completion_date).toISOString().split('T')[0] : null,
+        completion_date: completionDate,
+        completion_time: completionTime,
         service_parts: serviceData.service_parts || [],
         writer: serviceData.writer || '관리자',
         mileage: mileage
       });
 
-      // 사용된 부품 정보 조회
+      console.log('Loaded reception data:', {
+        original: serviceData.reception_date,
+        convertedDate: receptionDate,
+        convertedTime: receptionTime,
+        fullDate: serviceData.reception_date ? new Date(serviceData.reception_date).toISOString() : null
+      });
+
       if (serviceData.service_parts?.length > 0) {
         const partIds = serviceData.service_parts.map(sp => sp.part_id);
         const { data: partsData, error: partsError } = await supabase
@@ -262,39 +300,121 @@ function ServiceDetail() {
     }
   };
 
+  const formatDateWithHour = (dateStr) => {
+    if (!dateStr) return null;
+    const date = new Date(dateStr);
+    date.setMinutes(0);
+    date.setSeconds(0);
+    date.setMilliseconds(0);
+    return date;
+  };
+
+  const formatDateForDisplay = (dateStr) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    return date.toISOString().split('T')[0];
+  };
+
+  const formatHourForDisplay = (dateStr) => {
+    if (!dateStr) return '00';
+    const date = new Date(dateStr);
+    return String(date.getHours()).padStart(2, '0');
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
+    setSubmitting(true);
 
     try {
-      // 서비스 데이터 업데이트
+      let receptionDateTime = null;
+      let completionDateTime = null;
+      
+      if (formData.reception_date && formData.reception_time) {
+        const date = formData.reception_date;
+        const hours = parseInt(formData.reception_time.split(':')[0], 10);
+        
+        let utcHours = hours - 9;
+        let utcDate = date;
+        
+        if (utcHours < 0) {
+          utcHours += 24;
+          const prevDate = new Date(date);
+          prevDate.setDate(prevDate.getDate() - 1);
+          utcDate = prevDate.toISOString().split('T')[0];
+        }
+        
+        receptionDateTime = new Date(`${utcDate}T${String(utcHours).padStart(2, '0')}:00:00.000Z`);
+
+        console.log('Reception DateTime Processing:', {
+          inputDate: date,
+          inputHours: hours,
+          utcDate,
+          utcHours,
+          result: receptionDateTime.toISOString()
+        });
+      }
+
+      if (formData.completion_date && formData.completion_time) {
+        const date = formData.completion_date;
+        const hours = parseInt(formData.completion_time.split(':')[0], 10);
+        
+        let utcHours = hours - 9;
+        let utcDate = date;
+        
+        if (utcHours < 0) {
+          utcHours += 24;
+          const prevDate = new Date(date);
+          prevDate.setDate(prevDate.getDate() - 1);
+          utcDate = prevDate.toISOString().split('T')[0];
+        }
+        
+        completionDateTime = new Date(`${utcDate}T${String(utcHours).padStart(2, '0')}:00:00.000Z`);
+
+        console.log('Completion DateTime Processing:', {
+          inputDate: date,
+          inputHours: hours,
+          utcDate,
+          utcHours,
+          result: completionDateTime.toISOString()
+        });
+      }
+
+      const updateData = {
+        brand: formData.brand,
+        reception_date: receptionDateTime?.toISOString(),
+        completion_date: completionDateTime?.toISOString(),
+        delivery_method: formData.delivery_method,
+        customer_name: formData.customer_name,
+        customer_phone: formData.customer_phone,
+        customer_address: formData.customer_address,
+        product_name: formData.product_name,
+        symptom: formData.symptom,
+        solution: formData.solution,
+        status: formData.status,
+        note: formData.note,
+        receipt_link: formData.receipt_link,
+        seller: formData.seller,
+        mileage: formData.mileage,
+        writer: formData.writer,
+        reception_type: formData.reception_type,
+        updated_at: new Date().toISOString()
+      };
+
+      console.log('Final Update Data:', {
+        receptionDate: updateData.reception_date,
+        completionDate: updateData.completion_date
+      });
+
       const { error: serviceError } = await supabase
         .from('services')
-        .update({
-          reception_date: formData.reception_date,
-          reception_type: formData.reception_type,
-          repair_date: formData.repair_date,
-          completion_date: formData.completion_date,
-          delivery_method: formData.delivery_method,
-          customer_name: formData.customer_name,
-          customer_phone: formData.customer_phone,
-          customer_address: formData.customer_address,
-          product_name: formData.product_name,
-          symptom: formData.symptom,
-          solution: formData.solution,
-          status: formData.status,
-          note: formData.note,
-          receipt_link: formData.receipt_link,
-          seller: formData.seller,
-          mileage: formData.mileage,
-          writer: formData.writer,
-          updated_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('id', id);
 
-      if (serviceError) throw serviceError;
+      if (serviceError) {
+        console.error('Service update error:', serviceError);
+        throw serviceError;
+      }
 
-      // 기존 부품 데이터 삭제
       const { error: deletePartsError } = await supabase
         .from('service_parts')
         .delete()
@@ -302,7 +422,6 @@ function ServiceDetail() {
 
       if (deletePartsError) throw deletePartsError;
 
-      // 새로운 부품 데이터 추가
       if (selectedParts.length > 0) {
         const partsData = selectedParts.map(part => ({
           service_id: id,
@@ -319,7 +438,6 @@ function ServiceDetail() {
         if (insertPartsError) throw insertPartsError;
       }
 
-      // 태그 업데이트
       const { error: tagDeleteError } = await supabase
         .from('service_tags')
         .delete()
@@ -346,7 +464,11 @@ function ServiceDetail() {
         severity: 'success'
       });
 
-      // 1초 후에 목록 페이지로 이동
+      await fetchServiceDetail();
+
+      // 하이라이트 ID 저장
+      localStorage.setItem('highlightServiceId', id);
+
       setTimeout(() => {
         navigate('/services');
       }, 1000);
@@ -359,7 +481,7 @@ function ServiceDetail() {
         severity: 'error'
       });
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
@@ -372,11 +494,6 @@ function ServiceDetail() {
         [name]: value,
         status: value ? '완료' : prev.status
       }));
-    } else if (name === 'reception_date') {
-      setFormData((prev) => ({
-        ...prev,
-        [name]: value ? value : ''
-      }));
     } else {
       setFormData((prev) => ({
         ...prev,
@@ -386,18 +503,16 @@ function ServiceDetail() {
     setIsEditing(true);
   };
 
-  // 부품 목록 불러오기
   const fetchParts = async () => {
     try {
       const { data, error } = await supabase
         .from('parts')
         .select('*')
-        .eq('brand', formData.brand)  // 현재 선택된 브랜드로 필터링
+        .eq('brand', formData.brand)
         .order('name');
       
       if (error) throw error;
       
-      // 콘솔에 parts 데이터 출력하여 id 형식 확인
       console.log('Available parts:', data);
       
       setAvailableParts(data);
@@ -407,21 +522,18 @@ function ServiceDetail() {
     }
   };
 
-  // 부품 검색 필터링
   const filteredParts = availableParts.filter(part => 
     (part.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     part.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
     part.brand.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  // 부품 추가 다이얼로그 열기
   const handleOpenPartsDialog = () => {
     fetchParts();
     setOpenPartsDialog(true);
     setSearchTerm('');
   };
 
-  // 부품 선택
   const handlePartSelect = (part) => {
     setSelectedPart(part);
   };
@@ -439,17 +551,14 @@ function ServiceDetail() {
 
   const handleAddPart = () => {
     if (selectedPart && partQuantity > 0) {
-      // 이미 추가된 부품인지 확인
       const existingPartIndex = selectedParts.findIndex(p => p.id === selectedPart.id);
       
       if (existingPartIndex >= 0) {
-        // 이미 추가된 부품이면 수량만 증가
         const updatedParts = [...selectedParts];
         updatedParts[existingPartIndex].quantity += partQuantity;
         updatedParts[existingPartIndex].total = updatedParts[existingPartIndex].price * updatedParts[existingPartIndex].quantity;
         setSelectedParts(updatedParts);
       } else {
-        // 새 부품 추가
         const newPart = {
           id: selectedPart.id,
           name: selectedPart.name,
@@ -457,7 +566,7 @@ function ServiceDetail() {
           quantity: partQuantity,
           price: modifiedPrice || selectedPart.price || 0,
           total: (modifiedPrice || selectedPart.price || 0) * partQuantity,
-          usage: 'A/S' // 기본값으로 A/S 설정
+          usage: 'A/S'
         };
         setSelectedParts(prev => [...prev, newPart]);
       }
@@ -469,7 +578,6 @@ function ServiceDetail() {
     }
   };
 
-  // 부품 삭제
   const handleRemovePart = (partId) => {
     setSelectedParts(prev => prev.filter(part => part.id !== partId));
   };
@@ -520,7 +628,6 @@ function ServiceDetail() {
     bgcolor: '#ffffff'
   };
 
-  // 날짜 포맷팅 함수 추가
   const formatDate = (dateString) => {
     if (!dateString) return '';
     try {
@@ -547,7 +654,6 @@ function ServiceDetail() {
         try {
           setSubmitting(true);
           
-          // 1. 기존 태그 삭제
           const { error: deleteTagsError } = await supabase
             .from('service_tags')
             .delete()
@@ -555,7 +661,6 @@ function ServiceDetail() {
 
           if (deleteTagsError) throw deleteTagsError;
 
-          // 2. 기존 부품 삭제
           const { error: deletePartsError } = await supabase
             .from('service_parts')
             .delete()
@@ -563,7 +668,6 @@ function ServiceDetail() {
 
           if (deletePartsError) throw deletePartsError;
 
-          // 3. 서비스 데이터 삭제
           const { error: deleteServiceError } = await supabase
             .from('services')
             .delete()
@@ -577,7 +681,6 @@ function ServiceDetail() {
             severity: 'success'
           });
 
-          // 2초 후 리스트 페이지로 이동
           setTimeout(() => {
             navigate('/services');
           }, 2000);
@@ -591,13 +694,12 @@ function ServiceDetail() {
           });
         } finally {
           setSubmitting(false);
-          setConfirmDialog({ ...confirmDialog, open: false });
+          setConfirmDialog(prev => ({ ...prev, open: false }));
         }
       }
     });
   };
 
-  // 가격 수정 핸들러 수정
   const handlePriceChange = (index, newPrice) => {
     try {
       console.log('가격 수정 시작:', {
@@ -636,7 +738,6 @@ function ServiceDetail() {
     }
   };
 
-  // 가격 저장 핸들러 수정
   const handleSavePrice = async (index) => {
     try {
       const updatedPart = selectedParts[index];
@@ -649,7 +750,6 @@ function ServiceDetail() {
         '총액': updatedPart.total
       });
 
-      // service_parts 테이블 업데이트
       const { error: updateError } = await supabase
         .from('service_parts')
         .update({ 
@@ -686,36 +786,29 @@ function ServiceDetail() {
     }
   };
 
-  // Handle mouse enter for receipt preview
   const handleReceiptMouseEnter = (event) => {
     if (receiptLink) {
       setReceiptPreviewAnchor(event.currentTarget);
     }
   };
 
-  // Handle mouse leave for receipt preview
   const handleReceiptMouseLeave = () => {
     setReceiptPreviewAnchor(null);
   };
 
-  // PDF 로드 성공 핸들러
   const onDocumentLoadSuccess = ({ numPages }) => {
     setNumPages(numPages);
     setPageNumber(1);
   };
 
-  // Add tag input handler
   const handleTagInput = (event, value, reason) => {
     if (reason === 'input') {
-      // 직접 입력한 경우
       setTags(value ? [...new Set([...tags, value])] : tags);
     } else {
-      // 추천 태그에서 선택한 경우
       setTags(value);
     }
   };
 
-  // 미리보기 처리 함수
   const handlePreview = (url) => {
     if (!url) return;
     
@@ -736,7 +829,6 @@ function ServiceDetail() {
     try {
       let completionDate = formData.completion_date;
       
-      // 완료일이 지정되어 있지 않으면 현재 날짜로 설정
       if (!completionDate) {
         completionDate = new Date();
       }
@@ -751,7 +843,6 @@ function ServiceDetail() {
 
       if (error) throw error;
 
-      // 폼 데이터 업데이트
       setFormData(prev => ({
         ...prev,
         status: '완료',
@@ -774,9 +865,7 @@ function ServiceDetail() {
     }
   };
 
-  // 구글 드라이브 링크 처리 함수 추가
   const getGoogleDriveImageUrl = (url) => {
-    // 구글 드라이브 공유 링크를 이미지 직접 링크로 변환
     const fileId = url.match(/[-\w]{25,}/);
     if (fileId && fileId[0]) {
       return `https://drive.google.com/uc?export=view&id=${fileId[0]}`;
@@ -784,14 +873,12 @@ function ServiceDetail() {
     return url;
   };
 
-  // 영수증 링크 미리보기 컴포넌트
   const ReceiptPreview = ({ url }) => {
     const [open, setOpen] = useState(false);
     const [previewUrl, setPreviewUrl] = useState('');
 
     useEffect(() => {
       if (url) {
-        // 구글 드라이브 링크인지 확인하고 처리
         if (url.includes('drive.google.com')) {
           setPreviewUrl(getGoogleDriveImageUrl(url));
         } else {
@@ -852,7 +939,6 @@ function ServiceDetail() {
     );
   };
 
-  // 영수증 링크 변경 핸들러
   const handleReceiptLinkChange = (e) => {
     const newLink = e.target.value;
     setReceiptLink(newLink);
@@ -862,7 +948,6 @@ function ServiceDetail() {
     }));
   };
 
-  // 기존 제품명 목록 가져오기
   const fetchProductNames = async () => {
     try {
       const { data, error } = await supabase
@@ -873,12 +958,11 @@ function ServiceDetail() {
 
       if (error) throw error;
 
-      // 중복 제거 및 현재 선택된 브랜드에 맞는 제품만 필터링
       const uniqueProducts = [...new Set(
         data
           .filter(item => item.brand === formData.brand)
           .map(item => item.product_name)
-      )].filter(Boolean); // null/empty 값 제거
+      )].filter(Boolean);
 
       setProductOptions(uniqueProducts);
     } catch (err) {
@@ -886,14 +970,12 @@ function ServiceDetail() {
     }
   };
 
-  // 브랜드 변경 시 제품명 목록 업데이트
   useEffect(() => {
     if (formData.brand) {
       fetchProductNames();
     }
   }, [formData.brand]);
 
-  // handleUsageChange 함수 추가 (컴포넌트 내부의 다른 함수들과 같은 레벨에 추가)
   const handleUsageChange = (index, newUsage) => {
     const updatedParts = [...selectedParts];
     updatedParts[index] = {
@@ -903,7 +985,6 @@ function ServiceDetail() {
     setSelectedParts(updatedParts);
   };
 
-  // handleQuantityChange 함수 추가 (컴포넌트 내부의 다른 함수들과 같은 레벨에 추가)
   const handleQuantityChange = (index, newQuantity) => {
     const updatedParts = [...selectedParts];
     const qty = Math.max(1, Number(newQuantity) || 1);
@@ -915,13 +996,11 @@ function ServiceDetail() {
     setSelectedParts(updatedParts);
   };
 
-  // 고객 검색 함수
   const searchCustomers = async (searchTerm) => {
     try {
       setSearchLoading(true);
       console.log('검색 시작:', { searchTerm, brand });
 
-      // 검색어가 2글자 미만이면 최근 고객 목록 표시
       if (searchTerm.length < 2) {
         const { data: recentCustomers, error: recentError } = await supabase
           .from('services')
@@ -945,10 +1024,8 @@ function ServiceDetail() {
         return;
       }
 
-      // 전화번호 검색을 위한 정규화
       const cleanSearchTerm = searchTerm.replace(/-/g, '');
 
-      // services 테이블에서 검색
       const { data: serviceResults, error: serviceError } = await supabase
         .from('services')
         .select('customer_name, customer_phone, customer_address, brand')
@@ -958,7 +1035,6 @@ function ServiceDetail() {
 
       if (serviceError) throw serviceError;
 
-      // 중복 제거 및 결과 포맷팅
       const uniqueResults = Array.from(new Set(serviceResults.map(c => c.customer_phone)))
         .map(phone => serviceResults.find(c => c.customer_phone === phone))
         .filter(customer => customer.customer_name && customer.customer_phone)
@@ -983,26 +1059,22 @@ function ServiceDetail() {
     }
   };
 
-  // 검색어 입력 처리 함수
   const handleCustomerSearchInput = (event) => {
     setCustomerInputValue(event.target.value);
   };
 
-  // 검색 실행 함수
   const executeCustomerSearch = async () => {
     const term = customerInputValue.trim();
     setCustomerSearchTerm(term);
     await searchCustomers(term);
   };
 
-  // 엔터키 처리 함수
   const handleCustomerSearchKeyPress = (event) => {
     if (event.key === 'Enter') {
       executeCustomerSearch();
     }
   };
 
-  // 고객 선택 핸들러
   const handleCustomerSelect = (customer) => {
     setFormData(prev => ({
       ...prev,
@@ -1031,14 +1103,12 @@ function ServiceDetail() {
     );
   }
 
-  // 부품 관련 UI
   const partsSection = (
     <Box sx={{ mt: 4 }}>
       <Typography variant="h6" sx={{ 
         mb: 2,
         color: '#191f28',
         fontWeight: 600,
-        // 언더라인 스타일 제거
         '&::after': {
           display: 'none'
         }
@@ -1347,8 +1417,7 @@ function ServiceDetail() {
         </DialogActions>
       </Dialog>
 
-      {/* 영수증 스캐너 다이얼로그 */}
-      <Dialog 
+      <Dialog
         open={openReceiptDialog} 
         onClose={() => setOpenReceiptDialog(false)}
         maxWidth="xl"
@@ -1368,7 +1437,6 @@ function ServiceDetail() {
         <DialogContent sx={{ p: 0 }}>
           <ReceiptScanner 
             onPartsSelected={(selectedParts) => {
-              // 선택된 부품들을 현재 서비스의 부품 목록에 추가
               setSelectedParts(prev => [...prev, ...selectedParts]);
               setOpenReceiptDialog(false);
             }}
@@ -1410,9 +1478,7 @@ function ServiceDetail() {
           </Typography>
 
           <Grid container spacing={4}>
-            {/* 왼쪽 컬럼: 기본 정보, 고객 정보와 제품 정보 */}
             <Grid item xs={12} md={6}>
-              {/* 기본 정보 섹션 */}
               <Box sx={{ mb: 4 }}>
                 <Typography variant="subtitle1" sx={sectionStyle}>
                   기본 정보
@@ -1420,109 +1486,152 @@ function ServiceDetail() {
                 <Grid container spacing={2}>
                   <Grid item xs={12}>
                     <Box sx={{ display: 'flex', gap: 2 }}>
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 1 }}>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 2 }}>
                         <Typography variant="caption" sx={{ color: 'text.secondary', ml: 1 }}>
-                          접수일자*
+                          접수일시*
                         </Typography>
-                        <TextField
-                          fullWidth
-                          required
-                          type="date"
-                          name="reception_date"
-                          value={formData.reception_date || ''}
-                          onChange={handleChange}
-                          size="small"
-                          sx={{
-                            '& .MuiOutlinedInput-root': {
-                              height: '36px',
-                              borderRadius: 1,
-                              bgcolor: '#f9fafb'
-                            }
-                          }}
-                        />
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                          <TextField
+                            required
+                            type="date"
+                            name="reception_date"
+                            value={formData.reception_date || ''}
+                            onChange={handleChange}
+                            size="small"
+                            sx={{
+                              flex: 2,
+                              '& .MuiOutlinedInput-root': {
+                                height: '36px',
+                                borderRadius: 1,
+                                bgcolor: '#f9fafb'
+                              }
+                            }}
+                          />
+                          <TextField
+                            select
+                            required
+                            name="reception_time"
+                            value={formData.reception_time?.split(':')[0] || '00'}
+                            onChange={(e) => handleChange({
+                              target: {
+                                name: 'reception_time',
+                                value: `${e.target.value}:00`
+                              }
+                            })}
+                            size="small"
+                            sx={{
+                              flex: 1,
+                              '& .MuiOutlinedInput-root': {
+                                height: '36px',
+                                borderRadius: 1,
+                                bgcolor: '#f9fafb'
+                              }
+                            }}
+                          >
+                            {Array.from({ length: 24 }, (_, i) => (
+                              <MenuItem key={i} value={String(i).padStart(2, '0')}>
+                                {String(i).padStart(2, '0')}시
+                              </MenuItem>
+                            ))}
+                          </TextField>
+                        </Box>
                       </Box>
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, width: '150px' }}>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 2 }}>
                         <Typography variant="caption" sx={{ color: 'text.secondary', ml: 1 }}>
-                          접수시간*
+                          완료일시
                         </Typography>
-                        <TextField
-                          select
-                          fullWidth
-                          required
-                          name="reception_time"
-                          value={formData.reception_time}
-                          onChange={handleChange}
-                          size="small"
-                          sx={{
-                            '& .MuiOutlinedInput-root': {
-                              height: '36px',
-                              borderRadius: 1,
-                              bgcolor: '#f9fafb'
-                            }
-                          }}
-                        >
-                          {Array.from({ length: 48 }, (_, i) => {
-                            const hour = Math.floor(i / 2);
-                            const minute = (i % 2) * 30;
-                            return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-                          }).map((time) => (
-                            <MenuItem key={time} value={time}>{time}</MenuItem>
-                          ))}
-                        </TextField>
-                      </Box>
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 1 }}>
-                        <Typography variant="caption" sx={{ color: 'text.secondary', ml: 1 }}>
-                          완료일자
-                        </Typography>
-                        <TextField
-                          fullWidth
-                          type="date"
-                          name="completion_date"
-                          value={formData.completion_date || ''}
-                          onChange={handleChange}
-                          size="small"
-                          sx={{
-                            '& .MuiOutlinedInput-root': {
-                              height: '36px',
-                              borderRadius: 1,
-                              bgcolor: '#f9fafb'
-                            }
-                          }}
-                        />
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                          <TextField
+                            type="date"
+                            name="completion_date"
+                            value={formData.completion_date || ''}
+                            onChange={handleChange}
+                            size="small"
+                            sx={{
+                              flex: 2,
+                              '& .MuiOutlinedInput-root': {
+                                height: '36px',
+                                borderRadius: 1,
+                                bgcolor: '#f9fafb'
+                              }
+                            }}
+                          />
+                          <TextField
+                            select
+                            name="completion_time"
+                            value={formData.completion_time?.split(':')[0] || '00'}
+                            onChange={(e) => handleChange({
+                              target: {
+                                name: 'completion_time',
+                                value: `${e.target.value}:00`
+                              }
+                            })}
+                            size="small"
+                            sx={{
+                              flex: 1,
+                              '& .MuiOutlinedInput-root': {
+                                height: '36px',
+                                borderRadius: 1,
+                                bgcolor: '#f9fafb'
+                              }
+                            }}
+                          >
+                            {Array.from({ length: 24 }, (_, i) => (
+                              <MenuItem key={i} value={String(i).padStart(2, '0')}>
+                                {String(i).padStart(2, '0')}시
+                              </MenuItem>
+                            ))}
+                          </TextField>
+                        </Box>
                       </Box>
                     </Box>
                   </Grid>
                   <Grid item xs={12}>
-                    <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-                      <Button
-                        variant={formData.status === '접수' ? 'contained' : 'outlined'}
-                        onClick={() => handleStatusChange('접수')}
-                        sx={buttonStyle(formData.status === '접수')}
-                      >
-                        접수
-                      </Button>
-                      <Button
-                        variant={formData.status === '처리중' ? 'contained' : 'outlined'}
-                        onClick={() => handleStatusChange('처리중')}
-                        sx={buttonStyle(formData.status === '처리중')}
-                      >
-                        처리중
-                      </Button>
-                      <Button
-                        variant={formData.status === '완료' ? 'contained' : 'outlined'}
-                        onClick={() => handleStatusChange('완료')}
-                        sx={buttonStyle(formData.status === '완료')}
-                      >
-                        완료
-                      </Button>
+                    <Box sx={{ display: 'flex', gap: 1, mb: 2, alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button
+                          variant={formData.status === '접수' ? 'contained' : 'outlined'}
+                          onClick={() => handleStatusChange('접수')}
+                          sx={buttonStyle(formData.status === '접수')}
+                        >
+                          접수
+                        </Button>
+                        <Button
+                          variant={formData.status === '처리중' ? 'contained' : 'outlined'}
+                          onClick={() => handleStatusChange('처리중')}
+                          sx={buttonStyle(formData.status === '처리중')}
+                        >
+                          처리중
+                        </Button>
+                        <Button
+                          variant={formData.status === '완료' ? 'contained' : 'outlined'}
+                          onClick={() => handleStatusChange('완료')}
+                          sx={buttonStyle(formData.status === '완료')}
+                        >
+                          완료
+                        </Button>
+                      </Box>
+                      <TextField
+                        size="small"
+                        name="writer"
+                        label="작성자"
+                        value={formData.writer || ''}
+                        onChange={handleChange}
+                        sx={{
+                          width: '150px',
+                          '& .MuiOutlinedInput-root': {
+                            height: '36px',
+                            borderRadius: 1,
+                            bgcolor: '#f9fafb'
+                          }
+                        }}
+                      />
                     </Box>
                   </Grid>
                 </Grid>
               </Box>
 
-              {/* 고객 정보와 제품 정보를 나란히 배치 */}
               <Grid container spacing={4}>
-                {/* 고객 정보 섹션 */}
                 <Grid item xs={12} sm={6}>
                   <Box>
                     <Typography variant="subtitle1" sx={sectionStyle}>
@@ -1580,7 +1689,6 @@ function ServiceDetail() {
                   </Box>
                 </Grid>
 
-                {/* 제품 정보 섹션 */}
                 <Grid item xs={12} sm={6}>
                   <Box>
                     <Typography variant="subtitle1" sx={sectionStyle}>
@@ -1700,9 +1808,7 @@ function ServiceDetail() {
               </Grid>
             </Grid>
 
-            {/* 오른쪽 컬럼: A/S 내역 */}
             <Grid item xs={12} md={6}>
-              {/* A/S 내역 섹션 */}
               <Box>
                 <Typography variant="subtitle1" sx={sectionStyle}>
                   A/S 내역
@@ -1803,12 +1909,10 @@ function ServiceDetail() {
             </Grid>
           </Grid>
 
-          {/* 부품 정보 섹션 */}
           <Grid item xs={12}>
             {partsSection}
           </Grid>
 
-          {/* 하단 버튼 영역 */}
           <Box sx={{ 
             mt: 5, 
             pt: 3, 
@@ -1914,7 +2018,6 @@ function ServiceDetail() {
           </Alert>
         </Snackbar>
 
-        {/* 확인 대화상자 추가 */}
         <Dialog
           open={confirmDialog.open}
           onClose={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
@@ -1943,7 +2046,6 @@ function ServiceDetail() {
           </DialogActions>
         </Dialog>
 
-        {/* 미리보기 다이얼로그 */}
         <Dialog
           open={previewOpen}
           onClose={() => setPreviewOpen(false)}
@@ -1989,7 +2091,6 @@ function ServiceDetail() {
           </DialogContent>
         </Dialog>
 
-        {/* 고객 검색 다이얼로그 */}
         <Dialog
           open={customerSearchOpen}
           onClose={() => setCustomerSearchOpen(false)}
