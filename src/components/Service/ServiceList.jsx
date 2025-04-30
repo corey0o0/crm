@@ -101,33 +101,57 @@ function ServiceList() {
     endDate: ''
   });
   const [highlightedId, setHighlightedId] = useState(() => {
-    const savedId = getCookie('highlightServiceId');
-    console.log('Initial highlightServiceId from cookie (on mount):', savedId);
+    // 쿠키와 로컬스토리지 모두 확인
+    const savedIdFromCookie = getCookie('highlightServiceId');
+    const savedIdFromStorage = localStorage.getItem('highlightServiceId');
+    const savedId = savedIdFromCookie || savedIdFromStorage;
+    
+    console.log('Initial highlightServiceId from cookie/storage (on mount):', savedId);
     return savedId ? parseInt(savedId, 10) : null;
   });
 
   // 하이라이트 타이머 관리를 위한 ref
   const highlightTimerRef = useRef(null);
 
-  // 하이라이트 설정 함수
+  // 컴포넌트 마운트 시 실행
+  useEffect(() => {
+    // 저장된 검색어 불러오기
+    const savedSearchTerm = localStorage.getItem('serviceSearchTerm');
+    if (savedSearchTerm) {
+      setSearchTerm(savedSearchTerm);
+      setInputValue(savedSearchTerm);
+    }
+  }, []);
+
+  // 검색어 변경 시 로컬스토리지에 저장
+  useEffect(() => {
+    if (searchTerm) {
+      localStorage.setItem('serviceSearchTerm', searchTerm);
+    }
+  }, [searchTerm]);
+
+  // 하이라이트 설정 함수 수정
   const setHighlightWithTimeout = (id) => {
     console.log('Setting highlight for ID:', id);
     setHighlightedId(id);
     setCookie('highlightServiceId', String(id));
-    console.log('Saved highlightServiceId to cookie:', id);
+    // 로컬스토리지에도 저장
+    localStorage.setItem('highlightServiceId', String(id));
+    console.log('Saved highlightServiceId to cookie and localStorage:', id);
 
     // 이전 타이머가 있다면 제거
     if (highlightTimerRef.current) {
       clearTimeout(highlightTimerRef.current);
     }
 
-    // 새로운 타이머 설정
+    // 새로운 타이머 설정 (시간을 30초로 늘림)
     highlightTimerRef.current = setTimeout(() => {
       console.log('Clearing highlight for ID:', id);
       setHighlightedId(null);
       removeCookie('highlightServiceId');
+      localStorage.removeItem('highlightServiceId');
       highlightTimerRef.current = null;
-    }, 10000);
+    }, 30000); // 30초로 늘림
   };
 
   // 컴포넌트 언마운트 시 타이머 정리
@@ -139,10 +163,14 @@ function ServiceList() {
     };
   }, []);
 
-  // 데이터 로드 완료 후 하이라이트 체크
+  // 데이터 로드 완료 후 하이라이트 체크 수정
   useEffect(() => {
     if (!loading && services.length > 0) {
-      const savedId = getCookie('highlightServiceId');
+      // 쿠키와 로컬스토리지 모두 확인
+      const savedIdFromCookie = getCookie('highlightServiceId');
+      const savedIdFromStorage = localStorage.getItem('highlightServiceId');
+      const savedId = savedIdFromCookie || savedIdFromStorage;
+      
       console.log('Checking highlight after data load. SavedId:', savedId, 'Loading:', loading);
       
       if (savedId) {
@@ -155,6 +183,7 @@ function ServiceList() {
         } else {
           console.log('Service not found, clearing highlight');
           removeCookie('highlightServiceId');
+          localStorage.removeItem('highlightServiceId');
           setHighlightedId(null);
         }
       }
@@ -301,7 +330,9 @@ function ServiceList() {
       console.log(`Total services loaded: ${servicesWithTags.length}`);
       
       // 데이터 로딩 완료 후 하이라이트 ID 체크
-      const savedId = getCookie('highlightServiceId');
+      const savedIdFromCookie = getCookie('highlightServiceId');
+      const savedIdFromStorage = localStorage.getItem('highlightServiceId');
+      const savedId = savedIdFromCookie || savedIdFromStorage;
       console.log('Checking highlightServiceId after data load:', savedId);
       
       if (savedId) {
@@ -313,15 +344,17 @@ function ServiceList() {
           console.log('Service found, setting highlight:', numericId);
           setHighlightWithTimeout(numericId);
           
-          // 10초 후 하이라이트 제거
+          // 30초 후 하이라이트 제거
           setTimeout(() => {
             console.log('Clearing highlight effect after timeout');
             setHighlightedId(null);
             removeCookie('highlightServiceId');
-          }, 10000);
+            localStorage.removeItem('highlightServiceId');
+          }, 30000);
         } else {
           console.log('Service not found, clearing highlight');
           removeCookie('highlightServiceId');
+          localStorage.removeItem('highlightServiceId');
         }
       }
     } catch (err) {
@@ -354,12 +387,13 @@ function ServiceList() {
             setHighlightWithTimeout(newServiceId);
             console.log('Highlight set for service:', newServiceId);
             
-            // 10초 후 하이라이트 제거
+            // 30초 후 하이라이트 제거
             setTimeout(() => {
               console.log('Removing highlight for service:', newServiceId);
               setHighlightedId(null);
               removeCookie('highlightServiceId');
-            }, 10000);
+              localStorage.removeItem('highlightServiceId');
+            }, 30000);
           } else if (payload.eventType === 'UPDATE') {
             setServices(prev => prev.map(service => 
               service.id === payload.new.id ? {
@@ -442,6 +476,12 @@ function ServiceList() {
   };
 
   const handleEdit = (serviceId) => {
+    // 현재 하이라이트 ID를 명시적으로 저장
+    if (serviceId) {
+      setCookie('highlightServiceId', String(serviceId));
+      localStorage.setItem('highlightServiceId', String(serviceId));
+      console.log('Setting highlightServiceId before navigation:', serviceId);
+    }
     navigate(`/services/${serviceId}`);
   };
 
@@ -837,6 +877,14 @@ function ServiceList() {
       });
       return;
     }
+    
+    // 하이라이트 ID 설정
+    if (service.id) {
+      setCookie('highlightServiceId', String(service.id));
+      localStorage.setItem('highlightServiceId', String(service.id));
+      console.log('Setting highlightServiceId before navigation:', service.id);
+    }
+    
     navigate(`/services/${service.id}`);
   };
 
@@ -1563,6 +1611,13 @@ function ServiceList() {
   const executeSearch = () => {
     const term = inputValue.toLowerCase().trim();
     setSearchTerm(term);
+    
+    // 검색어 로컬스토리지에 저장
+    if (term) {
+      localStorage.setItem('serviceSearchTerm', term);
+    } else {
+      localStorage.removeItem('serviceSearchTerm');
+    }
     
     if (!term) {
       setFilteredServices(services);
