@@ -42,6 +42,7 @@ import {
   CardContent,
   TableSortLabel,
   TablePagination,
+  InputAdornment,
 } from '@mui/material';
 import { 
   Edit as EditIcon,
@@ -52,6 +53,7 @@ import {
   Download as DownloadIcon,
   Close as CloseIcon,
   Receipt as ReceiptIcon,
+  RestartAlt as RestartAltIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -1086,7 +1088,7 @@ function ServiceList() {
     },
     { 
       id: 'symptom', 
-      label: '문의내용',
+      label: '문의내역',
       sortable: true,
       width: 200,
       render: (row) => (
@@ -1094,10 +1096,10 @@ function ServiceList() {
           title={
             <Box sx={{ p: 1 }}>
               <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>
-                문의내용:
+                문의내역:
               </Typography>
               <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-                {row.symptom || '문의내용이 없습니다.'}
+                {row.symptom || '문의내역이 없습니다.'}
               </Typography>
             </Box>
           } 
@@ -1380,7 +1382,7 @@ function ServiceList() {
           textOverflow: 'ellipsis',
           maxHeight: '5.6em'
         }}>
-          문의내용: {row.symptom}
+          문의내역: {row.symptom}
         </Typography>
         
         {/* 처리내역 및 태그 부분 */}
@@ -1636,6 +1638,47 @@ function ServiceList() {
     setFilteredServices(filtered);
   };
 
+  //1. 초기화 함수 추가
+  const handleClearSearch = () => {
+    setInputValue('');
+    setSearchTerm('');
+    localStorage.removeItem('serviceSearchTerm');
+    console.log('Search cleared');
+    setFilteredServices(services);
+  };
+
+  // 검색, 필터 모두 초기화하는 함수 추가
+  const handleResetAll = () => {
+    // 검색어 초기화
+    setInputValue('');
+    setSearchTerm('');
+    localStorage.removeItem('serviceSearchTerm');
+    
+    // 상태 필터 초기화
+    setStatusFilter('all');
+    
+    // 날짜 필터 초기화
+    setDateFilter({
+      type: 'reception_date',
+      startDate: '',
+      endDate: ''
+    });
+    
+    // 필터링된 서비스 초기화
+    setFilteredServices(services);
+    
+    // 페이지 초기화
+    setPage(0);
+    
+    console.log('모든 필터가 초기화되었습니다.');
+    
+    setSnackbar({
+      open: true,
+      message: '모든 필터가 초기화되었습니다.',
+      severity: 'info'
+    });
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -1754,17 +1797,57 @@ function ServiceList() {
       </Box>
 
       {/* 검색 및 필터 영역 */}
-      <Box sx={{ mb: 2, display: 'flex', gap: 2 }}>
-        <TextField
-          variant="outlined"
-          placeholder="고객명, 연락처, 제품명으로 검색"
-          value={inputValue}
-          onChange={handleSearchInput}
-          onKeyPress={executeSearch}
-          sx={{ width: '50%', mb: 2 }}
-        />
+      <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', position: 'relative', width: '70%' }}>
+          <TextField
+            variant="outlined"
+            placeholder="고객명, 연락처, 제품명으로 검색"
+            value={inputValue}
+            onChange={handleSearchInput}
+            onKeyPress={(e) => e.key === 'Enter' && executeSearch()}
+            sx={{ width: '100%' }}
+            InputProps={{
+              endAdornment: inputValue ? (
+                <InputAdornment position="end">
+                  <IconButton
+                    edge="end"
+                    onClick={handleClearSearch}
+                    size="small"
+                    aria-label="검색어 초기화"
+                    sx={{ color: 'gray' }}
+                  >
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ) : null
+            }}
+          />
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={executeSearch}
+            sx={{ ml: 1, minWidth: '70px', height: '40px' }}
+          >
+            검색
+          </Button>
+          <Button
+            variant="outlined"
+            color="secondary"
+            onClick={handleResetAll}
+            sx={{ 
+              ml: 1, 
+              minWidth: '70px', 
+              height: '40px',
+              fontSize: '0.75rem',
+              px: 1
+            }}
+            startIcon={<RestartAltIcon fontSize="small" />}
+          >
+            초기화
+          </Button>
+        </Box>
         {searchTerm && (
-          <Typography variant="body2" color="textSecondary" sx={{ alignSelf: 'center' }}>
+          <Typography variant="body2" color="textSecondary" sx={{ ml: 2 }}>
             검색 결과: {filteredServices.length}건
           </Typography>
         )}
@@ -2285,7 +2368,7 @@ function ServiceList() {
                 </Typography>
               </Grid>
               <Grid item xs={12}>
-                <Typography variant="subtitle2" color="textSecondary">문의내용</Typography>
+                <Typography variant="subtitle2" color="textSecondary">문의내역</Typography>
                 <Typography variant="body1">{selectedService.symptom}</Typography>
               </Grid>
               <Grid item xs={12}>

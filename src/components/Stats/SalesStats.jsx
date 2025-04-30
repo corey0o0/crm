@@ -110,16 +110,6 @@ function SalesStats() {
         });
       }
 
-      // 출고 부품 데이터 조회
-      const formattedStartDate = format(startDate, 'yyyy-MM-dd');
-      const formattedEndDate = format(endDate, 'yyyy-MM-dd');
-      
-      console.log('조회 기간:', {
-        시작일: formattedStartDate,
-        종료일: formattedEndDate,
-        브랜드: brand
-      });
-
       // 출고 데이터 조회 수정
       let shipmentQuery = supabase
         .from('shipments')
@@ -132,8 +122,8 @@ function SalesStats() {
           price,
           status
         `)
-        .gte('shipment_date', formattedStartDate)
-        .lte('shipment_date', formattedEndDate);
+        .gte('shipment_date', format(startDate, 'yyyy-MM-dd'))
+        .lte('shipment_date', format(endDate, 'yyyy-MM-dd'));
 
       if (brand !== '전체') {
         shipmentQuery = shipmentQuery.eq('brand', brand);
@@ -148,26 +138,90 @@ function SalesStats() {
 
       console.log('조회된 출고 데이터:', shipmentsData);
 
-      // 출고 데이터 처리
-      if (shipmentsData && shipmentsData.length > 0) {
-        shipmentsData.forEach(shipment => {
-          const date = format(parseISO(shipment.shipment_date), 'yyyy-MM-dd');
-          if (!shipmentPartsByDate[date]) {
-            shipmentPartsByDate[date] = [];
+      // 출고 부품 데이터 조회 추가 - 시스템에 shipment_parts 테이블이 있는 경우 사용
+      try {
+        let shipmentPartsData = [];
+        
+        // shipment_parts 테이블이 있는지 확인
+        const { error: checkTableError } = await supabase
+          .from('shipment_parts')
+          .select('id')
+          .limit(1);
+
+        // shipment_parts 테이블이 있다면 해당 테이블에서 데이터 조회
+        if (!checkTableError) {
+          let shipmentPartsQuery = supabase
+            .from('shipment_parts')
+            .select(`
+              id,
+              shipment_id,
+              part_name,
+              part_code,
+              quantity,
+              price,
+              total_price,
+              created_at,
+              shipments!inner (
+                shipment_date,
+                brand
+              )
+            `)
+            .gte('shipments.shipment_date', format(startDate, 'yyyy-MM-dd'))
+            .lte('shipments.shipment_date', format(endDate, 'yyyy-MM-dd'));
+
+          if (brand !== '전체') {
+            shipmentPartsQuery = shipmentPartsQuery.eq('shipments.brand', brand);
           }
 
-          // 제품 정보를 직접 처리
-          const partData = {
-            name: shipment.product_name,
-            code: '',  // 코드가 없는 경우 빈 문자열로 처리
-            quantity: Number(shipment.quantity) || 0,
-            price: Number(shipment.price) || 0,
-            total: (Number(shipment.quantity) || 0) * (Number(shipment.price) || 0)
-          };
+          const { data, error } = await shipmentPartsQuery;
           
-          console.log('처리된 출고 항목:', partData);
-          shipmentPartsByDate[date].push(partData);
-        });
+          if (!error && data) {
+            console.log('조회된 출고 부품 데이터:', data);
+            shipmentPartsData = data;
+          } else {
+            console.log('출고 부품 데이터 조회 오류 또는 데이터 없음:', error);
+          }
+        } else {
+          console.log('shipment_parts 테이블이 존재하지 않습니다. 기존 방식으로 처리합니다.');
+        }
+
+        // 출고 부품 데이터 처리
+        if (shipmentPartsData.length > 0) {
+          // shipment_parts 테이블에서 데이터를 가져온 경우 처리
+          shipmentPartsData.forEach(part => {
+            if (part.shipments) {
+              const date = format(parseISO(part.shipments.shipment_date), 'yyyy-MM-dd');
+              if (!shipmentPartsByDate[date]) {
+                shipmentPartsByDate[date] = [];
+              }
+              
+              // price 필드는 이미 단가로 저장되어 있으므로 그대로 사용
+              // total은 단가와 수량을 곱하여 계산
+              const partPrice = Number(part.price) || 0;
+              const partQuantity = Number(part.quantity) || 0;
+              // total_price 필드가 있으면 사용하고, 없으면 계산
+              const totalPrice = part.total_price !== undefined ? Number(part.total_price) : partPrice * partQuantity;
+              
+              shipmentPartsByDate[date].push({
+                name: part.part_name,
+                code: part.part_code || '',
+                quantity: partQuantity,
+                price: partPrice,
+                total: totalPrice,
+                shipment_id: part.shipment_id
+              });
+            }
+          });
+        } else {
+          // 기존 방식으로 처리 (shipments 테이블의 데이터만 사용)
+          console.log('shipment_parts 테이블에서 데이터를 찾을 수 없어 출고 정보에서 부품 정보 추출 시작');
+          await processShipmentsData(shipmentsData, shipmentPartsByDate);
+        }
+      } catch (error) {
+        console.error('출고 부품 데이터 처리 오류:', error);
+        // 오류 발생 시 기존 방식으로 처리
+        console.log('오류 발생으로 인해 기존 방식으로 출고 정보에서 부품 정보 추출 시작');
+        await processShipmentsData(shipmentsData, shipmentPartsByDate);
       }
 
       console.log('날짜별 출고 부품 데이터:', shipmentPartsByDate);
@@ -177,6 +231,137 @@ function SalesStats() {
         servicePartsByDate,
         shipmentPartsByDate
       });
+
+      // 기존 출고 데이터 처리 함수를 별도로 정의
+      async function processShipmentsData(shipmentsData, shipmentPartsByDate) {
+        if (shipmentsData && shipmentsData.length > 0) {
+          // 모든 비동기 작업을 저장할 배열
+          const asyncTasks = [];
+          
+          // 각 출고 항목 처리
+          for (const shipment of shipmentsData) {
+            const date = format(parseISO(shipment.shipment_date), 'yyyy-MM-dd');
+            if (!shipmentPartsByDate[date]) {
+              shipmentPartsByDate[date] = [];
+            }
+
+            // 제품명을 쉼표로 분리하여 여러 제품으로 처리
+            const productNames = shipment.product_name.split(',').map(name => name.trim());
+            
+            if (productNames.length > 1) {
+              // 여러 제품이 있는 경우, 각각을 별도 항목으로 추가
+              // 비동기 함수로 만들어 처리
+              const processMultiplePartsTask = async () => {
+                try {
+                  // 각 제품명으로 parts 테이블에서 정보 조회
+                  const partPromises = productNames.map(async (name) => {
+                    const { data, error } = await supabase
+                      .from('parts')
+                      .select('*')
+                      .eq('brand', shipment.brand)
+                      .ilike('name', `%${name}%`)  // 부분 일치로 변경
+                      .limit(1);
+                    
+                    return { name, partData: error ? null : (data?.length > 0 ? data[0] : null) };
+                  });
+                  
+                  const partResults = await Promise.all(partPromises);
+                  console.log(`[${date}] ${shipment.product_name} 부품 조회 결과:`, partResults);
+                  
+                  // 각 부품 정보 처리
+                  const processedParts = partResults.map(({ name, partData }) => {
+                    if (partData) {
+                      // 파츠 DB에서 정보를 찾은 경우
+                      const partPrice = partData.price || 0;
+                      // 수량 추정: 총 수량을 부품 수로 나눔 (더 정확한 정보가 없는 경우)
+                      const estimatedQuantity = Math.max(1, Math.ceil(Number(shipment.quantity) / productNames.length));
+                      
+                      return {
+                        name: name,
+                        code: partData.code || '',
+                        quantity: estimatedQuantity,
+                        price: partPrice,
+                        total: partPrice * estimatedQuantity,
+                        shipment_id: shipment.id
+                      };
+                    } else {
+                      // 파츠 DB에서 정보를 찾지 못한 경우 - 예상 계산
+                      const estimatedQuantity = Math.max(1, Math.ceil(Number(shipment.quantity) / productNames.length));
+                      // 단가 예상: 총 금액을 동일하게 분배
+                      const estimatedPrice = (Number(shipment.price) || 0) / Math.max(1, productNames.length * estimatedQuantity);
+                      
+                      return {
+                        name: name,
+                        code: '',
+                        quantity: estimatedQuantity,
+                        price: estimatedPrice,
+                        total: estimatedPrice * estimatedQuantity,
+                        shipment_id: shipment.id
+                      };
+                    }
+                  });
+                  
+                  // 이미 존재하는 shipmentPartsByDate 배열에 추가
+                  if (!shipmentPartsByDate[date]) {
+                    shipmentPartsByDate[date] = [];
+                  }
+                  shipmentPartsByDate[date].push(...processedParts);
+                  
+                  return processedParts;
+                } catch (error) {
+                  console.error(`[${date}] ${shipment.product_name} 부품 처리 중 오류:`, error);
+                  // 오류 발생 시 기본 예상 처리
+                  const fallbackParts = productNames.map(name => {
+                    // 단가는 전체 금액을 제품 수로 균등하게 나눔 (더 좋은 방법이 없을 경우)
+                    const safeQuantity = Math.max(1, Number(shipment.quantity) || 1);
+                    const safePartsCount = Math.max(1, productNames.length);
+                    const estimatedQuantity = Math.ceil(safeQuantity / safePartsCount);
+                    const estimatedPrice = (Number(shipment.price) || 0) / (safePartsCount * estimatedQuantity);
+                    
+                    return {
+                      name: name,
+                      code: '',
+                      quantity: estimatedQuantity,
+                      price: estimatedPrice,
+                      total: estimatedPrice * estimatedQuantity,
+                      shipment_id: shipment.id
+                    };
+                  });
+                  
+                  // 이미 존재하는 shipmentPartsByDate 배열에 추가
+                  if (!shipmentPartsByDate[date]) {
+                    shipmentPartsByDate[date] = [];
+                  }
+                  shipmentPartsByDate[date].push(...fallbackParts);
+                  
+                  return fallbackParts;
+                }
+              };
+              
+              // 비동기 작업 배열에 추가
+              asyncTasks.push(processMultiplePartsTask());
+            } else {
+              // 단일 제품인 경우
+              const partData = {
+                name: shipment.product_name,
+                code: shipment.product_code || '',
+                quantity: Number(shipment.quantity) || 0,
+                price: shipment.quantity > 0 ? Number(shipment.price) / Number(shipment.quantity) : 0,
+                total: Number(shipment.price) || 0,
+                shipment_id: shipment.id
+              };
+              
+              shipmentPartsByDate[date].push(partData);
+            }
+          }
+          
+          // 모든 비동기 작업이 완료될 때까지 대기
+          await Promise.all(asyncTasks);
+        }
+        
+        // 모든 작업이 완료되면 최종 데이터 반환
+        return shipmentPartsByDate;
+      }
 
       // 매출 데이터 처리를 위한 salesByDate 객체 초기화
       const salesByDate = {};
@@ -208,17 +393,18 @@ function SalesStats() {
         });
       });
 
-      // 출고 매출 데이터 처리
+      // 출고 매출 데이터 처리 수정
       Object.entries(shipmentPartsByDate).forEach(([date, parts]) => {
         console.log(`${date} 출고 부품 처리:`, parts);
         let dailyShipmentSales = 0;
         parts.forEach(part => {
-          const amount = Number(part.price || 0) * Number(part.quantity || 0);
+          // 이미 part.total에 총액이 저장되어 있으므로 그대로 사용
+          const amount = part.total;
           console.log(`${date} 출고 매출 계산:`, {
             제품명: part.name,
             수량: part.quantity,
             단가: part.price,
-            계산금액: amount
+            총액: amount
           });
           dailyShipmentSales += amount;
         });
@@ -404,10 +590,23 @@ function SalesStats() {
                           <TableCell>{part.name}</TableCell>
                           <TableCell>{part.code}</TableCell>
                           <TableCell align="right">{part.quantity}</TableCell>
-                          <TableCell align="right">{formatCurrency(part.price)}</TableCell>
+                          <TableCell align="right">
+                            {formatCurrency(part.price)}
+                          </TableCell>
                           <TableCell align="right">{formatCurrency(part.total)}</TableCell>
                         </TableRow>
                       ))}
+                      {/* 합계 행 추가 */}
+                      <TableRow sx={{ bgcolor: '#f9fafb' }}>
+                        <TableCell colSpan={4} align="right" sx={{ fontWeight: 600 }}>
+                          합계
+                        </TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 600 }}>
+                          {formatCurrency(
+                            partsData.shipmentPartsByDate[date].reduce((sum, part) => sum + part.total, 0)
+                          )}
+                        </TableCell>
+                      </TableRow>
                     </TableBody>
                   </Table>
                 </TableContainer>

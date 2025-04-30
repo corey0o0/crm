@@ -648,11 +648,28 @@ function ProductShipment() {
       const totalQuantity = selectedParts.reduce((sum, product) => sum + (parseInt(product.quantity) || 0), 0);
       const totalPrice = selectedParts.reduce((sum, product) => sum + ((parseFloat(product.price) || 0) * (parseInt(product.quantity) || 0)), 0);
       
-      // 판매처 정보를 note에 포함
-      const noteWithSalesChannel = `[판매처: ${selectedShipment.sales_channel || '공홈'}] ${selectedShipment.note?.trim() || ''}`;
+      // 모든 제품명을 쉼표로 구분하여 하나의 문자열로 결합
+      const combinedProductName = selectedParts.map(p => p.name).join(', ');
+      
+      console.log('출고 정보 저장 전 계산:', {
+        총_부품_개수: selectedParts.length,
+        총_수량: totalQuantity,
+        총_금액: totalPrice,
+        제품명_목록: combinedProductName,
+        각_부품_정보: selectedParts.map(p => ({
+          이름: p.name,
+          코드: p.code,
+          수량: p.quantity,
+          단가: p.price,
+          합계: p.price * p.quantity
+        }))
+      });
+      
+      // 판매처 정보를 note에 포함 - 변수명 변경하여 중복 선언 오류 해결
+      const salesChannelNote = `[판매처: ${selectedShipment.sales_channel || '공홈'}] ${selectedShipment.note?.trim() || ''}`;
 
       // 기존 note에 이미 판매처 정보가 있으면 교체
-      let finalNote = noteWithSalesChannel;
+      let finalNote = salesChannelNote;
       if (selectedShipment.note?.includes('[판매처:')) {
         finalNote = selectedShipment.note.replace(/\[판매처: .*?\]/, `[판매처: ${selectedShipment.sales_channel || '공홈'}]`);
       }
@@ -668,7 +685,7 @@ function ProductShipment() {
         delivery_method: selectedShipment.delivery_method || '택배',
         tracking_number: selectedShipment.tracking_number?.trim() || '',
         note: finalNote,
-        product_name: selectedParts.map(p => p.name).join(', '),
+        product_name: combinedProductName,
         product_code: mainProduct.code,
         quantity: totalQuantity,
         price: totalPrice,
@@ -688,6 +705,104 @@ function ProductShipment() {
         .single();
 
       if (shipmentError) throw shipmentError;
+
+      // 선택된 부품 정보를 shipment_parts 테이블에 저장
+      try {
+        // 기존 부품 정보 삭제 (수정 시)
+        if (selectedShipment.id) {
+          const { error: deletePartsError } = await supabase
+            .from('shipment_parts')
+            .delete()
+            .eq('shipment_id', selectedShipment.id);
+          
+          if (deletePartsError) {
+            console.error('기존 부품 삭제 중 오류:', deletePartsError);
+            // 오류가 있지만 계속 진행 (테이블이 없을 수 있음)
+          }
+        }
+
+        // 선택된 부품들의 코드 목록 추출
+        const partCodes = selectedParts
+          .map(part => part.code)
+          .filter(code => code && code.trim() !== '');
+        
+        // 파츠 테이블에서 최신 가격 정보 조회
+        let partPrices = {};
+        if (partCodes.length > 0) {
+          const { data: partsData, error: partsError } = await supabase
+            .from('parts')
+            .select('code, price')
+            .in('code', partCodes)
+            .eq('brand', selectedBrand);
+          
+          if (!partsError && partsData) {
+            partsData.forEach(part => {
+              partPrices[part.code] = part.price;
+            });
+            console.log('파츠 테이블에서 조회한 가격 정보:', partPrices);
+          } else {
+            console.warn('파츠 가격 정보 조회 중 오류:', partsError);
+          }
+        }
+
+        // 새 부품 정보 저장
+        const shipmentId = savedShipment.id;
+        const partInsertData = selectedParts.map(part => {
+          // 파츠 테이블에서 조회한 가격이 있으면 사용하고, 없으면 기존 가격 사용
+          const price = part.code && partPrices[part.code] !== undefined 
+            ? partPrices[part.code] 
+            : part.price || 0;
+          
+          const quantity = part.quantity || 0;
+          const totalPrice = price * quantity;
+          
+          // 디버깅 로그 추가
+          console.log('저장할 부품 정보:', {
+            이름: part.name,
+            코드: part.code,
+            수량: quantity,
+            단가: price,
+            총액: totalPrice,
+            원래단가: part.price,
+            파츠DB단가: part.code ? partPrices[part.code] : undefined
+          });
+          
+          return {
+            shipment_id: shipmentId,
+            part_name: part.name,
+            part_code: part.code || '',
+            quantity: quantity,
+            price: price,  // 부품 단가(개당 가격)
+            total_price: totalPrice, // 총액(단가 × 수량)
+            created_at: new Date().toISOString()
+          };
+        });
+
+        if (partInsertData.length > 0) {
+          const { error: insertPartsError } = await supabase
+            .from('shipment_parts')
+            .insert(partInsertData);
+          
+          if (insertPartsError) {
+            console.error('부품 정보 저장 중 오류:', insertPartsError);
+            // 테이블이 없는 경우에 대한 특별 처리
+            if (insertPartsError.code === '42P01') { // 테이블 없음 에러 코드
+              console.warn('shipment_parts 테이블이 없습니다. 테이블 생성이 필요합니다.');
+              setSnackbar({
+                open: true,
+                message: '출고 정보는 저장되었으나, 부품 상세 정보 저장을 위한 테이블이 필요합니다. 관리자에게 문의하세요.',
+                severity: 'warning'
+              });
+            }
+            // 부품 정보 저장 실패는 전체 프로세스를 중단시키지 않음
+          } else {
+            console.log('출고 부품 정보가 저장되었습니다.');
+          }
+        }
+      } catch (partsError) {
+        console.error('부품 정보 처리 중 오류:', partsError);
+        // 부품 정보 저장 실패는 전체 프로세스를 중단시키지 않음
+      }
 
       // 고객 정보 저장 로직 수정
       try {
@@ -940,22 +1055,67 @@ function ProductShipment() {
 
   const handleAddPart = () => {
     if (selectedPart && partsQuantity > 0) {
-      const newPart = {
-        id: selectedPart.id,
-        brand: selectedPart.brand,
-        code: selectedPart.code,
-        name: selectedPart.name,
-        supply_price: selectedPart.supply_price,
-        price: selectedPart.price,
-        barcode: selectedPart.barcode,
-        note: selectedPart.note,
-        quantity: partsQuantity,
-        totalPrice: selectedPart.price * partsQuantity
+      console.log('부품 추가 전 정보:', {
+        선택된_부품: selectedPart,
+        수량: partsQuantity,
+        단가: selectedPart.price,
+        총액: selectedPart.price * partsQuantity
+      });
+      
+      // 파츠 테이블에서 선택된 부품의 최신 정보 확인
+      const fetchLatestPriceInfo = async () => {
+        if (selectedPart.code) {
+          try {
+            const { data, error } = await supabase
+              .from('parts')
+              .select('price')
+              .eq('code', selectedPart.code)
+              .eq('brand', selectedBrand)
+              .single();
+            
+            if (!error && data) {
+              console.log('파츠 테이블에서 조회한 최신 가격:', data.price);
+              
+              // 최신 가격 정보를 사용하여 부품 추가
+              addPartWithPrice(data.price);
+            } else {
+              console.log('최신 가격 정보를 찾을 수 없음, 현재 가격 사용');
+              addPartWithPrice(selectedPart.price);
+            }
+          } catch (e) {
+            console.error('가격 정보 조회 중 오류:', e);
+            addPartWithPrice(selectedPart.price);
+          }
+        } else {
+          // 코드가 없는 경우 현재 가격 사용
+          addPartWithPrice(selectedPart.price);
+        }
       };
+      
+      // 지정된 가격으로 부품 추가
+      const addPartWithPrice = (price) => {
+        const newPart = {
+          id: selectedPart.id,
+          brand: selectedPart.brand,
+          code: selectedPart.code,
+          name: selectedPart.name,
+          supply_price: selectedPart.supply_price,
+          price: price, // 업데이트된 가격 또는 원래 가격
+          barcode: selectedPart.barcode,
+          note: selectedPart.note,
+          quantity: partsQuantity,
+          totalPrice: price * partsQuantity
+        };
 
-      // 새 제품 추가
-      setSelectedParts(prev => [...prev, newPart]);
-      handleClosePartsDialog();
+        console.log('추가할 부품 정보:', newPart);
+
+        // 새 제품 추가
+        setSelectedParts(prev => [...prev, newPart]);
+        handleClosePartsDialog();
+      };
+      
+      // 최신 가격 정보 조회 및 부품 추가 실행
+      fetchLatestPriceInfo();
     }
   };
 
@@ -2050,8 +2210,8 @@ function ProductShipment() {
                 sx={{ 
                   '& .MuiButton-root': {
                     borderRadius: '20px !important',
-                    mx: 0.5,
-                    px: 2
+                    mx: 1,
+                    px: 3
                   }
                 }}
               >
