@@ -333,7 +333,7 @@ function Dashboard() {
             brand
           `)
           .order('created_at', { ascending: false })
-          .limit(10);
+          .limit(5);
 
         if (recentShipmentsError) {
           console.error('최근 출고 데이터 조회 오류:', recentShipmentsError);
@@ -422,7 +422,7 @@ function Dashboard() {
 
       // 전체 데이터
       processedRecentServices.ALL = safeRecentServices
-        .slice(0, 5)
+        .slice(0, 5)  // 이미 5건으로 제한되어 있음
         .map(service => ({
           id: service.id,
           customerName: service.customer_name || '이름 없음',
@@ -551,7 +551,7 @@ function Dashboard() {
           brand
         `)
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(5);  // 10에서 5로 수정
 
       // ALL이 아닐 때만 브랜드 필터링 적용
       if (selectedBrand !== 'ALL') {

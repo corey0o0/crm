@@ -32,19 +32,32 @@ import {
   ArrowUpward as ArrowUpIcon,
   ArrowDownward as ArrowDownIcon
 } from '@mui/icons-material';
+import { getCookie, setCookie, removeCookie, getJSONCookie, setJSONCookie } from '../../utils/cookieUtils';
 
 function ProductList() {
   const [products, setProducts] = useState([]);
   const [openDialog, setOpenDialog] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [searchTerm, setSearchTerm] = useState(() => {
+    const savedSearchTerm = getCookie('product_searchTerm');
+    return savedSearchTerm || '';
+  });
+  const [categoryFilter, setCategoryFilter] = useState(() => {
+    const savedCategory = getCookie('product_categoryFilter');
+    return savedCategory || 'all';
+  });
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [sortConfig, setSortConfig] = useState({
-    key: null,
-    direction: 'asc'
+  const [rowsPerPage, setRowsPerPage] = useState(() => {
+    const savedRowsPerPage = getCookie('product_rowsPerPage');
+    return savedRowsPerPage ? parseInt(savedRowsPerPage, 10) : 10;
+  });
+  const [sortConfig, setSortConfig] = useState(() => {
+    const savedSortConfig = getJSONCookie('product_sortConfig');
+    return savedSortConfig || {
+      key: null,
+      direction: 'asc'
+    };
   });
   const [snackbar, setSnackbar] = useState({
     open: false,
@@ -60,6 +73,35 @@ function ProductList() {
     stock: '',
     description: ''
   });
+
+  // 상태 변경 시 쿠키에 저장
+  useEffect(() => {
+    setCookie('product_searchTerm', searchTerm);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    setCookie('product_categoryFilter', categoryFilter);
+  }, [categoryFilter]);
+
+  useEffect(() => {
+    setCookie('product_rowsPerPage', rowsPerPage.toString());
+  }, [rowsPerPage]);
+  
+  useEffect(() => {
+    setJSONCookie('product_sortConfig', sortConfig);
+  }, [sortConfig]);
+
+  // 컴포넌트 언마운트 시 쿠키 정리
+  useEffect(() => {
+    return () => {
+      if (window.location.pathname !== '/products') {
+        removeCookie('product_searchTerm');
+        removeCookie('product_categoryFilter');
+        removeCookie('product_rowsPerPage');
+        removeCookie('product_sortConfig');
+      }
+    };
+  }, []);
 
   useEffect(() => {
     fetchProducts();
@@ -111,10 +153,12 @@ function ProductList() {
   const categories = ['all', ...new Set(products.map(p => p.category))];
 
   const handleSort = (key) => {
-    setSortConfig(prev => ({
+    const newSortConfig = {
       key,
-      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
-    }));
+      direction: sortConfig.key === key && sortConfig.direction === 'asc' ? 'desc' : 'asc'
+    };
+    setSortConfig(newSortConfig);
+    setJSONCookie('product_sortConfig', newSortConfig);
   };
 
   const handleChangePage = (event, newPage) => {
@@ -122,8 +166,10 @@ function ProductList() {
   };
 
   const handleChangeRowsPerPage = (event) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
+    const newRowsPerPage = parseInt(event.target.value, 10);
+    setRowsPerPage(newRowsPerPage);
     setPage(0);
+    setCookie('product_rowsPerPage', newRowsPerPage.toString());
   };
 
   const handleSubmit = async () => {
@@ -193,6 +239,18 @@ function ProductList() {
     }));
   };
 
+  const handleSearchChange = (e) => {
+    const value = e.target.value;
+    setSearchTerm(value);
+    setCookie('product_searchTerm', value);
+  };
+
+  const handleCategoryChange = (e) => {
+    const value = e.target.value;
+    setCategoryFilter(value);
+    setCookie('product_categoryFilter', value);
+  };
+
   const showSnackbar = (message, severity = 'success') => {
     setSnackbar({
       open: true,
@@ -210,7 +268,8 @@ function ProductList() {
             size="small"
             placeholder="검색..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={handleSearchChange}
+            sx={{ width: '50%' }}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
@@ -223,7 +282,7 @@ function ProductList() {
             select
             size="small"
             value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
+            onChange={handleCategoryChange}
             sx={{ minWidth: 120 }}
           >
             {categories.map((category) => (

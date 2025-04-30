@@ -74,19 +74,21 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ko } from 'date-fns/locale';
 import { format, parseISO, isValid } from 'date-fns';
 import * as XLSX from 'xlsx';
+import { getCookie, setCookie, removeCookie, getJSONCookie, setJSONCookie } from '../../utils/cookieUtils';
+import { alpha } from '@mui/material/styles';
 
 function ProductShipment() {
   const [selectedBrand, setSelectedBrand] = useState(() => {
-    const savedBrand = localStorage.getItem('shipment_selectedBrand');
+    const savedBrand = getCookie('shipment_selectedBrand');
     return savedBrand || 'XRB';
   });
   const [shipments, setShipments] = useState([]);
   const [statusFilter, setStatusFilter] = useState(() => {
-    const savedStatus = localStorage.getItem('shipment_statusFilter');
+    const savedStatus = getCookie('shipment_statusFilter');
     return savedStatus || 'all';
   });
   const [sellerFilter, setSellerFilter] = useState(() => {
-    const savedSeller = localStorage.getItem('shipment_sellerFilter');
+    const savedSeller = getCookie('shipment_sellerFilter');
     return savedSeller || 'all';
   });
   const [sellers, setSellers] = useState(['전체']);
@@ -94,8 +96,14 @@ function ProductShipment() {
   const [error, setError] = useState(null);
   const navigate = useNavigate();
   const [filteredShipments, setFilteredShipments] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [inputValue, setInputValue] = useState('');
+  const [searchTerm, setSearchTerm] = useState(() => {
+    const savedSearchTerm = getCookie('shipment_searchTerm');
+    return savedSearchTerm || '';
+  });
+  const [inputValue, setInputValue] = useState(() => {
+    const savedSearchTerm = getCookie('shipment_searchTerm');
+    return savedSearchTerm || '';
+  });
   const [selectedShipment, setSelectedShipment] = useState(null);
   const [openDialog, setOpenDialog] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -106,6 +114,7 @@ function ProductShipment() {
   });
   const [parts, setParts] = useState([]);
   const [partSearchTerm, setPartSearchTerm] = useState('');
+  const [partInputValue, setPartInputValue] = useState('');
   const [filteredParts, setFilteredParts] = useState([]);
   const [openPartsDialog, setOpenPartsDialog] = useState(false);
   const [selectedPart, setSelectedPart] = useState(null);
@@ -140,11 +149,11 @@ function ProductShipment() {
   const [salesChannels, setSalesChannels] = useState([]);
   
   const [dateFilter, setDateFilter] = useState(() => {
-    const savedDateFilter = localStorage.getItem('shipment_dateFilter');
-    return savedDateFilter ? JSON.parse(savedDateFilter) : {
-    type: 'order_date',
-    startDate: '',
-    endDate: ''
+    const savedDateFilter = getJSONCookie('shipment_dateFilter');
+    return savedDateFilter || {
+      type: 'order_date',
+      startDate: '',
+      endDate: ''
     };
   });
   
@@ -153,16 +162,16 @@ function ProductShipment() {
 
   // 기존 state 선언부 아래에 highlightedId state 추가
   const [highlightedId, setHighlightedId] = useState(() => {
-    const savedHighlightId = localStorage.getItem('shipment_highlightedId');
+    const savedHighlightId = getCookie('shipment_highlightedId');
     return savedHighlightId ? parseInt(savedHighlightId) : null;
   });
 
   // 하이라이트 ID 저장 effect 추가
   useEffect(() => {
     if (highlightedId) {
-      localStorage.setItem('shipment_highlightedId', highlightedId.toString());
+      setCookie('shipment_highlightedId', highlightedId.toString());
     } else {
-      localStorage.removeItem('shipment_highlightedId');
+      removeCookie('shipment_highlightedId');
     }
   }, [highlightedId]);
 
@@ -170,43 +179,43 @@ function ProductShipment() {
   useEffect(() => {
     return () => {
       if (window.location.pathname !== '/shipments') {
-        localStorage.removeItem('shipment_highlightedId');
+        removeCookie('shipment_highlightedId');
         // ... 기존 cleanup 코드 ...
       }
     };
   }, []);
 
-  // 상태가 변경될 때마다 localStorage에 저장
+  // 상태가 변경될 때마다 쿠키에 저장
   useEffect(() => {
-    localStorage.setItem('shipment_selectedBrand', selectedBrand);
+    setCookie('shipment_selectedBrand', selectedBrand);
   }, [selectedBrand]);
 
   useEffect(() => {
-    localStorage.setItem('shipment_statusFilter', statusFilter);
+    setCookie('shipment_statusFilter', statusFilter);
   }, [statusFilter]);
 
   useEffect(() => {
-    localStorage.setItem('shipment_sellerFilter', sellerFilter);
+    setCookie('shipment_sellerFilter', sellerFilter);
   }, [sellerFilter]);
 
   useEffect(() => {
-    localStorage.setItem('shipment_searchTerm', searchTerm);
+    setCookie('shipment_searchTerm', searchTerm);
   }, [searchTerm]);
 
   useEffect(() => {
-    localStorage.setItem('shipment_dateFilter', JSON.stringify(dateFilter));
+    setJSONCookie('shipment_dateFilter', dateFilter);
   }, [dateFilter]);
 
-  // 컴포넌트가 언마운트될 때 localStorage 정리 함수 추가
+  // 컴포넌트가 언마운트될 때 쿠키 정리 함수 추가
   useEffect(() => {
     return () => {
-      // 페이지를 완전히 벗어날 때(예: 로그아웃)만 localStorage 정리
+      // 페이지를 완전히 벗어날 때(예: 로그아웃)만 쿠키 정리
       if (window.location.pathname !== '/shipments') {
-        localStorage.removeItem('shipment_selectedBrand');
-        localStorage.removeItem('shipment_statusFilter');
-        localStorage.removeItem('shipment_sellerFilter');
-        localStorage.removeItem('shipment_searchTerm');
-        localStorage.removeItem('shipment_dateFilter');
+        removeCookie('shipment_selectedBrand');
+        removeCookie('shipment_statusFilter');
+        removeCookie('shipment_sellerFilter');
+        removeCookie('shipment_searchTerm');
+        removeCookie('shipment_dateFilter');
       }
     };
   }, []);
@@ -776,25 +785,38 @@ function ProductShipment() {
   // 기존의 handleBrandChange 함수 수정
   const handleBrandChange = (event, newValue) => {
     setSelectedBrand(newValue);
-    localStorage.setItem('shipment_selectedBrand', newValue);
+    setCookie('shipment_selectedBrand', newValue);
   };
 
   // 기존의 handleStatusFilterChange 함수 수정
   const handleStatusFilterChange = (event) => {
     setStatusFilter(event.target.value);
-    localStorage.setItem('shipment_statusFilter', event.target.value);
+    setCookie('shipment_statusFilter', event.target.value);
   };
 
   // 기존의 handleSellerFilterChange 함수 수정
   const handleSellerFilterChange = (event) => {
     setSellerFilter(event.target.value);
-    localStorage.setItem('shipment_sellerFilter', event.target.value);
+    setCookie('shipment_sellerFilter', event.target.value);
   };
 
   // 검색어 변경 핸들러 수정
-  const handleSearchChange = (event) => {
-    setSearchTerm(event.target.value);
-    localStorage.setItem('shipment_searchTerm', event.target.value);
+  const handleSearchInput = (event) => {
+    setInputValue(event.target.value);
+    // 검색어 입력 시에는 inputValue만 업데이트하고 검색은 실행하지 않음
+  };
+
+  // 검색 실행 함수
+  const executeSearch = () => {
+    setSearchTerm(inputValue);
+    setCookie('shipment_searchTerm', inputValue);
+  };
+
+  // 엔터키 처리 함수
+  const handleKeyPress = (event) => {
+    if (event.key === 'Enter') {
+      executeSearch();
+    }
   };
 
   // 날짜 필터 초기화 함수 수정
@@ -805,14 +827,14 @@ function ProductShipment() {
       endDate: ''
     };
     setDateFilter(resetFilter);
-    localStorage.setItem('shipment_dateFilter', JSON.stringify(resetFilter));
+    setJSONCookie('shipment_dateFilter', resetFilter);
   };
 
   // 날짜 필터 변경 핸들러 추가
   const handleDateFilterChange = (type, value) => {
     const newDateFilter = { ...dateFilter, [type]: value };
     setDateFilter(newDateFilter);
-    localStorage.setItem('shipment_dateFilter', JSON.stringify(newDateFilter));
+    setJSONCookie('shipment_dateFilter', newDateFilter);
   };
 
   const handleAddShipment = () => {
@@ -904,12 +926,16 @@ function ProductShipment() {
     setOpenPartsDialog(true);
     setSelectedPart(null);
     setPartsQuantity(1);
+    setPartSearchTerm('');
+    setPartInputValue('');
   };
 
   const handleClosePartsDialog = () => {
     setOpenPartsDialog(false);
     setSelectedPart(null);
     setPartsQuantity(1);
+    setPartSearchTerm('');
+    setPartInputValue('');
   };
 
   const handleAddPart = () => {
@@ -939,6 +965,24 @@ function ProductShipment() {
       ...prev,
       products: (prev.products || []).filter(p => p.id !== partId)
     }));
+  };
+
+  // 파츠 검색어 입력 처리 함수
+  const handlePartSearchInput = (event) => {
+    setPartInputValue(event.target.value);
+    // 검색어 입력 시에는 partInputValue만 업데이트하고 검색은 실행하지 않음
+  };
+
+  // 파츠 검색 실행 함수
+  const executePartSearch = () => {
+    setPartSearchTerm(partInputValue);
+  };
+
+  // 파츠 검색 엔터키 처리 함수
+  const handlePartKeyPress = (event) => {
+    if (event.key === 'Enter') {
+      executePartSearch();
+    }
   };
 
   const columns = [
@@ -1502,39 +1546,17 @@ function ProductShipment() {
   };
 
   const getRowStyle = (row) => ({
-    backgroundColor: row.id === highlightedId 
-      ? 'rgba(25, 118, 210, 0.1)' // 하이라이트 색상
-      : row.status.includes('완료') 
-        ? '#f5f5f5' 
-        : 'inherit',
-    transition: 'background-color 0.3s ease',
-    '&:hover': {
-      backgroundColor: row.id === highlightedId 
-        ? 'rgba(25, 118, 210, 0.2)'
-        : row.status.includes('완료') 
-          ? '#f0f0f0' 
-          : '#f5f5f5'
-    }
+    backgroundColor: 
+      row.status === '준비중' ? alpha('#42a5f5', 0.05) : // 연한 파란색
+      row.status === '배송중' ? alpha('#ff9800', 0.05) : // 연한 주황색
+      row.status === '출고완료' ? alpha('#4caf50', 0.05) : // 연한 녹색
+      'transparent',
+    borderLeft: 
+      row.status === '준비중' ? `4px solid ${alpha('#42a5f5', 0.7)}` : // 파란색
+      row.status === '배송중' ? `4px solid ${alpha('#ff9800', 0.7)}` : // 주황색
+      row.status === '출고완료' ? `4px solid ${alpha('#4caf50', 0.7)}` : // 녹색
+      '4px solid transparent',
   });
-
-  // 검색어 입력 처리 함수
-  const handleSearchInput = (event) => {
-    setInputValue(event.target.value);
-  };
-
-  // 검색 실행 함수
-  const executeSearch = () => {
-    const term = inputValue.toLowerCase().trim();
-    setSearchTerm(term);
-    applyFiltersAndSort();
-  };
-
-  // 엔터키 처리 함수
-  const handleKeyPress = (event) => {
-    if (event.key === 'Enter') {
-      executeSearch();
-    }
-  };
 
   if (loading) {
     return (
@@ -1680,13 +1702,12 @@ function ProductShipment() {
                 onChange={(newValue) => {
                   handleDateFilterChange('startDate', newValue ? format(newValue, 'yyyy-MM-dd') : '');
                 }}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    size="small"
-                    sx={{ width: 150 }}
-                  />
-                )}
+                slotProps={{
+                  textField: {
+                    size: "small",
+                    sx: { width: 150 }
+                  }
+                }}
               />
               <Typography variant="body2">~</Typography>
               <DatePicker
@@ -1694,13 +1715,12 @@ function ProductShipment() {
                 onChange={(newValue) => {
                   handleDateFilterChange('endDate', newValue ? format(newValue, 'yyyy-MM-dd') : '');
                 }}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    size="small"
-                    sx={{ width: 150 }}
-                  />
-                )}
+                slotProps={{
+                  textField: {
+                    size: "small",
+                    sx: { width: 150 }
+                  }
+                }}
               />
               {(dateFilter.startDate || dateFilter.endDate) && (
                 <IconButton 
@@ -1718,13 +1738,12 @@ function ProductShipment() {
 
       <Box sx={{ mb: 2, display: 'flex', gap: 2 }}>
         <TextField
-          fullWidth
           variant="outlined"
           placeholder="제품명, 연락처로 검색"
           value={inputValue}
           onChange={handleSearchInput}
           onKeyPress={handleKeyPress}
-          sx={{ mb: 2 }}
+          sx={{ mb: 2, width: '50%' }}
         />
         {searchTerm && (
           <Typography variant="body2" color="textSecondary" sx={{ alignSelf: 'center' }}>
@@ -1941,19 +1960,18 @@ function ProductShipment() {
                         }
                       });
                     }}
-                    renderInput={(params) => (
-                      <TextField 
-                        {...params} 
-                        fullWidth 
-                        size="small"
-                        sx={{ 
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                        size: "small",
+                        sx: { 
                           '& .MuiInputBase-root': { 
                             height: 40 
                           } 
-                        }}
-                      />
-                    )}
-                    inputFormat="yyyy-MM-dd"
+                        }
+                      }
+                    }}
+                    format="yyyy-MM-dd"
                   />
                 </LocalizationProvider>
               </Grid>
@@ -1964,20 +1982,19 @@ function ProductShipment() {
                     label="출고일"
                     value={selectedShipment.shipment_date ? new Date(selectedShipment.shipment_date) : null}
                     onChange={handleDateChange}
-                    renderInput={(params) => (
-                      <TextField 
-                        {...params} 
-                        fullWidth 
-                        required 
-                        size="small"
-                        sx={{ 
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                        required: true,
+                        size: "small",
+                        sx: { 
                           '& .MuiInputBase-root': { 
                             height: 40 
                           } 
-                        }}
-                      />
-                    )}
-                    inputFormat="yyyy-MM-dd"
+                        }
+                      }
+                    }}
+                    format="yyyy-MM-dd"
                   />
                 </LocalizationProvider>
               </Grid>
@@ -2097,10 +2114,20 @@ function ProductShipment() {
             <TextField
               fullWidth
               label="제품 검색"
-              value={partSearchTerm}
-              onChange={(e) => setPartSearchTerm(e.target.value)}
+              value={partInputValue}
+              onChange={handlePartSearchInput}
+              onKeyPress={handlePartKeyPress}
               placeholder="제품명 또는 코드로 검색"
               sx={{ mb: 2 }}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton onClick={executePartSearch}>
+                      <SearchIcon />
+                    </IconButton>
+                  </InputAdornment>
+                )
+              }}
             />
             
             <TableContainer component={Paper} variant="outlined">

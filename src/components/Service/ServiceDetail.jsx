@@ -1762,6 +1762,16 @@ function ServiceDetail() {
                       </Grid>
                       <Grid item xs={12}>
                         <TextField
+                          fullWidth
+                          size="small"
+                          name="seller"
+                          label="구입처"
+                          value={formData.seller || ''}
+                          onChange={handleChange}
+                        />
+                      </Grid>
+                      <Grid item xs={12}>
+                        <TextField
                           select
                           fullWidth
                           size="small"
@@ -1791,16 +1801,6 @@ function ServiceDetail() {
                           <MenuItem value="퀵-선불">퀵-선불</MenuItem>
                           <MenuItem value="퀵-착불">퀵-착불</MenuItem>
                         </TextField>
-                      </Grid>
-                      <Grid item xs={12}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          name="seller"
-                          label="구입처"
-                          value={formData.seller || ''}
-                          onChange={handleChange}
-                        />
                       </Grid>
                     </Grid>
                   </Box>

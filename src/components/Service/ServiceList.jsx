@@ -59,6 +59,7 @@ import { serviceApi } from '../../api/services';
 import { supabase } from '../../lib/supabaseClient';
 import ResponsiveTable from '../common/ResponsiveTable';
 import AddService from './AddService';
+import { getCookie, setCookie, removeCookie, getJSONCookie, setJSONCookie } from '../../utils/cookieUtils';
 
 function ServiceList() {
   const [selectedBrand, setSelectedBrand] = useState('XRB');
@@ -100,8 +101,8 @@ function ServiceList() {
     endDate: ''
   });
   const [highlightedId, setHighlightedId] = useState(() => {
-    const savedId = localStorage.getItem('highlightServiceId');
-    console.log('Initial highlightServiceId from localStorage (on mount):', savedId);
+    const savedId = getCookie('highlightServiceId');
+    console.log('Initial highlightServiceId from cookie (on mount):', savedId);
     return savedId ? parseInt(savedId, 10) : null;
   });
 
@@ -112,8 +113,8 @@ function ServiceList() {
   const setHighlightWithTimeout = (id) => {
     console.log('Setting highlight for ID:', id);
     setHighlightedId(id);
-    localStorage.setItem('highlightServiceId', String(id));
-    console.log('Saved highlightServiceId to localStorage:', id);
+    setCookie('highlightServiceId', String(id));
+    console.log('Saved highlightServiceId to cookie:', id);
 
     // 이전 타이머가 있다면 제거
     if (highlightTimerRef.current) {
@@ -124,7 +125,7 @@ function ServiceList() {
     highlightTimerRef.current = setTimeout(() => {
       console.log('Clearing highlight for ID:', id);
       setHighlightedId(null);
-      localStorage.removeItem('highlightServiceId');
+      removeCookie('highlightServiceId');
       highlightTimerRef.current = null;
     }, 10000);
   };
@@ -141,7 +142,7 @@ function ServiceList() {
   // 데이터 로드 완료 후 하이라이트 체크
   useEffect(() => {
     if (!loading && services.length > 0) {
-      const savedId = localStorage.getItem('highlightServiceId');
+      const savedId = getCookie('highlightServiceId');
       console.log('Checking highlight after data load. SavedId:', savedId, 'Loading:', loading);
       
       if (savedId) {
@@ -153,7 +154,7 @@ function ServiceList() {
           setHighlightWithTimeout(numericId);
         } else {
           console.log('Service not found, clearing highlight');
-          localStorage.removeItem('highlightServiceId');
+          removeCookie('highlightServiceId');
           setHighlightedId(null);
         }
       }
@@ -192,32 +193,115 @@ function ServiceList() {
   const fetchServices = async () => {
     try {
       setLoading(true);
+      setServices([]); // 데이터 로드 시작 시 초기화
+
+      // 쿼리당 가져올 데이터 개수 (최대 1,000건, Supabase 기본 제한)
+      const PAGE_SIZE = 1000;
+      // 모든 데이터를 저장할 배열
+      let allServicesData = [];
+      // 데이터가 더 있는지 여부
+      let hasMoreData = true;
+      // 현재 오프셋
+      let currentOffset = 0;
       
-      // 1. 서비스 데이터와 태그 데이터를 함께 가져오기
-      const { data: servicesData, error: servicesError } = await supabase
+      // 먼저 총 데이터 개수 확인
+      const { count, error: countError } = await supabase
         .from('services')
-        .select(`
-          *,
-          service_tags (
-            tag_name
-          )
-        `)
-        .eq('brand', selectedBrand)
-        .order('reception_date', { ascending: false });
+        .select('id', { count: 'exact', head: true })
+        .eq('brand', selectedBrand);
+        
+      if (countError) {
+        console.error('Error counting services:', countError);
+        throw countError;
+      }
+      
+      console.log(`Total services in database: ${count}`);
+      const totalPages = Math.ceil(count / PAGE_SIZE);
+      console.log(`Will fetch data in ${totalPages} pages`);
+      
+      // 진행 중인 페이지 번호
+      let currentPage = 1;
+      
+      while (hasMoreData) {
+        console.log(`Fetching page ${currentPage}/${totalPages}: from=${currentOffset}, to=${currentOffset + PAGE_SIZE - 1}`);
+        
+        // 페이지네이션 방식으로 데이터 가져오기 - range 함수 사용
+        const { data: servicesData, error: servicesError } = await supabase
+          .from('services')
+          .select(`
+            *,
+            service_tags (
+              tag_name
+            )
+          `)
+          .eq('brand', selectedBrand)
+          .order('reception_date', { ascending: false })
+          .range(currentOffset, currentOffset + PAGE_SIZE - 1);
 
-      if (servicesError) throw servicesError;
+        if (servicesError) {
+          console.error('Error fetching services page:', servicesError);
+          throw servicesError;
+        }
+        
+        if (!servicesData || servicesData.length === 0) {
+          // 더 이상 데이터가 없음
+          console.log('No more data found, ending fetch cycle');
+          hasMoreData = false;
+        } else {
+          // 데이터 병합
+          allServicesData = [...allServicesData, ...servicesData];
+          
+          // 다음 페이지 준비
+          currentOffset += servicesData.length;
+          currentPage++;
+          
+          // 가져온 데이터가 PAGE_SIZE보다 적으면 마지막 페이지
+          if (servicesData.length < PAGE_SIZE) {
+            console.log(`Last page reached with ${servicesData.length} records`);
+            hasMoreData = false;
+          }
+          
+          // 모든 페이지를 가져왔는지 확인
+          if (currentPage > totalPages) {
+            console.log('All pages fetched');
+            hasMoreData = false;
+          }
+          
+          // 진행 상황 업데이트
+          console.log(`Loaded ${allServicesData.length}/${count} services (${Math.floor(allServicesData.length/count*100)}%)`);
+          
+          // 페이지별 데이터를 바로 상태에 적용하여 UI 반응성 향상
+          const partialServicesWithTags = servicesData.map(service => ({
+            ...service,
+            status: service.status || '접수',
+            tags: service.service_tags?.map(tag => tag.tag_name) || []
+          }));
+          
+          // 기존 데이터와 병합하여 상태 업데이트
+          setServices(prev => [...prev, ...partialServicesWithTags]);
+        }
+      }
 
+      // 최종 데이터 확인 및 갱신
+      if (allServicesData.length !== count) {
+        console.warn(`Warning: Loaded ${allServicesData.length} services, but expected ${count}`);
+      }
+      
       // 2. 서비스와 태그 데이터 병합
-      const servicesWithTags = servicesData.map(service => ({
+      const servicesWithTags = allServicesData.map(service => ({
         ...service,
         status: service.status || '접수',
         tags: service.service_tags?.map(tag => tag.tag_name) || []
       }));
 
+      // 전체 데이터를 한 번에 다시 설정 (혹시 모를 중복 방지)
       setServices(servicesWithTags);
       
+      // 총 데이터 개수 확인 (로그용)
+      console.log(`Total services loaded: ${servicesWithTags.length}`);
+      
       // 데이터 로딩 완료 후 하이라이트 ID 체크
-      const savedId = localStorage.getItem('highlightServiceId');
+      const savedId = getCookie('highlightServiceId');
       console.log('Checking highlightServiceId after data load:', savedId);
       
       if (savedId) {
@@ -233,11 +317,11 @@ function ServiceList() {
           setTimeout(() => {
             console.log('Clearing highlight effect after timeout');
             setHighlightedId(null);
-            localStorage.removeItem('highlightServiceId');
+            removeCookie('highlightServiceId');
           }, 10000);
         } else {
           console.log('Service not found, clearing highlight');
-          localStorage.removeItem('highlightServiceId');
+          removeCookie('highlightServiceId');
         }
       }
     } catch (err) {
@@ -274,7 +358,7 @@ function ServiceList() {
             setTimeout(() => {
               console.log('Removing highlight for service:', newServiceId);
               setHighlightedId(null);
-              localStorage.removeItem('highlightServiceId');
+              removeCookie('highlightServiceId');
             }, 10000);
           } else if (payload.eventType === 'UPDATE') {
             setServices(prev => prev.map(service => 
@@ -913,19 +997,30 @@ function ServiceList() {
     },
     { 
       id: 'product_name', 
-      label: '내역',
+      label: '기종',
       sortable: true,
       render: (row) => (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
-          <Typography noWrap sx={{ 
-            flex: 1, 
-            fontSize: '0.95rem', 
-            fontWeight: 500,
-            letterSpacing: '0.01em',
-            color: 'text.primary' 
-          }}>
-            {row.product_name}
-          </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, minWidth: 0 }}>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography noWrap sx={{ 
+              fontSize: '0.95rem', 
+              fontWeight: 500,
+              letterSpacing: '0.01em',
+              color: 'text.primary' 
+            }}>
+              {row.product_name}
+            </Typography>
+            {row.mileage && (
+              <Typography noWrap sx={{ 
+                fontSize: '0.85rem', 
+                mt: 0.5,
+                color: 'text.secondary',
+                letterSpacing: '0.01em' 
+              }}>
+                ODO: {row.mileage}
+              </Typography>
+            )}
+          </Box>
           {(row.note?.includes('JPG:') || row.receipt_link) && (
             <Tooltip title="영수증 첨부됨">
               <ReceiptIcon 
@@ -945,12 +1040,26 @@ function ServiceList() {
       id: 'symptom', 
       label: '문의내용',
       sortable: true,
+      width: 200,
       render: (row) => (
-        <Tooltip title={row.symptom} placement="top-start">
+        <Tooltip 
+          title={
+            <Box sx={{ p: 1 }}>
+              <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>
+                문의내용:
+              </Typography>
+              <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                {row.symptom || '문의내용이 없습니다.'}
+              </Typography>
+            </Box>
+          } 
+          placement="top"
+          arrow
+        >
           <Typography sx={{ 
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',
-            maxWidth: '300px',
+            maxWidth: '200px',
             display: '-webkit-box',
             WebkitLineClamp: 4,
             WebkitBoxOrient: 'vertical',
@@ -968,44 +1077,73 @@ function ServiceList() {
       )
     },
     { 
-      id: 'mileage', 
-      label: '주행거리',
-      sortable: true,
-      render: (row) => (
-        <Typography sx={{ 
-          fontSize: '0.95rem', 
-          letterSpacing: '0.01em',
-          color: row.mileage ? 'text.primary' : 'text.secondary'
-        }}>
-          {row.mileage || '-'}
-        </Typography>
-      )
-    },
-    { 
       id: 'tags', 
-      label: '태그',
+      label: '처리내역',
       sortable: true,
+      width: 200,
       render: (row) => (
-        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-          {row.tags?.map((tag, index) => (
-            <Chip
-              key={index}
-              label={tag}
-              size="small"
-              sx={{
-                height: '22px',
-                fontSize: '0.85rem',
-                fontWeight: 500,
-                letterSpacing: '0.01em',
-                bgcolor: 'primary.50',
-                color: 'primary.700',
-                '&:hover': {
-                  bgcolor: 'primary.100'
-                }
-              }}
-            />
-          ))}
-        </Box>
+        <Tooltip 
+          title={
+            <Box sx={{ p: 1 }}>
+              <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>
+                처리내역:
+              </Typography>
+              <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                {row.solution || '처리내역이 없습니다.'}
+              </Typography>
+            </Box>
+          } 
+          placement="top"
+          arrow
+        >
+          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', maxWidth: '200px' }}>
+            {row.tags?.length > 0 ? (
+              row.tags.map((tag, index) => (
+                <Chip
+                  key={index}
+                  label={tag}
+                  size="small"
+                  sx={{
+                    height: '22px',
+                    fontSize: '0.85rem',
+                    fontWeight: 500,
+                    letterSpacing: '0.01em',
+                    bgcolor: 'primary.50',
+                    color: 'primary.700',
+                    '&:hover': {
+                      bgcolor: 'primary.100'
+                    }
+                  }}
+                />
+              ))
+            ) : (
+              row.solution ? (
+                <Typography 
+                  variant="body2" 
+                  color="text.secondary"
+                  sx={{ 
+                    maxWidth: '200px',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 4,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    lineHeight: '1.4em',
+                    maxHeight: '5.6em',
+                    fontSize: '0.95rem',
+                    letterSpacing: '0.01em'
+                  }}
+                >
+                  {row.solution}
+                </Typography>
+              ) : (
+                <Typography variant="body2" color="text.secondary">-</Typography>
+              )
+            )}
+          </Box>
+        </Tooltip>
       )
     },
     { 
@@ -1152,7 +1290,7 @@ function ServiceList() {
             letterSpacing: '0.01em',
             color: 'text.primary'
           }}>
-            내역: {row.product_name}
+            기종: {row.product_name}
           </Typography>
           {(row.note?.includes('JPG:') || row.receipt_link) && (
             <Tooltip title="영수증 첨부됨">
@@ -1167,40 +1305,102 @@ function ServiceList() {
             </Tooltip>
           )}
         </Box>
+        {row.mileage && (
+          <Typography sx={{ 
+            ml: 1,
+            mt: 0.5,
+            fontSize: '0.9rem',
+            letterSpacing: '0.01em',
+            color: 'text.secondary',
+          }}>
+            ODO: {row.mileage}
+          </Typography>
+        )}
         <Typography sx={{ 
           mt: 1.5,
           fontSize: '0.95rem',
           letterSpacing: '0.01em',
           color: 'text.primary',
-          lineHeight: 1.4
+          lineHeight: 1.4,
+          maxWidth: '200px',
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+          display: '-webkit-box',
+          WebkitLineClamp: 4,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          maxHeight: '5.6em'
         }}>
           문의내용: {row.symptom}
         </Typography>
-        <Typography sx={{ 
-          mt: 1.5,
-          fontSize: '0.95rem',
-          letterSpacing: '0.01em',
-          color: row.mileage ? 'text.primary' : 'text.secondary'
-        }}>
-          주행거리: {row.mileage || '-'}
-        </Typography>
-        <Box sx={{ mt: 1.5, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-          {row.tags?.map((tag, index) => (
-            <Chip
-              key={index}
-              label={tag}
-              size="small"
-              sx={{
-                height: '22px',
-                fontSize: '0.85rem',
-                fontWeight: 500,
-                letterSpacing: '0.01em',
-                bgcolor: 'primary.50',
-                color: 'primary.700'
-              }}
-            />
-          ))}
+        
+        {/* 처리내역 및 태그 부분 */}
+        <Box sx={{ mt: 1.5, mb: 1.5 }}>
+          <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>
+            처리내역:
+          </Typography>
+          {row.tags?.length > 0 ? (
+            <Tooltip
+              title={
+                <Box sx={{ p: 1 }}>
+                  <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>
+                    처리내역:
+                  </Typography>
+                  <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                    {row.solution || '처리내역이 없습니다.'}
+                  </Typography>
+                </Box>
+              }
+              placement="top"
+              arrow
+            >
+              <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', maxWidth: '200px' }}>
+                {row.tags.map((tag, index) => (
+                  <Chip
+                    key={index}
+                    label={tag}
+                    size="small"
+                    sx={{
+                      height: '22px',
+                      fontSize: '0.85rem',
+                      fontWeight: 500,
+                      letterSpacing: '0.01em',
+                      bgcolor: 'primary.50',
+                      color: 'primary.700'
+                    }}
+                  />
+                ))}
+              </Box>
+            </Tooltip>
+          ) : (
+            row.solution ? (
+              <Typography 
+                variant="body2" 
+                color="text.secondary"
+                sx={{ 
+                  maxWidth: '200px',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 4,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  lineHeight: '1.4em',
+                  maxHeight: '5.6em',
+                  fontSize: '0.95rem',
+                  letterSpacing: '0.01em'
+                }}
+              >
+                {row.solution}
+              </Typography>
+            ) : (
+              <Typography variant="body2" color="text.secondary">-</Typography>
+            )
+          )}
         </Box>
+
         <Box sx={{ 
           mt: 2, 
           pt: 1.5,
@@ -1501,13 +1701,12 @@ function ServiceList() {
       {/* 검색 및 필터 영역 */}
       <Box sx={{ mb: 2, display: 'flex', gap: 2 }}>
         <TextField
-          fullWidth
           variant="outlined"
           placeholder="고객명, 연락처, 제품명으로 검색"
           value={inputValue}
           onChange={handleSearchInput}
           onKeyPress={executeSearch}
-          sx={{ mb: 2 }}
+          sx={{ width: '50%', mb: 2 }}
         />
         {searchTerm && (
           <Typography variant="body2" color="textSecondary" sx={{ alignSelf: 'center' }}>
