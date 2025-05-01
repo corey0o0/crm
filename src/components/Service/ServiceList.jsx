@@ -1836,10 +1836,10 @@ function ServiceList() {
             onClick={handleResetAll}
             sx={{ 
               ml: 1, 
-              minWidth: '70px', 
+              minWidth: '100px', 
               height: '40px',
               fontSize: '0.75rem',
-              px: 1
+              px: 2
             }}
             startIcon={<RestartAltIcon fontSize="small" />}
           >
