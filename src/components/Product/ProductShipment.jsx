@@ -128,7 +128,7 @@ function ProductShipment() {
   
   // 추가: 정렬 및 필터 상태
   const [sortConfig, setSortConfig] = useState({
-    key: 'created_at',
+    key: 'order_date',
     direction: 'desc'
   });
   
@@ -264,7 +264,7 @@ function ProductShipment() {
         .from('shipments')
         .select('*')
         .eq('brand', selectedBrand)
-        .order('created_at', { ascending: false });
+        .order('order_date', { ascending: false });
 
       if (error) throw error;
 
@@ -432,6 +432,40 @@ function ProductShipment() {
           return channelA.localeCompare(channelB);
         } else {
           return channelB.localeCompare(channelA);
+        }
+      });
+    }
+    // 주문일자 또는 출고일자로 정렬
+    else if (sortConfig.key === 'order_date' || sortConfig.key === 'shipment_date') {
+      filtered.sort((a, b) => {
+        let dateA, dateB;
+        
+        if (sortConfig.key === 'order_date') {
+          // 주문일자가 있으면 사용, 없으면 created_at 사용
+          dateA = a.order_date ? new Date(a.order_date) : new Date(a.created_at || 0);
+          dateB = b.order_date ? new Date(b.order_date) : new Date(b.created_at || 0);
+        } else {
+          dateA = new Date(a.shipment_date || 0);
+          dateB = new Date(b.shipment_date || 0);
+        }
+        
+        if (sortConfig.direction === 'asc') {
+          return dateA - dateB;
+        } else {
+          return dateB - dateA;
+        }
+      });
+    }
+    // 기본 정렬
+    else if (sortConfig.key) {
+      filtered.sort((a, b) => {
+        const aValue = a[sortConfig.key] || '';
+        const bValue = b[sortConfig.key] || '';
+        
+        if (sortConfig.direction === 'asc') {
+          return aValue > bValue ? 1 : -1;
+        } else {
+          return aValue < bValue ? 1 : -1;
         }
       });
     }
@@ -1155,7 +1189,8 @@ function ProductShipment() {
               ? format(parseISO(row.created_at), 'yyyy-MM-dd')
               : '-'}
         </Typography>
-      )
+      ),
+      sortable: true
     },
     { id: 'shipment_date', label: '출고일자',
       render: (row) => (
@@ -1164,12 +1199,14 @@ function ProductShipment() {
             ? format(parseISO(row.shipment_date), 'yyyy-MM-dd')
             : '-'}
         </Typography>
-      )
+      ),
+      sortable: true
     },
     { id: 'customer_name', label: '이름',
       render: (row) => (
         <Typography sx={{ fontWeight: 700 }}>{row.customer_name}</Typography>
-      )
+      ),
+      sortable: true
     },
     { id: 'customer_phone', label: '연락처',
       render: (row) => (
@@ -1188,7 +1225,8 @@ function ProductShipment() {
             variant="outlined"
           />
         );
-      }
+      },
+      sortable: true
     },
     { id: 'product_info', label: '제품정보',
       render: (row) => (
@@ -1379,53 +1417,55 @@ function ProductShipment() {
     }
     
     // 정렬 적용
-    if (sortConfig.key) {
+    if (sortConfig.key === 'sales_channel') {
       result.sort((a, b) => {
-        // 날짜 필드 특별 처리
-        if (sortConfig.key === 'shipment_date' || sortConfig.key === 'created_at') {
-          const dateA = new Date(a[sortConfig.key] || 0);
-          const dateB = new Date(b[sortConfig.key] || 0);
-          
-          if (sortConfig.direction === 'asc') {
-            return dateA - dateB;
-          } else {
-            return dateB - dateA;
-          }
+        const getSalesChannel = (shipment) => {
+          const match = shipment.note?.match(/\[판매처: (.*?)\]/);
+          return match ? match[1] : '공홈';
+        };
+
+        const channelA = getSalesChannel(a);
+        const channelB = getSalesChannel(b);
+
+        if (sortConfig.direction === 'asc') {
+          return channelA.localeCompare(channelB);
+        } else {
+          return channelB.localeCompare(channelA);
+        }
+      });
+    }
+    // 주문일자 또는 출고일자로 정렬
+    else if (sortConfig.key === 'order_date' || sortConfig.key === 'shipment_date') {
+      result.sort((a, b) => {
+        let dateA, dateB;
+        
+        if (sortConfig.key === 'order_date') {
+          // 주문일자가 있으면 사용, 없으면 created_at 사용
+          dateA = a.order_date ? new Date(a.order_date) : new Date(a.created_at || 0);
+          dateB = b.order_date ? new Date(b.order_date) : new Date(b.created_at || 0);
+        } else {
+          dateA = new Date(a.shipment_date || 0);
+          dateB = new Date(b.shipment_date || 0);
         }
         
-        // 판매처 특별 처리
-        if (sortConfig.key === 'sales_channel') {
-          let salesChannelA = '공홈';
-          const salesChannelMatchA = a.note?.match(/\[판매처: (.*?)\]/);
-          if (salesChannelMatchA && salesChannelMatchA[1]) {
-            salesChannelA = salesChannelMatchA[1];
-          } else if (a.sales_channel) {
-            salesChannelA = a.sales_channel;
-          }
-          
-          let salesChannelB = '공홈';
-          const salesChannelMatchB = b.note?.match(/\[판매처: (.*?)\]/);
-          if (salesChannelMatchB && salesChannelMatchB[1]) {
-            salesChannelB = salesChannelMatchB[1];
-          } else if (b.sales_channel) {
-            salesChannelB = b.sales_channel;
-          }
-          
-          if (sortConfig.direction === 'asc') {
-            return salesChannelA.localeCompare(salesChannelB);
-          } else {
-            return salesChannelB.localeCompare(salesChannelA);
-          }
+        if (sortConfig.direction === 'asc') {
+          return dateA - dateB;
+        } else {
+          return dateB - dateA;
         }
+      });
+    }
+    // 기본 정렬
+    else if (sortConfig.key) {
+      result.sort((a, b) => {
+        const aValue = a[sortConfig.key] || '';
+        const bValue = b[sortConfig.key] || '';
         
-        // 일반 필드 처리
-        if (a[sortConfig.key] < b[sortConfig.key]) {
-          return sortConfig.direction === 'asc' ? -1 : 1;
+        if (sortConfig.direction === 'asc') {
+          return aValue > bValue ? 1 : -1;
+        } else {
+          return aValue < bValue ? 1 : -1;
         }
-        if (a[sortConfig.key] > b[sortConfig.key]) {
-          return sortConfig.direction === 'asc' ? 1 : -1;
-        }
-        return 0;
       });
     }
     
@@ -1492,8 +1532,20 @@ function ProductShipment() {
           '판매처': '공홈',
           '배송방법': '택배',
           '주문일': '2024-03-19',
-          '출고일': '2024-03-20',
+          '출고일': '2024-03-20', // 출고일 입력 시 자동으로 출고완료 상태로 처리됨
           '메모': '배송 전 연락 요망'
+        },
+        {
+          '고객명': '김철수',
+          '연락처': '010-9876-5432',
+          '주소': '부산시 해운대구',
+          '제품명': 'X-RIDER MINI',
+          '수량': '2',
+          '판매처': '청담매장',
+          '배송방법': '방문수령',
+          '주문일': '2024-03-20',
+          '출고일': '', // 출고일 미입력 시 준비중 상태로 처리됨
+          '메모': '주문확인 완료'
         }
       ];
 
@@ -1524,7 +1576,7 @@ function ProductShipment() {
 
       setSnackbar({
         open: true,
-        message: '템플릿이 다운로드되었습니다.',
+        message: '템플릿이 다운로드되었습니다.\n• 출고일 입력 시 자동으로 출고완료 처리됩니다.\n• 유사한 제품명은 자동으로 매칭됩니다.',
         severity: 'success'
       });
     } catch (err) {
@@ -1537,7 +1589,62 @@ function ProductShipment() {
     }
   };
 
-  // 엑셀 파일 업로드 처리 함수 수정
+  // 비슷한 상품명을 찾는 유틸리티 함수 추가
+  const findSimilarProductName = (productName, partsList) => {
+    if (!productName || !partsList || partsList.length === 0) return null;
+    
+    // 정확히 일치하는 상품명이 있는지 먼저 확인
+    const exactMatch = partsList.find(
+      part => part.name.toLowerCase() === productName.toLowerCase()
+    );
+    if (exactMatch) return exactMatch;
+    
+    // 부분 일치하는 상품명 찾기 (상품명이 포함된 경우)
+    const partialMatches = partsList.filter(
+      part => part.name.toLowerCase().includes(productName.toLowerCase()) || 
+              productName.toLowerCase().includes(part.name.toLowerCase())
+    );
+    
+    // 부분 일치하는 상품이 있으면 가장 짧은 이름의 상품 반환 (보통 메인 모델명이 더 짧음)
+    if (partialMatches.length > 0) {
+      return partialMatches.sort((a, b) => a.name.length - b.name.length)[0];
+    }
+    
+    // 단어 단위 매칭 시도
+    const productWords = productName.toLowerCase().split(/\s+|[-_.,]/);
+    let bestMatch = null;
+    let maxMatchCount = 0;
+    
+    partsList.forEach(part => {
+      const partWords = part.name.toLowerCase().split(/\s+|[-_.,]/);
+      let matchCount = 0;
+      
+      for (const word of productWords) {
+        if (word.length < 2) continue; // 너무 짧은 단어는 제외
+        
+        for (const partWord of partWords) {
+          if (partWord.includes(word) || word.includes(partWord)) {
+            matchCount++;
+            break;
+          }
+        }
+      }
+      
+      // 매칭 점수가 더 높은 상품 선택
+      if (matchCount > maxMatchCount) {
+        maxMatchCount = matchCount;
+        bestMatch = part;
+      }
+    });
+    
+    // 일정 수준 이상 매칭되면 반환
+    if (maxMatchCount >= 1) {
+      return bestMatch;
+    }
+    
+    return null;
+  };
+  
   const handleFileUpload = (event) => {
     try {
       const file = event.target.files[0];
@@ -1569,6 +1676,19 @@ function ProductShipment() {
             });
             return;
           }
+          
+          // 전체 파츠 데이터 로드 (유사 제품명 매칭에 사용)
+          const { data: partsData, error: partsError } = await supabase
+            .from('parts')
+            .select('*')
+            .eq('brand', selectedBrand);
+          
+          if (partsError) {
+            console.warn('파츠 데이터 로드 중 오류:', partsError);
+          }
+          
+          const allParts = partsError ? [] : partsData || [];
+          console.log(`${allParts.length}개의 파츠 데이터를 로드했습니다.`);
 
           // 데이터 유효성 검사
           const invalidRows = [];
@@ -1600,9 +1720,29 @@ function ProductShipment() {
               const jsDate = new Date((excelDateValue - 25569) * 86400 * 1000);
               shipmentDate = jsDate.toISOString().split('T')[0];
             }
+            
+            // 출고일자가 있는 경우 상태를 '출고완료'로 설정
+            const hasCustomShipmentDate = row['출고일'] !== undefined && row['출고일'] !== null;
+            const status = hasCustomShipmentDate ? '출고완료' : '준비중';
 
             // 주요 식별 정보 (고객명, 연락처, 주문일, 출고일)를 키로 사용
             const groupKey = `${row['고객명']}_${row['연락처']}_${orderDate}_${shipmentDate}`;
+            
+            // 제품 정보 처리 (유사 상품명 매칭)
+            const productName = row['제품명'];
+            let productCode = '';
+            let productPrice = parseFloat(row['가격'] || '0');
+            
+            // 파츠 데이터에서 유사한 상품명 찾기
+            const similarProduct = findSimilarProductName(productName, allParts);
+            if (similarProduct) {
+              console.log(`상품명 "${productName}"에 유사한 상품을 찾았습니다: "${similarProduct.name}" (${similarProduct.code})`);
+              productCode = similarProduct.code || '';
+              // 가격이 0이거나 없는 경우에만 상품 가격 사용
+              if (!productPrice) {
+                productPrice = similarProduct.price || 0;
+              }
+            }
 
             return {
               groupKey,
@@ -1612,14 +1752,15 @@ function ProductShipment() {
                 customer_name: row['고객명'],
                 customer_phone: row['연락처'],
                 customer_address: row['주소'] || '',
-                product_name: row['제품명'],
+                product_name: productName,
+                product_code: productCode, // 매칭된 제품 코드 설정
                 quantity: parseInt(row['수량']) || 1,
-                price: parseFloat(row['가격'] || '0'),
+                price: productPrice,
                 sales_channel: row['판매처'] || '공홈',
                 delivery_method: row['배송방법'] || '택배',
                 shipment_date: shipmentDate,
                 note: row['메모'] ? `[판매처: ${row['판매처'] || '공홈'}] ${row['메모']}` : `[판매처: ${row['판매처'] || '공홈'}]`,
-                status: '준비중',
+                status: status, // 출고일자 기반으로 상태 설정
                 created_at: new Date().toISOString()
               }
             };
@@ -1642,6 +1783,7 @@ function ProductShipment() {
                 ...item.data,
                 products: [{ 
                   name: item.data.product_name, 
+                  code: item.data.product_code, // 코드 정보 추가
                   quantity: item.data.quantity,
                   price: item.data.price
                 }]
@@ -1650,6 +1792,7 @@ function ProductShipment() {
               // 이미 존재하는 그룹에 제품 추가
               groupedData[item.groupKey].products.push({
                 name: item.data.product_name,
+                code: item.data.product_code, // 코드 정보 추가
                 quantity: item.data.quantity,
                 price: item.data.price
               });
@@ -1713,6 +1856,14 @@ function ProductShipment() {
           const customerSummary = Object.entries(customerGroups)
             .map(([name, count]) => `${name}(${count}건)`)
             .join(', ');
+            
+          // 코드 매칭 결과 정보
+          const matchedProductCount = processedData.filter(item => item.data.product_code).length;
+          const totalProductCount = processedData.length;
+          const matchedProductRate = totalProductCount > 0 
+            ? Math.round((matchedProductCount / totalProductCount) * 100) 
+            : 0;
+          const matchingInfo = `제품코드 매칭: ${matchedProductCount}/${totalProductCount}개 (${matchedProductRate}%)`;
 
           // 제품 상세 정보를 shipment_parts 테이블에 저장
           try {
@@ -1731,7 +1882,7 @@ function ProductShipment() {
                   shipmentPartsData.push({
                     shipment_id: shipment.id,
                     part_name: product.name,
-                    part_code: '',  // 필요시 채워넣기
+                    part_code: product.code || '',  // 유사 제품 매칭으로 찾은 코드 사용
                     quantity: product.quantity,
                     price: product.price,
                     total_price: product.price * product.quantity,
@@ -1760,7 +1911,7 @@ function ProductShipment() {
           
             setSnackbar({
               open: true,
-              message: `${validData.length}건의 출고 정보가 성공적으로 등록되었습니다.${partsSuccessMessage}\n[고객: ${customerSummary}]`,
+              message: `${validData.length}건의 출고 정보가 성공적으로 등록되었습니다.${partsSuccessMessage}\n[고객: ${customerSummary}]\n${matchingInfo}`,
               severity: 'success'
             });
             
@@ -1775,7 +1926,7 @@ function ProductShipment() {
             // 부품 정보 저장 실패는 전체 프로세스를 중단시키지 않음
             setSnackbar({
               open: true,
-              message: `${validData.length}건의 출고 정보가 등록되었으나, 부품 상세정보 저장 중 오류가 발생했습니다.\n[고객: ${customerSummary}]`,
+              message: `${validData.length}건의 출고 정보가 등록되었으나, 부품 상세정보 저장 중 오류가 발생했습니다.\n[고객: ${customerSummary}]\n${matchingInfo}`,
               severity: 'success'
             });
             
@@ -1907,6 +2058,128 @@ function ProductShipment() {
       row.status === '출고완료' ? `4px solid ${alpha('#4caf50', 0.7)}` : // 녹색
       '4px solid transparent',
   });
+
+  // 정렬 처리 함수 추가
+  const handleSortChange = (columnId) => {
+    // 이미 같은 컬럼으로 정렬중이면 방향만 전환
+    if (sortConfig.key === columnId) {
+      setSortConfig({
+        ...sortConfig,
+        direction: sortConfig.direction === 'asc' ? 'desc' : 'asc'
+      });
+    } else {
+      // 새로운 컬럼으로 정렬 시 기본 내림차순
+      setSortConfig({
+        key: columnId,
+        direction: 'desc'
+      });
+    }
+  };
+  
+  // localStorage에서 정렬 설정 불러오기
+  useEffect(() => {
+    const savedSortConfig = localStorage.getItem('shipment_sortConfig');
+    if (savedSortConfig) {
+      try {
+        setSortConfig(JSON.parse(savedSortConfig));
+      } catch (e) {
+        console.error('정렬 설정 로드 중 오류:', e);
+      }
+    }
+  }, []);
+  
+  // 정렬 설정 저장
+  useEffect(() => {
+    localStorage.setItem('shipment_sortConfig', JSON.stringify(sortConfig));
+  }, [sortConfig]);
+
+  // 헤더 아이템 렌더링 함수 (정렬 표시 추가)
+  const renderSortableHeader = (column) => {
+    if (!column.sortable) {
+      return column.label;
+    }
+    
+    return (
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          cursor: 'pointer',
+          userSelect: 'none'
+        }}
+        onClick={() => handleSortChange(column.id)}
+      >
+        {column.label}
+        <Box
+          component="span"
+          sx={{ 
+            opacity: sortConfig.key === column.id ? 1 : 0.3,
+            ml: 0.5,
+            transition: 'transform 0.2s',
+            transform: sortConfig.key === column.id && sortConfig.direction === 'asc' 
+              ? 'rotate(180deg)'
+              : 'none'
+          }}
+        >
+          ▼
+        </Box>
+      </Box>
+    );
+  };
+  
+  // 빠른 날짜 필터 함수 추가
+  const handleQuickDateFilter = (period) => {
+    const today = new Date();
+    let start = new Date();
+    let end = new Date();
+    
+    switch(period) {
+      case 'today':
+        // 오늘
+        start.setHours(0,0,0,0);
+        end.setHours(23,59,59,999);
+        break;
+      case 'yesterday':
+        // 어제
+        start.setDate(today.getDate() - 1);
+        start.setHours(0,0,0,0);
+        end.setDate(today.getDate() - 1);
+        end.setHours(23,59,59,999);
+        break;
+      case 'thisWeek':
+        // 이번 주 (월요일부터 일요일까지)
+        const day = today.getDay(); // 0: 일요일, 1: 월요일, ...
+        const diff = today.getDate() - day + (day === 0 ? -6 : 1); // 이번 주 월요일 구하기
+        start = new Date(today.setDate(diff));
+        start.setHours(0,0,0,0);
+        end = new Date();
+        end.setHours(23,59,59,999);
+        break;
+      case 'thisMonth':
+        // 이번 달
+        start = new Date(today.getFullYear(), today.getMonth(), 1);
+        end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        end.setHours(23,59,59,999);
+        break;
+      case 'lastMonth':
+        // 지난 달
+        start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        end = new Date(today.getFullYear(), today.getMonth(), 0);
+        end.setHours(23,59,59,999);
+        break;
+      default:
+        return;
+    }
+    
+    const newDateFilter = {
+      ...dateFilter,
+      startDate: format(start, 'yyyy-MM-dd'),
+      endDate: format(end, 'yyyy-MM-dd')
+    };
+    
+    setDateFilter(newDateFilter);
+    setJSONCookie('shipment_dateFilter', newDateFilter);
+  };
 
   if (loading) {
     return (
@@ -2045,6 +2318,14 @@ function ProductShipment() {
             <MenuItem value="completion_date">출고일자</MenuItem>
           </TextField>
 
+          <ButtonGroup size="small" variant="outlined" sx={{ mr: 1 }}>
+            <Button onClick={() => handleQuickDateFilter('today')}>오늘</Button>
+            <Button onClick={() => handleQuickDateFilter('yesterday')}>어제</Button>
+            <Button onClick={() => handleQuickDateFilter('thisWeek')}>이번주</Button>
+            <Button onClick={() => handleQuickDateFilter('thisMonth')}>이번달</Button>
+            <Button onClick={() => handleQuickDateFilter('lastMonth')}>지난달</Button>
+          </ButtonGroup>
+
           <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <DatePicker
@@ -2135,7 +2416,10 @@ function ProductShipment() {
       </Box>
 
       <ResponsiveTable
-        columns={columns}
+        columns={columns.map(column => ({
+          ...column,
+          label: column.sortable ? renderSortableHeader(column) : column.label
+        }))}
         data={filteredShipments}
         renderMobileCard={renderMobileCard}
         onRowClick={(id) => handleEdit(id)}
@@ -2199,9 +2483,18 @@ function ProductShipment() {
                           <Divider sx={{ my: 1 }} />
                         </Grid>
                         
+                        <Grid item xs={12}>
+                          <Typography variant="body2">
+                            {shipment.product_name} ({shipment.quantity}개)
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {shipment.product_code}
+                          </Typography>
+                        </Grid>
+                        
                         <Grid item xs={6}>
                           <Typography variant="body2" color="text.secondary">
-                            송장번호:
+                            배송방법:
                           </Typography>
                           <Typography variant="body2">
                             {shipment.tracking_number || '-'}
