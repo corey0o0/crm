@@ -49,6 +49,7 @@ import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import PrintIcon from '@mui/icons-material/Print';
 import { API_CONFIG } from '../../config/api';
 import XLSX from 'xlsx';
 import { Close as CloseIcon } from '@mui/icons-material';
@@ -917,6 +918,151 @@ function AddService() {
     setCustomerSearchResults([]);
   };
 
+  // 프린트 출력 함수 추가
+  const handlePrint = () => {
+    const printContent = `
+      <html>
+        <head>
+          <title>A/S 작업지시서</title>
+          <style>
+            body { font-family: Arial, sans-serif; }
+            .header { text-align: center; margin-bottom: 20px; }
+            .section { margin-bottom: 15px; }
+            .label { font-weight: bold; }
+            table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f5f5f5; }
+            .row { display: flex; }
+            .col { flex: 1; padding: 0 10px; }
+            
+            /* 절취선 스타일 */
+            .cut-section {
+              margin-top: 50px;
+              border-top: 1px dashed #999;
+              padding-top: 10px;
+              display: flex;
+              width: 100%;
+            }
+            .cut-box {
+              flex: 1;
+              height: 150px;
+              border-right: 1px dashed #999;
+              text-align: center;
+              display: flex;
+              flex-direction: column;
+              justify-content: center;
+              padding: 10px;
+            }
+            .cut-box:last-child {
+              border-right: none;
+            }
+            .customer-name {
+              font-size: 24px;
+              font-weight: bold;
+              margin-bottom: 10px;
+            }
+            .customer-phone {
+              font-size: 18px;
+            }
+            
+            @media print {
+              body { padding: 20px; }
+              button { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h2>A/S 작업지시서</h2>
+            <p>접수일자: ${formData.reception_date || '-'}</p>
+          </div>
+          
+          <div class="row">
+            <div class="col">
+              <div class="section">
+                <div class="label">고객 정보</div>
+                <p>고객명: ${formData.customer_name || '-'}</p>
+                <p>연락처: ${formData.customer_phone || '-'}</p>
+                <p>주소: ${formData.customer_address || '-'}</p>
+              </div>
+            </div>
+            
+            <div class="col">
+              <div class="section">
+                <div class="label">제품 정보</div>
+                <p>브랜드: ${formData.brand || '-'}</p>
+                <p>제품명: ${formData.product_name || '-'}</p>
+                <p>주행거리: ${formData.mileage || '-'}</p>
+                <p>구입처: ${formData.seller || '-'}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div class="section">
+            <div class="label">A/S 내역</div>
+            <p>문의내용: ${formData.symptom || '-'}</p>
+            <p>처리내역: ${formData.solution || '-'}</p>
+          </div>
+          
+          <div class="section">
+            <div class="label">사용 부품</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>부품명</th>
+                  <th>코드</th>
+                  <th>수량</th>
+                  <th>단가</th>
+                  <th>용도</th>
+                  <th>합계</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${selectedParts.map(part => `
+                  <tr>
+                    <td>${part.name}</td>
+                    <td>${part.code || '-'}</td>
+                    <td>${part.quantity}</td>
+                    <td>${part.price?.toLocaleString()}원</td>
+                    <td>${part.usage || 'A/S'}</td>
+                    <td>${(part.price * part.quantity)?.toLocaleString()}원</td>
+                  </tr>
+                `).join('')}
+                <tr>
+                  <td colspan="5" style="text-align: right;"><strong>합계</strong></td>
+                  <td><strong>${selectedParts.reduce((sum, part) => sum + (part.price * part.quantity || 0), 0).toLocaleString()}원</strong></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          
+          <!-- 절취선 섹션 추가 -->
+          <div class="cut-section">
+            <div class="cut-box">
+              <div class="customer-name">${formData.customer_name || '-'}</div>
+              <div class="customer-phone">${formData.customer_phone || '-'}</div>
+            </div>
+            <div class="cut-box">
+              <div class="customer-name">${formData.customer_name || '-'}</div>
+              <div class="customer-phone">${formData.customer_phone || '-'}</div>
+            </div>
+            <div class="cut-box">
+              <div class="customer-name">${formData.customer_name || '-'}</div>
+              <div class="customer-phone">${formData.customer_phone || '-'}</div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
+  };
+
   return (
     <Box sx={{ mt: 3, mx: 'auto', width: '95%', maxWidth: 1400 }}>
       <Box sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
@@ -1585,6 +1731,21 @@ function AddService() {
                 }}
               >
                 취소
+              </Button>
+              <Button 
+                onClick={handlePrint}
+                startIcon={<PrintIcon />}
+                sx={{
+                  color: '#3182f6',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  textTransform: 'none',
+                  '&:hover': {
+                    bgcolor: 'rgba(49, 130, 246, 0.04)'
+                  }
+                }}
+              >
+                프린트
               </Button>
               <Button 
                 type="submit"

@@ -62,6 +62,7 @@ function PartsManagement() {
     severity: 'success'
   });
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [uploadStatus, setUploadStatus] = useState({
     open: false,
     step: 0,
@@ -458,6 +459,29 @@ function PartsManagement() {
     });
   };
 
+  // 검색 실행 함수
+  const executeSearch = () => {
+    setSearchTerm(searchInput);
+  };
+
+  // 검색 입력 변경 핸들러
+  const handleSearchInputChange = (e) => {
+    setSearchInput(e.target.value);
+  };
+
+  // 엔터키 처리 함수
+  const handleKeyPress = (event) => {
+    if (event.key === 'Enter') {
+      executeSearch();
+    }
+  };
+
+  // 검색어 초기화 함수
+  const handleClearSearch = () => {
+    setSearchInput('');
+    setSearchTerm('');
+  };
+
   const filteredParts = parts.filter(part => {
     const matchesBrand = part.brand === selectedBrand;
     const matchesSearch = 
@@ -547,28 +571,47 @@ function PartsManagement() {
         </Tabs>
       </Box>
 
-      <TextField
-        fullWidth
-        size="small"
-        placeholder="파츠명, 상품코드, 바코드, 구분 검색"
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        sx={{ mb: 2 }}
-        InputProps={{
-          startAdornment: (
-            <InputAdornment position="start">
-              <SearchIcon />
-            </InputAdornment>
-          ),
-          endAdornment: searchTerm && (
-            <InputAdornment position="end">
-              <IconButton size="small" onClick={() => setSearchTerm('')}>
-                <CloseIcon />
-              </IconButton>
-            </InputAdornment>
-          )
-        }}
-      />
+      <Box sx={{ mb: 2, display: 'flex', gap: 2, alignItems: 'center' }}>
+        <TextField
+          size="small"
+          placeholder="파츠명, 상품코드, 바코드, 구분 검색"
+          value={searchInput}
+          onChange={handleSearchInputChange}
+          onKeyPress={handleKeyPress}
+          sx={{ width: '70%' }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon />
+              </InputAdornment>
+            ),
+            endAdornment: searchInput && (
+              <InputAdornment position="end">
+                <IconButton size="small" onClick={handleClearSearch}>
+                  <CloseIcon />
+                </IconButton>
+              </InputAdornment>
+            )
+          }}
+        />
+        <Button
+          variant="contained"
+          onClick={executeSearch}
+          startIcon={<SearchIcon />}
+          sx={{ 
+            height: '40px',
+            bgcolor: '#3182f6',
+            '&:hover': { bgcolor: '#1b64da' }
+          }}
+        >
+          검색
+        </Button>
+        {searchTerm && (
+          <Typography variant="body2" color="textSecondary">
+            검색 결과: {filteredParts.length}건
+          </Typography>
+        )}
+      </Box>
 
       <TableContainer component={Paper}>
         <Table size="small">

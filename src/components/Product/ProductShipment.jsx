@@ -1896,15 +1896,47 @@ function ProductShipment() {
         </Box>
       </Box>
 
-      <Box sx={{ mb: 2, display: 'flex', gap: 2 }}>
+      <Box sx={{ mb: 2, display: 'flex', gap: 2, alignItems: 'center' }}>
         <TextField
           variant="outlined"
           placeholder="제품명, 연락처로 검색"
           value={inputValue}
           onChange={handleSearchInput}
           onKeyPress={handleKeyPress}
-          sx={{ mb: 2, width: '50%' }}
+          sx={{ mb: 2, width: '70%' }}
+          InputProps={{
+            endAdornment: (
+              <InputAdornment position="end">
+                <SearchIcon color="action" />
+              </InputAdornment>
+            ),
+          }}
         />
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button
+            variant="contained"
+            onClick={executeSearch}
+            startIcon={<SearchIcon />}
+            sx={{ 
+              height: '40px',
+              bgcolor: '#3182f6',
+              '&:hover': { bgcolor: '#1b64da' }
+            }}
+          >
+            검색
+          </Button>
+          <Button
+            variant="outlined"
+            onClick={() => {
+              setInputValue('');
+              setSearchTerm('');
+            }}
+            startIcon={<ClearIcon />}
+            sx={{ height: '40px' }}
+          >
+            초기화
+          </Button>
+        </Box>
         {searchTerm && (
           <Typography variant="body2" color="textSecondary" sx={{ alignSelf: 'center' }}>
             검색 결과: {filteredShipments.length}건
