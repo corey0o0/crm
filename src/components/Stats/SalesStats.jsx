@@ -57,11 +57,15 @@ function SalesStats() {
   });
   const brandOptions = ['전체', 'XRB', 'NB'];
   const currentMonth = getMonth(new Date());
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
 
   // 월별 버튼 클릭 핸들러
   const handleMonthSelect = (monthIndex) => {
     const now = new Date();
     const selectedMonthDate = setMonth(now, monthIndex);
+    
+    // 선택된 월 상태 업데이트
+    setSelectedMonth(monthIndex);
     
     // 해당 월의 시작일과 종료일 설정
     const newStartDate = startOfMonth(selectedMonthDate);
@@ -654,7 +658,6 @@ function SalesStats() {
         <Paper sx={{ p: 3, mb: 3 }}>
           {/* 월별 버튼 그룹 추가 */}
           <Box sx={{ mb: 2 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>월별 바로가기</Typography>
             <ButtonGroup size="small" variant="outlined" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
               {[...Array(12)].map((_, idx) => (
                 <Button 
@@ -662,10 +665,11 @@ function SalesStats() {
                   onClick={() => handleMonthSelect(idx)}
                   sx={{
                     minWidth: '40px',
-                    backgroundColor: currentMonth === idx ? 'primary.light' : 'inherit',
-                    color: currentMonth === idx ? 'white' : 'inherit',
+                    backgroundColor: selectedMonth === idx ? 'primary.main' : 'inherit',
+                    color: selectedMonth === idx ? 'white' : 'inherit',
+                    fontWeight: selectedMonth === idx ? 'bold' : 'normal',
                     '&:hover': {
-                      backgroundColor: currentMonth === idx ? 'primary.main' : ''
+                      backgroundColor: selectedMonth === idx ? 'primary.dark' : ''
                     }
                   }}
                 >

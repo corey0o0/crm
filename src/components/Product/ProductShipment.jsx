@@ -1543,6 +1543,13 @@ function ProductShipment() {
       const file = event.target.files[0];
       if (!file) return;
 
+      // 로딩 표시 스낵바 추가
+      setSnackbar({
+        open: true,
+        message: '엑셀 파일을 처리 중입니다...',
+        severity: 'info'
+      });
+
       const reader = new FileReader();
       reader.onload = async (e) => {
         try {
@@ -1553,6 +1560,15 @@ function ProductShipment() {
           const excelData = XLSX.utils.sheet_to_json(worksheet);
 
           console.log('엑셀 데이터 파싱 결과:', excelData);
+
+          if (!excelData || excelData.length === 0) {
+            setSnackbar({
+              open: true,
+              message: '처리할 데이터가 없습니다. 파일 형식과 내용을 확인해주세요.',
+              severity: 'warning'
+            });
+            return;
+          }
 
           // 데이터 유효성 검사
           const invalidRows = [];
@@ -1661,21 +1677,48 @@ function ProductShipment() {
 
           console.log('그룹화된 데이터:', validData);
 
+          // 데이터 일괄 등록 - products 필드 제거
+          const dataToInsert = validData.map(item => {
+            // shipments 테이블에 존재하는 필드만 포함
+            const { products, ...shipmentData } = item;
+            return shipmentData;
+          });
+
+          console.log('저장할 데이터:', dataToInsert);
+
           // 데이터 일괄 등록
-          const { data: insertedData, error } = await supabase
+          const { data: insertedShipments, error: insertError } = await supabase
             .from('shipments')
-            .insert(validData)
+            .insert(dataToInsert)
             .select();
 
-          if (error) throw error;
+          if (insertError) {
+            console.error('출고 정보 등록 오류:', insertError);
+            throw new Error(`출고 정보 등록 중 오류가 발생했습니다: ${insertError.message || insertError.details || '알 수 없는 오류'}`);
+          }
 
-          console.log('등록된 데이터:', insertedData);
+          console.log('등록된 데이터:', insertedShipments);
+
+          // 고객별 그룹화 정보 수집
+          const customerGroups = {};
+          insertedShipments.forEach(shipment => {
+            if (!customerGroups[shipment.customer_name]) {
+              customerGroups[shipment.customer_name] = 1;
+            } else {
+              customerGroups[shipment.customer_name]++;
+            }
+          });
+
+          // 고객 정보 메시지 생성
+          const customerSummary = Object.entries(customerGroups)
+            .map(([name, count]) => `${name}(${count}건)`)
+            .join(', ');
 
           // 제품 상세 정보를 shipment_parts 테이블에 저장
           try {
             const shipmentPartsData = [];
             
-            insertedData.forEach(shipment => {
+            insertedShipments.forEach(shipment => {
               // 해당 출고에 대한 그룹데이터 찾기
               const groupData = validData.find(g => 
                 g.customer_name === shipment.customer_name && 
@@ -1698,6 +1741,8 @@ function ProductShipment() {
               }
             });
             
+            let partsSuccessMessage = '';
+            
             if (shipmentPartsData.length > 0) {
               // shipment_parts 테이블에 데이터 삽입
               const { error: partsError } = await supabase
@@ -1707,28 +1752,54 @@ function ProductShipment() {
               if (partsError) {
                 console.warn('부품 상세 정보 저장 중 오류:', partsError);
                 // 오류가 있어도 진행 (테이블이 없을 수 있음)
+                partsSuccessMessage = ' (부품 상세 정보는 저장하지 못했습니다.)';
+              } else {
+                partsSuccessMessage = ' (부품 상세 정보도 저장되었습니다.)';
               }
             }
+          
+            setSnackbar({
+              open: true,
+              message: `${validData.length}건의 출고 정보가 성공적으로 등록되었습니다.${partsSuccessMessage}\n[고객: ${customerSummary}]`,
+              severity: 'success'
+            });
+            
+            // 다이얼로그 닫기
+            setOpenDialog(false);
+            
+            // 목록 새로고침
+            fetchShipments();
+            
           } catch (partsError) {
             console.warn('부품 정보 처리 중 오류:', partsError);
             // 부품 정보 저장 실패는 전체 프로세스를 중단시키지 않음
+            setSnackbar({
+              open: true,
+              message: `${validData.length}건의 출고 정보가 등록되었으나, 부품 상세정보 저장 중 오류가 발생했습니다.\n[고객: ${customerSummary}]`,
+              severity: 'success'
+            });
+            
+            // 목록 새로고침
+            fetchShipments();
           }
-          
-          setSnackbar({
-            open: true,
-            message: `${validData.length}건의 출고 정보가 등록되었습니다.`,
-            severity: 'success'
-          });
 
-          // 다이얼로그 닫기
-          setOpenDialog(false);
-          
-          // 목록 새로고침
-          fetchShipments();
         } catch (err) {
           console.error('엑셀 데이터 처리 중 오류:', err);
-          throw err;
+          setSnackbar({
+            open: true,
+            message: `엑셀 데이터 처리 중 오류가 발생했습니다: ${err.message || '알 수 없는 오류'}`,
+            severity: 'error'
+          });
         }
+      };
+
+      reader.onerror = (err) => {
+        console.error('파일 읽기 오류:', err);
+        setSnackbar({
+          open: true,
+          message: '파일을 읽는 중 오류가 발생했습니다.',
+          severity: 'error'
+        });
       };
 
       reader.readAsArrayBuffer(file);
@@ -1736,7 +1807,7 @@ function ProductShipment() {
       console.error('파일 업로드 중 오류:', err);
       setSnackbar({
         open: true,
-        message: '파일 업로드 중 오류가 발생했습니다.',
+        message: `파일 업로드 중 오류가 발생했습니다: ${err.message || '알 수 없는 오류'}`,
         severity: 'error'
       });
     }
@@ -2550,7 +2621,7 @@ function ProductShipment() {
       {/* 스낵바 */}
       <Snackbar
         open={snackbar.open}
-        autoHideDuration={2000}
+        autoHideDuration={4000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
         sx={{
@@ -2566,10 +2637,18 @@ function ProductShipment() {
           severity={snackbar.severity}
           sx={{ 
             minWidth: '300px',
-            bgcolor: snackbar.severity === 'success' ? '#3182f6' : '#f04452',
+            maxWidth: '500px',
+            bgcolor: snackbar.severity === 'success' ? '#3182f6' : 
+                     snackbar.severity === 'error' ? '#f04452' :
+                     snackbar.severity === 'warning' ? '#ff9800' : 
+                     snackbar.severity === 'info' ? '#0288d1' : '#3182f6',
             color: 'white',
             '& .MuiAlert-icon': {
               color: 'white'
+            },
+            '& .MuiAlert-message': {
+              whiteSpace: 'pre-line',
+              wordBreak: 'break-word'
             }
           }}
         >
