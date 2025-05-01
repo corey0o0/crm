@@ -935,34 +935,27 @@ function AddService() {
             .row { display: flex; }
             .col { flex: 1; padding: 0 10px; }
             
-            /* 절취선 스타일 */
+            /* 절취선 스타일 수정 - 가로로 변경, 여백 제거 */
             .cut-section {
               margin-top: 50px;
               border-top: 1px dashed #999;
-              padding-top: 10px;
-              display: flex;
               width: 100%;
             }
             .cut-box {
-              flex: 1;
-              height: 150px;
-              border-right: 1px dashed #999;
+              width: 100%;
+              height: 60px;
               text-align: center;
               display: flex;
-              flex-direction: column;
+              flex-direction: row;
               justify-content: center;
-              padding: 10px;
+              align-items: center;
+              border-bottom: 1px dashed #999;
+              padding: 0;
             }
-            .cut-box:last-child {
-              border-right: none;
-            }
-            .customer-name {
+            .customer-info {
               font-size: 24px;
               font-weight: bold;
-              margin-bottom: 10px;
-            }
-            .customer-phone {
-              font-size: 18px;
+              white-space: nowrap;
             }
             
             @media print {
@@ -1004,51 +997,16 @@ function AddService() {
             <p>처리내역: ${formData.solution || '-'}</p>
           </div>
           
-          <div class="section">
-            <div class="label">사용 부품</div>
-            <table>
-              <thead>
-                <tr>
-                  <th>부품명</th>
-                  <th>코드</th>
-                  <th>수량</th>
-                  <th>단가</th>
-                  <th>용도</th>
-                  <th>합계</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${selectedParts.map(part => `
-                  <tr>
-                    <td>${part.name}</td>
-                    <td>${part.code || '-'}</td>
-                    <td>${part.quantity}</td>
-                    <td>${part.price?.toLocaleString()}원</td>
-                    <td>${part.usage || 'A/S'}</td>
-                    <td>${(part.price * part.quantity)?.toLocaleString()}원</td>
-                  </tr>
-                `).join('')}
-                <tr>
-                  <td colspan="5" style="text-align: right;"><strong>합계</strong></td>
-                  <td><strong>${selectedParts.reduce((sum, part) => sum + (part.price * part.quantity || 0), 0).toLocaleString()}원</strong></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          
-          <!-- 절취선 섹션 추가 -->
+          <!-- 절취선 섹션 수정 - 가로로 변경, 이름과 연락처 한 줄에 -->
           <div class="cut-section">
             <div class="cut-box">
-              <div class="customer-name">${formData.customer_name || '-'}</div>
-              <div class="customer-phone">${formData.customer_phone || '-'}</div>
+              <div class="customer-info">${formData.customer_name || '-'} ${formData.customer_phone || '-'}</div>
             </div>
             <div class="cut-box">
-              <div class="customer-name">${formData.customer_name || '-'}</div>
-              <div class="customer-phone">${formData.customer_phone || '-'}</div>
+              <div class="customer-info">${formData.customer_name || '-'} ${formData.customer_phone || '-'}</div>
             </div>
             <div class="cut-box">
-              <div class="customer-name">${formData.customer_name || '-'}</div>
-              <div class="customer-phone">${formData.customer_phone || '-'}</div>
+              <div class="customer-info">${formData.customer_name || '-'} ${formData.customer_phone || '-'}</div>
             </div>
           </div>
         </body>
