@@ -1491,6 +1491,7 @@ function ProductShipment() {
           '수량': '1',
           '판매처': '공홈',
           '배송방법': '택배',
+          '주문일': '2024-03-19',
           '출고일': '2024-03-20',
           '메모': '배송 전 연락 요망'
         }
@@ -1508,6 +1509,7 @@ function ProductShipment() {
         { wch: 8 },   // 수량
         { wch: 10 },  // 판매처
         { wch: 10 },  // 배송방법
+        { wch: 12 },  // 주문일
         { wch: 12 },  // 출고일
         { wch: 30 },  // 메모
       ];
@@ -1554,25 +1556,56 @@ function ProductShipment() {
 
           // 데이터 유효성 검사
           const invalidRows = [];
-          const validData = excelData.map((row, index) => {
+          const processedData = excelData.map((row, index) => {
             if (!row['고객명'] || !row['연락처'] || !row['제품명']) {
               invalidRows.push(index + 2);
               return null;
             }
 
+            // 현재 날짜
+            const currentDate = new Date().toISOString().split('T')[0];
+            
+            // 주문일 처리 - '주문일' 필드가 있으면 해당 값 사용, 없으면 현재 날짜
+            let orderDate = row['주문일'] || currentDate;
+            
+            // Excel에서 날짜가 숫자로 들어올 경우 변환
+            if (typeof orderDate === 'number') {
+              const excelDateValue = row['주문일'];
+              const jsDate = new Date((excelDateValue - 25569) * 86400 * 1000);
+              orderDate = jsDate.toISOString().split('T')[0];
+            }
+
+            // 출고일 처리
+            let shipmentDate = row['출고일'] || currentDate;
+            
+            // Excel에서 날짜가 숫자로 들어올 경우 변환
+            if (typeof shipmentDate === 'number') {
+              const excelDateValue = row['출고일'];
+              const jsDate = new Date((excelDateValue - 25569) * 86400 * 1000);
+              shipmentDate = jsDate.toISOString().split('T')[0];
+            }
+
+            // 주요 식별 정보 (고객명, 연락처, 주문일, 출고일)를 키로 사용
+            const groupKey = `${row['고객명']}_${row['연락처']}_${orderDate}_${shipmentDate}`;
+
             return {
-              brand: selectedBrand,
-              customer_name: row['고객명'],
-              customer_phone: row['연락처'],
-              customer_address: row['주소'] || '',
-              product_name: row['제품명'],
-              quantity: parseInt(row['수량']) || 1,
-              sales_channel: row['판매처'] || '공홈',
-              delivery_method: row['배송방법'] || '택배',
-              shipment_date: row['출고일'] || new Date().toISOString().split('T')[0],
-              note: row['메모'] || '',
-              status: '준비중',
-              created_at: new Date().toISOString()
+              groupKey,
+              data: {
+                brand: selectedBrand,
+                order_date: orderDate,
+                customer_name: row['고객명'],
+                customer_phone: row['연락처'],
+                customer_address: row['주소'] || '',
+                product_name: row['제품명'],
+                quantity: parseInt(row['수량']) || 1,
+                price: parseFloat(row['가격'] || '0'),
+                sales_channel: row['판매처'] || '공홈',
+                delivery_method: row['배송방법'] || '택배',
+                shipment_date: shipmentDate,
+                note: row['메모'] ? `[판매처: ${row['판매처'] || '공홈'}] ${row['메모']}` : `[판매처: ${row['판매처'] || '공홈'}]`,
+                status: '준비중',
+                created_at: new Date().toISOString()
+              }
             };
           }).filter(item => item !== null);
 
@@ -1585,6 +1618,49 @@ function ProductShipment() {
             return;
           }
 
+          // 같은 날짜/고객 정보를 가진 항목 그룹화
+          const groupedData = {};
+          processedData.forEach(item => {
+            if (!groupedData[item.groupKey]) {
+              groupedData[item.groupKey] = {
+                ...item.data,
+                products: [{ 
+                  name: item.data.product_name, 
+                  quantity: item.data.quantity,
+                  price: item.data.price
+                }]
+              };
+            } else {
+              // 이미 존재하는 그룹에 제품 추가
+              groupedData[item.groupKey].products.push({
+                name: item.data.product_name,
+                quantity: item.data.quantity,
+                price: item.data.price
+              });
+              
+              // 수량 및 가격 갱신
+              groupedData[item.groupKey].quantity += item.data.quantity;
+              
+              // 제품명 결합 (쉼표로 구분)
+              groupedData[item.groupKey].product_name += `, ${item.data.product_name}`;
+            }
+          });
+
+          // 그룹화된 데이터를 배열로 변환
+          const validData = Object.values(groupedData);
+          
+          // 그룹화된 데이터에 대한 합계 가격 계산
+          validData.forEach(item => {
+            if (item.products) {
+              // 각 제품의 가격 * 수량의 합계 계산
+              item.price = item.products.reduce((total, product) => {
+                return total + (product.price * product.quantity);
+              }, 0);
+            }
+          });
+
+          console.log('그룹화된 데이터:', validData);
+
           // 데이터 일괄 등록
           const { data: insertedData, error } = await supabase
             .from('shipments')
@@ -1594,6 +1670,49 @@ function ProductShipment() {
           if (error) throw error;
 
           console.log('등록된 데이터:', insertedData);
+
+          // 제품 상세 정보를 shipment_parts 테이블에 저장
+          try {
+            const shipmentPartsData = [];
+            
+            insertedData.forEach(shipment => {
+              // 해당 출고에 대한 그룹데이터 찾기
+              const groupData = validData.find(g => 
+                g.customer_name === shipment.customer_name && 
+                g.customer_phone === shipment.customer_phone && 
+                g.order_date === shipment.order_date
+              );
+              
+              if (groupData && groupData.products) {
+                groupData.products.forEach(product => {
+                  shipmentPartsData.push({
+                    shipment_id: shipment.id,
+                    part_name: product.name,
+                    part_code: '',  // 필요시 채워넣기
+                    quantity: product.quantity,
+                    price: product.price,
+                    total_price: product.price * product.quantity,
+                    created_at: new Date().toISOString()
+                  });
+                });
+              }
+            });
+            
+            if (shipmentPartsData.length > 0) {
+              // shipment_parts 테이블에 데이터 삽입
+              const { error: partsError } = await supabase
+                .from('shipment_parts')
+                .insert(shipmentPartsData);
+                
+              if (partsError) {
+                console.warn('부품 상세 정보 저장 중 오류:', partsError);
+                // 오류가 있어도 진행 (테이블이 없을 수 있음)
+              }
+            }
+          } catch (partsError) {
+            console.warn('부품 정보 처리 중 오류:', partsError);
+            // 부품 정보 저장 실패는 전체 프로세스를 중단시키지 않음
+          }
           
           setSnackbar({
             open: true,
