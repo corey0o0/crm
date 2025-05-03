@@ -1217,7 +1217,6 @@ function ProductShipment() {
       localStorage.removeItem('selectedCustomer');
     }
     
-    // 빈 배열로 selectedParts 초기화 (제품은 별도로 추가할 예정)
     setSelectedParts([]);
     setSelectedShipment({
       brand: selectedBrand,
@@ -1306,8 +1305,7 @@ function ProductShipment() {
         수량: partsQuantity,
         단가: selectedPart.price,
         총액: selectedPart.price * partsQuantity,
-        카테고리: selectedPartCategory, // 사용자 선택 카테고리
-        note: selectedPart.note // 비고 정보
+        카테고리: selectedPartCategory // 사용자 선택 카테고리
       });
       
       // 파츠 테이블에서 선택된 부품의 최신 정보 확인
@@ -1325,16 +1323,12 @@ function ProductShipment() {
               console.log('파츠 테이블에서 조회한 최신 정보:', data);
               
               // 최신 정보를 사용하여 부품 추가
-              // 카테고리 결정 로직
-              let estimatedCategory = '기타'; // 기본값을 기타로 설정
+              let estimatedCategory = '기타'; // 기본값을 기타로 변경
               
-              // 1. 사용자가 명시적으로 선택한 카테고리가 있으면 최우선 적용
-              if (selectedPartCategory && selectedPartCategory !== '기타') {
-                estimatedCategory = selectedPartCategory;
-              }
-              // 2. 그 다음으로 note 필드 확인
-              else if (data.note) {
+              // 1. 먼저 note 필드로 카테고리 추정 (최우선)
+              if (data.note) {
                 const note = data.note.toLowerCase();
+                
                 if (note.includes('파츠') || note.includes('part') || note.includes('부품')) {
                   estimatedCategory = '파츠';
                 } else if (note.includes('공임') || note.includes('작업') || note.includes('서비스')) {
@@ -1345,9 +1339,12 @@ function ProductShipment() {
                   estimatedCategory = '기체';
                 }
               }
-              // 3. 코드 기반 카테고리 결정
-              else if (data.code) {
+              
+              // 2. 부품 코드로 카테고리 추정 (비고에 정보가 없는 경우)
+              // 비고 필드에서 카테고리가 결정되지 않은 경우 (여전히 기본값인 경우)에만 실행
+              if (estimatedCategory === '기타' && data.code) {
                 const code = data.code.toUpperCase();
+                
                 // X-RIDER 코드 분류
                 if (code.startsWith('XRBM-')) {
                   estimatedCategory = '기체';
@@ -1372,78 +1369,60 @@ function ProductShipment() {
                 } else if (code.includes('BIKE')) {
                   estimatedCategory = '기체';
                 }
+                // 그 외는 기타로 유지
               }
               
-              // 최종 카테고리 확인 로그
-              console.log(`결정된 카테고리: ${estimatedCategory} (코드: ${data.code}, 비고: ${data.note || '없음'})`);
+              // 3. 부품명으로 카테고리 추정 (코드로도 결정되지 않은 경우)
+              if (estimatedCategory === '기타' && data.name) {
+                const partName = data.name.toLowerCase();
+                
+                // 명확한 기체 키워드
+                const bikeKeywords = ['자전거', '바이크', 'bike', '기체', 'x200', 'x300', 'x400', 'x500'];
+                // 명확한 파츠 키워드
+                const partsKeywords = ['배터리', '컨트롤러', '브레이크', '타이어', '휠', '바퀴', '시트', '안장', '핸들', '모터', 
+                                      '거치대', '스탠드', '페달', '클립', '벨', '체인'];
+                // 명확한 공임 키워드
+                const serviceKeywords = ['공임', '조립', '수리', '점검', '교체', '설치', '작업', '서비스', '수정', '점검', '정비'];
+                
+                if (bikeKeywords.some(keyword => partName.includes(keyword))) {
+                  estimatedCategory = '기체';
+                } else if (partsKeywords.some(keyword => partName.includes(keyword))) {
+                  estimatedCategory = '파츠';
+                } else if (serviceKeywords.some(keyword => partName.includes(keyword))) {
+                  estimatedCategory = '공임';
+                }
+              }
+              
+              // 4. 부품 가격으로 추정 (최후의 방법)
+              if (estimatedCategory === '기타' && data.price) {
+                if (data.price > 500000) {
+                  // 50만원 초과면 기체일 가능성이 높음
+                  estimatedCategory = '기체';
+                } else if (data.price < 100000) {
+                  // 10만원 미만이면 파츠일 가능성이 높음
+                  estimatedCategory = '파츠';
+                }
+              }
+              
+              // 5. 기존 part_category 필드 확인 (데이터베이스에 이미 저장된 값)
+              if (selectedPart.part_category && selectedPart.part_category.trim() !== '') {
+                // 기존에 지정된 카테고리가 있으면 사용 (기존 데이터 존중)
+                estimatedCategory = selectedPart.part_category;
+              }
               
               addPartWithPrice(data.price, data.note, estimatedCategory);
             } else {
-              console.log('최신 가격 정보를 찾을 수 없음, 현재 가격과 사용자 선택 카테고리 사용');
-              // 사용자 선택 카테고리 우선 사용
-              const finalCategory = selectedPartCategory || determineCategory(selectedPart.code, selectedPart.name);
-              addPartWithPrice(selectedPart.price, selectedPart.note, finalCategory);
+              console.log('최신 가격 정보를 찾을 수 없음, 현재 가격 사용');
+              addPartWithPrice(selectedPart.price, selectedPart.note, selectedPartCategory || '기타');
             }
           } catch (e) {
             console.error('가격 정보 조회 중 오류:', e);
-            // 사용자 선택 카테고리 우선 사용
-            const finalCategory = selectedPartCategory || determineCategory(selectedPart.code, selectedPart.name);
-            addPartWithPrice(selectedPart.price, selectedPart.note, finalCategory);
+            addPartWithPrice(selectedPart.price, selectedPart.note, selectedPartCategory || '기타');
           }
         } else {
-          // 코드가 없는 경우 현재 가격과 사용자 선택 카테고리 사용
-          // 사용자 선택 카테고리 우선 사용
-          const finalCategory = selectedPartCategory || determineCategory('', selectedPart.name);
-          addPartWithPrice(selectedPart.price, selectedPart.note, finalCategory);
+          // 코드가 없는 경우 현재 가격 사용
+          addPartWithPrice(selectedPart.price, selectedPart.note, selectedPartCategory || '기타');
         }
-      };
-      
-      // 코드와 이름으로 카테고리 결정하는 헬퍼 함수
-      const determineCategory = (code, name) => {
-        let category = '기타'; // 기본값
-        
-        // 1. 코드로 카테고리 결정
-        if (code) {
-          const upperCode = code.toUpperCase();
-          // X-RIDER 코드 분류
-          if (upperCode.startsWith('XRBM-')) {
-            return '기체';
-          } else if (upperCode.startsWith('XRBP-')) {
-            return '파츠';
-          } else if (upperCode.startsWith('XRBS-')) {
-            return '공임';
-          } 
-          // NEARBIKE 코드 분류
-          else if (upperCode.startsWith('NBM-')) {
-            return '기체';
-          } else if (upperCode.startsWith('NBP-')) {
-            return '파츠';
-          } else if (upperCode.startsWith('NBS-')) {
-            return '공임';
-          }
-        }
-        
-        // 2. 이름으로 카테고리 결정 시도
-        if (name) {
-          const lowerName = name.toLowerCase();
-          // 명확한 기체 키워드
-          const bikeKeywords = ['자전거', '바이크', 'bike', '기체', 'x200', 'x300', 'x400', 'x500'];
-          // 명확한 파츠 키워드
-          const partsKeywords = ['배터리', '컨트롤러', '브레이크', '타이어', '휠', '바퀴', '시트', '안장', '핸들', '모터', 
-                            '거치대', '스탠드', '페달', '클립', '벨', '체인'];
-          // 명확한 공임 키워드
-          const serviceKeywords = ['공임', '조립', '수리', '점검', '교체', '설치', '작업', '서비스', '수정', '점검', '정비'];
-          
-          if (bikeKeywords.some(keyword => lowerName.includes(keyword))) {
-            return '기체';
-          } else if (partsKeywords.some(keyword => lowerName.includes(keyword))) {
-            return '파츠';
-          } else if (serviceKeywords.some(keyword => lowerName.includes(keyword))) {
-            return '공임';
-          }
-        }
-        
-        return category;
       };
       
       // 지정된 가격으로 부품 추가
@@ -1459,7 +1438,7 @@ function ProductShipment() {
           note: note || selectedPart.note || '',
           quantity: partsQuantity,
           totalPrice: price * partsQuantity,
-          category: category // 결정된 카테고리 
+          category: category // 추정 카테고리 또는 사용자 선택 카테고리
         };
 
         console.log('추가할 부품 정보:', newPart);

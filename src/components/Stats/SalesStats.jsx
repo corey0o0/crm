@@ -210,10 +210,10 @@ function SalesStats() {
           shipmentPartsData.forEach(part => {
             if (part.shipments) {
               const date = format(parseISO(part.shipments.shipment_date), 'yyyy-MM-dd');
-              if (!shipmentPartsByDate[date]) {
-                shipmentPartsByDate[date] = [];
-              }
-              
+          if (!shipmentPartsByDate[date]) {
+            shipmentPartsByDate[date] = [];
+          }
+
               // price 필드는 이미 단가로 저장되어 있으므로 그대로 사용
               // total은 단가와 수량을 곱하여 계산
               const partPrice = Number(part.price) || 0;

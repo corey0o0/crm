@@ -25,6 +25,11 @@ import ServiceStats from './components/Stats/ServiceStats';
 import SalesStats from './components/Stats/SalesStats';
 import StockList from './components/Stock/StockList';
 
+// 새로운 출고 관리 페이지 import
+import ShipmentList from './pages/shipment/ShipmentList';
+import ShipmentDetail from './pages/shipment/ShipmentDetail';
+import ShipmentForm from './pages/shipment/ShipmentForm';
+
 function App() {
   const [session, setSession] = useState(null);
   const [storageInitialized, setStorageInitialized] = useState(false);
@@ -71,9 +76,18 @@ function App() {
             <Route path="add-service" element={<AddService />} />
             <Route path="service-statistics" element={<ServiceStatistics />} />
             <Route path="parts" element={<PartsManagement />} />
+            
+            {/* 기존 출고 관리 페이지 */}
             <Route path="shipments" element={<ProductShipment />} />
             <Route path="shipments/:id" element={<ProductShipment />} />
             <Route path="shipments/new" element={<ProductShipment />} />
+            
+            {/* 새로운 출고 관리 페이지 라우팅 */}
+            <Route path="shipment" element={<ShipmentList />} />
+            <Route path="shipment/new" element={<ShipmentForm />} />
+            <Route path="shipment/edit/:id" element={<ShipmentForm />} />
+            <Route path="shipment/:id" element={<ShipmentDetail />} />
+            
             <Route path="receipts" element={<ReceiptScanner />} />
             <Route path="google-drive-test" element={<GoogleDriveTest />} />
             <Route path="service" element={<ServiceList />} />
