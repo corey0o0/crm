@@ -1281,13 +1281,17 @@ function ProductShipment() {
     }
   };
 
-  const handleOpenPartsDialog = () => {
+  const handleOpenPartsDialog = async () => {
+    if (parts.length === 0) {
+      const { data, error } = await supabase.from('parts').select('*').eq('brand', selectedBrand);
+      if (!error) setParts(data);
+    }
     setOpenPartsDialog(true);
+    setPartInputValue('');
+    setPartSearchTerm('');
     setSelectedPart(null);
     setPartsQuantity(1);
-    setPartSearchTerm('');
-    setPartInputValue('');
-    setSelectedPartCategory('기체'); // 기본값 설정
+    setSelectedPartCategory('기체');
   };
 
   const handleClosePartsDialog = () => {
@@ -3126,7 +3130,7 @@ function ProductShipment() {
               InputProps={{
                 endAdornment: (
                   <InputAdornment position="end">
-                    <IconButton onClick={executePartSearch}>
+                    <IconButton onClick={() => setPartSearchTerm(partInputValue)}>
                       <SearchIcon />
                     </IconButton>
                   </InputAdornment>

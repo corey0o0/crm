@@ -1255,7 +1255,15 @@ function ShipmentList() {
                     <TableCell>
                       {(() => {
                         const match = shipment.note?.match(/\[판매처: (.*?)\]/);
-                        return match && match[1] ? match[1] : '공홈';
+                        const salesChannel = match && match[1] ? match[1] : '공홈';
+                        return (
+                          <Chip
+                            label={salesChannel}
+                            size="small"
+                            color="primary"
+                            variant="outlined"
+                          />
+                        );
                       })()}
                     </TableCell>
                     <TableCell>

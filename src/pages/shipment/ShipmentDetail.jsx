@@ -31,7 +31,8 @@ import {
   Edit as EditIcon,
   Print as PrintIcon,
   Save as SaveIcon,
-  Delete as DeleteIcon 
+  Delete as DeleteIcon,
+  Search as SearchIcon
 } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -56,7 +57,12 @@ function ShipmentDetail() {
     severity: 'info'
   });
 
-  // 1. 상태 추가 (제품 검색 입력값과 실제 검색어 분리)
+  // 1. 부품 추가 다이얼로그 상태 및 부품 목록 상태 추가
+  const [openPartsDialog, setOpenPartsDialog] = useState(false);
+  const [availableParts, setAvailableParts] = useState([]);
+  const [selectedPart, setSelectedPart] = useState(null);
+  const [partQuantity, setPartQuantity] = useState(1);
+  const [modifiedPrice, setModifiedPrice] = useState('');
   const [partInputValue, setPartInputValue] = useState('');
   const [partSearchTerm, setPartSearchTerm] = useState('');
 
@@ -564,10 +570,50 @@ function ShipmentDetail() {
     return shipmentData.sales_channel || '공홈';
   };
 
-  // 2. 제품 검색 입력 핸들러 및 엔터키 핸들러 추가
+  // 2. 부품 다이얼로그 열 때 한 번만 전체 부품 불러오기
+  const handleOpenPartsDialog = async () => {
+    if (availableParts.length === 0) {
+      const { data, error } = await supabase.from('parts').select('*');
+      if (!error) setAvailableParts(data);
+    }
+    setOpenPartsDialog(true);
+    setPartInputValue('');
+    setPartSearchTerm('');
+    setSelectedPart(null);
+    setPartQuantity(1);
+    setModifiedPrice('');
+  };
+
+  // 3. 부품 검색어 입력 및 엔터 시 검색
   const handlePartInputChange = (e) => setPartInputValue(e.target.value);
   const handlePartKeyPress = (e) => {
     if (e.key === 'Enter') setPartSearchTerm(partInputValue);
+  };
+  const filteredParts = availableParts.filter(part =>
+    part.name?.toLowerCase().includes(partSearchTerm.toLowerCase()) ||
+    part.code?.toLowerCase().includes(partSearchTerm.toLowerCase())
+  );
+
+  // 4. 부품 선택 및 추가
+  const handlePartSelect = (part) => setSelectedPart(part);
+  const handleAddPart = () => {
+    if (selectedPart && partQuantity > 0) {
+      const newPart = {
+        id: selectedPart.id,
+        part_name: selectedPart.name,
+        part_code: selectedPart.code,
+        part_category: selectedPart.category || '기체',
+        quantity: partQuantity,
+        price: modifiedPrice || selectedPart.price || 0,
+        total_price: (modifiedPrice || selectedPart.price || 0) * partQuantity,
+        created_at: new Date().toISOString()
+      };
+      setEditableParts(prev => [...prev, newPart]);
+      setOpenPartsDialog(false);
+      setSelectedPart(null);
+      setPartQuantity(1);
+      setModifiedPrice('');
+    }
   };
 
   if (loading) {
@@ -851,6 +897,14 @@ function ShipmentDetail() {
                     </Button>
                   </Box>
                 )}
+                <Button
+                  variant="contained"
+                  size="small"
+                  sx={{ mb: 2, bgcolor: '#3182f6', '&:hover': { bgcolor: '#1b64da' } }}
+                  onClick={handleOpenPartsDialog}
+                >
+                  부품 추가
+                </Button>
               </Box>
             ) : shipmentParts.length > 0 ? (
               <>
@@ -978,6 +1032,80 @@ function ShipmentDetail() {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      {/* 부품 추가 다이얼로그 */}
+      <Dialog open={openPartsDialog} onClose={() => setOpenPartsDialog(false)}>
+        <DialogTitle>부품 추가</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            placeholder="부품명, 코드로 검색"
+            value={partInputValue}
+            onChange={handlePartInputChange}
+            onKeyPress={handlePartKeyPress}
+            sx={{ mb: 2, mt: 1 }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+            }}
+          />
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>부품명</TableCell>
+                  <TableCell>코드</TableCell>
+                  <TableCell align="right">단가</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {filteredParts.map((part) => (
+                  <TableRow
+                    key={part.id}
+                    selected={selectedPart?.id === part.id}
+                    onClick={() => handlePartSelect(part)}
+                    sx={{ cursor: 'pointer' }}
+                  >
+                    <TableCell>{part.name}</TableCell>
+                    <TableCell>{part.code}</TableCell>
+                    <TableCell align="right">{part.price?.toLocaleString()}원</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          {selectedPart && (
+            <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
+              <TextField
+                type="number"
+                label="수량"
+                value={partQuantity}
+                onChange={(e) => setPartQuantity(Number(e.target.value))}
+                sx={{ flex: 1 }}
+                InputProps={{ inputProps: { min: 1 } }}
+              />
+              <TextField
+                type="number"
+                label="가격"
+                value={modifiedPrice || selectedPart.price}
+                onChange={(e) => setModifiedPrice(e.target.value)}
+                sx={{ flex: 1 }}
+                InputProps={{
+                  inputProps: { min: 0 },
+                  startAdornment: <InputAdornment position="start">₩</InputAdornment>
+                }}
+              />
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenPartsDialog(false)}>취소</Button>
+          <Button onClick={handleAddPart} disabled={!selectedPart}>추가</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
