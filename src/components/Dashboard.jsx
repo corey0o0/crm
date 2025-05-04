@@ -19,7 +19,8 @@ import {
   Tabs,
   Tab,
   TextField,
-  Container
+  Container,
+  IconButton
 } from '@mui/material';
 import {
   Build as BuildIcon,
@@ -27,7 +28,8 @@ import {
   Timeline as TimelineIcon,
   Speed as SpeedIcon,
   Refresh as RefreshIcon,
-  LocalShipping as LocalShippingIcon
+  LocalShipping as LocalShippingIcon,
+  Close as CloseIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
@@ -43,10 +45,11 @@ function Dashboard() {
   const [selectedStatusBrand, setSelectedStatusBrand] = useState('ALL');
   const [selectedShipmentBrand, setSelectedShipmentBrand] = useState('ALL');
   const [selectedRecentBrand, setSelectedRecentBrand] = useState('ALL');
-  const [memo1, setMemo1] = useState('');
-  const [memo2, setMemo2] = useState('');
-  const [lastSaved1, setLastSaved1] = useState(null);
-  const [lastSaved2, setLastSaved2] = useState(null);
+  const [memoList, setMemoList] = useState([
+    { content: '', lastSaved: null },
+    { content: '', lastSaved: null }
+  ]);
+  const [selectedMemoTab, setSelectedMemoTab] = useState(0);
   const [stats, setStats] = useState({
     totalCustomers: 0,
     totalServices: 0,
@@ -134,8 +137,6 @@ function Dashboard() {
             .insert([
               {
                 user_id: userId,
-                memo1: '',
-                memo2: '',
                 updated_at: new Date().toISOString()
               }
             ]);
@@ -157,15 +158,15 @@ function Dashboard() {
             return;
           }
 
-          setMemo1(newMemo.memo1 || '');
-          setMemo2(newMemo.memo2 || '');
-          setLastSaved1(newMemo.updated_at);
-          setLastSaved2(newMemo.updated_at);
+          setMemoList(prev => [
+            { content: newMemo.memo1 || '', lastSaved: newMemo.updated_at },
+            { content: newMemo.memo2 || '', lastSaved: newMemo.updated_at }
+          ]);
         } else {
-          setMemo1(existingMemo.memo1 || '');
-          setMemo2(existingMemo.memo2 || '');
-          setLastSaved1(existingMemo.updated_at);
-          setLastSaved2(existingMemo.updated_at);
+          setMemoList(prev => [
+            { content: existingMemo.memo1 || '', lastSaved: existingMemo.updated_at },
+            { content: existingMemo.memo2 || '', lastSaved: existingMemo.updated_at }
+          ]);
         }
       } catch (err) {
         console.error('메모 불러오기 오류:', err);
@@ -187,10 +188,7 @@ function Dashboard() {
         },
         payload => {
           if (payload.new) {
-            setMemo1(payload.new.memo1 || '');
-            setMemo2(payload.new.memo2 || '');
-            setLastSaved1(payload.new.updated_at);
-            setLastSaved2(payload.new.updated_at);
+            setMemoList(prev => prev.map((m, i) => i === 0 ? { ...m, content: payload.new.memo1 || '', lastSaved: payload.new.updated_at } : i === 1 ? { ...m, content: payload.new.memo2 || '', lastSaved: payload.new.updated_at } : m));
           }
         }
       )
@@ -202,53 +200,53 @@ function Dashboard() {
   }, [user]);
 
   // 메모 저장
-  const saveMemos = async () => {
+  const handleSaveMemo = async (idx) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const userId = user?.id || session?.user?.id;
-
-      if (!userId) {
-        console.error('사용자 인증이 필요합니다.');
-        return;
-      }
-
+      if (!userId) return;
       const now = new Date().toISOString();
+      // memo1~memo5로 upsert
+      const upsertData = {
+        user_id: userId,
+        updated_at: now,
+        memo1: memoList[0]?.content || '',
+        memo2: memoList[1]?.content || '',
+        memo3: memoList[2]?.content || '',
+        memo4: memoList[3]?.content || '',
+        memo5: memoList[4]?.content || ''
+      };
       const { error } = await supabase
         .from('user_memos')
-        .upsert({
-          user_id: userId,
-          memo1: memo1 || '',
-          memo2: memo2 || '',
-          updated_at: now
-        }, {
-          onConflict: 'user_id'
-        });
-
-      if (error) {
-        console.error('메모 저장 중 오류:', error);
-        throw error;
-      }
-
-      setLastSaved1(now);
-      setLastSaved2(now);
-      console.log('메모가 성공적으로 저장되었습니다.');
+        .upsert(upsertData, { onConflict: 'user_id' });
+      if (error) throw error;
+      setMemoList(prev => prev.map((m, i) => i === idx ? { ...m, lastSaved: now } : m));
     } catch (err) {
-      console.error('메모 저장 중 오류:', err);
       setError(err.message);
     }
   };
-  
-  // 메모1 내용 변경
-  const handleMemo1Change = (e) => {
-    const newContent = e.target.value;
-    setMemo1(newContent);
+
+  // 메모 내용 변경
+  const handleMemoContentChange = (idx, value) => {
+    setMemoList(prev => prev.map((m, i) => i === idx ? { ...m, content: value } : m));
   };
 
-  // 메모2 내용 변경
-  const handleMemo2Change = (e) => {
-    const newContent = e.target.value;
-    setMemo2(newContent);
+  // 새 메모 추가
+  const handleAddMemo = () => {
+    if (memoList.length >= 5) return; // 최대 5개 제한
+    setMemoList(prev => [...prev, { content: '', lastSaved: null }]);
+    setSelectedMemoTab(memoList.length);
   };
+
+  // 메모 삭제
+  const handleDeleteMemo = (idx) => {
+    if (memoList.length <= 2) return; // 최소 2개 보장
+    setMemoList(prev => prev.filter((_, i) => i !== idx));
+    setSelectedMemoTab(0);
+  };
+
+  // 메모 탭 변경
+  const handleMemoTabChange = (event, newValue) => setSelectedMemoTab(newValue);
 
   // 상태별 색상 정의
   const statusColors = {
@@ -587,17 +585,6 @@ function Dashboard() {
     fetchRecentShipments();
   }, [selectedBrand]);
 
-  // 자동 저장을 위한 useEffect
-  useEffect(() => {
-    const autoSaveTimer = setTimeout(() => {
-      if (user && (memo1 || memo2)) {
-        saveMemos();
-      }
-    }, 30000); // 30초마다 자동 저장
-
-    return () => clearTimeout(autoSaveTimer);
-  }, [memo1, memo2, user]);
-
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '70vh' }}>
@@ -655,195 +642,147 @@ function Dashboard() {
       <Grid container spacing={3} sx={{ mb: 3 }}>
         {/* 메모 1 */}
         <Grid item xs={12} md={6}>
-          <Paper 
-            elevation={0}
-            sx={{ 
-              p: 2, 
-              bgcolor: '#f8f9fa',
-              border: '1px solid #e9ecef',
-              minHeight: '200px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 2
-            }}
-          >
-            <Box sx={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: 'center'
-            }}>
-              <Typography 
-                variant="subtitle2" 
-                sx={{ 
-                  color: '#4e5968',
-                  fontSize: '0.875rem',
-                  fontWeight: 600 
-                }}
-              >
+          <Paper elevation={0} sx={{ p: 2, bgcolor: '#f8f9fa', border: '1px solid #e9ecef', minHeight: '200px' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="subtitle2" sx={{ color: '#4e5968', fontSize: '0.875rem', fontWeight: 600 }}>
                 메모 1
               </Typography>
-              {lastSaved1 && (
-                <Typography 
-                  variant="caption" 
-                  sx={{ 
-                    color: '#868e96',
-                    fontSize: '0.75rem'
-                  }}
-                >
-                  마지막 저장: {dayjs(lastSaved1).locale('ko').format('YYYY.MM.DD HH:mm')}
+              {memoList[0]?.lastSaved && (
+                <Typography variant="caption" sx={{ color: '#868e96', fontSize: '0.75rem' }}>
+                  마지막 저장: {dayjs(memoList[0].lastSaved).locale('ko').format('YYYY.MM.DD HH:mm')}
                 </Typography>
               )}
             </Box>
-            <Box sx={{ 
-              flex: 1, 
-              display: 'flex', 
-              flexDirection: 'column',
-              minHeight: 0
-            }}>
-              <TextField
-                multiline
-                fullWidth
-                value={memo1}
-                onChange={handleMemo1Change}
-                placeholder="메모를 입력하세요..."
-                variant="outlined"
-                sx={{
+            <TextField
+              multiline
+              fullWidth
+              value={memoList[0]?.content || ''}
+              onChange={e => handleMemoContentChange(0, e.target.value)}
+              placeholder="메모를 입력하세요..."
+              variant="outlined"
+              sx={{
+                flex: 1,
+                bgcolor: '#fff',
+                fontSize: '0.875rem',
+                mt: 2,
+                '& textarea': {
                   flex: 1,
-                  display: 'flex',
-                  '& .MuiInputBase-root': {
-                    flex: 1,
-                    display: 'flex',
-                    bgcolor: '#fff',
-                    fontSize: '0.875rem',
-                    '& textarea': {
-                      flex: 1,
-                      resize: 'vertical',
-                      minHeight: '100px',
-                      maxHeight: '500px'
-                    }
-                  },
-                  '& .MuiOutlinedInput-root': {
-                    '& fieldset': {
-                      borderColor: '#e9ecef'
-                    },
-                    '&:hover fieldset': {
-                      borderColor: '#dee2e6'
-                    },
-                    '&.Mui-focused fieldset': {
-                      borderColor: '#3182f6'
-                    }
-                  }
-                }}
-              />
-            </Box>
+                  resize: 'vertical',
+                  minHeight: '100px',
+                  maxHeight: '500px'
+                }
+              }}
+            />
             <Button
               variant="contained"
-              onClick={saveMemos}
-              sx={{
-                bgcolor: '#3182f6',
-                '&:hover': { bgcolor: '#1b64da' }
-              }}
+              onClick={() => handleSaveMemo(0)}
+              sx={{ bgcolor: '#3182f6', '&:hover': { bgcolor: '#1b64da' }, alignSelf: 'flex-end', mt: 2 }}
             >
               저장
             </Button>
           </Paper>
         </Grid>
-
         {/* 메모 2 */}
         <Grid item xs={12} md={6}>
-          <Paper 
-            elevation={0}
-            sx={{ 
-              p: 2, 
-              bgcolor: '#f8f9fa',
-              border: '1px solid #e9ecef',
-              minHeight: '200px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 2
-            }}
-          >
-            <Box sx={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: 'center'
-            }}>
-              <Typography 
-                variant="subtitle2" 
-                sx={{ 
-                  color: '#4e5968',
-                  fontSize: '0.875rem',
-                  fontWeight: 600 
-                }}
-              >
+          <Paper elevation={0} sx={{ p: 2, bgcolor: '#f8f9fa', border: '1px solid #e9ecef', minHeight: '200px' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="subtitle2" sx={{ color: '#4e5968', fontSize: '0.875rem', fontWeight: 600 }}>
                 메모 2
               </Typography>
-              {lastSaved2 && (
-                <Typography 
-                  variant="caption" 
-                  sx={{ 
-                    color: '#868e96',
-                    fontSize: '0.75rem'
-                  }}
-                >
-                  마지막 저장: {dayjs(lastSaved2).locale('ko').format('YYYY.MM.DD HH:mm')}
+              {memoList[1]?.lastSaved && (
+                <Typography variant="caption" sx={{ color: '#868e96', fontSize: '0.75rem' }}>
+                  마지막 저장: {dayjs(memoList[1].lastSaved).locale('ko').format('YYYY.MM.DD HH:mm')}
                 </Typography>
               )}
             </Box>
-            <Box sx={{ 
-              flex: 1, 
-              display: 'flex', 
-              flexDirection: 'column',
-              minHeight: 0
-            }}>
-              <TextField
-                multiline
-                fullWidth
-                value={memo2}
-                onChange={handleMemo2Change}
-                placeholder="메모를 입력하세요..."
-                variant="outlined"
-                sx={{
+            <TextField
+              multiline
+              fullWidth
+              value={memoList[1]?.content || ''}
+              onChange={e => handleMemoContentChange(1, e.target.value)}
+              placeholder="메모를 입력하세요..."
+              variant="outlined"
+              sx={{
+                flex: 1,
+                bgcolor: '#fff',
+                fontSize: '0.875rem',
+                mt: 2,
+                '& textarea': {
                   flex: 1,
-                  display: 'flex',
-                  '& .MuiInputBase-root': {
-                    flex: 1,
-                    display: 'flex',
-                    bgcolor: '#fff',
-                    fontSize: '0.875rem',
-                    '& textarea': {
-                      flex: 1,
-                      resize: 'vertical',
-                      minHeight: '100px',
-                      maxHeight: '500px'
-                    }
-                  },
-                  '& .MuiOutlinedInput-root': {
-                    '& fieldset': {
-                      borderColor: '#e9ecef'
-                    },
-                    '&:hover fieldset': {
-                      borderColor: '#dee2e6'
-                    },
-                    '&.Mui-focused fieldset': {
-                      borderColor: '#3182f6'
-                    }
-                  }
-                }}
-              />
-            </Box>
+                  resize: 'vertical',
+                  minHeight: '100px',
+                  maxHeight: '500px'
+                }
+              }}
+            />
             <Button
               variant="contained"
-              onClick={saveMemos}
-              sx={{
-                bgcolor: '#3182f6',
-                '&:hover': { bgcolor: '#1b64da' }
-              }}
+              onClick={() => handleSaveMemo(1)}
+              sx={{ bgcolor: '#3182f6', '&:hover': { bgcolor: '#1b64da' }, alignSelf: 'flex-end', mt: 2 }}
             >
               저장
             </Button>
           </Paper>
         </Grid>
+        {/* 3번 이상 메모는 탭으로 */}
+        {memoList.length > 2 && (
+          <Grid item xs={12}>
+            <Paper elevation={0} sx={{ p: 2, bgcolor: '#f8f9fa', border: '1px solid #e9ecef', minHeight: '200px' }}>
+              <Tabs value={selectedMemoTab} onChange={handleMemoTabChange} variant="scrollable" scrollButtons="auto">
+                {memoList.slice(2).map((_, idx) => (
+                  <Tab label={`메모 ${idx + 3}`} key={idx} />
+                ))}
+                <Tab label="+ 새 메모" onClick={handleAddMemo} disabled={memoList.length >= 5} />
+              </Tabs>
+              {memoList.slice(2).map((memo, idx) => (
+                selectedMemoTab === idx && (
+                  <Box key={idx} sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="subtitle2" sx={{ color: '#4e5968', fontSize: '0.875rem', fontWeight: 600 }}>
+                        메모 {idx + 3}
+                      </Typography>
+                      {memo.lastSaved && (
+                        <Typography variant="caption" sx={{ color: '#868e96', fontSize: '0.75rem' }}>
+                          마지막 저장: {dayjs(memo.lastSaved).locale('ko').format('YYYY.MM.DD HH:mm')}
+                        </Typography>
+                      )}
+                      <IconButton size="small" onClick={() => handleDeleteMemo(idx + 2)}>
+                        <CloseIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
+                    <TextField
+                      multiline
+                      fullWidth
+                      value={memo.content}
+                      onChange={e => handleMemoContentChange(idx + 2, e.target.value)}
+                      placeholder="메모를 입력하세요..."
+                      variant="outlined"
+                      sx={{
+                        flex: 1,
+                        bgcolor: '#fff',
+                        fontSize: '0.875rem',
+                        mt: 2,
+                        '& textarea': {
+                          flex: 1,
+                          resize: 'vertical',
+                          minHeight: '100px',
+                          maxHeight: '500px'
+                        }
+                      }}
+                    />
+                    <Button
+                      variant="contained"
+                      onClick={() => handleSaveMemo(idx + 2)}
+                      sx={{ bgcolor: '#3182f6', '&:hover': { bgcolor: '#1b64da' }, alignSelf: 'flex-end', mt: 2 }}
+                    >
+                      저장
+                    </Button>
+                  </Box>
+                )
+              ))}
+            </Paper>
+          </Grid>
+        )}
       </Grid>
 
       {/* 캘린더 섹션 */}

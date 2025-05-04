@@ -731,6 +731,18 @@ function SalesStats() {
                 조회
               </Button>
             </Grid>
+            {/* 매출 재계산 버튼 추가 */}
+            <Grid item xs={12} md={3}>
+              <Button
+                variant="outlined"
+                color="secondary"
+                onClick={fetchSalesData}
+                sx={{ height: '40px', borderColor: '#3182f6', color: '#3182f6' }}
+                fullWidth
+              >
+                매출 재계산
+              </Button>
+            </Grid>
           </Grid>
         </Paper>
 

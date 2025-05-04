@@ -1679,6 +1679,56 @@ function ServiceList() {
     });
   };
 
+  // 1. 필터 상태 저장/불러오기 함수 추가
+  const FILTER_KEY = 'serviceListFilters';
+
+  const saveFilterState = () => {
+    const filterState = {
+      selectedBrand,
+      statusFilter,
+      dateFilter,
+      inputValue,
+      searchTerm,
+    };
+    localStorage.setItem(FILTER_KEY, JSON.stringify(filterState));
+    setSnackbar({
+      open: true,
+      message: '필터가 저장되었습니다.',
+      severity: 'success'
+    });
+  };
+
+  const loadFilterState = () => {
+    const saved = localStorage.getItem(FILTER_KEY);
+    if (!saved) {
+      setSnackbar({
+        open: true,
+        message: '저장된 필터가 없습니다.',
+        severity: 'info'
+      });
+      return;
+    }
+    try {
+      const filterState = JSON.parse(saved);
+      setSelectedBrand(filterState.selectedBrand || 'XRB');
+      setStatusFilter(filterState.statusFilter || 'all');
+      setDateFilter(filterState.dateFilter || { type: 'reception_date', startDate: '', endDate: '' });
+      setInputValue(filterState.inputValue || '');
+      setSearchTerm(filterState.searchTerm || '');
+      setSnackbar({
+        open: true,
+        message: '필터가 불러와졌습니다.',
+        severity: 'success'
+      });
+    } catch {
+      setSnackbar({
+        open: true,
+        message: '필터 불러오기 실패',
+        severity: 'error'
+      });
+    }
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -1844,6 +1894,13 @@ function ServiceList() {
             startIcon={<RestartAltIcon fontSize="small" />}
           >
             초기화
+          </Button>
+          {/* 필터 저장/불러오기 버튼을 초기화 오른쪽으로 이동 */}
+          <Button variant="outlined" onClick={saveFilterState} sx={{ ml: 1, height: 40 }}>
+            필터 저장
+          </Button>
+          <Button variant="outlined" onClick={loadFilterState} sx={{ ml: 1, height: 40 }}>
+            필터 불러오기
           </Button>
         </Box>
         {searchTerm && (
