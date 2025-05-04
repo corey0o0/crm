@@ -13,6 +13,7 @@ function StockList() {
   const [loading, setLoading] = useState(true);
   const [parts, setParts] = useState([]);
   const [brand, setBrand] = useState('전체');
+  const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [stockFilter, setStockFilter] = useState('전체');
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
@@ -286,6 +287,12 @@ function StockList() {
     fetchAllStockLogs();
   };
 
+  // 검색 입력 핸들러
+  const handleSearchInputChange = (e) => setSearchInput(e.target.value);
+  const handleSearchKeyPress = (e) => {
+    if (e.key === 'Enter') setSearch(searchInput);
+  };
+
   return (
     <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
       <Typography variant="h5" sx={{ mb: 3, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -319,10 +326,18 @@ function StockList() {
           </TextField>
           <TextField
             label="제품명/코드 검색"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
+            value={searchInput}
+            onChange={handleSearchInputChange}
+            onKeyPress={handleSearchKeyPress}
             sx={{ width: 300 }}
           />
+          <Button
+            variant="outlined"
+            onClick={() => setSearch(searchInput)}
+            sx={{ height: 40, ml: 1 }}
+          >
+            검색
+          </Button>
           <Button
             variant="outlined"
             startIcon={<HistoryIcon />}
