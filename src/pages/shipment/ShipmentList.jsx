@@ -1212,6 +1212,7 @@ function ShipmentList() {
                 <TableCell width="10%">고객명</TableCell>
                 <TableCell width="12%">연락처</TableCell>
                 <TableCell width="20%">제품정보</TableCell>
+                <TableCell width="10%">판매처</TableCell>
                 <TableCell width="20%">배송정보</TableCell>
                 <TableCell width="8%">상태</TableCell>
                 <TableCell width="10%">관리</TableCell>
@@ -1250,6 +1251,12 @@ function ShipmentList() {
                       <Typography variant="body2" color="text.secondary">
                         {shipment.quantity}개 / {shipment.price?.toLocaleString()}원
                       </Typography>
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const match = shipment.note?.match(/\[판매처: (.*?)\]/);
+                        return match && match[1] ? match[1] : '공홈';
+                      })()}
                     </TableCell>
                     <TableCell>
                       <Typography>{shipment.delivery_method}</Typography>
