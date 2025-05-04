@@ -123,6 +123,60 @@ function ShipmentList() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // 필터 상태 저장/불러오기 키
+  const FILTER_KEY = 'shipmentListFilters';
+
+  // 필터 저장 함수
+  const saveFilterState = () => {
+    const filterState = {
+      selectedBrand,
+      statusFilter,
+      sellerFilter,
+      dateFilter,
+      inputValue,
+      searchTerm,
+    };
+    localStorage.setItem(FILTER_KEY, JSON.stringify(filterState));
+    setSnackbar({
+      open: true,
+      message: '필터가 저장되었습니다.',
+      severity: 'success'
+    });
+  };
+
+  // 필터 불러오기 함수
+  const loadFilterState = () => {
+    const saved = localStorage.getItem(FILTER_KEY);
+    if (!saved) {
+      setSnackbar({
+        open: true,
+        message: '저장된 필터가 없습니다.',
+        severity: 'info'
+      });
+      return;
+    }
+    try {
+      const filterState = JSON.parse(saved);
+      setSelectedBrand(filterState.selectedBrand || 'XRB');
+      setStatusFilter(filterState.statusFilter || 'all');
+      setSellerFilter(filterState.sellerFilter || 'all');
+      setDateFilter(filterState.dateFilter || { type: 'order_date', startDate: '', endDate: '' });
+      setInputValue(filterState.inputValue || '');
+      setSearchTerm(filterState.searchTerm || '');
+      setSnackbar({
+        open: true,
+        message: '필터가 불러와졌습니다.',
+        severity: 'success'
+      });
+    } catch {
+      setSnackbar({
+        open: true,
+        message: '필터 불러오기 실패',
+        severity: 'error'
+      });
+    }
+  };
+
   useEffect(() => {
     setCookie('shipment_selectedBrand', selectedBrand);
   }, [selectedBrand]);
@@ -220,7 +274,7 @@ function ShipmentList() {
       if (dateFilter.startDate || dateFilter.endDate) {
         let targetDate;
         if (dateFilter.type === 'order_date') {
-          targetDate = shipment.created_at;
+          targetDate = shipment.order_date || shipment.created_at;
         } else if (dateFilter.type === 'completion_date') {
           targetDate = shipment.shipment_date;
         }
@@ -1193,6 +1247,12 @@ function ShipmentList() {
           size="small"
         >
           초기화
+        </Button>
+        <Button variant="outlined" onClick={saveFilterState} sx={{ height: 40 }}>
+          필터 저장
+        </Button>
+        <Button variant="outlined" onClick={loadFilterState} sx={{ height: 40 }}>
+          필터 불러오기
         </Button>
       </Box>
       
