@@ -70,7 +70,8 @@ function ShipmentForm() {
 
   const [selectedParts, setSelectedParts] = useState([]);
   const [openPartsDialog, setOpenPartsDialog] = useState(false);
-  const [partsSearchTerm, setPartsSearchTerm] = useState('');
+  const [partInputValue, setPartInputValue] = useState('');
+  const [partSearchTerm, setPartSearchTerm] = useState('');
   const [allParts, setAllParts] = useState([]);
   const [filteredParts, setFilteredParts] = useState([]);
   const [selectedPart, setSelectedPart] = useState(null);
@@ -179,19 +180,19 @@ function ShipmentForm() {
 
   useEffect(() => {
     // 검색어로 부품 필터링
-    if (!partsSearchTerm) {
+    if (!partSearchTerm) {
       setFilteredParts(allParts);
       return;
     }
     
-    const searchLower = partsSearchTerm.toLowerCase();
+    const searchLower = partSearchTerm.toLowerCase();
     const filtered = allParts.filter(part => 
       part.name?.toLowerCase().includes(searchLower) ||
       part.code?.toLowerCase().includes(searchLower)
     );
     
     setFilteredParts(filtered);
-  }, [partsSearchTerm, allParts]);
+  }, [partSearchTerm, allParts]);
 
   // 판매처 정보 추출 함수
   const extractSalesChannel = (note) => {
@@ -232,15 +233,17 @@ function ShipmentForm() {
     setOpenPartsDialog(true);
     setSelectedPart(null);
     setPartQuantity(1);
-    setPartsSearchTerm('');
+    setPartInputValue('');
+    setPartSearchTerm('');
   };
 
   const handleClosePartsDialog = () => {
     setOpenPartsDialog(false);
   };
 
-  const handlePartSearch = (e) => {
-    setPartsSearchTerm(e.target.value);
+  const handlePartInputChange = (e) => setPartInputValue(e.target.value);
+  const handlePartKeyPress = (e) => {
+    if (e.key === 'Enter') setPartSearchTerm(partInputValue);
   };
 
   const handleSelectPart = (part) => {
@@ -1574,7 +1577,7 @@ function ShipmentForm() {
       </Dialog>
       
       {/* 부품 선택 다이얼로그 */}
-      <Dialog open={openPartsDialog} onClose={handleClosePartsDialog} maxWidth="md" fullWidth>
+      <Dialog open={openPartsDialog} onClose={handleClosePartsDialog} maxWidth="md" fullWidth transitionDuration={0}>
         <DialogTitle>제품 추가</DialogTitle>
         <DialogContent>
           <Box sx={{ mt: 2 }}>
@@ -1582,13 +1585,14 @@ function ShipmentForm() {
               fullWidth
               label="제품 검색"
               placeholder="제품명 또는 코드로 검색"
-              value={partsSearchTerm}
-              onChange={handlePartSearch}
+              value={partInputValue}
+              onChange={handlePartInputChange}
+              onKeyPress={handlePartKeyPress}
               sx={{ mb: 2 }}
               InputProps={{
                 endAdornment: (
                   <InputAdornment position="end">
-                    <IconButton>
+                    <IconButton onClick={() => setPartSearchTerm(partInputValue)}>
                       <SearchIcon />
                     </IconButton>
                   </InputAdornment>

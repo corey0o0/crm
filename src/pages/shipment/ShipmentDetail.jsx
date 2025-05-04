@@ -56,6 +56,10 @@ function ShipmentDetail() {
     severity: 'info'
   });
 
+  // 1. 상태 추가 (제품 검색 입력값과 실제 검색어 분리)
+  const [partInputValue, setPartInputValue] = useState('');
+  const [partSearchTerm, setPartSearchTerm] = useState('');
+
   useEffect(() => {
     if (id) {
       fetchShipmentDetail();
@@ -558,6 +562,12 @@ function ShipmentDetail() {
     }
     
     return shipmentData.sales_channel || '공홈';
+  };
+
+  // 2. 제품 검색 입력 핸들러 및 엔터키 핸들러 추가
+  const handlePartInputChange = (e) => setPartInputValue(e.target.value);
+  const handlePartKeyPress = (e) => {
+    if (e.key === 'Enter') setPartSearchTerm(partInputValue);
   };
 
   if (loading) {

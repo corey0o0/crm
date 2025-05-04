@@ -32,7 +32,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  LinearProgress
+  LinearProgress,
+  TablePagination
 } from '@mui/material';
 import { 
   Add as AddIcon, 
@@ -114,6 +115,10 @@ function ShipmentList() {
     failed: 0,
     split: 0
   });
+
+  // 페이징 상태 추가
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(30);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -986,6 +991,15 @@ function ShipmentList() {
     }
   };
 
+  // 페이지 변경 핸들러
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
+  };
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -1204,70 +1218,82 @@ function ShipmentList() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredShipments.map((shipment) => (
-                <TableRow 
-                  key={shipment.id}
-                  hover
-                  onClick={() => handleViewDetails(shipment.id)}
-                  sx={{ cursor: 'pointer' }}
-                >
-                  <TableCell>
-                    {isValid(parseISO(shipment.order_date || shipment.created_at)) 
-                      ? format(parseISO(shipment.order_date || shipment.created_at), 'yyyy-MM-dd')
-                      : '-'}
-                  </TableCell>
-                  <TableCell>
-                    {isValid(parseISO(shipment.shipment_date)) 
-                      ? format(parseISO(shipment.shipment_date), 'yyyy-MM-dd')
-                      : '-'}
-                  </TableCell>
-                  <TableCell>
-                    <Typography sx={{ fontWeight: 'bold' }}>
-                      {shipment.customer_name}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>{shipment.customer_phone}</TableCell>
-                  <TableCell>
-                    <Typography noWrap sx={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {shipment.product_name}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {shipment.quantity}개 / {shipment.price?.toLocaleString()}원
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography>{shipment.delivery_method}</Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {shipment.tracking_number || '-'}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Chip 
-                      label={shipment.status} 
-                      color={getStatusColor(shipment.status)}
-                      size="small"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <IconButton 
-                      size="small" 
-                      onClick={(e) => handleEdit(shipment.id, e)}
-                    >
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      color="default"
-                      sx={{ color: 'grey.500' }}
-                      onClick={(e) => handleDeleteClick(shipment, e)}
-                    >
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {filteredShipments
+                .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                .map((shipment) => (
+                  <TableRow 
+                    key={shipment.id}
+                    hover
+                    onClick={() => handleViewDetails(shipment.id)}
+                    sx={{ cursor: 'pointer' }}
+                  >
+                    <TableCell>
+                      {isValid(parseISO(shipment.order_date || shipment.created_at)) 
+                        ? format(parseISO(shipment.order_date || shipment.created_at), 'yyyy-MM-dd')
+                        : '-'}
+                    </TableCell>
+                    <TableCell>
+                      {isValid(parseISO(shipment.shipment_date)) 
+                        ? format(parseISO(shipment.shipment_date), 'yyyy-MM-dd')
+                        : '-'}
+                    </TableCell>
+                    <TableCell>
+                      <Typography sx={{ fontWeight: 'bold' }}>
+                        {shipment.customer_name}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>{shipment.customer_phone}</TableCell>
+                    <TableCell>
+                      <Typography noWrap sx={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {shipment.product_name}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {shipment.quantity}개 / {shipment.price?.toLocaleString()}원
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography>{shipment.delivery_method}</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {shipment.tracking_number || '-'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Chip 
+                        label={shipment.status} 
+                        color={getStatusColor(shipment.status)}
+                        size="small"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <IconButton 
+                        size="small" 
+                        onClick={(e) => handleEdit(shipment.id, e)}
+                      >
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        color="default"
+                        sx={{ color: 'grey.500' }}
+                        onClick={(e) => handleDeleteClick(shipment, e)}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))}
             </TableBody>
           </Table>
+          <TablePagination
+            component="div"
+            count={filteredShipments.length}
+            page={page}
+            onPageChange={handleChangePage}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+            rowsPerPageOptions={[30, 50, 100]}
+            labelRowsPerPage="페이지당 행 수"
+          />
         </TableContainer>
       )}
       
