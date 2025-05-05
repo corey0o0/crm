@@ -1800,62 +1800,16 @@ function ServiceList() {
         </Stack>
       </Box>
 
-      <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-          <TextField
-            select
-            value={statusFilter}
-            onChange={handleStatusFilterChange}
-            sx={{ width: 150 }}
-            size="small"
-          >
-            <MenuItem value="all">전체 상태</MenuItem>
-            <MenuItem value="접수">접수</MenuItem>
-            <MenuItem value="처리중">처리중</MenuItem>
-            <MenuItem value="완료">완료</MenuItem>
-          </TextField>
-
-          <TextField
-            select
-            value={dateFilter.type}
-            onChange={(e) => setDateFilter(prev => ({ ...prev, type: e.target.value }))}
-            sx={{ width: 150 }}
-            size="small"
-          >
-            <MenuItem value="reception_date">접수일자</MenuItem>
-            <MenuItem value="completion_date">완료일자</MenuItem>
-          </TextField>
-
-          <TextField
-            type="date"
-            value={dateFilter.startDate}
-            onChange={(e) => setDateFilter(prev => ({ ...prev, startDate: e.target.value }))}
-            sx={{ width: 150 }}
-            size="small"
-            InputLabelProps={{ shrink: true }}
-          />
-          <Typography variant="body2" sx={{ mx: 1 }}>~</Typography>
-          <TextField
-            type="date"
-            value={dateFilter.endDate}
-            onChange={(e) => setDateFilter(prev => ({ ...prev, endDate: e.target.value }))}
-            sx={{ width: 150 }}
-            size="small"
-            InputLabelProps={{ shrink: true }}
-          />
-        </Box>
-      </Box>
-
-      {/* 검색 및 필터 영역 */}
-      <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', position: 'relative', width: '70%' }}>
+      <Box sx={{ mb: 2 }}>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
           <TextField
             variant="outlined"
             placeholder="고객명, 연락처, 제품명으로 검색"
             value={inputValue}
             onChange={handleSearchInput}
             onKeyPress={(e) => e.key === 'Enter' && executeSearch()}
-            sx={{ width: '100%' }}
+            sx={{ flex: 1, minWidth: 200, maxWidth: 400 }}
+            size="small"
             InputProps={{
               endAdornment: inputValue ? (
                 <InputAdornment position="end">
@@ -1872,42 +1826,75 @@ function ServiceList() {
               ) : null
             }}
           />
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={executeSearch}
-            sx={{ ml: 1, minWidth: '70px', height: '40px' }}
+          <TextField
+            select
+            value={statusFilter}
+            onChange={handleStatusFilterChange}
+            sx={{ width: 120, minWidth: 100 }}
+            size="small"
+            label="상태"
           >
-            검색
-          </Button>
-          <Button
-            variant="outlined"
-            color="secondary"
-            onClick={handleResetAll}
-            sx={{ 
-              ml: 1, 
-              minWidth: '100px', 
-              height: '40px',
-              fontSize: '0.75rem',
-              px: 2
-            }}
-            startIcon={<RestartAltIcon fontSize="small" />}
+            <MenuItem value="all">전체 상태</MenuItem>
+            <MenuItem value="접수">접수</MenuItem>
+            <MenuItem value="처리중">처리중</MenuItem>
+            <MenuItem value="완료">완료</MenuItem>
+          </TextField>
+          <TextField
+            select
+            value={dateFilter.type}
+            onChange={(e) => setDateFilter(prev => ({ ...prev, type: e.target.value }))}
+            sx={{ width: 120, minWidth: 100 }}
+            size="small"
+            label="날짜유형"
           >
-            초기화
-          </Button>
-          {/* 필터 저장/불러오기 버튼을 초기화 오른쪽으로 이동 */}
-          <Button variant="outlined" onClick={saveFilterState} sx={{ ml: 1, height: 40 }}>
-            필터 저장
-          </Button>
-          <Button variant="outlined" onClick={loadFilterState} sx={{ ml: 1, height: 40 }}>
-            필터 불러오기
-          </Button>
-        </Box>
-        {searchTerm && (
-          <Typography variant="body2" color="textSecondary" sx={{ ml: 2 }}>
-            검색 결과: {filteredServices.length}건
-          </Typography>
-        )}
+            <MenuItem value="reception_date">접수일자</MenuItem>
+            <MenuItem value="completion_date">완료일자</MenuItem>
+          </TextField>
+          <TextField
+            type="date"
+            value={dateFilter.startDate}
+            onChange={(e) => setDateFilter(prev => ({ ...prev, startDate: e.target.value }))}
+            sx={{ width: 120, minWidth: 100 }}
+            size="small"
+            label="시작일"
+            InputLabelProps={{ shrink: true }}
+          />
+          <Typography variant="body2" sx={{ mx: 0.5 }}>~</Typography>
+          <TextField
+            type="date"
+            value={dateFilter.endDate}
+            onChange={(e) => setDateFilter(prev => ({ ...prev, endDate: e.target.value }))}
+            sx={{ width: 120, minWidth: 100 }}
+            size="small"
+            label="종료일"
+            InputLabelProps={{ shrink: true }}
+          />
+          <Stack direction="row" spacing={1}>
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={executeSearch}
+              sx={{ minWidth: 70, height: 40 }}
+            >
+              검색
+            </Button>
+            <Button
+              variant="outlined"
+              color="secondary"
+              onClick={handleResetAll}
+              sx={{ minWidth: 70, height: 40 }}
+              startIcon={<RestartAltIcon fontSize="small" />}
+            >
+              초기화
+            </Button>
+            <Button variant="outlined" onClick={saveFilterState} sx={{ minWidth: 70, height: 40 }}>
+              필터 저장
+            </Button>
+            <Button variant="outlined" onClick={loadFilterState} sx={{ minWidth: 70, height: 40 }}>
+              필터 불러오기
+            </Button>
+          </Stack>
+        </Stack>
       </Box>
 
       {/* A/S 목록 테이블 */}

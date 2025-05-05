@@ -679,7 +679,7 @@ function PartsManagement() {
         </Table>
       </TableContainer>
 
-      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
+      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth transitionDuration={0}>
         <DialogTitle>
           {selectedPart ? '파츠 수정' : '파츠 등록'}
         </DialogTitle>
@@ -793,6 +793,7 @@ function PartsManagement() {
         open={uploadStatus.open}
         maxWidth="sm"
         fullWidth
+        transitionDuration={0}
         PaperProps={{
           sx: { p: 2 }
         }}

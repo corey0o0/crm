@@ -908,44 +908,48 @@ function ShipmentDetail() {
               </Box>
             ) : shipmentParts.length > 0 ? (
               <>
-                <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
-                  {shipmentParts.map(part => part.part_name).join(', ')}
-                </Typography>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Typography variant="body2" color="text.secondary">
-                    {shipmentParts.reduce((total, part) => total + (part.quantity || 0), 0)}개
+                <Box sx={{ mt: 3, mb: 2 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+                    제품 정보
                   </Typography>
-                  <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
-                    {calculateTotalSum().toLocaleString()}원
-                  </Typography>
+                  <Table size="small" sx={{ minWidth: 650, bgcolor: '#f8f9fa', borderRadius: 2 }}>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 700, width: 180 }}>제품명</TableCell>
+                        <TableCell sx={{ fontWeight: 700, width: 120 }}>상품코드</TableCell>
+                        <TableCell sx={{ fontWeight: 700, width: 100 }}>카테고리</TableCell>
+                        <TableCell sx={{ fontWeight: 700, width: 80 }}>수량</TableCell>
+                        <TableCell sx={{ fontWeight: 700, width: 100 }}>단가</TableCell>
+                        <TableCell sx={{ fontWeight: 700, width: 120 }}>합계</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {shipmentParts.map((part, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell>{part.part_name}</TableCell>
+                          <TableCell>{part.part_code}</TableCell>
+                          <TableCell>
+                            <Chip label={part.part_category || '기타'} size="small" color="primary" variant="outlined" />
+                          </TableCell>
+                          <TableCell>{part.quantity}</TableCell>
+                          <TableCell>{part.price?.toLocaleString()}원</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>
+                            {(part.price * part.quantity)?.toLocaleString()}원
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {/* 총합계 */}
+                      <TableRow>
+                        <TableCell colSpan={5} align="right" sx={{ fontWeight: 700, bgcolor: '#e9ecef' }}>
+                          총 합계
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 700, bgcolor: '#e9ecef' }}>
+                          {shipmentParts.reduce((sum, p) => sum + (p.price * p.quantity), 0).toLocaleString()}원
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
                 </Box>
-                
-                {shipmentParts.length > 1 && (
-                  <Box sx={{ mt: 2, pt: 2, borderTop: '1px dashed #eee' }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                      세부 제품 내역
-                    </Typography>
-                    {shipmentParts.map((part) => (
-                      <Box key={part.id} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                        <Box>
-                          <Typography variant="body2">{part.part_name}</Typography>
-                          <Chip 
-                            label={part.part_category || '기체'} 
-                            color={getCategoryColor(part.part_category || '기체')}
-                            size="small"
-                            sx={{ mr: 1 }}
-                          />
-                          <Typography variant="caption" color="text.secondary" component="span">
-                            {part.quantity || 1}개
-                          </Typography>
-                        </Box>
-                        <Typography variant="body2">
-                          {calculateTotal(part).toLocaleString()}원
-                        </Typography>
-                      </Box>
-                    ))}
-                  </Box>
-                )}
               </>
             ) : shipmentData.product_name ? (
               <>

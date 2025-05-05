@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Box, 
   Typography, 
@@ -55,11 +55,11 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ko } from 'date-fns/locale';
 import { getCookie, setCookie, removeCookie, getJSONCookie, setJSONCookie } from '../../utils/cookieUtils';
+import dayjs from 'dayjs';
 
 function ShipmentList() {
   const [loading, setLoading] = useState(true);
   const [shipments, setShipments] = useState([]);
-  const [filteredShipments, setFilteredShipments] = useState([]);
   const [selectedBrand, setSelectedBrand] = useState(() => {
     const savedBrand = getCookie('shipment_selectedBrand');
     return savedBrand || 'XRB';
@@ -171,13 +171,21 @@ function ShipmentList() {
       if (error) throw error;
       
       const sortedData = [...(data || [])].sort((a, b) => {
-        const dateA = a.order_date ? new Date(a.order_date) : new Date(a.created_at || 0);
-        const dateB = b.order_date ? new Date(b.order_date) : new Date(b.created_at || 0);
+        let dateA, dateB;
+        if (dateFilter.type === 'order_date') {
+          dateA = a.order_date ? new Date(a.order_date) : new Date(a.created_at || 0);
+          dateB = b.order_date ? new Date(b.order_date) : new Date(b.created_at || 0);
+        } else if (dateFilter.type === 'completion_date') {
+          dateA = a.shipment_date ? new Date(a.shipment_date) : new Date(a.created_at || 0);
+          dateB = b.shipment_date ? new Date(b.shipment_date) : new Date(b.created_at || 0);
+        } else {
+          dateA = new Date(a.created_at || 0);
+          dateB = new Date(b.created_at || 0);
+        }
         return dateB - dateA;
       });
       
       setShipments(sortedData);
-      setFilteredShipments(sortedData);
       
       const uniqueSellers = new Set(['공홈', '청담매장', '라이클-우리', '기타']);
       data.forEach(shipment => {
@@ -199,57 +207,71 @@ function ShipmentList() {
     }
   };
 
-  useEffect(() => {
-    let filtered = shipments.filter(shipment => {
-      const matchesSearch = 
-        searchTerm === '' || 
+  // filteredShipments useMemo로 계산
+  const filteredShipments = useMemo(() => {
+    let filtered = shipments;
+
+    // 검색
+    if (searchTerm) {
+      filtered = filtered.filter(shipment =>
         shipment.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         shipment.customer_phone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        shipment.product_name?.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      const matchesStatus = 
-        statusFilter === 'all' || shipment.status === statusFilter;
-      
-      const matchesSeller = sellerFilter === 'all' || (() => {
+        shipment.product_name?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    // 상태 필터
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(shipment => shipment.status === statusFilter);
+    }
+
+    // 판매처 필터
+    if (sellerFilter !== 'all') {
+      filtered = filtered.filter(shipment => {
         const salesChannelMatch = shipment.note?.match(/\[판매처: (.*?)\]/);
         const currentSeller = salesChannelMatch ? salesChannelMatch[1] : '공홈';
         return currentSeller === sellerFilter;
-      })();
-      
-      let matchesDate = true;
-      if (dateFilter.startDate || dateFilter.endDate) {
+      });
+    }
+
+    // 날짜 필터
+    let matchesDate = true;
+    if (dateFilter.startDate || dateFilter.endDate) {
+      filtered = filtered.filter(shipment => {
         let targetDate;
         if (dateFilter.type === 'order_date') {
           targetDate = shipment.created_at;
         } else if (dateFilter.type === 'completion_date') {
           targetDate = shipment.shipment_date;
         }
-
         if (targetDate) {
           const shipmentDate = format(parseISO(targetDate), 'yyyy-MM-dd');
-          
-          if (dateFilter.startDate && shipmentDate < dateFilter.startDate) {
-            matchesDate = false;
-          }
-          if (dateFilter.endDate && shipmentDate > dateFilter.endDate) {
-            matchesDate = false;
-          }
-        } else {
-          matchesDate = false;
+          if (dateFilter.startDate && shipmentDate < dateFilter.startDate) return false;
+          if (dateFilter.endDate && shipmentDate > dateFilter.endDate) return false;
+          return true;
         }
-      }
-      
-      return matchesSearch && matchesStatus && matchesSeller && matchesDate;
-    });
-    
+        return false;
+      });
+    }
+
+    // 정렬
     filtered.sort((a, b) => {
-      const dateA = a.order_date ? new Date(a.order_date) : new Date(a.created_at || 0);
-      const dateB = b.order_date ? new Date(b.order_date) : new Date(b.created_at || 0);
+      let dateA, dateB;
+      if (dateFilter.type === 'order_date') {
+        dateA = a.order_date ? new Date(a.order_date) : new Date(a.created_at || 0);
+        dateB = b.order_date ? new Date(b.order_date) : new Date(b.created_at || 0);
+      } else if (dateFilter.type === 'completion_date') {
+        dateA = a.shipment_date ? new Date(a.shipment_date) : new Date(a.created_at || 0);
+        dateB = b.shipment_date ? new Date(b.shipment_date) : new Date(b.created_at || 0);
+      } else {
+        dateA = new Date(a.created_at || 0);
+        dateB = new Date(b.created_at || 0);
+      }
       return dateB - dateA;
     });
-    
-    setFilteredShipments(filtered);
-  }, [searchTerm, statusFilter, sellerFilter, dateFilter, shipments]);
+
+    return filtered;
+  }, [shipments, searchTerm, statusFilter, sellerFilter, dateFilter]);
 
   const handleBrandChange = (event, newValue) => {
     setSelectedBrand(newValue);
@@ -1229,8 +1251,8 @@ function ShipmentList() {
                     sx={{ cursor: 'pointer' }}
                   >
                     <TableCell>
-                      {isValid(parseISO(shipment.order_date || shipment.created_at)) 
-                        ? format(parseISO(shipment.order_date || shipment.created_at), 'yyyy-MM-dd')
+                      {shipment.order_date
+                        ? dayjs(shipment.order_date).format('YYYY-MM-DD')
                         : '-'}
                     </TableCell>
                     <TableCell>
