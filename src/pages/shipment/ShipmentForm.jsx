@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -46,6 +46,7 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ko } from 'date-fns/locale';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
+import { debounce } from 'lodash';
 
 // 부품 카테고리 정의
 const PART_CATEGORIES = ['기체', '파츠', '공임', '기타'];
@@ -71,9 +72,8 @@ function ShipmentForm() {
   const [selectedParts, setSelectedParts] = useState([]);
   const [openPartsDialog, setOpenPartsDialog] = useState(false);
   const [partInputValue, setPartInputValue] = useState('');
-  const [partSearchTerm, setPartSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [allParts, setAllParts] = useState([]);
-  const [filteredParts, setFilteredParts] = useState([]);
   const [selectedPart, setSelectedPart] = useState(null);
   const [partQuantity, setPartQuantity] = useState(1);
   const [selectedCategory, setSelectedCategory] = useState('기체');
@@ -94,6 +94,43 @@ function ShipmentForm() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEditMode = !!id;
+
+  // 검색을 위한 상태 수정
+  const [isSearching, setIsSearching] = useState(false);
+
+  // 메모이제이션된 필터링 함수
+  const filteredParts = useMemo(() => {
+    setIsSearching(true);
+    
+    if (!searchTerm) {
+      setIsSearching(false);
+      return allParts.slice(0, 50); // 검색어 없을 때는 처음 50개만 표시
+    }
+    
+    const searchLower = searchTerm.toLowerCase();
+    const filtered = allParts.filter(part => 
+      (part.name && part.name.toLowerCase().includes(searchLower)) ||
+      (part.code && part.code.toLowerCase().includes(searchLower))
+    ).slice(0, 100); // 최대 100개 결과로 제한
+    
+    setIsSearching(false);
+    return filtered;
+  }, [searchTerm, allParts]);
+
+  // 윈도우 가상화를 위한 페이지네이션 처리
+  const [page, setPage] = useState(0);
+  const rowsPerPage = 20;
+
+  // 페이지네이션된 결과만 보여주도록 수정
+  const paginatedParts = useMemo(() => {
+    const startIndex = page * rowsPerPage;
+    return filteredParts.slice(startIndex, startIndex + rowsPerPage);
+  }, [filteredParts, page]);
+
+  // 페이지 변경 함수
+  const handlePageChange = (newPage) => {
+    setPage(newPage);
+  };
 
   useEffect(() => {
     if (isEditMode) {
@@ -167,32 +204,38 @@ function ShipmentForm() {
 
       if (error) throw error;
       setAllParts(data || []);
-      setFilteredParts(data || []);
+      // 필터링된 부품 목록 초기화는 useMemo에서 처리
     } catch (error) {
       console.error('Error fetching parts:', error);
     }
   };
 
+  // 브랜드 변경 시 부품 목록 가져오기
   useEffect(() => {
     // 브랜드가 변경되면 부품 목록 다시 가져오기
     fetchAllParts();
   }, [shipmentData.brand]);
 
-  useEffect(() => {
-    // 검색어로 부품 필터링
-    if (!partSearchTerm) {
-      setFilteredParts(allParts);
-      return;
+  // 검색어 처리 함수 최적화 (디바운싱 적용)
+  const handlePartInputChange = (e) => {
+    setPartInputValue(e.target.value);
+    setPage(0); // 검색어 변경 시 첫 페이지로 이동
+  };
+
+  // 엔터키 처리 함수 수정
+  const handlePartKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault(); // 폼 제출 방지
+      setSearchTerm(partInputValue);
+      setPage(0); // 검색 결과의 첫 페이지로 이동
     }
-    
-    const searchLower = partSearchTerm.toLowerCase();
-    const filtered = allParts.filter(part => 
-      part.name?.toLowerCase().includes(searchLower) ||
-      part.code?.toLowerCase().includes(searchLower)
-    );
-    
-    setFilteredParts(filtered);
-  }, [partSearchTerm, allParts]);
+  };
+
+  // 검색 버튼 클릭 처리 함수 추가
+  const handleSearch = () => {
+    setSearchTerm(partInputValue);
+    setPage(0);
+  };
 
   // 판매처 정보 추출 함수
   const extractSalesChannel = (note) => {
@@ -234,16 +277,12 @@ function ShipmentForm() {
     setSelectedPart(null);
     setPartQuantity(1);
     setPartInputValue('');
-    setPartSearchTerm('');
+    setSearchTerm(''); // 검색어 초기화
+    setPage(0); // 페이지 초기화
   };
 
   const handleClosePartsDialog = () => {
     setOpenPartsDialog(false);
-  };
-
-  const handlePartInputChange = (e) => setPartInputValue(e.target.value);
-  const handlePartKeyPress = (e) => {
-    if (e.key === 'Enter') setPartSearchTerm(partInputValue);
   };
 
   const handleSelectPart = (part) => {
@@ -1581,24 +1620,25 @@ function ShipmentForm() {
         <DialogTitle>제품 추가</DialogTitle>
         <DialogContent>
           <Box sx={{ mt: 2 }}>
-            <TextField
-              fullWidth
-              label="제품 검색"
-              placeholder="제품명 또는 코드로 검색"
-              value={partInputValue}
-              onChange={handlePartInputChange}
-              onKeyPress={handlePartKeyPress}
-              sx={{ mb: 2 }}
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton onClick={() => setPartSearchTerm(partInputValue)}>
-                      <SearchIcon />
-                    </IconButton>
-                  </InputAdornment>
-                )
-              }}
-            />
+            <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+              <TextField
+                fullWidth
+                label="제품 검색"
+                placeholder="제품명 또는 코드로 검색"
+                value={partInputValue}
+                onChange={(e) => setPartInputValue(e.target.value)}
+                onKeyPress={handlePartKeyPress}
+                sx={{ flex: 1 }}
+              />
+              <Button 
+                variant="contained" 
+                onClick={handleSearch}
+                startIcon={<SearchIcon />}
+                sx={{ minWidth: '100px' }}
+              >
+                검색
+              </Button>
+            </Box>
             
             <Grid container spacing={2} sx={{ mb: 2 }}>
               <Grid item xs={12} md={6}>
@@ -1627,8 +1667,36 @@ function ShipmentForm() {
               </Grid>
             </Grid>
             
-            <TableContainer>
-              <Table size="small">
+            <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="caption" color="text.secondary">
+                {isSearching ? '검색 중...' : 
+                 filteredParts.length > 100 
+                  ? '100개 이상의 결과 (구체적으로 검색해주세요)' 
+                  : `검색 결과: ${filteredParts.length}개`}
+              </Typography>
+              <Box>
+                <Button 
+                  disabled={page === 0} 
+                  onClick={() => handlePageChange(page - 1)}
+                  size="small"
+                >
+                  이전
+                </Button>
+                <Typography variant="caption" sx={{ mx: 1 }}>
+                  {page + 1} / {Math.max(1, Math.ceil(filteredParts.length / rowsPerPage))}
+                </Typography>
+                <Button 
+                  disabled={page >= Math.ceil(filteredParts.length / rowsPerPage) - 1} 
+                  onClick={() => handlePageChange(page + 1)}
+                  size="small"
+                >
+                  다음
+                </Button>
+              </Box>
+            </Box>
+            
+            <TableContainer sx={{ maxHeight: 400 }}>
+              <Table size="small" stickyHeader>
                 <TableHead>
                   <TableRow>
                     <TableCell>제품명</TableCell>
@@ -1638,7 +1706,7 @@ function ShipmentForm() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {filteredParts.map((part) => (
+                  {paginatedParts.map((part) => (
                     <TableRow 
                       key={part.id}
                       selected={selectedPart?.id === part.id}
@@ -1660,6 +1728,21 @@ function ShipmentForm() {
                       </TableCell>
                     </TableRow>
                   ))}
+                  {paginatedParts.length === 0 && !isSearching && (
+                    <TableRow>
+                      <TableCell colSpan={4} align="center" sx={{ py: 3 }}>
+                        검색 결과가 없습니다
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {isSearching && (
+                    <TableRow>
+                      <TableCell colSpan={4} align="center" sx={{ py: 3 }}>
+                        <CircularProgress size={24} />
+                        <Typography variant="body2" sx={{ ml: 2 }}>검색 중...</Typography>
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </TableContainer>

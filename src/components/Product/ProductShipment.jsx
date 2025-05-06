@@ -155,9 +155,9 @@ function ProductShipment() {
   const [dateFilter, setDateFilter] = useState(() => {
     const savedDateFilter = getJSONCookie('shipment_dateFilter');
     return savedDateFilter || {
-      type: 'order_date',
-      startDate: '',
-      endDate: ''
+    type: 'order_date',
+    startDate: '',
+    endDate: ''
     };
   });
   
@@ -687,27 +687,27 @@ function ProductShipment() {
         });
       } else {
         // shipment_parts 테이블에 데이터가 없으면 기존 로직으로 처리
-        if (productNames.length === 1) {
-          // 단일 제품인 경우
-          const productInfo = {
-            id: mainPart?.id || shipment.product_code,
-            brand: shipment.brand,
-            code: shipment.product_code,
-            name: productNames[0],
-            price: mainPart?.price || (shipment.price / shipment.quantity),
-            quantity: shipment.quantity,
-            totalPrice: shipment.price,
-            supply_price: mainPart?.supply_price || 0,
-            barcode: mainPart?.barcode || '',
+    if (productNames.length === 1) {
+      // 단일 제품인 경우
+      const productInfo = {
+        id: mainPart?.id || shipment.product_code,
+        brand: shipment.brand,
+        code: shipment.product_code,
+        name: productNames[0],
+        price: mainPart?.price || (shipment.price / shipment.quantity),
+        quantity: shipment.quantity,
+        totalPrice: shipment.price,
+        supply_price: mainPart?.supply_price || 0,
+        barcode: mainPart?.barcode || '',
             note: shipment.note || '',
             category: '기체' // 기본 카테고리 설정
-          };
-          productParts.push(productInfo);
-        } else {
-          // 다중 제품인 경우
-          productNames.forEach((name, index) => {
-            // 제품명으로 parts에서 찾기 
-            const matchingPart = parts.find(p => p.name === name);
+      };
+      productParts.push(productInfo);
+    } else {
+      // 다중 제품인 경우
+      productNames.forEach((name, index) => {
+        // 제품명으로 parts에서 찾기 
+        const matchingPart = parts.find(p => p.name === name);
             
             // 제품명으로 카테고리 추정
             let estimatedCategory = '기체'; // 기본값
@@ -720,35 +720,35 @@ function ProductShipment() {
               // 첫 번째가 아닌 제품은 파츠로 추정
               estimatedCategory = '파츠';
             }
-            
-            // 기본 제품 정보 설정
-            const partInfo = {
-              id: matchingPart?.id || `${shipment.product_code}_${index}`,
-              brand: shipment.brand,
-              code: matchingPart?.code || (index === 0 ? shipment.product_code : ''),
-              name: name,
-              price: matchingPart?.price || (shipment.price / shipment.quantity / productNames.length),
-              quantity: 1, // 기본값 1로 설정
-              totalPrice: matchingPart?.price || (shipment.price / productNames.length),
-              supply_price: matchingPart?.supply_price || 0,
-              barcode: matchingPart?.barcode || '',
+        
+        // 기본 제품 정보 설정
+        const partInfo = {
+          id: matchingPart?.id || `${shipment.product_code}_${index}`,
+          brand: shipment.brand,
+          code: matchingPart?.code || (index === 0 ? shipment.product_code : ''),
+          name: name,
+          price: matchingPart?.price || (shipment.price / shipment.quantity / productNames.length),
+          quantity: 1, // 기본값 1로 설정
+          totalPrice: matchingPart?.price || (shipment.price / productNames.length),
+          supply_price: matchingPart?.supply_price || 0,
+          barcode: matchingPart?.barcode || '',
               note: '',
               category: estimatedCategory
-            };
-            
-            productParts.push(partInfo);
-          });
-        }
-      }
-      
-      setSelectedParts(productParts);
-      setSelectedShipment({
-        ...shipment,
-        order_date: shipment.order_date || shipment.created_at?.split('T')[0],
-        sales_channel: salesChannel,
-        products: productParts
+        };
+        
+        productParts.push(partInfo);
       });
-      setOpenDialog(true);
+        }
+    }
+    
+    setSelectedParts(productParts);
+    setSelectedShipment({
+      ...shipment,
+      order_date: shipment.order_date || shipment.created_at?.split('T')[0],
+      sales_channel: salesChannel,
+      products: productParts
+    });
+    setOpenDialog(true);
       
     } catch (err) {
       console.error('출고 정보 수정 준비 중 오류:', err);
@@ -1431,25 +1431,25 @@ function ProductShipment() {
       
       // 지정된 가격으로 부품 추가
       const addPartWithPrice = (price, note, category) => {
-        const newPart = {
-          id: selectedPart.id,
-          brand: selectedPart.brand,
-          code: selectedPart.code,
-          name: selectedPart.name,
-          supply_price: selectedPart.supply_price,
+      const newPart = {
+        id: selectedPart.id,
+        brand: selectedPart.brand,
+        code: selectedPart.code,
+        name: selectedPart.name,
+        supply_price: selectedPart.supply_price,
           price: price, // 업데이트된 가격 또는 원래 가격
-          barcode: selectedPart.barcode,
+        barcode: selectedPart.barcode,
           note: note || selectedPart.note || '',
-          quantity: partsQuantity,
+        quantity: partsQuantity,
           totalPrice: price * partsQuantity,
           category: category // 추정 카테고리 또는 사용자 선택 카테고리
-        };
+      };
 
         console.log('추가할 부품 정보:', newPart);
 
-        // 새 제품 추가
-        setSelectedParts(prev => [...prev, newPart]);
-        handleClosePartsDialog();
+      // 새 제품 추가
+      setSelectedParts(prev => [...prev, newPart]);
+      handleClosePartsDialog();
       };
       
       // 최신 가격 정보 조회 및 부품 추가 실행
@@ -1730,12 +1730,12 @@ function ProductShipment() {
 
         const channelA = getSalesChannel(a);
         const channelB = getSalesChannel(b);
-
-        if (sortConfig.direction === 'asc') {
+          
+          if (sortConfig.direction === 'asc') {
           return channelA.localeCompare(channelB);
-        } else {
+          } else {
           return channelB.localeCompare(channelA);
-        }
+          }
       });
     }
     // 주문일자 또는 출고일자로 정렬
@@ -1750,13 +1750,13 @@ function ProductShipment() {
         } else {
           dateA = new Date(a.shipment_date || 0);
           dateB = new Date(b.shipment_date || 0);
-        }
-        
-        if (sortConfig.direction === 'asc') {
+          }
+          
+          if (sortConfig.direction === 'asc') {
           return dateA - dateB;
-        } else {
+          } else {
           return dateB - dateA;
-        }
+          }
       });
     }
     // 기본 정렬
@@ -2051,21 +2051,21 @@ function ProductShipment() {
             return {
               groupKey,
               data: {
-                brand: selectedBrand,
+              brand: selectedBrand,
                 order_date: orderDate,
-                customer_name: row['고객명'],
-                customer_phone: row['연락처'],
-                customer_address: row['주소'] || '',
+              customer_name: row['고객명'],
+              customer_phone: row['연락처'],
+              customer_address: row['주소'] || '',
                 product_name: productName,
                 product_code: productCode, // 매칭된 제품 코드 설정
-                quantity: parseInt(row['수량']) || 1,
+              quantity: parseInt(row['수량']) || 1,
                 price: productPrice,
-                sales_channel: row['판매처'] || '공홈',
-                delivery_method: row['배송방법'] || '택배',
+              sales_channel: row['판매처'] || '공홈',
+              delivery_method: row['배송방법'] || '택배',
                 shipment_date: shipmentDate,
                 note: row['메모'] ? `[판매처: ${row['판매처'] || '공홈'}] ${row['메모']}` : `[판매처: ${row['판매처'] || '공홈'}]`,
                 status: status, // 출고일자 기반으로 상태 설정
-                created_at: new Date().toISOString()
+              created_at: new Date().toISOString()
               }
             };
           }).filter(item => item !== null);
@@ -2214,17 +2214,17 @@ function ProductShipment() {
               }
             }
           
-            setSnackbar({
-              open: true,
+          setSnackbar({
+            open: true,
               message: `${validData.length}건의 출고 정보가 성공적으로 등록되었습니다.${partsSuccessMessage}\n[고객: ${customerSummary}]\n${matchingInfo}`,
-              severity: 'success'
-            });
-            
-            // 다이얼로그 닫기
-            setOpenDialog(false);
-            
-            // 목록 새로고침
-            fetchShipments();
+            severity: 'success'
+          });
+
+          // 다이얼로그 닫기
+          setOpenDialog(false);
+          
+          // 목록 새로고침
+          fetchShipments();
             
           } catch (partsError) {
             console.warn('부품 정보 처리 중 오류:', partsError);
@@ -2977,8 +2977,8 @@ function ProductShipment() {
                             height: 40 
                           } 
                         }
-                      }
-                    }}
+                          } 
+                        }}
                     format="yyyy-MM-dd"
                   />
                 </LocalizationProvider>
@@ -3000,8 +3000,8 @@ function ProductShipment() {
                             height: 40 
                           } 
                         }
-                      }
-                    }}
+                          } 
+                        }}
                     format="yyyy-MM-dd"
                   />
                 </LocalizationProvider>

@@ -29,7 +29,7 @@ function ResponsiveTable({ columns, data, renderMobileCard, onRowClick, rowSx = 
             sx={{
               cursor: onRowClick ? 'pointer' : 'default',
               '&:hover': {
-                backgroundColor: theme.palette.primary.lighter
+                backgroundColor: theme.palette.primary.light
               },
               ...rowSx
             }}
@@ -68,7 +68,7 @@ function ResponsiveTable({ columns, data, renderMobileCard, onRowClick, rowSx = 
               sx={{
                 cursor: onRowClick ? 'pointer' : 'default',
                 '&:hover': {
-                  backgroundColor: `${theme.palette.primary.lighter} !important`
+                  backgroundColor: `${theme.palette.primary.light} !important`
                 },
                 ...rowSx
               }}

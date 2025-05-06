@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Box, 
   Typography, 
@@ -64,7 +64,10 @@ function ShipmentDetail() {
   const [partQuantity, setPartQuantity] = useState(1);
   const [modifiedPrice, setModifiedPrice] = useState('');
   const [partInputValue, setPartInputValue] = useState('');
-  const [partSearchTerm, setPartSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [page, setPage] = useState(0);
+  const rowsPerPage = 15;
 
   useEffect(() => {
     if (id) {
@@ -570,32 +573,89 @@ function ShipmentDetail() {
     return shipmentData.sales_channel || '공홈';
   };
 
-  // 2. 부품 다이얼로그 열 때 한 번만 전체 부품 불러오기
-  const handleOpenPartsDialog = async () => {
-    if (availableParts.length === 0) {
-      const { data, error } = await supabase.from('parts').select('*');
-      if (!error) setAvailableParts(data);
+  // 메모이제이션된 필터링 함수
+  const filteredParts = useMemo(() => {
+    setIsSearching(true);
+    
+    if (!searchTerm) {
+      setIsSearching(false);
+      return availableParts.slice(0, 50); // 검색어 없을 때는 처음 50개만 표시
     }
+    
+    const searchLower = searchTerm.toLowerCase();
+    const filtered = availableParts.filter(part => 
+      (part.name && part.name.toLowerCase().includes(searchLower)) ||
+      (part.code && part.code.toLowerCase().includes(searchLower))
+    ).slice(0, 100); // 최대 100개 결과로 제한
+    
+    setIsSearching(false);
+    return filtered;
+  }, [searchTerm, availableParts]);
+
+  // 페이지네이션된 결과
+  const paginatedParts = useMemo(() => {
+    const startIndex = page * rowsPerPage;
+    return filteredParts.slice(startIndex, startIndex + rowsPerPage);
+  }, [filteredParts, page]);
+
+  // 페이지 변경 처리
+  const handlePageChange = (newPage) => {
+    setPage(newPage);
+  };
+
+  // 향상된 부품 다이얼로그 열기 함수
+  const handleOpenPartsDialog = async () => {
     setOpenPartsDialog(true);
     setPartInputValue('');
-    setPartSearchTerm('');
+    setSearchTerm('');
     setSelectedPart(null);
     setPartQuantity(1);
     setModifiedPrice('');
+    setPage(0);
+    
+    // 부품 데이터가 없는 경우에만 로드 (최적화)
+    if (availableParts.length === 0) {
+      try {
+        const { data, error } = await supabase
+          .from('parts')
+          .select('*')
+          .eq('brand', shipmentData?.brand || 'XRB');
+          
+        if (!error) {
+          setAvailableParts(data || []);
+        }
+      } catch (err) {
+        console.error('부품 데이터 로드 중 오류:', err);
+      }
+    }
   };
 
-  // 3. 부품 검색어 입력 및 엔터 시 검색
-  const handlePartInputChange = (e) => setPartInputValue(e.target.value);
+  // 검색어 처리 함수 수정
+  const handlePartInputChange = (e) => {
+    setPartInputValue(e.target.value);
+  };
+
+  // 검색 실행 함수 추가
+  const handleSearch = () => {
+    setSearchTerm(partInputValue);
+    setPage(0);
+  };
+
+  // 엔터키 처리 함수 수정
   const handlePartKeyPress = (e) => {
-    if (e.key === 'Enter') setPartSearchTerm(partInputValue);
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      setSearchTerm(partInputValue);
+      setPage(0);
+    }
   };
-  const filteredParts = availableParts.filter(part =>
-    part.name?.toLowerCase().includes(partSearchTerm.toLowerCase()) ||
-    part.code?.toLowerCase().includes(partSearchTerm.toLowerCase())
-  );
 
-  // 4. 부품 선택 및 추가
-  const handlePartSelect = (part) => setSelectedPart(part);
+  // 부품 선택 함수
+  const handlePartSelect = (part) => {
+    setSelectedPart(part);
+  };
+
+  // 부품 추가 함수
   const handleAddPart = () => {
     if (selectedPart && partQuantity > 0) {
       const newPart = {
@@ -1041,23 +1101,55 @@ function ShipmentDetail() {
       <Dialog open={openPartsDialog} onClose={() => setOpenPartsDialog(false)}>
         <DialogTitle>부품 추가</DialogTitle>
         <DialogContent>
-          <TextField
-            fullWidth
-            placeholder="부품명, 코드로 검색"
-            value={partInputValue}
-            onChange={handlePartInputChange}
-            onKeyPress={handlePartKeyPress}
-            sx={{ mb: 2, mt: 1 }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              ),
-            }}
-          />
-          <TableContainer>
-            <Table size="small">
+          <Box sx={{ display: 'flex', gap: 1, mb: 2, mt: 1 }}>
+            <TextField
+              fullWidth
+              placeholder="부품명, 코드로 검색"
+              value={partInputValue}
+              onChange={handlePartInputChange}
+              onKeyPress={handlePartKeyPress}
+              sx={{ flex: 1 }}
+            />
+            <Button
+              variant="contained"
+              onClick={handleSearch}
+              startIcon={<SearchIcon />}
+              sx={{ minWidth: '90px' }}
+            >
+              검색
+            </Button>
+          </Box>
+          
+          <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="caption" color="text.secondary">
+              {isSearching ? '검색 중...' : 
+               filteredParts.length > 100 
+                ? '100개 이상의 결과 (구체적으로 검색해주세요)' 
+                : `검색 결과: ${filteredParts.length}개`}
+            </Typography>
+            <Box>
+              <Button 
+                disabled={page === 0} 
+                onClick={() => handlePageChange(page - 1)}
+                size="small"
+              >
+                이전
+              </Button>
+              <Typography variant="caption" sx={{ mx: 1 }}>
+                {page + 1} / {Math.max(1, Math.ceil(filteredParts.length / rowsPerPage))}
+              </Typography>
+              <Button 
+                disabled={page >= Math.ceil(filteredParts.length / rowsPerPage) - 1} 
+                onClick={() => handlePageChange(page + 1)}
+                size="small"
+              >
+                다음
+              </Button>
+            </Box>
+          </Box>
+          
+          <TableContainer sx={{ maxHeight: 300 }}>
+            <Table size="small" stickyHeader>
               <TableHead>
                 <TableRow>
                   <TableCell>부품명</TableCell>
@@ -1066,7 +1158,7 @@ function ShipmentDetail() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredParts.map((part) => (
+                {paginatedParts.map((part) => (
                   <TableRow
                     key={part.id}
                     selected={selectedPart?.id === part.id}
@@ -1078,9 +1170,25 @@ function ShipmentDetail() {
                     <TableCell align="right">{part.price?.toLocaleString()}원</TableCell>
                   </TableRow>
                 ))}
+                {paginatedParts.length === 0 && !isSearching && (
+                  <TableRow>
+                    <TableCell colSpan={3} align="center" sx={{ py: 3 }}>
+                      검색 결과가 없습니다
+                    </TableCell>
+                  </TableRow>
+                )}
+                {isSearching && (
+                  <TableRow>
+                    <TableCell colSpan={3} align="center" sx={{ py: 3 }}>
+                      <CircularProgress size={24} />
+                      <Typography variant="body2" sx={{ ml: 2 }}>검색 중...</Typography>
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </TableContainer>
+          
           {selectedPart && (
             <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
               <TextField
@@ -1114,4 +1222,4 @@ function ShipmentDetail() {
   );
 }
 
-export default ShipmentDetail; 
+export default ShipmentDetail;

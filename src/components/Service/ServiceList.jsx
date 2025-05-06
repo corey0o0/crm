@@ -43,6 +43,10 @@ import {
   TableSortLabel,
   TablePagination,
   InputAdornment,
+  Autocomplete,
+  ToggleButton,
+  ToggleButtonGroup,
+  ButtonGroup,
 } from '@mui/material';
 import { 
   Edit as EditIcon,
@@ -225,7 +229,7 @@ function ServiceList() {
     try {
       setLoading(true);
       setServices([]); // 데이터 로드 시작 시 초기화
-
+      
       // 쿼리당 가져올 데이터 개수 (최대 1,000건, Supabase 기본 제한)
       const PAGE_SIZE = 1000;
       // 모든 데이터를 저장할 배열
@@ -257,15 +261,15 @@ function ServiceList() {
         console.log(`Fetching page ${currentPage}/${totalPages}: from=${currentOffset}, to=${currentOffset + PAGE_SIZE - 1}`);
         
         // 페이지네이션 방식으로 데이터 가져오기 - range 함수 사용
-        const { data: servicesData, error: servicesError } = await supabase
-          .from('services')
-          .select(`
-            *,
-            service_tags (
-              tag_name
-            )
-          `)
-          .eq('brand', selectedBrand)
+      const { data: servicesData, error: servicesError } = await supabase
+        .from('services')
+        .select(`
+          *,
+          service_tags (
+            tag_name
+          )
+        `)
+        .eq('brand', selectedBrand)
           .order('reception_date', { ascending: false })
           .range(currentOffset, currentOffset + PAGE_SIZE - 1);
 
@@ -317,7 +321,7 @@ function ServiceList() {
       if (allServicesData.length !== count) {
         console.warn(`Warning: Loaded ${allServicesData.length} services, but expected ${count}`);
       }
-      
+
       // 2. 서비스와 태그 데이터 병합
       const servicesWithTags = allServicesData.map(service => ({
         ...service,
@@ -1052,14 +1056,14 @@ function ServiceList() {
       render: (row) => (
         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, minWidth: 0 }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography noWrap sx={{ 
-              fontSize: '0.95rem', 
-              fontWeight: 500,
-              letterSpacing: '0.01em',
-              color: 'text.primary' 
-            }}>
-              {row.product_name}
-            </Typography>
+          <Typography noWrap sx={{ 
+            fontSize: '0.95rem', 
+            fontWeight: 500,
+            letterSpacing: '0.01em',
+            color: 'text.primary' 
+          }}>
+            {row.product_name}
+          </Typography>
             {row.mileage && (
               <Typography noWrap sx={{ 
                 fontSize: '0.85rem', 
@@ -1149,22 +1153,22 @@ function ServiceList() {
           <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', maxWidth: '200px' }}>
             {row.tags?.length > 0 ? (
               row.tags.map((tag, index) => (
-                <Chip
-                  key={index}
-                  label={tag}
-                  size="small"
-                  sx={{
-                    height: '22px',
-                    fontSize: '0.85rem',
-                    fontWeight: 500,
-                    letterSpacing: '0.01em',
-                    bgcolor: 'primary.50',
-                    color: 'primary.700',
-                    '&:hover': {
-                      bgcolor: 'primary.100'
-                    }
-                  }}
-                />
+            <Chip
+              key={index}
+              label={tag}
+              size="small"
+              sx={{
+                height: '22px',
+                fontSize: '0.85rem',
+                fontWeight: 500,
+                letterSpacing: '0.01em',
+                bgcolor: 'primary.50',
+                color: 'primary.700',
+                '&:hover': {
+                  bgcolor: 'primary.100'
+                }
+              }}
+            />
               ))
             ) : (
               row.solution ? (
@@ -1192,7 +1196,7 @@ function ServiceList() {
                 <Typography variant="body2" color="text.secondary">-</Typography>
               )
             )}
-          </Box>
+        </Box>
         </Tooltip>
       )
     },
@@ -1356,15 +1360,15 @@ function ServiceList() {
           )}
         </Box>
         {row.mileage && (
-          <Typography sx={{ 
+        <Typography sx={{ 
             ml: 1,
             mt: 0.5,
             fontSize: '0.9rem',
-            letterSpacing: '0.01em',
+          letterSpacing: '0.01em',
             color: 'text.secondary',
-          }}>
+        }}>
             ODO: {row.mileage}
-          </Typography>
+        </Typography>
         )}
         <Typography sx={{ 
           mt: 1.5,
@@ -1407,21 +1411,21 @@ function ServiceList() {
             >
               <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', maxWidth: '200px' }}>
                 {row.tags.map((tag, index) => (
-                  <Chip
-                    key={index}
-                    label={tag}
-                    size="small"
-                    sx={{
-                      height: '22px',
-                      fontSize: '0.85rem',
-                      fontWeight: 500,
-                      letterSpacing: '0.01em',
-                      bgcolor: 'primary.50',
-                      color: 'primary.700'
-                    }}
-                  />
-                ))}
-              </Box>
+            <Chip
+              key={index}
+              label={tag}
+              size="small"
+              sx={{
+                height: '22px',
+                fontSize: '0.85rem',
+                fontWeight: 500,
+                letterSpacing: '0.01em',
+                bgcolor: 'primary.50',
+                color: 'primary.700'
+              }}
+            />
+          ))}
+        </Box>
             </Tooltip>
           ) : (
             row.solution ? (
@@ -1729,6 +1733,78 @@ function ServiceList() {
     }
   };
 
+  const [searchMode, setSearchMode] = useState('AND'); // AND/OR 검색 모드
+  const [selectedStatuses, setSelectedStatuses] = useState([]); // 다중 상태
+  const [selectedTags, setSelectedTags] = useState([]); // 다중 태그
+  const statusOptions = ['접수', '처리중', '부분완료', '완료'];
+  const tagOptions = Array.from(new Set(services.flatMap(s => s.tags || [])));
+
+  const handleSearchModeChange = (e, value) => {
+    if (value) setSearchMode(value);
+  };
+  const handleStatusChange = (e, value) => setSelectedStatuses(value);
+  const handleTagChange = (e, value) => setSelectedTags(value);
+  const handleQuickDate = (type) => {
+    const today = new Date();
+    let start, end;
+    if (type === 'today') {
+      start = end = today;
+    } else if (type === 'yesterday') {
+      start = new Date(today);
+      start.setDate(today.getDate() - 1);
+      end = new Date(start);
+    } else if (type === 'thisWeek') {
+      const day = today.getDay();
+      start = new Date(today);
+      start.setDate(today.getDate() - day + (day === 0 ? -6 : 1));
+      end = today;
+    } else if (type === 'thisMonth') {
+      start = new Date(today.getFullYear(), today.getMonth(), 1);
+      end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    } else if (type === 'lastMonth') {
+      start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      end = new Date(today.getFullYear(), today.getMonth(), 0);
+    }
+    setDateFilter(prev => ({
+      ...prev,
+      startDate: start.toISOString().slice(0, 10),
+      endDate: end.toISOString().slice(0, 10)
+    }));
+  };
+
+  useEffect(() => {
+    const filtered = services.filter(service => {
+      // 다중 상태 필터
+      const matchesStatus = selectedStatuses.length === 0 || selectedStatuses.includes(service.status);
+      // 다중 태그 필터
+      const matchesTags = selectedTags.length === 0 || (service.tags && selectedTags.every(tag => service.tags.includes(tag)));
+      // 날짜 필터
+      let matchesDate = true;
+      if (dateFilter.startDate || dateFilter.endDate) {
+        const serviceDate = service[dateFilter.type];
+        if (dateFilter.startDate && (!serviceDate || serviceDate < dateFilter.startDate)) {
+          matchesDate = false;
+        }
+        if (dateFilter.endDate && (!serviceDate || serviceDate > dateFilter.endDate)) {
+          matchesDate = false;
+        }
+      }
+      // 복합 검색 (AND/OR)
+      if (searchTerm) {
+        const keywords = searchTerm.split(/\s+/).filter(Boolean);
+        const fields = [service.customer_name, service.customer_phone, service.product_name, service.symptom].map(f => (f || '').toLowerCase());
+        if (searchMode === 'AND') {
+          if (!keywords.every(kw => fields.some(f => f.includes(kw)))) return false;
+        } else {
+          if (!keywords.some(kw => fields.some(f => f.includes(kw)))) return false;
+        }
+      }
+      return matchesStatus && matchesTags && matchesDate;
+    });
+    setFilteredServices(filtered);
+    setPage(0);
+  }, [searchTerm, searchMode, selectedStatuses, selectedTags, statusFilter, services, selectedBrand, dateFilter]);
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -1826,19 +1902,36 @@ function ServiceList() {
               ) : null
             }}
           />
-          <TextField
-            select
-            value={statusFilter}
-            onChange={handleStatusFilterChange}
-            sx={{ width: 120, minWidth: 100 }}
+          <ToggleButtonGroup
+            value={searchMode}
+            exclusive
+            onChange={handleSearchModeChange}
             size="small"
-            label="상태"
+            sx={{ height: 40 }}
           >
-            <MenuItem value="all">전체 상태</MenuItem>
-            <MenuItem value="접수">접수</MenuItem>
-            <MenuItem value="처리중">처리중</MenuItem>
-            <MenuItem value="완료">완료</MenuItem>
-          </TextField>
+            <ToggleButton value="AND">AND</ToggleButton>
+            <ToggleButton value="OR">OR</ToggleButton>
+          </ToggleButtonGroup>
+          <Autocomplete
+            multiple
+            options={statusOptions}
+            value={selectedStatuses}
+            onChange={handleStatusChange}
+            disableCloseOnSelect
+            size="small"
+            sx={{ minWidth: 140, maxWidth: 180 }}
+            renderInput={(params) => <TextField {...params} label="상태" size="small" />}
+          />
+          <Autocomplete
+            multiple
+            options={tagOptions}
+            value={selectedTags}
+            onChange={handleTagChange}
+            disableCloseOnSelect
+            size="small"
+            sx={{ minWidth: 140, maxWidth: 180 }}
+            renderInput={(params) => <TextField {...params} label="태그" size="small" />}
+          />
           <TextField
             select
             value={dateFilter.type}
@@ -1869,6 +1962,13 @@ function ServiceList() {
             label="종료일"
             InputLabelProps={{ shrink: true }}
           />
+          <ButtonGroup sx={{ ml: 1 }}>
+            <Button onClick={() => handleQuickDate('today')}>오늘</Button>
+            <Button onClick={() => handleQuickDate('yesterday')}>어제</Button>
+            <Button onClick={() => handleQuickDate('thisWeek')}>이번주</Button>
+            <Button onClick={() => handleQuickDate('thisMonth')}>이번달</Button>
+            <Button onClick={() => handleQuickDate('lastMonth')}>지난달</Button>
+          </ButtonGroup>
           <Stack direction="row" spacing={1}>
             <Button
               variant="contained"

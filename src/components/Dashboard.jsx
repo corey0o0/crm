@@ -225,7 +225,7 @@ function Dashboard() {
       setError(err.message);
     }
   };
-
+  
   // 메모 내용 변경
   const handleMemoContentChange = (idx, value) => {
     setMemoList(prev => prev.map((m, i) => i === idx ? { ...m, content: value } : m));
@@ -653,26 +653,26 @@ function Dashboard() {
                 </Typography>
               )}
             </Box>
-            <TextField
-              multiline
-              fullWidth
+              <TextField
+                multiline
+                fullWidth
               value={memoList[0]?.content || ''}
               onChange={e => handleMemoContentChange(0, e.target.value)}
-              placeholder="메모를 입력하세요..."
-              variant="outlined"
-              sx={{
-                flex: 1,
-                bgcolor: '#fff',
-                fontSize: '0.875rem',
-                mt: 2,
-                '& textarea': {
+                placeholder="메모를 입력하세요..."
+                variant="outlined"
+                sx={{
                   flex: 1,
-                  resize: 'vertical',
-                  minHeight: '100px',
-                  maxHeight: '500px'
-                }
-              }}
-            />
+                    bgcolor: '#fff',
+                    fontSize: '0.875rem',
+                mt: 2,
+                    '& textarea': {
+                      flex: 1,
+                      resize: 'vertical',
+                      minHeight: '100px',
+                      maxHeight: '500px'
+                  }
+                }}
+              />
             <Button
               variant="contained"
               onClick={() => handleSaveMemo(0)}
@@ -702,7 +702,7 @@ function Dashboard() {
               onChange={e => handleMemoContentChange(1, e.target.value)}
               placeholder="메모를 입력하세요..."
               variant="outlined"
-              sx={{
+                  sx={{ 
                 flex: 1,
                 bgcolor: '#fff',
                 fontSize: '0.875rem',
@@ -744,44 +744,44 @@ function Dashboard() {
                       {memo.lastSaved && (
                         <Typography variant="caption" sx={{ color: '#868e96', fontSize: '0.75rem' }}>
                           마지막 저장: {dayjs(memo.lastSaved).locale('ko').format('YYYY.MM.DD HH:mm')}
-                        </Typography>
-                      )}
+                </Typography>
+              )}
                       <IconButton size="small" onClick={() => handleDeleteMemo(idx + 2)}>
                         <CloseIcon fontSize="small" />
                       </IconButton>
-                    </Box>
-                    <TextField
-                      multiline
-                      fullWidth
+            </Box>
+              <TextField
+                multiline
+                fullWidth
                       value={memo.content}
                       onChange={e => handleMemoContentChange(idx + 2, e.target.value)}
-                      placeholder="메모를 입력하세요..."
-                      variant="outlined"
-                      sx={{
-                        flex: 1,
-                        bgcolor: '#fff',
-                        fontSize: '0.875rem',
+                placeholder="메모를 입력하세요..."
+                variant="outlined"
+                sx={{
+                  flex: 1,
+                    bgcolor: '#fff',
+                    fontSize: '0.875rem',
                         mt: 2,
-                        '& textarea': {
-                          flex: 1,
-                          resize: 'vertical',
-                          minHeight: '100px',
-                          maxHeight: '500px'
-                        }
-                      }}
-                    />
-                    <Button
-                      variant="contained"
+                    '& textarea': {
+                      flex: 1,
+                      resize: 'vertical',
+                      minHeight: '100px',
+                      maxHeight: '500px'
+                  }
+                }}
+              />
+            <Button
+              variant="contained"
                       onClick={() => handleSaveMemo(idx + 2)}
                       sx={{ bgcolor: '#3182f6', '&:hover': { bgcolor: '#1b64da' }, alignSelf: 'flex-end', mt: 2 }}
-                    >
-                      저장
-                    </Button>
+            >
+              저장
+            </Button>
                   </Box>
                 )
               ))}
-            </Paper>
-          </Grid>
+          </Paper>
+        </Grid>
         )}
       </Grid>
 

@@ -55,8 +55,8 @@ function ProductList() {
   const [sortConfig, setSortConfig] = useState(() => {
     const savedSortConfig = getJSONCookie('product_sortConfig');
     return savedSortConfig || {
-      key: null,
-      direction: 'asc'
+    key: null,
+    direction: 'asc'
     };
   });
   const [snackbar, setSnackbar] = useState({
