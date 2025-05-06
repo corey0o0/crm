@@ -120,7 +120,6 @@ function Layout() {
   const menuItems = [
     { text: '대시보드', icon: <DashboardIcon />, path: '/' },
     { text: 'A/S 관리', icon: <BuildIcon />, path: '/services' },
-    // { text: '출고 관리(기존)', icon: <LocalShippingIcon />, path: '/shipments' }, // 숨김 처리
     { text: '출고 관리', icon: <LocalShippingIcon />, path: '/shipment' },
     { text: '고객 관리', icon: <PeopleIcon />, path: '/customers' },
     { text: '파츠 관리', icon: <InventoryIcon />, path: '/parts' },

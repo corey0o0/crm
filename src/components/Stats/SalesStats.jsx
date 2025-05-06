@@ -20,7 +20,8 @@ import {
   Tab,
   Divider,
   Autocomplete,
-  ButtonGroup
+  ButtonGroup,
+  Container
 } from '@mui/material';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
@@ -38,6 +39,7 @@ import {
 } from 'recharts';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import BuildIcon from '@mui/icons-material/Build';
+import StorefrontIcon from '@mui/icons-material/Storefront';
 
 function SalesStats() {
   const [loading, setLoading] = useState(true);
@@ -49,7 +51,12 @@ function SalesStats() {
   const [totalStats, setTotalStats] = useState({
     totalServiceSales: 0,
     totalShipmentSales: 0,
-    totalSales: 0
+    totalSales: 0,
+    totalServiceSalesAS: 0,
+    totalServiceSalesSell: 0,
+    totalServiceCount: 0,
+    totalShipmentCount: 0,
+    totalCustomerSales: {}
   });
   const [partsData, setPartsData] = useState({
     servicePartsByDate: {},
@@ -75,6 +82,27 @@ function SalesStats() {
     setEndDate(newEndDate);
   };
 
+  // 판매처 정보 추출 함수
+  const extractSalesChannel = (note) => {
+    if (!note) return '미지정';
+    
+    // [판매처: XXX] 형식 검색
+    const match = note.match(/\[판매처:\s*(.*?)\]/);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+    
+    // 공홈, 블로그, 네이버 등 주요 키워드 검색
+    const keywords = ['공홈', '블로그', '네이버', '인스타', '청담', '쿠팡', '매장'];
+    for (const keyword of keywords) {
+      if (note.includes(keyword)) {
+        return keyword;
+      }
+    }
+    
+    return '미지정';
+  };
+
   const fetchSalesData = async () => {
     try {
       setLoading(true);
@@ -87,6 +115,7 @@ function SalesStats() {
           quantity,
           usage,
           services!inner (
+            id,
             reception_date,
             brand
           ),
@@ -118,6 +147,7 @@ function SalesStats() {
               servicePartsByDate[date] = [];
             }
             servicePartsByDate[date].push({
+              service_id: item.services.id,
               name: item.parts.name,
               code: item.parts.code,
               quantity: item.quantity || 0,
@@ -139,7 +169,8 @@ function SalesStats() {
           product_name,
           quantity,
           price,
-          status
+          status,
+          note
         `)
         .gte('shipment_date', format(startDate, 'yyyy-MM-dd'))
         .lte('shipment_date', format(endDate, 'yyyy-MM-dd'));
@@ -182,7 +213,8 @@ function SalesStats() {
               created_at,
               shipments!inner (
                 shipment_date,
-                brand
+                brand,
+                note
               )
             `)
             .gte('shipments.shipment_date', format(startDate, 'yyyy-MM-dd'))
@@ -227,7 +259,8 @@ function SalesStats() {
                 quantity: partQuantity,
                 price: partPrice,
                 total: totalPrice,
-                shipment_id: part.shipment_id
+                shipment_id: part.shipment_id,
+                customer: extractSalesChannel(part.shipments.note)
               });
             }
           });
@@ -301,7 +334,8 @@ function SalesStats() {
                         quantity: estimatedQuantity,
                         price: partPrice,
                         total: partPrice * estimatedQuantity,
-                        shipment_id: shipment.id
+                        shipment_id: shipment.id,
+                        customer: extractSalesChannel(shipment.note)
                       };
                     } else {
                       // 파츠 DB에서 정보를 찾지 못한 경우 - 예상 계산
@@ -315,7 +349,8 @@ function SalesStats() {
                         quantity: estimatedQuantity,
                         price: estimatedPrice,
                         total: estimatedPrice * estimatedQuantity,
-                        shipment_id: shipment.id
+                        shipment_id: shipment.id,
+                        customer: extractSalesChannel(shipment.note)
                       };
                     }
                   });
@@ -343,7 +378,8 @@ function SalesStats() {
                       quantity: estimatedQuantity,
                       price: estimatedPrice,
                       total: estimatedPrice * estimatedQuantity,
-                      shipment_id: shipment.id
+                      shipment_id: shipment.id,
+                      customer: extractSalesChannel(shipment.note)
                     };
                   });
                   
@@ -367,7 +403,8 @@ function SalesStats() {
                 quantity: Number(shipment.quantity) || 0,
                 price: shipment.quantity > 0 ? Number(shipment.price) / Number(shipment.quantity) : 0,
                 total: Number(shipment.price) || 0,
-                shipment_id: shipment.id
+                shipment_id: shipment.id,
+                customer: extractSalesChannel(shipment.note)
               };
               
               shipmentPartsByDate[date].push(partData);
@@ -394,13 +431,19 @@ function SalesStats() {
             serviceSalesAS: 0,
             serviceSalesSell: 0,
             shipmentSales: 0,
-            totalSales: 0
+            totalSales: 0,
+            serviceCount: 0,
+            shipmentCount: 0,
+            customerSales: {} // 판매처별 매출 정보를 저장할 객체
           };
         }
       });
 
       // A/S 매출 데이터 처리
       Object.entries(servicePartsByDate).forEach(([date, parts]) => {
+        // 중복되지 않는 service_id 집합 생성
+        const uniqueServiceIds = new Set();
+        
         parts.forEach(part => {
           const amount = Number(part.price || 0) * Number(part.quantity || 0);
           salesByDate[date].serviceSales += amount;
@@ -409,13 +452,28 @@ function SalesStats() {
           } else if (part.usage === '판매') {
             salesByDate[date].serviceSalesSell += amount;
           }
+          
+          // service_id가 있으면 Set에 추가
+          if (part.service_id) {
+            uniqueServiceIds.add(part.service_id);
+          }
         });
+        
+        // 중복되지 않는 A/S 건수 저장
+        salesByDate[date].serviceCount = uniqueServiceIds.size;
       });
 
       // 출고 매출 데이터 처리 수정
       Object.entries(shipmentPartsByDate).forEach(([date, parts]) => {
         console.log(`${date} 출고 부품 처리:`, parts);
         let dailyShipmentSales = 0;
+        
+        // 중복되지 않는 shipment_id 집합 생성
+        const uniqueShipmentIds = new Set();
+        
+        // 판매처별 매출 정보 임시 저장
+        const customerSalesTemp = {};
+        
         parts.forEach(part => {
           // 이미 part.total에 총액이 저장되어 있으므로 그대로 사용
           const amount = part.total;
@@ -423,12 +481,32 @@ function SalesStats() {
             제품명: part.name,
             수량: part.quantity,
             단가: part.price,
-            총액: amount
+            총액: amount,
+            판매처: part.customer
           });
           dailyShipmentSales += amount;
+          
+          // 판매처별 매출 추가
+          if (!customerSalesTemp[part.customer]) {
+            customerSalesTemp[part.customer] = 0;
+          }
+          customerSalesTemp[part.customer] += amount;
+          
+          // shipment_id가 있으면 Set에 추가
+          if (part.shipment_id) {
+            uniqueShipmentIds.add(part.shipment_id);
+          }
         });
+        
         salesByDate[date].shipmentSales = dailyShipmentSales;
+        // 중복되지 않는 출고 건수 저장
+        salesByDate[date].shipmentCount = uniqueShipmentIds.size;
+        // 판매처별 매출 정보 저장
+        salesByDate[date].customerSales = customerSalesTemp;
+        
         console.log(`${date} 최종 출고 매출:`, dailyShipmentSales);
+        console.log(`${date} 출고 건수:`, uniqueShipmentIds.size);
+        console.log(`${date} 판매처별 매출:`, customerSalesTemp);
       });
 
       // 총계 계산
@@ -449,11 +527,29 @@ function SalesStats() {
       const totalSales = totalServiceSales + totalShipmentSales;
       const totalServiceSalesAS = sortedData.reduce((sum, item) => sum + Number(item.serviceSalesAS || 0), 0);
       const totalServiceSalesSell = sortedData.reduce((sum, item) => sum + Number(item.serviceSalesSell || 0), 0);
-
+      const totalServiceCount = sortedData.reduce((sum, item) => sum + Number(item.serviceCount || 0), 0);
+      const totalShipmentCount = sortedData.reduce((sum, item) => sum + Number(item.shipmentCount || 0), 0);
+      
+      // 전체 판매처별 매출 합계 계산
+      const totalCustomerSales = {};
+      sortedData.forEach(item => {
+        if (item.customerSales) {
+          Object.entries(item.customerSales).forEach(([customer, amount]) => {
+            if (!totalCustomerSales[customer]) {
+              totalCustomerSales[customer] = 0;
+            }
+            totalCustomerSales[customer] += Number(amount || 0);
+          });
+        }
+      });
+      
       console.log('최종 집계:', {
         서비스매출: totalServiceSales,
         출고매출: totalShipmentSales,
-        총매출: totalSales
+        총매출: totalSales,
+        검수건수: totalServiceCount,
+        출고건수: totalShipmentCount,
+        판매처별매출: totalCustomerSales
       });
 
       setTotalStats({
@@ -461,7 +557,10 @@ function SalesStats() {
         totalShipmentSales: Number(totalShipmentSales || 0),
         totalSales: Number(totalSales || 0),
         totalServiceSalesAS: Number(totalServiceSalesAS || 0),
-        totalServiceSalesSell: Number(totalServiceSalesSell || 0)
+        totalServiceSalesSell: Number(totalServiceSalesSell || 0),
+        totalServiceCount: Number(totalServiceCount || 0),
+        totalShipmentCount: Number(totalShipmentCount || 0),
+        totalCustomerSales
       });
       setSalesData(sortedData);
 
@@ -590,7 +689,7 @@ function SalesStats() {
               <Box>
                 <Typography variant="subtitle1" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
                   <InventoryIcon fontSize="small" />
-                  출고 부품 내역
+                  출고 부품 내역 (판매처별 집계 포함)
                 </Typography>
                 <TableContainer component={Paper} variant="outlined">
                   <Table size="small">
@@ -598,6 +697,7 @@ function SalesStats() {
                       <TableRow>
                         <TableCell>제품명</TableCell>
                         <TableCell>코드</TableCell>
+                        <TableCell>판매처</TableCell>
                         <TableCell align="right">수량</TableCell>
                         <TableCell align="right">단가</TableCell>
                         <TableCell align="right">금액</TableCell>
@@ -608,6 +708,7 @@ function SalesStats() {
                         <TableRow key={`shipment-${idx}`}>
                           <TableCell>{part.name}</TableCell>
                           <TableCell>{part.code}</TableCell>
+                          <TableCell>{part.customer}</TableCell>
                           <TableCell align="right">{part.quantity}</TableCell>
                           <TableCell align="right">
                             {formatCurrency(part.price)}
@@ -617,7 +718,7 @@ function SalesStats() {
                       ))}
                       {/* 합계 행 추가 */}
                       <TableRow sx={{ bgcolor: '#f9fafb' }}>
-                        <TableCell colSpan={4} align="right" sx={{ fontWeight: 600 }}>
+                        <TableCell colSpan={5} align="right" sx={{ fontWeight: 600 }}>
                           합계
                         </TableCell>
                         <TableCell align="right" sx={{ fontWeight: 600 }}>
@@ -626,6 +727,35 @@ function SalesStats() {
                           )}
                         </TableCell>
                       </TableRow>
+                      
+                      {/* 판매처별 합계 추가 */}
+                      {(() => {
+                        // 중복되지 않는 판매처 목록 생성
+                        const customers = [...new Set(partsData.shipmentPartsByDate[date].map(part => part.customer))];
+                        
+                        // 판매처별 합계 계산
+                        return customers.map(customer => {
+                          const total = partsData.shipmentPartsByDate[date]
+                            .filter(part => part.customer === customer)
+                            .reduce((sum, part) => sum + part.total, 0);
+                            
+                          return (
+                            <TableRow key={`customer-${customer}`} sx={{ bgcolor: '#f0f7fa' }}>
+                              <TableCell colSpan={2} align="right" sx={{ color: '#1976d2' }}>
+                                판매처 합계
+                              </TableCell>
+                              <TableCell sx={{ fontWeight: 500, color: '#1976d2' }}>
+                                {customer}
+                              </TableCell>
+                              <TableCell colSpan={2} align="right">
+                              </TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 500, color: '#1976d2' }}>
+                                {formatCurrency(total)}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        });
+                      })()}
                     </TableBody>
                   </Table>
                 </TableContainer>
@@ -764,6 +894,9 @@ function SalesStats() {
                   <Typography variant="body2" color="textSecondary">
                     판매: {formatCurrency(totalStats.totalServiceSalesSell)}
                   </Typography>
+                  <Typography variant="body2" color="textSecondary">
+                    검수 건수: {totalStats.totalServiceCount}건
+                  </Typography>
                 </Box>
               </CardContent>
             </Card>
@@ -777,9 +910,19 @@ function SalesStats() {
                 <Typography variant="h5" component="div">
                   {formatCurrency(totalStats.totalShipmentSales)}
                 </Typography>
+                <Box sx={{ mt: 1 }}>
+                  <Typography variant="body2" color="textSecondary">
+                    검수 건수: {totalStats.totalServiceCount}건
+                  </Typography>
+                  <Typography variant="body2" color="textSecondary">
+                    출고 건수: {totalStats.totalShipmentCount}건
+                  </Typography>
+                </Box>
               </CardContent>
             </Card>
           </Grid>
+          
+          {/* 총 매출 카드 */}
           <Grid item xs={12} md={4}>
             <Card>
               <CardContent>
@@ -789,6 +932,49 @@ function SalesStats() {
                 <Typography variant="h5" component="div">
                   {formatCurrency(totalStats.totalSales)}
                 </Typography>
+                <Box sx={{ mt: 1 }}>
+                  <Typography variant="body2" color="textSecondary">
+                    총 검수 건수: {totalStats.totalServiceCount}건
+                  </Typography>
+                  <Typography variant="body2" color="textSecondary">
+                    총 출고 건수: {totalStats.totalShipmentCount}건
+                  </Typography>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+          
+          {/* 판매처별 매출 카드 */}
+          <Grid item xs={12} md={12}>
+            <Card>
+              <CardContent>
+                <Typography variant="subtitle1" sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                  <StorefrontIcon fontSize="small" color="primary" />
+                  판매처별 매출 (출고)
+                </Typography>
+                <Grid container spacing={2}>
+                  {Object.entries(totalStats.totalCustomerSales || {})
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([customer, amount]) => (
+                      <Grid item xs={12} sm={6} md={3} lg={2} key={customer}>
+                        <Paper sx={{ p: 2, bgcolor: '#f9fafb', display: 'flex', flexDirection: 'column', height: '100%' }}>
+                          <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
+                            {customer}
+                          </Typography>
+                          <Typography variant="h6" sx={{ fontWeight: 500, color: '#1976d2', mt: 'auto' }}>
+                            {formatCurrency(amount)}
+                          </Typography>
+                        </Paper>
+                      </Grid>
+                    ))}
+                  {Object.keys(totalStats.totalCustomerSales || {}).length === 0 && (
+                    <Grid item xs={12}>
+                      <Typography variant="body2" color="textSecondary" sx={{ p: 2 }}>
+                        판매처 데이터 없음
+                      </Typography>
+                    </Grid>
+                  )}
+                </Grid>
               </CardContent>
             </Card>
           </Grid>
@@ -809,12 +995,15 @@ function SalesStats() {
                   <BarChart data={salesData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="date" />
-                    <YAxis />
+                    <YAxis yAxisId="left" orientation="left" stroke="#8884d8" />
+                    <YAxis yAxisId="right" orientation="right" stroke="#82ca9d" />
                     <Tooltip />
                     <Legend />
-                    <Bar name="A/S 매출(A/S)" dataKey="serviceSalesAS" fill="#8884d8" />
-                    <Bar name="A/S 매출(판매)" dataKey="serviceSalesSell" fill="#82ca9d" />
-                    <Bar name="출고 매출" dataKey="shipmentSales" fill="#ffc658" />
+                    <Bar yAxisId="left" name="A/S 매출(A/S)" dataKey="serviceSalesAS" fill="#8884d8" />
+                    <Bar yAxisId="left" name="A/S 매출(판매)" dataKey="serviceSalesSell" fill="#82ca9d" />
+                    <Bar yAxisId="left" name="출고 매출" dataKey="shipmentSales" fill="#ffc658" />
+                    <Bar yAxisId="right" name="A/S 검수 건수" dataKey="serviceCount" fill="#ff8042" />
+                    <Bar yAxisId="right" name="출고 건수" dataKey="shipmentCount" fill="#00C49F" />
                   </BarChart>
                 </ResponsiveContainer>
               </Box>
@@ -826,7 +1015,9 @@ function SalesStats() {
                       <TableCell>날짜</TableCell>
                       <TableCell align="right">A/S 매출(A/S)</TableCell>
                       <TableCell align="right">A/S 매출(판매)</TableCell>
+                      <TableCell align="right">A/S 검수 건수</TableCell>
                       <TableCell align="right">출고 매출</TableCell>
+                      <TableCell align="right">출고 건수</TableCell>
                       <TableCell align="right">총계</TableCell>
                     </TableRow>
                   </TableHead>
@@ -836,7 +1027,9 @@ function SalesStats() {
                         <TableCell>{row.date}</TableCell>
                         <TableCell align="right">{formatCurrency(row.serviceSalesAS)}</TableCell>
                         <TableCell align="right">{formatCurrency(row.serviceSalesSell)}</TableCell>
+                        <TableCell align="right">{row.serviceCount}</TableCell>
                         <TableCell align="right">{formatCurrency(row.shipmentSales)}</TableCell>
+                        <TableCell align="right">{row.shipmentCount}</TableCell>
                         <TableCell align="right">{formatCurrency(row.totalSales)}</TableCell>
                       </TableRow>
                     ))}
