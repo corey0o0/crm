@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Paper,
   Table,
@@ -27,7 +27,11 @@ import {
   LinearProgress,
   TableSortLabel,
   Switch,
-  FormControlLabel
+  FormControlLabel,
+  Checkbox,
+  FormControl,
+  InputLabel,
+  Select
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -36,7 +40,9 @@ import {
   Close as CloseIcon,
   Upload as UploadIcon,
   Download as DownloadIcon,
-  Search as SearchIcon
+  Search as SearchIcon,
+  FileCopy as FileCopyIcon,
+  CheckBox as CheckBoxIcon
 } from '@mui/icons-material';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../lib/supabaseClient';
@@ -74,6 +80,12 @@ function PartsManagement() {
   const [order, setOrder] = useState('asc');
   const [orderBy, setOrderBy] = useState('code');
   const [showSupplyPrice, setShowSupplyPrice] = useState(false);
+  
+  // 체크박스 관련 상태 추가
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [selectAll, setSelectAll] = useState(false);
+  const [openCopyDialog, setOpenCopyDialog] = useState(false);
+  const [copyTargetBrand, setCopyTargetBrand] = useState('');
 
   const brands = ['XRB', 'NB']; // 브랜드 목록 수정
   const navigate = useNavigate();
@@ -482,15 +494,20 @@ function PartsManagement() {
     setSearchTerm('');
   };
 
-  const filteredParts = parts.filter(part => {
-    const matchesBrand = part.brand === selectedBrand;
-    const matchesSearch = 
-      part.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      part.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      part.barcode?.includes(searchTerm) ||
-      part.note?.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesBrand && matchesSearch;
-  });
+  // 필터링된 파츠 목록 계산
+  const filteredParts = useMemo(() => {
+    return parts.filter(part => {
+      // 검색어로 필터링
+      const searchMatch = !searchTerm || 
+        part.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        part.code?.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      // 브랜드로 필터링
+      const brandMatch = selectedBrand === '전체' || part.brand === selectedBrand;
+      
+      return searchMatch && brandMatch;
+    });
+  }, [parts, searchTerm, selectedBrand]);
 
   const sortedParts = sortData([...filteredParts], order, orderBy);
 
@@ -510,54 +527,269 @@ function PartsManagement() {
     </TableCell>
   );
 
+  // 체크박스 선택 처리 함수
+  const handleSelectItem = (id) => {
+    setSelectedItems(prev => {
+      if (prev.includes(id)) {
+        return prev.filter(itemId => itemId !== id);
+      } else {
+        return [...prev, id];
+      }
+    });
+  };
+
+  // 전체 선택 처리 함수
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedItems([]);
+    } else {
+      const filteredIds = filteredParts.map(part => part.id);
+      setSelectedItems(filteredIds);
+    }
+    setSelectAll(!selectAll);
+  };
+
+  // useEffect로 selectAll 상태 업데이트
+  useEffect(() => {
+    // 모든 항목이 선택되었는지 확인
+    if (filteredParts.length > 0 && selectedItems.length === filteredParts.length) {
+      setSelectAll(true);
+    } else {
+      setSelectAll(false);
+    }
+  }, [selectedItems, filteredParts]);
+
+  // 복사 다이얼로그 열기
+  const handleOpenCopyDialog = () => {
+    if (selectedItems.length === 0) {
+      showSnackbar('복사할 항목을 선택해주세요.', 'warning');
+      return;
+    }
+    
+    // 다른 브랜드 선택 (현재 선택된 항목의 브랜드와 다른 브랜드)
+    const selectedParts = parts.filter(part => selectedItems.includes(part.id));
+    const currentBrands = [...new Set(selectedParts.map(part => part.brand))];
+    
+    // 타겟 브랜드 기본값 설정
+    const availableBrands = brands.filter(brand => !currentBrands.includes(brand));
+    if (availableBrands.length > 0) {
+      setCopyTargetBrand(availableBrands[0]);
+    } else {
+      setCopyTargetBrand('');
+    }
+    
+    setOpenCopyDialog(true);
+  };
+
+  // 복사 다이얼로그 닫기
+  const handleCloseCopyDialog = () => {
+    setOpenCopyDialog(false);
+  };
+
+  // 파츠 복사 실행
+  const handleCopyParts = async () => {
+    if (!copyTargetBrand) {
+      showSnackbar('대상 브랜드를 선택해주세요.', 'error');
+      return;
+    }
+
+    try {
+      // 선택된 파츠 정보 가져오기
+      const selectedPartsData = parts.filter(part => selectedItems.includes(part.id));
+      
+      // 각 파츠를 새로운 브랜드로 복사
+      const newPartsData = selectedPartsData.map(part => ({
+        name: part.name,
+        brand: copyTargetBrand,
+        code: part.code,
+        supply_price: part.supply_price,
+        price: part.price,
+        barcode: part.barcode || null,
+        note: part.note || null,
+        stock: 0 // 초기 재고는 0으로 설정
+      }));
+      
+      // 중복 체크를 위한 쿼리
+      for (const newPart of newPartsData) {
+        // 동일한 코드와 브랜드 조합 체크
+        const { data: existingPart, error: checkError } = await supabase
+          .from('parts')
+          .select('id, code')
+          .eq('code', newPart.code)
+          .eq('brand', newPart.brand)
+          .limit(1);
+          
+        if (checkError) throw checkError;
+        
+        // 이미 존재하는 경우 덮어쓰기
+        if (existingPart && existingPart.length > 0) {
+          const { error: updateError } = await supabase
+            .from('parts')
+            .update({
+              name: newPart.name,
+              supply_price: newPart.supply_price,
+              price: newPart.price,
+              barcode: newPart.barcode,
+              note: newPart.note
+            })
+            .eq('id', existingPart[0].id);
+            
+          if (updateError) throw updateError;
+        } else {
+          // 새로 생성
+          const { error: insertError } = await supabase
+            .from('parts')
+            .insert([newPart]);
+            
+          if (insertError) throw insertError;
+        }
+      }
+      
+      showSnackbar(`${newPartsData.length}개 파츠가 ${copyTargetBrand} 브랜드로 복사되었습니다.`, 'success');
+      handleCloseCopyDialog();
+      fetchParts(); // 목록 새로고침
+    } catch (error) {
+      console.error('파츠 복사 중 오류:', error);
+      showSnackbar('파츠 복사 중 오류가 발생했습니다.', 'error');
+    }
+  };
+
   return (
     <Box>
-      <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h6">파츠 관리</Typography>
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={showSupplyPrice}
-                onChange={(e) => setShowSupplyPrice(e.target.checked)}
+      <Box sx={{ mt: 3, mb: 3 }}>
+        <Grid container spacing={2} alignItems="center">
+          <Grid item>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => handleOpenDialog()}
+              sx={{ bgcolor: '#4caf50', '&:hover': { bgcolor: '#388e3c' } }}
+            >
+              추가
+            </Button>
+          </Grid>
+          
+          <Grid item>
+            <Button
+              variant="contained"
+              startIcon={<FileCopyIcon />}
+              onClick={handleOpenCopyDialog}
+              disabled={selectedItems.length === 0}
+              sx={{ bgcolor: '#2196f3', '&:hover': { bgcolor: '#1976d2' } }}
+            >
+              선택 항목 복사
+            </Button>
+          </Grid>
+          
+          <Grid item>
+            <FormControlLabel
+              control={
+                <Checkbox 
+                  checked={selectAll}
+                  onChange={handleSelectAll}
+                  icon={<CheckBoxIcon fontSize="small" />}
+                />
+              }
+              label={`전체 선택 ${selectedItems.length > 0 ? `(${selectedItems.length}개)` : ''}`}
+            />
+          </Grid>
+          
+          <Grid item xs />
+          
+          <Grid item>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <TextField
+                variant="outlined"
                 size="small"
+                placeholder="검색"
+                value={searchInput}
+                onChange={handleSearchInputChange}
+                onKeyPress={handleKeyPress}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon />
+                    </InputAdornment>
+                  ),
+                  endAdornment: searchInput && (
+                    <InputAdornment position="end">
+                      <IconButton
+                        size="small"
+                        onClick={handleClearSearch}
+                        edge="end"
+                      >
+                        <CloseIcon />
+                      </IconButton>
+                    </InputAdornment>
+                  )
+                }}
+                sx={{ minWidth: 220 }}
               />
-            }
-            label="공급가 표시"
-            sx={{ mr: 2 }}
-          />
-          <Tooltip title="엑셀 템플릿 다운로드">
+              <Button
+                variant="outlined"
+                onClick={executeSearch}
+              >
+                검색
+              </Button>
+            </Box>
+          </Grid>
+          
+          <Grid item>
+            <TextField
+              select
+              label="브랜드"
+              value={selectedBrand}
+              onChange={(e) => setSelectedBrand(e.target.value)}
+              variant="outlined"
+              size="small"
+              sx={{ minWidth: 120 }}
+            >
+              <MenuItem value="전체">전체</MenuItem>
+              {brands.map(brand => (
+                <MenuItem key={brand} value={brand}>{brand}</MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+          
+          <Grid item>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={showSupplyPrice}
+                  onChange={(e) => setShowSupplyPrice(e.target.checked)}
+                />
+              }
+              label="매입가 표시"
+            />
+          </Grid>
+          
+          <Grid item>
+            <Button
+              variant="outlined"
+              startIcon={<UploadIcon />}
+              onClick={() => document.getElementById('excel-upload').click()}
+            >
+              파츠 업로드
+            </Button>
+            <input
+              id="excel-upload"
+              type="file"
+              accept=".xlsx, .xls"
+              onChange={handleExcelUpload}
+              style={{ display: 'none' }}
+            />
+          </Grid>
+          
+          <Grid item>
             <Button
               variant="outlined"
               startIcon={<DownloadIcon />}
               onClick={handleDownloadTemplate}
             >
-              템플릿
+              템플릿 다운로드
             </Button>
-          </Tooltip>
-          <Tooltip title="엑셀 파일 업로드">
-            <Button
-              variant="outlined"
-              startIcon={<UploadIcon />}
-              component="label"
-            >
-              엑셀 등록
-              <input
-                type="file"
-                hidden
-                accept=".xlsx, .xls"
-                onChange={handleExcelUpload}
-              />
-            </Button>
-          </Tooltip>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => handleOpenDialog()}
-          >
-            파츠 등록
-          </Button>
-        </Box>
+          </Grid>
+        </Grid>
       </Box>
 
       <Box sx={{ mb: 2 }}>
@@ -572,40 +804,6 @@ function PartsManagement() {
       </Box>
 
       <Box sx={{ mb: 2, display: 'flex', gap: 2, alignItems: 'center' }}>
-        <TextField
-          size="small"
-          placeholder="파츠명, 상품코드, 바코드, 구분 검색"
-          value={searchInput}
-          onChange={handleSearchInputChange}
-          onKeyPress={handleKeyPress}
-          sx={{ width: '70%' }}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon />
-              </InputAdornment>
-            ),
-            endAdornment: searchInput && (
-              <InputAdornment position="end">
-                <IconButton size="small" onClick={handleClearSearch}>
-                  <CloseIcon />
-                </IconButton>
-              </InputAdornment>
-            )
-          }}
-        />
-        <Button
-          variant="contained"
-          onClick={executeSearch}
-          startIcon={<SearchIcon />}
-          sx={{ 
-            height: '40px',
-            bgcolor: '#3182f6',
-            '&:hover': { bgcolor: '#1b64da' }
-          }}
-        >
-          검색
-        </Button>
         {searchTerm && (
           <Typography variant="body2" color="textSecondary">
             검색 결과: {filteredParts.length}건
@@ -617,64 +815,53 @@ function PartsManagement() {
         <Table size="small">
           <TableHead>
             <TableRow>
-              {renderSortableHeader('code', '상품코드')}
-              {renderSortableHeader('barcode', '바코드', 'center')}
-              {renderSortableHeader('name', '파츠명')}
-              {showSupplyPrice && renderSortableHeader('supply_price', '공급가', 'right')}
+              <TableCell padding="checkbox">
+                <Checkbox
+                  checked={selectAll}
+                  onChange={handleSelectAll}
+                />
+              </TableCell>
+              {renderSortableHeader('brand', '브랜드')}
+              {renderSortableHeader('code', '코드')}
+              {renderSortableHeader('name', '제품명')}
+              {showSupplyPrice && renderSortableHeader('supply_price', '매입가', 'right')}
               {renderSortableHeader('price', '판매가', 'right')}
-              {renderSortableHeader('note', '구분')}
-              <TableCell align="center" sx={{ width: '14%' }}>관리</TableCell>
+              {renderSortableHeader('stock', '재고', 'right')}
+              <TableCell align="right">액션</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {sortedParts.length > 0 ? (
-              sortedParts.map((part) => (
-                <TableRow 
-                  key={part.id} 
-                  onClick={() => handleOpenDialog(part)}
-                  sx={{ 
-                    '& td': { py: 1 },
-                    '&:hover': {
-                      backgroundColor: '#e3f2fd !important',
-                      cursor: 'pointer'
-                    }
-                  }}
-                >
-                  <TableCell>{part.code}</TableCell>
-                  <TableCell align="center">{part.barcode}</TableCell>
-                  <TableCell>{part.name}</TableCell>
-                  {showSupplyPrice && <TableCell align="right">{part.supply_price?.toLocaleString()}원</TableCell>}
-                  <TableCell align="right">{part.price?.toLocaleString()}원</TableCell>
-                  <TableCell>{part.note}</TableCell>
-                  <TableCell align="center">
-                    <IconButton 
-                      size="small" 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenDialog(part);
-                      }}
-                    >
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton 
-                      size="small" 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(part.id);
-                      }}
-                    >
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={showSupplyPrice ? 7 : 6} align="center" sx={{ py: 3 }}>
-                  검색 결과가 없습니다.
+            {filteredParts.map((part) => (
+              <TableRow key={part.id}>
+                <TableCell padding="checkbox">
+                  <Checkbox
+                    checked={selectedItems.includes(part.id)}
+                    onChange={() => handleSelectItem(part.id)}
+                  />
+                </TableCell>
+                <TableCell>{part.brand}</TableCell>
+                <TableCell>{part.code}</TableCell>
+                <TableCell>{part.name}</TableCell>
+                {showSupplyPrice && <TableCell align="right">{part.supply_price?.toLocaleString()}</TableCell>}
+                <TableCell align="right">{part.price?.toLocaleString()}</TableCell>
+                <TableCell align="right">{part.stock || 0}</TableCell>
+                <TableCell align="right">
+                  <IconButton
+                    size="small"
+                    onClick={() => handleOpenDialog(part)}
+                  >
+                    <EditIcon />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    onClick={() => handleDelete(part.id)}
+                    color="error"
+                  >
+                    <DeleteIcon />
+                  </IconButton>
                 </TableCell>
               </TableRow>
-            )}
+            ))}
           </TableBody>
         </Table>
       </TableContainer>
@@ -816,6 +1003,51 @@ function PartsManagement() {
             </Typography>
           </Box>
         </DialogContent>
+      </Dialog>
+
+      {/* 파츠 복사 다이얼로그 */}
+      <Dialog open={openCopyDialog} onClose={handleCloseCopyDialog}>
+        <DialogTitle>파츠 복사</DialogTitle>
+        <DialogContent>
+          <Box sx={{ minWidth: 400, mt: 2 }}>
+            <Typography variant="body1" gutterBottom>
+              선택된 {selectedItems.length}개 항목을 다른 브랜드로 복사합니다.
+            </Typography>
+            
+            <FormControl fullWidth sx={{ mt: 2 }}>
+              <InputLabel>대상 브랜드</InputLabel>
+              <Select
+                value={copyTargetBrand}
+                onChange={(e) => setCopyTargetBrand(e.target.value)}
+                label="대상 브랜드"
+              >
+                {brands.map(brand => (
+                  <MenuItem key={brand} value={brand}>
+                    {brand}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+              * 이미 존재하는 코드는 정보가 업데이트됩니다.
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              * 복사된 항목의 초기 재고는 0으로 설정됩니다.
+            </Typography>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseCopyDialog}>취소</Button>
+          <Button 
+            onClick={handleCopyParts} 
+            variant="contained" 
+            color="primary"
+            disabled={!copyTargetBrand}
+          >
+            복사
+          </Button>
+        </DialogActions>
       </Dialog>
     </Box>
   );

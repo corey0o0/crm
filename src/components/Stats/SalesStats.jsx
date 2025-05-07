@@ -40,6 +40,7 @@ import {
 import InventoryIcon from '@mui/icons-material/Inventory';
 import BuildIcon from '@mui/icons-material/Build';
 import StorefrontIcon from '@mui/icons-material/Storefront';
+import RefreshIcon from '@mui/icons-material/Refresh';
 
 function SalesStats() {
   const [loading, setLoading] = useState(true);
@@ -48,6 +49,7 @@ function SalesStats() {
   const [brand, setBrand] = useState('전체');
   const [salesData, setSalesData] = useState([]);
   const [tabValue, setTabValue] = useState(0);
+  const [forceRefresh, setForceRefresh] = useState(0);
   const [totalStats, setTotalStats] = useState({
     totalServiceSales: 0,
     totalShipmentSales: 0,
@@ -62,24 +64,42 @@ function SalesStats() {
     servicePartsByDate: {},
     shipmentPartsByDate: {}
   });
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'success'
+  });
   const brandOptions = ['전체', 'XRB', 'NB'];
   const currentMonth = getMonth(new Date());
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  const [currentPeriod, setCurrentPeriod] = useState(null);
 
   // 월별 버튼 클릭 핸들러
   const handleMonthSelect = (monthIndex) => {
+    // monthIndex는 0부터 시작하는 인덱스임 (0: 1월, 1: 2월, ..., 11: 12월)
+    // 버튼의 월 표시는 1부터 시작하므로 화면에 표시되는 월과 내부 처리 월이 정확히 일치하는지 확인해야 함
     const now = new Date();
-    const selectedMonthDate = setMonth(now, monthIndex);
+    const year = now.getFullYear();
     
-    // 선택된 월 상태 업데이트
-    setSelectedMonth(monthIndex);
+    // 선택된 월의 날짜를 직접 생성 (setMonth 대신)
+    const newDate = new Date(year, monthIndex, 1); // 선택한 월의 1일
     
     // 해당 월의 시작일과 종료일 설정
-    const newStartDate = startOfMonth(selectedMonthDate);
-    const newEndDate = endOfMonth(selectedMonthDate);
+    const newStartDate = startOfMonth(newDate);
+    const newEndDate = endOfMonth(newDate);
     
+    console.log(`선택한 월: ${monthIndex + 1}월`);
+    console.log(`시작일: ${format(newStartDate, 'yyyy-MM-dd')}`);
+    console.log(`종료일: ${format(newEndDate, 'yyyy-MM-dd')}`);
+    
+    // 상태 업데이트 (시간차를 두고 처리하지 않도록 상태 업데이트 후 데이터 조회)
+    setSelectedMonth(monthIndex);
     setStartDate(newStartDate);
     setEndDate(newEndDate);
+    
+    // 이 부분에서 fetchSalesData를 직접 호출하지 않고 handleSearch를 대신 호출
+    // setTimeout 대신 handleSearch 함수로 데이터 조회 통합
+    handleSearch(newStartDate, newEndDate, brand);
   };
 
   // 판매처 정보 추출 함수
@@ -103,9 +123,20 @@ function SalesStats() {
     return '미지정';
   };
 
-  const fetchSalesData = async () => {
+  const fetchSalesData = async (periodInfo) => {
+    // periodInfo가 없으면 현재 상태 값 사용
+    const { startDate: queryStartDate, endDate: queryEndDate, brand: queryBrand } = 
+      periodInfo || { startDate, endDate, brand };
+      
     try {
       setLoading(true);
+
+      // 디버깅: 조회 중인 날짜 범위 출력
+      const formattedStartDate = format(queryStartDate, 'yyyy-MM-dd');
+      const formattedEndDate = format(queryEndDate, 'yyyy-MM-dd');
+      console.log('====== 매출 데이터 조회 시작 ======');
+      console.log(`조회 기간: ${formattedStartDate} ~ ${formattedEndDate}`);
+      console.log(`브랜드: ${queryBrand}`);
 
       // A/S 부품 데이터 조회
       let servicePartsQuery = supabase
@@ -124,11 +155,19 @@ function SalesStats() {
             code
           )
         `)
-        .gte('services.reception_date', format(startDate, 'yyyy-MM-dd'))
-        .lte('services.reception_date', format(endDate, 'yyyy-MM-dd'));
+        .gte('services.reception_date', formattedStartDate)
+        .lte('services.reception_date', formattedEndDate);
       
-      if (brand !== '전체') {
-        servicePartsQuery = servicePartsQuery.eq('services.brand', brand);
+      // forceRefresh가 1 이상일 때 캐시를 사용하지 않도록 설정
+      if (forceRefresh > 0) {
+        servicePartsQuery = servicePartsQuery.options({ 
+          cache: 'no-store',
+          head: false
+        });
+      }
+      
+      if (queryBrand !== '전체') {
+        servicePartsQuery = servicePartsQuery.eq('services.brand', queryBrand);
       }
       
       const { data: servicePartsData, error: servicePartsError } = await servicePartsQuery;
@@ -172,11 +211,19 @@ function SalesStats() {
           status,
           note
         `)
-        .gte('shipment_date', format(startDate, 'yyyy-MM-dd'))
-        .lte('shipment_date', format(endDate, 'yyyy-MM-dd'));
+        .gte('shipment_date', formattedStartDate)
+        .lte('shipment_date', formattedEndDate);
 
-      if (brand !== '전체') {
-        shipmentQuery = shipmentQuery.eq('brand', brand);
+      // forceRefresh가 1 이상일 때 캐시를 사용하지 않도록 설정
+      if (forceRefresh > 0) {
+        shipmentQuery = shipmentQuery.options({ 
+          cache: 'no-store',
+          head: false 
+        });
+      }
+
+      if (queryBrand !== '전체') {
+        shipmentQuery = shipmentQuery.eq('brand', queryBrand);
       }
 
       const { data: shipmentsData, error: shipmentsError } = await shipmentQuery;
@@ -217,12 +264,20 @@ function SalesStats() {
                 note
               )
             `)
-            .gte('shipments.shipment_date', format(startDate, 'yyyy-MM-dd'))
-            .lte('shipments.shipment_date', format(endDate, 'yyyy-MM-dd'));
+            .gte('shipments.shipment_date', formattedStartDate)
+            .lte('shipments.shipment_date', formattedEndDate);
 
-          if (brand !== '전체') {
-            shipmentPartsQuery = shipmentPartsQuery.eq('shipments.brand', brand);
-          }
+            // forceRefresh가 1 이상일 때 캐시를 사용하지 않도록 설정
+            if (forceRefresh > 0) {
+              shipmentPartsQuery = shipmentPartsQuery.options({ 
+                cache: 'no-store',
+                head: false 
+              });
+            }
+
+            if (queryBrand !== '전체') {
+              shipmentPartsQuery = shipmentPartsQuery.eq('shipments.brand', queryBrand);
+            }
 
           const { data, error } = await shipmentPartsQuery;
           
@@ -543,14 +598,10 @@ function SalesStats() {
         }
       });
       
-      console.log('최종 집계:', {
-        서비스매출: totalServiceSales,
-        출고매출: totalShipmentSales,
-        총매출: totalSales,
-        검수건수: totalServiceCount,
-        출고건수: totalShipmentCount,
-        판매처별매출: totalCustomerSales
-      });
+      console.log('데이터 조회 완료');
+      console.log(`조회된 레코드 수: ${sortedData.length}개`);
+      console.log(`조회 기간: ${formattedStartDate} ~ ${formattedEndDate}`);
+      console.log('====== 매출 데이터 조회 종료 ======');
 
       setTotalStats({
         totalServiceSales: Number(totalServiceSales || 0),
@@ -566,14 +617,71 @@ function SalesStats() {
 
     } catch (error) {
       console.error('데이터 조회 중 오류:', error);
+      setSnackbar({
+        open: true,
+        message: '데이터 조회 중 오류가 발생했습니다.',
+        severity: 'error'
+      });
     } finally {
       setLoading(false);
+      
+      // 강제 새로고침 또는 일반 검색 완료 메시지
+      if (forceRefresh > 0) {
+        setSnackbar({
+          open: true,
+          message: '매출 데이터가 성공적으로, 재계산되었습니다.',
+          severity: 'success'
+        });
+      } else {
+        setSnackbar({
+          open: true,
+          message: '매출 데이터 조회가 완료되었습니다.',
+          severity: 'success'
+        });
+      }
+      
+      // 3초 후 알림 닫기
+      setTimeout(() => {
+        setSnackbar(prev => ({ ...prev, open: false }));
+      }, 3000);
     }
   };
 
   useEffect(() => {
-    fetchSalesData();
-  }, [startDate, endDate, brand]);
+    // 처음 로드될 때만 데이터 조회 및 현재 선택된 달로 초기화
+    const now = new Date();
+    const currentMonthIndex = now.getMonth();
+    setSelectedMonth(currentMonthIndex);
+    
+    const currentMonthDate = new Date(now.getFullYear(), currentMonthIndex, 1);
+    const monthStartDate = startOfMonth(currentMonthDate);
+    const monthEndDate = endOfMonth(currentMonthDate);
+    
+    setStartDate(monthStartDate);
+    setEndDate(monthEndDate);
+    
+    // 초기 currentPeriod 설정
+    const initialPeriod = {
+      startDate: monthStartDate,
+      endDate: monthEndDate,
+      brand: '전체'
+    };
+    setCurrentPeriod(initialPeriod);
+    
+    // 데이터 초기 로드
+    fetchSalesData(initialPeriod);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // 의존성 배열을 비워서 컴포넌트 마운트 시 한 번만 실행
+
+  // forceRefresh가 변경될 때만 재계산 수행
+  useEffect(() => {
+    if (forceRefresh > 0) {
+      // 강제 새로고침일 때만 별도 처리 (캐시 무시 설정은 이미 fetchSalesData 내부에 있음)
+      console.log('강제 새로고침 실행 (캐시 무시)');
+      handleSearch(null, null, null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forceRefresh]);
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
@@ -769,10 +877,81 @@ function SalesStats() {
     );
   };
 
+  // 매출 강제 재계산 함수
+  const handleForceRecalculate = () => {
+    if (window.confirm('과거 데이터를 포함한 모든 매출 데이터를 새로 계산합니다. 계속하시겠습니까?')) {
+      // 로컬 캐시를 무시하고 서버에서 데이터를 새로 가져오도록 강제합니다
+      setLoading(true);
+      // forceRefresh 카운터를 증가시켜 useEffect 트리거
+      setForceRefresh(prev => prev + 1);
+      
+      // 사용자에게 알림 표시
+      setSnackbar({
+        open: true,
+        message: '매출 데이터를 다시 계산 중입니다. 잠시만 기다려주세요.',
+        severity: 'info'
+      });
+      
+      // 새로운 handleSearch 함수 호출하여 데이터 조회
+      setTimeout(() => {
+        handleSearch(null, null, null);
+      }, 100);
+    }
+  };
+
+  // 조회 버튼 클릭 핸들러 추가
+  const handleSearch = (customStartDate, customEndDate, customBrand) => {
+    // 매개변수로 받은 값 또는 현재 상태 값 사용
+    const finalStartDate = customStartDate || startDate;
+    const finalEndDate = customEndDate || endDate;
+    const finalBrand = customBrand || brand;
+    
+    // 로딩 상태 시작
+    setLoading(true);
+    // 스낵바로 사용자에게 알림
+    setSnackbar({
+      open: true,
+      message: '데이터를 조회하는 중입니다...',
+      severity: 'info'
+    });
+    
+    // 현재 조회 중인 기간 정보 업데이트
+    const periodInfo = {
+      startDate: finalStartDate,
+      endDate: finalEndDate,
+      brand: finalBrand
+    };
+    setCurrentPeriod(periodInfo);
+    
+    // 데이터 조회 실행 (인자로 전달하여 정확한 값 사용)
+    fetchSalesData(periodInfo);
+  };
+  
+  // 검색 필터를 텍스트로 표시
+  const getSearchFilterText = () => {
+    if (!currentPeriod) return '';
+    
+    let text = `${format(currentPeriod.startDate, 'yyyy년 MM월 dd일')} ~ ${format(currentPeriod.endDate, 'yyyy년 MM월 dd일')}`;
+    if (currentPeriod.brand !== '전체') {
+      text += ` (브랜드: ${currentPeriod.brand})`;
+    }
+    return text;
+  };
+
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-        <CircularProgress />
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: 'column',
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        mt: 10,
+        height: '50vh'
+      }}>
+        <CircularProgress size={60} />
+        <Typography variant="h6" sx={{ mt: 3 }}>
+          매출 데이터를 불러오는 중입니다...
+        </Typography>
       </Box>
     );
   }
@@ -784,10 +963,51 @@ function SalesStats() {
           매출 통계
         </Typography>
 
+        {/* 스낵바 추가 */}
+        {snackbar.open && (
+          <Box
+            sx={{
+              position: 'fixed',
+              top: 20,
+              right: 20,
+              zIndex: 9999,
+              padding: 2,
+              borderRadius: 1,
+              boxShadow: 3,
+              bgcolor: snackbar.severity === 'error' ? '#f44336' : snackbar.severity === 'success' ? '#4caf50' : '#2196f3',
+              color: 'white',
+            }}
+          >
+            {snackbar.message}
+          </Box>
+        )}
+
         {/* 기간 + 브랜드 선택 */}
-        <Paper sx={{ p: 3, mb: 3 }}>
+        <Paper sx={{ p: 3, mb: 3, borderLeft: '4px solid #3182f6' }}>
+          <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 500, color: '#3182f6' }}>
+            검색 필터
+          </Typography>
+          
           {/* 월별 버튼 그룹 추가 */}
           <Box sx={{ mb: 2 }}>
+            <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary', display: 'flex', alignItems: 'center' }}>
+              월 선택
+              {selectedMonth !== null && (
+                <Box component="span" sx={{ 
+                  ml: 2,
+                  py: 0.5, 
+                  px: 1.5,
+                  borderRadius: 1,
+                  backgroundColor: '#e3f2fd',
+                  fontSize: '0.9rem',
+                  color: '#1976d2',
+                  display: 'inline-flex',
+                  alignItems: 'center'
+                }}>
+                  현재 선택: {selectedMonth + 1}월 ({format(startDate, 'yyyy-MM-dd')} ~ {format(endDate, 'yyyy-MM-dd')})
+                </Box>
+              )}
+            </Typography>
             <ButtonGroup size="small" variant="outlined" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
               {[...Array(12)].map((_, idx) => (
                 <Button 
@@ -837,26 +1057,42 @@ function SalesStats() {
               />
             </Grid>
             <Grid item xs={12} sm={4} md={3}>
-              <Autocomplete
-                options={brandOptions}
-                value={brand}
-                onChange={(_, newValue) => setBrand(newValue || '전체')}
-                renderInput={(params) => (
-                  <TextField {...params} label="브랜드" size="small" fullWidth />
-                )}
-                disableClearable
-              />
+              <Typography variant="body2" sx={{ mb: 0.5, color: 'text.secondary' }}>
+                브랜드
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                {brandOptions.map(option => (
+                  <Button
+                    key={option}
+                    variant={brand === option ? "contained" : "outlined"}
+                    size="small"
+                    onClick={() => setBrand(option)}
+                    sx={{
+                      flex: 1,
+                      minWidth: 0,
+                      px: 1,
+                      bgcolor: brand === option ? 'primary.main' : 'background.paper',
+                      '&:hover': {
+                        bgcolor: brand === option ? 'primary.dark' : ''
+                      }
+                    }}
+                  >
+                    {option}
+                  </Button>
+                ))}
+              </Box>
             </Grid>
             <Grid item xs={12} md={3}>
               <Button 
                 variant="contained"
-                onClick={fetchSalesData}
+                onClick={() => handleSearch(null, null, null)}
                 sx={{ 
                   height: '40px',
                   bgcolor: '#3182f6',
                   '&:hover': { bgcolor: '#1b64da' }
                 }}
                 fullWidth
+                disabled={loading}
               >
                 조회
               </Button>
@@ -866,119 +1102,147 @@ function SalesStats() {
               <Button
                 variant="outlined"
                 color="secondary"
-                onClick={fetchSalesData}
-                sx={{ height: '40px', borderColor: '#3182f6', color: '#3182f6' }}
+                onClick={handleForceRecalculate}
+                sx={{ 
+                  height: '40px', 
+                  borderColor: '#ff9800', 
+                  color: '#ff9800',
+                  '&:hover': { 
+                    bgcolor: '#fff8e1',
+                    borderColor: '#ff8f00'
+                  }
+                }}
                 fullWidth
+                disabled={loading}
+                startIcon={<RefreshIcon />}
               >
-                매출 재계산
+                매출 강제 재계산 (캐시 무시)
               </Button>
             </Grid>
           </Grid>
         </Paper>
 
         {/* 총계 카드 */}
-        <Grid container spacing={3} sx={{ mb: 3 }}>
-          <Grid item xs={12} md={4}>
-            <Card>
-              <CardContent>
-                <Typography color="textSecondary" gutterBottom>
-                  A/S 매출
-                </Typography>
-                <Typography variant="h5" component="div">
-                  {formatCurrency(totalStats.totalServiceSales)}
-                </Typography>
-                <Box sx={{ mt: 1 }}>
-                  <Typography variant="body2" color="textSecondary">
-                    A/S: {formatCurrency(totalStats.totalServiceSalesAS)}
-                  </Typography>
-                  <Typography variant="body2" color="textSecondary">
-                    판매: {formatCurrency(totalStats.totalServiceSalesSell)}
-                  </Typography>
-                  <Typography variant="body2" color="textSecondary">
-                    검수 건수: {totalStats.totalServiceCount}건
-                  </Typography>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <Card>
-              <CardContent>
-                <Typography color="textSecondary" gutterBottom>
-                  출고 매출
-                </Typography>
-                <Typography variant="h5" component="div">
-                  {formatCurrency(totalStats.totalShipmentSales)}
-                </Typography>
-                <Box sx={{ mt: 1 }}>
-                  <Typography variant="body2" color="textSecondary">
-                    검수 건수: {totalStats.totalServiceCount}건
-                  </Typography>
-                  <Typography variant="body2" color="textSecondary">
-                    출고 건수: {totalStats.totalShipmentCount}건
-                  </Typography>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
+        <Paper sx={{ p: 2, mb: 3, borderLeft: '4px solid #4caf50' }}>
+          <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 500, color: '#4caf50', display: 'flex', alignItems: 'center' }}>
+            <Box component="span" sx={{ mr: 1 }}>검색 결과</Box>
+            <Box component="span" sx={{ 
+              py: 0.5, 
+              px: 1.5,
+              borderRadius: 1,
+              backgroundColor: '#f0f9f0',
+              fontSize: '0.9rem',
+              color: '#2e7d32',
+              display: 'inline-flex',
+              alignItems: 'center'
+            }}>
+              {getSearchFilterText()}
+            </Box>
+          </Typography>
           
-          {/* 총 매출 카드 */}
-          <Grid item xs={12} md={4}>
-            <Card>
-              <CardContent>
-                <Typography color="textSecondary" gutterBottom>
-                  총 매출
-                </Typography>
-                <Typography variant="h5" component="div">
-                  {formatCurrency(totalStats.totalSales)}
-                </Typography>
-                <Box sx={{ mt: 1 }}>
-                  <Typography variant="body2" color="textSecondary">
-                    총 검수 건수: {totalStats.totalServiceCount}건
+          <Grid container spacing={3}>
+            <Grid item xs={12} md={4}>
+              <Card>
+                <CardContent>
+                  <Typography color="textSecondary" gutterBottom>
+                    A/S 매출
                   </Typography>
-                  <Typography variant="body2" color="textSecondary">
-                    총 출고 건수: {totalStats.totalShipmentCount}건
+                  <Typography variant="h5" component="div">
+                    {formatCurrency(totalStats.totalServiceSales)}
                   </Typography>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-          
-          {/* 판매처별 매출 카드 */}
-          <Grid item xs={12} md={12}>
-            <Card>
-              <CardContent>
-                <Typography variant="subtitle1" sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                  <StorefrontIcon fontSize="small" color="primary" />
-                  판매처별 매출 (출고)
-                </Typography>
-                <Grid container spacing={2}>
-                  {Object.entries(totalStats.totalCustomerSales || {})
-                    .sort((a, b) => b[1] - a[1])
-                    .map(([customer, amount]) => (
-                      <Grid item xs={12} sm={6} md={3} lg={2} key={customer}>
-                        <Paper sx={{ p: 2, bgcolor: '#f9fafb', display: 'flex', flexDirection: 'column', height: '100%' }}>
-                          <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
-                            {customer}
-                          </Typography>
-                          <Typography variant="h6" sx={{ fontWeight: 500, color: '#1976d2', mt: 'auto' }}>
-                            {formatCurrency(amount)}
-                          </Typography>
-                        </Paper>
+                  <Box sx={{ mt: 1 }}>
+                    <Typography variant="body2" color="textSecondary">
+                      A/S: {formatCurrency(totalStats.totalServiceSalesAS)}
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary">
+                      판매: {formatCurrency(totalStats.totalServiceSalesSell)}
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary">
+                      검수 건수: {totalStats.totalServiceCount}건
+                    </Typography>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Card>
+                <CardContent>
+                  <Typography color="textSecondary" gutterBottom>
+                    출고 매출
+                  </Typography>
+                  <Typography variant="h5" component="div">
+                    {formatCurrency(totalStats.totalShipmentSales)}
+                  </Typography>
+                  <Box sx={{ mt: 1 }}>
+                    <Typography variant="body2" color="textSecondary">
+                      검수 건수: {totalStats.totalServiceCount}건
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary">
+                      출고 건수: {totalStats.totalShipmentCount}건
+                    </Typography>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+            
+            {/* 총 매출 카드 */}
+            <Grid item xs={12} md={4}>
+              <Card>
+                <CardContent>
+                  <Typography color="textSecondary" gutterBottom>
+                    총 매출
+                  </Typography>
+                  <Typography variant="h5" component="div">
+                    {formatCurrency(totalStats.totalSales)}
+                  </Typography>
+                  <Box sx={{ mt: 1 }}>
+                    <Typography variant="body2" color="textSecondary">
+                      총 검수 건수: {totalStats.totalServiceCount}건
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary">
+                      총 출고 건수: {totalStats.totalShipmentCount}건
+                    </Typography>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+            
+            {/* 판매처별 매출 카드 */}
+            <Grid item xs={12} md={12}>
+              <Card>
+                <CardContent>
+                  <Typography variant="subtitle1" sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                    <StorefrontIcon fontSize="small" color="primary" />
+                    판매처별 매출 (출고)
+                  </Typography>
+                  <Grid container spacing={2}>
+                    {Object.entries(totalStats.totalCustomerSales || {})
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([customer, amount]) => (
+                        <Grid item xs={12} sm={6} md={3} lg={2} key={customer}>
+                          <Paper sx={{ p: 2, bgcolor: '#f9fafb', display: 'flex', flexDirection: 'column', height: '100%' }}>
+                            <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
+                              {customer}
+                            </Typography>
+                            <Typography variant="h6" sx={{ fontWeight: 500, color: '#1976d2', mt: 'auto' }}>
+                              {formatCurrency(amount)}
+                            </Typography>
+                          </Paper>
+                        </Grid>
+                      ))}
+                    {Object.keys(totalStats.totalCustomerSales || {}).length === 0 && (
+                      <Grid item xs={12}>
+                        <Typography variant="body2" color="textSecondary" sx={{ p: 2 }}>
+                          판매처 데이터 없음
+                        </Typography>
                       </Grid>
-                    ))}
-                  {Object.keys(totalStats.totalCustomerSales || {}).length === 0 && (
-                    <Grid item xs={12}>
-                      <Typography variant="body2" color="textSecondary" sx={{ p: 2 }}>
-                        판매처 데이터 없음
-                      </Typography>
-                    </Grid>
-                  )}
-                </Grid>
-              </CardContent>
-            </Card>
+                    )}
+                  </Grid>
+                </CardContent>
+              </Card>
+            </Grid>
           </Grid>
-        </Grid>
+        </Paper>
 
         {/* 차트와 테이블 탭 */}
         <Paper sx={{ mb: 3 }}>

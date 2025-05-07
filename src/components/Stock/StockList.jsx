@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import {
-  Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Button, MenuItem, CircularProgress, Snackbar, Alert, IconButton, Dialog, DialogTitle, DialogContent
+  Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Button, MenuItem, CircularProgress, Snackbar, Alert, IconButton, Dialog, DialogTitle, DialogContent,
+  Checkbox, FormControlLabel
 } from '@mui/material';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import CloseIcon from '@mui/icons-material/Close';
 import HistoryIcon from '@mui/icons-material/History';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+import SaveIcon from '@mui/icons-material/Save';
 
 function StockList() {
   const [loading, setLoading] = useState(true);
@@ -30,6 +32,8 @@ function StockList() {
     endDate: ''
   });
   const [showSupplyPrice, setShowSupplyPrice] = useState(false);
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [selectAll, setSelectAll] = useState(false);
 
   useEffect(() => {
     fetchParts();
@@ -293,6 +297,96 @@ function StockList() {
     if (e.key === 'Enter') setSearch(searchInput);
   };
 
+  // 체크박스 선택 처리 함수
+  const handleSelectItem = (id) => {
+    setSelectedItems(prev => {
+      if (prev.includes(id)) {
+        return prev.filter(itemId => itemId !== id);
+      } else {
+        return [...prev, id];
+      }
+    });
+  };
+
+  // 전체 선택 처리 함수
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedItems([]);
+    } else {
+      setSelectedItems(filteredParts.map(part => part.id));
+    }
+    setSelectAll(!selectAll);
+  };
+
+  // 체크된 항목들 저장 처리 함수
+  const handleSaveSelectedItems = async () => {
+    if (selectedItems.length === 0) {
+      setSnackbar({ open: true, message: '선택된 항목이 없습니다.', severity: 'warning' });
+      return;
+    }
+
+    try {
+      // 선택된 항목들의 현재 상태 얻기
+      const selectedParts = parts.filter(part => selectedItems.includes(part.id));
+      
+      // 각 항목 저장
+      for (const part of selectedParts) {
+        // 현재 DB에 저장된 값 조회
+        const { data: currentData, error: fetchError } = await supabase
+          .from('parts')
+          .select('stock')
+          .eq('id', part.id)
+          .single();
+          
+        if (fetchError) throw fetchError;
+        
+        const currentStock = currentData.stock;
+        
+        // 변경된 값 저장
+        const { error: updateError } = await supabase
+          .from('parts')
+          .update({ stock: part.stock })
+          .eq('id', part.id);
+          
+        if (updateError) throw updateError;
+        
+        // 재고 로그 기록
+        if (currentStock !== part.stock) {
+          const { error: logError } = await supabase
+            .from('stock_logs')
+            .insert({
+              product_id: part.id,
+              previous_quantity: currentStock,
+              new_quantity: part.stock,
+              change_quantity: part.stock - currentStock,
+              reason: '일괄 재고 수정',
+              created_by: (await supabase.auth.getUser()).data.user?.email || '관리자'
+            });
+            
+          if (logError) throw logError;
+        }
+      }
+      
+      setSnackbar({ open: true, message: `${selectedItems.length}개 항목의 재고가 저장되었습니다.`, severity: 'success' });
+      fetchParts(); // 목록 새로고침
+      setSelectedItems([]); // 선택 초기화
+      setSelectAll(false); // 전체 선택 해제
+    } catch (error) {
+      console.error('재고 일괄 저장 중 오류:', error);
+      setSnackbar({ open: true, message: '재고 저장 중 오류가 발생했습니다.', severity: 'error' });
+    }
+  };
+
+  // useEffect로 selectAll 상태 업데이트
+  useEffect(() => {
+    // 모든 항목이 선택되었는지 확인
+    if (filteredParts.length > 0 && selectedItems.length === filteredParts.length) {
+      setSelectAll(true);
+    } else {
+      setSelectAll(false);
+    }
+  }, [selectedItems, filteredParts]);
+
   return (
     <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
       <Typography variant="h5" sx={{ mb: 3, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -371,6 +465,12 @@ function StockList() {
           <Table size="small">
             <TableHead>
               <TableRow>
+                <TableCell padding="checkbox">
+                  <Checkbox
+                    checked={selectAll}
+                    onChange={handleSelectAll}
+                  />
+                </TableCell>
                 <TableCell onClick={() => handleSort('brand')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
                   브랜드{sortArrow('brand')}
                 </TableCell>
@@ -383,7 +483,7 @@ function StockList() {
                 {showSupplyPrice && (
                   <TableCell align="right" onClick={() => handleSort('supply_price')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
                     공급가{sortArrow('supply_price')}
-                </TableCell>
+                  </TableCell>
                 )}
                 <TableCell align="right" onClick={() => handleSort('price')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
                   단가{sortArrow('price')}
@@ -399,6 +499,12 @@ function StockList() {
             <TableBody>
               {sortedParts.map(part => (
                 <TableRow key={part.id}>
+                  <TableCell padding="checkbox">
+                    <Checkbox
+                      checked={selectedItems.includes(part.id)}
+                      onChange={() => handleSelectItem(part.id)}
+                    />
+                  </TableCell>
                   <TableCell>{part.brand}</TableCell>
                   <TableCell>
                     <Typography sx={{ 
