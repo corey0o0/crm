@@ -235,7 +235,6 @@ function PartsManagement() {
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [searchInput, setSearchInput] = useState('');
-  const [searchTimeout, setSearchTimeout] = useState(null);
   const [isSearching, setIsSearching] = useState(false);
   const [uploadStatus, setUploadStatus] = useState({
     open: false,
@@ -609,27 +608,19 @@ function PartsManagement() {
     });
   };
 
-  // 검색 디바운싱 처리
+  // 검색 입력 처리
   const handleSearchInputChange = (e) => {
-    const value = e.target.value;
-    setSearchInput(value);
-    
-    // 이전 타이머 취소
-    if (searchTimeout) {
-      clearTimeout(searchTimeout);
-    }
-    
-    // 새로운 타이머 설정 (300ms 후에 검색 실행)
-    const newTimer = setTimeout(() => {
-      setSearchTerm(value);
-    }, 300);
-    
-    setSearchTimeout(newTimer);
+    setSearchInput(e.target.value);
   };
 
   // 검색 실행 함수
   const executeSearch = () => {
-    setSearchTerm(searchInput);
+    setIsSearching(true);
+    try {
+      setSearchTerm(searchInput);
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   // 엔터키 처리 함수
@@ -647,7 +638,6 @@ function PartsManagement() {
 
   // 필터링된 파츠 목록 계산 - useMemo로 최적화
   const filteredParts = useMemo(() => {
-    setIsSearching(true);
     try {
       return parts.filter(part => {
         // 검색어로 필터링 (대소문자 구분 없이)
@@ -665,8 +655,9 @@ function PartsManagement() {
         
         return searchMatch && brandMatch;
       });
-    } finally {
-      setIsSearching(false);
+    } catch (error) {
+      console.error('필터링 중 오류:', error);
+      return [];
     }
   }, [parts, searchTerm, selectedBrand]);
 
