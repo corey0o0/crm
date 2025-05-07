@@ -254,6 +254,9 @@ function PartsManagement() {
   const [openCopyDialog, setOpenCopyDialog] = useState(false);
   const [copyTargetBrand, setCopyTargetBrand] = useState('');
 
+  // 디바운스 타이머 상태 추가
+  const [searchDebounce, setSearchDebounce] = useState(null);
+
   const brands = ['XRB', 'NB']; // 브랜드 목록 수정
   const navigate = useNavigate();
 
@@ -608,57 +611,61 @@ function PartsManagement() {
     });
   };
 
-  // 검색 입력 처리
+  // 검색 입력 처리 함수 수정
   const handleSearchInputChange = (e) => {
     setSearchInput(e.target.value);
   };
 
-  // 검색 실행 함수
-  const executeSearch = () => {
+  // 검색 실행 함수 수정
+  const executeSearch = useCallback(() => {
     setIsSearching(true);
     try {
       setSearchTerm(searchInput);
     } finally {
       setIsSearching(false);
     }
-  };
+  }, [searchInput]);
 
-  // 엔터키 처리 함수
-  const handleKeyPress = (event) => {
+  // 엔터키 처리 함수 수정
+  const handleKeyPress = useCallback((event) => {
     if (event.key === 'Enter') {
       executeSearch();
     }
-  };
+  }, [executeSearch]);
 
-  // 검색어 초기화 함수
-  const handleClearSearch = () => {
+  // 검색어 초기화 함수 수정
+  const handleClearSearch = useCallback(() => {
     setSearchInput('');
     setSearchTerm('');
-  };
+  }, []);
 
-  // 필터링된 파츠 목록 계산 - useMemo로 최적화
+  // cleanup effect 추가
+  useEffect(() => {
+    return () => {
+      if (searchDebounce) clearTimeout(searchDebounce);
+    };
+  }, [searchDebounce]);
+
+  // 필터링된 파츠 목록 최적화
   const filteredParts = useMemo(() => {
-    try {
-      return parts.filter(part => {
-        // 검색어로 필터링 (대소문자 구분 없이)
-        const searchMatch = !searchTerm || [
-          part.name,
-          part.code,
-          part.barcode,
-          part.note
-        ].some(field => 
-          field?.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-        
-        // 브랜드로 필터링
-        const brandMatch = selectedBrand === '전체' || part.brand === selectedBrand;
-        
-        return searchMatch && brandMatch;
-      });
-    } catch (error) {
-      console.error('필터링 중 오류:', error);
-      return [];
-    }
+    if (!searchTerm && selectedBrand === '전체') return parts;
+
+    return parts.filter(part => {
+      // 검색어 필터링 (대소문자 구분 없이)
+      const searchMatch = !searchTerm || [
+        part.name,
+        part.code,
+        part.barcode,
+        part.note
+      ].some(field => 
+        field?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      
+      // 브랜드로 필터링
+      const brandMatch = selectedBrand === '전체' || part.brand === selectedBrand;
+      
+      return searchMatch && brandMatch;
+    });
   }, [parts, searchTerm, selectedBrand]);
 
   // 정렬된 파츠 목록
@@ -810,7 +817,11 @@ function PartsManagement() {
   };
 
   return (
-    <Box>
+    <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
+      <Typography variant="h5" sx={{ mb: 3, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
+        <AddIcon />
+        파츠 관리
+      </Typography>
       <Box sx={{ mt: 3, mb: 3 }}>
         {/* 상단 액션 버튼 영역 */}
         <Paper sx={{ p: 2, mb: 2 }}>

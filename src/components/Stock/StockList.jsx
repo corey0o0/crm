@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import {
   Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Button, MenuItem, CircularProgress, Snackbar, Alert, IconButton, Dialog, DialogTitle, DialogContent,
-  Checkbox, FormControlLabel, Stack
+  Checkbox, FormControlLabel, Stack, InputAdornment
 } from '@mui/material';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import CloseIcon from '@mui/icons-material/Close';
@@ -10,6 +10,7 @@ import HistoryIcon from '@mui/icons-material/History';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import SaveIcon from '@mui/icons-material/Save';
+import SearchIcon from '@mui/icons-material/Search';
 
 function StockList() {
   const [loading, setLoading] = useState(true);
@@ -34,6 +35,7 @@ function StockList() {
   const [showSupplyPrice, setShowSupplyPrice] = useState(false);
   const [selectedItems, setSelectedItems] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
+  const [searchDebounce, setSearchDebounce] = useState(null);
 
   useEffect(() => {
     fetchParts();
@@ -104,33 +106,64 @@ function StockList() {
     });
   };
 
-  const filteredParts = parts.filter(part => {
-    // 검색어 필터링
-    const searchMatch = 
-    part.name?.toLowerCase().includes(search.toLowerCase()) ||
-      part.code?.toLowerCase().includes(search.toLowerCase());
+  // 검색 입력 핸들러 수정
+  const handleSearchInputChange = useCallback((e) => {
+    setSearchInput(e.target.value);
+  }, []);
 
-    // 재고 필터링
-    let stockMatch = true;
-    switch (stockFilter) {
-      case '품절 제외':
-        stockMatch = part.stock > 0;
-        break;
-      case '품절':
-        stockMatch = part.stock === 0;
-        break;
-      case '3개 이하':
-        stockMatch = part.stock <= 3 && part.stock >= 0;
-        break;
-      case '1개 이하':
-        stockMatch = part.stock <= 1 && part.stock >= 0;
-        break;
-      default:
-        stockMatch = true;
+  const handleSearchKeyPress = useCallback((e) => {
+    if (e.key === 'Enter') {
+      setSearch(searchInput);
     }
+  }, [searchInput]);
 
-    return searchMatch && stockMatch;
-  });
+  // 검색어 초기화 함수
+  const handleClearSearch = useCallback(() => {
+    setSearchInput('');
+    setSearch('');
+  }, []);
+
+  // cleanup effect 추가
+  useEffect(() => {
+    return () => {
+      if (searchDebounce) clearTimeout(searchDebounce);
+    };
+  }, [searchDebounce]);
+
+  const filteredParts = useMemo(() => {
+    if (!search && brand === '전체' && stockFilter === '전체') return parts;
+
+    return parts.filter(part => {
+      // 검색어 필터링
+      const searchMatch = !search || 
+        part.name?.toLowerCase().includes(search.toLowerCase()) ||
+        part.code?.toLowerCase().includes(search.toLowerCase());
+
+      // 브랜드 필터링
+      const brandMatch = brand === '전체' || part.brand === brand;
+
+      // 재고 필터링
+      let stockMatch = true;
+      switch (stockFilter) {
+        case '품절 제외':
+          stockMatch = part.stock > 0;
+          break;
+        case '품절':
+          stockMatch = part.stock === 0;
+          break;
+        case '3개 이하':
+          stockMatch = part.stock <= 3 && part.stock >= 0;
+          break;
+        case '1개 이하':
+          stockMatch = part.stock <= 1 && part.stock >= 0;
+          break;
+        default:
+          stockMatch = true;
+      }
+
+      return searchMatch && brandMatch && stockMatch;
+    });
+  }, [parts, search, brand, stockFilter]);
 
   const sortedParts = [...filteredParts].sort((a, b) => {
     const { key, direction } = sortConfig;
@@ -289,12 +322,6 @@ function StockList() {
   const handleOpenAllLogs = () => {
     setShowAllLogsDialog(true);
     fetchAllStockLogs();
-  };
-
-  // 검색 입력 핸들러
-  const handleSearchInputChange = (e) => setSearchInput(e.target.value);
-  const handleSearchKeyPress = (e) => {
-    if (e.key === 'Enter') setSearch(searchInput);
   };
 
   // 체크박스 선택 처리 함수
@@ -480,7 +507,26 @@ function StockList() {
             value={searchInput}
             onChange={handleSearchInputChange}
             onKeyPress={handleSearchKeyPress}
+            size="small"
             sx={{ width: 300 }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+              endAdornment: searchInput && (
+                <InputAdornment position="end">
+                  <IconButton
+                    size="small"
+                    onClick={handleClearSearch}
+                    edge="end"
+                  >
+                    <CloseIcon />
+                  </IconButton>
+                </InputAdornment>
+              )
+            }}
           />
           <Button
             variant="outlined"
