@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import {
   Paper,
   Table,
@@ -31,7 +31,8 @@ import {
   Checkbox,
   FormControl,
   InputLabel,
-  Select
+  Select,
+  CircularProgress
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -47,6 +48,171 @@ import {
 import * as XLSX from 'xlsx';
 import { supabase } from '../../lib/supabaseClient';
 import { useNavigate } from 'react-router-dom';
+
+// 입력 폼 컴포넌트 분리
+const PartsFormDialog = memo(({ 
+  open, 
+  onClose, 
+  onSubmit, 
+  initialData, 
+  brands 
+}) => {
+  const [formData, setFormData] = useState({
+    name: '',
+    brand: '',
+    code: '',
+    supplyPrice: '',
+    price: '',
+    barcode: '',
+    note: ''
+  });
+
+  useEffect(() => {
+    if (initialData) {
+      setFormData({
+        name: initialData.name || '',
+        brand: initialData.brand || '',
+        code: initialData.code || '',
+        supplyPrice: initialData.supply_price?.toString() || '',
+        price: initialData.price?.toString() || '',
+        barcode: initialData.barcode || '',
+        note: initialData.note || ''
+      });
+    } else {
+      setFormData({
+        name: '',
+        brand: brands[0] || '',
+        code: '',
+        supplyPrice: '',
+        price: '',
+        barcode: '',
+        note: ''
+      });
+    }
+  }, [initialData, brands]);
+
+  const handleChange = useCallback((e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: ['price', 'supplyPrice'].includes(name) ? value.replace(/[^0-9]/g, '') : value
+    }));
+  }, []);
+
+  const handleSubmit = useCallback(() => {
+    onSubmit(formData);
+  }, [formData, onSubmit]);
+
+  return (
+    <Dialog 
+      open={open} 
+      onClose={onClose} 
+      maxWidth="sm" 
+      fullWidth 
+      transitionDuration={0}
+    >
+      <DialogTitle>
+        {initialData ? '파츠 수정' : '파츠 등록'}
+      </DialogTitle>
+      <DialogContent>
+        <Grid container spacing={2} sx={{ pt: 2 }}>
+          <Grid item xs={12}>
+            <TextField
+              select
+              fullWidth
+              label="브랜드"
+              name="brand"
+              value={formData.brand}
+              onChange={handleChange}
+              required
+            >
+              {brands.map((brand) => (
+                <MenuItem key={brand} value={brand}>
+                  {brand === 'XRB' ? 'X-RIDER' : 'NEARBIKE'}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+          <Grid item xs={12}>
+            <TextField
+              fullWidth
+              label="상품코드"
+              name="code"
+              value={formData.code}
+              onChange={handleChange}
+              required
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <TextField
+              fullWidth
+              label="파츠명"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+              required
+            />
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <TextField
+              fullWidth
+              label="공급가"
+              name="supplyPrice"
+              value={formData.supplyPrice}
+              onChange={handleChange}
+              required
+              InputProps={{
+                endAdornment: <InputAdornment position="end">원</InputAdornment>,
+              }}
+            />
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <TextField
+              fullWidth
+              label="판매가"
+              name="price"
+              value={formData.price}
+              onChange={handleChange}
+              required
+              InputProps={{
+                endAdornment: <InputAdornment position="end">원</InputAdornment>,
+              }}
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <TextField
+              fullWidth
+              label="바코드"
+              name="barcode"
+              value={formData.barcode}
+              onChange={handleChange}
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <TextField
+              fullWidth
+              label="구분"
+              name="note"
+              value={formData.note}
+              onChange={handleChange}
+              multiline
+              rows={2}
+              placeholder="추가 정보를 입력하세요"
+            />
+          </Grid>
+        </Grid>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>취소</Button>
+        <Button onClick={handleSubmit} variant="contained">
+          {initialData ? '수정' : '등록'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+});
+
+PartsFormDialog.displayName = 'PartsFormDialog';
 
 function PartsManagement() {
   const [parts, setParts] = useState([]);
@@ -69,6 +235,8 @@ function PartsManagement() {
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const [searchTimeout, setSearchTimeout] = useState(null);
+  const [isSearching, setIsSearching] = useState(false);
   const [uploadStatus, setUploadStatus] = useState({
     open: false,
     step: 0,
@@ -135,47 +303,17 @@ function PartsManagement() {
     });
   };
 
-  const handleOpenDialog = (part = null) => {
-    if (part) {
-      setSelectedPart(part);
-      setFormData({
-        name: part.name || '',
-        brand: part.brand || '',
-        code: part.code || '',
-        supplyPrice: part.supply_price?.toString() || '',
-        price: part.price?.toString() || '',
-        barcode: part.barcode || '',
-        note: part.note || ''
-      });
-    } else {
-      setSelectedPart(null);
-      setFormData({
-        name: '',
-        brand: selectedBrand,
-        code: '',
-        supplyPrice: '',
-        price: '',
-        barcode: '',
-        note: ''
-      });
-    }
+  const handleOpenDialog = useCallback((part = null) => {
+    setSelectedPart(part);
     setOpenDialog(true);
-  };
+  }, []);
 
-  const handleCloseDialog = () => {
+  const handleCloseDialog = useCallback(() => {
     setOpenDialog(false);
     setSelectedPart(null);
-  };
+  }, []);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: ['price', 'supplyPrice'].includes(name) ? value.replace(/[^0-9]/g, '') : value
-    }));
-  };
-
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async (formData) => {
     try {
       const partData = {
         name: formData.name,
@@ -213,7 +351,7 @@ function PartsManagement() {
       console.error('Error saving part:', err);
       showSnackbar('저장 중 오류가 발생했습니다.', 'error');
     }
-  };
+  }, [selectedPart]);
 
   const handleDelete = async (id) => {
     if (window.confirm('정말 삭제하시겠습니까?')) {
@@ -471,14 +609,27 @@ function PartsManagement() {
     });
   };
 
+  // 검색 디바운싱 처리
+  const handleSearchInputChange = (e) => {
+    const value = e.target.value;
+    setSearchInput(value);
+    
+    // 이전 타이머 취소
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
+    
+    // 새로운 타이머 설정 (300ms 후에 검색 실행)
+    const newTimer = setTimeout(() => {
+      setSearchTerm(value);
+    }, 300);
+    
+    setSearchTimeout(newTimer);
+  };
+
   // 검색 실행 함수
   const executeSearch = () => {
     setSearchTerm(searchInput);
-  };
-
-  // 검색 입력 변경 핸들러
-  const handleSearchInputChange = (e) => {
-    setSearchInput(e.target.value);
   };
 
   // 엔터키 처리 함수
@@ -494,22 +645,35 @@ function PartsManagement() {
     setSearchTerm('');
   };
 
-  // 필터링된 파츠 목록 계산
+  // 필터링된 파츠 목록 계산 - useMemo로 최적화
   const filteredParts = useMemo(() => {
-    return parts.filter(part => {
-      // 검색어로 필터링
-      const searchMatch = !searchTerm || 
-        part.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        part.code?.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      // 브랜드로 필터링
-      const brandMatch = selectedBrand === '전체' || part.brand === selectedBrand;
-      
-      return searchMatch && brandMatch;
-    });
+    setIsSearching(true);
+    try {
+      return parts.filter(part => {
+        // 검색어로 필터링 (대소문자 구분 없이)
+        const searchMatch = !searchTerm || [
+          part.name,
+          part.code,
+          part.barcode,
+          part.note
+        ].some(field => 
+          field?.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+        
+        // 브랜드로 필터링
+        const brandMatch = selectedBrand === '전체' || part.brand === selectedBrand;
+        
+        return searchMatch && brandMatch;
+      });
+    } finally {
+      setIsSearching(false);
+    }
   }, [parts, searchTerm, selectedBrand]);
 
-  const sortedParts = sortData([...filteredParts], order, orderBy);
+  // 정렬된 파츠 목록
+  const sortedParts = useMemo(() => {
+    return sortData([...filteredParts], order, orderBy);
+  }, [filteredParts, order, orderBy]);
 
   const renderSortableHeader = (id, label, align = 'left') => (
     <TableCell 
@@ -657,160 +821,215 @@ function PartsManagement() {
   return (
     <Box>
       <Box sx={{ mt: 3, mb: 3 }}>
-        <Grid container spacing={2} alignItems="center">
-          <Grid item>
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={() => handleOpenDialog()}
-              sx={{ bgcolor: '#4caf50', '&:hover': { bgcolor: '#388e3c' } }}
-            >
-              추가
-            </Button>
-          </Grid>
-          
-          <Grid item>
-            <Button
-              variant="contained"
-              startIcon={<FileCopyIcon />}
-              onClick={handleOpenCopyDialog}
-              disabled={selectedItems.length === 0}
-              sx={{ bgcolor: '#2196f3', '&:hover': { bgcolor: '#1976d2' } }}
-            >
-              선택 항목 복사
-            </Button>
-          </Grid>
-          
-          <Grid item>
-            <FormControlLabel
-              control={
-                <Checkbox 
-                  checked={selectAll}
-                  onChange={handleSelectAll}
-                  icon={<CheckBoxIcon fontSize="small" />}
-                />
-              }
-              label={`전체 선택 ${selectedItems.length > 0 ? `(${selectedItems.length}개)` : ''}`}
-            />
-          </Grid>
-          
-          <Grid item xs />
-          
-          <Grid item>
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <TextField
-                variant="outlined"
-                size="small"
-                placeholder="검색"
-                value={searchInput}
-                onChange={handleSearchInputChange}
-                onKeyPress={handleKeyPress}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon />
-                    </InputAdornment>
-                  ),
-                  endAdornment: searchInput && (
-                    <InputAdornment position="end">
-                      <IconButton
-                        size="small"
-                        onClick={handleClearSearch}
-                        edge="end"
-                      >
-                        <CloseIcon />
-                      </IconButton>
-                    </InputAdornment>
-                  )
-                }}
-                sx={{ minWidth: 220 }}
+        {/* 상단 액션 버튼 영역 */}
+        <Paper sx={{ p: 2, mb: 2 }}>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={() => handleOpenDialog()}
+                sx={{ bgcolor: '#4caf50', '&:hover': { bgcolor: '#388e3c' } }}
+              >
+                추가
+              </Button>
+            </Grid>
+            
+            <Grid item>
+              <Button
+                variant="contained"
+                startIcon={<FileCopyIcon />}
+                onClick={handleOpenCopyDialog}
+                disabled={selectedItems.length === 0}
+                sx={{ bgcolor: '#2196f3', '&:hover': { bgcolor: '#1976d2' } }}
+              >
+                선택 항목 복사
+              </Button>
+            </Grid>
+            
+            <Grid item>
+              <FormControlLabel
+                control={
+                  <Checkbox 
+                    checked={selectAll}
+                    onChange={handleSelectAll}
+                    icon={<CheckBoxIcon fontSize="small" />}
+                  />
+                }
+                label={`전체 선택 ${selectedItems.length > 0 ? `(${selectedItems.length}개)` : ''}`}
               />
+            </Grid>
+
+            <Grid item xs />
+
+            <Grid item>
               <Button
                 variant="outlined"
-                onClick={executeSearch}
+                startIcon={<UploadIcon />}
+                onClick={() => document.getElementById('excel-upload').click()}
               >
-                검색
+                파츠 업로드
               </Button>
-            </Box>
+              <input
+                id="excel-upload"
+                type="file"
+                accept=".xlsx, .xls"
+                onChange={handleExcelUpload}
+                style={{ display: 'none' }}
+              />
+            </Grid>
+            
+            <Grid item>
+              <Button
+                variant="outlined"
+                startIcon={<DownloadIcon />}
+                onClick={handleDownloadTemplate}
+              >
+                템플릿 다운로드
+              </Button>
+            </Grid>
           </Grid>
-          
-          <Grid item>
-            <TextField
-              select
-              label="브랜드"
-              value={selectedBrand}
-              onChange={(e) => setSelectedBrand(e.target.value)}
-              variant="outlined"
-              size="small"
-              sx={{ minWidth: 120 }}
-            >
-              <MenuItem value="전체">전체</MenuItem>
-              {brands.map(brand => (
-                <MenuItem key={brand} value={brand}>{brand}</MenuItem>
-              ))}
-            </TextField>
-          </Grid>
-          
-          <Grid item>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={showSupplyPrice}
-                  onChange={(e) => setShowSupplyPrice(e.target.checked)}
+        </Paper>
+
+        {/* 검색 및 필터 영역 */}
+        <Paper sx={{ p: 2 }}>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} sm={6} md={3}>
+              <TextField
+                select
+                fullWidth
+                size="small"
+                label="브랜드"
+                value={selectedBrand}
+                onChange={(e) => setSelectedBrand(e.target.value)}
+              >
+                <MenuItem value="전체">전체</MenuItem>
+                {brands.map(brand => (
+                  <MenuItem key={brand} value={brand}>
+                    {brand === 'XRB' ? 'X-RIDER' : 'NEARBIKE'}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+
+            <Grid item xs={12} sm={6} md={6}>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  placeholder="제품명, 코드, 바코드로 검색"
+                  value={searchInput}
+                  onChange={handleSearchInputChange}
+                  onKeyPress={handleKeyPress}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon />
+                      </InputAdornment>
+                    ),
+                    endAdornment: searchInput && (
+                      <InputAdornment position="end">
+                        <IconButton
+                          size="small"
+                          onClick={handleClearSearch}
+                          edge="end"
+                        >
+                          <CloseIcon />
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                    sx: {
+                      height: '40px'
+                    }
+                  }}
                 />
-              }
-              label="매입가 표시"
-            />
+                <Button
+                  variant="contained"
+                  onClick={executeSearch}
+                  disabled={isSearching}
+                  sx={{ 
+                    minWidth: '100px',
+                    height: '40px',
+                    px: 3,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  {isSearching ? (
+                    <CircularProgress size={20} />
+                  ) : (
+                    '검색'
+                  )}
+                </Button>
+              </Box>
+            </Grid>
+
+            <Grid item xs={12} sm={6} md={3}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={showSupplyPrice}
+                    onChange={(e) => setShowSupplyPrice(e.target.checked)}
+                  />
+                }
+                label="매입가 표시"
+                sx={{ m: 0 }}
+              />
+            </Grid>
           </Grid>
-          
-          <Grid item>
-            <Button
-              variant="outlined"
-              startIcon={<UploadIcon />}
-              onClick={() => document.getElementById('excel-upload').click()}
-            >
-              파츠 업로드
-            </Button>
-            <input
-              id="excel-upload"
-              type="file"
-              accept=".xlsx, .xls"
-              onChange={handleExcelUpload}
-              style={{ display: 'none' }}
-            />
-          </Grid>
-          
-          <Grid item>
-            <Button
-              variant="outlined"
-              startIcon={<DownloadIcon />}
-              onClick={handleDownloadTemplate}
-            >
-              템플릿 다운로드
-            </Button>
-          </Grid>
-        </Grid>
+
+          {/* 검색 결과 카운트 */}
+          {searchTerm && (
+            <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="body2" color="text.secondary">
+                검색어: <strong>{searchTerm}</strong>
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ ml: 2 }}>
+                검색 결과: <strong>{filteredParts.length}건</strong>
+              </Typography>
+              <IconButton 
+                size="small" 
+                onClick={handleClearSearch}
+                sx={{ ml: 1 }}
+              >
+                <CloseIcon fontSize="small" />
+              </IconButton>
+            </Box>
+          )}
+        </Paper>
       </Box>
 
+      {/* 브랜드 탭 */}
       <Box sx={{ mb: 2 }}>
         <Tabs
           value={selectedBrand}
           onChange={(e, newValue) => setSelectedBrand(newValue)}
+          sx={{
+            borderBottom: 1,
+            borderColor: 'divider',
+            '& .MuiTab-root': {
+              minWidth: 120,
+              fontWeight: 'medium'
+            }
+          }}
         >
           {brands.map((brand) => (
-            <Tab key={brand} value={brand} label={brand === 'XRB' ? 'X-RIDER' : 'NEARBIKE'} />
+            <Tab 
+              key={brand} 
+              value={brand} 
+              label={brand === 'XRB' ? 'X-RIDER' : 'NEARBIKE'}
+              sx={{
+                '&.Mui-selected': {
+                  fontWeight: 'bold'
+                }
+              }}
+            />
           ))}
         </Tabs>
       </Box>
 
-      <Box sx={{ mb: 2, display: 'flex', gap: 2, alignItems: 'center' }}>
-        {searchTerm && (
-          <Typography variant="body2" color="textSecondary">
-            검색 결과: {filteredParts.length}건
-          </Typography>
-        )}
-      </Box>
-
+      {/* 테이블 영역 */}
       <TableContainer component={Paper}>
         <Table size="small">
           <TableHead>
@@ -827,11 +1046,12 @@ function PartsManagement() {
               {showSupplyPrice && renderSortableHeader('supply_price', '매입가', 'right')}
               {renderSortableHeader('price', '판매가', 'right')}
               {renderSortableHeader('stock', '재고', 'right')}
+              {renderSortableHeader('note', '구분')}
               <TableCell align="right">액션</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {filteredParts.map((part) => (
+            {sortedParts.map((part) => (
               <TableRow key={part.id}>
                 <TableCell padding="checkbox">
                   <Checkbox
@@ -845,6 +1065,17 @@ function PartsManagement() {
                 {showSupplyPrice && <TableCell align="right">{part.supply_price?.toLocaleString()}</TableCell>}
                 <TableCell align="right">{part.price?.toLocaleString()}</TableCell>
                 <TableCell align="right">{part.stock || 0}</TableCell>
+                <TableCell>
+                  <Typography 
+                    sx={{ 
+                      fontSize: '0.875rem',
+                      color: part.note ? 'text.primary' : 'text.secondary',
+                      fontStyle: part.note ? 'normal' : 'italic'
+                    }}
+                  >
+                    {part.note || '-'}
+                  </Typography>
+                </TableCell>
                 <TableCell align="right">
                   <IconButton
                     size="small"
@@ -866,105 +1097,13 @@ function PartsManagement() {
         </Table>
       </TableContainer>
 
-      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth transitionDuration={0}>
-        <DialogTitle>
-          {selectedPart ? '파츠 수정' : '파츠 등록'}
-        </DialogTitle>
-        <DialogContent>
-          <Grid container spacing={2} sx={{ pt: 2 }}>
-            <Grid item xs={12}>
-              <TextField
-                select
-                fullWidth
-                label="브랜드"
-                name="brand"
-                value={formData.brand}
-                onChange={handleChange}
-                required
-              >
-                {brands.map((brand) => (
-                  <MenuItem key={brand} value={brand}>
-                    {brand === 'XRB' ? 'X-RIDER' : 'NEARBIKE'}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="상품코드"
-                name="code"
-                value={formData.code}
-                onChange={handleChange}
-                required
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="파츠명"
-                name="name"
-                value={formData.name}
-                onChange={handleChange}
-                required
-              />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="공급가"
-                name="supplyPrice"
-                value={formData.supplyPrice}
-                onChange={handleChange}
-                required
-                InputProps={{
-                  endAdornment: <InputAdornment position="end">원</InputAdornment>,
-                }}
-              />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="판매가"
-                name="price"
-                value={formData.price}
-                onChange={handleChange}
-                required
-                InputProps={{
-                  endAdornment: <InputAdornment position="end">원</InputAdornment>,
-                }}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="바코드"
-                name="barcode"
-                value={formData.barcode}
-                onChange={handleChange}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="구분"
-                name="note"
-                value={formData.note}
-                onChange={handleChange}
-                multiline
-                rows={2}
-                placeholder="추가 정보를 입력하세요"
-              />
-            </Grid>
-          </Grid>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDialog}>취소</Button>
-          <Button onClick={handleSubmit} variant="contained">
-            {selectedPart ? '수정' : '등록'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <PartsFormDialog
+        open={openDialog}
+        onClose={handleCloseDialog}
+        onSubmit={handleSubmit}
+        initialData={selectedPart}
+        brands={brands}
+      />
 
       <Snackbar
         open={snackbar.open}

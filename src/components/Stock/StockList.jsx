@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import {
   Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Button, MenuItem, CircularProgress, Snackbar, Alert, IconButton, Dialog, DialogTitle, DialogContent,
-  Checkbox, FormControlLabel
+  Checkbox, FormControlLabel, Stack
 } from '@mui/material';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import CloseIcon from '@mui/icons-material/Close';
@@ -377,6 +377,63 @@ function StockList() {
     }
   };
 
+  // 전체 항목 저장 처리 함수
+  const handleSaveAllItems = async () => {
+    try {
+      // 화면에 표시된 모든 항목(필터링된 항목) 저장
+      const partsToSave = filteredParts;
+      
+      if (partsToSave.length === 0) {
+        setSnackbar({ open: true, message: '저장할 항목이 없습니다.', severity: 'warning' });
+        return;
+      }
+      
+      // 각 항목 저장
+      for (const part of partsToSave) {
+        // 현재 DB에 저장된 값 조회
+        const { data: currentData, error: fetchError } = await supabase
+          .from('parts')
+          .select('stock')
+          .eq('id', part.id)
+          .single();
+          
+        if (fetchError) throw fetchError;
+        
+        const currentStock = currentData.stock;
+        
+        // 변경된 값 저장
+        const { error: updateError } = await supabase
+          .from('parts')
+          .update({ stock: part.stock })
+          .eq('id', part.id);
+          
+        if (updateError) throw updateError;
+        
+        // 재고 로그 기록 (값이 실제로 변경된 경우에만)
+        if (currentStock !== part.stock) {
+          const { error: logError } = await supabase
+            .from('stock_logs')
+            .insert({
+              product_id: part.id,
+              previous_quantity: currentStock,
+              new_quantity: part.stock,
+              change_quantity: part.stock - currentStock,
+              reason: '전체 재고 수정',
+              created_by: (await supabase.auth.getUser()).data.user?.email || '관리자'
+            });
+            
+          if (logError) throw logError;
+        }
+      }
+      
+      setSnackbar({ open: true, message: `${partsToSave.length}개 항목의 재고가 저장되었습니다.`, severity: 'success' });
+      fetchParts(); // 목록 새로고침
+    } catch (error) {
+      console.error('재고 일괄 저장 중 오류:', error);
+      setSnackbar({ open: true, message: '재고 저장 중 오류가 발생했습니다.', severity: 'error' });
+    }
+  };
+
   // useEffect로 selectAll 상태 업데이트
   useEffect(() => {
     // 모든 항목이 선택되었는지 확인
@@ -461,107 +518,120 @@ function StockList() {
           <CircularProgress />
         </Box>
       ) : (
-        <TableContainer component={Paper}>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell padding="checkbox">
-                  <Checkbox
-                    checked={selectAll}
-                    onChange={handleSelectAll}
-                  />
-                </TableCell>
-                <TableCell onClick={() => handleSort('brand')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
-                  브랜드{sortArrow('brand')}
-                </TableCell>
-                <TableCell onClick={() => handleSort('code')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
-                  코드{sortArrow('code')}
-                </TableCell>
-                <TableCell onClick={() => handleSort('name')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
-                  제품명{sortArrow('name')}
-                </TableCell>
-                {showSupplyPrice && (
-                  <TableCell align="right" onClick={() => handleSort('supply_price')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
-                    공급가{sortArrow('supply_price')}
-                  </TableCell>
-                )}
-                <TableCell align="right" onClick={() => handleSort('price')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
-                  단가{sortArrow('price')}
-                </TableCell>
-                <TableCell align="right" onClick={() => handleSort('stock')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
-                  재고{sortArrow('stock')}
-                </TableCell>
-                <TableCell align="center">
-                  저장
-                </TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {sortedParts.map(part => (
-                <TableRow key={part.id}>
+        <>
+          <TableContainer component={Paper}>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
                   <TableCell padding="checkbox">
                     <Checkbox
-                      checked={selectedItems.includes(part.id)}
-                      onChange={() => handleSelectItem(part.id)}
+                      checked={selectAll}
+                      onChange={handleSelectAll}
                     />
                   </TableCell>
-                  <TableCell>{part.brand}</TableCell>
-                  <TableCell>
-                    <Typography sx={{ 
-                      fontSize: '0.95rem', 
-                      letterSpacing: '0.01em',
-                      color: 'text.primary' 
-                    }}>
-                      {part.code}
-                    </Typography>
+                  <TableCell onClick={() => handleSort('brand')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
+                    브랜드{sortArrow('brand')}
                   </TableCell>
-                  <TableCell>
-                    <Typography sx={{ 
-                      fontSize: '0.95rem', 
-                      letterSpacing: '0.01em' 
-                    }}>
-                      {part.name}
-                    </Typography>
+                  <TableCell onClick={() => handleSort('code')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
+                    코드{sortArrow('code')}
+                  </TableCell>
+                  <TableCell onClick={() => handleSort('name')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
+                    제품명{sortArrow('name')}
                   </TableCell>
                   {showSupplyPrice && (
-                    <TableCell align="right">{part.supply_price?.toLocaleString()}원</TableCell>
+                    <TableCell align="right" onClick={() => handleSort('supply_price')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
+                      공급가{sortArrow('supply_price')}
+                    </TableCell>
                   )}
-                  <TableCell align="right">{part.price?.toLocaleString()}원</TableCell>
-                  <TableCell align="right">
-                    <TextField
-                      type="number"
-                      size="small"
-                      value={part.stock ?? 0}
-                      onChange={e => handleStockChange(part.id, e.target.value)}
-                      sx={{ 
-                        width: 80,
-                        '& input': {
-                          fontWeight: (part.stock > 0) ? 700 : 400,
-                          color: (part.stock === 0) ? 'error.main' : 'inherit'
-                        }
-                      }}
-                      inputProps={{ 
-                        min: 0,
-                        style: { 
-                          textAlign: 'right',
-                        }
-                      }}
-                    />
+                  <TableCell align="right" onClick={() => handleSort('price')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
+                    단가{sortArrow('price')}
                   </TableCell>
-                  <TableCell align="center">
-                    <Button
-                      variant="contained"
-                      size="small"
-                      onClick={() => handleSaveStock(part.id, part.stock, part.stock)}
-                    >
-                      저장
-                    </Button>
+                  <TableCell align="right" onClick={() => handleSort('stock')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
+                    재고{sortArrow('stock')}
                   </TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+              </TableHead>
+              <TableBody>
+                {sortedParts.map(part => (
+                  <TableRow key={part.id}>
+                    <TableCell padding="checkbox">
+                      <Checkbox
+                        checked={selectedItems.includes(part.id)}
+                        onChange={() => handleSelectItem(part.id)}
+                      />
+                    </TableCell>
+                    <TableCell>{part.brand}</TableCell>
+                    <TableCell>
+                      <Typography sx={{ 
+                        fontSize: '0.95rem', 
+                        letterSpacing: '0.01em',
+                        color: 'text.primary' 
+                      }}>
+                        {part.code}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography sx={{ 
+                        fontSize: '0.95rem', 
+                        letterSpacing: '0.01em' 
+                      }}>
+                        {part.name}
+                      </Typography>
+                    </TableCell>
+                    {showSupplyPrice && (
+                      <TableCell align="right">{part.supply_price?.toLocaleString()}원</TableCell>
+                    )}
+                    <TableCell align="right">{part.price?.toLocaleString()}원</TableCell>
+                    <TableCell align="right">
+                      <TextField
+                        type="number"
+                        size="small"
+                        value={part.stock ?? 0}
+                        onChange={e => handleStockChange(part.id, e.target.value)}
+                        sx={{ 
+                          width: 80,
+                          '& input': {
+                            fontWeight: (part.stock > 0) ? 700 : 400,
+                            color: (part.stock === 0) ? 'error.main' : 'inherit'
+                          }
+                        }}
+                        inputProps={{ 
+                          min: 0,
+                          style: { 
+                            textAlign: 'right',
+                          }
+                        }}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          
+          {/* 저장 버튼 영역 */}
+          <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+            <Stack direction="row" spacing={2}>
+              <Button
+                variant="contained"
+                color="primary"
+                startIcon={<SaveIcon />}
+                disabled={selectedItems.length === 0}
+                onClick={handleSaveSelectedItems}
+              >
+                선택 저장 ({selectedItems.length}개)
+              </Button>
+              <Button
+                variant="outlined"
+                color="primary"
+                startIcon={<SaveIcon />}
+                onClick={handleSaveAllItems}
+              >
+                전체 저장 ({filteredParts.length}개)
+              </Button>
+            </Stack>
+          </Box>
+        </>
       )}
       <Snackbar
         open={snackbar.open}
