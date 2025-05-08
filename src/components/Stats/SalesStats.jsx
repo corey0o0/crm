@@ -147,7 +147,7 @@ function SalesStats() {
           usage,
           services!inner (
             id,
-            reception_date,
+            completion_date,
             brand
           ),
           parts!inner (
@@ -155,8 +155,8 @@ function SalesStats() {
             code
           )
         `)
-        .gte('services.reception_date', formattedStartDate)
-        .lte('services.reception_date', formattedEndDate);
+        .gte('services.completion_date', formattedStartDate)
+        .lte('services.completion_date', formattedEndDate);
       
       // forceRefresh가 1 이상일 때 캐시를 사용하지 않도록 설정
       if (forceRefresh > 0) {
@@ -181,7 +181,7 @@ function SalesStats() {
       if (servicePartsData) {
         servicePartsData.forEach(item => {
           if (item.services && item.parts) {
-            const date = format(parseISO(item.services.reception_date), 'yyyy-MM-dd');
+            const date = format(parseISO(item.services.completion_date), 'yyyy-MM-dd');
             if (!servicePartsByDate[date]) {
               servicePartsByDate[date] = [];
             }
@@ -204,15 +204,15 @@ function SalesStats() {
         .select(`
           id,
           brand,
-          shipment_date,
+          order_date,
           product_name,
           quantity,
           price,
           status,
           note
         `)
-        .gte('shipment_date', formattedStartDate)
-        .lte('shipment_date', formattedEndDate);
+        .gte('order_date', formattedStartDate)
+        .lte('order_date', formattedEndDate);
 
       // forceRefresh가 1 이상일 때 캐시를 사용하지 않도록 설정
       if (forceRefresh > 0) {
@@ -259,13 +259,13 @@ function SalesStats() {
               total_price,
               created_at,
               shipments!inner (
-                shipment_date,
+                order_date,
                 brand,
                 note
               )
             `)
-            .gte('shipments.shipment_date', formattedStartDate)
-            .lte('shipments.shipment_date', formattedEndDate);
+            .gte('shipments.order_date', formattedStartDate)
+            .lte('shipments.order_date', formattedEndDate);
 
             // forceRefresh가 1 이상일 때 캐시를 사용하지 않도록 설정
             if (forceRefresh > 0) {
@@ -296,10 +296,10 @@ function SalesStats() {
           // shipment_parts 테이블에서 데이터를 가져온 경우 처리
           shipmentPartsData.forEach(part => {
             if (part.shipments) {
-              const date = format(parseISO(part.shipments.shipment_date), 'yyyy-MM-dd');
-          if (!shipmentPartsByDate[date]) {
-            shipmentPartsByDate[date] = [];
-          }
+              const date = format(parseISO(part.shipments.order_date), 'yyyy-MM-dd');
+              if (!shipmentPartsByDate[date]) {
+                shipmentPartsByDate[date] = [];
+              }
 
               // price 필드는 이미 단가로 저장되어 있으므로 그대로 사용
               // total은 단가와 수량을 곱하여 계산
@@ -347,7 +347,7 @@ function SalesStats() {
           
           // 각 출고 항목 처리
           for (const shipment of shipmentsData) {
-            const date = format(parseISO(shipment.shipment_date), 'yyyy-MM-dd');
+            const date = format(parseISO(shipment.order_date), 'yyyy-MM-dd');
             if (!shipmentPartsByDate[date]) {
               shipmentPartsByDate[date] = [];
             }

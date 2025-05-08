@@ -112,9 +112,9 @@ function CustomerList({ refreshTrigger, onRefresh }) {
 
       if (servicesError) throw servicesError;
 
-      // 3. 출고 데이터 조회
+      // 3. 출고 데이터 조회 (전체 출고 데이터 조회)
       const { data: shipmentsData, error: shipmentsError } = await supabase
-        .from('product_shipments')
+        .from('shipments')
         .select('*')
         .order('shipment_date', { ascending: false });
 
@@ -123,7 +123,7 @@ function CustomerList({ refreshTrigger, onRefresh }) {
       console.log('Services data:', servicesData); // 서비스 데이터 구조 확인
       console.log('Shipments data:', shipmentsData); // 출고 데이터 구조 확인
 
-      // 4. 모든 고객 데이터 통합 (서비스와 출고 데이터에서 고객 정보 추출)
+      // 4. 모든 고객 데이터 통합
       const allCustomers = new Map();
 
       // 기존 고객 데이터 추가
@@ -138,18 +138,22 @@ function CustomerList({ refreshTrigger, onRefresh }) {
           recentTag: null,
           shipmentCount: 0,
           lastShipmentDate: null,
-          brands: new Set() // 고객이 이용한 브랜드 추적
+          brands: new Set()
         });
       });
 
       // 서비스 데이터에서 고객 정보 추가/업데이트
       servicesData.forEach(service => {
-        if (!service.customer_phone) return;
+        const phone = service.customer_phone;
+        const name = service.customer_name;
+        const brand = service.brand;
         
-        if (!allCustomers.has(service.customer_phone)) {
-          allCustomers.set(service.customer_phone, {
-            phone: service.customer_phone,
-            name: service.customer_name,
+        if (!phone) return;
+        
+        if (!allCustomers.has(phone)) {
+          allCustomers.set(phone, {
+            phone: phone,
+            name: name,
             serviceCount: {
               XRB: 0,
               NB: 0
@@ -162,21 +166,25 @@ function CustomerList({ refreshTrigger, onRefresh }) {
           });
         }
         
-        const customer = allCustomers.get(service.customer_phone);
-        customer.serviceCount[service.brand] = (customer.serviceCount[service.brand] || 0) + 1;
-        customer.brands.add(service.brand);
+        const customer = allCustomers.get(phone);
+        if (brand === 'XRB') {
+          customer.serviceCount.XRB++;
+        } else if (brand === 'NB') {
+          customer.serviceCount.NB++;
+        }
+        
+        if (brand) customer.brands.add(brand);
         
         if (!customer.lastServiceDate || service.reception_date > customer.lastServiceDate) {
           customer.lastServiceDate = service.reception_date;
-          customer.recentTag = service.service_tags?.[0]?.tag_name;
+          customer.recentTag = service.service_tags?.[0]?.tag_name || null;
         }
       });
 
       // 출고 데이터에서 고객 정보 추가/업데이트
       shipmentsData.forEach(shipment => {
-        // 실제 데이터 구조에 맞게 필드명 수정 필요
-        const phone = shipment.phone || shipment.customer_phone;
-        const name = shipment.name || shipment.customer_name;
+        const phone = shipment.customer_phone;
+        const name = shipment.customer_name;
         const brand = shipment.brand;
         
         if (!phone) return;
@@ -214,6 +222,7 @@ function CustomerList({ refreshTrigger, onRefresh }) {
 
       console.log('All customers:', customersArray); // 최종 데이터 확인용
       setCustomers(customersArray);
+      setFilteredCustomers(customersArray);
     } catch (err) {
       console.error('Error fetching customers:', err);
       setError(err.message);
@@ -238,7 +247,7 @@ function CustomerList({ refreshTrigger, onRefresh }) {
 
       if (servicesError) throw servicesError;
 
-      // 출고 이력 조회
+      // 출고 이력 조회 (테이블명 및 컬럼명 수정)
       const { data: shipmentsData, error: shipmentsError } = await supabase
         .from('shipments')
         .select('*')

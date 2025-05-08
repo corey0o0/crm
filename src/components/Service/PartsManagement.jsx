@@ -611,62 +611,51 @@ function PartsManagement() {
     });
   };
 
-  // 검색 입력 처리 함수 수정
-  const handleSearchInputChange = (e) => {
-    setSearchInput(e.target.value);
-  };
+  // 필터링된 파츠 목록 최적화
+  const filteredParts = useMemo(() => {
+    if (!searchTerm && selectedBrand === '전체') return parts;
 
-  // 검색 실행 함수 수정
+    const searchTermLower = searchTerm.toLowerCase();
+    return parts.filter(part => {
+      // 브랜드로 필터링
+      const brandMatch = selectedBrand === '전체' || part.brand === selectedBrand;
+      if (!brandMatch) return false;
+      
+      // 검색어가 없으면 브랜드 필터링만 적용
+      if (!searchTerm) return true;
+
+      // 검색어 필터링 (대소문자 구분 없이)
+      return part.name?.toLowerCase().includes(searchTermLower) ||
+        part.code?.toLowerCase().includes(searchTermLower) ||
+        part.barcode?.toLowerCase().includes(searchTermLower) ||
+        part.note?.toLowerCase().includes(searchTermLower);
+    });
+  }, [parts, searchTerm, selectedBrand]);
+
+  // 검색 입력 처리 함수 최적화
+  const handleSearchInputChange = useCallback((e) => {
+    setSearchInput(e.target.value);
+  }, []);
+
+  // 검색 실행 함수 최적화
   const executeSearch = useCallback(() => {
     setIsSearching(true);
-    try {
-      setSearchTerm(searchInput);
-    } finally {
-      setIsSearching(false);
-    }
+    setSearchTerm(searchInput);
+    setIsSearching(false);
   }, [searchInput]);
 
-  // 엔터키 처리 함수 수정
+  // 엔터키 처리 함수 추가
   const handleKeyPress = useCallback((event) => {
     if (event.key === 'Enter') {
       executeSearch();
     }
   }, [executeSearch]);
 
-  // 검색어 초기화 함수 수정
+  // 검색어 초기화 함수 최적화
   const handleClearSearch = useCallback(() => {
     setSearchInput('');
     setSearchTerm('');
   }, []);
-
-  // cleanup effect 추가
-  useEffect(() => {
-    return () => {
-      if (searchDebounce) clearTimeout(searchDebounce);
-    };
-  }, [searchDebounce]);
-
-  // 필터링된 파츠 목록 최적화
-  const filteredParts = useMemo(() => {
-    if (!searchTerm && selectedBrand === '전체') return parts;
-
-    return parts.filter(part => {
-      // 검색어 필터링 (대소문자 구분 없이)
-      const searchMatch = !searchTerm || [
-        part.name,
-        part.code,
-        part.barcode,
-        part.note
-      ].some(field => 
-        field?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      
-      // 브랜드로 필터링
-      const brandMatch = selectedBrand === '전체' || part.brand === selectedBrand;
-      
-      return searchMatch && brandMatch;
-    });
-  }, [parts, searchTerm, selectedBrand]);
 
   // 정렬된 파츠 목록
   const sortedParts = useMemo(() => {
@@ -939,10 +928,7 @@ function PartsManagement() {
                           <CloseIcon />
                         </IconButton>
                       </InputAdornment>
-                    ),
-                    sx: {
-                      height: '40px'
-                    }
+                    )
                   }}
                 />
                 <Button

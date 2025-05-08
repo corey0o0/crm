@@ -106,18 +106,49 @@ function StockList() {
     });
   };
 
-  // 검색 입력 핸들러 수정
+  // 필터링 로직 최적화
+  const filteredParts = useMemo(() => {
+    if (!search && brand === '전체' && stockFilter === '전체') return parts;
+
+    const searchLower = search.toLowerCase();
+    return parts.filter(part => {
+      // 브랜드 필터링
+      const brandMatch = brand === '전체' || part.brand === brand;
+      if (!brandMatch) return false;
+
+      // 검색어가 없으면 브랜드와 재고 필터만 적용
+      const searchMatch = !search || 
+        part.name?.toLowerCase().includes(searchLower) ||
+        part.code?.toLowerCase().includes(searchLower);
+      if (!searchMatch) return false;
+
+      // 재고 필터링
+      switch (stockFilter) {
+        case '품절 제외':
+          return part.stock > 0;
+        case '품절':
+          return part.stock === 0;
+        case '3개 이하':
+          return part.stock <= 3 && part.stock >= 0;
+        case '1개 이하':
+          return part.stock <= 1 && part.stock >= 0;
+        default:
+          return true;
+      }
+    });
+  }, [parts, search, brand, stockFilter]);
+
+  // 검색 입력 핸들러 최적화
   const handleSearchInputChange = useCallback((e) => {
     setSearchInput(e.target.value);
   }, []);
 
-  const handleSearchKeyPress = useCallback((e) => {
-    if (e.key === 'Enter') {
-      setSearch(searchInput);
-    }
+  // 검색 실행 핸들러 최적화
+  const handleSearch = useCallback(() => {
+    setSearch(searchInput);
   }, [searchInput]);
 
-  // 검색어 초기화 함수
+  // 검색어 초기화 함수 최적화
   const handleClearSearch = useCallback(() => {
     setSearchInput('');
     setSearch('');
@@ -129,41 +160,6 @@ function StockList() {
       if (searchDebounce) clearTimeout(searchDebounce);
     };
   }, [searchDebounce]);
-
-  const filteredParts = useMemo(() => {
-    if (!search && brand === '전체' && stockFilter === '전체') return parts;
-
-    return parts.filter(part => {
-      // 검색어 필터링
-      const searchMatch = !search || 
-        part.name?.toLowerCase().includes(search.toLowerCase()) ||
-        part.code?.toLowerCase().includes(search.toLowerCase());
-
-      // 브랜드 필터링
-      const brandMatch = brand === '전체' || part.brand === brand;
-
-      // 재고 필터링
-      let stockMatch = true;
-      switch (stockFilter) {
-        case '품절 제외':
-          stockMatch = part.stock > 0;
-          break;
-        case '품절':
-          stockMatch = part.stock === 0;
-          break;
-        case '3개 이하':
-          stockMatch = part.stock <= 3 && part.stock >= 0;
-          break;
-        case '1개 이하':
-          stockMatch = part.stock <= 1 && part.stock >= 0;
-          break;
-        default:
-          stockMatch = true;
-      }
-
-      return searchMatch && brandMatch && stockMatch;
-    });
-  }, [parts, search, brand, stockFilter]);
 
   const sortedParts = [...filteredParts].sort((a, b) => {
     const { key, direction } = sortConfig;
@@ -506,7 +502,7 @@ function StockList() {
             label="제품명/코드 검색"
             value={searchInput}
             onChange={handleSearchInputChange}
-            onKeyPress={handleSearchKeyPress}
+            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
             size="small"
             sx={{ width: 300 }}
             InputProps={{
@@ -530,7 +526,7 @@ function StockList() {
           />
           <Button
             variant="outlined"
-            onClick={() => setSearch(searchInput)}
+            onClick={handleSearch}
             sx={{ height: 40, ml: 1 }}
           >
             검색
