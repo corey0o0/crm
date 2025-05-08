@@ -963,6 +963,13 @@ function SalesStats() {
           매출 통계
         </Typography>
 
+        {/* 안내 문구 추가 */}
+        <Paper sx={{ p: 2, mb: 2, bgcolor: '#fffde7', borderLeft: '4px solid #ffc107' }}>
+          <Typography variant="body2" sx={{ color: '#b28704', fontWeight: 500 }}>
+            ※ A/S는 <b>완료일 기준</b>, 출고는 <b>주문일 기준</b>으로 집계됩니다.
+          </Typography>
+        </Paper>
+
         {/* 스낵바 추가 */}
         {snackbar.open && (
           <Box
