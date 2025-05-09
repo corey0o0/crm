@@ -94,7 +94,7 @@ function CustomerManagement() {
   };
 
   return (
-    <Paper>
+    <Paper sx={{ maxWidth: 1200, mx: 'auto' }}>
       <Box sx={{ borderBottom: 1, borderColor: 'divider', p: 2 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
           <Tabs 

@@ -530,7 +530,7 @@ function CustomerList({ refreshTrigger, onRefresh }) {
   }
 
   return (
-    <Box>
+    <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
       <Box sx={{ mb: 2 }}>
         <TextField
           fullWidth
@@ -611,17 +611,35 @@ function CustomerList({ refreshTrigger, onRefresh }) {
                   </TableCell>
                   <TableCell>
                     <Stack direction="row" spacing={1}>
-                      <Tooltip title="A/S 건수">
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <BuildIcon fontSize="small" color="action" />
-                          <Typography variant="body2">{customer.serviceCount.XRB + customer.serviceCount.NB || 0}</Typography>
-                        </Box>
+                      <Tooltip title={`A/S 건수: ${customer.serviceCount.XRB + customer.serviceCount.NB || 0}`} arrow>
+                        <Chip
+                          label={<><b>A/S</b> <span style={{fontWeight:700}}>{customer.serviceCount.XRB + customer.serviceCount.NB || 0}</span></>}
+                          size="small"
+                          sx={{
+                            bgcolor: '#e3f2fd',
+                            color: '#1976d2',
+                            fontWeight: 700,
+                            fontSize: '1rem',
+                            borderRadius: '16px',
+                            px: 1.5,
+                            height: 28
+                          }}
+                        />
                       </Tooltip>
-                      <Tooltip title="출고 건수">
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <LocalShippingIcon fontSize="small" color="action" />
-                          <Typography variant="body2">{customer.shipmentCount || 0}</Typography>
-                        </Box>
+                      <Tooltip title={`출고 건수: ${customer.shipmentCount || 0}`} arrow>
+                        <Chip
+                          label={<><b>출고</b> <span style={{fontWeight:700}}>{customer.shipmentCount || 0}</span></>}
+                          size="small"
+                          sx={{
+                            bgcolor: '#e8f5e9',
+                            color: '#388e3c',
+                            fontWeight: 700,
+                            fontSize: '1rem',
+                            borderRadius: '16px',
+                            px: 1.5,
+                            height: 28
+                          }}
+                        />
                       </Tooltip>
                     </Stack>
                   </TableCell>

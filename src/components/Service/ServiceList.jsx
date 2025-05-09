@@ -58,6 +58,7 @@ import {
   Close as CloseIcon,
   Receipt as ReceiptIcon,
   RestartAlt as RestartAltIcon,
+  Build as BuildIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -267,11 +268,17 @@ function ServiceList() {
           *,
           service_tags (
             tag_name
+          ),
+          service_parts (
+            price,
+            parts (
+              name
+            )
           )
         `)
         .eq('brand', selectedBrand)
-          .order('reception_date', { ascending: false })
-          .range(currentOffset, currentOffset + PAGE_SIZE - 1);
+        .order('reception_date', { ascending: false })
+        .range(currentOffset, currentOffset + PAGE_SIZE - 1);
 
         if (servicesError) {
           console.error('Error fetching services page:', servicesError);
@@ -309,7 +316,11 @@ function ServiceList() {
           const partialServicesWithTags = servicesData.map(service => ({
             ...service,
             status: service.status || '접수',
-            tags: service.service_tags?.map(tag => tag.tag_name) || []
+            tags: service.service_tags?.map(tag => tag.tag_name) || [],
+            parts: service.service_parts?.map(part => ({
+              name: part.parts?.name || '',
+              price: part.price
+            })) || []
           }));
           
           // 기존 데이터와 병합하여 상태 업데이트
@@ -326,7 +337,11 @@ function ServiceList() {
       const servicesWithTags = allServicesData.map(service => ({
         ...service,
         status: service.status || '접수',
-        tags: service.service_tags?.map(tag => tag.tag_name) || []
+        tags: service.service_tags?.map(tag => tag.tag_name) || [],
+        parts: service.service_parts?.map(part => ({
+          name: part.parts?.name || '',
+          price: part.price
+        })) || []
       }));
 
       // 전체 데이터를 한 번에 다시 설정 (혹시 모를 중복 방지)
@@ -1136,68 +1151,93 @@ function ServiceList() {
       sortable: true,
       width: 200,
       render: (row) => (
-        <Tooltip 
-          title={
-            <Box sx={{ p: 1 }}>
-              <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>
-                처리내역:
-              </Typography>
-              <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-                {row.solution || '처리내역이 없습니다.'}
-              </Typography>
-            </Box>
-          } 
-          placement="top"
-          arrow
-        >
-          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', maxWidth: '200px' }}>
-            {row.tags?.length > 0 ? (
-              row.tags.map((tag, index) => (
-            <Chip
-              key={index}
-              label={tag}
-              size="small"
-              sx={{
-                height: '22px',
-                fontSize: '0.85rem',
-                fontWeight: 500,
-                letterSpacing: '0.01em',
-                bgcolor: 'primary.50',
-                color: 'primary.700',
-                '&:hover': {
-                  bgcolor: 'primary.100'
-                }
-              }}
-            />
-              ))
-            ) : (
-              row.solution ? (
-                <Typography 
-                  variant="body2" 
-                  color="text.secondary"
-                  sx={{ 
-                    maxWidth: '200px',
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
-                    display: '-webkit-box',
-                    WebkitLineClamp: 4,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    lineHeight: '1.4em',
-                    maxHeight: '5.6em',
-                    fontSize: '0.95rem',
-                    letterSpacing: '0.01em'
-                  }}
-                >
-                  {row.solution}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, maxWidth: '200px' }}>
+          {/* 사용부품 아이콘 및 툴팁 */}
+          {Array.isArray(row.service_parts) && row.service_parts.length > 0 && (
+            <Tooltip
+              title={
+                <Box>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>사용부품</Typography>
+                  {row.service_parts.map((sp, idx) => (
+                    <Typography key={idx} variant="body2" sx={{ whiteSpace: 'nowrap' }}>
+                      {sp.parts?.name || '-'} : {sp.price?.toLocaleString() || 0}원
+                    </Typography>
+                  ))}
+                  <Typography variant="body2" sx={{ fontWeight: 900, color: '#fff', mt: 1 }}>
+                    합계: {row.service_parts.reduce((sum, sp) => sum + (sp.price || 0), 0).toLocaleString()}원
+                  </Typography>
+                </Box>
+              }
+              placement="top"
+              arrow
+            >
+              <BuildIcon sx={{ color: 'primary.main', fontSize: 20, mr: 0.5 }} />
+            </Tooltip>
+          )}
+          {/* 기존 처리내역/태그 렌더링 */}
+          <Tooltip 
+            title={
+              <Box sx={{ p: 1 }}>
+                <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>
+                  처리내역:
                 </Typography>
+                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                  {row.solution || '처리내역이 없습니다.'}
+                </Typography>
+              </Box>
+            } 
+            placement="top"
+            arrow
+          >
+            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', maxWidth: '170px' }}>
+              {row.tags?.length > 0 ? (
+                row.tags.map((tag, index) => (
+                  <Chip
+                    key={index}
+                    label={tag}
+                    size="small"
+                    sx={{
+                      height: '22px',
+                      fontSize: '0.85rem',
+                      fontWeight: 500,
+                      letterSpacing: '0.01em',
+                      bgcolor: 'primary.50',
+                      color: 'primary.700',
+                      '&:hover': {
+                        bgcolor: 'primary.100'
+                      }
+                    }}
+                  />
+                ))
               ) : (
-                <Typography variant="body2" color="text.secondary">-</Typography>
-              )
-            )}
+                row.solution ? (
+                  <Typography 
+                    variant="body2" 
+                    color="text.secondary"
+                    sx={{ 
+                      maxWidth: '170px',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 4,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      lineHeight: '1.4em',
+                      maxHeight: '5.6em',
+                      fontSize: '0.95rem',
+                      letterSpacing: '0.01em'
+                    }}
+                  >
+                    {row.solution}
+                  </Typography>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">-</Typography>
+                )
+              )}
+            </Box>
+          </Tooltip>
         </Box>
-        </Tooltip>
       )
     },
     { 
