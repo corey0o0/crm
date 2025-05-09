@@ -1003,18 +1003,31 @@ function ServiceDetail() {
       console.log('검색 시작:', { searchTerm, brand });
 
       if (searchTerm.length < 2) {
-        const { data: recentCustomers, error: recentError } = await supabase
+        // 최근 고객 정보 조회 (A/S + 출고)
+        const { data: recentServices, error: recentServicesError } = await supabase
           .from('services')
           .select('customer_name, customer_phone, customer_address, brand')
           .eq('brand', brand)
           .order('created_at', { ascending: false })
-          .limit(10);
+          .limit(5);
 
-        if (recentError) throw recentError;
+        const { data: recentShipments, error: recentShipmentsError } = await supabase
+          .from('shipments')
+          .select('customer_name, customer_phone, customer_address, brand')
+          .eq('brand', brand)
+          .order('created_at', { ascending: false })
+          .limit(5);
 
-        const uniqueCustomers = Array.from(new Set(recentCustomers.map(c => c.customer_phone)))
-          .map(phone => recentCustomers.find(c => c.customer_phone === phone))
-          .filter(customer => customer.customer_name && customer.customer_phone);
+        if (recentServicesError) throw recentServicesError;
+        if (recentShipmentsError) throw recentShipmentsError;
+
+        // A/S와 출고 데이터 통합
+        const allRecentCustomers = [...(recentServices || []), ...(recentShipments || [])];
+        
+        const uniqueCustomers = Array.from(new Set(allRecentCustomers.map(c => c.customer_phone)))
+          .map(phone => allRecentCustomers.find(c => c.customer_phone === phone))
+          .filter(customer => customer.customer_name && customer.customer_phone)
+          .slice(0, 10);
 
         setCustomerSearchResults(uniqueCustomers.map(c => ({
           id: c.customer_phone,
@@ -1027,6 +1040,7 @@ function ServiceDetail() {
 
       const cleanSearchTerm = searchTerm.replace(/-/g, '');
 
+      // A/S 고객 검색
       const { data: serviceResults, error: serviceError } = await supabase
         .from('services')
         .select('customer_name, customer_phone, customer_address, brand')
@@ -1036,8 +1050,21 @@ function ServiceDetail() {
 
       if (serviceError) throw serviceError;
 
-      const uniqueResults = Array.from(new Set(serviceResults.map(c => c.customer_phone)))
-        .map(phone => serviceResults.find(c => c.customer_phone === phone))
+      // 출고 고객 검색
+      const { data: shipmentResults, error: shipmentError } = await supabase
+        .from('shipments')
+        .select('customer_name, customer_phone, customer_address, brand')
+        .eq('brand', brand)
+        .or(`customer_phone.ilike.%${cleanSearchTerm}%,customer_name.ilike.%${searchTerm}%`)
+        .order('created_at', { ascending: false });
+
+      if (shipmentError) throw shipmentError;
+
+      // A/S와 출고 결과 통합
+      const allResults = [...(serviceResults || []), ...(shipmentResults || [])];
+      
+      const uniqueResults = Array.from(new Set(allResults.map(c => c.customer_phone)))
+        .map(phone => allResults.find(c => c.customer_phone === phone))
         .filter(customer => customer.customer_name && customer.customer_phone)
         .map(customer => ({
           id: customer.customer_phone,

@@ -27,8 +27,8 @@ function StockList() {
   const [parts, setParts] = useState([]);
   const [brand, setBrand] = useState('전체');
   const [searchInput, setSearchInput] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [stockFilter, setStockFilter] = useState('전체');
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [sortConfig, setSortConfig] = useState({ key: 'code', direction: 'asc' });
@@ -116,18 +116,36 @@ function StockList() {
     });
   };
 
-  // 검색어 디바운스 처리
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchInput);
-    }, 300);
+  // 검색어 입력 처리 함수
+  const handleSearchInput = (event) => {
+    setSearchInput(event.target.value);
+  };
 
-    return () => clearTimeout(timer);
-  }, [searchInput]);
+  // 검색 실행 함수
+  const executeSearch = () => {
+    const term = searchInput.toLowerCase().trim();
+    setSearchTerm(term);
+  };
+
+  // 검색어 초기화 함수
+  const handleClearSearch = () => {
+    setSearchInput('');
+    setSearchTerm('');
+    setIsSearchFocused(false);
+  };
+
+  // 엔터키 처리 함수
+  const handleKeyPress = (event) => {
+    if (event.key === 'Enter') {
+      executeSearch();
+      setIsSearchFocused(false);
+    }
+  };
 
   // 필터링 로직 최적화
   const filteredParts = useMemo(() => {
-    if (!debouncedSearch && brand === '전체' && stockFilter === '전체') return parts;
+    if (isSearchFocused) return parts;
+    if (!searchTerm && brand === '전체' && stockFilter === '전체') return parts;
 
     return parts.filter(part => {
       // 브랜드 필터링
@@ -150,8 +168,8 @@ function StockList() {
       }
 
       // 검색어 필터링
-      if (debouncedSearch) {
-        const searchLower = debouncedSearch.toLowerCase();
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
         return (
           part.name?.toLowerCase().includes(searchLower) ||
           part.code?.toLowerCase().includes(searchLower)
@@ -160,7 +178,7 @@ function StockList() {
 
       return true;
     });
-  }, [parts, debouncedSearch, brand, stockFilter]);
+  }, [parts, searchTerm, brand, stockFilter, isSearchFocused]);
 
   // 정렬 로직 최적화
   const sortedParts = useMemo(() => {
@@ -182,17 +200,6 @@ function StockList() {
         : aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
     });
   }, [filteredParts, sortConfig]);
-
-  // 검색 입력 핸들러 최적화
-  const handleSearchInputChange = useCallback((e) => {
-    setSearchInput(e.target.value);
-  }, []);
-
-  // 검색어 초기화 함수 최적화
-  const handleClearSearch = useCallback(() => {
-    setSearchInput('');
-    setDebouncedSearch('');
-  }, []);
 
   // 브랜드 선택 핸들러 메모이제이션
   const handleBrandChange = useCallback((e) => {
@@ -529,7 +536,13 @@ function StockList() {
           <TextField
             label="제품명/코드 검색"
             value={searchInput}
-            onChange={handleSearchInputChange}
+            onChange={handleSearchInput}
+            onKeyPress={handleKeyPress}
+            onFocus={() => setIsSearchFocused(true)}
+            onBlur={() => {
+              setIsSearchFocused(false);
+              executeSearch();
+            }}
             size="small"
             sx={{ width: 300 }}
             InputProps={{
@@ -551,6 +564,13 @@ function StockList() {
               )
             }}
           />
+          <Button
+            variant="contained"
+            onClick={executeSearch}
+            sx={{ height: 40, ml: 1 }}
+          >
+            검색
+          </Button>
           <Button
             variant="outlined"
             startIcon={<HistoryIcon />}
