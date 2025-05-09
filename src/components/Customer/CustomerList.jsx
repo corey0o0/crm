@@ -530,7 +530,7 @@ function CustomerList({ refreshTrigger, onRefresh }) {
   }
 
   return (
-    <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
+    <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto', width: '100%' }}>
       <Box sx={{ mb: 2 }}>
         <TextField
           fullWidth
