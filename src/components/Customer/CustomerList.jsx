@@ -613,7 +613,11 @@ function CustomerList({ refreshTrigger, onRefresh }) {
                     <Stack direction="row" spacing={1}>
                       <Tooltip title={`A/S 건수: ${customer.serviceCount.XRB + customer.serviceCount.NB || 0}`} arrow>
                         <Chip
-                          label={<><b>A/S</b> <span style={{fontWeight:700}}>{customer.serviceCount.XRB + customer.serviceCount.NB || 0}</span></>}
+                          label={
+                            <>
+                              <span style={{fontWeight:700, fontSize:'0.9rem'}}>A/S</span> <span style={{fontWeight:700, fontSize:'1.1rem'}}>{customer.serviceCount.XRB + customer.serviceCount.NB || 0}</span>
+                            </>
+                          }
                           size="small"
                           sx={{
                             bgcolor: '#e3f2fd',
@@ -628,7 +632,11 @@ function CustomerList({ refreshTrigger, onRefresh }) {
                       </Tooltip>
                       <Tooltip title={`출고 건수: ${customer.shipmentCount || 0}`} arrow>
                         <Chip
-                          label={<><b>출고</b> <span style={{fontWeight:700}}>{customer.shipmentCount || 0}</span></>}
+                          label={
+                            <>
+                              <span style={{fontWeight:700, fontSize:'0.9rem'}}>출고</span> <span style={{fontWeight:700, fontSize:'1.1rem'}}>{customer.shipmentCount || 0}</span>
+                            </>
+                          }
                           size="small"
                           sx={{
                             bgcolor: '#e8f5e9',

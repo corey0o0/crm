@@ -254,8 +254,27 @@ function PartsManagement() {
   const [openCopyDialog, setOpenCopyDialog] = useState(false);
   const [copyTargetBrand, setCopyTargetBrand] = useState('');
 
-  // 디바운스 타이머 상태 추가
-  const [searchDebounce, setSearchDebounce] = useState(null);
+  // 검색 관련 함수들 추가
+  const handleSearchInputChange = useCallback((e) => {
+    setSearchInput(e.target.value);
+  }, []);
+
+  const executeSearch = useCallback(() => {
+    setIsSearching(true);
+    setSearchTerm(searchInput);
+    setIsSearching(false);
+  }, [searchInput]);
+
+  const handleKeyPress = useCallback((event) => {
+    if (event.key === 'Enter') {
+      executeSearch();
+    }
+  }, [executeSearch]);
+
+  const handleClearSearch = useCallback(() => {
+    setSearchInput('');
+    setSearchTerm('');
+  }, []);
 
   const brands = ['XRB', 'NB']; // 브랜드 목록 수정
   const navigate = useNavigate();
@@ -631,31 +650,6 @@ function PartsManagement() {
         part.note?.toLowerCase().includes(searchTermLower);
     });
   }, [parts, searchTerm, selectedBrand]);
-
-  // 검색 입력 처리 함수 최적화
-  const handleSearchInputChange = useCallback((e) => {
-    setSearchInput(e.target.value);
-  }, []);
-
-  // 검색 실행 함수 최적화
-  const executeSearch = useCallback(() => {
-    setIsSearching(true);
-    setSearchTerm(searchInput);
-    setIsSearching(false);
-  }, [searchInput]);
-
-  // 엔터키 처리 함수 추가
-  const handleKeyPress = useCallback((event) => {
-    if (event.key === 'Enter') {
-      executeSearch();
-    }
-  }, [executeSearch]);
-
-  // 검색어 초기화 함수 최적화
-  const handleClearSearch = useCallback(() => {
-    setSearchInput('');
-    setSearchTerm('');
-  }, []);
 
   // 정렬된 파츠 목록
   const sortedParts = useMemo(() => {

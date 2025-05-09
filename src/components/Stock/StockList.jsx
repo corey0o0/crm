@@ -12,16 +12,26 @@ import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import SaveIcon from '@mui/icons-material/Save';
 import SearchIcon from '@mui/icons-material/Search';
 
+// 메모이제이션된 옵션 상수
+const BRAND_OPTIONS = ['전체', 'XRB', 'NB'];
+const STOCK_FILTER_OPTIONS = [
+  { value: '전체', label: '전체' },
+  { value: '품절 제외', label: '품절 제외' },
+  { value: '품절', label: '품절' },
+  { value: '3개 이하', label: '3개 이하' },
+  { value: '1개 이하', label: '1개 이하' }
+];
+
 function StockList() {
   const [loading, setLoading] = useState(true);
   const [parts, setParts] = useState([]);
   const [brand, setBrand] = useState('전체');
   const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
   const [stockFilter, setStockFilter] = useState('전체');
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [sortConfig, setSortConfig] = useState({ key: 'code', direction: 'asc' });
-  const brandOptions = ['전체', 'XRB', 'NB'];
   const [showLogDialog, setShowLogDialog] = useState(false);
   const [stockLogs, setStockLogs] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -106,77 +116,93 @@ function StockList() {
     });
   };
 
+  // 검색어 디바운스 처리
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchInput);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
   // 필터링 로직 최적화
   const filteredParts = useMemo(() => {
-    if (!search && brand === '전체' && stockFilter === '전체') return parts;
+    if (!debouncedSearch && brand === '전체' && stockFilter === '전체') return parts;
 
-    const searchLower = search.toLowerCase();
     return parts.filter(part => {
       // 브랜드 필터링
-      const brandMatch = brand === '전체' || part.brand === brand;
-      if (!brandMatch) return false;
-
-      // 검색어가 없으면 브랜드와 재고 필터만 적용
-      const searchMatch = !search || 
-        part.name?.toLowerCase().includes(searchLower) ||
-        part.code?.toLowerCase().includes(searchLower);
-      if (!searchMatch) return false;
+      if (brand !== '전체' && part.brand !== brand) return false;
 
       // 재고 필터링
       switch (stockFilter) {
         case '품절 제외':
-          return part.stock > 0;
+          if (part.stock <= 0) return false;
+          break;
         case '품절':
-          return part.stock === 0;
+          if (part.stock !== 0) return false;
+          break;
         case '3개 이하':
-          return part.stock <= 3 && part.stock >= 0;
+          if (part.stock > 3 || part.stock < 0) return false;
+          break;
         case '1개 이하':
-          return part.stock <= 1 && part.stock >= 0;
-        default:
-          return true;
+          if (part.stock > 1 || part.stock < 0) return false;
+          break;
       }
+
+      // 검색어 필터링
+      if (debouncedSearch) {
+        const searchLower = debouncedSearch.toLowerCase();
+        return (
+          part.name?.toLowerCase().includes(searchLower) ||
+          part.code?.toLowerCase().includes(searchLower)
+        );
+      }
+
+      return true;
     });
-  }, [parts, search, brand, stockFilter]);
+  }, [parts, debouncedSearch, brand, stockFilter]);
+
+  // 정렬 로직 최적화
+  const sortedParts = useMemo(() => {
+    const { key, direction } = sortConfig;
+    return [...filteredParts].sort((a, b) => {
+      let aValue = a[key];
+      let bValue = b[key];
+      
+      if (key === 'price' || key === 'stock' || key === 'supply_price') {
+        aValue = Number(aValue) || 0;
+        bValue = Number(bValue) || 0;
+      } else {
+        aValue = String(aValue || '').toLowerCase();
+        bValue = String(bValue || '').toLowerCase();
+      }
+      
+      return direction === 'asc'
+        ? aValue < bValue ? -1 : aValue > bValue ? 1 : 0
+        : aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+    });
+  }, [filteredParts, sortConfig]);
 
   // 검색 입력 핸들러 최적화
   const handleSearchInputChange = useCallback((e) => {
     setSearchInput(e.target.value);
   }, []);
 
-  // 검색 실행 핸들러 최적화
-  const handleSearch = useCallback(() => {
-    setSearch(searchInput);
-  }, [searchInput]);
-
   // 검색어 초기화 함수 최적화
   const handleClearSearch = useCallback(() => {
     setSearchInput('');
-    setSearch('');
+    setDebouncedSearch('');
   }, []);
 
-  // cleanup effect 추가
-  useEffect(() => {
-    return () => {
-      if (searchDebounce) clearTimeout(searchDebounce);
-    };
-  }, [searchDebounce]);
+  // 브랜드 선택 핸들러 메모이제이션
+  const handleBrandChange = useCallback((e) => {
+    setBrand(e.target.value);
+  }, []);
 
-  const sortedParts = [...filteredParts].sort((a, b) => {
-    const { key, direction } = sortConfig;
-    let aValue = a[key];
-    let bValue = b[key];
-    // 숫자 정렬
-    if (key === 'price' || key === 'stock') {
-      aValue = Number(aValue) || 0;
-      bValue = Number(bValue) || 0;
-    } else {
-      aValue = aValue ? aValue.toString().toLowerCase() : '';
-      bValue = bValue ? bValue.toString().toLowerCase() : '';
-    }
-    if (aValue < bValue) return direction === 'asc' ? -1 : 1;
-    if (aValue > bValue) return direction === 'asc' ? 1 : -1;
-    return 0;
-  });
+  // 재고 상태 필터 핸들러 메모이제이션
+  const handleStockFilterChange = useCallback((e) => {
+    setStockFilter(e.target.value);
+  }, []);
 
   const sortArrow = (key) => sortConfig.key === key ? (sortConfig.direction === 'asc' ? ' ▲' : ' ▼') : '';
 
@@ -478,31 +504,32 @@ function StockList() {
             select
             label="브랜드"
             value={brand}
-            onChange={e => setBrand(e.target.value)}
+            onChange={handleBrandChange}
             sx={{ width: 150 }}
           >
-            {brandOptions.map(opt => (
-              <MenuItem key={opt} value={opt}>{opt === 'XRB' ? 'X-RIDER' : opt === 'NB' ? 'NEARBIKE' : '전체'}</MenuItem>
+            {BRAND_OPTIONS.map(opt => (
+              <MenuItem key={opt} value={opt}>
+                {opt === 'XRB' ? 'X-RIDER' : opt === 'NB' ? 'NEARBIKE' : '전체'}
+              </MenuItem>
             ))}
           </TextField>
           <TextField
             select
             label="재고 상태"
             value={stockFilter}
-            onChange={e => setStockFilter(e.target.value)}
+            onChange={handleStockFilterChange}
             sx={{ width: 150 }}
           >
-            <MenuItem value="전체">전체</MenuItem>
-            <MenuItem value="품절 제외">품절 제외</MenuItem>
-            <MenuItem value="품절">품절</MenuItem>
-            <MenuItem value="3개 이하">3개 이하</MenuItem>
-            <MenuItem value="1개 이하">1개 이하</MenuItem>
+            {STOCK_FILTER_OPTIONS.map(option => (
+              <MenuItem key={option.value} value={option.value}>
+                {option.label}
+              </MenuItem>
+            ))}
           </TextField>
           <TextField
             label="제품명/코드 검색"
             value={searchInput}
             onChange={handleSearchInputChange}
-            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
             size="small"
             sx={{ width: 300 }}
             InputProps={{
@@ -524,13 +551,6 @@ function StockList() {
               )
             }}
           />
-          <Button
-            variant="outlined"
-            onClick={handleSearch}
-            sx={{ height: 40, ml: 1 }}
-          >
-            검색
-          </Button>
           <Button
             variant="outlined"
             startIcon={<HistoryIcon />}
@@ -863,4 +883,5 @@ function StockList() {
   );
 }
 
-export default StockList; 
+// 컴포넌트 메모이제이션
+export default React.memo(StockList); 
