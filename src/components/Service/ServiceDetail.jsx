@@ -60,6 +60,7 @@ import {
 } from '@mui/icons-material';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import { formatKoreanDateTime } from '../../utils/dateUtils';
 
 // PDF worker 설정
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
@@ -159,21 +160,11 @@ function ServiceDetail() {
       let completionTime = '00:00';
 
       if (serviceData.reception_date) {
-        const utcDate = new Date(serviceData.reception_date);
-        const utcHours = utcDate.getUTCHours();
-        const kstHours = (utcHours + 9) % 24;
-        
-        const dateStr = serviceData.reception_date.split('T')[0];
+        const dateObj = new Date(serviceData.reception_date);
+        const dateStr = dateObj.toISOString().slice(0, 10);
+        const timeStr = dateObj.toTimeString().slice(0, 5);
         receptionDate = dateStr;
-        receptionTime = `${String(kstHours).padStart(2, '0')}:00`;
-
-        console.log('Loading Reception DateTime:', {
-          original: serviceData.reception_date,
-          utcHours,
-          kstHours,
-          convertedDate: receptionDate,
-          convertedTime: receptionTime
-        });
+        receptionTime = timeStr;
       }
 
       if (serviceData.completion_date) {
@@ -331,53 +322,11 @@ function ServiceDetail() {
       let completionDateTime = null;
       
       if (formData.reception_date && formData.reception_time) {
-        const date = formData.reception_date;
-        const hours = parseInt(formData.reception_time.split(':')[0], 10);
-        
-        let utcHours = hours - 9;
-        let utcDate = date;
-        
-        if (utcHours < 0) {
-          utcHours += 24;
-          const prevDate = new Date(date);
-          prevDate.setDate(prevDate.getDate() - 1);
-          utcDate = prevDate.toISOString().split('T')[0];
-        }
-        
-        receptionDateTime = new Date(`${utcDate}T${String(utcHours).padStart(2, '0')}:00:00.000Z`);
-
-        console.log('Reception DateTime Processing:', {
-          inputDate: date,
-          inputHours: hours,
-          utcDate,
-          utcHours,
-          result: receptionDateTime.toISOString()
-        });
+        receptionDateTime = new Date(`${formData.reception_date}T${formData.reception_time}:00`);
       }
 
       if (formData.completion_date && formData.completion_time) {
-        const date = formData.completion_date;
-        const hours = parseInt(formData.completion_time.split(':')[0], 10);
-        
-        let utcHours = hours - 9;
-        let utcDate = date;
-        
-        if (utcHours < 0) {
-          utcHours += 24;
-          const prevDate = new Date(date);
-          prevDate.setDate(prevDate.getDate() - 1);
-          utcDate = prevDate.toISOString().split('T')[0];
-        }
-        
-        completionDateTime = new Date(`${utcDate}T${String(utcHours).padStart(2, '0')}:00:00.000Z`);
-
-        console.log('Completion DateTime Processing:', {
-          inputDate: date,
-          inputHours: hours,
-          utcDate,
-          utcHours,
-          result: completionDateTime.toISOString()
-        });
+        completionDateTime = new Date(`${formData.completion_date}T${formData.completion_time}:00`);
       }
 
       const updateData = {
@@ -1164,8 +1113,8 @@ function ServiceDetail() {
         <body>
           <div class="header">
             <h2>A/S 작업지시서</h2>
-            <p>접수일자: ${formData.reception_date || '-'}</p>
-            ${formData.status === '완료' ? `<p>완료일자: ${formData.completion_date || '-'}</p>` : ''}
+            <p>접수일자: ${formatKoreanDateTime(formData.reception_date && formData.reception_time ? `${formData.reception_date}T${formData.reception_time}:00` : formData.reception_date)}</p>
+            ${formData.status === '완료' ? `<p>완료일자: ${formatKoreanDateTime(formData.completion_date && formData.completion_time ? `${formData.completion_date}T${formData.completion_time}:00` : formData.completion_date)}</p>` : ''}
             <p><strong>상태: ${formData.status || '-'}</strong></p>
           </div>
           

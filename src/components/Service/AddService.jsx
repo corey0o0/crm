@@ -53,6 +53,7 @@ import PrintIcon from '@mui/icons-material/Print';
 import { API_CONFIG } from '../../config/api';
 import XLSX from 'xlsx';
 import { Close as CloseIcon } from '@mui/icons-material';
+import { formatKoreanDateTime } from '../../utils/dateUtils';
 
 // 접수방법과 배송방법 옵션
 const RECEPTION_TYPES = ['공홈', '방문', '전화', '대리점', '기타'];
@@ -990,7 +991,7 @@ function AddService() {
         <body>
           <div class="header">
             <h2>A/S 작업지시서</h2>
-            <p>접수일자: ${formData.reception_date || '-'}</p>
+            <p>접수일자: ${formatKoreanDateTime(formData.reception_date)}</p>
           </div>
           
           <div class="row">

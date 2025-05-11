@@ -28,7 +28,6 @@ function StockList() {
   const [brand, setBrand] = useState('전체');
   const [searchInput, setSearchInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [stockFilter, setStockFilter] = useState('전체');
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [sortConfig, setSortConfig] = useState({ key: 'code', direction: 'asc' });
@@ -116,89 +115,95 @@ function StockList() {
     });
   };
 
-  // 검색어 입력 처리 함수
+  // 검색어 입력 처리 함수 - 입력만 처리하고 검색은 실행하지 않음
   const handleSearchInput = (event) => {
     setSearchInput(event.target.value);
   };
 
-  // 검색 실행 함수
+  // 검색 실행 함수 - 엔터키나 검색 버튼 클릭 시에만 실행
   const executeSearch = () => {
-    const term = searchInput.toLowerCase().trim();
-    setSearchTerm(term);
+    setSearchTerm(searchInput.toLowerCase().trim());
   };
 
   // 검색어 초기화 함수
   const handleClearSearch = () => {
     setSearchInput('');
     setSearchTerm('');
-    setIsSearchFocused(false);
   };
 
   // 엔터키 처리 함수
   const handleKeyPress = (event) => {
     if (event.key === 'Enter') {
       executeSearch();
-      setIsSearchFocused(false);
     }
   };
 
   // 필터링 로직 최적화
   const filteredParts = useMemo(() => {
-    if (isSearchFocused) return parts;
-    if (!searchTerm && brand === '전체' && stockFilter === '전체') return parts;
-
-    return parts.filter(part => {
-      // 브랜드 필터링
-      if (brand !== '전체' && part.brand !== brand) return false;
-
-      // 재고 필터링
-      switch (stockFilter) {
-        case '품절 제외':
-          if (part.stock <= 0) return false;
-          break;
-        case '품절':
-          if (part.stock !== 0) return false;
-          break;
-        case '3개 이하':
-          if (part.stock > 3 || part.stock < 0) return false;
-          break;
-        case '1개 이하':
-          if (part.stock > 1 || part.stock < 0) return false;
-          break;
+    // 브랜드와 재고 상태로 1차 필터링
+    let filtered = parts.filter(part => {
+      const matchesBrand = brand === '전체' || part.brand === brand;
+      
+      let matchesStock = true;
+      if (stockFilter !== '전체') {
+        switch (stockFilter) {
+          case '품절 제외':
+            matchesStock = part.stock > 0;
+            break;
+          case '품절':
+            matchesStock = part.stock === 0;
+            break;
+          case '3개 이하':
+            matchesStock = part.stock <= 3 && part.stock >= 0;
+            break;
+          case '1개 이하':
+            matchesStock = part.stock <= 1 && part.stock >= 0;
+            break;
+        }
       }
-
-      // 검색어 필터링
-      if (searchTerm) {
-        const searchLower = searchTerm.toLowerCase();
-        return (
-          part.name?.toLowerCase().includes(searchLower) ||
-          part.code?.toLowerCase().includes(searchLower)
-        );
-      }
-
-      return true;
+      
+      return matchesBrand && matchesStock;
     });
-  }, [parts, searchTerm, brand, stockFilter, isSearchFocused]);
 
-  // 정렬 로직 최적화
+    // 검색어로 2차 필터링
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      filtered = filtered.filter(part => 
+        (part.name?.toLowerCase().includes(searchLower) ||
+        part.code?.toLowerCase().includes(searchLower))
+      );
+    }
+
+    return filtered;
+  }, [parts, brand, stockFilter, searchTerm]); // searchInput 제거, searchTerm만 사용
+
+  // 정렬 로직 최적화 - 정렬 설정이나 필터링 결과가 변경될 때만 재계산
   const sortedParts = useMemo(() => {
     const { key, direction } = sortConfig;
-    return [...filteredParts].sort((a, b) => {
+    const sorted = [...filteredParts];
+    
+    sorted.sort((a, b) => {
       let aValue = a[key];
       let bValue = b[key];
       
+      // 숫자 필드 처리
       if (key === 'price' || key === 'stock' || key === 'supply_price') {
         aValue = Number(aValue) || 0;
         bValue = Number(bValue) || 0;
       } else {
+        // 문자열 필드 처리
         aValue = String(aValue || '').toLowerCase();
         bValue = String(bValue || '').toLowerCase();
       }
       
-      return direction === 'asc'
-        ? aValue < bValue ? -1 : aValue > bValue ? 1 : 0
-        : aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+      if (direction === 'asc') {
+        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+      } else {
+        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+      }
     });
+    
+    return sorted;
   }, [filteredParts, sortConfig]);
 
   // 브랜드 선택 핸들러 메모이제이션
@@ -538,11 +543,6 @@ function StockList() {
             value={searchInput}
             onChange={handleSearchInput}
             onKeyPress={handleKeyPress}
-            onFocus={() => setIsSearchFocused(true)}
-            onBlur={() => {
-              setIsSearchFocused(false);
-              executeSearch();
-            }}
             size="small"
             sx={{ width: 300 }}
             InputProps={{

@@ -67,6 +67,39 @@ import { supabase } from '../../lib/supabaseClient';
 import ResponsiveTable from '../common/ResponsiveTable';
 import AddService from './AddService';
 import { getCookie, setCookie, removeCookie, getJSONCookie, setJSONCookie } from '../../utils/cookieUtils';
+import { formatKoreanDateTime } from '../../utils/dateUtils';
+
+// KST 변환 함수 추가
+function toKST(dateString) {
+  if (!dateString) return null;
+  const date = new Date(dateString);
+  // UTC → KST(+9)
+  return new Date(date.getTime() + 9 * 60 * 60 * 1000);
+}
+
+function formatDateYYMMDD(dateString) {
+  const date = toKST(dateString);
+  if (!date) return '';
+  const ymd = date.toLocaleDateString('ko-KR', {
+    year: '2-digit',
+    month: '2-digit',
+    day: '2-digit'
+  }).replace(/\. /g, '-').replace(/\.$/, '');
+  const weekday = date.toLocaleDateString('ko-KR', { weekday: 'short' });
+  return `${ymd} ${weekday}`;
+}
+
+function formatTimeHHMM(dateString) {
+  const date = toKST(dateString);
+  if (!date) return '';
+  let hour = date.getHours();
+  const min = String(date.getMinutes()).padStart(2, '0');
+  const isAM = hour < 12;
+  const ampm = isAM ? '오전' : '오후';
+  hour = hour % 12;
+  if (hour === 0) hour = 12;
+  return `${ampm} ${String(hour).padStart(2, '0')}:${min}`;
+}
 
 function ServiceList() {
   const [selectedBrand, setSelectedBrand] = useState('XRB');
@@ -1002,38 +1035,30 @@ function ServiceList() {
       )
     },
     { 
-      id: 'reception_date', 
+      id: 'reception_date',
       label: '접수일시',
       sortable: true,
       width: 120,
-      renderCell: (params) => {
-        const date = new Date(params.value);
-        const formattedDate = date.toLocaleDateString('ko-KR', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit'
-        }).replace(/\. /g, '.').slice(0, -1);
-        
-        const formattedTime = date.toLocaleTimeString('ko-KR', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false
-        });
-
-        return (
-          <Box sx={{ 
-            display: 'flex', 
-            flexDirection: 'column', 
-            alignItems: 'center',
-            borderBottom: '1px solid',
-            borderColor: 'divider',
-            pb: 0.5
-          }}>
-            <Typography variant="body2">{formattedDate}</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{formattedTime}</Typography>
-          </Box>
-        );
-      }
+      renderCell: (params) => (
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <Typography variant="body2" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }} noWrap>
+            {formatDateYYMMDD(params.value)}
+          </Typography>
+          <Typography variant="body2" sx={{ fontWeight: 700, mt: 0.5, whiteSpace: 'nowrap' }} noWrap>
+            {formatTimeHHMM(params.value)}
+          </Typography>
+        </Box>
+      ),
+      render: (row) => (
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <Typography variant="body2" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }} noWrap>
+            {formatDateYYMMDD(row.reception_date)}
+          </Typography>
+          <Typography variant="body2" sx={{ fontWeight: 700, mt: 0.5, whiteSpace: 'nowrap' }} noWrap>
+            {formatTimeHHMM(row.reception_date)}
+          </Typography>
+        </Box>
+      )
     },
     { 
       id: 'customer_info', 
@@ -1569,6 +1594,14 @@ function ServiceList() {
               <DeleteIcon />
             </IconButton>
           </Box>
+        </Box>
+        <Box sx={{ mt: 2, mb: 1, display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+            {formatDateYYMMDD(row.reception_date)}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            {formatTimeHHMM(row.reception_date)}
+          </Typography>
         </Box>
       </CardContent>
     </Card>
