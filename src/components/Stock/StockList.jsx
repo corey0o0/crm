@@ -517,7 +517,8 @@ function StockList() {
             label="브랜드"
             value={brand}
             onChange={handleBrandChange}
-            sx={{ width: 150 }}
+            size="small"
+            sx={{ width: 150, height: 40, '& .MuiInputBase-root': { height: 40, fontSize: '1rem' } }}
           >
             {BRAND_OPTIONS.map(opt => (
               <MenuItem key={opt} value={opt}>
@@ -530,7 +531,8 @@ function StockList() {
             label="재고 상태"
             value={stockFilter}
             onChange={handleStockFilterChange}
-            sx={{ width: 150 }}
+            size="small"
+            sx={{ width: 150, height: 40, '& .MuiInputBase-root': { height: 40, fontSize: '1rem' } }}
           >
             {STOCK_FILTER_OPTIONS.map(option => (
               <MenuItem key={option.value} value={option.value}>
