@@ -322,17 +322,17 @@ function ServiceDetail() {
       let completionDateTime = null;
       
       if (formData.reception_date && formData.reception_time) {
-        receptionDateTime = new Date(`${formData.reception_date}T${formData.reception_time}:00`);
+        receptionDateTime = `${formData.reception_date}T${formData.reception_time}:00+09:00`;
       }
 
       if (formData.completion_date && formData.completion_time) {
-        completionDateTime = new Date(`${formData.completion_date}T${formData.completion_time}:00`);
+        completionDateTime = `${formData.completion_date}T${formData.completion_time}:00+09:00`;
       }
 
       const updateData = {
         brand: formData.brand,
-        reception_date: receptionDateTime?.toISOString(),
-        completion_date: completionDateTime?.toISOString(),
+        reception_date: receptionDateTime,
+        completion_date: completionDateTime,
         delivery_method: formData.delivery_method,
         customer_name: formData.customer_name,
         customer_phone: formData.customer_phone,

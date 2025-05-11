@@ -70,16 +70,11 @@ import { getCookie, setCookie, removeCookie, getJSONCookie, setJSONCookie } from
 import { formatKoreanDateTime } from '../../utils/dateUtils';
 
 // KST 변환 함수 추가
-function toKST(dateString) {
-  if (!dateString) return null;
-  const date = new Date(dateString);
-  // UTC → KST(+9)
-  return new Date(date.getTime() + 9 * 60 * 60 * 1000);
-}
+// function toKST(dateString) { ... } // 삭제
 
 function formatDateYYMMDD(dateString) {
-  const date = toKST(dateString);
-  if (!date) return '';
+  if (!dateString) return '';
+  const date = new Date(dateString);
   const ymd = date.toLocaleDateString('ko-KR', {
     year: '2-digit',
     month: '2-digit',
@@ -90,8 +85,8 @@ function formatDateYYMMDD(dateString) {
 }
 
 function formatTimeHHMM(dateString) {
-  const date = toKST(dateString);
-  if (!date) return '';
+  if (!dateString) return '';
+  const date = new Date(dateString);
   let hour = date.getHours();
   const min = String(date.getMinutes()).padStart(2, '0');
   const isAM = hour < 12;
@@ -1296,10 +1291,11 @@ function ServiceList() {
               sx={{ 
                 fontSize: '0.85rem',
                 color: 'text.secondary',
-                letterSpacing: '0.02em'
+                letterSpacing: '0.02em',
+                whiteSpace: 'nowrap'
               }}
             >
-              {row.completion_date.replace(/(\d{4})-(\d{2})-(\d{2})/, (_, y, m, d) => `${y.slice(-2)}-${m}-${d}`)}
+              {formatDateYYMMDD(row.completion_date)}
             </Typography>
           )}
         </Box>
@@ -1555,10 +1551,11 @@ function ServiceList() {
                 sx={{ 
                   fontSize: '0.85rem',
                   color: 'text.secondary',
-                  letterSpacing: '0.02em'
+                  letterSpacing: '0.02em',
+                  whiteSpace: 'nowrap'
                 }}
               >
-                {row.completion_date.replace(/(\d{4})-(\d{2})-(\d{2})/, (_, y, m, d) => `${y.slice(-2)}-${m}-${d}`)}
+                {formatDateYYMMDD(row.completion_date)}
               </Typography>
             )}
           </Box>

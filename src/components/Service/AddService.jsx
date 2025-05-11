@@ -604,15 +604,23 @@ function AddService() {
     setSubmitting(true);
 
     try {
-      // 날짜와 시간 결합
-      const combinedReceptionDate = `${formData.reception_date}T${formData.reception_time}:00`;
+      // 저장 시 reception_date, completion_date 합칠 때
+      let receptionDateTime = null;
+      if (formData.reception_date && formData.reception_time) {
+        // 반드시 +09:00 타임존 명시
+        receptionDateTime = `${formData.reception_date}T${formData.reception_time}:00+09:00`;
+      }
+      let completionDateTime = null;
+      if (formData.completion_date && formData.completion_time) {
+        completionDateTime = `${formData.completion_date}T${formData.completion_time}:00+09:00`;
+      }
 
       // 서비스 데이터 등록
       const { data: insertedService, error: insertError } = await supabase
         .from('services')
         .insert([{
           brand: selectedBrand,
-          reception_date: combinedReceptionDate,
+          reception_date: receptionDateTime,
           customer_name: formData.customer_name,
           customer_phone: formData.customer_phone,
           customer_address: formData.customer_address,

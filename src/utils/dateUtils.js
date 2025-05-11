@@ -1,3 +1,6 @@
+// KST 변환 함수 제거
+// export function toKST(dateString) { ... } // 삭제
+
 export function formatKoreanDateTime(dateString) {
   if (!dateString) return '';
   const date = new Date(dateString);
