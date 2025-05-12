@@ -91,7 +91,7 @@ function AddService() {
   const [services, setServices] = useState([]);
   const [formData, setFormData] = useState({
     brand: selectedBrand,
-    reception_date: new Date().toISOString().split('T')[0],
+    reception_date: new Date().toLocaleDateString('ko-KR', {year:'numeric', month:'2-digit', day:'2-digit'}),
     reception_time: '00:00',
     repair_date: '',
     completion_date: '',
@@ -468,17 +468,11 @@ function AddService() {
   // 날짜 변환 함수 수정
   const parseDate = (dateStr) => {
     if (!dateStr) return null;
-    
     try {
-      // 날짜가 이미 Date 객체인 경우
       if (dateStr instanceof Date) {
-        return dateStr.toISOString().split('T')[0];
+        return dateStr.toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\. /g, '-').replace(/\.$/, '');
       }
-
-      // 문자열이 아닌 경우 문자열로 변환
       const dateString = String(dateStr);
-
-      // 8/1 형식 처리
       if (dateString.includes('/')) {
         const [month, day] = dateString.split('/').map(num => String(num).trim());
         const year = new Date().getFullYear();
@@ -486,20 +480,15 @@ function AddService() {
         const formattedDay = day.padStart(2, '0');
         return `${year}-${formattedMonth}-${formattedDay}`;
       }
-
-      // Excel의 날짜 형식(시리얼 넘버) 처리
       const excelDate = parseInt(dateString);
       if (!isNaN(excelDate)) {
         const date = new Date((excelDate - 25569) * 86400 * 1000);
-        return date.toISOString().split('T')[0];
+        return date.toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\. /g, '-').replace(/\.$/, '');
       }
-
-      // 기타 형식의 날짜 문자열 처리
       const date = new Date(dateString);
       if (!isNaN(date.getTime())) {
-        return date.toISOString().split('T')[0];
+        return date.toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\. /g, '-').replace(/\.$/, '');
       }
-
       return null;
     } catch (error) {
       console.error('날짜 변환 중 오류:', error);
@@ -526,12 +515,12 @@ function AddService() {
 
           // 데이터 처리
           const validData = jsonData.map((row, index) => {
-            const currentDate = new Date().toISOString().split('T')[0];
+            const currentDate = new Date().toLocaleDateString('ko-KR', {year:'numeric', month:'2-digit', day:'2-digit'});
             
             return {
               brand: selectedBrand,
               reception_date: parseDate(row['접수일자']) || currentDate,
-              reception_time: row['접수시간'] || new Date().getHours() + ':' + (Math.floor(new Date().getMinutes() / 30) * 30).toString().padStart(2, '0'),
+              reception_time: row['접수시간'] || new Date().toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit'}),
               reception_type: row['접수방법'] || '',
               repair_date: parseDate(row['입고일']) || '',
               completion_date: parseDate(row['출고일']) || '',
@@ -769,7 +758,7 @@ function AddService() {
           setFormData(prev => {
             const updatedData = { ...prev, status: newStatus };
             if (!prev.completion_date) {
-      const currentDate = new Date().toISOString().split('T')[0];
+      const currentDate = new Date().toLocaleDateString('ko-KR', {year:'numeric', month:'2-digit', day:'2-digit'});
               updatedData.completion_date = currentDate;
             }
             return updatedData;

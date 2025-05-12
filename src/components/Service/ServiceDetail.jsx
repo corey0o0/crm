@@ -161,25 +161,21 @@ function ServiceDetail() {
 
       if (serviceData.reception_date) {
         const dateObj = new Date(serviceData.reception_date);
-        const dateStr = dateObj.toISOString().slice(0, 10);
+        const dateStr = dateObj.toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\. /g, '-').replace(/\.$/, '');
         const timeStr = dateObj.toTimeString().slice(0, 5);
         receptionDate = dateStr;
         receptionTime = timeStr;
       }
 
       if (serviceData.completion_date) {
-        const utcDate = new Date(serviceData.completion_date);
-        const utcHours = utcDate.getUTCHours();
-        const kstHours = (utcHours + 9) % 24;
-        
-        const dateStr = serviceData.completion_date.split('T')[0];
+        const dateObj = new Date(serviceData.completion_date);
+        const dateStr = dateObj.toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\. /g, '-').replace(/\.$/, '');
+        const timeStr = dateObj.toTimeString().slice(0, 5);
         completionDate = dateStr;
-        completionTime = `${String(kstHours).padStart(2, '0')}:00`;
+        completionTime = timeStr;
 
         console.log('Loading Completion DateTime:', {
           original: serviceData.completion_date,
-          utcHours,
-          kstHours,
           convertedDate: completionDate,
           convertedTime: completionTime
         });

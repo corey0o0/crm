@@ -96,6 +96,16 @@ function formatTimeHHMM(dateString) {
   return `${ampm} ${String(hour).padStart(2, '0')}:${min}`;
 }
 
+// 날짜만 추출하는 함수 추가
+function extractDate(dateStr) {
+  if (!dateStr) return '';
+  try {
+    return new Date(dateStr).toISOString().slice(0, 10);
+  } catch {
+    return '';
+  }
+}
+
 function ServiceList() {
   const [selectedBrand, setSelectedBrand] = useState('XRB');
   const [services, setServices] = useState([]);
@@ -477,10 +487,10 @@ function ServiceList() {
       const matchesStatus = 
         statusFilter === 'all' || service.status === statusFilter;
 
-      // 날짜 필터링 추가
+      // 날짜 필터링 개선: 날짜만 추출해서 비교
       let matchesDate = true;
       if (dateFilter.startDate || dateFilter.endDate) {
-        const serviceDate = service[dateFilter.type];
+        const serviceDate = extractDate(service[dateFilter.type]);
         if (dateFilter.startDate && (!serviceDate || serviceDate < dateFilter.startDate)) {
           matchesDate = false;
         }
@@ -1180,11 +1190,11 @@ function ServiceList() {
                   <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>사용부품</Typography>
                   {row.service_parts.map((sp, idx) => (
                     <Typography key={idx} variant="body2" sx={{ whiteSpace: 'nowrap' }}>
-                      {sp.parts?.name || '-'} : {sp.price?.toLocaleString() || 0}원
+                      {sp.parts?.name || '-'} : {sp.price?.toLocaleString() || 0}원{sp.quantity ? ` × ${sp.quantity}` : ''}
                     </Typography>
                   ))}
                   <Typography variant="body2" sx={{ fontWeight: 900, color: '#fff', mt: 1 }}>
-                    합계: {row.service_parts.reduce((sum, sp) => sum + (sp.price || 0), 0).toLocaleString()}원
+                    합계: {row.service_parts.reduce((sum, sp) => sum + ((sp.price || 0) * (sp.quantity || 1)), 0).toLocaleString()}원
                   </Typography>
                 </Box>
               }
@@ -1851,7 +1861,7 @@ function ServiceList() {
       // 날짜 필터
       let matchesDate = true;
       if (dateFilter.startDate || dateFilter.endDate) {
-        const serviceDate = service[dateFilter.type];
+        const serviceDate = extractDate(service[dateFilter.type]);
         if (dateFilter.startDate && (!serviceDate || serviceDate < dateFilter.startDate)) {
           matchesDate = false;
         }
