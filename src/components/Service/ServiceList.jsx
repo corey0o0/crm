@@ -1190,11 +1190,11 @@ function ServiceList() {
                   <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>사용부품</Typography>
                   {row.service_parts.map((sp, idx) => (
                     <Typography key={idx} variant="body2" sx={{ whiteSpace: 'nowrap' }}>
-                      {sp.parts?.name || '-'} : {sp.price?.toLocaleString() || 0}원{sp.quantity ? ` × ${sp.quantity}` : ''}
+                      {sp.parts?.name || '-'} : {sp.price?.toLocaleString() || 0}원 × {sp.quantity ?? 1}
                     </Typography>
                   ))}
                   <Typography variant="body2" sx={{ fontWeight: 900, color: '#fff', mt: 1 }}>
-                    합계: {row.service_parts.reduce((sum, sp) => sum + ((sp.price || 0) * (sp.quantity || 1)), 0).toLocaleString()}원
+                    합계: {row.service_parts.reduce((sum, sp) => sum + ((sp.price || 0) * (sp.quantity ?? 1)), 0).toLocaleString()}원
                   </Typography>
                 </Box>
               }

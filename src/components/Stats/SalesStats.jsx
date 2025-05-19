@@ -123,6 +123,15 @@ function SalesStats() {
     return '미지정';
   };
 
+  // 날짜를 'YYYY-MM-DD 00:00:00'로 변환
+  const formatDateToStartOfDay = (date) => {
+    return format(date, 'yyyy-MM-dd') + ' 00:00:00';
+  };
+  // 날짜를 'YYYY-MM-DD 23:59:59'로 변환
+  const formatDateToEndOfDay = (date) => {
+    return format(date, 'yyyy-MM-dd') + ' 23:59:59';
+  };
+
   const fetchSalesData = async (periodInfo) => {
     // periodInfo가 없으면 현재 상태 값 사용
     const { startDate: queryStartDate, endDate: queryEndDate, brand: queryBrand } = 
@@ -131,11 +140,13 @@ function SalesStats() {
     try {
       setLoading(true);
 
-      // 디버깅: 조회 중인 날짜 범위 출력
+      // 날짜 범위를 'YYYY-MM-DD 00:00:00' ~ 'YYYY-MM-DD 23:59:59'로 변환
       const formattedStartDate = format(queryStartDate, 'yyyy-MM-dd');
       const formattedEndDate = format(queryEndDate, 'yyyy-MM-dd');
+      const startDateTime = formatDateToStartOfDay(queryStartDate);
+      const endDateTime = formatDateToEndOfDay(queryEndDate);
       console.log('====== 매출 데이터 조회 시작 ======');
-      console.log(`조회 기간: ${formattedStartDate} ~ ${formattedEndDate}`);
+      console.log(`조회 기간: ${startDateTime} ~ ${endDateTime}`);
       console.log(`브랜드: ${queryBrand}`);
 
       // A/S 부품 데이터 조회
@@ -155,8 +166,8 @@ function SalesStats() {
             code
           )
         `)
-        .gte('services.completion_date', formattedStartDate)
-        .lte('services.completion_date', formattedEndDate);
+        .gte('services.completion_date', startDateTime)
+        .lte('services.completion_date', endDateTime);
       
       // forceRefresh가 1 이상일 때 캐시를 사용하지 않도록 설정
       if (forceRefresh > 0) {
@@ -211,8 +222,8 @@ function SalesStats() {
           status,
           note
         `)
-        .gte('order_date', formattedStartDate)
-        .lte('order_date', formattedEndDate);
+        .gte('order_date', startDateTime)
+        .lte('order_date', endDateTime);
 
       // forceRefresh가 1 이상일 때 캐시를 사용하지 않도록 설정
       if (forceRefresh > 0) {
@@ -264,8 +275,8 @@ function SalesStats() {
                 note
               )
             `)
-            .gte('shipments.order_date', formattedStartDate)
-            .lte('shipments.order_date', formattedEndDate);
+            .gte('shipments.order_date', startDateTime)
+            .lte('shipments.order_date', endDateTime);
 
             // forceRefresh가 1 이상일 때 캐시를 사용하지 않도록 설정
             if (forceRefresh > 0) {
@@ -600,7 +611,7 @@ function SalesStats() {
       
       console.log('데이터 조회 완료');
       console.log(`조회된 레코드 수: ${sortedData.length}개`);
-      console.log(`조회 기간: ${formattedStartDate} ~ ${formattedEndDate}`);
+      console.log(`조회 기간: ${startDateTime} ~ ${endDateTime}`);
       console.log('====== 매출 데이터 조회 종료 ======');
 
       setTotalStats({
