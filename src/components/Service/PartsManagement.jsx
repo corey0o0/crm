@@ -325,7 +325,7 @@ function PartsManagement() {
   };
 
   const handleOpenDialog = useCallback((part = null) => {
-    setSelectedPart(part);
+      setSelectedPart(part);
     setOpenDialog(true);
   }, []);
 
@@ -833,14 +833,14 @@ function PartsManagement() {
             </Grid>
             
             <Grid item>
-              <FormControlLabel
-                control={
+          <FormControlLabel
+            control={
                   <Checkbox 
                     checked={selectAll}
                     onChange={handleSelectAll}
                     icon={<CheckBoxIcon fontSize="small" />}
-                  />
-                }
+              />
+            }
                 label={`전체 선택 ${selectedItems.length > 0 ? `(${selectedItems.length}개)` : ''}`}
               />
             </Grid>
@@ -848,11 +848,11 @@ function PartsManagement() {
             <Grid item xs />
 
             <Grid item>
-              <Button
-                variant="outlined"
-                startIcon={<UploadIcon />}
+            <Button
+              variant="outlined"
+              startIcon={<UploadIcon />}
                 onClick={() => document.getElementById('excel-upload').click()}
-              >
+            >
                 파츠 업로드
               </Button>
               <input
@@ -865,13 +865,13 @@ function PartsManagement() {
             </Grid>
             
             <Grid item>
-              <Button
+          <Button
                 variant="outlined"
                 startIcon={<DownloadIcon />}
                 onClick={handleDownloadTemplate}
-              >
+          >
                 템플릿 다운로드
-              </Button>
+          </Button>
             </Grid>
           </Grid>
         </Paper>
@@ -885,46 +885,46 @@ function PartsManagement() {
                 fullWidth
                 size="small"
                 label="브랜드"
-                value={selectedBrand}
+          value={selectedBrand}
                 onChange={(e) => setSelectedBrand(e.target.value)}
-              >
+        >
                 <MenuItem value="전체">전체</MenuItem>
                 {brands.map(brand => (
                   <MenuItem key={brand} value={brand}>
                     {brand === 'XRB' ? 'X-RIDER' : 'NEARBIKE'}
                   </MenuItem>
-                ))}
+          ))}
               </TextField>
             </Grid>
 
             <Grid item xs={12} sm={6} md={6}>
               <Box sx={{ display: 'flex', gap: 1 }}>
-                <TextField
-                  fullWidth
-                  size="small"
+      <TextField
+        fullWidth
+        size="small"
                   placeholder="제품명, 코드, 바코드로 검색"
                   value={searchInput}
                   onChange={handleSearchInputChange}
                   onKeyPress={handleKeyPress}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SearchIcon />
-                      </InputAdornment>
-                    ),
+        InputProps={{
+          startAdornment: (
+            <InputAdornment position="start">
+              <SearchIcon />
+            </InputAdornment>
+          ),
                     endAdornment: searchInput && (
-                      <InputAdornment position="end">
+            <InputAdornment position="end">
                         <IconButton
                           size="small"
                           onClick={handleClearSearch}
                           edge="end"
                         >
-                          <CloseIcon />
-                        </IconButton>
-                      </InputAdornment>
-                    )
-                  }}
-                />
+                <CloseIcon />
+              </IconButton>
+            </InputAdornment>
+          )
+        }}
+      />
                 <Button
                   variant="contained"
                   onClick={executeSearch}
@@ -1049,7 +1049,7 @@ function PartsManagement() {
                 <TableCell align="right">{part.stock || 0}</TableCell>
                 <TableCell>
                   <Typography 
-                    sx={{ 
+                  sx={{ 
                       fontSize: '0.875rem',
                       color: part.note ? 'text.primary' : 'text.secondary',
                       fontStyle: part.note ? 'normal' : 'italic'
@@ -1059,21 +1059,21 @@ function PartsManagement() {
                   </Typography>
                 </TableCell>
                 <TableCell align="right">
-                  <IconButton
-                    size="small"
+                    <IconButton 
+                      size="small" 
                     onClick={() => handleOpenDialog(part)}
-                  >
+                    >
                     <EditIcon />
-                  </IconButton>
-                  <IconButton
-                    size="small"
+                    </IconButton>
+                    <IconButton 
+                      size="small" 
                     onClick={() => handleDelete(part.id)}
                     color="error"
-                  >
+                    >
                     <DeleteIcon />
-                  </IconButton>
-                </TableCell>
-              </TableRow>
+                    </IconButton>
+                  </TableCell>
+                </TableRow>
             ))}
           </TableBody>
         </Table>

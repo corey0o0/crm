@@ -308,9 +308,9 @@ function SalesStats() {
           shipmentPartsData.forEach(part => {
             if (part.shipments) {
               const date = format(parseISO(part.shipments.order_date), 'yyyy-MM-dd');
-              if (!shipmentPartsByDate[date]) {
-                shipmentPartsByDate[date] = [];
-              }
+          if (!shipmentPartsByDate[date]) {
+            shipmentPartsByDate[date] = [];
+          }
 
               // price 필드는 이미 단가로 저장되어 있으므로 그대로 사용
               // total은 단가와 수량을 곱하여 계산
@@ -1159,38 +1159,38 @@ function SalesStats() {
           </Typography>
           
           <Grid container spacing={3}>
-            <Grid item xs={12} md={4}>
-              <Card>
-                <CardContent>
-                  <Typography color="textSecondary" gutterBottom>
-                    A/S 매출
+          <Grid item xs={12} md={4}>
+            <Card>
+              <CardContent>
+                <Typography color="textSecondary" gutterBottom>
+                  A/S 매출
+                </Typography>
+                <Typography variant="h5" component="div">
+                  {formatCurrency(totalStats.totalServiceSales)}
+                </Typography>
+                <Box sx={{ mt: 1 }}>
+                  <Typography variant="body2" color="textSecondary">
+                    A/S: {formatCurrency(totalStats.totalServiceSalesAS)}
                   </Typography>
-                  <Typography variant="h5" component="div">
-                    {formatCurrency(totalStats.totalServiceSales)}
+                  <Typography variant="body2" color="textSecondary">
+                    판매: {formatCurrency(totalStats.totalServiceSalesSell)}
                   </Typography>
-                  <Box sx={{ mt: 1 }}>
-                    <Typography variant="body2" color="textSecondary">
-                      A/S: {formatCurrency(totalStats.totalServiceSalesAS)}
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      판매: {formatCurrency(totalStats.totalServiceSalesSell)}
-                    </Typography>
                     <Typography variant="body2" color="textSecondary">
                       검수 건수: {totalStats.totalServiceCount}건
                     </Typography>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <Card>
-                <CardContent>
-                  <Typography color="textSecondary" gutterBottom>
-                    출고 매출
-                  </Typography>
-                  <Typography variant="h5" component="div">
-                    {formatCurrency(totalStats.totalShipmentSales)}
-                  </Typography>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <Card>
+              <CardContent>
+                <Typography color="textSecondary" gutterBottom>
+                  출고 매출
+                </Typography>
+                <Typography variant="h5" component="div">
+                  {formatCurrency(totalStats.totalShipmentSales)}
+                </Typography>
                   <Box sx={{ mt: 1 }}>
                     <Typography variant="body2" color="textSecondary">
                       검수 건수: {totalStats.totalServiceCount}건
@@ -1199,20 +1199,20 @@ function SalesStats() {
                       출고 건수: {totalStats.totalShipmentCount}건
                     </Typography>
                   </Box>
-                </CardContent>
-              </Card>
-            </Grid>
+              </CardContent>
+            </Card>
+          </Grid>
             
             {/* 총 매출 카드 */}
-            <Grid item xs={12} md={4}>
-              <Card>
-                <CardContent>
-                  <Typography color="textSecondary" gutterBottom>
-                    총 매출
-                  </Typography>
-                  <Typography variant="h5" component="div">
-                    {formatCurrency(totalStats.totalSales)}
-                  </Typography>
+          <Grid item xs={12} md={4}>
+            <Card>
+              <CardContent>
+                <Typography color="textSecondary" gutterBottom>
+                  총 매출
+                </Typography>
+                <Typography variant="h5" component="div">
+                  {formatCurrency(totalStats.totalSales)}
+                </Typography>
                   <Box sx={{ mt: 1 }}>
                     <Typography variant="body2" color="textSecondary">
                       총 검수 건수: {totalStats.totalServiceCount}건
@@ -1221,9 +1221,9 @@ function SalesStats() {
                       총 출고 건수: {totalStats.totalShipmentCount}건
                     </Typography>
                   </Box>
-                </CardContent>
-              </Card>
-            </Grid>
+              </CardContent>
+            </Card>
+          </Grid>
             
             {/* 판매처별 매출 카드 */}
             <Grid item xs={12} md={12}>
@@ -1246,7 +1246,7 @@ function SalesStats() {
                               {formatCurrency(amount)}
                             </Typography>
                           </Paper>
-                        </Grid>
+        </Grid>
                       ))}
                     {Object.keys(totalStats.totalCustomerSales || {}).length === 0 && (
                       <Grid item xs={12}>

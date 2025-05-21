@@ -131,6 +131,13 @@ function ServiceDetail() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [brand, setBrand] = useState('');
 
+  // 접수시간 옵션 (10:00~20:00, 30분 단위)
+  const RECEPTION_TIME_OPTIONS = [];
+  for (let h = 10; h <= 20; h++) {
+    RECEPTION_TIME_OPTIONS.push(`${String(h).padStart(2, '0')}:00`);
+    if (h !== 20) RECEPTION_TIME_OPTIONS.push(`${String(h).padStart(2, '0')}:30`);
+  }
+
   const fetchServiceDetail = React.useCallback(async () => {
     try {
       setLoading(true);
@@ -1593,11 +1600,11 @@ function ServiceDetail() {
                             select
                             required
                             name="reception_time"
-                            value={formData.reception_time?.split(':')[0] || '00'}
+                            value={formData.reception_time?.split(':')[0] + ':' + (formData.reception_time?.split(':')[1] || '00')}
                             onChange={(e) => handleChange({
                               target: {
                                 name: 'reception_time',
-                                value: `${e.target.value}:00`
+                                value: e.target.value
                               }
                             })}
                                 size="small"
@@ -1610,10 +1617,8 @@ function ServiceDetail() {
                                   }
                                 }}
                           >
-                            {Array.from({ length: 24 }, (_, i) => (
-                              <MenuItem key={i} value={String(i).padStart(2, '0')}>
-                                {String(i).padStart(2, '0')}시
-                              </MenuItem>
+                            {RECEPTION_TIME_OPTIONS.map((time) => (
+                              <MenuItem key={time} value={time}>{time}</MenuItem>
                             ))}
                           </TextField>
                         </Box>

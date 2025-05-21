@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
 import { read, utils, writeFile } from 'xlsx';
@@ -65,24 +65,6 @@ const PREDEFINED_TAGS = [
   'E010', 'E004', 'E007', '사고수리', '충전안됨'
 ];
 
-// 버튼 스타일 정의
-const buttonStyle = (isSelected, currentStatus) => ({
-  marginLeft: '8px',
-  backgroundColor: isSelected ? (
-    currentStatus === '접수' ? '#1976d2' :
-    currentStatus === '처리중' ? '#ed6c02' :
-    currentStatus === '완료' ? '#2e7d32' : '#3182f6'
-  ) : '#f2f4f6',
-  color: isSelected ? '#ffffff' : '#4e5968',
-  '&:hover': {
-    backgroundColor: isSelected ? (
-      currentStatus === '접수' ? '#1565c0' :
-      currentStatus === '처리중' ? '#d65f02' :
-      currentStatus === '완료' ? '#1e5e20' : '#1b64da'
-    ) : '#e5e8eb'
-  }
-});
-
 function AddService() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -90,9 +72,9 @@ function AddService() {
   const [submitting, setSubmitting] = useState(false);
   const [services, setServices] = useState([]);
   const [formData, setFormData] = useState({
-    brand: selectedBrand,
+    brand: 'XRB',
     reception_date: new Date().toLocaleDateString('ko-KR', {year:'numeric', month:'2-digit', day:'2-digit'}),
-    reception_time: '00:00',
+    reception_time: '',
     repair_date: '',
     completion_date: '',
     reception_type: '',
@@ -150,12 +132,58 @@ function AddService() {
     onConfirm: null
   });
 
+  // 접수시간 옵션 (10:00~20:00, 30분 단위)
+  const RECEPTION_TIME_OPTIONS = useMemo(() => {
+    const arr = [];
+    for (let h = 10; h <= 20; h++) {
+      arr.push(`${String(h).padStart(2, '0')}:00`);
+      if (h !== 20) arr.push(`${String(h).padStart(2, '0')}:30`);
+    }
+    return arr;
+  }, []);
+
   useEffect(() => {
     if (location.state?.selectedBrand) {
       setSelectedBrand(location.state.selectedBrand);
       setFormData(prev => ({ ...prev, brand: location.state.selectedBrand }));
     }
   }, [location.state]);
+
+  // 폼이 처음 열릴 때 접수일시를 현재 날짜와 시간으로 자동 입력
+  useEffect(() => {
+    const now = new Date();
+    let hour = now.getHours();
+    let min = now.getMinutes();
+
+    // 30분 단위 반올림
+    if (min > 44) {
+      hour += 1;
+      min = 0;
+    } else if (min > 14) {
+      min = 30;
+    } else {
+      min = 0;
+    }
+
+    // 시간 범위 제한: 범위 밖이면 10:30으로 고정
+    if (hour < 10 || hour > 20 || (hour === 20 && min > 0)) {
+      hour = 10;
+      min = 30;
+    }
+
+    let timeStr = `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+    if (!RECEPTION_TIME_OPTIONS.includes(timeStr)) {
+      timeStr = RECEPTION_TIME_OPTIONS[0];
+    }
+    const date = now.toISOString().slice(0, 10);
+
+    setFormData(prev => ({
+      ...prev,
+      reception_date: date,
+      reception_time: timeStr
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [RECEPTION_TIME_OPTIONS]);
 
   // 서비스 목록 조회
   const fetchServices = async () => {
@@ -1042,6 +1070,24 @@ function AddService() {
     printWindow.close();
   };
 
+  // 버튼 스타일 정의
+  const buttonStyle = (isSelected, currentStatus) => ({
+    marginLeft: '8px',
+    backgroundColor: isSelected ? (
+      currentStatus === '접수' ? '#1976d2' :
+      currentStatus === '처리중' ? '#ed6c02' :
+      currentStatus === '완료' ? '#2e7d32' : '#3182f6'
+    ) : '#f2f4f6',
+    color: isSelected ? '#ffffff' : '#4e5968',
+    '&:hover': {
+      backgroundColor: isSelected ? (
+        currentStatus === '접수' ? '#1565c0' :
+        currentStatus === '처리중' ? '#d65f02' :
+        currentStatus === '완료' ? '#1e5e20' : '#1b64da'
+      ) : '#e5e8eb'
+    }
+  });
+
   return (
     <Box sx={{ mt: 3, mx: 'auto', width: '95%', maxWidth: 1400 }}>
       <Box sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
@@ -1109,28 +1155,24 @@ function AddService() {
                         </Typography>
                     <TextField
                       fullWidth
-                          required
-                          select
-                          name="reception_time"
-                          value={formData.reception_time}
-                          onChange={handleInputChange}
-                          size="small"
-                          sx={{
-                            '& .MuiOutlinedInput-root': {
-                              height: '36px',
-                              borderRadius: 1,
-                              bgcolor: '#f9fafb'
-                            }
-                          }}
-                        >
-                          {Array.from({ length: 48 }, (_, i) => {
-                            const hour = Math.floor(i / 2);
-                            const minute = (i % 2) * 30;
-                            return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-                          }).map((time) => (
-                            <MenuItem key={time} value={time}>{time}</MenuItem>
-                          ))}
-                        </TextField>
+                      required
+                      select
+                      name="reception_time"
+                      value={RECEPTION_TIME_OPTIONS.includes(formData.reception_time) ? formData.reception_time : RECEPTION_TIME_OPTIONS[0]}
+                      onChange={handleInputChange}
+                      size="small"
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          height: '36px',
+                          borderRadius: 1,
+                          bgcolor: '#f9fafb'
+                        }
+                      }}
+                    >
+                      {RECEPTION_TIME_OPTIONS.map((time) => (
+                        <MenuItem key={time} value={time}>{time}</MenuItem>
+                      ))}
+                    </TextField>
                       </Box>
                       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 1 }}>
                         <Typography variant="caption" sx={{ color: 'text.secondary', ml: 1 }}>

@@ -171,7 +171,7 @@ function StockList() {
       filtered = filtered.filter(part => 
         (part.name?.toLowerCase().includes(searchLower) ||
         part.code?.toLowerCase().includes(searchLower))
-      );
+  );
     }
 
     return filtered;
@@ -183,18 +183,18 @@ function StockList() {
     const sorted = [...filteredParts];
     
     sorted.sort((a, b) => {
-      let aValue = a[key];
-      let bValue = b[key];
+    let aValue = a[key];
+    let bValue = b[key];
       
       // 숫자 필드 처리
       if (key === 'price' || key === 'stock' || key === 'supply_price') {
-        aValue = Number(aValue) || 0;
-        bValue = Number(bValue) || 0;
-      } else {
+      aValue = Number(aValue) || 0;
+      bValue = Number(bValue) || 0;
+    } else {
         // 문자열 필드 처리
         aValue = String(aValue || '').toLowerCase();
         bValue = String(bValue || '').toLowerCase();
-      }
+    }
       
       if (direction === 'asc') {
         return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
@@ -603,48 +603,48 @@ function StockList() {
         </Box>
       ) : (
         <>
-          <TableContainer component={Paper}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
+        <TableContainer component={Paper}>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
                   <TableCell padding="checkbox">
                     <Checkbox
                       checked={selectAll}
                       onChange={handleSelectAll}
                     />
                   </TableCell>
-                  <TableCell onClick={() => handleSort('brand')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
-                    브랜드{sortArrow('brand')}
-                  </TableCell>
+                <TableCell onClick={() => handleSort('brand')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
+                  브랜드{sortArrow('brand')}
+                </TableCell>
                   <TableCell onClick={() => handleSort('code')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
                     코드{sortArrow('code')}
                   </TableCell>
-                  <TableCell onClick={() => handleSort('name')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
-                    제품명{sortArrow('name')}
-                  </TableCell>
+                <TableCell onClick={() => handleSort('name')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
+                  제품명{sortArrow('name')}
+                </TableCell>
                   {showSupplyPrice && (
                     <TableCell align="right" onClick={() => handleSort('supply_price')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
                       공급가{sortArrow('supply_price')}
-                    </TableCell>
+                </TableCell>
                   )}
-                  <TableCell align="right" onClick={() => handleSort('price')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
-                    단가{sortArrow('price')}
-                  </TableCell>
-                  <TableCell align="right" onClick={() => handleSort('stock')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
-                    재고{sortArrow('stock')}
-                  </TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {sortedParts.map(part => (
-                  <TableRow key={part.id}>
+                <TableCell align="right" onClick={() => handleSort('price')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
+                  단가{sortArrow('price')}
+                </TableCell>
+                <TableCell align="right" onClick={() => handleSort('stock')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
+                  재고{sortArrow('stock')}
+                </TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {sortedParts.map(part => (
+                <TableRow key={part.id}>
                     <TableCell padding="checkbox">
                       <Checkbox
                         checked={selectedItems.includes(part.id)}
                         onChange={() => handleSelectItem(part.id)}
                       />
                     </TableCell>
-                    <TableCell>{part.brand}</TableCell>
+                  <TableCell>{part.brand}</TableCell>
                     <TableCell>
                       <Typography sx={{ 
                         fontSize: '0.95rem', 
@@ -665,13 +665,13 @@ function StockList() {
                     {showSupplyPrice && (
                       <TableCell align="right">{part.supply_price?.toLocaleString()}원</TableCell>
                     )}
-                    <TableCell align="right">{part.price?.toLocaleString()}원</TableCell>
-                    <TableCell align="right">
-                      <TextField
-                        type="number"
-                        size="small"
-                        value={part.stock ?? 0}
-                        onChange={e => handleStockChange(part.id, e.target.value)}
+                  <TableCell align="right">{part.price?.toLocaleString()}원</TableCell>
+                  <TableCell align="right">
+                    <TextField
+                      type="number"
+                      size="small"
+                      value={part.stock ?? 0}
+                      onChange={e => handleStockChange(part.id, e.target.value)}
                         sx={{ 
                           width: 80,
                           '& input': {
@@ -685,13 +685,13 @@ function StockList() {
                             textAlign: 'right',
                           }
                         }}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                    />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
           
           {/* 저장 버튼 영역 */}
           <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>

@@ -1040,7 +1040,7 @@ function ServiceList() {
       )
     },
     { 
-      id: 'reception_date',
+      id: 'reception_date', 
       label: '접수일시',
       sortable: true,
       width: 120,
@@ -1058,7 +1058,7 @@ function ServiceList() {
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <Typography variant="body2" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }} noWrap>
             {formatDateYYMMDD(row.reception_date)}
-          </Typography>
+        </Typography>
           <Typography variant="body2" sx={{ fontWeight: 700, mt: 0.5, whiteSpace: 'nowrap' }} noWrap>
             {formatTimeHHMM(row.reception_date)}
           </Typography>
@@ -1222,22 +1222,22 @@ function ServiceList() {
             <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', maxWidth: '170px' }}>
               {row.tags?.length > 0 ? (
                 row.tags.map((tag, index) => (
-                  <Chip
-                    key={index}
-                    label={tag}
-                    size="small"
-                    sx={{
-                      height: '22px',
-                      fontSize: '0.85rem',
-                      fontWeight: 500,
-                      letterSpacing: '0.01em',
-                      bgcolor: 'primary.50',
-                      color: 'primary.700',
-                      '&:hover': {
-                        bgcolor: 'primary.100'
-                      }
-                    }}
-                  />
+            <Chip
+              key={index}
+              label={tag}
+              size="small"
+              sx={{
+                height: '22px',
+                fontSize: '0.85rem',
+                fontWeight: 500,
+                letterSpacing: '0.01em',
+                bgcolor: 'primary.50',
+                color: 'primary.700',
+                '&:hover': {
+                  bgcolor: 'primary.100'
+                }
+              }}
+            />
                 ))
               ) : (
                 row.solution ? (
@@ -1773,6 +1773,9 @@ function ServiceList() {
       dateFilter,
       inputValue,
       searchTerm,
+      selectedStatuses,
+      selectedTags,
+      searchMode
     };
     localStorage.setItem(FILTER_KEY, JSON.stringify(filterState));
     setSnackbar({
@@ -1799,6 +1802,9 @@ function ServiceList() {
       setDateFilter(filterState.dateFilter || { type: 'reception_date', startDate: '', endDate: '' });
       setInputValue(filterState.inputValue || '');
       setSearchTerm(filterState.searchTerm || '');
+      setSelectedStatuses(filterState.selectedStatuses || []);
+      setSelectedTags(filterState.selectedTags || []);
+      setSearchMode(filterState.searchMode || 'AND');
       setSnackbar({
         open: true,
         message: '필터가 불러와졌습니다.',
@@ -1884,6 +1890,18 @@ function ServiceList() {
     setFilteredServices(filtered);
     setPage(0);
   }, [searchTerm, searchMode, selectedStatuses, selectedTags, statusFilter, services, selectedBrand, dateFilter]);
+
+  // 컴포넌트 마운트 시 자동으로 필터 불러오기
+  useEffect(() => {
+    loadFilterState();
+    // eslint-disable-next-line
+  }, []);
+
+  // 필터 상태가 바뀔 때마다 자동 저장
+  useEffect(() => {
+    saveFilterState();
+    // eslint-disable-next-line
+  }, [selectedBrand, statusFilter, dateFilter, inputValue, searchTerm, selectedStatuses, selectedTags, searchMode]);
 
   if (loading) {
     return (
