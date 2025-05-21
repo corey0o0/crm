@@ -506,6 +506,13 @@ function ShipmentForm() {
         }
       }
       
+      // 등록 성공 후 알림 추가
+      await supabase.from('notifications').insert({
+        type: 'shipment',
+        message: `출고등록[${shipmentSaveData.customer_name}]`,
+        link: `/shipment/${shipmentId}`
+      });
+      
       setSnackbar({
         open: true,
         message: '출고 정보가 성공적으로 저장되었습니다',

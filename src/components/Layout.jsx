@@ -34,6 +34,7 @@ import {
 import { styled } from '@mui/material/styles';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
+import NotificationBell from './Dashboard/NotificationBell';
 
 // 드로어 너비 설정
 const drawerWidth = 240;
@@ -166,6 +167,7 @@ function Layout() {
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
             고객관리시스템
           </Typography>
+          <NotificationBell />
           <Typography
             variant="body2"
             sx={{

@@ -97,6 +97,13 @@ function StockList() {
 
       if (logError) throw logError;
 
+      // 등록 성공 후 알림 추가
+      await supabase.from('notifications').insert({
+        type: 'stock',
+        message: `재고등록[${parts.find(p => p.id === id)?.name}]`,
+        link: `/stock/${id}`
+      });
+
       setSnackbar({ open: true, message: '재고가 저장되었습니다.', severity: 'success' });
       fetchParts();
     } catch (error) {

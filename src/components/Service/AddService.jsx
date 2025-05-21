@@ -697,6 +697,13 @@ function AddService() {
         severity: 'success'
       });
 
+      // 등록 성공 후 알림 추가
+      await supabase.from('notifications').insert({
+        type: 'service',
+        message: `A/S등록[${formData.customer_name}]`,
+        link: `/service/${insertedService.id}`
+      });
+
       // 2초 후 리스트 페이지로 이동
       setTimeout(() => {
         navigate('/services');
