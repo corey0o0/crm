@@ -77,6 +77,7 @@ function AddService() {
     reception_time: '',
     repair_date: '',
     completion_date: '',
+    completion_time: '',
     reception_type: '',
     delivery_method: '',
     customer_name: '',
@@ -629,7 +630,7 @@ function AddService() {
       }
       let completionDateTime = null;
       if (formData.completion_date && formData.completion_time) {
-        completionDateTime = `${formData.completion_date}T${formData.completion_time}:00+09:00`;
+        completionDateTime = `${formData.completion_date}T${formData.completion_time}:00:00+09:00`;
       }
 
       // 서비스 데이터 등록
@@ -1185,21 +1186,45 @@ function AddService() {
                         <Typography variant="caption" sx={{ color: 'text.secondary', ml: 1 }}>
                           완료일자
                         </Typography>
-                        <TextField
-                          fullWidth
-                      type="date"
-                          name="completion_date"
-                          value={formData.completion_date || ''}
-                      onChange={handleInputChange}
-                      size="small"
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                              height: '36px',
-                          borderRadius: 1,
-                          bgcolor: '#f9fafb'
-                        }
-                      }}
-                    />
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                          <TextField
+                            fullWidth
+                            type="date"
+                            name="completion_date"
+                            value={formData.completion_date || ''}
+                            onChange={handleInputChange}
+                            size="small"
+                            sx={{
+                              flex: 2,
+                              '& .MuiOutlinedInput-root': {
+                                height: '36px',
+                                borderRadius: 1,
+                                bgcolor: '#f9fafb'
+                              }
+                            }}
+                          />
+                          <TextField
+                            select
+                            name="completion_time"
+                            value={formData.completion_time || '00'}
+                            onChange={handleInputChange}
+                            size="small"
+                            sx={{
+                              flex: 1,
+                              '& .MuiOutlinedInput-root': {
+                                height: '36px',
+                                borderRadius: 1,
+                                bgcolor: '#f9fafb'
+                              }
+                            }}
+                          >
+                            {Array.from({ length: 24 }, (_, i) => (
+                              <MenuItem key={i} value={String(i).padStart(2, '0')}>
+                                {String(i).padStart(2, '0')}시
+                              </MenuItem>
+                            ))}
+                          </TextField>
+                        </Box>
                       </Box>
                     </Box>
                   </Grid>
