@@ -162,14 +162,20 @@ function ServiceDetail() {
       if (serviceError) throw serviceError;
 
       let receptionDate = null;
-      let receptionTime = '00:00';
+      let receptionTime = '10:30'; // 기본값
       let completionDate = null;
       let completionTime = '00:00';
 
       if (serviceData.reception_date) {
         const dateObj = new Date(serviceData.reception_date);
         const dateStr = dateObj.toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\. /g, '-').replace(/\.$/, '');
-        const timeStr = dateObj.toTimeString().slice(0, 5);
+        let hour = String(dateObj.getHours()).padStart(2, '0');
+        let min = String(dateObj.getMinutes()).padStart(2, '0');
+        let timeStr = `${hour}:${min}`;
+        // RECEPTION_TIME_OPTIONS에 없는 값이면 기본값('10:30')으로 대체
+        if (!RECEPTION_TIME_OPTIONS.includes(timeStr)) {
+          timeStr = '10:30';
+        }
         receptionDate = dateStr;
         receptionTime = timeStr;
       }
@@ -267,6 +273,27 @@ function ServiceDetail() {
     }
   }, [formData]);
 
+  const getCurrentTimeForCompletion = () => {
+    const now = new Date();
+    let hour = now.getHours();
+    let min = now.getMinutes();
+    // 30분 단위 반올림
+    if (min > 44) {
+      hour += 1;
+      min = 0;
+    } else if (min > 14) {
+      min = 30;
+    } else {
+      min = 0;
+    }
+    // 시간 범위 제한: 범위 밖이면 10:30으로 고정
+    if (hour < 10 || hour > 20 || (hour === 20 && min > 0)) {
+      hour = 10;
+      min = 30;
+    }
+    return `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+  };
+
   const handleStatusChange = (newStatus) => {
     if (newStatus === '완료') {
       setConfirmDialog({
@@ -274,12 +301,11 @@ function ServiceDetail() {
         title: 'A/S 완료 확인',
         message: '해당 A/S를 완료 처리하시겠습니까?',
         onConfirm: () => {
+          const now = new Date();
+          const dateStr = now.toISOString().slice(0, 10);
+          const timeStr = getCurrentTimeForCompletion();
           setFormData(prev => {
-            const updatedData = { ...prev, status: newStatus };
-            if (!prev.completion_date) {
-              const currentDate = new Date().toISOString().split('T')[0];
-              updatedData.completion_date = currentDate;
-            }
+            const updatedData = { ...prev, status: newStatus, completion_date: dateStr, completion_time: timeStr };
             return updatedData;
           });
           setIsEditing(true);
@@ -1600,7 +1626,7 @@ function ServiceDetail() {
                             select
                             required
                             name="reception_time"
-                            value={formData.reception_time?.split(':')[0] + ':' + (formData.reception_time?.split(':')[1] || '00')}
+                            value={RECEPTION_TIME_OPTIONS.includes(formData.reception_time) ? formData.reception_time : RECEPTION_TIME_OPTIONS[0]}
                             onChange={(e) => handleChange({
                               target: {
                                 name: 'reception_time',
