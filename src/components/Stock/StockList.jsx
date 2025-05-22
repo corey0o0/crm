@@ -104,6 +104,12 @@ function StockList() {
         link: `/stock/${id}`
       });
 
+      console.log('알림 등록:', {
+        type: 'stock',
+        message: `재고등록[${parts.find(p => p.id === id)?.name}]`,
+        link: `/stock/${id}`
+      });
+
       setSnackbar({ open: true, message: '재고가 저장되었습니다.', severity: 'success' });
       fetchParts();
     } catch (error) {

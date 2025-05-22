@@ -513,6 +513,12 @@ function ShipmentForm() {
         link: `/shipment/${shipmentId}`
       });
       
+      console.log('알림 등록:', {
+        type: 'shipment',
+        message: `출고등록[${shipmentSaveData.customer_name}]`,
+        link: `/shipment/${shipmentId}`
+      });
+      
       setSnackbar({
         open: true,
         message: '출고 정보가 성공적으로 저장되었습니다',

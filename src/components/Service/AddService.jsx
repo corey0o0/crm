@@ -586,6 +586,19 @@ function AddService() {
 
           // 목록 새로고침
           fetchServices();
+
+          // 등록 성공 후 알림 추가
+          await supabase.from('notifications').insert({
+            type: 'service',
+            message: `A/S등록[${formData.customer_name}]`,
+            link: `/service/${insertedData[0].id}`
+          });
+          console.log('알림 등록:', {
+            type: 'service',
+            message: `A/S등록[${formData.customer_name}]`,
+            link: `/service/${insertedData[0].id}`
+          });
+
         } catch (err) {
           console.error('엑셀 데이터 처리 중 오류:', err);
           setSnackbar({
@@ -700,6 +713,11 @@ function AddService() {
 
       // 등록 성공 후 알림 추가
       await supabase.from('notifications').insert({
+        type: 'service',
+        message: `A/S등록[${formData.customer_name}]`,
+        link: `/service/${insertedService.id}`
+      });
+      console.log('알림 등록:', {
         type: 'service',
         message: `A/S등록[${formData.customer_name}]`,
         link: `/service/${insertedService.id}`

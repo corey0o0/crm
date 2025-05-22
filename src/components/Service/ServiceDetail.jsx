@@ -443,6 +443,20 @@ function ServiceDetail() {
         severity: 'success'
       });
 
+      // A/S 수정 알림 추가
+      try {
+        const notificationPayload = {
+          type: 'service_update', // 신규 등록과 구분
+          message: `A/S수정[${formData.customer_name}]`,
+          link: `/service/${id}`
+        };
+        await supabase.from('notifications').insert(notificationPayload);
+        console.log('알림 등록 (수정):', notificationPayload);
+      } catch (notificationError) {
+        console.error('A/S 수정 알림 등록 중 오류:', notificationError);
+        // 알림 등록 실패가 주요 로직을 중단시키지 않도록 처리
+      }
+
       await fetchServiceDetail();
       
       // 하이라이트 ID 저장

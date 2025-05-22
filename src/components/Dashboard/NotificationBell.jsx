@@ -16,20 +16,49 @@ function NotificationBell() {
   const [notifications, setNotifications] = useState([]);
   const [anchorEl, setAnchorEl] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const intervalRef = useRef(null); // interval ID 저장
+
+  const fetchNotifications = async () => {
+    const { data } = await supabase
+      .from('notifications')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(10);
+    setNotifications(data || []);
+    setUnreadCount((data || []).filter(n => !n.is_read).length);
+  };
+
+  const startPolling = () => {
+    fetchNotifications(); // 즉시 실행
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = setInterval(fetchNotifications, 1 * 60 * 1000); // 1분 간격
+  };
+
+  const stopPolling = () => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = null;
+  };
 
   useEffect(() => {
-    const fetchNotifications = async () => {
-      const { data } = await supabase
-        .from('notifications')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(10);
-      setNotifications(data || []);
-      setUnreadCount((data || []).filter(n => !n.is_read).length);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        startPolling();
+      } else {
+        stopPolling();
+      }
     };
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 5 * 60 * 1000);
-    return () => clearInterval(interval);
+
+    // 초기 로드 시 탭이 활성화 상태면 폴링 시작
+    if (document.visibilityState === 'visible') {
+      startPolling();
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      stopPolling(); // 컴포넌트 언마운트 시 폴링 중단
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   const handleClick = (event) => setAnchorEl(event.currentTarget);
@@ -41,7 +70,13 @@ function NotificationBell() {
       setNotifications(prev => prev.map(item => item.id === n.id ? { ...item, is_read: true } : item));
       setUnreadCount(prev => Math.max(0, prev - 1));
     }
-    window.location.href = n.link;
+    // window.location.href = n.link; // 페이지 이동 대신 useNavigate 사용 권장
+    // 예시: navigate(n.link);
+    // 현재는 페이지 이동 로직 주석 처리 (navigate 훅 추가 필요)
+    if (n.link) {
+        // 현재 창에서 링크 열기
+        window.location.href = n.link;
+    }    
     handleClose();
   };
 
