@@ -19,13 +19,30 @@ function NotificationBell() {
   const intervalRef = useRef(null); // interval ID 저장
 
   const fetchNotifications = async () => {
-    const { data } = await supabase
+    console.log('[NotificationBell] Fetching notifications...');
+    const { data, error } = await supabase
       .from('notifications')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(10);
-    setNotifications(data || []);
-    setUnreadCount((data || []).filter(n => !n.is_read).length);
+
+    if (error) {
+      console.error('[NotificationBell] Error fetching notifications:', error);
+      setNotifications([]);
+      setUnreadCount(0);
+      return;
+    }
+
+    console.log('[NotificationBell] Raw data from Supabase:', data);
+
+    const newNotifications = data || [];
+    const newUnreadCount = newNotifications.filter(n => !n.is_read).length;
+
+    console.log('[NotificationBell] Processed notifications:', newNotifications);
+    console.log('[NotificationBell] Calculated unread count:', newUnreadCount);
+
+    setNotifications(newNotifications);
+    setUnreadCount(newUnreadCount);
   };
 
   const startPolling = () => {
@@ -82,7 +99,23 @@ function NotificationBell() {
 
   return (
     <>
-      <Tooltip title="최근 알림" arrow>
+      <Tooltip
+        arrow
+        title={
+          notifications.length > 0 ? (
+            <div>
+              {notifications.slice(0, 5).map((n, i) => (
+                <div key={n.id || i} style={{ whiteSpace: 'pre-line', display: 'flex', alignItems: 'center' }}>
+                  <span>{n.message}</span>
+                  <span style={{ color: '#888', fontSize: 11, marginLeft: 6 }}>
+                    {new Date(n.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : '최근 알림이 없습니다.'
+        }
+      >
         <Badge badgeContent={unreadCount} color="error">
           <NotificationsIcon
             sx={{ cursor: 'pointer', mr: 2 }}

@@ -51,6 +51,40 @@ import { debounce } from 'lodash';
 // 부품 카테고리 정의
 const PART_CATEGORIES = ['기체', '파츠', '공임', '기타'];
 
+// 부품 카테고리 자동 결정 함수 (setSelectedCategory 호출 제거, 카테고리 반환)
+const determinePartCategory = (part) => {
+  if (!part) return '기타';
+  
+  let category = '기타';
+  
+  if (part.note) {
+    const note = part.note.toLowerCase();
+    if (note.includes('파츠') || note.includes('part') || note.includes('부품')) category = '파츠';
+    else if (note.includes('공임') || note.includes('작업') || note.includes('서비스')) category = '공임';
+    else if (note.includes('기타') || note.includes('etc')) category = '기타';
+    else if (note.includes('기체') || note.includes('바이크') || note.includes('자전거')) category = '기체';
+  }
+  
+  if ((category === '기타' || !part.note) && part.code) {
+    const code = part.code.toUpperCase();
+    if (code.startsWith('XRBM-')) category = '기체';
+    else if (code.startsWith('XRBP-')) category = '파츠';
+    else if (code.startsWith('XRBS-')) category = '공임';
+    else if (code.startsWith('NBM-')) category = '기체';
+    else if (code.startsWith('NBP-')) category = '파츠';
+    else if (code.startsWith('NBS-')) category = '공임';
+    else if (code.includes('PART') || code.includes('SPARE')) category = '파츠';
+    else if (code.includes('SERVICE')) category = '공임';
+    else if (code.includes('BIKE')) category = '기체';
+  }
+  return category;
+};
+
+// 합계 금액 계산 함수
+const calculateTotal = (part) => {
+  return (part.price || 0) * (part.quantity || 1);
+};
+
 function ShipmentForm() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -274,105 +308,47 @@ function ShipmentForm() {
 
   const handleOpenPartsDialog = () => {
     setOpenPartsDialog(true);
-    setSelectedPart(null);
-    setPartQuantity(1);
     setPartInputValue('');
-    setSearchTerm(''); // 검색어 초기화
-    setPage(0); // 페이지 초기화
+    setSearchTerm('');
+    setPage(0);
   };
 
   const handleClosePartsDialog = () => {
     setOpenPartsDialog(false);
   };
 
-  const handleSelectPart = (part) => {
-    setSelectedPart(part);
-    // 부품 선택 시 자동으로 카테고리 설정 (함수는 유지하되 다이얼로그에서 보이지 않게 함)
-    determinePartCategory(part);
-  };
+  const handleAddPartToList = (partToAdd) => {
+    if (!partToAdd) return;
 
-  // 부품 카테고리 자동 결정 함수 추가
-  const determinePartCategory = (part) => {
-    if (!part) return;
-    
-    let category = '기타'; // 기본값
-    
-    // 1. 파츠 관리에 설정된 구분 확인 (note 필드 확인)
-    if (part.note) {
-      const note = part.note.toLowerCase();
+    setSelectedParts(prevParts => {
+      const existingPartIndex = prevParts.findIndex(p => p.part_code === partToAdd.code && p.part_name === partToAdd.name);
       
-      if (note.includes('파츠') || note.includes('part') || note.includes('부품')) {
-        category = '파츠';
-      } else if (note.includes('공임') || note.includes('작업') || note.includes('서비스')) {
-        category = '공임';
-      } else if (note.includes('기타') || note.includes('etc')) {
-        category = '기타';
-      } else if (note.includes('기체') || note.includes('바이크') || note.includes('자전거')) {
-        category = '기체';
-      }
-    }
-    
-    // 2. 부품 코드로 카테고리 판별 (note에 정보가 없는 경우)
-    if (category === '기타' && part.code) {
-      const code = part.code.toUpperCase();
-      
-      // X-RIDER 코드 분류
-      if (code.startsWith('XRBM-')) {
-        category = '기체';
-      } else if (code.startsWith('XRBP-')) {
-        category = '파츠';
-      } else if (code.startsWith('XRBS-')) {
-        category = '공임';
-      } 
-      // NEARBIKE 코드 분류
-      else if (code.startsWith('NBM-')) {
-        category = '기체';
-      } else if (code.startsWith('NBP-')) {
-        category = '파츠';
-      } else if (code.startsWith('NBS-')) {
-        category = '공임';
-      }
-      // 기타 코드 패턴
-      else if (code.includes('PART') || code.includes('SPARE')) {
-        category = '파츠';
-      } else if (code.includes('SERVICE')) {
-        category = '공임';
-      } else if (code.includes('BIKE')) {
-        category = '기체';
-      }
-    }
-    
-    // 파츠 관리에 없는 상품은 기타로 유지
-    
-    // 최종 카테고리 설정
-    setSelectedCategory(category);
-  };
+      const categoryForNewPart = determinePartCategory(partToAdd);
 
-  // 합계 금액 계산 함수 추가
-  const calculateTotal = (part) => {
-    return (part.price || 0) * (part.quantity || 1);
-  };
+      if (existingPartIndex >= 0) {
+        const updatedParts = [...prevParts];
+        updatedParts[existingPartIndex].quantity = (updatedParts[existingPartIndex].quantity || 0) + 1;
+        updatedParts[existingPartIndex].totalPrice = calculateTotal(updatedParts[existingPartIndex]);
+        return updatedParts;
+      } else {
+        const newPartEntry = {
+          id: Date.now(),
+          part_name: partToAdd.name,
+          part_code: partToAdd.code,
+          category: categoryForNewPart,
+          quantity: 1,
+          price: partToAdd.price || 0,
+          totalPrice: (partToAdd.price || 0) * 1
+        };
+        return [...prevParts, newPartEntry];
+      }
+    });
 
-  const handleQuantityChange = (e) => {
-    const value = parseInt(e.target.value) || 1;
-    setPartQuantity(value > 0 ? value : 1);
-  };
-
-  const handleAddPart = () => {
-    if (!selectedPart) return;
-    
-    const newPart = {
-      id: Date.now(), // 임시 ID
-      part_name: selectedPart.name,
-      part_code: selectedPart.code,
-      category: selectedCategory, // 자동으로 설정된 카테고리 유지
-      quantity: partQuantity,
-      price: selectedPart.price || 0,
-      totalPrice: (selectedPart.price || 0) * partQuantity
-    };
-    
-    setSelectedParts(prev => [...prev, newPart]);
-    handleClosePartsDialog();
+    setSnackbar({
+      open: true,
+      message: `${partToAdd.name} 추가됨 (또는 수량 증가)`,
+      severity: 'success'
+    });
   };
 
   const handleRemovePart = (id) => {
@@ -422,7 +398,7 @@ function ShipmentForm() {
       
       // 모든 제품의 총 수량과 총 금액 계산
       const totalQuantity = selectedParts.reduce((sum, part) => sum + (parseInt(part.quantity) || 0), 0);
-      const totalPrice = selectedParts.reduce((sum, part) => sum + ((parseFloat(part.price) || 0) * (parseInt(part.quantity) || 0)), 0);
+      const totalPrice = selectedParts.reduce((sum, part) => sum + calculateTotal(part), 0);
       
       // 모든 제품명을 쉼표로 구분하여 하나의 문자열로 결합
       const combinedProductName = selectedParts.map(p => p.part_name).join(', ');
@@ -507,23 +483,17 @@ function ShipmentForm() {
       }
       
       // 등록 성공 후 알림 추가
-      await supabase.from('notifications').insert({
-        type: 'shipment',
-        message: `출고등록[${shipmentSaveData.customer_name}]`,
-        link: `/shipment/${shipmentId}`
-      });
-      
-      console.log('알림 등록:', {
-        type: 'shipment',
-        message: `출고등록[${shipmentSaveData.customer_name}]`,
-        link: `/shipment/${shipmentId}`
-      });
-      
-      setSnackbar({
-        open: true,
-        message: '출고 정보가 성공적으로 저장되었습니다',
-        severity: 'success'
-      });
+      try {
+        const notificationPayload = {
+          type: 'shipment',
+          message: `출고등록[${shipmentSaveData.customer_name}]`,
+          link: `/shipment/${shipmentId}`
+        };
+        await supabase.from('notifications').insert(notificationPayload);
+        console.log('알림 등록:', notificationPayload);
+      } catch (error) {
+        console.error('출고 알림 등록 중 오류:', error);
+      }
       
       // 0.5초 후 목록 페이지로 이동
       setTimeout(() => {
@@ -910,17 +880,6 @@ function ShipmentForm() {
     }));
   };
 
-  // 제품 추가 다이얼로그에서도 가격 수정 기능 추가
-  const handleCustomPrice = (e) => {
-    if (!selectedPart) return;
-    
-    const price = parseFloat(e.target.value) || 0;
-    setSelectedPart({
-      ...selectedPart,
-      price: price
-    });
-  };
-
   // 엑셀 파일 업로드 핸들러
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
@@ -985,25 +944,6 @@ function ShipmentForm() {
     event.target.value = '';
   };
 
-  // 카테고리 결정 함수 (코드 패턴 기반)
-  const determineCategory = (code, name, price) => {
-    if (!code) return '기타';
-    
-    const upperCode = code.toUpperCase();
-    
-    // 코드 패턴 기반 카테고리 결정
-    if (upperCode.startsWith('XRBM-') || upperCode.startsWith('NBM-') || upperCode.includes('BIKE')) {
-      return '기체';
-    } else if (upperCode.startsWith('XRBP-') || upperCode.startsWith('NBP-') || upperCode.includes('PART')) {
-      return '파츠';
-    } else if (upperCode.startsWith('XRBS-') || upperCode.startsWith('NBS-') || upperCode.includes('SERVICE')) {
-      return '공임';
-    }
-    
-    // 기본값
-    return '기타';
-  };
-
   // 엑셀 데이터를 부품 목록으로 변환
   const handleProcessExcelData = () => {
     if (uploadedData.length === 0) return;
@@ -1012,7 +952,7 @@ function ShipmentForm() {
       // 엑셀 데이터를 부품 목록으로 변환
       const newParts = uploadedData.map((item, index) => {
         // 카테고리 결정
-        const category = item['카테고리'] || determineCategory(item['제품코드'], item['제품명'], item['가격']);
+        const category = item['카테고리'] || determineCategoryForExcel(item['제품코드'], item['제품명'], item['가격']);
         
         return {
           id: Date.now() + index, // 임시 ID
@@ -1169,6 +1109,12 @@ function ShipmentForm() {
         severity: 'error'
       });
     }
+  };
+
+  // 엑셀 카테고리 결정 함수 (기존 determineCategory는 그대로 두거나, determinePartCategory로 대체)
+  const determineCategoryForExcel = (code, name, price) => { // 이름 변경 또는 determinePartCategory 활용
+    // 이 함수는 determinePartCategory({code, name, price}) 형태로 호출 가능
+    return determinePartCategory({ code, name, price, note: null }); // note는 없다고 가정
   };
 
   if (loading) {
@@ -1590,7 +1536,7 @@ function ShipmentForm() {
                       <TableCell>{row['제품명']}</TableCell>
                       <TableCell>{row['제품코드'] || '-'}</TableCell>
                       <TableCell>
-                        {row['카테고리'] || determineCategory(row['제품코드'], row['제품명'], row['가격'])}
+                        {row['카테고리'] || determineCategoryForExcel(row['제품코드'], row['제품명'], row['가격'])}
                       </TableCell>
                       <TableCell>{row['수량'] || '1'}</TableCell>
                       <TableCell>{parseInt(row['가격']).toLocaleString() || '0'}원</TableCell>
@@ -1653,33 +1599,6 @@ function ShipmentForm() {
               </Button>
             </Box>
             
-            <Grid container spacing={2} sx={{ mb: 2 }}>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="수량"
-                  type="number"
-                  value={partQuantity}
-                  onChange={handleQuantityChange}
-                  InputProps={{ inputProps: { min: 1 } }}
-                />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="가격 수정"
-                  type="number"
-                  value={selectedPart?.price || ''}
-                  onChange={handleCustomPrice}
-                  InputProps={{ 
-                    inputProps: { min: 0 },
-                    endAdornment: <InputAdornment position="end">원</InputAdornment>
-                  }}
-                  placeholder="가격을 수정하려면 입력하세요"
-                />
-              </Grid>
-            </Grid>
-            
             <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Typography variant="caption" color="text.secondary">
                 {isSearching ? '검색 중...' : 
@@ -1722,9 +1641,7 @@ function ShipmentForm() {
                   {paginatedParts.map((part) => (
                     <TableRow 
                       key={part.id}
-                      selected={selectedPart?.id === part.id}
                       hover
-                      onClick={() => handleSelectPart(part)}
                       sx={{ cursor: 'pointer' }}
                     >
                       <TableCell>{part.name}</TableCell>
@@ -1733,8 +1650,7 @@ function ShipmentForm() {
                       <TableCell>
                         <IconButton 
                           size="small"
-                          color={selectedPart?.id === part.id ? "primary" : "default"}
-                          onClick={() => handleSelectPart(part)}
+                          onClick={() => handleAddPartToList(part)}
                         >
                           <AddIcon />
                         </IconButton>
@@ -1762,14 +1678,7 @@ function ShipmentForm() {
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleClosePartsDialog}>취소</Button>
-          <Button 
-            variant="contained" 
-            onClick={handleAddPart}
-            disabled={!selectedPart}
-          >
-            추가
-          </Button>
+          <Button onClick={handleClosePartsDialog}>닫기</Button>
         </DialogActions>
       </Dialog>
       

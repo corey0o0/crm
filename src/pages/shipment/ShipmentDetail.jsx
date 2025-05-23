@@ -32,7 +32,8 @@ import {
   Print as PrintIcon,
   Save as SaveIcon,
   Delete as DeleteIcon,
-  Search as SearchIcon
+  Search as SearchIcon,
+  Add as AddIcon
 } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -650,30 +651,56 @@ function ShipmentDetail() {
     }
   };
 
-  // 부품 선택 함수
-  const handlePartSelect = (part) => {
-    setSelectedPart(part);
-  };
+  // 부품 추가 함수 (즉시 추가하는 로직으로 변경)
+  const handleAddPartToList = (partToAdd) => { // 함수명 변경하여 Form과 통일성 부여
+    if (!partToAdd) return;
 
-  // 부품 추가 함수
-  const handleAddPart = () => {
-    if (selectedPart && partQuantity > 0) {
-      const newPart = {
-        id: selectedPart.id,
-        part_name: selectedPart.name,
-        part_code: selectedPart.code,
-        part_category: selectedPart.category || '기체',
-        quantity: partQuantity,
-        price: modifiedPrice || selectedPart.price || 0,
-        total_price: (modifiedPrice || selectedPart.price || 0) * partQuantity,
-        created_at: new Date().toISOString()
-      };
-      setEditableParts(prev => [...prev, newPart]);
-      setOpenPartsDialog(false);
-      setSelectedPart(null);
-      setPartQuantity(1);
-      setModifiedPrice('');
-    }
+    setEditableParts(prevParts => {
+      const existingPartIndex = prevParts.findIndex(p => 
+        (p.part_code === partToAdd.code && p.part_name === partToAdd.name) || 
+        (p.id === partToAdd.id) // 기존 부품 ID로도 체크 (새로 추가되는 경우와 구분)
+      );
+      
+      let categoryFromPart = '기체'; 
+      if (partToAdd.note) { // 간단한 카테고리 추론 예시 (ShipmentForm의 determinePartCategory와 유사하게)
+        const note = partToAdd.note.toLowerCase();
+        if (note.includes('파츠') || note.includes('part')) categoryFromPart = '파츠';
+        else if (note.includes('공임') || note.includes('작업')) categoryFromPart = '공임';
+      } else if (partToAdd.code) {
+        const code = partToAdd.code.toUpperCase();
+        if (code.startsWith('XRBP-') || code.startsWith('NBP-')) categoryFromPart = '파츠';
+        else if (code.startsWith('XRBS-') || code.startsWith('NBS-')) categoryFromPart = '공임';
+      }
+      // 실제 사용 시에는 partToAdd에 category 정보가 있거나, 더 정교한 로직 필요
+      categoryFromPart = partToAdd.category || partToAdd.part_category || categoryFromPart;
+
+      if (existingPartIndex >= 0) {
+        const updatedParts = [...prevParts];
+        updatedParts[existingPartIndex].quantity = (updatedParts[existingPartIndex].quantity || 0) + 1;
+        updatedParts[existingPartIndex].total_price = (updatedParts[existingPartIndex].price || 0) * updatedParts[existingPartIndex].quantity;
+        return updatedParts;
+      } else {
+        const newPartEntry = {
+          id: Date.now(), // 새 부품은 임시 ID 사용
+          shipment_id: id, 
+          part_name: partToAdd.name,
+          part_code: partToAdd.code,
+          part_category: categoryFromPart,
+          quantity: 1,
+          price: partToAdd.price || 0,
+          total_price: (partToAdd.price || 0) * 1,
+          // created_at: new Date().toISOString() // 저장 시점에 생성되므로 여기서 불필요
+        };
+        return [...prevParts, newPartEntry];
+      }
+    });
+
+    setSnackbar({
+      open: true,
+      message: `${partToAdd.name} 추가됨 (또는 수량 증가)`,
+      severity: 'success'
+    });
+    // 다이얼로그는 닫지 않음. selectedPart, partQuantity, modifiedPrice 관련 상태 초기화 불필요
   };
 
   if (loading) {
@@ -1161,13 +1188,19 @@ function ShipmentDetail() {
                 {paginatedParts.map((part) => (
                   <TableRow
                     key={part.id}
-                    selected={selectedPart?.id === part.id}
-                    onClick={() => handlePartSelect(part)}
                     sx={{ cursor: 'pointer' }}
                   >
                     <TableCell>{part.name}</TableCell>
                     <TableCell>{part.code}</TableCell>
                     <TableCell align="right">{part.price?.toLocaleString()}원</TableCell>
+                    <TableCell align="center">
+                      <IconButton 
+                        size="small"
+                        onClick={() => handleAddPartToList(part)}
+                      >
+                        <AddIcon />
+                      </IconButton>
+                    </TableCell>
                   </TableRow>
                 ))}
                 {paginatedParts.length === 0 && !isSearching && (
@@ -1188,34 +1221,9 @@ function ShipmentDetail() {
               </TableBody>
             </Table>
           </TableContainer>
-          
-          {selectedPart && (
-            <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
-              <TextField
-                type="number"
-                label="수량"
-                value={partQuantity}
-                onChange={(e) => setPartQuantity(Number(e.target.value))}
-                sx={{ flex: 1 }}
-                InputProps={{ inputProps: { min: 1 } }}
-              />
-              <TextField
-                type="number"
-                label="가격"
-                value={modifiedPrice || selectedPart.price}
-                onChange={(e) => setModifiedPrice(e.target.value)}
-                sx={{ flex: 1 }}
-                InputProps={{
-                  inputProps: { min: 0 },
-                  startAdornment: <InputAdornment position="start">₩</InputAdornment>
-                }}
-              />
-            </Box>
-          )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenPartsDialog(false)}>취소</Button>
-          <Button onClick={handleAddPart} disabled={!selectedPart}>추가</Button>
+          <Button onClick={() => setOpenPartsDialog(false)}>닫기</Button>
         </DialogActions>
       </Dialog>
     </Box>
