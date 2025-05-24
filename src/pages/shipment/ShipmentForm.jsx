@@ -355,6 +355,26 @@ function ShipmentForm() {
     setSelectedParts(prev => prev.filter(part => part.id !== id));
   };
 
+  // 텔레그램 알림 전송 함수 (컴포넌트 내에 추가)
+  const sendTelegramNotification = async (message) => {
+    const botToken = '7355852231:AAE4d36OyayXQbhSDPCJydDi0hte0f4R2x0';
+    const chatId = '-4976461088';
+    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+    try {
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: message,
+          parse_mode: 'HTML'
+        })
+      });
+    } catch (e) {
+      console.error('텔레그램 알림 전송 실패:', e);
+    }
+  };
+
   const handleSubmit = async () => {
     // 필수 입력값 검증
     const requiredFields = [
@@ -490,6 +510,7 @@ function ShipmentForm() {
           link: `/shipment/${shipmentId}`
         };
         await supabase.from('notifications').insert(notificationPayload);
+        await sendTelegramNotification(notificationPayload.message);
         console.log('알림 등록:', notificationPayload);
       } catch (error) {
         console.error('출고 알림 등록 중 오류:', error);

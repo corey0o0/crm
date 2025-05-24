@@ -11,44 +11,45 @@ import ListItemIcon from '@mui/material/ListItemIcon';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import { supabase } from '../../lib/supabaseClient';
+import { Box, Button, Typography } from '@mui/material';
 
 function NotificationBell() {
   const [notifications, setNotifications] = useState([]);
+  const [page, setPage] = useState(0);
+  const pageSize = 20;
+  const [totalCount, setTotalCount] = useState(0);
   const [anchorEl, setAnchorEl] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const intervalRef = useRef(null); // interval ID 저장
 
-  const fetchNotifications = async () => {
-    console.log('[NotificationBell] Fetching notifications...');
-    const { data, error } = await supabase
+  const fetchNotifications = async (page = 0) => {
+    const from = page * pageSize;
+    const to = from + pageSize - 1;
+    const { data, error, count } = await supabase
       .from('notifications')
-      .select('*')
+      .select('*', { count: 'exact' })
       .order('created_at', { ascending: false })
-      .limit(10);
+      .range(from, to);
 
     if (error) {
       console.error('[NotificationBell] Error fetching notifications:', error);
       setNotifications([]);
       setUnreadCount(0);
+      setTotalCount(0);
       return;
     }
 
-    console.log('[NotificationBell] Raw data from Supabase:', data);
-
     const newNotifications = data || [];
     const newUnreadCount = newNotifications.filter(n => !n.is_read).length;
-
-    console.log('[NotificationBell] Processed notifications:', newNotifications);
-    console.log('[NotificationBell] Calculated unread count:', newUnreadCount);
-
     setNotifications(newNotifications);
     setUnreadCount(newUnreadCount);
+    setTotalCount(count || 0);
   };
 
   const startPolling = () => {
-    fetchNotifications(); // 즉시 실행
+    fetchNotifications(page); // 즉시 실행
     if (intervalRef.current) clearInterval(intervalRef.current);
-    intervalRef.current = setInterval(fetchNotifications, 1 * 60 * 1000); // 1분 간격
+    intervalRef.current = setInterval(() => fetchNotifications(page), 1 * 60 * 1000); // 1분 간격
   };
 
   const stopPolling = () => {
@@ -76,7 +77,7 @@ function NotificationBell() {
       stopPolling(); // 컴포넌트 언마운트 시 폴링 중단
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, []);
+  }, [page]);
 
   const handleClick = (event) => setAnchorEl(event.currentTarget);
   const handleClose = () => setAnchorEl(null);
@@ -95,6 +96,11 @@ function NotificationBell() {
         window.location.href = n.link;
     }    
     handleClose();
+  };
+
+  const handlePageChange = (newPage) => {
+    setPage(newPage);
+    // fetchNotifications(newPage); // useEffect에서 자동 호출
   };
 
   return (
@@ -154,6 +160,16 @@ function NotificationBell() {
             ))
           )}
         </List>
+        {/* 페이지네이션 UI */}
+        {totalCount > pageSize && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', p: 1 }}>
+            <Button size="small" onClick={() => handlePageChange(page - 1)} disabled={page === 0}>이전</Button>
+            <Typography variant="caption" sx={{ mx: 2 }}>
+              {page + 1} / {Math.ceil(totalCount / pageSize)}
+            </Typography>
+            <Button size="small" onClick={() => handlePageChange(page + 1)} disabled={page >= Math.ceil(totalCount / pageSize) - 1}>다음</Button>
+          </Box>
+        )}
       </Popover>
     </>
   );
