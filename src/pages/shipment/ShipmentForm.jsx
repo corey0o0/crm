@@ -358,10 +358,10 @@ function ShipmentForm() {
   // 텔레그램 알림 전송 함수 (컴포넌트 내에 추가)
   const sendTelegramNotification = async (message) => {
     const botToken = '7355852231:AAE4d36OyayXQbhSDPCJydDi0hte0f4R2x0';
-    const chatId = '-4976461088';
+    const chatId = '-4682658690';
     const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
     try {
-      await fetch(url, {
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -370,8 +370,22 @@ function ShipmentForm() {
           parse_mode: 'HTML'
         })
       });
+      const responseData = await response.json();
+      if (!response.ok) {
+        console.error('텔레그램 API 에러:', responseData);
+        setSnackbar({
+          open: true,
+          message: `텔레그램 알림 전송 실패: ${responseData.description || '알 수 없는 오류'}`,
+          severity: 'error'
+        });
+      }
     } catch (e) {
-      console.error('텔레그램 알림 전송 실패:', e);
+      console.error('텔레그램 알림 전송 중 네트워크/기타 실패:', e);
+      setSnackbar({
+        open: true,
+        message: '텔레그램 알림 전송 중 오류 발생 (네트워크 등)',
+        severity: 'error'
+      });
     }
   };
 

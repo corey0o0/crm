@@ -22,8 +22,10 @@ function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
   const intervalRef = useRef(null); // interval ID 저장
 
-  const fetchNotifications = async (page = 0) => {
-    const from = page * pageSize;
+  const localStorageKey = 'lastCheckedNotificationTimestamp'; // localStorage 키 정의
+
+  const fetchNotifications = async (currentPage = 0) => {
+    const from = currentPage * pageSize;
     const to = from + pageSize - 1;
     const { data, error, count } = await supabase
       .from('notifications')
@@ -40,16 +42,24 @@ function NotificationBell() {
     }
 
     const newNotifications = data || [];
-    const newUnreadCount = newNotifications.filter(n => !n.is_read).length;
     setNotifications(newNotifications);
-    setUnreadCount(newUnreadCount);
     setTotalCount(count || 0);
+
+    // unreadCount 계산은 localStorage 기준으로 변경 (다음 단계에서 적용)
+    const lastCheckedTimestamp = localStorage.getItem(localStorageKey);
+    if (lastCheckedTimestamp) {
+      const newUnread = newNotifications.filter(n => new Date(n.created_at) > new Date(lastCheckedTimestamp)).length;
+      setUnreadCount(newUnread);
+    } else {
+      // localStorage에 값이 없으면 모든 알림을 새 알림으로 간주 (또는 초기값 설정)
+      setUnreadCount(newNotifications.length > 0 ? newNotifications.length : 0); 
+    }
   };
 
   const startPolling = () => {
-    fetchNotifications(page); // 즉시 실행
+    fetchNotifications(page);
     if (intervalRef.current) clearInterval(intervalRef.current);
-    intervalRef.current = setInterval(() => fetchNotifications(page), 1 * 60 * 1000); // 1분 간격
+    intervalRef.current = setInterval(() => fetchNotifications(page), 1 * 60 * 1000); 
   };
 
   const stopPolling = () => {
@@ -79,20 +89,17 @@ function NotificationBell() {
     };
   }, [page]);
 
-  const handleClick = (event) => setAnchorEl(event.currentTarget);
+  const handleClick = (event) => {
+    setAnchorEl(event.currentTarget);
+    // 알림 벨 클릭 시, 현재 시간을 localStorage에 저장
+    const nowTimestamp = new Date().toISOString();
+    localStorage.setItem(localStorageKey, nowTimestamp);
+    setUnreadCount(0); // 뱃지 카운트를 즉시 0으로 업데이트
+  };
   const handleClose = () => setAnchorEl(null);
 
   const handleNotificationClick = async (n) => {
-    if (!n.is_read) {
-      await supabase.from('notifications').update({ is_read: true }).eq('id', n.id);
-      setNotifications(prev => prev.map(item => item.id === n.id ? { ...item, is_read: true } : item));
-      setUnreadCount(prev => Math.max(0, prev - 1));
-    }
-    // window.location.href = n.link; // 페이지 이동 대신 useNavigate 사용 권장
-    // 예시: navigate(n.link);
-    // 현재는 페이지 이동 로직 주석 처리 (navigate 훅 추가 필요)
     if (n.link) {
-        // 현재 창에서 링크 열기
         window.location.href = n.link;
     }    
     handleClose();
@@ -100,44 +107,48 @@ function NotificationBell() {
 
   const handlePageChange = (newPage) => {
     setPage(newPage);
-    // fetchNotifications(newPage); // useEffect에서 자동 호출
+    // fetchNotifications는 page useEffect에 의해 호출됨
   };
+
+  // Tooltip title은 계속 최신 5개 보여주도록 유지
+  const tooltipTitle = 
+    notifications.length > 0 ? (
+      <div>
+        {notifications.slice(0, 5).map((n, i) => (
+          <div key={n.id || i} style={{ whiteSpace: 'pre-line', display: 'flex', alignItems: 'center' }}>
+            <span>{n.message}</span>
+            <span style={{ color: '#888', fontSize: 11, marginLeft: 6 }}>
+              {new Date(n.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          </div>
+        ))}
+      </div>
+    ) : '최근 알림이 없습니다.';
 
   return (
     <>
       <Tooltip
         arrow
-        title={
-          notifications.length > 0 ? (
-            <div>
-              {notifications.slice(0, 5).map((n, i) => (
-                <div key={n.id || i} style={{ whiteSpace: 'pre-line', display: 'flex', alignItems: 'center' }}>
-                  <span>{n.message}</span>
-                  <span style={{ color: '#888', fontSize: 11, marginLeft: 6 }}>
-                    {new Date(n.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : '최근 알림이 없습니다.'
-        }
+        title={tooltipTitle} 
       >
         <Badge 
           badgeContent={unreadCount} 
           color="error"
           anchorOrigin={{
             vertical: 'top',
-            horizontal: 'right',
+            horizontal: 'left',
           }}
-          overlap="circular"
           sx={{
             '& .MuiBadge-badge': {
-              transform: 'translate(-30%, 30%)',
-            }
+            },
           }}
         >
           <NotificationsIcon
-            sx={{ cursor: 'pointer', mr: 2 }}
+            sx={{ 
+              cursor: 'pointer', 
+              ml: unreadCount > 0 ? 1 : 2,
+              mr: 2
+            }}
             fontSize="medium"
             onClick={handleClick}
           />
@@ -159,10 +170,9 @@ function NotificationBell() {
               <ListItem disablePadding key={n.id}>
                 <ListItemButton
                   onClick={() => handleNotificationClick(n)}
-                  selected={!n.is_read}
                 >
                   <ListItemIcon>
-                    {n.is_read ? <CheckCircleIcon color="action" /> : <RadioButtonUncheckedIcon color="primary" />}
+                    <RadioButtonUncheckedIcon color="primary" /> 
                   </ListItemIcon>
                   <ListItemText
                     primary={n.message}
@@ -173,7 +183,6 @@ function NotificationBell() {
             ))
           )}
         </List>
-        {/* 페이지네이션 UI */}
         {totalCount > pageSize && (
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', p: 1 }}>
             <Button size="small" onClick={() => handlePageChange(page - 1)} disabled={page === 0}>이전</Button>
