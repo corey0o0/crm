@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, memo, useRef } from 'react';
 import {
   Paper,
   Table,
@@ -219,15 +219,6 @@ function PartsManagement() {
   const [openDialog, setOpenDialog] = useState(false);
   const [selectedPart, setSelectedPart] = useState(null);
   const [selectedBrand, setSelectedBrand] = useState('XRB');
-  const [formData, setFormData] = useState({
-    name: '',
-    brand: '',
-    code: '',
-    supplyPrice: '',
-    price: '',
-    barcode: '',
-    note: ''
-  });
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
@@ -254,7 +245,7 @@ function PartsManagement() {
   const [openCopyDialog, setOpenCopyDialog] = useState(false);
   const [copyTargetBrand, setCopyTargetBrand] = useState('');
 
-  // 검색 관련 함수들 추가
+  // 검색 관련 함수들
   const handleSearchInputChange = useCallback((e) => {
     setSearchInput(e.target.value);
   }, []);
@@ -632,7 +623,9 @@ function PartsManagement() {
 
   // 필터링된 파츠 목록 최적화
   const filteredParts = useMemo(() => {
-    if (!searchTerm && selectedBrand === '전체') return parts;
+    if (selectedBrand === '전체' && !searchTerm) {
+      return parts;
+    }
 
     const searchTermLower = searchTerm.toLowerCase();
     return parts.filter(part => {

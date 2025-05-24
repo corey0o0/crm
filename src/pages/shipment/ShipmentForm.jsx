@@ -510,10 +510,12 @@ function ShipmentForm() {
           link: `/shipment/${shipmentId}`
         };
         await supabase.from('notifications').insert(notificationPayload);
+        console.log('Supabase 알림 저장 성공. 텔레그램 알림 전송 시도...');
         await sendTelegramNotification(notificationPayload.message);
+        console.log('텔레그램 알림 전송 시도 완료 (에러 없으면 성공).');
         console.log('알림 등록:', notificationPayload);
       } catch (error) {
-        console.error('출고 알림 등록 중 오류:', error);
+        console.error('출고 알림 또는 텔레그램 전송 중 오류:', error); // 오류 객체 전체 출력
       }
       
       // 0.5초 후 목록 페이지로 이동
@@ -1282,6 +1284,7 @@ function ShipmentForm() {
                 <MenuItem value="공홈">공홈</MenuItem>
                 <MenuItem value="청담매장">청담매장</MenuItem>
                 <MenuItem value="라이클-우리">라이클-우리</MenuItem>
+                <MenuItem value="스마트할부">스마트할부</MenuItem>
                 <MenuItem value="기타">기타</MenuItem>
               </Select>
             </FormControl>

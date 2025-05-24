@@ -122,7 +122,20 @@ function NotificationBell() {
           ) : '최근 알림이 없습니다.'
         }
       >
-        <Badge badgeContent={unreadCount} color="error">
+        <Badge 
+          badgeContent={unreadCount} 
+          color="error"
+          anchorOrigin={{
+            vertical: 'top',
+            horizontal: 'right',
+          }}
+          overlap="circular"
+          sx={{
+            '& .MuiBadge-badge': {
+              transform: 'translate(-30%, 30%)',
+            }
+          }}
+        >
           <NotificationsIcon
             sx={{ cursor: 'pointer', mr: 2 }}
             fontSize="medium"

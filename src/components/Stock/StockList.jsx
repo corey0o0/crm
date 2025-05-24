@@ -44,7 +44,6 @@ function StockList() {
   const [showSupplyPrice, setShowSupplyPrice] = useState(false);
   const [selectedItems, setSelectedItems] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
-  const [searchDebounce, setSearchDebounce] = useState(null);
 
   useEffect(() => {
     fetchParts();
@@ -144,13 +143,6 @@ function StockList() {
     setSearchTerm('');
   };
 
-  // 엔터키 처리 함수
-  const handleKeyPress = (event) => {
-    if (event.key === 'Enter') {
-      executeSearch();
-    }
-  };
-
   // 필터링 로직 최적화
   const filteredParts = useMemo(() => {
     // 브랜드와 재고 상태로 1차 필터링
@@ -172,6 +164,9 @@ function StockList() {
           case '1개 이하':
             matchesStock = part.stock <= 1 && part.stock >= 0;
             break;
+          default: // 예기치 않은 값에 대한 방어 코드
+            matchesStock = true;
+            break;
         }
       }
       
@@ -180,15 +175,15 @@ function StockList() {
 
     // 검색어로 2차 필터링
     if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
+      const searchLower = searchTerm; // executeSearch에서 이미 toLowerCase().trim() 처리됨
       filtered = filtered.filter(part => 
         (part.name?.toLowerCase().includes(searchLower) ||
         part.code?.toLowerCase().includes(searchLower))
-  );
+      );
     }
 
     return filtered;
-  }, [parts, brand, stockFilter, searchTerm]); // searchInput 제거, searchTerm만 사용
+  }, [parts, brand, stockFilter, searchTerm]);
 
   // 정렬 로직 최적화 - 정렬 설정이나 필터링 결과가 변경될 때만 재계산
   const sortedParts = useMemo(() => {
@@ -557,7 +552,11 @@ function StockList() {
             label="제품명/코드 검색"
             value={searchInput}
             onChange={handleSearchInput}
-            onKeyPress={handleKeyPress}
+            onKeyPress={(event) => { // onKeyPress 직접 처리
+              if (event.key === 'Enter') {
+                executeSearch();
+              }
+            }}
             size="small"
             sx={{ width: 300 }}
             InputProps={{
