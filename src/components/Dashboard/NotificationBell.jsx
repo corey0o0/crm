@@ -8,10 +8,25 @@ import ListItem from '@mui/material/ListItem';
 import ListItemButton from '@mui/material/ListItemButton';
 import ListItemText from '@mui/material/ListItemText';
 import ListItemIcon from '@mui/material/ListItemIcon';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import { supabase } from '../../lib/supabaseClient';
 import { Box, Button, Typography } from '@mui/material';
+
+// 알림 메시지 파싱 함수
+const parseNotificationMessage = (messageStr) => {
+  if (typeof messageStr !== 'string' || !messageStr.trim()) {
+    return { type: '내용 없음', name: '', contact: '', original: messageStr || '', isStructured: false };
+  }
+  const match = messageStr.match(/^(.*?)\[(.*?)]\\((.*?)\\)$/);
+  if (match) {
+    const type = match[1].trim() || '알림'; 
+    const name = match[2].trim();
+    const contact = match[3].trim();
+    const isStructured = !!(name && contact);
+    return { type, name, contact, original: messageStr, isStructured };
+  }
+  return { type: messageStr, name: '', contact: '', original: messageStr, isStructured: false };
+};
 
 function NotificationBell() {
   const [notifications, setNotifications] = useState([]);
@@ -45,13 +60,11 @@ function NotificationBell() {
     setNotifications(newNotifications);
     setTotalCount(count || 0);
 
-    // unreadCount 계산은 localStorage 기준으로 변경 (다음 단계에서 적용)
     const lastCheckedTimestamp = localStorage.getItem(localStorageKey);
     if (lastCheckedTimestamp) {
       const newUnread = newNotifications.filter(n => new Date(n.created_at) > new Date(lastCheckedTimestamp)).length;
       setUnreadCount(newUnread);
     } else {
-      // localStorage에 값이 없으면 모든 알림을 새 알림으로 간주 (또는 초기값 설정)
       setUnreadCount(newNotifications.length > 0 ? newNotifications.length : 0); 
     }
   };
@@ -76,7 +89,6 @@ function NotificationBell() {
       }
     };
 
-    // 초기 로드 시 탭이 활성화 상태면 폴링 시작
     if (document.visibilityState === 'visible') {
       startPolling();
     }
@@ -84,17 +96,16 @@ function NotificationBell() {
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      stopPolling(); // 컴포넌트 언마운트 시 폴링 중단
+      stopPolling();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [page]);
 
   const handleClick = (event) => {
     setAnchorEl(event.currentTarget);
-    // 알림 벨 클릭 시, 현재 시간을 localStorage에 저장
     const nowTimestamp = new Date().toISOString();
     localStorage.setItem(localStorageKey, nowTimestamp);
-    setUnreadCount(0); // 뱃지 카운트를 즉시 0으로 업데이트
+    setUnreadCount(0);
   };
   const handleClose = () => setAnchorEl(null);
 
@@ -107,22 +118,42 @@ function NotificationBell() {
 
   const handlePageChange = (newPage) => {
     setPage(newPage);
-    // fetchNotifications는 page useEffect에 의해 호출됨
   };
 
-  // Tooltip title은 계속 최신 5개 보여주도록 유지
   const tooltipTitle = 
     notifications.length > 0 ? (
-      <div>
-        {notifications.slice(0, 5).map((n, i) => (
-          <div key={n.id || i} style={{ whiteSpace: 'pre-line', display: 'flex', alignItems: 'center' }}>
-            <span>{n.message}</span>
-            <span style={{ color: '#888', fontSize: 11, marginLeft: 6 }}>
-              {new Date(n.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
-            </span>
-          </div>
-        ))}
-      </div>
+      <Box sx={{ p: 0.5 }}>
+        {notifications.slice(0, 5).map((n, i) => {
+          const parsed = parseNotificationMessage(n.message);
+          return (
+            <Box
+              key={n.id || i}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                width: '100%',
+                py: 0.5,
+                borderBottom: i < notifications.slice(0, 5).length - 1 ? '1px solid #eee' : 'none'
+              }}
+            >
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', flexGrow: 1, mr: 1 }}>
+                <Typography variant="body2" component="span" sx={{ fontWeight: '500', lineHeight: 1.3, display: 'block', wordBreak: 'break-word' }}>
+                  {parsed.isStructured ? parsed.type : parsed.original}
+                </Typography>
+                {parsed.isStructured && (
+                  <Typography variant="caption" component="span" sx={{ color: 'text.secondary', lineHeight: 1.3, display: 'block', wordBreak: 'break-word' }}>
+                    {`${parsed.name} (${parsed.contact})`}
+                  </Typography>
+                )}
+              </Box>
+              <Typography variant="caption" sx={{ color: 'text.disabled', whiteSpace: 'nowrap', fontSize: '0.7rem', ml:1 }}>
+                {new Date(n.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+              </Typography>
+            </Box>
+          );
+        })}
+      </Box>
     ) : '최근 알림이 없습니다.';
 
   return (
@@ -160,27 +191,49 @@ function NotificationBell() {
         onClose={handleClose}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
       >
-        <List sx={{ minWidth: 260, maxWidth: 350, maxHeight: 400, overflow: 'auto' }}>
+        <List sx={{ minWidth: 280, maxWidth: 400, maxHeight: 450, overflow: 'auto' }}>
           {notifications.length === 0 ? (
             <ListItem>
               <ListItemText primary="최근 알림이 없습니다." />
             </ListItem>
           ) : (
-            notifications.map((n) => (
-              <ListItem disablePadding key={n.id}>
-                <ListItemButton
-                  onClick={() => handleNotificationClick(n)}
-                >
-                  <ListItemIcon>
-                    <RadioButtonUncheckedIcon color="primary" /> 
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={n.message}
-                    secondary={new Date(n.created_at).toLocaleString('ko-KR')}
-                  />
-                </ListItemButton>
-              </ListItem>
-            ))
+            notifications.map((n) => {
+              const parsed = parseNotificationMessage(n.message);
+              const timeString = new Date(n.created_at).toLocaleString('ko-KR', { 
+                year: 'numeric', month: '2-digit', day: '2-digit', 
+                hour: '2-digit', minute: '2-digit', second: '2-digit' 
+              });
+              return (
+                <ListItem disablePadding key={n.id}>
+                  <ListItemButton onClick={() => handleNotificationClick(n)} sx={{ alignItems: 'flex-start' }}>
+                    <ListItemIcon sx={{ minWidth: 32, mt: '6px' }}>
+                      <RadioButtonUncheckedIcon color="primary" fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={
+                        <Typography variant="body2" sx={{ fontWeight: 500, wordBreak: 'break-word' }}>
+                          {parsed.isStructured ? parsed.type : parsed.original}
+                        </Typography>
+                      }
+                      secondary={
+                        <Typography component="div" variant="caption" color="text.secondary" sx={{ wordBreak: 'break-word' }}>
+                          {parsed.isStructured ? (
+                            <>
+                              {`${parsed.name} (${parsed.contact})`}
+                              <br />
+                              {timeString}
+                            </>
+                          ) : (
+                            timeString
+                          )}
+                        </Typography>
+                      }
+                      sx={{ my: 0.5 }}
+                    />
+                  </ListItemButton>
+                </ListItem>
+              );
+            })
           )}
         </List>
         {totalCount > pageSize && (
