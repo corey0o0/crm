@@ -590,12 +590,12 @@ function AddService() {
           // 등록 성공 후 알림 추가
           await supabase.from('notifications').insert({
             type: 'service',
-            message: `A/S등록[${formData.customer_name}]`,
+            message: `A/S등록[${formData.customer_name}](${formData.customer_phone})`,
             link: `/service/${insertedData[0].id}`
           });
           console.log('알림 등록:', {
             type: 'service',
-            message: `A/S등록[${formData.customer_name}]`,
+            message: `A/S등록[${formData.customer_name}](${formData.customer_phone})`,
             link: `/service/${insertedData[0].id}`
           });
 
