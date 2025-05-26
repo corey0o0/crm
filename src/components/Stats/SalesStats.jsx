@@ -284,16 +284,16 @@ function SalesStats() {
 
       // 기존 출고 데이터 처리 함수를 별도로 정의
       async function processShipmentsData(shipmentsData, shipmentPartsByDate) {
-        if (shipmentsData && shipmentsData.length > 0) {
+      if (shipmentsData && shipmentsData.length > 0) {
           // 모든 비동기 작업을 저장할 배열
           const asyncTasks = [];
           
           // 각 출고 항목 처리
           for (const shipment of shipmentsData) {
             const date = format(parseISO(shipment.order_date), 'yyyy-MM-dd');
-            if (!shipmentPartsByDate[date]) {
-              shipmentPartsByDate[date] = [];
-            }
+          if (!shipmentPartsByDate[date]) {
+            shipmentPartsByDate[date] = [];
+          }
 
             // 제품명을 쉼표로 분리하여 여러 제품으로 처리
             const productNames = shipment.product_name.split(',').map(name => name.trim());
@@ -395,17 +395,17 @@ function SalesStats() {
               asyncTasks.push(processMultiplePartsTask());
             } else {
               // 단일 제품인 경우
-              const partData = {
-                name: shipment.product_name,
+          const partData = {
+            name: shipment.product_name,
                 code: shipment.product_code || '',
-                quantity: Number(shipment.quantity) || 0,
+            quantity: Number(shipment.quantity) || 0,
                 price: shipment.quantity > 0 ? Number(shipment.price) / Number(shipment.quantity) : 0,
                 total: Number(shipment.price) || 0,
                 shipment_id: shipment.id,
                 customer: extractSalesChannel(shipment.note)
-              };
-              
-              shipmentPartsByDate[date].push(partData);
+          };
+          
+          shipmentPartsByDate[date].push(partData);
             }
           }
           
@@ -1119,7 +1119,7 @@ function SalesStats() {
                   </Typography>
                     <Typography variant="body2" color="textSecondary">
                       검수 건수: {totalStats.totalServiceCount}건
-                    </Typography>
+                  </Typography>
                 </Box>
               </CardContent>
             </Card>
@@ -1191,7 +1191,7 @@ function SalesStats() {
                               {formatCurrency(amount)}
                             </Typography>
                           </Paper>
-                        </Grid>
+        </Grid>
                       ))}
                     {Object.keys(totalStats.totalCustomerSales || {}).length === 0 && (
                       <Grid item xs={12}>

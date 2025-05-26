@@ -179,7 +179,7 @@ function StockList() {
       filtered = filtered.filter(part => 
         (part.name?.toLowerCase().includes(searchLower) ||
         part.code?.toLowerCase().includes(searchLower))
-      );
+  );
     }
 
     return filtered;
@@ -630,7 +630,7 @@ function StockList() {
                 </TableCell>
                   <TableCell onClick={() => handleSort('code')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
                     코드{sortArrow('code')}
-                  </TableCell>
+                </TableCell>
                 <TableCell onClick={() => handleSort('name')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
                   제품명{sortArrow('name')}
                 </TableCell>

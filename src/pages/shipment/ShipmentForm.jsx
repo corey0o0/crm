@@ -417,27 +417,24 @@ function ShipmentForm() {
       return;
     }
     
+    setSaving(true);
+    let shipmentId = id;
+
     try {
-      setSaving(true);
-      
       // 판매처 정보를 메모에 포함
       let finalNote = shipmentData.note || '';
-      
-      // 이미 판매처 정보가 있으면 교체, 없으면 추가
-      if (finalNote.includes('[판매처:')) {
-        finalNote = finalNote.replace(/\[판매처: .*?\]/, `[판매처: ${shipmentData.sales_channel}]`);
-      } else {
-        finalNote = `[판매처: ${shipmentData.sales_channel}] ${finalNote}`;
+      if (shipmentData.sales_channel) {
+        if (finalNote.includes('[판매처:')) {
+          finalNote = finalNote.replace(/\[판매처: .*?\]/, `[판매처: ${shipmentData.sales_channel}]`);
+        } else {
+          finalNote = `[판매처: ${shipmentData.sales_channel}] ${finalNote}`.trim();
+        }
       }
       
-      // 모든 제품의 총 수량과 총 금액 계산
       const totalQuantity = selectedParts.reduce((sum, part) => sum + (parseInt(part.quantity) || 0), 0);
       const totalPrice = selectedParts.reduce((sum, part) => sum + calculateTotal(part), 0);
-      
-      // 모든 제품명을 쉼표로 구분하여 하나의 문자열로 결합
       const combinedProductName = selectedParts.map(p => p.part_name).join(', ');
       
-      // 출고 정보 저장 데이터 준비
       const shipmentSaveData = {
         brand: shipmentData.brand,
         order_date: shipmentData.order_date,
@@ -450,50 +447,44 @@ function ShipmentForm() {
         tracking_number: shipmentData.tracking_number?.trim() || '',
         note: finalNote.trim(),
         product_name: combinedProductName,
-        product_code: selectedParts[0]?.part_code || '', // 첫 번째 제품의 코드
+        product_code: selectedParts[0]?.part_code || '',
         quantity: totalQuantity,
         price: totalPrice,
         updated_at: new Date().toISOString()
       };
       
-      let shipmentId = id;
-      
       if (isEditMode) {
-        // 기존 출고 정보 수정
         const { error: updateError } = await supabase
           .from('shipments')
           .update(shipmentSaveData)
           .eq('id', id);
-          
-        if (updateError) throw updateError;
+        if (updateError) throw new Error(`출고 정보 업데이트 중 오류: ${updateError.message}`);
       } else {
-        // 새 출고 정보 추가
         const { data: newShipment, error: insertError } = await supabase
           .from('shipments')
           .insert([shipmentSaveData])
           .select();
-          
-        if (insertError) throw insertError;
+        if (insertError) throw new Error(`새 출고 정보 저장 중 오류: ${insertError.message}`);
         shipmentId = newShipment[0].id;
       }
       
+      if (!shipmentId) {
+        throw new Error('출고 ID를 가져오지 못했습니다.');
+      }
+
       // 부품 정보 저장
-      if (shipmentId) {
-        // 기존 부품 정보 삭제 (수정인 경우)
-        if (isEditMode) {
-          try {
-            const { error: deletePartsError } = await supabase
-              .from('shipment_parts')
-              .delete()
-              .eq('shipment_id', shipmentId);
-              
-            if (deletePartsError) console.error('기존 부품 정보 삭제 중 오류:', deletePartsError);
-          } catch (e) {
-            console.error('부품 정보 삭제 중 오류:', e);
-          }
+      if (isEditMode) {
+        const { error: deletePartsError } = await supabase
+          .from('shipment_parts')
+          .delete()
+          .eq('shipment_id', shipmentId);
+        if (deletePartsError) {
+          // 삭제 오류는 일단 로깅만 하고 진행 (필수 부품이 아닐 수 있음)
+          console.warn('기존 부품 정보 삭제 중 오류 (수정 모드): ', deletePartsError.message);
         }
-        
-        // 새 부품 정보 저장
+      }
+      
+      if (selectedParts.length > 0) {
         const partsData = selectedParts.map(part => ({
           shipment_id: shipmentId,
           part_name: part.part_name,
@@ -505,37 +496,46 @@ function ShipmentForm() {
           created_at: new Date().toISOString()
         }));
         
-        try {
-          const { error: insertPartsError } = await supabase
-            .from('shipment_parts')
-            .insert(partsData);
-            
-          if (insertPartsError) console.error('부품 정보 저장 중 오류:', insertPartsError);
-        } catch (e) {
-          console.error('부품 정보 저장 중 오류:', e);
-        }
+        const { error: insertPartsError } = await supabase
+          .from('shipment_parts')
+          .insert(partsData);
+        if (insertPartsError) throw new Error(`부품 정보 저장 중 오류: ${insertPartsError.message}`);
       }
       
       // 등록 성공 후 알림 추가
-      try {
-        const notificationPayload = {
-          type: 'shipment',
-          message: `출고등록[${shipmentSaveData.customer_name}]`,
-          link: `/shipment/${shipmentId}`
-        };
-        await supabase.from('notifications').insert(notificationPayload);
-        console.log('Supabase 알림 저장 성공. 텔레그램 알림 전송 시도...');
-        await sendTelegramNotification(notificationPayload.message);
-        console.log('텔레그램 알림 전송 시도 완료 (에러 없으면 성공).');
-        console.log('알림 등록:', notificationPayload);
-      } catch (error) {
-        console.error('출고 알림 또는 텔레그램 전송 중 오류:', error); // 오류 객체 전체 출력
-      }
+      const notificationPayload = {
+        type: 'shipment',
+        message: `출고등록[${shipmentSaveData.customer_name}](${shipmentSaveData.customer_phone})`,
+        link: `/shipment/${shipmentId}`
+      };
       
-      // 0.5초 후 목록 페이지로 이동
+      const { error: notificationError } = await supabase.from('notifications').insert(notificationPayload);
+      if (notificationError) {
+        console.error('Supabase 알림 저장 실패:', notificationError);
+        // 알림 저장 실패는 사용자에게 심각한 오류로 알리지 않되, 로깅은 중요
+        setSnackbar({
+          open: true,
+          message: '출고 정보는 저장되었으나, 알림 등록에 실패했습니다.',
+          severity: 'warning'
+        });
+      } else {
+        console.log('Supabase 알림 저장 성공.');
+      }
+
+      // 텔레그램 알림은 여기서 await으로 결과 기다림
+      await sendTelegramNotification(notificationPayload.message);
+      console.log('텔레그램 알림 전송 시도 완료.');
+
+      setSnackbar({
+        open: true,
+        message: isEditMode ? '출고 정보가 성공적으로 수정되었습니다.' : '출고 정보가 성공적으로 등록되었습니다.',
+        severity: 'success'
+      });
+      
+      // 모든 작업이 성공적으로 끝난 후 목록 페이지로 이동
       setTimeout(() => {
         navigate('/shipment');
-      }, 500);
+      }, 1500); // 사용자 메시지 인지 시간
       
     } catch (error) {
       console.error('Error saving shipment:', error);

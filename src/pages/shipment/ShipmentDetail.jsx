@@ -227,28 +227,28 @@ function ShipmentDetail() {
 
   // 변경 사항 저장 함수
   const handleSaveChanges = async () => {
+    setSaving(true);
     try {
-      setSaving(true);
-
-      // 부품이 하나도 없는 경우 경고
       if (editableParts.length === 0) {
         setSnackbar({
           open: true,
           message: '제품이 최소 하나 이상 필요합니다.',
           severity: 'warning'
         });
+        setSaving(false);
         return;
       }
 
-      // 부품 정보 업데이트
       const { error: deleteError } = await supabase
         .from('shipment_parts')
         .delete()
         .eq('shipment_id', id);
 
-      if (deleteError) throw deleteError;
+      if (deleteError) {
+        console.error("Error deleting old parts:", deleteError);
+        throw new Error(`기존 부품 정보 삭제 중 오류: ${deleteError.message}`);
+      }
 
-      // 새 부품 정보 저장
       const partsData = editableParts.map(part => ({
         shipment_id: id,
         part_name: part.part_name,
@@ -256,7 +256,7 @@ function ShipmentDetail() {
         part_category: part.part_category || '기체',
         quantity: part.quantity || 1,
         price: part.price || 0,
-        total_price: part.total_price || part.price * part.quantity,
+        total_price: part.total_price || (part.price || 0) * (part.quantity || 1),
         created_at: new Date().toISOString()
       }));
 
@@ -264,16 +264,15 @@ function ShipmentDetail() {
         .from('shipment_parts')
         .insert(partsData);
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error("Error inserting new parts:", insertError);
+        throw new Error(`새 부품 정보 저장 중 오류: ${insertError.message}`);
+      }
 
-      // 모든 제품의 총 수량과 총 금액 계산
       const totalQuantity = editableParts.reduce((sum, part) => sum + (parseInt(part.quantity) || 0), 0);
       const totalPrice = editableParts.reduce((sum, part) => sum + ((parseFloat(part.price) || 0) * (parseInt(part.quantity) || 0)), 0);
-      
-      // 모든 제품명을 쉼표로 구분하여 하나의 문자열로 결합
       const combinedProductName = editableParts.map(p => p.part_name).join(', ');
 
-      // 출고 정보 업데이트
       const shipmentUpdateData = {
         product_name: combinedProductName,
         product_code: editableParts[0]?.part_code || '',
@@ -287,18 +286,20 @@ function ShipmentDetail() {
         .update(shipmentUpdateData)
         .eq('id', id);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error("Error updating shipment:", updateError);
+        throw new Error(`출고 정보 업데이트 중 오류: ${updateError.message}`);
+      }
 
-      // 성공 메시지 표시
       setSnackbar({
         open: true,
         message: '제품 정보가 성공적으로 업데이트되었습니다.',
         severity: 'success'
       });
 
-      // 수정 모드 종료 및 데이터 다시 로드
       setIsEditing(false);
-      fetchShipmentDetail();
+      await fetchShipmentDetail();
+
     } catch (error) {
       console.error('Error saving changes:', error);
       setSnackbar({
@@ -318,22 +319,31 @@ function ShipmentDetail() {
 
   // 출고 삭제 함수
   const handleDeleteShipment = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      
-      // 부품 정보 먼저 삭제
-      await supabase
+      const { error: deletePartsError } = await supabase
         .from('shipment_parts')
         .delete()
         .eq('shipment_id', id);
+
+      if (deletePartsError) {
+        console.error("Error deleting shipment parts:", deletePartsError);
+        setSnackbar({
+          open: true,
+          message: `출고된 부품 정보 삭제 중 오류가 발생했지만, 출고 정보 삭제를 계속 진행합니다: ${deletePartsError.message}`,
+          severity: 'warning'
+        });
+      }
       
-      // 출고 정보 삭제
       const { error } = await supabase
         .from('shipments')
         .delete()
         .eq('id', id);
       
-      if (error) throw error;
+      if (error) {
+        console.error("Error deleting shipment:", error);
+        throw new Error(`출고 정보 삭제 중 오류: ${error.message}`);
+      }
       
       setSnackbar({
         open: true,
@@ -341,10 +351,9 @@ function ShipmentDetail() {
         severity: 'success'
       });
       
-      // 목록 페이지로 이동
       setTimeout(() => {
         navigate('/shipment');
-      }, 1000);
+      }, 1500);
       
     } catch (error) {
       console.error('Error deleting shipment:', error);

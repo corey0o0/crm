@@ -633,59 +633,56 @@ function AddService() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
+    let serviceId = null; // 등록된 서비스 ID를 저장할 변수
 
     try {
-      // 저장 시 reception_date, completion_date 합칠 때
       let receptionDateTime = null;
       if (formData.reception_date && formData.reception_time) {
-        // 반드시 +09:00 타임존 명시
         receptionDateTime = `${formData.reception_date}T${formData.reception_time}:00+09:00`;
       }
-      let completionDateTime = null;
-      if (formData.completion_date && formData.completion_time) {
-        completionDateTime = `${formData.completion_date}T${formData.completion_time}:00:00+09:00`;
-      }
 
-      // 서비스 데이터 등록
+      const serviceInsertData = {
+        brand: selectedBrand,
+        reception_date: receptionDateTime,
+        customer_name: formData.customer_name,
+        customer_phone: formData.customer_phone,
+        customer_address: formData.customer_address,
+        product_name: formData.product_name,
+        mileage: formData.mileage,
+        symptom: formData.symptom,
+        solution: formData.solution,
+        reception_type: formData.reception_type,
+        status: formData.status,
+        delivery_method: formData.delivery_method,
+        seller: formData.seller,
+        receipt_link: receiptLink,
+        writer: formData.writer || '관리자',
+        updated_at: new Date().toISOString()
+      };
+
       const { data: insertedService, error: insertError } = await supabase
         .from('services')
-        .insert([{
-          brand: selectedBrand,
-          reception_date: receptionDateTime,
-          customer_name: formData.customer_name,
-          customer_phone: formData.customer_phone,
-          customer_address: formData.customer_address,
-          product_name: formData.product_name,
-          mileage: formData.mileage,
-          symptom: formData.symptom,
-          solution: formData.solution,
-          reception_type: formData.reception_type,
-          status: formData.status,
-          delivery_method: formData.delivery_method,
-          seller: formData.seller,
-          receipt_link: receiptLink,
-          writer: formData.writer || '관리자'
-        }])
+        .insert([serviceInsertData])
         .select()
         .single();
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error('Service insert error:', insertError);
+        throw new Error(`A/S 정보 등록 중 오류: ${insertError.message}`);
+      }
+      serviceId = insertedService.id;
 
-      // 태그 등록
       if (tags.length > 0) {
         const formattedTags = tags.map(tag => ({
           service_id: insertedService.id,
           tag_name: tag.startsWith('#') ? tag : `#${tag}`
         }));
-
-        const { error: tagError } = await supabase
-          .from('service_tags')
-          .insert(formattedTags);
-
-        if (tagError) throw tagError;
+        const { error: tagError } = await supabase.from('service_tags').insert(formattedTags);
+        if (tagError) {
+          console.warn('Tag insert warning (non-critical):', tagError);
+        }
       }
 
-      // 부품 등록
       if (selectedParts.length > 0) {
         const partsToInsert = selectedParts.map(part => ({
           service_id: insertedService.id,
@@ -694,45 +691,51 @@ function AddService() {
           price: part.price,
           usage: part.usage || 'A/S'
         }));
-
-        const { error: partsError } = await supabase
-          .from('service_parts')
-          .insert(partsToInsert);
-
-        if (partsError) throw partsError;
+        const { error: partsError } = await supabase.from('service_parts').insert(partsToInsert);
+        if (partsError) {
+          console.error('Parts insert error:', partsError);
+          throw new Error(`사용 부품 등록 중 오류: ${partsError.message}`);
+        }
       }
 
-      // 로컬 스토리지에 새로 등록된 항목의 ID 저장
+      let notificationSuccess = true;
+      try {
+        const notificationPayload = {
+          type: 'service_create',
+          message: `A/S등록[${formData.customer_name}](${formData.customer_phone})`,
+          link: `/service/${insertedService.id}`
+        };
+        const { error: notificationError } = await supabase.from('notifications').insert(notificationPayload);
+        if (notificationError) {
+          console.error('Notification insert error:', notificationError);
+          notificationSuccess = false;
+        }
+      } catch (notificationCatchError) {
+        console.error('Notification insert exception:', notificationCatchError);
+        notificationSuccess = false;
+      }
+
       localStorage.setItem('highlightServiceId', String(insertedService.id));
 
       setSnackbar({
         open: true,
-        message: 'A/S가 성공적으로 등록되었습니다.',
-        severity: 'success'
+        message: notificationSuccess ? 'A/S가 성공적으로 등록되었습니다.' : 'A/S는 등록되었으나, 알림 등록에 실패했습니다.',
+        severity: notificationSuccess ? 'success' : 'warning'
       });
 
-      // 등록 성공 후 알림 추가
-      await supabase.from('notifications').insert({
-        type: 'service',
-        message: `A/S등록[${formData.customer_name}]`,
-        link: `/service/${insertedService.id}`
-      });
-      console.log('알림 등록:', {
-        type: 'service',
-        message: `A/S등록[${formData.customer_name}]`,
-        link: `/service/${insertedService.id}`
-      });
-
-      // 2초 후 리스트 페이지로 이동
       setTimeout(() => {
         navigate('/services');
-      }, 2000);
+      }, 1500);
 
     } catch (error) {
       console.error('Error in handleSubmit:', error);
+      let userMessage = `오류가 발생했습니다: ${error.message}`;
+      if (error.message.includes('부품 등록 중 오류') && serviceId) {
+        userMessage = `A/S 정보는 등록되었으나, 부품 정보 등록 중 오류가 발생했습니다. (A/S ID: ${serviceId}) 서비스 상세 화면에서 수정해주세요.`;
+      }
       setSnackbar({
         open: true,
-        message: `오류가 발생했습니다: ${error.message}`,
+        message: userMessage,
         severity: 'error'
       });
     } finally {
@@ -753,8 +756,29 @@ function AddService() {
   };
 
   const handlePartsSelected = async (selectedParts) => {
-    // 선택된 파츠 처리 로직
-    setOpenReceiptDialog(false);
+    // 선택된 파츠를 현재 선택된 파츠 목록에 추가
+    const newParts = selectedParts.map(part => ({
+      id: part.id,
+      name: part.name,
+      code: part.code,
+      price: part.price,
+      quantity: part.quantity || 1
+    }));
+    
+    setSelectedParts(prevParts => {
+      const updatedParts = [...prevParts];
+      newParts.forEach(newPart => {
+        const existingPartIndex = updatedParts.findIndex(p => p.id === newPart.id);
+        if (existingPartIndex >= 0) {
+          updatedParts[existingPartIndex].quantity += newPart.quantity;
+        } else {
+          updatedParts.push(newPart);
+        }
+      });
+      return updatedParts;
+    });
+    
+    handleCloseReceiptScanner();
   };
 
   // 스타일 상수 추가
@@ -808,11 +832,11 @@ function AddService() {
         title: 'A/S 완료 확인',
         message: '해당 A/S를 완료 처리하시겠습니까?',
         onConfirm: () => {
-    setStatus(newStatus);
+          setStatus(newStatus);
           setFormData(prev => {
             const updatedData = { ...prev, status: newStatus };
             if (!prev.completion_date) {
-      const currentDate = new Date().toLocaleDateString('ko-KR', {year:'numeric', month:'2-digit', day:'2-digit'});
+              const currentDate = new Date().toLocaleDateString('ko-KR', {year:'numeric', month:'2-digit', day:'2-digit'});
               updatedData.completion_date = currentDate;
             }
             return updatedData;
@@ -1207,20 +1231,20 @@ function AddService() {
                         <Box sx={{ display: 'flex', gap: 1 }}>
                           <TextField
                             fullWidth
-                            type="date"
+                      type="date"
                             name="completion_date"
                             value={formData.completion_date || ''}
-                            onChange={handleInputChange}
-                            size="small"
-                            sx={{
+                      onChange={handleInputChange}
+                      size="small"
+                      sx={{
                               flex: 2,
-                              '& .MuiOutlinedInput-root': {
+                        '& .MuiOutlinedInput-root': {
                                 height: '36px',
-                                borderRadius: 1,
-                                bgcolor: '#f9fafb'
-                              }
-                            }}
-                          />
+                          borderRadius: 1,
+                          bgcolor: '#f9fafb'
+                        }
+                      }}
+                    />
                           <TextField
                             select
                             name="completion_time"
@@ -1877,31 +1901,7 @@ function AddService() {
         <DialogTitle>영수증 스캔</DialogTitle>
         <DialogContent>
           <ReceiptScanner
-            onPartsSelected={(parts) => {
-              // 선택된 파츠를 현재 선택된 파츠 목록에 추가
-              const newParts = parts.map(part => ({
-                id: part.id,
-                name: part.name,
-                code: part.code,
-                price: part.price,
-                quantity: part.quantity || 1
-              }));
-              
-              setSelectedParts(prevParts => {
-                const updatedParts = [...prevParts];
-                newParts.forEach(newPart => {
-                  const existingPartIndex = updatedParts.findIndex(p => p.id === newPart.id);
-                  if (existingPartIndex >= 0) {
-                    updatedParts[existingPartIndex].quantity += newPart.quantity;
-                  } else {
-                    updatedParts.push(newPart);
-                  }
-                });
-                return updatedParts;
-              });
-              
-              handleCloseReceiptScanner();
-            }}
+            onPartsSelected={handlePartsSelected}
             isDialogMode={true}
           />
         </DialogContent>

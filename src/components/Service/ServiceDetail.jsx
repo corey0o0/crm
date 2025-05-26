@@ -379,11 +379,6 @@ function ServiceDetail() {
         updated_at: new Date().toISOString()
       };
 
-      console.log('Final Update Data:', {
-        receptionDate: updateData.reception_date,
-        completionDate: updateData.completion_date
-      });
-
       const { error: serviceError } = await supabase
         .from('services')
         .update(updateData)
@@ -391,7 +386,7 @@ function ServiceDetail() {
 
       if (serviceError) {
         console.error('Service update error:', serviceError);
-        throw serviceError;
+        throw new Error(`서비스 정보 업데이트 중 오류: ${serviceError.message}`);
       }
 
       const { error: deletePartsError } = await supabase
@@ -399,7 +394,12 @@ function ServiceDetail() {
         .delete()
         .eq('service_id', id);
 
-      if (deletePartsError) throw deletePartsError;
+      if (deletePartsError) {
+        // 부품 삭제 오류는 경고로 처리하고 계속 진행할 수 있습니다. (선택적)
+        console.warn('Deleting service parts error (may not be critical):', deletePartsError);
+        // 또는 여기서 throw new Error로 중단할 수 있습니다.
+        // throw new Error(`기존 부품 정보 삭제 중 오류: ${deletePartsError.message}`);
+      }
 
       if (selectedParts.length > 0) {
         const partsData = selectedParts.map(part => ({
@@ -414,7 +414,10 @@ function ServiceDetail() {
           .from('service_parts')
           .insert(partsData);
 
-        if (insertPartsError) throw insertPartsError;
+        if (insertPartsError) {
+          console.error('Inserting service parts error:', insertPartsError);
+          throw new Error(`새 부품 정보 저장 중 오류: ${insertPartsError.message}`);
+        }
       }
 
       const { error: tagDeleteError } = await supabase
@@ -422,7 +425,11 @@ function ServiceDetail() {
         .delete()
         .eq('service_id', id);
 
-      if (tagDeleteError) throw tagDeleteError;
+      if (tagDeleteError) {
+        // 태그 삭제 오류도 경고로 처리하고 계속 진행할 수 있습니다. (선택적)
+        console.warn('Deleting service tags error (may not be critical):', tagDeleteError);
+        // throw new Error(`기존 태그 정보 삭제 중 오류: ${tagDeleteError.message}`);
+      }
 
       if (tags.length > 0) {
         const tagData = tags.map(tag => ({
@@ -434,43 +441,51 @@ function ServiceDetail() {
           .from('service_tags')
           .insert(tagData);
 
-        if (tagInsertError) throw tagInsertError;
+        if (tagInsertError) {
+          console.error('Inserting service tags error:', tagInsertError);
+          throw new Error(`새 태그 정보 저장 중 오류: ${tagInsertError.message}`);
+        }
       }
+      
+      // A/S 수정 알림 추가 (핵심 로직과 분리)
+      let notificationSuccess = true;
+      try {
+        const notificationPayload = {
+          type: 'service_update',
+          message: `A/S수정[${formData.customer_name}](${formData.customer_phone})`,
+          link: `/service/${id}`
+        };
+        const { error: notificationError } = await supabase.from('notifications').insert(notificationPayload);
+        if (notificationError) {
+          console.error('A/S 수정 알림 등록 중 오류:', notificationError);
+          notificationSuccess = false;
+        }
+      } catch (notificationCatchError) {
+        console.error('A/S 수정 알림 등록 중 예외 발생:', notificationCatchError);
+        notificationSuccess = false;
+      }
+
+      // 모든 DB 작업 완료 후 데이터 다시 불러오기
+      // await fetchServiceDetail(); // handleSubmit 이후 navigate 하므로, 여기서는 호출 불필요
 
       setSnackbar({
         open: true,
-        message: '성공적으로 저장되었습니다.',
-        severity: 'success'
+        message: notificationSuccess ? '성공적으로 저장되었습니다.' : '저장되었으나 알림 등록에 실패했습니다.',
+        severity: notificationSuccess ? 'success' : 'warning'
       });
-
-      // A/S 수정 알림 추가
-      try {
-        const notificationPayload = {
-          type: 'service_update', // 신규 등록과 구분
-          message: `A/S수정[${formData.customer_name}]`,
-          link: `/service/${id}`
-        };
-        await supabase.from('notifications').insert(notificationPayload);
-        console.log('알림 등록 (수정):', notificationPayload);
-      } catch (notificationError) {
-        console.error('A/S 수정 알림 등록 중 오류:', notificationError);
-        // 알림 등록 실패가 주요 로직을 중단시키지 않도록 처리
-      }
-
-      await fetchServiceDetail();
       
-      // 하이라이트 ID 저장
       localStorage.setItem('highlightServiceId', id);
 
+      // 성공적으로 모든 작업 완료 후 페이지 이동
       setTimeout(() => {
         navigate('/services');
-      }, 1000);
+      }, 1500); // 사용자 메시지 인지 시간
       
     } catch (error) {
       console.error('Error updating service:', error);
       setSnackbar({
         open: true,
-        message: '저장 중 오류가 발생했습니다: ' + error.message,
+        message: `저장 중 오류가 발생했습니다: ${error.message}`,
         severity: 'error'
       });
     } finally {
