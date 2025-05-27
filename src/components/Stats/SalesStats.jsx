@@ -151,8 +151,6 @@ function SalesStats() {
 
       if (allPartsError) {
         console.error('Parts 테이블 조회 오류:', allPartsError);
-        // 오류 처리 (예: 스낵바 표시 또는 기본값 사용)
-        // 여기서는 일단 진행하되, partsPriceMap이 비어있을 수 있음을 인지합니다.
       }
 
       const partsPriceMap = new Map();
@@ -173,6 +171,109 @@ function SalesStats() {
       console.log('====== 매출 데이터 조회 시작 ======');
       console.log(`조회 기간: ${startDateTime} ~ ${endDateTime}`);
       console.log(`브랜드: ${queryBrand}`);
+
+      // 1-1. 출고 데이터 먼저 조회 (id 목록 추출)
+      let shipmentQuery = supabase
+        .from('shipments')
+        .select(`
+          id,
+          brand,
+          order_date,
+          product_name,
+          quantity,
+          price,
+          status,
+          note,
+          sales_channel,
+          customer_name,
+          customer_phone
+        `)
+        .gte('order_date', startDateTime)
+        .lte('order_date', endDateTime);
+
+      if (forceRefresh > 0) {
+        shipmentQuery = shipmentQuery.options({ 
+          cache: 'no-store',
+          head: false 
+        });
+      }
+      if (queryBrand !== '전체') {
+        shipmentQuery = shipmentQuery.eq('brand', queryBrand);
+      }
+      const { data: shipmentsData, error: shipmentsError } = await shipmentQuery;
+      if (shipmentsError) {
+        console.error('출고 데이터 조회 오류:', shipmentsError);
+        throw shipmentsError;
+      }
+      console.log('조회된 출고 데이터:', shipmentsData);
+
+      // 1-2. 출고건 id 목록 추출
+      const shipmentIds = (shipmentsData || []).map(s => s.id);
+      let shipmentPartsByDate = {};
+      if (shipmentIds.length > 0) {
+        // 2. shipment_parts에서 실제 부품별 금액/수량/합계 조회
+        const { data: shipmentPartsData, error: shipmentPartsError } = await supabase
+          .from('shipment_parts')
+          .select('shipment_id, part_name, part_code, quantity, price, total_price, created_at')
+          .in('shipment_id', shipmentIds);
+        if (shipmentPartsError) {
+          console.error('shipment_parts 조회 오류:', shipmentPartsError);
+        }
+        // 3. 날짜별로 그룹핑 (order_date 기준)
+        if (shipmentPartsData && shipmentPartsData.length > 0) {
+          shipmentPartsData.forEach(part => {
+            // 해당 출고건의 order_date 찾기
+            const shipment = shipmentsData.find(s => s.id === part.shipment_id);
+            if (!shipment) return;
+            const date = format(parseISO(shipment.order_date), 'yyyy-MM-dd');
+            if (!shipmentPartsByDate[date]) shipmentPartsByDate[date] = [];
+            shipmentPartsByDate[date].push({
+              shipment_id: part.shipment_id,
+              name: part.part_name,
+              code: part.part_code,
+              quantity: part.quantity,
+              price: part.price,
+              total: part.total_price,
+              customer_name: shipment.customer_name,
+              customer_phone: shipment.customer_phone,
+              sales_channel: extractSalesChannel(shipment.note, shipment.sales_channel),
+              shipment_item_key: `${part.shipment_id}-${part.part_code || part.part_name}`,
+            });
+          });
+        }
+      }
+      // 4. shipment_parts 데이터가 없는 출고건만 fallback (기존 임의 분배/추정)
+      const fallbackShipmentPartsByDate = {};
+      shipmentsData.forEach(shipment => {
+        const date = format(parseISO(shipment.order_date), 'yyyy-MM-dd');
+        // shipmentPartsByDate에 이미 해당 출고건이 있으면 skip
+        if (shipmentPartsByDate[date] && shipmentPartsByDate[date].some(p => p.shipment_id === shipment.id)) return;
+        // fallback: 기존 임의 분배/추정 로직 (단일 품목만 처리)
+        const productNames = (shipment.product_name || '').split(',').map(pn => pn.trim()).filter(pn => pn);
+        if (productNames.length === 1) {
+          const unitPriceFromMap = partsPriceMap.get(productNames[0]);
+          const actualQuantity = shipment.quantity || 1;
+          let displayedUnitPrice = typeof unitPriceFromMap === 'number' ? unitPriceFromMap : (shipment.price || 0) / actualQuantity;
+          if (!fallbackShipmentPartsByDate[date]) fallbackShipmentPartsByDate[date] = [];
+          fallbackShipmentPartsByDate[date].push({
+            shipment_id: shipment.id,
+            name: productNames[0],
+            code: '',
+            quantity: actualQuantity,
+            price: displayedUnitPrice,
+            total: shipment.price || 0,
+            customer_name: shipment.customer_name,
+            customer_phone: shipment.customer_phone,
+            sales_channel: extractSalesChannel(shipment.note, shipment.sales_channel),
+            shipment_item_key: `${shipment.id}-fallback`,
+          });
+        }
+      });
+      // 두 객체 병합 (shipmentPartsByDate 우선)
+      Object.entries(fallbackShipmentPartsByDate).forEach(([date, parts]) => {
+        if (!shipmentPartsByDate[date]) shipmentPartsByDate[date] = [];
+        shipmentPartsByDate[date].push(...parts);
+      });
 
       // A/S 부품 데이터 조회
       let servicePartsQuery = supabase
@@ -237,45 +338,6 @@ function SalesStats() {
           }
         });
       }
-
-      // 출고 데이터 조회 수정 (기존)
-      let shipmentQuery = supabase
-        .from('shipments')
-        .select(`
-          id,
-          brand,
-          order_date,
-          product_name,
-          quantity,
-          price,
-          status,
-          note,
-          sales_channel,
-          customer_name,
-          customer_phone
-        `)
-        .gte('order_date', startDateTime)
-        .lte('order_date', endDateTime);
-
-      // forceRefresh가 1 이상일 때 캐시를 사용하지 않도록 설정
-      if (forceRefresh > 0) {
-        shipmentQuery = shipmentQuery.options({ 
-          cache: 'no-store',
-          head: false 
-        });
-      }
-
-      if (queryBrand !== '전체') {
-        shipmentQuery = shipmentQuery.eq('brand', queryBrand);
-      }
-
-      const { data: shipmentsData, error: shipmentsError } = await shipmentQuery;
-      
-      if (shipmentsError) {
-        console.error('출고 데이터 조회 오류:', shipmentsError);
-        throw shipmentsError;
-      }
-      console.log('조회된 출고 데이터:', shipmentsData);
 
       // 출고 데이터 가공 (수정된 로직)
       if (shipmentsData) {
