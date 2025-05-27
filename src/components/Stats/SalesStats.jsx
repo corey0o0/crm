@@ -144,6 +144,27 @@ function SalesStats() {
     try {
       setLoading(true);
 
+      // 1. parts 테이블에서 모든 부품의 이름과 단가(price)를 가져옵니다.
+      const { data: allPartsData, error: allPartsError } = await supabase
+        .from('parts')
+        .select('name, price');
+
+      if (allPartsError) {
+        console.error('Parts 테이블 조회 오류:', allPartsError);
+        // 오류 처리 (예: 스낵바 표시 또는 기본값 사용)
+        // 여기서는 일단 진행하되, partsPriceMap이 비어있을 수 있음을 인지합니다.
+      }
+
+      const partsPriceMap = new Map();
+      if (allPartsData) {
+        allPartsData.forEach(p => {
+          if (p.name && typeof p.price === 'number') {
+            partsPriceMap.set(p.name.trim(), p.price);
+          }
+        });
+      }
+      console.log('[DEBUG] Parts Price Map:', partsPriceMap);
+
       // 날짜 범위를 'YYYY-MM-DD 00:00:00' ~ 'YYYY-MM-DD 23:59:59'로 변환
       const formattedStartDate = format(queryStartDate, 'yyyy-MM-dd');
       const formattedEndDate = format(queryEndDate, 'yyyy-MM-dd');
@@ -167,7 +188,8 @@ function SalesStats() {
           ),
           parts!inner (
             name,
-            code
+            code,
+            note
           )
         `)
         .gte('services.completion_date', startDateTime)
@@ -186,11 +208,13 @@ function SalesStats() {
       }
       
       const { data: servicePartsData, error: servicePartsError } = await servicePartsQuery;
+      console.log('조회된 A/S 부품 데이터:', servicePartsData);
+      console.log('A/S 부품 데이터 조회 오류:', servicePartsError);
       if (servicePartsError) throw servicePartsError;
 
       // 데이터를 저장할 객체 초기화
       const servicePartsByDate = {};
-      const shipmentPartsByDate = {};
+      const tempShipmentPartsByDate = {}; // 임시 객체 사용
 
       // A/S 부품 데이터 가공
       if (servicePartsData) {
@@ -204,6 +228,7 @@ function SalesStats() {
               service_id: item.services.id,
               name: item.parts.name,
               code: item.parts.code,
+              parts_note: item.parts.note,
               quantity: item.quantity || 0,
               price: item.price || 0,
               total: (item.quantity || 0) * (item.price || 0),
@@ -213,7 +238,7 @@ function SalesStats() {
         });
       }
 
-      // 출고 데이터 조회 수정
+      // 출고 데이터 조회 수정 (기존)
       let shipmentQuery = supabase
         .from('shipments')
         .select(`
@@ -225,7 +250,9 @@ function SalesStats() {
           price,
           status,
           note,
-          sales_channel
+          sales_channel,
+          customer_name,
+          customer_phone
         `)
         .gte('order_date', startDateTime)
         .lte('order_date', endDateTime);
@@ -248,324 +275,289 @@ function SalesStats() {
         console.error('출고 데이터 조회 오류:', shipmentsError);
         throw shipmentsError;
       }
-
       console.log('조회된 출고 데이터:', shipmentsData);
 
-      // 출고 부품 데이터 조회 및 가공 (이 부분은 그대로 유지)
-      const shipmentPartsPromises = shipmentsData.map(async (shipment) => {
-        // ... 기존 shipment_parts 조회 로직 ...
-      });
-      const allShipmentPartsResults = await Promise.all(shipmentPartsPromises);
-      allShipmentPartsResults.forEach(partsResult => {
-        if (partsResult) {
-          partsResult.forEach(part => {
-            const date = format(parseISO(part.shipment_created_at || part.created_at), 'yyyy-MM-dd');
-            if (!shipmentPartsByDate[date]) {
-              shipmentPartsByDate[date] = [];
-            }
-            shipmentPartsByDate[date].push({
-              shipment_id: part.shipment_id,
-              name: part.part_name,
-              code: part.part_code,
-              category: part.part_category,
-              quantity: part.quantity || 0,
-              price: part.price || 0,
-              total: (part.quantity || 0) * (part.price || 0)
-            });
-          });
-        }
-      });
+      // 출고 데이터 가공 (수정된 로직)
+      if (shipmentsData) {
+        shipmentsData.forEach(shipment => {
+          const date = format(parseISO(shipment.order_date), 'yyyy-MM-dd');
+          if (!tempShipmentPartsByDate[date]) {
+            tempShipmentPartsByDate[date] = [];
+          }
+          const salesChannel = extractSalesChannel(shipment.note, shipment.sales_channel);
 
-      // 부품 데이터 상태 업데이트
-      setPartsData({
-        servicePartsByDate,
-        shipmentPartsByDate
-      });
+          const productNames = (shipment.product_name || "").split(',').map(pn => pn.trim()).filter(pn => pn);
+          const numIndividualProducts = productNames.length > 0 ? productNames.length : 1;
 
-      // 기존 출고 데이터 처리 함수를 별도로 정의
-      async function processShipmentsData(shipmentsData, shipmentPartsByDate) {
-        if (shipmentsData && shipmentsData.length > 0) {
-          const asyncTasks = [];
-          
-          for (const shipment of shipmentsData) {
-            const date = format(parseISO(shipment.order_date), 'yyyy-MM-dd');
-            console.log(`[${date}] Processing shipment ID: ${shipment.id}, Product: ${shipment.product_name}, Quantity: ${shipment.quantity}, Price: ${shipment.price}`);
+          const originalShipmentTotal = shipment.price || 0;
+          const originalShipmentQuantity = shipment.quantity || 0;
 
-            if (!shipmentPartsByDate[date]) {
-              shipmentPartsByDate[date] = [];
-            }
-
-            const productNames = (shipment.product_name || '').split(',').map(name => name.trim()).filter(name => name); // 빈 이름 필터링
+          if (productNames.length === 0) { // product_name이 비어있거나 단일 항목이지만 분리 안된 경우 (예: 이전 데이터)
+            const productNameTrimmed = (shipment.product_name || '').trim();
+            const unitPriceFromMap = productNameTrimmed ? partsPriceMap.get(productNameTrimmed) : undefined;
             
-            if (productNames.length === 0) {
-                console.warn(`[${date}] Shipment ID: ${shipment.id} has no valid product names.`);
-                continue; // 제품명이 없으면 다음 출고 건으로
-            }
+            let displayedUnitPrice; // 부품 1개당 단가
+            const actualQuantity = originalShipmentQuantity || 1; // 실제 출고된 수량 (단일 품목이므로 세트 수량과 동일)
 
-            if (productNames.length > 1) {
-              const processMultiplePartsTask = async () => {
-                try {
-                  const partPromises = productNames.map(async (name) => {
-                    console.log(`[${date}] Searching part: ${name} for shipment ID: ${shipment.id}`);
-                    const { data, error } = await supabase
-                      .from('parts')
-                      .select('*')
-                      .eq('brand', shipment.brand)
-                      .ilike('name', `%${name}%`)
-                      .limit(1);
-                    
-                    if (error) {
-                        console.error(`Error fetching part ${name} for shipment ${shipment.id}:`, error);
-                        return { name, partData: null, error };
-                    }
-                    console.log(`[${date}] Part search result for ${name}:`, data);
-                    return { name, partData: data?.length > 0 ? data[0] : null };
-                  });
-                  
-                  const partResults = await Promise.all(partPromises);
-                  console.log(`[${date}] Shipment ID: ${shipment.id}, All part results:`, partResults);
-                  
-                  const shipmentQuantityNum = Number(shipment.quantity);
-                  const shipmentPriceNum = Number(shipment.price);
-
-                  if (isNaN(shipmentQuantityNum) || isNaN(shipmentPriceNum)) {
-                    console.error(`[${date}] Shipment ID: ${shipment.id} has invalid quantity or price. Q: ${shipment.quantity}, P: ${shipment.price}`);
-                    // 유효하지 않은 경우 이 출고건의 부품 처리를 건너뛸 수 있음, 또는 기본값으로 처리
-                    return []; // 빈 배열 반환 또는 다른 오류 처리
-                  }
-                  
-                  const processedParts = partResults.map(({ name, partData }) => {
-                    let estimatedQuantity, estimatedPrice, partCode = '';
-                    if (partData) {
-                      partCode = partData.code || '';
-                      estimatedQuantity = Math.max(1, Math.ceil(shipmentQuantityNum / productNames.length));
-                      estimatedPrice = Number(partData.price) || 0;
-                       console.log(`[${date}] Part ${name} (Code: ${partCode}) found in DB. Q_est: ${estimatedQuantity}, P_db: ${estimatedPrice}`);
-                    } else {
-                      estimatedQuantity = Math.max(1, Math.ceil(shipmentQuantityNum / productNames.length));
-                      // 전체 출고 가격을 제품 수와 추정 수량으로 나누어 개별 가격 추정
-                      const totalItems = productNames.length * estimatedQuantity;
-                      estimatedPrice = totalItems > 0 ? shipmentPriceNum / totalItems : 0;
-                      console.log(`[${date}] Part ${name} NOT found in DB. Q_est: ${estimatedQuantity}, P_est: ${estimatedPrice} (ShipmentPrice: ${shipmentPriceNum}, TotalItems: ${totalItems})`);
-                    }
-                    
-                    return {
-                      name: name,
-                      code: partCode,
-                      quantity: estimatedQuantity,
-                      price: estimatedPrice,
-                      total: estimatedPrice * estimatedQuantity,
-                      shipment_id: shipment.id,
-                      customer: extractSalesChannel(shipment.note, shipment.sales_channel) // sales_channel 필드 추가
-                    };
-                  });
-                  
-                  if (!shipmentPartsByDate[date]) { // 이중 확인 (거의 불필요)
-                    shipmentPartsByDate[date] = [];
-                  }
-                  shipmentPartsByDate[date].push(...processedParts);
-                  console.log(`[${date}] Shipment ID: ${shipment.id}, Added multiple parts:`, processedParts);
-                  return processedParts;
-
-                } catch (error) {
-                  console.error(`[${date}] Shipment ID: ${shipment.id} error processing multiple parts for ${shipment.product_name}:`, error);
-                  // 오류 발생 시 대체 처리 (예: 전체를 하나의 알 수 없는 제품으로 간주)
-                  const shipmentQuantityNum = Number(shipment.quantity) || 0;
-                  const shipmentPriceNum = Number(shipment.price) || 0;
-                  const fallbackPart = {
-                      name: `복수 제품 오류: ${shipment.product_name}`,
-                      code: 'ERROR',
-                      quantity: shipmentQuantityNum,
-                      price: shipmentQuantityNum > 0 ? shipmentPriceNum / shipmentQuantityNum : 0,
-                      total: shipmentPriceNum,
-                      shipment_id: shipment.id,
-                      customer: extractSalesChannel(shipment.note, shipment.sales_channel)
-                  };
-                  if (!shipmentPartsByDate[date]) { shipmentPartsByDate[date] = []; }
-                  shipmentPartsByDate[date].push(fallbackPart);
-                  return [fallbackPart];
-                }
-              };
-              asyncTasks.push(processMultiplePartsTask());
+            if (typeof unitPriceFromMap === 'number') {
+              displayedUnitPrice = unitPriceFromMap;
             } else {
-              // 단일 제품인 경우
-              const productName = productNames[0];
-              const shipmentQuantityNum = Number(shipment.quantity);
-              const shipmentPriceNum = Number(shipment.price);
+              // parts에 단가 정보 없으면, (총액 / 수량)을 추정 단가로 사용
+              displayedUnitPrice = actualQuantity > 0 ? originalShipmentTotal / actualQuantity : 0;
+            }
+            
+            tempShipmentPartsByDate[date].push({
+              shipment_id: shipment.id,
+              name: shipment.product_name || 'N/A',
+              code: '',
+              quantity: actualQuantity, // 단일 품목이므로 실제 출고 수량 표시
+              price: displayedUnitPrice, 
+              total: originalShipmentTotal, // 단일 품목이므로 해당 출고 건의 총액
+              status: shipment.status,
+              note: shipment.note,
+              sales_channel: salesChannel,
+              customer_name: shipment.customer_name,
+              customer_phone: shipment.customer_phone,
+              shipment_item_key: `${shipment.id}-0`,
+            });
+          } else {
+            productNames.forEach((individualName, index) => {
+              const unitPriceFromMap = partsPriceMap.get(individualName);
+              const actualSetQuantity = originalShipmentQuantity || 1; // 실제 출고된 세트 수량
+              
+              let displayedUnitPrice; // '단가' 컬럼에 표시될 값 (부품 1개당 단가)
+              // let lineTotal;          // '합계' 컬럼에 표시될 값 (부품단가 * 세트수량 또는 할당금액) <- 이 부분을 수정
 
-              if (isNaN(shipmentQuantityNum) || shipmentQuantityNum <= 0 || isNaN(shipmentPriceNum)) {
-                console.error(`[${date}] Shipment ID: ${shipment.id} (single product ${productName}) has invalid quantity or price. Q: ${shipment.quantity}, P: ${shipment.price}`);
-                 const fallbackPart = {
-                    name: productName,
-                    code: shipment.product_code || 'INVALID_DATA',
-                    quantity: shipmentQuantityNum > 0 ? shipmentQuantityNum : 1, // 수량이 0이거나 NaN이면 1로
-                    price: shipmentQuantityNum > 0 && !isNaN(shipmentPriceNum) ? shipmentPriceNum / shipmentQuantityNum : (isNaN(shipmentPriceNum) ? 0 : shipmentPriceNum), // 단가 계산 또는 총액 사용
-                    total: isNaN(shipmentPriceNum) ? 0 : shipmentPriceNum,
-                    shipment_id: shipment.id,
-                    customer: extractSalesChannel(shipment.note, shipment.sales_channel)
-                  };
-                  shipmentPartsByDate[date].push(fallbackPart);
-                  console.log(`[${date}] Shipment ID: ${shipment.id}, Added single part with fallback due to invalid data:`, fallbackPart);
-                  continue; // 다음 shipment 처리
+              if (typeof unitPriceFromMap === 'number') {
+                displayedUnitPrice = unitPriceFromMap; // parts에서 찾은 단가
+                // lineTotal = displayedUnitPrice * actualSetQuantity; // 단가 * 세트 수량 <- 이 계산 방식을 변경
+              } else {
+                // parts에 단가 정보가 없는 경우: 
+                // 해당 제품라인에 할당된 금액을 lineTotal로 사용
+                const allocatedAmountForThisItem = numIndividualProducts > 0 ? originalShipmentTotal / numIndividualProducts : 0;
+                // lineTotal = allocatedAmountForThisItem;
+                // 추정 단가는 (할당된 금액 / 세트 수량)으로 계산
+                displayedUnitPrice = actualSetQuantity > 0 ? allocatedAmountForThisItem / actualSetQuantity : 0; 
               }
               
-              const partData = {
-                name: productName,
-                code: shipment.product_code || '', // shipments 테이블에 product_code가 있다면 사용
-                quantity: shipmentQuantityNum,
-                price: shipmentPriceNum / shipmentQuantityNum, // 단가 계산
-                total: shipmentPriceNum, // 총액은 shipment.price 사용
+              tempShipmentPartsByDate[date].push({
                 shipment_id: shipment.id,
-                customer: extractSalesChannel(shipment.note, shipment.sales_channel)
-              };
-              shipmentPartsByDate[date].push(partData);
-              console.log(`[${date}] Shipment ID: ${shipment.id}, Added single part:`, partData);
+                name: individualName,
+                code: '', // 부품 코드가 필요하다면 partsPriceMap에서 함께 가져와야 함
+                quantity: 1, // 여러 부품으로 구성된 경우, 각 라인의 수량은 1로 표시 (세트 내 1개 의미)
+                price: displayedUnitPrice,   
+                total: displayedUnitPrice, // 여러 부품 세트의 경우, '합계'는 해당 부품 1개의 '단가'와 동일하게 표시
+                status: shipment.status,
+                note: index === 0 ? shipment.note : '', 
+                sales_channel: salesChannel,
+                customer_name: shipment.customer_name,
+                customer_phone: shipment.customer_phone,
+                shipment_item_key: `${shipment.id}-${index}`,
+              });
+            });
+          }
+        });
+      }
+      
+      // partsData 상태 업데이트 시 shipmentPartsByDate에 가공된 데이터 할당
+      setPartsData({ 
+        servicePartsByDate, 
+        shipmentPartsByDate: tempShipmentPartsByDate 
+      });
+
+      // 총 매출 및 통계 계산
+      let newTotalServiceSales = 0;
+      let newTotalServiceSalesAS = 0;
+      let newTotalServiceSalesSell = 0;
+      let newTotalShipmentSales = 0;
+      let newTotalServiceCount = 0;
+      let newTotalShipmentCount = 0;
+      let newTotalLaborSalesOnly = 0; // 순수 공임비 총액만 집계
+      const newTotalCustomerSales = {};
+
+      const uniqueServiceIds = new Set();
+      Object.values(servicePartsByDate).forEach(dailyParts => {
+        dailyParts.forEach(part => {
+          const isLabor = (part.name && part.name.includes('공임')) || 
+                          (part.usage && part.usage.toString().trim() === '공임');
+          
+          if (isLabor) {
+            newTotalLaborSalesOnly += (part.total || 0);
+          } else {
+            // 공임이 아닌 경우에만 A/S 부품 매출로 집계
+            newTotalServiceSales += (part.total || 0); // 공임 제외 부품 매출 합계
+            if (part.usage === 'AS') {
+              newTotalServiceSalesAS += (part.total || 0);
+            } else if (part.usage === '판매') {
+              newTotalServiceSalesSell += (part.total || 0);
             }
           }
-          await Promise.all(asyncTasks);
-        }
-        return shipmentPartsByDate;
-      }
+          uniqueServiceIds.add(part.service_id); 
+        });
+      });
+      newTotalServiceCount = uniqueServiceIds.size; 
+      // setTotalLaborSales(newTotalLaborSalesOnly); // 기존 상태 대신 totalStats에 포함
 
-      // 매출 데이터 처리를 위한 salesByDate 객체 초기화
-      const salesByDate = {};
+      const uniqueShipmentIds = new Set();
+      Object.values(tempShipmentPartsByDate).forEach(dailyParts => {
+        dailyParts.forEach(part => {
+          // newTotalShipmentSales += part.total || 0; // 이 부분을 원본 데이터 기준으로 변경
+          uniqueShipmentIds.add(part.shipment_id);
+          
+          // 고객별 매출 집계 (출고 기준) -> 판매처별 매출 집계로 변경
+          const salesChannelKey = part.sales_channel || '미지정'; // 판매채널을 키로 사용
 
-      // 날짜별 초기 데이터 구조 설정
-      [...Object.keys(servicePartsByDate), ...Object.keys(shipmentPartsByDate)].forEach(date => {
-        if (!salesByDate[date]) {
-          salesByDate[date] = {
-            date,
-            serviceSales: 0,
-            serviceSalesAS: 0,
-            serviceSalesSell: 0,
-            shipmentSales: 0,
-            totalSales: 0,
-            serviceCount: 0,
-            shipmentCount: 0,
-            customerSales: {} // 판매처별 매출 정보를 저장할 객체
+          if (!newTotalCustomerSales[salesChannelKey]) {
+            newTotalCustomerSales[salesChannelKey] = { 
+              name: salesChannelKey, // 판매채널 이름
+              // phone: part.customer_phone || '정보없음', // 판매처별 집계에서는 고객 연락처는 불필요할 수 있음
+              totalAmount: 0, 
+              shipmentCount: 0, // 판매처별 출고 건수 (아래에서 로직 수정 필요)
+              // firstOrderDate, lastOrderDate는 판매처별로는 의미가 다를 수 있어 일단 보류 또는 다른 방식 고려
+            };
+          }
+          // newTotalCustomerSales[salesChannelKey].totalAmount += part.total || 0; // 이 부분을 원본 데이터 기준으로 변경
+                                                                    // 이 방식은 출고된 부품(제품라인) 수를 카운트함.
+                                                                    // 판매처별 실제 '출고 건수'는 uniqueShipmentIds를 판매처별로 관리해야 함.
+                                                                    // 여기서는 우선 총액만 정확히 집계
+        });
+      });
+
+      // 총 출고 매출 계산 (원본 shipmentsData 기준)
+      newTotalShipmentSales = shipmentsData.reduce((sum, shipment) => sum + (shipment.price || 0), 0);
+
+      // 판매처별 매출 집계 (원본 shipmentsData 기준)
+      shipmentsData.forEach(shipment => {
+        const salesChannel = extractSalesChannel(shipment.note, shipment.sales_channel) || '미지정';
+        if (!newTotalCustomerSales[salesChannel]) {
+          newTotalCustomerSales[salesChannel] = {
+            name: salesChannel,
+            totalAmount: 0,
+            shipmentCount: 0, // 아래에서 재계산
           };
         }
-      });
-
-      // A/S 매출 데이터 처리
-      Object.entries(servicePartsByDate).forEach(([date, parts]) => {
-        const uniqueServiceIds = new Set();
-        
-        parts.forEach(part => {
-          const amount = (Number(part.price) || 0) * (Number(part.quantity) || 0); // Ensure numbers
-          salesByDate[date].serviceSales += amount;
-          if (part.usage === 'A/S') {
-            salesByDate[date].serviceSalesAS += amount;
-          } else if (part.usage === '판매') {
-            salesByDate[date].serviceSalesSell += amount;
-          }
-          if (part.service_id) {
-            uniqueServiceIds.add(part.service_id);
-          }
-        });
-        salesByDate[date].serviceCount = uniqueServiceIds.size;
-      });
-
-      // 출고 매출 데이터 처리 수정
-      Object.entries(shipmentPartsByDate).forEach(([date, parts]) => {
-        console.log(`[${date}] Aggregating shipment sales. Parts:`, parts);
-        let dailyShipmentSales = 0;
-        const uniqueShipmentIds = new Set();
-        const customerSalesTemp = {};
-        
-        parts.forEach(part => {
-          const amount = Number(part.total) || 0; // Ensure part.total is a number
-          console.log(`[${date}] Aggregating part: ${part.name}, Total: ${amount}, Customer: ${part.customer}`);
-          dailyShipmentSales += amount;
-          
-          if (part.customer) { // Check if customer is defined
-            if (!customerSalesTemp[part.customer]) {
-              customerSalesTemp[part.customer] = 0;
-            }
-            customerSalesTemp[part.customer] += amount;
-          } else {
-            console.warn(`[${date}] Part ${part.name} has undefined customer.`);
-          }
-          
-          if (part.shipment_id) {
-            uniqueShipmentIds.add(part.shipment_id);
-          }
-        });
-        
-        if (!salesByDate[date]) { // salesByDate에 해당 날짜가 없을 경우 초기화
-             salesByDate[date] = {
-                date, serviceSales: 0, serviceSalesAS: 0, serviceSalesSell: 0,
-                shipmentSales: 0, totalSales: 0, serviceCount: 0, shipmentCount: 0,
-                customerSales: {}
-            };
-        }
-        salesByDate[date].shipmentSales = dailyShipmentSales;
-        salesByDate[date].shipmentCount = uniqueShipmentIds.size;
-        salesByDate[date].customerSales = customerSalesTemp;
-        
-        console.log(`[${date}] Final daily shipment sales: ${dailyShipmentSales}, Count: ${uniqueShipmentIds.size}, CustomerSales:`, customerSalesTemp);
-      });
-
-      // 총계 계산
-      Object.values(salesByDate).forEach(item => {
-        item.totalSales = Number(item.serviceSales || 0) + Number(item.shipmentSales || 0);
-      });
-
-      // 날짜순으로 정렬
-      const sortedData = Object.values(salesByDate).sort((a, b) => 
-        new Date(a.date) - new Date(b.date)
-      );
-
-      console.log('최종 정렬된 매출 데이터:', sortedData);
-
-      // 총계 통계 계산
-      const totalServiceSales = sortedData.reduce((sum, item) => sum + Number(item.serviceSales || 0), 0);
-      const totalShipmentSales = sortedData.reduce((sum, item) => sum + Number(item.shipmentSales || 0), 0);
-      const totalSales = totalServiceSales + totalShipmentSales;
-      const totalServiceSalesAS = sortedData.reduce((sum, item) => sum + Number(item.serviceSalesAS || 0), 0);
-      const totalServiceSalesSell = sortedData.reduce((sum, item) => sum + Number(item.serviceSalesSell || 0), 0);
-      const totalServiceCount = sortedData.reduce((sum, item) => sum + Number(item.serviceCount || 0), 0);
-      const totalShipmentCount = sortedData.reduce((sum, item) => sum + Number(item.shipmentCount || 0), 0);
-      
-      // 전체 판매처별 매출 합계 계산
-      const totalCustomerSales = {};
-      sortedData.forEach(item => {
-        if (item.customerSales) {
-          Object.entries(item.customerSales).forEach(([customer, amount]) => {
-            if (!totalCustomerSales[customer]) {
-              totalCustomerSales[customer] = 0;
-            }
-            totalCustomerSales[customer] += Number(amount || 0);
-          });
-        }
+        newTotalCustomerSales[salesChannel].totalAmount += (shipment.price || 0);
       });
       
-      console.log('데이터 조회 완료');
-      console.log(`조회된 레코드 수: ${sortedData.length}개`);
-      console.log(`조회 기간: ${startDateTime} ~ ${endDateTime}`);
-      console.log('====== 매출 데이터 조회 종료 ======');
+      newTotalShipmentCount = uniqueShipmentIds.size; // 전체 출고 건수
 
-      // 출고 부품 데이터에서 공임 매출만 합산
-      const totalLaborSalesCalc = Object.values(shipmentPartsByDate).flat()
-        .filter(part =>
-          part.category === '공임' ||
-          part.part_category === '공임' ||
-          (typeof part.name === 'string' && part.name.includes('공임'))
-        )
-        .reduce((sum, part) => sum + (part.total || 0), 0);
-      setTotalLaborSales(totalLaborSalesCalc);
+      // 판매처별 출고 건수 재계산 (uniqueShipmentIds 활용)
+      const shipmentCountsByChannel = {};
+      shipmentsData.forEach(shipment => {
+        const salesChannel = extractSalesChannel(shipment.note, shipment.sales_channel) || '미지정';
+        if (!shipmentCountsByChannel[salesChannel]) {
+          shipmentCountsByChannel[salesChannel] = new Set();
+        }
+        shipmentCountsByChannel[salesChannel].add(shipment.id);
+      });
+
+      Object.keys(newTotalCustomerSales).forEach(channel => {
+        if (shipmentCountsByChannel[channel]) {
+          newTotalCustomerSales[channel].shipmentCount = shipmentCountsByChannel[channel].size;
+        } else {
+          newTotalCustomerSales[channel].shipmentCount = 0; // 해당 판매채널에 출고건이 없는 경우
+        }
+      });
+
+      const finalTotalServiceSalesWithLabor = newTotalServiceSales + newTotalLaborSalesOnly; // 공임 포함 최종 A/S 매출
 
       setTotalStats({
-        totalServiceSales: Number(totalServiceSales || 0),
-        totalShipmentSales: Number(totalShipmentSales || 0),
-        totalSales: Number(totalSales || 0),
-        totalServiceSalesAS: Number(totalServiceSalesAS || 0),
-        totalServiceSalesSell: Number(totalServiceSalesSell || 0),
-        totalServiceCount: Number(totalServiceCount || 0),
-        totalShipmentCount: Number(totalShipmentCount || 0),
-        totalCustomerSales
+        totalServiceSales: finalTotalServiceSalesWithLabor, // 공임 포함 A/S 매출
+        totalShipmentSales: newTotalShipmentSales,
+        totalSales: finalTotalServiceSalesWithLabor + newTotalShipmentSales, // 최종 총 매출
+        totalServiceSalesAS: newTotalServiceSalesAS, // 순수 AS 부품 매출
+        totalServiceSalesSell: newTotalServiceSalesSell, // 순수 판매 부품 매출
+        totalServiceCount: newTotalServiceCount,
+        totalShipmentCount: newTotalShipmentCount,
+        totalCustomerSales: newTotalCustomerSales, 
+        totalLaborSalesOnly: newTotalLaborSalesOnly, // 순수 공임 매출만 저장
       });
-      setSalesData(sortedData);
+
+      // 날짜별 판매 데이터 생성
+      const aggregatedSales = {};
+      const currentDate = new Date(formattedStartDate);
+      const lastDate = new Date(formattedEndDate);
+
+      while (currentDate <= lastDate) {
+        const dateStr = format(currentDate, 'yyyy-MM-dd');
+        aggregatedSales[dateStr] = {
+          date: dateStr,
+          serviceSales: 0, // 공임 포함 최종 A/S 매출
+          serviceSalesAS: 0, // 순수 AS 부품 매출
+          serviceSalesSell: 0, // 순수 판매 부품 매출
+          serviceCount: 0,
+          shipmentSales: 0,
+          shipmentCount: 0, 
+          laborSalesOnly: 0, // 날짜별 순수 공임 매출
+          totalSales: 0, 
+        };
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+
+      Object.entries(servicePartsByDate).forEach(([date, parts]) => {
+        if (aggregatedSales[date]) {
+          let dailyServiceSalesAS_partsOnly = 0;
+          let dailyServiceSalesSell_partsOnly = 0;
+          let dailyLaborSales = 0;
+          const dailyServiceIds = new Set();
+
+          parts.forEach(part => {
+            const isLaborPart = (part.name && part.name.includes('공임')) || 
+                                (part.usage && part.usage.toString().trim() === '공임');
+            if (isLaborPart) {
+              dailyLaborSales += (part.total || 0);
+            } else {
+              if (part.usage === 'AS') {
+                dailyServiceSalesAS_partsOnly += (part.total || 0);
+              } else if (part.usage === '판매') {
+                dailyServiceSalesSell_partsOnly += (part.total || 0);
+              }
+            }
+            dailyServiceIds.add(part.service_id);
+          });
+          aggregatedSales[date].serviceSalesAS = dailyServiceSalesAS_partsOnly;
+          aggregatedSales[date].serviceSalesSell = dailyServiceSalesSell_partsOnly;
+          aggregatedSales[date].laborSalesOnly = dailyLaborSales; // 날짜별 순수 공임
+          aggregatedSales[date].serviceSales = dailyServiceSalesAS_partsOnly + dailyServiceSalesSell_partsOnly + dailyLaborSales; // 날짜별 A/S 매출 (공임 포함)
+          aggregatedSales[date].serviceCount = dailyServiceIds.size; 
+        }
+      });
+
+      // 일별 출고 매출 및 건수 집계 (원본 shipmentsData 기준)
+      const dailyShipmentAggregates = {};
+      shipmentsData.forEach(shipment => {
+        const dateStr = format(parseISO(shipment.order_date), 'yyyy-MM-dd');
+        if (!dailyShipmentAggregates[dateStr]) {
+          dailyShipmentAggregates[dateStr] = {
+            sales: 0,
+            ids: new Set()
+          };
+        }
+        dailyShipmentAggregates[dateStr].sales += (shipment.price || 0);
+        dailyShipmentAggregates[dateStr].ids.add(shipment.id);
+      });
+
+      Object.entries(dailyShipmentAggregates).forEach(([date, data]) => {
+        if (aggregatedSales[date]) {
+          aggregatedSales[date].shipmentSales = data.sales;
+          aggregatedSales[date].shipmentCount = data.ids.size;
+        } else {
+          // 만약 aggregatedSales에 해당 날짜가 없다면 (이론적으로는 발생하지 않아야 함)
+          // 필요시 여기서 생성 또는 오류 처리
+          console.warn(`aggregatedSales에 ${date} 날짜가 존재하지 않습니다. 일별 출고 집계 건너뜀.`);
+        }
+      });
+      
+      // 날짜별 총 매출 계산
+      Object.keys(aggregatedSales).forEach(date => {
+        aggregatedSales[date].totalSales = 
+          (aggregatedSales[date].serviceSales || 0) + // 공임 포함 A/S 매출
+          (aggregatedSales[date].shipmentSales || 0); // 출고 매출 (공임 미포함)
+      });
+      
+      setSalesData(Object.values(aggregatedSales).sort((a, b) => new Date(a.date) - new Date(b.date)));
+      console.log('매출 데이터 집계 완료 (A/S 포함):', Object.values(aggregatedSales));
+      console.log('매출 데이터 조회 완료');
 
     } catch (error) {
       console.error('데이터 조회 중 오류:', error);
@@ -640,191 +632,141 @@ function SalesStats() {
   };
 
   const formatCurrency = (amount) => {
-    return amount.toLocaleString('ko-KR') + '원';
+    // amount가 유효한 숫자인지 확인하고, 아니면 0으로 처리
+    const numAmount = Number(amount);
+    if (isNaN(numAmount)) {
+      return '0원'; 
+    }
+    return numAmount.toLocaleString('ko-KR') + '원';
   };
 
   const renderPartsDetail = () => {
-    const dates = [...new Set([
-      ...Object.keys(partsData.servicePartsByDate),
-      ...Object.keys(partsData.shipmentPartsByDate)
-    ])].sort();
+    // A/S 부품 데이터
+    const serviceDataToRender = partsData.servicePartsByDate;
+    const serviceGroupedByDate = Object.entries(serviceDataToRender)
+      .sort(([dateA], [dateB]) => new Date(dateB) - new Date(dateA))
+      .reduce((acc, [date, parts]) => {
+        acc[date] = parts;
+        return acc;
+      }, {});
+
+    // 출고 부품 데이터
+    const shipmentDataToRender = partsData.shipmentPartsByDate;
+    const shipmentGroupedByDate = Object.entries(shipmentDataToRender)
+      .sort(([dateA], [dateB]) => new Date(dateB) - new Date(dateA))
+      .reduce((acc, [date, parts]) => {
+        acc[date] = parts;
+        return acc;
+      }, {});
 
     return (
-      <Box>
-        {dates.map(date => (
-          <Box key={date} sx={{ mb: 4 }}>
-            <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-              {date}
-            </Typography>
-            
-            {/* A/S 부품 사용 내역 */}
-            {partsData.servicePartsByDate[date]?.length > 0 && (
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="subtitle1" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <BuildIcon fontSize="small" />
-                  A/S 부품 사용 내역
-                </Typography>
-                <TableContainer component={Paper} variant="outlined">
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>부품명</TableCell>
-                        <TableCell>코드</TableCell>
-                        <TableCell align="right">수량</TableCell>
-                        <TableCell align="right">단가</TableCell>
-                        <TableCell align="right">금액</TableCell>
-                        <TableCell>용도</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {partsData.servicePartsByDate[date].map((part, idx) => (
-                        <TableRow key={`service-${idx}`}>
-                          <TableCell>{part.name}</TableCell>
+      <Box sx={{ mt: 2, maxHeight: '800px', overflowY: 'auto' }}>
+        <Typography variant="h6" sx={{ mt: 2, mb: 1, color: 'primary.main', borderBottom: '2px solid', borderColor: 'primary.main', pb: 0.5 }}>
+          <BuildIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
+          A/S 부품 상세 내역
+        </Typography>
+        {Object.keys(serviceGroupedByDate).length === 0 ? (
+          <Typography sx={{my: 2, color: 'text.secondary'}}>해당 기간에 A/S된 부품 내역이 없습니다.</Typography>
+        ) : (
+          Object.entries(serviceGroupedByDate).map(([date, parts]) => (
+            <Box key={`service-${date}`} sx={{ mb: 3 }}>
+              <Typography variant="subtitle1" gutterBottom sx={{fontWeight: 'bold'}}>
+                {format(parseISO(date), 'MM월 dd일 (EEE)', { locale: ko })} - A/S
+              </Typography>
+              <TableContainer component={Paper} variant="outlined">
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{backgroundColor: 'grey.100'}}>
+                      <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>제품/부품명</TableCell>
+                      <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>부품코드</TableCell>
+                      <TableCell align="right" sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>수량</TableCell>
+                      <TableCell align="right" sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>단가</TableCell>
+                      <TableCell align="right" sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>합계</TableCell>
+                      <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>구분</TableCell>
+                      <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>세부 구분(Parts Note)</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {parts.map((part, index) => {
+                      // Log the first A/S part for debugging
+                      if (index === 0 && date === Object.keys(serviceGroupedByDate)[0]) { // 첫 번째 날짜의 첫 번째 항목만 로그
+                        console.log('[DEBUG] Rendering First A/S Part of First Date:', part);
+                        console.log('[DEBUG] Rendering First A/S Part Name of First Date:', part.name);
+                      }
+                      return (
+                        <TableRow key={`servicepart-${part.service_id}-${part.code}-${index}`}> {/* 키를 더 고유하게 만듭니다. */}
+                          <TableCell>{part.name}</TableCell> {/* Tooltip과 스타일 없이 직접 표시 */}
                           <TableCell>{part.code}</TableCell>
                           <TableCell align="right">{part.quantity}</TableCell>
                           <TableCell align="right">{formatCurrency(part.price)}</TableCell>
                           <TableCell align="right">{formatCurrency(part.total)}</TableCell>
                           <TableCell>{part.usage}</TableCell>
+                          <TableCell>{part.parts_note || '-'}</TableCell>
                         </TableRow>
-                      ))}
-                      {/* 용도별 합계 행 추가 */}
-                      <TableRow sx={{ bgcolor: '#f9fafb' }}>
-                        <TableCell colSpan={4} align="right" sx={{ fontWeight: 600 }}>
-                          용도별 합계
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 600 }}>
-                          {formatCurrency(
-                            partsData.servicePartsByDate[date].reduce((sum, part) => sum + part.total, 0)
-                          )}
-                        </TableCell>
-                        <TableCell />
-                      </TableRow>
-                      <TableRow sx={{ bgcolor: '#f9fafb' }}>
-                        <TableCell colSpan={4} align="right">
-                          A/S
-                        </TableCell>
-                        <TableCell align="right">
-                          {formatCurrency(
-                            partsData.servicePartsByDate[date]
-                              .filter(part => part.usage === 'A/S')
-                              .reduce((sum, part) => sum + part.total, 0)
-                          )}
-                        </TableCell>
-                        <TableCell />
-                      </TableRow>
-                      <TableRow sx={{ bgcolor: '#f9fafb' }}>
-                        <TableCell colSpan={4} align="right">
-                          판매
-                        </TableCell>
-                        <TableCell align="right">
-                          {formatCurrency(
-                            partsData.servicePartsByDate[date]
-                              .filter(part => part.usage === '판매')
-                              .reduce((sum, part) => sum + part.total, 0)
-                          )}
-                        </TableCell>
-                        <TableCell />
-                      </TableRow>
-                      <TableRow sx={{ bgcolor: '#f9fafb' }}>
-                        <TableCell colSpan={4} align="right">
-                          워런티
-                        </TableCell>
-                        <TableCell align="right">
-                          {formatCurrency(
-                            partsData.servicePartsByDate[date]
-                              .filter(part => part.usage === '워런티')
-                              .reduce((sum, part) => sum + part.total, 0)
-                          )}
-                        </TableCell>
-                        <TableCell />
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Box>
-            )}
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Box>
+          ))
+        )}
 
-            {/* 출고 부품 내역 */}
-            {partsData.shipmentPartsByDate[date]?.length > 0 && (
-              <Box>
-                <Typography variant="subtitle1" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <InventoryIcon fontSize="small" />
-                  출고 부품 내역 (판매처별 집계 포함)
-                </Typography>
-                <TableContainer component={Paper} variant="outlined">
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>제품명</TableCell>
-                        <TableCell>코드</TableCell>
-                        <TableCell>판매처</TableCell>
-                        <TableCell align="right">수량</TableCell>
-                        <TableCell align="right">단가</TableCell>
-                        <TableCell align="right">금액</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {partsData.shipmentPartsByDate[date].map((part, idx) => (
-                        <TableRow key={`shipment-${idx}`}>
-                          <TableCell>{part.name}</TableCell>
-                          <TableCell>{part.code}</TableCell>
-                          <TableCell>{part.customer}</TableCell>
+        <Divider sx={{ my: 4, borderStyle: 'dashed' }} />
+
+        <Typography variant="h6" sx={{ mt: 2, mb: 1, color: 'secondary.main', borderBottom: '2px solid', borderColor: 'secondary.main', pb: 0.5 }}>
+          <InventoryIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
+          출고 상세 내역
+        </Typography>
+        {Object.keys(shipmentGroupedByDate).length === 0 ? (
+          <Typography sx={{my: 2, color: 'text.secondary'}}>해당 기간에 출고된 내역이 없습니다.</Typography>
+        ) : (
+          Object.entries(shipmentGroupedByDate).map(([date, parts]) => (
+            <Box key={`shipment-${date}`} sx={{ mb: 3 }}>
+              <Typography variant="subtitle1" gutterBottom sx={{fontWeight: 'bold'}}>
+                {format(parseISO(date), 'MM월 dd일 (EEE)', { locale: ko })} - 출고
+              </Typography>
+              <TableContainer component={Paper} variant="outlined">
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{backgroundColor: 'grey.100'}}>
+                      <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>제품/부품명</TableCell>
+                      <TableCell align="right" sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>수량</TableCell>
+                      <TableCell align="right" sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>단가</TableCell>
+                      <TableCell align="right" sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>합계</TableCell>
+                      <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>고객명</TableCell>
+                      <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>연락처</TableCell>
+                      <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>판매채널</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {parts.map((part, index) => {
+                      // Log the first shipment part for debugging
+                      if (index === 0 && date === Object.keys(shipmentGroupedByDate)[0]) { // 첫 번째 날짜의 첫 번째 항목만 로그
+                        console.log('[DEBUG] Rendering First Shipment Part of First Date:', part);
+                        console.log('[DEBUG] Rendering First Shipment Part Name of First Date:', part.name);
+                      }
+                      return (
+                        <TableRow key={part.shipment_item_key || `shipmentpart-${part.shipment_id}-${index}`}> 
+                          <TableCell>{part.name}</TableCell> 
                           <TableCell align="right">{part.quantity}</TableCell>
                           <TableCell align="right">
+                            {/* 단가: part.price 사용 (fetchSalesData에서 parts 테이블 기준으로 계산됨) */}
                             {formatCurrency(part.price)}
                           </TableCell>
                           <TableCell align="right">{formatCurrency(part.total)}</TableCell>
+                          <TableCell>{part.customer_name || '-'}</TableCell>
+                          <TableCell>{part.customer_phone || '-'}</TableCell>
+                          <TableCell>{part.sales_channel || '-'}</TableCell>
                         </TableRow>
-                      ))}
-                      {/* 합계 행 추가 */}
-                      <TableRow sx={{ bgcolor: '#f9fafb' }}>
-                        <TableCell colSpan={5} align="right" sx={{ fontWeight: 600 }}>
-                          합계
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 600 }}>
-                          {formatCurrency(
-                            partsData.shipmentPartsByDate[date].reduce((sum, part) => sum + part.total, 0)
-                          )}
-                        </TableCell>
-                      </TableRow>
-                      
-                      {/* 판매처별 합계 추가 */}
-                      {(() => {
-                        // 중복되지 않는 판매처 목록 생성
-                        const customers = [...new Set(partsData.shipmentPartsByDate[date].map(part => part.customer))];
-                        
-                        // 판매처별 합계 계산
-                        return customers.map(customer => {
-                          const total = partsData.shipmentPartsByDate[date]
-                            .filter(part => part.customer === customer)
-                            .reduce((sum, part) => sum + part.total, 0);
-                            
-                          return (
-                            <TableRow key={`customer-${customer}`} sx={{ bgcolor: '#f0f7fa' }}>
-                              <TableCell colSpan={2} align="right" sx={{ color: '#1976d2' }}>
-                                판매처 합계
-                              </TableCell>
-                              <TableCell sx={{ fontWeight: 500, color: '#1976d2' }}>
-                                {customer}
-                              </TableCell>
-                              <TableCell colSpan={2} align="right">
-                              </TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 500, color: '#1976d2' }}>
-                                {formatCurrency(total)}
-                              </TableCell>
-                            </TableRow>
-                          );
-                        });
-                      })()}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Box>
-            )}
-            
-            <Divider sx={{ mt: 3 }} />
-          </Box>
-        ))}
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Box>
+          ))
+        )}
       </Box>
     );
   };
@@ -1107,17 +1049,22 @@ function SalesStats() {
                   A/S 매출
                 </Typography>
                 <Typography variant="h5" component="div">
-                  {formatCurrency(totalStats.totalServiceSales)}
+                  {formatCurrency(totalStats.totalServiceSales)} 
+                  {totalStats.totalLaborSalesOnly > 0 && 
+                    <Typography variant="caption" sx={{ ml: 1, color: 'success.main' }}>
+                      (공임: {formatCurrency(totalStats.totalLaborSalesOnly)} 포함)
+                    </Typography>
+                  }
                 </Typography>
                 <Box sx={{ mt: 1 }}>
                   <Typography variant="body2" color="textSecondary">
-                    A/S: {formatCurrency(totalStats.totalServiceSalesAS)}
+                    AS(부품): {formatCurrency(totalStats.totalServiceSalesAS)}
                   </Typography>
                   <Typography variant="body2" color="textSecondary">
-                    판매: {formatCurrency(totalStats.totalServiceSalesSell)}
+                    판매(부품): {formatCurrency(totalStats.totalServiceSalesSell)}
                   </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      검수 건수: {totalStats.totalServiceCount}건
+                  <Typography variant="body2" color="textSecondary">
+                    검수 건수: {totalStats.totalServiceCount}건
                   </Typography>
                 </Box>
               </CardContent>
@@ -1133,12 +1080,6 @@ function SalesStats() {
                   {formatCurrency(totalStats.totalShipmentSales)}
                 </Typography>
                   <Box sx={{ mt: 1 }}>
-                    <Typography variant="body2" color="textSecondary">
-                      공임 매출: {formatCurrency(totalLaborSales)}
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      검수 건수: {totalStats.totalServiceCount}건
-                    </Typography>
                     <Typography variant="body2" color="textSecondary">
                       출고 건수: {totalStats.totalShipmentCount}건
                     </Typography>
@@ -1179,15 +1120,19 @@ function SalesStats() {
                   </Typography>
                   <Grid container spacing={2}>
                     {Object.entries(totalStats.totalCustomerSales || {})
-                      .sort((a, b) => b[1] - a[1])
-                      .map(([customer, amount]) => (
-                        <Grid item xs={12} sm={6} md={3} lg={2} key={customer}>
+                      .sort(([, a], [, b]) => b.totalAmount - a.totalAmount) 
+                      .map(([channelName, channelData]) => ( 
+                        <Grid item xs={12} sm={6} md={3} lg={2} key={channelName}>
                           <Paper sx={{ p: 2, bgcolor: '#f9fafb', display: 'flex', flexDirection: 'column', height: '100%' }}>
                             <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
-                              {customer}
+                              {channelData.name} {/* 판매채널 이름 */}
                             </Typography>
                             <Typography variant="h6" sx={{ fontWeight: 500, color: '#1976d2', mt: 'auto' }}>
-                              {formatCurrency(amount)}
+                              {formatCurrency(channelData.totalAmount)} 
+                            </Typography>
+                            <Typography variant="caption" color="textSecondary">
+                              출고건수: {channelData.shipmentCount}건
+                              {/* firstOrderDate, lastOrderDate는 제거 또는 다른 방식으로 표시 */}
                             </Typography>
                           </Paper>
                         </Grid>
@@ -1223,11 +1168,11 @@ function SalesStats() {
                     <XAxis dataKey="date" />
                     <YAxis yAxisId="left" orientation="left" stroke="#8884d8" />
                     <YAxis yAxisId="right" orientation="right" stroke="#82ca9d" />
-                    <Tooltip />
+                    <Tooltip formatter={(value, name) => formatCurrency(value)} />
                     <Legend />
-                    <Bar yAxisId="left" name="A/S 매출(A/S)" dataKey="serviceSalesAS" fill="#8884d8" />
-                    <Bar yAxisId="left" name="A/S 매출(판매)" dataKey="serviceSalesSell" fill="#82ca9d" />
+                    <Bar yAxisId="left" name="A/S 매출(공임포함)" dataKey="serviceSales" fill="#8884d8" />
                     <Bar yAxisId="left" name="출고 매출" dataKey="shipmentSales" fill="#ffc658" />
+                    <Bar yAxisId="left" name="A/S 공임만" dataKey="laborSalesOnly" fill="#82ca9d" />
                     <Bar yAxisId="right" name="A/S 검수 건수" dataKey="serviceCount" fill="#ff8042" />
                     <Bar yAxisId="right" name="출고 건수" dataKey="shipmentCount" fill="#00C49F" />
                   </BarChart>
@@ -1239,8 +1184,10 @@ function SalesStats() {
                   <TableHead>
                     <TableRow>
                       <TableCell>날짜</TableCell>
-                      <TableCell align="right">A/S 매출(A/S)</TableCell>
-                      <TableCell align="right">A/S 매출(판매)</TableCell>
+                      <TableCell align="right">A/S 매출(공임포함)</TableCell>
+                      <TableCell align="right">A/S매출(AS-부품)</TableCell>
+                      <TableCell align="right">A/S매출(판매-부품)</TableCell>
+                      <TableCell align="right">A/S 공임만</TableCell>
                       <TableCell align="right">A/S 검수 건수</TableCell>
                       <TableCell align="right">출고 매출</TableCell>
                       <TableCell align="right">출고 건수</TableCell>
@@ -1251,8 +1198,10 @@ function SalesStats() {
                     {salesData.map((row) => (
                       <TableRow key={row.date}>
                         <TableCell>{row.date}</TableCell>
+                        <TableCell align="right">{formatCurrency(row.serviceSales)}</TableCell>
                         <TableCell align="right">{formatCurrency(row.serviceSalesAS)}</TableCell>
                         <TableCell align="right">{formatCurrency(row.serviceSalesSell)}</TableCell>
+                        <TableCell align="right">{formatCurrency(row.laborSalesOnly)}</TableCell>
                         <TableCell align="right">{row.serviceCount}</TableCell>
                         <TableCell align="right">{formatCurrency(row.shipmentSales)}</TableCell>
                         <TableCell align="right">{row.shipmentCount}</TableCell>
