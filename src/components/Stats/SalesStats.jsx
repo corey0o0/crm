@@ -511,7 +511,7 @@ function SalesStats() {
           shipmentCountsByChannel[salesChannel] = new Set();
         }
         shipmentCountsByChannel[salesChannel].add(shipment.id);
-      });
+        });
 
       Object.keys(newTotalCustomerSales).forEach(channel => {
         if (shipmentCountsByChannel[channel]) {

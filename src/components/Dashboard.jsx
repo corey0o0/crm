@@ -37,6 +37,11 @@ import { useAuth } from '../contexts/AuthContext';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ko';
 import ServiceCalendar from './ServiceCalendar';
+import { sendTelegramNotification } from '../lib/telegram';
+import Snackbar from '@mui/material/Snackbar';
+import MuiAlert from '@mui/material/Alert';
+import Tooltip from '@mui/material/Tooltip';
+import SendIcon from '@mui/icons-material/Send';
 
 function Dashboard() {
   const navigate = useNavigate();
@@ -82,6 +87,7 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [recentShipments, setRecentShipments] = useState([]);
+  const [telegramResult, setTelegramResult] = useState({ open: false, message: '', success: true });
 
   // 초기 사용자 세션 확인
   useEffect(() => {
@@ -585,6 +591,20 @@ function Dashboard() {
     fetchRecentShipments();
   }, [selectedBrand]);
 
+  const handleSendMemoToTelegram = async (idx) => {
+    const content = memoList[idx]?.content?.trim();
+    if (!content) {
+      setTelegramResult({ open: true, message: '메모 내용이 비어 있습니다.', success: false });
+      return;
+    }
+    try {
+      await sendTelegramNotification(`[메모 ${idx + 1}]\n${content}`);
+      setTelegramResult({ open: true, message: '텔레그램 전송 성공!', success: true });
+    } catch (e) {
+      setTelegramResult({ open: true, message: '텔레그램 전송 실패', success: false });
+    }
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '70vh' }}>
@@ -647,32 +667,39 @@ function Dashboard() {
               <Typography variant="subtitle2" sx={{ color: '#4e5968', fontSize: '0.875rem', fontWeight: 600 }}>
                 메모 1
               </Typography>
-              {memoList[0]?.lastSaved && (
-                <Typography variant="caption" sx={{ color: '#868e96', fontSize: '0.75rem' }}>
-                  마지막 저장: {dayjs(memoList[0].lastSaved).locale('ko').format('YYYY.MM.DD HH:mm')}
-                </Typography>
-              )}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                {memoList[0]?.lastSaved && (
+                  <Typography variant="caption" sx={{ color: '#868e96', fontSize: '0.75rem' }}>
+                    마지막 저장: {dayjs(memoList[0].lastSaved).locale('ko').format('YYYY.MM.DD HH:mm')}
+                  </Typography>
+                )}
+                <Tooltip title="이 메모를 텔레그램으로 전송">
+                  <IconButton onClick={() => handleSendMemoToTelegram(0)} size="small">
+                    <SendIcon fontSize="small" color="primary" />
+                  </IconButton>
+                </Tooltip>
+              </Box>
             </Box>
-              <TextField
-                multiline
-                fullWidth
+            <TextField
+              multiline
+              fullWidth
               value={memoList[0]?.content || ''}
               onChange={e => handleMemoContentChange(0, e.target.value)}
-                placeholder="메모를 입력하세요..."
-                variant="outlined"
-                sx={{
-                  flex: 1,
-                    bgcolor: '#fff',
-                    fontSize: '0.875rem',
+              placeholder="메모를 입력하세요..."
+              variant="outlined"
+              sx={{
+                flex: 1,
+                bgcolor: '#fff',
+                fontSize: '0.875rem',
                 mt: 2,
-                    '& textarea': {
-                      flex: 1,
-                      resize: 'vertical',
-                      minHeight: '100px',
-                      maxHeight: '500px'
-                  }
-                }}
-              />
+                '& textarea': {
+                  flex: 1,
+                  resize: 'vertical',
+                  minHeight: '100px',
+                  maxHeight: '500px'
+                }
+              }}
+            />
             <Button
               variant="contained"
               onClick={() => handleSaveMemo(0)}
@@ -689,11 +716,18 @@ function Dashboard() {
               <Typography variant="subtitle2" sx={{ color: '#4e5968', fontSize: '0.875rem', fontWeight: 600 }}>
                 메모 2
               </Typography>
-              {memoList[1]?.lastSaved && (
-                <Typography variant="caption" sx={{ color: '#868e96', fontSize: '0.75rem' }}>
-                  마지막 저장: {dayjs(memoList[1].lastSaved).locale('ko').format('YYYY.MM.DD HH:mm')}
-                </Typography>
-              )}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                {memoList[1]?.lastSaved && (
+                  <Typography variant="caption" sx={{ color: '#868e96', fontSize: '0.75rem' }}>
+                    마지막 저장: {dayjs(memoList[1].lastSaved).locale('ko').format('YYYY.MM.DD HH:mm')}
+                  </Typography>
+                )}
+                <Tooltip title="이 메모를 텔레그램으로 전송">
+                  <IconButton onClick={() => handleSendMemoToTelegram(1)} size="small">
+                    <SendIcon fontSize="small" color="primary" />
+                  </IconButton>
+                </Tooltip>
+              </Box>
             </Box>
             <TextField
               multiline
@@ -702,7 +736,7 @@ function Dashboard() {
               onChange={e => handleMemoContentChange(1, e.target.value)}
               placeholder="메모를 입력하세요..."
               variant="outlined"
-                  sx={{ 
+              sx={{
                 flex: 1,
                 bgcolor: '#fff',
                 fontSize: '0.875rem',
@@ -741,47 +775,54 @@ function Dashboard() {
                       <Typography variant="subtitle2" sx={{ color: '#4e5968', fontSize: '0.875rem', fontWeight: 600 }}>
                         메모 {idx + 3}
                       </Typography>
-                      {memo.lastSaved && (
-                        <Typography variant="caption" sx={{ color: '#868e96', fontSize: '0.75rem' }}>
-                          마지막 저장: {dayjs(memo.lastSaved).locale('ko').format('YYYY.MM.DD HH:mm')}
-                </Typography>
-              )}
-                      <IconButton size="small" onClick={() => handleDeleteMemo(idx + 2)}>
-                        <CloseIcon fontSize="small" />
-                      </IconButton>
-            </Box>
-              <TextField
-                multiline
-                fullWidth
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        {memo.lastSaved && (
+                          <Typography variant="caption" sx={{ color: '#868e96', fontSize: '0.75rem' }}>
+                            마지막 저장: {dayjs(memo.lastSaved).locale('ko').format('YYYY.MM.DD HH:mm')}
+                          </Typography>
+                        )}
+                        <Tooltip title="이 메모를 텔레그램으로 전송">
+                          <IconButton onClick={() => handleSendMemoToTelegram(idx + 2)} size="small">
+                            <SendIcon fontSize="small" color="primary" />
+                          </IconButton>
+                        </Tooltip>
+                        <IconButton size="small" onClick={() => handleDeleteMemo(idx + 2)}>
+                          <CloseIcon fontSize="small" />
+                        </IconButton>
+                      </Box>
+                    </Box>
+                    <TextField
+                      multiline
+                      fullWidth
                       value={memo.content}
                       onChange={e => handleMemoContentChange(idx + 2, e.target.value)}
-                placeholder="메모를 입력하세요..."
-                variant="outlined"
-                sx={{
-                  flex: 1,
-                    bgcolor: '#fff',
-                    fontSize: '0.875rem',
+                      placeholder="메모를 입력하세요..."
+                      variant="outlined"
+                      sx={{
+                        flex: 1,
+                        bgcolor: '#fff',
+                        fontSize: '0.875rem',
                         mt: 2,
-                    '& textarea': {
-                      flex: 1,
-                      resize: 'vertical',
-                      minHeight: '100px',
-                      maxHeight: '500px'
-                  }
-                }}
-              />
-            <Button
-              variant="contained"
+                        '& textarea': {
+                          flex: 1,
+                          resize: 'vertical',
+                          minHeight: '100px',
+                          maxHeight: '500px'
+                        }
+                      }}
+                    />
+                    <Button
+                      variant="contained"
                       onClick={() => handleSaveMemo(idx + 2)}
                       sx={{ bgcolor: '#3182f6', '&:hover': { bgcolor: '#1b64da' }, alignSelf: 'flex-end', mt: 2 }}
-            >
-              저장
-            </Button>
+                    >
+                      저장
+                    </Button>
                   </Box>
                 )
               ))}
-          </Paper>
-        </Grid>
+            </Paper>
+          </Grid>
         )}
       </Grid>
 
@@ -1182,6 +1223,22 @@ function Dashboard() {
         </Grid>
       </Grid>
     </Box>
+    <Snackbar
+      open={telegramResult.open}
+      autoHideDuration={2500}
+      onClose={() => setTelegramResult(r => ({ ...r, open: false }))}
+      anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+    >
+      <MuiAlert
+        onClose={() => setTelegramResult(r => ({ ...r, open: false }))}
+        severity={telegramResult.success ? 'success' : 'error'}
+        sx={{ width: '100%' }}
+        elevation={6}
+        variant="filled"
+      >
+        {telegramResult.message}
+      </MuiAlert>
+    </Snackbar>
     </Container>
   );
 }
