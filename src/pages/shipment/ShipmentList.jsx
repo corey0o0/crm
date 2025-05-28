@@ -44,8 +44,7 @@ import {
   Download as DownloadIcon,
   CloudUpload as CloudUploadIcon,
   Clear as ClearIcon,
-  DateRange as DateRangeIcon,
-  Link as LinkIcon
+  DateRange as DateRangeIcon
 } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -1018,14 +1017,6 @@ function ShipmentList() {
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
   };
-  const handleChangeRowsPerPage = (event) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(0);
-  };
-
-  const handleOpenSpreadsheet = () => {
-    window.open('https://docs.google.com/spreadsheets/d/1VPMcM_qRly_lKsx0wt54QjpRStolIhk9G_QPKJDOP-U/edit?gid=0#gid=0', '_blank');
-  };
 
   if (loading) {
     return (
@@ -1068,13 +1059,6 @@ function ShipmentList() {
               제품 정보 일괄 업데이트
             </Button>
           </Tooltip>
-          <Button 
-            variant="outlined"
-            startIcon={<LinkIcon />}
-            onClick={handleOpenSpreadsheet}
-          >
-            엑라엑셀
-          </Button>
         </Stack>
       </Box>
       
@@ -1339,7 +1323,6 @@ function ShipmentList() {
             page={page}
             onPageChange={handleChangePage}
             rowsPerPage={rowsPerPage}
-            onRowsPerPageChange={handleChangeRowsPerPage}
             rowsPerPageOptions={[30, 50, 100]}
             labelRowsPerPage="페이지당 행 수"
           />

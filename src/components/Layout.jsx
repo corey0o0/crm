@@ -29,7 +29,8 @@ import {
   Receipt as ReceiptIcon,
   DriveFileMove as DriveIcon,
   Message as MessageIcon,
-  Assessment as AssessmentIcon
+  Assessment as AssessmentIcon,
+  Link as LinkIcon
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
@@ -151,6 +152,10 @@ function Layout() {
     }
   };
 
+  const handleOpenEkuraExcel = () => {
+    window.open('https://docs.google.com/spreadsheets/d/1VPMcM_qRly_lKsx0wt54QjpRStolIhk9G_QPKJDOP-U/edit?gid=0#gid=0', '_blank');
+  };
+
   return (
     <Box sx={{ display: 'flex' }}>
       <AppBarStyled position="fixed" open={open}>
@@ -189,6 +194,14 @@ function Layout() {
             sx={{ mr: 1 }}
           >
             구글 메시지
+          </Button>
+          <Button 
+            color="inherit" 
+            startIcon={<LinkIcon />}
+            onClick={handleOpenEkuraExcel} 
+            sx={{ mr: 1 }}
+          >
+            엑라엑셀
           </Button>
           <Button color="inherit" onClick={handleSignOut}>
             로그아웃
