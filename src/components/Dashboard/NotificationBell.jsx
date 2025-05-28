@@ -123,7 +123,7 @@ function NotificationBell() {
   const tooltipTitle = 
     notifications.length > 0 ? (
       <Box sx={{ p: 0.5 }}>
-        {notifications.slice(0, 5).map((n, i) => {
+        {notifications.slice(0, 100).map((n, i) => {
           const parsed = parseNotificationMessage(n.message);
           return (
             <Box
@@ -134,7 +134,7 @@ function NotificationBell() {
                 justifyContent: 'space-between',
                 width: '100%',
                 py: 0.5,
-                borderBottom: i < notifications.slice(0, 5).length - 1 ? '1px solid #eee' : 'none'
+                borderBottom: i < notifications.slice(0, 100).length - 1 ? '1px solid #eee' : 'none'
               }}
             >
               <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', flexGrow: 1, mr: 1 }}>

@@ -548,13 +548,13 @@ function SalesStats() {
           serviceSalesAS: 0, // 순수 AS 부품 매출
           serviceSalesSell: 0, // 순수 판매 부품 매출
           serviceCount: 0,
-          shipmentSales: 0,
+            shipmentSales: 0,
           shipmentCount: 0, 
           laborSalesOnly: 0, // 날짜별 순수 공임 매출
           totalSales: 0, 
-        };
+          };
         currentDate.setDate(currentDate.getDate() + 1);
-      }
+        }
 
       Object.entries(servicePartsByDate).forEach(([date, parts]) => {
         if (aggregatedSales[date]) {
@@ -563,7 +563,7 @@ function SalesStats() {
           let dailyLaborSales = 0;
           const dailyServiceIds = new Set();
 
-          parts.forEach(part => {
+        parts.forEach(part => {
             const isLaborPart = (part.name && part.name.includes('공임')) || 
                                 (part.usage && part.usage.toString().trim() === '공임');
             if (isLaborPart) {
@@ -571,7 +571,7 @@ function SalesStats() {
             } else {
               if (part.usage === 'AS') {
                 dailyServiceSalesAS_partsOnly += (part.total || 0);
-              } else if (part.usage === '판매') {
+          } else if (part.usage === '판매') {
                 dailyServiceSalesSell_partsOnly += (part.total || 0);
               }
             }
@@ -726,7 +726,7 @@ function SalesStats() {
         <Typography variant="h6" sx={{ mt: 2, mb: 1, color: 'primary.main', borderBottom: '2px solid', borderColor: 'primary.main', pb: 0.5 }}>
           <BuildIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
           A/S 부품 상세 내역
-        </Typography>
+            </Typography>
         {Object.keys(serviceGroupedByDate).length === 0 ? (
           <Typography sx={{my: 2, color: 'text.secondary'}}>해당 기간에 A/S된 부품 내역이 없습니다.</Typography>
         ) : (
@@ -734,10 +734,10 @@ function SalesStats() {
             <Box key={`service-${date}`} sx={{ mb: 3 }}>
               <Typography variant="subtitle1" gutterBottom sx={{fontWeight: 'bold'}}>
                 {format(parseISO(date), 'MM월 dd일 (EEE)', { locale: ko })} - A/S
-              </Typography>
-              <TableContainer component={Paper} variant="outlined">
-                <Table size="small">
-                  <TableHead>
+                </Typography>
+                <TableContainer component={Paper} variant="outlined">
+                  <Table size="small">
+                    <TableHead>
                     <TableRow sx={{backgroundColor: 'grey.100'}}>
                       <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>제품/부품명</TableCell>
                       <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>부품코드</TableCell>
@@ -746,9 +746,9 @@ function SalesStats() {
                       <TableCell align="right" sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>합계</TableCell>
                       <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>구분</TableCell>
                       <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>세부 구분(Parts Note)</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
                     {parts.map((part, index) => {
                       // Log the first A/S part for debugging
                       if (index === 0 && date === Object.keys(serviceGroupedByDate)[0]) { // 첫 번째 날짜의 첫 번째 항목만 로그
@@ -767,10 +767,10 @@ function SalesStats() {
                         </TableRow>
                       );
                     })}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Box>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Box>
           ))
         )}
 
@@ -787,10 +787,10 @@ function SalesStats() {
             <Box key={`shipment-${date}`} sx={{ mb: 3 }}>
               <Typography variant="subtitle1" gutterBottom sx={{fontWeight: 'bold'}}>
                 {format(parseISO(date), 'MM월 dd일 (EEE)', { locale: ko })} - 출고
-              </Typography>
-              <TableContainer component={Paper} variant="outlined">
-                <Table size="small">
-                  <TableHead>
+                </Typography>
+                <TableContainer component={Paper} variant="outlined">
+                  <Table size="small">
+                    <TableHead>
                     <TableRow sx={{backgroundColor: 'grey.100'}}>
                       <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>제품/부품명</TableCell>
                       <TableCell align="right" sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>수량</TableCell>
@@ -799,9 +799,9 @@ function SalesStats() {
                       <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>고객명</TableCell>
                       <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>연락처</TableCell>
                       <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>판매채널</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
                     {parts.map((part, index) => {
                       // Log the first shipment part for debugging
                       if (index === 0 && date === Object.keys(shipmentGroupedByDate)[0]) { // 첫 번째 날짜의 첫 번째 항목만 로그
@@ -810,7 +810,7 @@ function SalesStats() {
                       }
                       return (
                         <TableRow key={part.shipment_item_key || `shipmentpart-${part.shipment_id}-${index}`}> 
-                          <TableCell>{part.name}</TableCell> 
+                          <TableCell>{part.name}</TableCell>
                           <TableCell align="right">{part.quantity}</TableCell>
                           <TableCell align="right">
                             {/* 단가: part.price 사용 (fetchSalesData에서 parts 테이블 기준으로 계산됨) */}
@@ -823,12 +823,12 @@ function SalesStats() {
                         </TableRow>
                       );
                     })}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Box>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Box>
           ))
-        )}
+            )}
       </Box>
     );
   };
@@ -1111,7 +1111,7 @@ function SalesStats() {
                   A/S 매출
                 </Typography>
                 <Typography variant="h5" component="div">
-                  {formatCurrency(totalStats.totalServiceSales)} 
+                  {formatCurrency(totalStats.totalServiceSales)}
                   {totalStats.totalLaborSalesOnly > 0 && 
                     <Typography variant="caption" sx={{ ml: 1, color: 'success.main' }}>
                       (공임: {formatCurrency(totalStats.totalLaborSalesOnly)} 포함)
@@ -1197,7 +1197,7 @@ function SalesStats() {
                               {/* firstOrderDate, lastOrderDate는 제거 또는 다른 방식으로 표시 */}
                             </Typography>
                           </Paper>
-                        </Grid>
+        </Grid>
                       ))}
                     {Object.keys(totalStats.totalCustomerSales || {}).length === 0 && (
                       <Grid item xs={12}>
