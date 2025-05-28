@@ -44,7 +44,8 @@ import {
   Download as DownloadIcon,
   CloudUpload as CloudUploadIcon,
   Clear as ClearIcon,
-  DateRange as DateRangeIcon
+  DateRange as DateRangeIcon,
+  Link as LinkIcon
 } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -1022,6 +1023,10 @@ function ShipmentList() {
     setPage(0);
   };
 
+  const handleOpenSpreadsheet = () => {
+    window.open('https://docs.google.com/spreadsheets/d/1VPMcM_qRly_lKsx0wt54QjpRStolIhk9G_QPKJDOP-U/edit?gid=0#gid=0', '_blank');
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -1063,6 +1068,13 @@ function ShipmentList() {
               제품 정보 일괄 업데이트
             </Button>
           </Tooltip>
+          <Button 
+            variant="outlined"
+            startIcon={<LinkIcon />}
+            onClick={handleOpenSpreadsheet}
+          >
+            엑라엑셀
+          </Button>
         </Stack>
       </Box>
       
