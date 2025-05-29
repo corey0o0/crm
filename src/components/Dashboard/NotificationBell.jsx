@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import Badge from '@mui/material/Badge';
-import Tooltip from '@mui/material/Tooltip';
 import Popover from '@mui/material/Popover';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
@@ -10,7 +9,7 @@ import ListItemText from '@mui/material/ListItemText';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import { supabase } from '../../lib/supabaseClient';
-import { Box, Button, Typography } from '@mui/material';
+import { Box, Button, Typography, IconButton } from '@mui/material';
 
 // 알림 메시지 파싱 함수
 const parseNotificationMessage = (messageStr) => {
@@ -120,71 +119,18 @@ function NotificationBell() {
     setPage(newPage);
   };
 
-  const tooltipTitle = 
-    notifications.length > 0 ? (
-      <Box sx={{ p: 0.5 }}>
-        {notifications.slice(0, 100).map((n, i) => {
-          const parsed = parseNotificationMessage(n.message);
-          return (
-            <Box
-              key={n.id || i}
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                width: '100%',
-                py: 0.5,
-                borderBottom: i < notifications.slice(0, 100).length - 1 ? '1px solid #eee' : 'none'
-              }}
-            >
-              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', flexGrow: 1, mr: 1 }}>
-                <Typography variant="body2" component="span" sx={{ fontWeight: '500', lineHeight: 1.3, display: 'block', wordBreak: 'break-word' }}>
-                  {parsed.isStructured ? parsed.type : parsed.original}
-                </Typography>
-                {parsed.isStructured && (
-                  <Typography variant="caption" component="span" sx={{ color: 'text.secondary', lineHeight: 1.3, display: 'block', wordBreak: 'break-word' }}>
-                    {`${parsed.name} (${parsed.contact})`}
-                  </Typography>
-                )}
-              </Box>
-              <Typography variant="caption" sx={{ color: 'text.disabled', whiteSpace: 'nowrap', fontSize: '0.7rem', ml:1 }}>
-                {new Date(n.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
-              </Typography>
-            </Box>
-          );
-        })}
-      </Box>
-    ) : '최근 알림이 없습니다.';
-
   return (
     <>
-      <Tooltip
-        arrow
-        title={tooltipTitle} 
+      <IconButton
+        color="inherit"
+        onClick={handleClick}
+        aria-label="show new notifications"
+        sx={{ mr: 1 }}
       >
-        <Badge 
-          badgeContent={unreadCount} 
-          color="error"
-          anchorOrigin={{
-            vertical: 'top',
-            horizontal: 'left',
-          }}
-          sx={{
-            '& .MuiBadge-badge': {
-            },
-          }}
-        >
-          <NotificationsIcon
-            sx={{ 
-              cursor: 'pointer', 
-              ml: unreadCount > 0 ? 1 : 2,
-              mr: 2
-            }}
-            fontSize="medium"
-            onClick={handleClick}
-          />
+        <Badge badgeContent={unreadCount > 0 ? unreadCount : null} color="error">
+          <NotificationsIcon />
         </Badge>
-      </Tooltip>
+      </IconButton>
       <Popover
         open={Boolean(anchorEl)}
         anchorEl={anchorEl}
