@@ -61,6 +61,7 @@ import {
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import { formatKoreanDateTime } from '../../utils/dateUtils';
+import { sendTelegramNotification } from '../../lib/telegram'; // 텔레그램 유틸리티 함수 import
 
 // PDF worker 설정
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
@@ -463,6 +464,17 @@ function ServiceDetail() {
       } catch (notificationCatchError) {
         console.error('A/S 수정 알림 등록 중 예외 발생:', notificationCatchError);
         notificationSuccess = false;
+      }
+
+      // 텔레그램 알림 전송
+      try {
+        await sendTelegramNotification({
+          message: `A/S수정[${formData.customer_name}](${formData.customer_phone})`,
+          link: `/service/${id}`
+        });
+      } catch (telegramError) {
+        console.error('A/S 수정 텔레그램 알림 전송 중 오류:', telegramError);
+        // 텔레그램 전송 실패는 notificationSuccess 상태에 영향을 주지 않거나, 별도 처리 가능
       }
 
       // 모든 DB 작업 완료 후 데이터 다시 불러오기

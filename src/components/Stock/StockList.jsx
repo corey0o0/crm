@@ -11,6 +11,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import SaveIcon from '@mui/icons-material/Save';
 import SearchIcon from '@mui/icons-material/Search';
+import { sendTelegramNotification } from '../../lib/telegram';
 
 // 메모이제이션된 옵션 상수
 const BRAND_OPTIONS = ['전체', 'XRB', 'NB'];
@@ -99,14 +100,24 @@ function StockList() {
       // 등록 성공 후 알림 추가
       await supabase.from('notifications').insert({
         type: 'stock',
-        message: `재고등록[${parts.find(p => p.id === id)?.name}]`,
-        link: `/stock/${id}`
+        message: `재고조정[${parts.find(p => p.id === id)?.name}](${parts.find(p => p.id === id)?.code}) - 현재고: ${stockValue}`,
+        link: `/stock`
       });
+
+      // 텔레그램 알림 전송
+      try {
+        await sendTelegramNotification({
+          message: `재고조정[${parts.find(p => p.id === id)?.name}](${parts.find(p => p.id === id)?.code}) - 현재고: ${stockValue}`,
+          link: `/stock`
+        });
+      } catch (telegramError) {
+        console.error('재고조정 텔레그램 알림 전송 중 오류:', telegramError);
+      }
 
       console.log('알림 등록:', {
         type: 'stock',
-        message: `재고등록[${parts.find(p => p.id === id)?.name}]`,
-        link: `/stock/${id}`
+        message: `재고조정[${parts.find(p => p.id === id)?.name}](${parts.find(p => p.id === id)?.code}) - 현재고: ${stockValue}`,
+        link: `/stock`
       });
 
       setSnackbar({ open: true, message: '재고가 저장되었습니다.', severity: 'success' });
@@ -434,6 +445,23 @@ function StockList() {
             
           if (logError) throw logError;
         }
+
+        // DB 알림 추가
+        await supabase.from('notifications').insert({
+          type: 'stock',
+          message: `재고조정[${part.name}](${part.code}) - 현재고: ${part.stock}`,
+          link: `/stock`
+        });
+
+        // 텔레그램 알림 전송
+        try {
+          await sendTelegramNotification({
+            message: `재고조정[${part.name}](${part.code}) - 현재고: ${part.stock}`,
+            link: `/stock`
+          });
+        } catch (telegramError) {
+          console.error('재고 일괄 저장(선택) 텔레그램 알림 전송 중 오류:', telegramError);
+        }
       }
       
       setSnackbar({ open: true, message: `${selectedItems.length}개 항목의 재고가 저장되었습니다.`, severity: 'success' });
@@ -492,6 +520,23 @@ function StockList() {
             });
             
           if (logError) throw logError;
+        }
+
+        // DB 알림 추가
+        await supabase.from('notifications').insert({
+          type: 'stock',
+          message: `재고조정[${part.name}](${part.code}) - 현재고: ${part.stock}`,
+          link: `/stock`
+        });
+
+        // 텔레그램 알림 전송
+        try {
+          await sendTelegramNotification({
+            message: `재고조정[${part.name}](${part.code}) - 현재고: ${part.stock}`,
+            link: `/stock`
+          });
+        } catch (telegramError) {
+          console.error('재고 일괄 저장(전체) 텔레그램 알림 전송 중 오류:', telegramError);
         }
       }
       

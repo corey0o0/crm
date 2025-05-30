@@ -34,8 +34,6 @@ function NotificationBell() {
   const [totalCount, setTotalCount] = useState(0);
   const [anchorEl, setAnchorEl] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
-  const intervalRef = useRef(null); // interval ID 저장
-
   const localStorageKey = 'lastCheckedNotificationTimestamp'; // localStorage 키 정의
 
   const fetchNotifications = async (currentPage = 0) => {
@@ -62,43 +60,56 @@ function NotificationBell() {
     const lastCheckedTimestamp = localStorage.getItem(localStorageKey);
     if (lastCheckedTimestamp) {
       const newUnread = newNotifications.filter(n => new Date(n.created_at) > new Date(lastCheckedTimestamp)).length;
-      setUnreadCount(newUnread);
+      // Realtime 업데이트와 충돌을 피하기 위해, fetch 시에는 unreadCount를 직접 설정하지 않고
+      // Realtime 핸들러에서 새로운 알림에 대해서만 unreadCount를 증가시킵니다.
+      // setUnreadCount(newUnread); 
     } else {
-      setUnreadCount(newNotifications.length > 0 ? newNotifications.length : 0); 
+      // 처음 로드 시에는 전체 알림 수를 unreadCount로 설정할 수 있으나,
+      // 클릭 시 0으로 초기화되므로, Realtime과 일관성을 위해 여기서도 직접 설정하지 않습니다.
+      // setUnreadCount(newNotifications.length > 0 ? newNotifications.length : 0);
     }
   };
-
-  const startPolling = () => {
-    fetchNotifications(page);
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    intervalRef.current = setInterval(() => fetchNotifications(page), 1 * 60 * 1000); 
-  };
-
-  const stopPolling = () => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    intervalRef.current = null;
-  };
-
+  
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        startPolling();
-      } else {
-        stopPolling();
-      }
-    };
+    // 초기 알림 로드
+    fetchNotifications(page);
 
-    if (document.visibilityState === 'visible') {
-      startPolling();
-    }
+    // Supabase Realtime 구독 설정
+    const channel = supabase
+      .channel('public:notifications')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'notifications' },
+        (payload) => {
+          console.log('New notification received (Bell):', payload.new);
+          // 새 알림을 기존 알림 목록의 맨 앞에 추가
+          setNotifications((prevNotifications) => [payload.new, ...prevNotifications].slice(0, pageSize * (page + 1))); // 현재 페이지만 유지하거나, 더 많은 페이지를 미리 로드할 수 있음
+          setTotalCount((prevTotalCount) => prevTotalCount + 1);
+          
+          // 읽지 않은 알림 수 증가
+          setUnreadCount((prevUnreadCount) => prevUnreadCount + 1);
+        }
+      )
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('Subscribed to notifications channel (Bell)');
+        }
+        if (status === 'CHANNEL_ERROR') {
+          console.error('CHANNEL_ERROR (Bell):', err);
+        }
+        if (status === 'TIMED_OUT') {
+          console.error('TIMED_OUT (Bell)');
+        }
+        if (status === 'CLOSED') {
+          console.log('CLOSED (Bell)');
+        }
+      });
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
+    // 컴포넌트 언마운트 시 구독 해제
     return () => {
-      stopPolling();
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      supabase.removeChannel(channel);
     };
-  }, [page]);
+  }, [page]); // page가 변경될 때마다 fetchNotifications를 다시 호출하여 해당 페이지 데이터를 가져옵니다.
 
   const handleClick = (event) => {
     setAnchorEl(event.currentTarget);

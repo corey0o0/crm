@@ -68,6 +68,7 @@ import ResponsiveTable from '../common/ResponsiveTable';
 import AddService from './AddService';
 import { getCookie, setCookie, removeCookie, getJSONCookie, setJSONCookie } from '../../utils/cookieUtils';
 import { formatKoreanDateTime } from '../../utils/dateUtils';
+import { sendTelegramNotification } from '../../lib/telegram'; // 텔레그램 유틸리티 함수 import
 
 // KST 변환 함수 추가
 // function toKST(dateString) { ... } // 삭제
@@ -901,6 +902,20 @@ function ServiceList() {
 
             // 목록 새로고침
             fetchServices();
+
+            // 텔레그램 알림 전송
+            if (insertedData && insertedData.length > 0) {
+              for (const service of insertedData) {
+                try {
+                  await sendTelegramNotification({
+                    message: `A/S등록(엑셀)[${service.customer_name || '정보없음'}](${(service.customer_phone || '정보없음')})`,
+                    link: `/service/${service.id}`
+                  });
+                } catch (telegramError) {
+                  console.error('엑셀 업로드 A/S 텔레그램 알림 전송 중 오류:', telegramError);
+                }
+              }
+            }
 
           } catch (error) {
             console.error('Error processing excel:', error);

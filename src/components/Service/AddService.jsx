@@ -54,6 +54,7 @@ import { API_CONFIG } from '../../config/api';
 import XLSX from 'xlsx';
 import { Close as CloseIcon } from '@mui/icons-material';
 import { formatKoreanDateTime } from '../../utils/dateUtils';
+import { sendTelegramNotification } from '../../lib/telegram'; // 텔레그램 유틸리티 함수 import
 
 // 접수방법과 배송방법 옵션
 const RECEPTION_TYPES = ['공홈', '방문', '전화', '대리점', '기타'];
@@ -601,6 +602,17 @@ function AddService() {
               // 알림 등록 실패는 경고로 처리하거나, 사용자에게 별도 안내 가능
             } else {
               console.log(`${insertedData.length}건의 알림 등록 완료`);
+              // 텔레그램 알림 전송
+              for (const service of insertedData) {
+                try {
+                  await sendTelegramNotification({
+                    message: `A/S등록[${service.customer_name || '정보없음'}](${(service.customer_phone || '정보없음')})`,
+                    link: `/service/${service.id}`
+                  });
+                } catch (telegramError) {
+                  console.error('엑셀 업로드 A/S 텔레그램 알림 전송 중 오류:', telegramError);
+                }
+              }
             }
           }
 
@@ -718,6 +730,26 @@ function AddService() {
       } catch (notificationCatchError) {
         console.error('Notification insert exception:', notificationCatchError);
         notificationSuccess = false;
+      }
+
+      // 텔레그램 알림 전송 (serviceId가 있을 경우)
+      if (insertedService && insertedService.id) {
+        try {
+          await sendTelegramNotification({
+            message: `A/S등록[${formData.customer_name}](${formData.customer_phone})`,
+            link: `/service/${insertedService.id}`
+          });
+        } catch (telegramError) {
+          console.error('A/S 등록 텔레그램 알림 전송 중 오류:', telegramError);
+          // 텔레그램 전송 실패 시 스낵바 메시지 변경 또는 추가 로깅 가능
+          setSnackbar({
+            open: true,
+            message: 'A/S는 등록되었으나, 텔레그램 알림 전송에 실패했습니다.',
+            severity: 'warning'
+          });
+          // notificationSuccess 플래그를 여기서 false로 설정할 수도 있습니다.
+          // 다만, DB 알림은 성공했을 수 있으므로, 별도 관리 필요
+        }
       }
 
       localStorage.setItem('highlightServiceId', String(insertedService.id));

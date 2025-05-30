@@ -48,6 +48,7 @@ import {
 import * as XLSX from 'xlsx';
 import { supabase } from '../../lib/supabaseClient';
 import { useNavigate } from 'react-router-dom';
+import { sendTelegramNotification } from '../../lib/telegram';
 
 // 입력 폼 컴포넌트 분리
 const PartsFormDialog = memo(({ 
@@ -347,14 +348,39 @@ function PartsManagement() {
         if (error) throw error;
         
         showSnackbar(`부품이 성공적으로 수정되었습니다.`, 'success');
+
+        // 텔레그램 알림 전송 (수정)
+        try {
+          await sendTelegramNotification({
+            message: `부품정보수정[${partData.name}](${partData.code})`,
+            link: `/parts` // 부품 관리 페이지 링크 (상세 페이지가 없다면 목록 페이지)
+          });
+        } catch (telegramError) {
+          console.error('부품 정보 수정 텔레그램 알림 전송 중 오류:', telegramError);
+        }
+
       } else {
-        const { error } = await supabase
+        const { data: insertedPart, error } = await supabase
           .from('parts')
-          .insert([partData]);
+          .insert([partData])
+          .select(); // 등록된 데이터 가져오기
         
         if (error) throw error;
         
         showSnackbar(`부품이 성공적으로 등록되었습니다.`, 'success');
+
+        // 텔레그램 알림 전송 (신규 등록)
+        if (insertedPart && insertedPart.length > 0) {
+          const newPart = insertedPart[0];
+          try {
+            await sendTelegramNotification({
+              message: `신규부품등록[${newPart.name}](${newPart.code})`,
+              link: `/parts`
+            });
+          } catch (telegramError) {
+            console.error('신규 부품 등록 텔레그램 알림 전송 중 오류:', telegramError);
+          }
+        }
       }
 
       fetchParts();
@@ -538,6 +564,19 @@ function PartsManagement() {
           message: '저장 완료!',
           current: 100
         }));
+
+        // 텔레그램 알림 전송 (엑셀 업로드)
+        for (const newPart of formattedData) {
+          try {
+            await sendTelegramNotification({
+              message: `신규부품등록(엑셀)[${newPart.name}](${newPart.code})`,
+              link: `/parts`
+            });
+          } catch (telegramError) {
+            console.error('엑셀 부품 등록 텔레그램 알림 전송 중 오류:', telegramError);
+            // 개별 알림 실패는 전체 프로세스를 중단시키지 않도록 처리
+          }
+        }
 
         await fetchParts(); // 목록 새로고침
         
@@ -773,6 +812,17 @@ function PartsManagement() {
             .eq('id', existingPart[0].id);
             
           if (updateError) throw updateError;
+
+          // 텔레그램 알림 (정보 업데이트)
+          try {
+            await sendTelegramNotification({
+              message: `부품정보수정(복사)[${newPart.name}](${newPart.code}) - ${copyTargetBrand}로 업데이트`,
+              link: `/parts`
+            });
+          } catch (telegramError) {
+            console.error('부품 정보 수정(복사) 텔레그램 알림 전송 중 오류:', telegramError);
+          }
+
         } else {
           // 새로 생성
           const { error: insertError } = await supabase
@@ -780,6 +830,16 @@ function PartsManagement() {
             .insert([newPart]);
             
           if (insertError) throw insertError;
+
+          // 텔레그램 알림 (신규 등록)
+          try {
+            await sendTelegramNotification({
+              message: `신규부품등록(복사)[${newPart.name}](${newPart.code}) - ${copyTargetBrand}로 추가`,
+              link: `/parts`
+            });
+          } catch (telegramError) {
+            console.error('신규 부품 등록(복사) 텔레그램 알림 전송 중 오류:', telegramError);
+          }
         }
       }
       
