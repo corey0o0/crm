@@ -453,7 +453,7 @@ function ServiceDetail() {
       try {
         const notificationPayload = {
           type: 'service_update',
-          message: `A/S수정[${formData.customer_name}](${formData.customer_phone})`,
+          message: `A/S 수정 (접수번호: ${id}) - 고객: ${formData.customer_name}, 연락처: ${formData.customer_phone}`,
           link: `/service/${id}`
         };
         const { error: notificationError } = await supabase.from('notifications').insert(notificationPayload);
