@@ -590,23 +590,23 @@ function AddService() {
 
           // 등록 성공 후 알림 추가
           if (insertedData && insertedData.length > 0) {
+            // 알림 데이터 생성
             const notificationsToInsert = insertedData.map(service => ({
               type: 'service_create', // 엑셀을 통한 생성도 service_create 사용
-              message: `A/S등록[${service.customer_name || '정보없음'}](${(service.customer_phone || '정보없음')})`,
+              message: `A/S 등록 (접수번호: ${service.id}) - 고객: ${service.customer_name || '정보없음'}, 연락처: ${service.customer_phone || '정보없음'}`,
               link: `/service/${service.id}`
             }));
             
             const { error: notificationError } = await supabase.from('notifications').insert(notificationsToInsert);
+
             if (notificationError) {
-              console.error('엑셀 업로드 A/S 알림 등록 중 오류:', notificationError);
-              // 알림 등록 실패는 경고로 처리하거나, 사용자에게 별도 안내 가능
+              console.error('A/S 등록 알림 저장 실패 (엑셀/단일):', notificationError);
             } else {
-              console.log(`${insertedData.length}건의 알림 등록 완료`);
-              // 텔레그램 알림 전송
+              // 텔레그램 알림 전송 (엑셀/단일)
               for (const service of insertedData) {
                 try {
                   await sendTelegramNotification({
-                    message: `A/S등록[${service.customer_name || '정보없음'}](${(service.customer_phone || '정보없음')})`,
+                    message: `A/S 등록 (접수번호: ${service.id}) - 고객: ${service.customer_name || '정보없음'}, 연락처: ${service.customer_phone || '정보없음'}`,
                     link: `/service/${service.id}`
                   });
                 } catch (telegramError) {
