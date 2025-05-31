@@ -352,8 +352,8 @@ function PartsManagement() {
         // 텔레그램 알림 전송 (수정)
         try {
           await sendTelegramNotification({
-            message: `부품정보수정[${partData.name}](${partData.code})`,
-            link: `/parts` // 부품 관리 페이지 링크 (상세 페이지가 없다면 목록 페이지)
+            message: `부품 수정 (코드: ${partData.code}) - 품명: ${partData.name}`,
+            link: `/parts`
           });
         } catch (telegramError) {
           console.error('부품 정보 수정 텔레그램 알림 전송 중 오류:', telegramError);
@@ -374,7 +374,7 @@ function PartsManagement() {
           const newPart = insertedPart[0];
           try {
             await sendTelegramNotification({
-              message: `신규부품등록[${newPart.name}](${newPart.code})`,
+              message: `부품 등록 (코드: ${newPart.code}) - 품명: ${newPart.name}`,
               link: `/parts`
             });
           } catch (telegramError) {
@@ -569,7 +569,7 @@ function PartsManagement() {
         for (const newPart of formattedData) {
           try {
             await sendTelegramNotification({
-              message: `신규부품등록(엑셀)[${newPart.name}](${newPart.code})`,
+              message: `부품 등록 (코드: ${newPart.code}) - 품명: ${newPart.name}`,
               link: `/parts`
             });
           } catch (telegramError) {
@@ -816,7 +816,7 @@ function PartsManagement() {
           // 텔레그램 알림 (정보 업데이트)
           try {
             await sendTelegramNotification({
-              message: `부품정보수정(복사)[${newPart.name}](${newPart.code}) - ${copyTargetBrand}로 업데이트`,
+              message: `부품 수정 (코드: ${newPart.code}) - 품명: ${newPart.name}, 브랜드: ${copyTargetBrand}`,
               link: `/parts`
             });
           } catch (telegramError) {
@@ -834,7 +834,7 @@ function PartsManagement() {
           // 텔레그램 알림 (신규 등록)
           try {
             await sendTelegramNotification({
-              message: `신규부품등록(복사)[${newPart.name}](${newPart.code}) - ${copyTargetBrand}로 추가`,
+              message: `부품 등록 (코드: ${newPart.code}) - 품명: ${newPart.name}, 브랜드: ${copyTargetBrand}`,
               link: `/parts`
             });
           } catch (telegramError) {

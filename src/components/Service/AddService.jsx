@@ -592,7 +592,7 @@ function AddService() {
           if (insertedData && insertedData.length > 0) {
             // 알림 데이터 생성
             const notificationsToInsert = insertedData.map(service => ({
-              type: 'service_create', // 엑셀을 통한 생성도 service_create 사용
+              type: 'service_create',
               message: `A/S 등록 (접수번호: ${service.id}) - 고객: ${service.customer_name || '정보없음'}, 연락처: ${service.customer_phone || '정보없음'}`,
               link: `/service/${service.id}`
             }));
@@ -719,7 +719,7 @@ function AddService() {
       try {
         const notificationPayload = {
           type: 'service_create',
-          message: `A/S등록[${formData.customer_name}](${formData.customer_phone})`,
+          message: `A/S 등록 (접수번호: ${insertedService.id}) - 고객: ${formData.customer_name}, 연락처: ${formData.customer_phone}`,
           link: `/service/${insertedService.id}`
         };
         const { error: notificationError } = await supabase.from('notifications').insert(notificationPayload);
@@ -736,7 +736,7 @@ function AddService() {
       if (insertedService && insertedService.id) {
         try {
           await sendTelegramNotification({
-            message: `A/S등록[${formData.customer_name}](${formData.customer_phone})`,
+            message: `A/S 등록 (접수번호: ${insertedService.id}) - 고객: ${formData.customer_name}, 연락처: ${formData.customer_phone}`,
             link: `/service/${insertedService.id}`
           });
         } catch (telegramError) {

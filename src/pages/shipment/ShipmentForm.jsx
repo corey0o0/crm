@@ -504,9 +504,11 @@ function ShipmentForm() {
       
       // 등록 성공 후 알림 추가
       const notificationPayload = {
-        type: 'shipment',
-        message: `출고등록[${shipmentSaveData.customer_name}](${shipmentSaveData.customer_phone})`,
-        link: `/shipment/${shipmentId}`
+        type: isEditMode ? 'shipment_update' : 'shipment_create',
+        message: isEditMode 
+          ? `출고 수정 (출고번호: ${id}) - 고객: ${shipmentSaveData.customer_name}, 연락처: ${shipmentSaveData.customer_phone}`
+          : `출고 등록 (출고번호: ${shipmentId}) - 고객: ${shipmentSaveData.customer_name}, 연락처: ${shipmentSaveData.customer_phone}`,
+        link: `/shipment/${isEditMode ? id : shipmentId}`
       };
       
       const { error: notificationError } = await supabase.from('notifications').insert(notificationPayload);

@@ -908,7 +908,7 @@ function ServiceList() {
               for (const service of insertedData) {
                 try {
                   await sendTelegramNotification({
-                    message: `A/S등록(엑셀)[${service.customer_name || '정보없음'}](${(service.customer_phone || '정보없음')})`,
+                    message: `A/S 등록 (접수번호: ${service.id}) - 고객: ${service.customer_name || '정보없음'}, 연락처: ${service.customer_phone || '정보없음'}`,
                     link: `/service/${service.id}`
                   });
                 } catch (telegramError) {

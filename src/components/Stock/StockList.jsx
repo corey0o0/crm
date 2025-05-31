@@ -107,7 +107,7 @@ function StockList() {
       // 텔레그램 알림 전송
       try {
         await sendTelegramNotification({
-          message: `재고조정[${parts.find(p => p.id === id)?.name}](${parts.find(p => p.id === id)?.code}) - 현재고: ${stockValue}`,
+          message: `재고 조정 (코드: ${parts.find(p => p.id === id)?.code}) - 품명: ${parts.find(p => p.id === id)?.name}, 현재고: ${stockValue}`,
           link: `/stock`
         });
       } catch (telegramError) {
@@ -456,7 +456,7 @@ function StockList() {
         // 텔레그램 알림 전송
         try {
           await sendTelegramNotification({
-            message: `재고조정[${part.name}](${part.code}) - 현재고: ${part.stock}`,
+            message: `재고 조정 (코드: ${part.code}) - 품명: ${part.name}, 현재고: ${part.stock}`,
             link: `/stock`
           });
         } catch (telegramError) {
@@ -532,7 +532,7 @@ function StockList() {
         // 텔레그램 알림 전송
         try {
           await sendTelegramNotification({
-            message: `재고조정[${part.name}](${part.code}) - 현재고: ${part.stock}`,
+            message: `재고 조정 (코드: ${part.code}) - 품명: ${part.name}, 현재고: ${part.stock}`,
             link: `/stock`
           });
         } catch (telegramError) {
