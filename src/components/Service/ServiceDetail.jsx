@@ -453,7 +453,7 @@ function ServiceDetail() {
       try {
         const notificationPayload = {
           type: 'service_update',
-          message: `A/S 수정 (접수번호: ${id}) - 고객: ${formData.customer_name}, 연락처: ${formData.customer_phone}`,
+          message: `A/S수정[${formData.customer_name}](${formData.customer_phone})`,
           link: `/service/${id}`
         };
         const { error: notificationError } = await supabase.from('notifications').insert(notificationPayload);
@@ -466,15 +466,19 @@ function ServiceDetail() {
         notificationSuccess = false;
       }
 
-      // 텔레그램 알림 전송
-      try {
-        await sendTelegramNotification({
-          message: `A/S수정[${formData.customer_name}](${formData.customer_phone})`,
-          link: `/service/${id}`
-        });
-      } catch (telegramError) {
-        console.error('A/S 수정 텔레그램 알림 전송 중 오류:', telegramError);
-        // 텔레그램 전송 실패는 notificationSuccess 상태에 영향을 주지 않거나, 별도 처리 가능
+      // 텔레그램 알림 전송 (수정)
+      if (notificationSuccess) { // DB 알림 등록 성공 시에만 텔레그램 전송
+        try {
+          // const telegramMessage = `A/S 수정 (접수번호: ${id}) - 고객: ${formData.customer_name}, 연락처: ${formData.customer_phone}`;
+          // console.log('텔레그램으로 전송될 메시지:', telegramMessage); // 로그 추가
+          await sendTelegramNotification({
+            message: `A/S수정[${formData.customer_name}](${formData.customer_phone})`,
+            link: `/service/${id}`
+          });
+        } catch (telegramError) {
+          console.error('A/S 수정 텔레그램 알림 전송 중 오류:', telegramError);
+          // 텔레그램 전송 실패는 notificationSuccess 상태에 영향을 주지 않거나, 별도 처리 가능
+        }
       }
 
       // 모든 DB 작업 완료 후 데이터 다시 불러오기
