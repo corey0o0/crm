@@ -144,8 +144,13 @@ function ShipmentList() {
   }, [dateFilter]);
 
   useEffect(() => {
+    fetchShipments();
+  }, [selectedBrand, dateFilter, statusFilter, sellerFilter]);
+
+  useEffect(() => {
     return () => {
-      if (window.location.pathname !== '/shipment') {
+      const currentPath = window.location.pathname;
+      if (!currentPath.startsWith('/shipment')) {
         removeCookie('shipment_selectedBrand');
         removeCookie('shipment_statusFilter');
         removeCookie('shipment_sellerFilter');
@@ -155,21 +160,36 @@ function ShipmentList() {
     };
   }, []);
 
-  useEffect(() => {
-    fetchShipments();
-  }, [selectedBrand]);
-
   const fetchShipments = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      let query = supabase
         .from('shipments')
         .select('*')
-        .eq('brand', selectedBrand)
-        .order('order_date', { ascending: false });
+        .eq('brand', selectedBrand);
+
+      // 날짜 필터 적용
+      if (dateFilter.startDate && dateFilter.endDate) {
+        const startDate = format(new Date(dateFilter.startDate), 'yyyy-MM-dd 00:00:00');
+        const endDate = format(new Date(dateFilter.endDate), 'yyyy-MM-dd 23:59:59');
+        
+        if (dateFilter.type === 'order_date') {
+          query = query
+            .gte('order_date', startDate)
+            .lte('order_date', endDate);
+        } else if (dateFilter.type === 'completion_date') {
+          query = query
+            .gte('shipment_date', startDate)
+            .lte('shipment_date', endDate);
+        }
+      }
+
+      query = query.order('order_date', { ascending: false });
+      const { data, error } = await query;
 
       if (error) throw error;
       
+      // 날짜 기준으로 정렬
       const sortedData = [...(data || [])].sort((a, b) => {
         let dateA, dateB;
         if (dateFilter.type === 'order_date') {
@@ -187,7 +207,8 @@ function ShipmentList() {
       
       setShipments(sortedData);
       
-      const uniqueSellers = new Set(['공홈', '청담매장', '라이클-우리', '기타']);
+      // 판매처 목록 업데이트
+      const uniqueSellers = new Set(['전체', '공홈', '청담매장', '라이클-우리', '기타']);
       data.forEach(shipment => {
         const salesChannelMatch = shipment.note?.match(/\[판매처: (.*?)\]/);
         if (salesChannelMatch && salesChannelMatch[1]) {
@@ -199,7 +220,7 @@ function ShipmentList() {
       console.error('Error fetching shipments:', error);
       setSnackbar({
         open: true,
-        message: '출고 정보를 불러오는데 실패했습니다.',
+        message: '출고 목록을 불러오는 중 오류가 발생했습니다.',
         severity: 'error'
       });
     } finally {
@@ -291,6 +312,7 @@ function ShipmentList() {
 
   const executeSearch = () => {
     setSearchTerm(inputValue);
+    fetchShipments();
   };
 
   const handleKeyPress = (event) => {
