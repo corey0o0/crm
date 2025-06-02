@@ -232,8 +232,8 @@ function SalesStats() {
               name: part.part_name,
               code: part.part_code,
               quantity: part.quantity,
-              price: part.price,
-              total: part.total_price,
+              price: part.price, // shipment_parts의 price를 그대로 사용
+              total: part.total_price, // shipment_parts의 total_price를 그대로 사용
               customer_name: shipment.customer_name,
               customer_phone: shipment.customer_phone,
               sales_channel: extractSalesChannel(shipment.note, shipment.sales_channel),
@@ -435,7 +435,7 @@ function SalesStats() {
       // partsData 상태 업데이트 시 shipmentPartsByDate에 가공된 데이터 할당
       setPartsData({ 
         servicePartsByDate, 
-        shipmentPartsByDate: tempShipmentPartsByDate 
+        shipmentPartsByDate // shipment_parts 기준으로 반드시 반영
       });
 
       // 총 매출 및 통계 계산
