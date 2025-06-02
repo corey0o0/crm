@@ -1262,6 +1262,42 @@ function SalesStats() {
                         <TableCell align="right">{formatCurrency(row.totalSales)}</TableCell>
                       </TableRow>
                     ))}
+                    {/* 합계 행 추가 */}
+                    <TableRow 
+                      sx={{ 
+                        backgroundColor: '#f5f5f5',
+                        '& td': { 
+                          fontWeight: 'bold',
+                          borderTop: '2px solid #e0e0e0'
+                        }
+                      }}
+                    >
+                      <TableCell>합계</TableCell>
+                      <TableCell align="right">
+                        {formatCurrency(salesData.reduce((sum, row) => sum + (row.serviceSales || 0), 0))}
+                      </TableCell>
+                      <TableCell align="right" sx={{ color: 'primary.main' }}>
+                        {formatCurrency(salesData.reduce((sum, row) => sum + (row.serviceSalesAS || 0), 0))}
+                      </TableCell>
+                      <TableCell align="right" sx={{ color: 'secondary.main' }}>
+                        {formatCurrency(salesData.reduce((sum, row) => sum + (row.serviceSalesSell || 0), 0))}
+                      </TableCell>
+                      <TableCell align="right" sx={{ color: 'success.main' }}>
+                        {formatCurrency(salesData.reduce((sum, row) => sum + (row.laborSalesOnly || 0), 0))}
+                      </TableCell>
+                      <TableCell align="right">
+                        {salesData.reduce((sum, row) => sum + (row.serviceCount || 0), 0)}건
+                      </TableCell>
+                      <TableCell align="right">
+                        {formatCurrency(salesData.reduce((sum, row) => sum + (row.shipmentSales || 0), 0))}
+                      </TableCell>
+                      <TableCell align="right">
+                        {salesData.reduce((sum, row) => sum + (row.shipmentCount || 0), 0)}건
+                      </TableCell>
+                      <TableCell align="right">
+                        {formatCurrency(salesData.reduce((sum, row) => sum + (row.totalSales || 0), 0))}
+                      </TableCell>
+                    </TableRow>
                   </TableBody>
                 </Table>
               </TableContainer>
