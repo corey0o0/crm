@@ -255,44 +255,24 @@ function ShipmentList() {
       });
     }
 
-    // 날짜 필터
-    let matchesDate = true;
-    if (dateFilter.startDate || dateFilter.endDate) {
-      filtered = filtered.filter(shipment => {
-        let targetDate;
-        if (dateFilter.type === 'order_date') {
-          targetDate = shipment.created_at;
-        } else if (dateFilter.type === 'completion_date') {
-          targetDate = shipment.shipment_date;
-        }
-        if (targetDate) {
-          const shipmentDate = format(parseISO(targetDate), 'yyyy-MM-dd');
-          if (dateFilter.startDate && shipmentDate < dateFilter.startDate) return false;
-          if (dateFilter.endDate && shipmentDate > dateFilter.endDate) return false;
-          return true;
-        }
-        return false;
-      });
-    }
+    // 날짜 필터 - 메모리에서의 추가 필터링 제거
+    // DB 쿼리에서 이미 필터링된 결과만 사용
 
     // 정렬
     filtered.sort((a, b) => {
       let dateA, dateB;
       if (dateFilter.type === 'order_date') {
-        dateA = a.order_date ? new Date(a.order_date) : new Date(a.created_at || 0);
-        dateB = b.order_date ? new Date(b.order_date) : new Date(b.created_at || 0);
+        dateA = a.order_date ? new Date(a.order_date) : new Date(0);
+        dateB = b.order_date ? new Date(b.order_date) : new Date(0);
       } else if (dateFilter.type === 'completion_date') {
-        dateA = a.shipment_date ? new Date(a.shipment_date) : new Date(a.created_at || 0);
-        dateB = b.shipment_date ? new Date(b.shipment_date) : new Date(b.created_at || 0);
-      } else {
-        dateA = new Date(a.created_at || 0);
-        dateB = new Date(b.created_at || 0);
+        dateA = a.shipment_date ? new Date(a.shipment_date) : new Date(0);
+        dateB = b.shipment_date ? new Date(b.shipment_date) : new Date(0);
       }
       return dateB - dateA;
     });
 
     return filtered;
-  }, [shipments, searchTerm, statusFilter, sellerFilter, dateFilter]);
+  }, [shipments, searchTerm, statusFilter, sellerFilter, dateFilter.type]);
 
   const handleBrandChange = (event, newValue) => {
     setSelectedBrand(newValue);
