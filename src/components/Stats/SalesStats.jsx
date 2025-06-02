@@ -325,6 +325,17 @@ function SalesStats() {
             if (!servicePartsByDate[date]) {
               servicePartsByDate[date] = [];
             }
+            
+            // 디버깅을 위한 로그 추가
+            console.log('Processing service part:', {
+              service_id: item.services.id,
+              name: item.parts.name,
+              usage: item.usage,
+              quantity: item.quantity,
+              price: item.price,
+              total: (item.quantity || 0) * (item.price || 0)
+            });
+
             servicePartsByDate[date].push({
               service_id: item.services.id,
               name: item.parts.name,
@@ -333,7 +344,7 @@ function SalesStats() {
               quantity: item.quantity || 0,
               price: item.price || 0,
               total: (item.quantity || 0) * (item.price || 0),
-              usage: item.usage
+              usage: item.usage || 'AS'  // 기본값을 'AS'로 설정
             });
           }
         });
@@ -427,6 +438,92 @@ function SalesStats() {
         shipmentPartsByDate: tempShipmentPartsByDate 
       });
 
+      // 총 매출 및 통계 계산
+      let newTotalServiceSales = 0;
+      let newTotalServiceSalesAS = 0;
+      let newTotalServiceSalesSell = 0;
+      let newTotalShipmentSales = 0;
+      let newTotalServiceCount = 0;
+      let newTotalShipmentCount = 0;
+      let newTotalLaborSalesOnly = 0;
+      const newTotalCustomerSales = {};
+
+      const uniqueServiceIds = new Set();
+      
+      // A/S 부품 매출 집계
+      Object.values(servicePartsByDate).forEach(dailyParts => {
+        dailyParts.forEach(part => {
+          const isLabor = (part.name && part.name.includes('공임')) || 
+                         (part.usage && part.usage.toString().trim() === '공임') ||
+                         (part.parts_note && part.parts_note.toString().trim() === '공임');
+          
+          if (isLabor) {
+            newTotalLaborSalesOnly += (part.total || 0);
+          } else {
+            // usage에 따른 구분 (기본값은 'AS')
+            if (part.usage === '판매') {
+              newTotalServiceSalesSell += (part.total || 0);
+            } else {
+              newTotalServiceSalesAS += (part.total || 0);
+            }
+          }
+          uniqueServiceIds.add(part.service_id);
+        });
+      });
+
+      // 디버깅을 위한 로그 추가
+      console.log('매출 집계 현황:', {
+        공임: newTotalLaborSalesOnly,
+        AS부품: newTotalServiceSalesAS,
+        판매부품: newTotalServiceSalesSell
+      });
+
+      // 출고 매출 및 판매처별 매출 집계
+      Object.values(tempShipmentPartsByDate).forEach(dailyParts => {
+        dailyParts.forEach(part => {
+          newTotalShipmentSales += (part.total || 0);
+          
+          // 판매처별 매출 집계
+          const salesChannel = part.sales_channel || '미지정';
+          if (!newTotalCustomerSales[salesChannel]) {
+            newTotalCustomerSales[salesChannel] = {
+              name: salesChannel,
+              totalAmount: 0,
+              shipmentCount: 0,
+              processedShipments: new Set()
+            };
+          }
+          newTotalCustomerSales[salesChannel].totalAmount += (part.total || 0);
+          if (!newTotalCustomerSales[salesChannel].processedShipments.has(part.shipment_id)) {
+            newTotalCustomerSales[salesChannel].shipmentCount++;
+            newTotalCustomerSales[salesChannel].processedShipments.add(part.shipment_id);
+          }
+        });
+      });
+
+      // 총 건수 계산
+      newTotalServiceCount = uniqueServiceIds.size;
+      newTotalShipmentCount = new Set(Object.values(tempShipmentPartsByDate)
+        .flatMap(parts => parts.map(p => p.shipment_id))).size;
+
+      // A/S 매출 총계 계산 (공임 + AS부품 + 판매부품)
+      const finalTotalServiceSalesWithLabor = newTotalServiceSalesAS + newTotalServiceSalesSell + newTotalLaborSalesOnly;
+
+      // 디버깅을 위한 로그 추가
+      console.log('A/S 매출 총계:', finalTotalServiceSalesWithLabor);
+
+      setTotalStats({
+        totalServiceSales: finalTotalServiceSalesWithLabor,  // A/S 매출 총계 (공임 + AS부품 + 판매부품)
+        totalShipmentSales: newTotalShipmentSales,
+        totalSales: finalTotalServiceSalesWithLabor + newTotalShipmentSales,
+        totalServiceSalesAS: newTotalServiceSalesAS,        // AS 부품 매출
+        totalServiceSalesSell: newTotalServiceSalesSell,    // 판매 부품 매출
+        totalServiceCount: newTotalServiceCount,            // A/S 건수
+        totalShipmentCount: newTotalShipmentCount,
+        totalCustomerSales: newTotalCustomerSales,
+        totalLaborSalesOnly: newTotalLaborSalesOnly,        // 공임 매출
+      });
+
       // 날짜별 판매 데이터 생성
       const aggregatedSales = {};
       const currentDate = new Date(formattedStartDate);
@@ -448,17 +545,7 @@ function SalesStats() {
         currentDate.setDate(currentDate.getDate() + 1);
       }
 
-      // 전체 매출 통계 변수 초기화
-      let totalServiceSales = 0;
-      let totalShipmentSales = 0;
-      let totalServiceSalesAS = 0;
-      let totalServiceSalesSell = 0;
-      let totalServiceCount = 0;
-      let totalShipmentCount = 0;
-      let totalLaborSales = 0;
-      const totalCustomerSales = {};
-
-      // A/S 부품 매출 집계
+      // A/S 부품 매출 집계 (일별)
       Object.entries(servicePartsByDate).forEach(([date, parts]) => {
         if (aggregatedSales[date]) {
           const dailyServiceIds = new Set();
@@ -467,97 +554,62 @@ function SalesStats() {
           let dailyLaborSales = 0;
 
           parts.forEach(part => {
-            const isLabor = part.parts_note?.includes('공임');
-            const isSell = part.usage === 'sell';
-            const total = part.total || 0;
-
+            const isLabor = (part.name && part.name.includes('공임')) || 
+                           (part.usage && part.usage.toString().trim() === '공임') ||
+                           (part.parts_note && part.parts_note.toString().trim() === '공임');
+            
             if (isLabor) {
-              dailyLaborSales += total;
-            } else if (isSell) {
-              dailyServiceSalesSell += total;
+              dailyLaborSales += (part.total || 0);
             } else {
-              dailyServiceSalesAS += total;
+              // usage 값에 따라 AS와 판매로 구분
+              if (part.usage === '판매') {
+                dailyServiceSalesSell += (part.total || 0);
+              } else {
+                // usage가 '판매'가 아닌 모든 경우를 AS로 처리
+                dailyServiceSalesAS += (part.total || 0);
+              }
             }
-
-            if (part.service_id) {
-              dailyServiceIds.add(part.service_id);
-            }
+            dailyServiceIds.add(part.service_id);
           });
 
-          // 일별 통계 업데이트
+          // 일별 A/S 매출 업데이트
           aggregatedSales[date].serviceSalesAS = dailyServiceSalesAS;
           aggregatedSales[date].serviceSalesSell = dailyServiceSalesSell;
           aggregatedSales[date].laborSalesOnly = dailyLaborSales;
           aggregatedSales[date].serviceSales = dailyServiceSalesAS + dailyServiceSalesSell + dailyLaborSales;
           aggregatedSales[date].serviceCount = dailyServiceIds.size;
-
-          // 전체 통계에 더하기
-          totalServiceSalesAS += dailyServiceSalesAS;
-          totalServiceSalesSell += dailyServiceSalesSell;
-          totalLaborSales += dailyLaborSales;
-          totalServiceSales += dailyServiceSalesAS + dailyServiceSalesSell + dailyLaborSales;
-          totalServiceCount += dailyServiceIds.size;
         }
+      });
+
+      // 일별 출고 매출 및 건수 집계 (원본 shipmentsData 기준)
+      const dailyShipmentAggregates = {};
+      shipmentsData.forEach(shipment => {
+        const dateStr = format(parseISO(shipment.order_date), 'yyyy-MM-dd');
+        if (!dailyShipmentAggregates[dateStr]) {
+          dailyShipmentAggregates[dateStr] = {
+            sales: 0,
+            ids: new Set()
+          };
+        }
+        // shipment.price가 0이거나 undefined인 경우 0을 사용
+        const shipmentPrice = shipment.price || 0;
+        dailyShipmentAggregates[dateStr].sales += shipmentPrice;
+        dailyShipmentAggregates[dateStr].ids.add(shipment.id);
       });
 
       // 출고 매출 집계
-      Object.entries(shipmentPartsByDate).forEach(([date, parts]) => {
+      Object.entries(dailyShipmentAggregates).forEach(([date, data]) => {
         if (aggregatedSales[date]) {
-          const dailyShipmentIds = new Set();
-          let dailyShipmentSales = 0;
-
-          parts.forEach(part => {
-            dailyShipmentSales += part.total || 0;
-            if (part.shipment_id) {
-              dailyShipmentIds.add(part.shipment_id);
-            }
-          });
-
-          // 일별 통계 업데이트
-          aggregatedSales[date].shipmentSales = dailyShipmentSales;
-          aggregatedSales[date].shipmentCount = dailyShipmentIds.size;
-
-          // 전체 통계에 더하기
-          totalShipmentSales += dailyShipmentSales;
-          totalShipmentCount += dailyShipmentIds.size;
+          aggregatedSales[date].shipmentSales = data.sales;
+          aggregatedSales[date].shipmentCount = data.ids.size;
+          // 총 매출 업데이트 (A/S + 출고)
+          aggregatedSales[date].totalSales = 
+            aggregatedSales[date].serviceSales + 
+            aggregatedSales[date].shipmentSales;
         }
       });
 
-      // 일별 총 매출 계산
-      Object.values(aggregatedSales).forEach(day => {
-        day.totalSales = day.serviceSales + day.shipmentSales;
-      });
-
-      // 판매처별 매출 집계
-      shipmentsData.forEach(shipment => {
-        const salesChannel = extractSalesChannel(shipment.note, shipment.sales_channel) || '미지정';
-        if (!totalCustomerSales[salesChannel]) {
-          totalCustomerSales[salesChannel] = {
-            name: salesChannel,
-            totalAmount: 0,
-            shipmentCount: 0,
-          };
-        }
-        totalCustomerSales[salesChannel].totalAmount += shipment.price || 0;
-        totalCustomerSales[salesChannel].shipmentCount += 1;
-      });
-
-      // 상태 업데이트
-      setTotalStats({
-        totalServiceSales: totalServiceSales,
-        totalShipmentSales: totalShipmentSales,
-        totalSales: totalServiceSales + totalShipmentSales,
-        totalServiceSalesAS: totalServiceSalesAS,
-        totalServiceSalesSell: totalServiceSalesSell,
-        totalServiceCount: totalServiceCount,
-        totalShipmentCount: totalShipmentCount,
-        totalCustomerSales: totalCustomerSales
-      });
-
-      setTotalLaborSales(totalLaborSales);
-
-      // salesData 상태 업데이트
-      setSalesData(Object.values(aggregatedSales));
+      setSalesData(Object.values(aggregatedSales).sort((a, b) => new Date(a.date) - new Date(b.date)));
       console.log('매출 데이터 집계 완료 (A/S 포함):', Object.values(aggregatedSales));
       console.log('매출 데이터 조회 완료');
 
@@ -1187,9 +1239,9 @@ function SalesStats() {
                     <TableRow>
                       <TableCell>날짜</TableCell>
                       <TableCell align="right">A/S 매출(공임포함)</TableCell>
-                      <TableCell align="right">A/S매출(AS-부품)</TableCell>
-                      <TableCell align="right">A/S매출(판매-부품)</TableCell>
-                      <TableCell align="right">A/S 공임만</TableCell>
+                      <TableCell align="right" sx={{ color: 'primary.main', fontWeight: 'bold' }}>A/S매출(AS-부품)</TableCell>
+                      <TableCell align="right" sx={{ color: 'secondary.main', fontWeight: 'bold' }}>A/S매출(판매-부품)</TableCell>
+                      <TableCell align="right" sx={{ color: 'success.main', fontWeight: 'bold' }}>A/S 공임만</TableCell>
                       <TableCell align="right">A/S 검수 건수</TableCell>
                       <TableCell align="right">출고 매출</TableCell>
                       <TableCell align="right">출고 건수</TableCell>
