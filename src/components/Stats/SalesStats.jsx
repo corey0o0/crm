@@ -41,6 +41,8 @@ import InventoryIcon from '@mui/icons-material/Inventory';
 import BuildIcon from '@mui/icons-material/Build';
 import StorefrontIcon from '@mui/icons-material/Storefront';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import * as XLSX from 'xlsx';
+import DownloadIcon from '@mui/icons-material/Download';
 
 function SalesStats() {
   const [loading, setLoading] = useState(true);
@@ -718,7 +720,7 @@ function SalesStats() {
         <Typography variant="h6" sx={{ mt: 2, mb: 1, color: 'primary.main', borderBottom: '2px solid', borderColor: 'primary.main', pb: 0.5 }}>
           <BuildIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
           A/S 부품 상세 내역
-            </Typography>
+        </Typography>
         {Object.keys(serviceGroupedByDate).length === 0 ? (
           <Typography sx={{my: 2, color: 'text.secondary'}}>해당 기간에 A/S된 부품 내역이 없습니다.</Typography>
         ) : (
@@ -726,10 +728,10 @@ function SalesStats() {
             <Box key={`service-${date}`} sx={{ mb: 3 }}>
               <Typography variant="subtitle1" gutterBottom sx={{fontWeight: 'bold'}}>
                 {format(parseISO(date), 'MM월 dd일 (EEE)', { locale: ko })} - A/S
-                </Typography>
-                <TableContainer component={Paper} variant="outlined">
-                  <Table size="small">
-                    <TableHead>
+              </Typography>
+              <TableContainer component={Paper} variant="outlined">
+                <Table size="small">
+                  <TableHead>
                     <TableRow sx={{backgroundColor: 'grey.100'}}>
                       <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>제품/부품명</TableCell>
                       <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>부품코드</TableCell>
@@ -738,9 +740,9 @@ function SalesStats() {
                       <TableCell align="right" sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>합계</TableCell>
                       <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>구분</TableCell>
                       <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>세부 구분(Parts Note)</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
                     {parts.map((part, index) => {
                       // Log the first A/S part for debugging
                       if (index === 0 && date === Object.keys(serviceGroupedByDate)[0]) { // 첫 번째 날짜의 첫 번째 항목만 로그
@@ -759,10 +761,10 @@ function SalesStats() {
                         </TableRow>
                       );
                     })}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Box>
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Box>
           ))
         )}
 
@@ -779,10 +781,10 @@ function SalesStats() {
             <Box key={`shipment-${date}`} sx={{ mb: 3 }}>
               <Typography variant="subtitle1" gutterBottom sx={{fontWeight: 'bold'}}>
                 {format(parseISO(date), 'MM월 dd일 (EEE)', { locale: ko })} - 출고
-                </Typography>
-                <TableContainer component={Paper} variant="outlined">
-                  <Table size="small">
-                    <TableHead>
+              </Typography>
+              <TableContainer component={Paper} variant="outlined">
+                <Table size="small">
+                  <TableHead>
                     <TableRow sx={{backgroundColor: 'grey.100'}}>
                       <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>제품/부품명</TableCell>
                       <TableCell align="right" sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>수량</TableCell>
@@ -791,9 +793,9 @@ function SalesStats() {
                       <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>고객명</TableCell>
                       <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>연락처</TableCell>
                       <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>판매채널</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
                     {parts.map((part, index) => {
                       // Log the first shipment part for debugging
                       if (index === 0 && date === Object.keys(shipmentGroupedByDate)[0]) { // 첫 번째 날짜의 첫 번째 항목만 로그
@@ -815,12 +817,12 @@ function SalesStats() {
                         </TableRow>
                       );
                     })}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Box>
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Box>
           ))
-            )}
+        )}
       </Box>
     );
   };
@@ -884,6 +886,44 @@ function SalesStats() {
       text += ` (브랜드: ${currentPeriod.brand})`;
     }
     return text;
+  };
+
+  // 매출 요약 엑셀 다운로드 함수
+  const handleDownloadSummaryExcel = () => {
+    if (!salesData || salesData.length === 0) return;
+    const exportData = salesData.map(row => ({
+      '날짜': row.date,
+      'A/S 매출(공임포함)': row.serviceSales,
+      'A/S매출(AS-부품)': row.serviceSalesAS,
+      'A/S매출(판매-부품)': row.serviceSalesSell,
+      'A/S 공임만': row.laborSalesOnly,
+      'A/S 검수 건수': row.serviceCount,
+      '출고 매출': row.shipmentSales,
+      '출고 건수': row.shipmentCount,
+      '총계': row.totalSales,
+    }));
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '매출요약');
+    XLSX.writeFile(wb, `매출요약_${new Date().toLocaleDateString()}.xlsx`);
+  };
+
+  // 부품 상세 엑셀 다운로드 함수
+  const handleDownloadPartsExcel = () => {
+    if (!partsData || Object.keys(partsData).length === 0) return;
+    const exportData = Object.entries(partsData.servicePartsByDate)
+      .flatMap(([date, parts]) => parts.map(part => ({
+        '날짜': date,
+        '부품명': part.name,
+        '구분': part.usage,
+        '수량': part.quantity,
+        '단가': part.price,
+        '합계': part.total,
+      })));
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '부품상세');
+    XLSX.writeFile(wb, `부품상세_${new Date().toLocaleDateString()}.xlsx`);
   };
 
   if (loading) {
@@ -1189,7 +1229,7 @@ function SalesStats() {
                               {/* firstOrderDate, lastOrderDate는 제거 또는 다른 방식으로 표시 */}
                             </Typography>
                           </Paper>
-        </Grid>
+                        </Grid>
                       ))}
                     {Object.keys(totalStats.totalCustomerSales || {}).length === 0 && (
                       <Grid item xs={12}>
@@ -1233,76 +1273,102 @@ function SalesStats() {
                 </ResponsiveContainer>
               </Box>
             ) : tabValue === 1 ? (
-              <TableContainer>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>날짜</TableCell>
-                      <TableCell align="right">A/S 매출(공임포함)</TableCell>
-                      <TableCell align="right" sx={{ color: 'primary.main', fontWeight: 'bold' }}>A/S매출(AS-부품)</TableCell>
-                      <TableCell align="right" sx={{ color: 'secondary.main', fontWeight: 'bold' }}>A/S매출(판매-부품)</TableCell>
-                      <TableCell align="right" sx={{ color: 'success.main', fontWeight: 'bold' }}>A/S 공임만</TableCell>
-                      <TableCell align="right">A/S 검수 건수</TableCell>
-                      <TableCell align="right">출고 매출</TableCell>
-                      <TableCell align="right">출고 건수</TableCell>
-                      <TableCell align="right">총계</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {salesData.map((row) => (
-                      <TableRow key={row.date}>
-                        <TableCell>{row.date}</TableCell>
-                        <TableCell align="right">{formatCurrency(row.serviceSales)}</TableCell>
-                        <TableCell align="right">{formatCurrency(row.serviceSalesAS)}</TableCell>
-                        <TableCell align="right">{formatCurrency(row.serviceSalesSell)}</TableCell>
-                        <TableCell align="right">{formatCurrency(row.laborSalesOnly)}</TableCell>
-                        <TableCell align="right">{row.serviceCount}</TableCell>
-                        <TableCell align="right">{formatCurrency(row.shipmentSales)}</TableCell>
-                        <TableCell align="right">{row.shipmentCount}</TableCell>
-                        <TableCell align="right">{formatCurrency(row.totalSales)}</TableCell>
+              <>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                  <Typography variant="h6">매출 요약</Typography>
+                  <Button
+                    variant="outlined"
+                    startIcon={<DownloadIcon />}
+                    onClick={handleDownloadSummaryExcel}
+                    size="small"
+                  >
+                    엑셀 다운로드
+                  </Button>
+                </Box>
+                <TableContainer>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>날짜</TableCell>
+                        <TableCell align="right">A/S 매출(공임포함)</TableCell>
+                        <TableCell align="right" sx={{ color: 'primary.main', fontWeight: 'bold' }}>A/S매출(AS-부품)</TableCell>
+                        <TableCell align="right" sx={{ color: 'secondary.main', fontWeight: 'bold' }}>A/S매출(판매-부품)</TableCell>
+                        <TableCell align="right" sx={{ color: 'success.main', fontWeight: 'bold' }}>A/S 공임만</TableCell>
+                        <TableCell align="right">A/S 검수 건수</TableCell>
+                        <TableCell align="right">출고 매출</TableCell>
+                        <TableCell align="right">출고 건수</TableCell>
+                        <TableCell align="right">총계</TableCell>
                       </TableRow>
-                    ))}
-                    {/* 합계 행 추가 */}
-                    <TableRow 
-                      sx={{ 
-                        backgroundColor: '#f5f5f5',
-                        '& td': { 
-                          fontWeight: 'bold',
-                          borderTop: '2px solid #e0e0e0'
-                        }
-                      }}
-                    >
-                      <TableCell>합계</TableCell>
-                      <TableCell align="right">
-                        {formatCurrency(salesData.reduce((sum, row) => sum + (row.serviceSales || 0), 0))}
-                      </TableCell>
-                      <TableCell align="right" sx={{ color: 'primary.main' }}>
-                        {formatCurrency(salesData.reduce((sum, row) => sum + (row.serviceSalesAS || 0), 0))}
-                      </TableCell>
-                      <TableCell align="right" sx={{ color: 'secondary.main' }}>
-                        {formatCurrency(salesData.reduce((sum, row) => sum + (row.serviceSalesSell || 0), 0))}
-                      </TableCell>
-                      <TableCell align="right" sx={{ color: 'success.main' }}>
-                        {formatCurrency(salesData.reduce((sum, row) => sum + (row.laborSalesOnly || 0), 0))}
-                      </TableCell>
-                      <TableCell align="right">
-                        {salesData.reduce((sum, row) => sum + (row.serviceCount || 0), 0)}건
-                      </TableCell>
-                      <TableCell align="right">
-                        {formatCurrency(salesData.reduce((sum, row) => sum + (row.shipmentSales || 0), 0))}
-                      </TableCell>
-                      <TableCell align="right">
-                        {salesData.reduce((sum, row) => sum + (row.shipmentCount || 0), 0)}건
-                      </TableCell>
-                      <TableCell align="right">
-                        {formatCurrency(salesData.reduce((sum, row) => sum + (row.totalSales || 0), 0))}
-                      </TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </TableContainer>
+                    </TableHead>
+                    <TableBody>
+                      {salesData.map((row) => (
+                        <TableRow key={row.date}>
+                          <TableCell>{row.date}</TableCell>
+                          <TableCell align="right">{formatCurrency(row.serviceSales)}</TableCell>
+                          <TableCell align="right">{formatCurrency(row.serviceSalesAS)}</TableCell>
+                          <TableCell align="right">{formatCurrency(row.serviceSalesSell)}</TableCell>
+                          <TableCell align="right">{formatCurrency(row.laborSalesOnly)}</TableCell>
+                          <TableCell align="right">{row.serviceCount}</TableCell>
+                          <TableCell align="right">{formatCurrency(row.shipmentSales)}</TableCell>
+                          <TableCell align="right">{row.shipmentCount}</TableCell>
+                          <TableCell align="right">{formatCurrency(row.totalSales)}</TableCell>
+                        </TableRow>
+                      ))}
+                      {/* 합계 행 추가 */}
+                      <TableRow 
+                        sx={{ 
+                          backgroundColor: '#f5f5f5',
+                          '& td': { 
+                            fontWeight: 'bold',
+                            borderTop: '2px solid #e0e0e0'
+                          }
+                        }}
+                      >
+                        <TableCell>합계</TableCell>
+                        <TableCell align="right">
+                          {formatCurrency(salesData.reduce((sum, row) => sum + (row.serviceSales || 0), 0))}
+                        </TableCell>
+                        <TableCell align="right" sx={{ color: 'primary.main' }}>
+                          {formatCurrency(salesData.reduce((sum, row) => sum + (row.serviceSalesAS || 0), 0))}
+                        </TableCell>
+                        <TableCell align="right" sx={{ color: 'secondary.main' }}>
+                          {formatCurrency(salesData.reduce((sum, row) => sum + (row.serviceSalesSell || 0), 0))}
+                        </TableCell>
+                        <TableCell align="right" sx={{ color: 'success.main' }}>
+                          {formatCurrency(salesData.reduce((sum, row) => sum + (row.laborSalesOnly || 0), 0))}
+                        </TableCell>
+                        <TableCell align="right">
+                          {salesData.reduce((sum, row) => sum + (row.serviceCount || 0), 0)}건
+                        </TableCell>
+                        <TableCell align="right">
+                          {formatCurrency(salesData.reduce((sum, row) => sum + (row.shipmentSales || 0), 0))}
+                        </TableCell>
+                        <TableCell align="right">
+                          {salesData.reduce((sum, row) => sum + (row.shipmentCount || 0), 0)}건
+                        </TableCell>
+                        <TableCell align="right">
+                          {formatCurrency(salesData.reduce((sum, row) => sum + (row.totalSales || 0), 0))}
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </>
             ) : (
-              renderPartsDetail()
+              <>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                  <Typography variant="h6">부품 상세</Typography>
+                  <Button
+                    variant="outlined"
+                    startIcon={<DownloadIcon />}
+                    onClick={handleDownloadPartsExcel}
+                    size="small"
+                  >
+                    엑셀 다운로드
+                  </Button>
+                </Box>
+                {renderPartsDetail()}
+              </>
             )}
           </Box>
         </Paper>
