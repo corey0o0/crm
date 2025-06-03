@@ -36,7 +36,9 @@ import {
   Delete as DeleteIcon,
   Search as SearchIcon,
   Refresh as RefreshIcon,
-  CloudUpload as CloudUploadIcon
+  CloudUpload as CloudUploadIcon,
+  Print as PrintIcon,
+  Receipt as ReceiptIcon
 } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -1154,6 +1156,148 @@ function ShipmentForm() {
   const determineCategoryForExcel = (code, name, price) => { // 이름 변경 또는 determinePartCategory 활용
     // 이 함수는 determinePartCategory({code, name, price}) 형태로 호출 가능
     return determinePartCategory({ code, name, price, note: null }); // note는 없다고 가정
+  };
+
+  // 견적서 출력 함수 (이미지 양식 참고)
+  const handlePrintEstimate = () => {
+    const today = new Date();
+    const estimateTotal = selectedParts.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 1), 0);
+    const taxTotal = Math.round(estimateTotal * 0.1);
+    const totalInKorean = '영'; // 숫자 한글 변환 함수 필요시 추가
+    const printHtml = `
+      <html>
+        <head>
+          <title>견적서</title>
+          <style>
+            body { font-family: 'Noto Sans KR', Arial, sans-serif; margin: 0; padding: 40px; }
+            .title { font-size: 2.2rem; font-weight: bold; margin-bottom: 24px; }
+            .info-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+            .info-table td { padding: 6px 10px; font-size: 1rem; border: none; }
+            .info-table .label { font-weight: 500; width: 110px; }
+            .info-table .value { font-weight: 400; }
+            .info-table .section { font-weight: 500; width: 80px; }
+            .info-table .right { text-align: right; }
+            .info-table .bold { font-weight: bold; }
+            .info-table .border-b { border-bottom: 1.5px solid #222; }
+            .estimate-box {
+              border: 2.5px solid #111;
+              margin: 18px 0 12px 0;
+              padding: 12px 0;
+              display: flex;
+              align-items: center;
+              font-size: 1.1rem;
+              font-weight: 500;
+            }
+            .estimate-box > div { flex: 1; text-align: center; }
+            .estimate-box .label { font-weight: bold; font-size: 1.1rem; }
+            .estimate-box .amount { font-size: 1.2rem; font-weight: bold; }
+            .estimate-box .note { font-size: 1rem; text-align: right; }
+            .estimate-table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 0;
+              font-size: 1rem;
+            }
+            .estimate-table th, .estimate-table td {
+              border: 1.5px solid #222;
+              padding: 8px 6px;
+              text-align: center;
+            }
+            .estimate-table th {
+              background: #f8f9fa;
+              font-weight: 500;
+            }
+            .estimate-table .empty-row td { height: 32px; }
+            .estimate-table .total-row { font-weight: bold; background: #f8f9fa; }
+            .validity { margin-top: 18px; font-size: 1rem; color: #444; }
+          </style>
+        </head>
+        <body>
+          <div class="title">견적서</div>
+          <table class="info-table">
+            <tr>
+              <td class="label">수&nbsp;&nbsp;&nbsp;&nbsp;신</td>
+              <td class="value">${shipmentData.customer_name || ''}</td>
+              <td class="label">상&nbsp;&nbsp;&nbsp;&nbsp;호</td>
+              <td class="value">(주)슬림팩</td>
+              <td class="label">대표</td>
+              <td class="value"> </td>
+            </tr>
+            <tr>
+              <td class="label">견적명</td>
+              <td class="value">${shipmentData.product_name || ''} 출고</td>
+              <td class="label">사업자번호</td>
+              <td class="value">230-81-03757</td>
+              <td class="label">전화번호</td>
+              <td class="value">02-548-8890</td>
+            </tr>
+            <tr>
+              <td class="label">견적날짜</td>
+              <td class="value">${today.getFullYear()}년 ${String(today.getMonth()+1).padStart(2,'0')}월 ${String(today.getDate()).padStart(2,'0')}일</td>
+              <td class="label">주소</td>
+              <td class="value" colspan="3">서울시 강남구 도산대로55길 18 1층</td>
+            </tr>
+            <tr>
+              <td class="label">유효기간</td>
+              <td class="value">견적일로부터 1개월</td>
+              <td class="label">E-mail</td>
+              <td class="value" colspan="3"></td>
+            </tr>
+          </table>
+          <div class="estimate-box">
+            <div class="label">견적금액</div>
+            <div>일금&nbsp;${totalInKorean}</div>
+            <div class="amount">( ￦${estimateTotal.toLocaleString()} )</div>
+            <div class="note">※ 부가세포함</div>
+          </div>
+          <table class="estimate-table">
+            <thead>
+              <tr>
+                <th>항목</th>
+                <th>세부내용</th>
+                <th>수량</th>
+                <th>단가</th>
+                <th>금액</th>
+                <th>세액</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${selectedParts.map((part, idx) => {
+                const amount = (part.price || 0) * (part.quantity || 1);
+                const tax = Math.round(amount * 0.1);
+                return `
+                  <tr>
+                    <td>${idx + 1}</td>
+                    <td>${part.part_name}</td>
+                    <td>${part.quantity}</td>
+                    <td>${(part.price || 0).toLocaleString()}</td>
+                    <td>${amount.toLocaleString()}</td>
+                    <td>${tax.toLocaleString()}</td>
+                  </tr>
+                `;
+              }).join('')}
+              ${Array.from({length: Math.max(5 - selectedParts.length, 0)}).map(() => `
+                <tr class="empty-row">
+                  <td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td>
+                </tr>
+              `).join('')}
+              <tr class="total-row">
+                <td colspan="4">합계</td>
+                <td>${estimateTotal.toLocaleString()}</td>
+                <td>${taxTotal.toLocaleString()}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="validity">※ 본 견적서의 유효기간은 견적일로부터 1개월입니다.</div>
+        </body>
+      </html>
+    `;
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(printHtml);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
   };
 
   if (loading) {

@@ -61,7 +61,7 @@ import {
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import { formatKoreanDateTime } from '../../utils/dateUtils';
-import { sendTelegramNotification } from '../../lib/telegram'; // 텔레그램 유틸리티 함수 import
+import { sendTelegramNotification } from '../../lib/telegram';
 
 // PDF worker 설정
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
@@ -1245,6 +1245,181 @@ function ServiceDetail() {
     printWindow.close();
   };
 
+  // 견적서 출력 함수
+  const handlePrintEstimate = () => {
+    const today = new Date();
+    const validUntil = new Date();
+    validUntil.setMonth(validUntil.getMonth() + 1);  // 1달로 수정
+
+    const estimateHtml = `
+      <html>
+        <head>
+          <title>견적서</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap');
+            body { 
+              font-family: 'Noto Sans KR', sans-serif; 
+              padding: 40px; 
+              max-width: 800px; 
+              margin: 0 auto;
+            }
+            h1 { 
+              font-size: 32px; 
+              font-weight: 700;
+              margin-bottom: 40px;
+              text-align: left;
+            }
+            .header-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 20px;
+              margin-bottom: 40px;
+            }
+            .header-item {
+              display: grid;
+              grid-template-columns: 120px 1fr;
+              border-bottom: 1px solid #ddd;
+              padding: 8px 0;
+            }
+            .header-label {
+              font-weight: 500;
+            }
+            .estimate-amount {
+              border: 2px solid #000;
+              padding: 15px;
+              margin: 20px 0;
+              text-align: center;
+              font-size: 18px;
+            }
+            table { 
+              width: 100%; 
+              border-collapse: collapse; 
+              margin: 20px 0;
+              border-top: 2px solid #000;
+            }
+            th, td { 
+              border: 1px solid #ddd; 
+              padding: 12px; 
+              text-align: center;
+            }
+            th { 
+              background: #f8f9fa;
+              font-weight: 500;
+            }
+            .total-row { 
+              font-weight: 500;
+              background: #f8f9fa;
+            }
+            .amount-cell {
+              text-align: right;
+            }
+            .note-section {
+              margin-top: 30px;
+              border-top: 1px solid #ddd;
+              padding-top: 20px;
+            }
+            .note-title {
+              font-weight: 500;
+              margin-bottom: 10px;
+            }
+            .note-content {
+              white-space: pre-line;
+              line-height: 1.6;
+            }
+          </style>
+        </head>
+        <body>
+          <h1>견적서</h1>
+          <div class="header-grid">
+            <div>
+              <div class="header-item">
+                <span class="header-label">수신</span>
+                <span>${formData?.customer_name || ''}</span>
+              </div>
+              <div class="header-item">
+                <span class="header-label">견적명</span>
+                <span>${formData?.product_name || ''} 수리</span>
+              </div>
+              <div class="header-item">
+                <span class="header-label">견적날짜</span>
+                <span>${today.toLocaleDateString('ko-KR')}</span>
+              </div>
+              <div class="header-item">
+                <span class="header-label">유효기간</span>
+                <span>견적일로부터 1개월</span>
+              </div>
+            </div>
+            <div>
+              <div class="header-item">
+                <span class="header-label">상호</span>
+                <span>(주)슬림팩</span>
+              </div>
+              <div class="header-item">
+                <span class="header-label">사업자번호</span>
+                <span>230-81-03757</span>
+              </div>
+              <div class="header-item">
+                <span class="header-label">주소</span>
+                <span>서울시 강남구 도산대로55길 18 1층</span>
+              </div>
+              <div class="header-item">
+                <span class="header-label">연락처</span>
+                <span>02-548-8890</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="estimate-amount">
+            견적금액: 일금 ${selectedParts.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 1), 0).toLocaleString()}원 (￦${selectedParts.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 1), 0).toLocaleString()}) ※ 부가세포함
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>세부내용</th>
+                <th>수량</th>
+                <th>단가</th>
+                <th>금액</th>
+                <th>세액</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${selectedParts.map(part => {
+                const amount = (part.price || 0) * (part.quantity || 1);
+                const tax = Math.round(amount * 0.1);
+                return `
+                  <tr>
+                    <td>${part.name}</td>
+                    <td>${part.quantity}</td>
+                    <td class="amount-cell">${(part.price || 0).toLocaleString()}</td>
+                    <td class="amount-cell">${amount.toLocaleString()}</td>
+                    <td class="amount-cell">${tax.toLocaleString()}</td>
+                  </tr>
+                `;
+              }).join('')}
+              <tr class="total-row">
+                <td colspan="3" style="text-align:center;">합계</td>
+                <td class="amount-cell">${selectedParts.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 1), 0).toLocaleString()}</td>
+                <td class="amount-cell">${Math.round(selectedParts.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 1), 0) * 0.1).toLocaleString()}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="note-section">
+            <div class="note-title">비고</div>
+            <div class="note-content">${formData.solution || ''}</div>
+          </div>
+        </body>
+      </html>
+    `;
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(estimateHtml);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -2105,6 +2280,21 @@ function ServiceDetail() {
                 }}
               >
                 취소
+              </Button>
+              <Button 
+                onClick={handlePrintEstimate}
+                startIcon={<ReceiptIcon />}
+                sx={{
+                  color: '#3182f6',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  textTransform: 'none',
+                  '&:hover': {
+                    bgcolor: 'rgba(49, 130, 246, 0.04)'
+                  }
+                }}
+              >
+                견적서
               </Button>
               <Button 
                 onClick={handlePrint}

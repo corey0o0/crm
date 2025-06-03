@@ -39,20 +39,22 @@ import {
   FormControlLabel,
   Checkbox
 } from '@mui/material';
-import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-import DownloadIcon from '@mui/icons-material/Download';
-import ReceiptIcon from '@mui/icons-material/Receipt';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import SearchIcon from '@mui/icons-material/Search';
-import DeleteIcon from '@mui/icons-material/Delete';
-import AddIcon from '@mui/icons-material/Add';
-import RemoveIcon from '@mui/icons-material/Remove';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import PrintIcon from '@mui/icons-material/Print';
+import {
+  ArrowBack as ArrowBackIcon,
+  Edit as EditIcon,
+  Print as PrintIcon,
+  Save as SaveIcon,
+  Delete as DeleteIcon,
+  Search as SearchIcon,
+  Add as AddIcon,
+  Receipt as ReceiptIcon,
+  CloudUpload as CloudUploadIcon,
+  Close as CloseIcon,
+  OpenInNew as OpenInNewIcon,
+  Visibility as VisibilityIcon
+} from '@mui/icons-material';
 import { API_CONFIG } from '../../config/api';
 import XLSX from 'xlsx';
-import { Close as CloseIcon } from '@mui/icons-material';
 import { formatKoreanDateTime } from '../../utils/dateUtils';
 import { sendTelegramNotification } from '../../lib/telegram'; // 텔레그램 유틸리티 함수 import
 
@@ -1175,6 +1177,254 @@ function AddService() {
     }
   });
 
+  // handlePrintEstimate 함수 교체 (ServiceDetail.jsx 참고)
+  const handlePrintEstimate = () => {
+    const today = new Date();
+    const estimateTotal = selectedParts.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 1), 0);
+    const estimateHtml = `
+      <html>
+        <head>
+          <title>견적서</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap');
+            body { 
+              font-family: 'Noto Sans KR', sans-serif; 
+              padding: 40px; 
+              max-width: 800px; 
+              margin: 0 auto;
+            }
+            h1 { 
+              font-size: 32px; 
+              font-weight: 700;
+              margin-bottom: 40px;
+              text-align: left;
+            }
+            .header-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 20px;
+              margin-bottom: 40px;
+            }
+            .header-item {
+              display: grid;
+              grid-template-columns: 120px 1fr;
+              border-bottom: 1px solid #ddd;
+              padding: 8px 0;
+            }
+            .header-label {
+              font-weight: 500;
+            }
+            .estimate-amount {
+              border: 2px solid #000;
+              padding: 15px;
+              margin: 20px 0;
+              text-align: center;
+              font-size: 18px;
+            }
+            table { 
+              width: 100%; 
+              border-collapse: collapse; 
+              margin: 20px 0;
+              border-top: 2px solid #000;
+            }
+            th, td { 
+              border: 1px solid #ddd; 
+              padding: 12px; 
+              text-align: center;
+            }
+            th { 
+              background: #f8f9fa;
+              font-weight: 500;
+            }
+            .total-row { 
+              font-weight: 500;
+              background: #f8f9fa;
+            }
+            .amount-cell {
+              text-align: right;
+            }
+            .note-section {
+              margin-top: 30px;
+              border-top: 1px solid #ddd;
+              padding-top: 20px;
+            }
+            .note-title {
+              font-weight: 500;
+              margin-bottom: 10px;
+            }
+            .note-content {
+              white-space: pre-line;
+              line-height: 1.6;
+            }
+          </style>
+        </head>
+        <body>
+          <h1>견적서</h1>
+          <div class="header-grid">
+            <div>
+              <div class="header-item">
+                <span class="header-label">수신</span>
+                <span>${formData.customer_name || ''}</span>
+              </div>
+              <div class="header-item">
+                <span class="header-label">견적명</span>
+                <span>${formData.product_name || ''} 수리</span>
+              </div>
+              <div class="header-item">
+                <span class="header-label">견적날짜</span>
+                <span>${today.toLocaleDateString('ko-KR')}</span>
+              </div>
+              <div class="header-item">
+                <span class="header-label">유효기간</span>
+                <span>견적일로부터 1개월</span>
+              </div>
+            </div>
+            <div>
+              <div class="header-item">
+                <span class="header-label">상호</span>
+                <span>(주)슬림팩</span>
+              </div>
+              <div class="header-item">
+                <span class="header-label">사업자번호</span>
+                <span>230-81-03757</span>
+              </div>
+              <div class="header-item">
+                <span class="header-label">주소</span>
+                <span>서울시 강남구 도산대로55길 18 1층</span>
+              </div>
+              <div class="header-item">
+                <span class="header-label">연락처</span>
+                <span>02-548-8890</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="estimate-amount">
+            견적금액: 일금 ${estimateTotal.toLocaleString()}원 (￦${estimateTotal.toLocaleString()}) ※ 부가세포함
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>세부내용</th>
+                <th>수량</th>
+                <th>단가</th>
+                <th>금액</th>
+                <th>세액</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${selectedParts.map(part => {
+                const amount = (part.price || 0) * (part.quantity || 1);
+                const tax = Math.round(amount * 0.1);
+                return `
+                  <tr>
+                    <td>${part.name}</td>
+                    <td>${part.quantity}</td>
+                    <td class="amount-cell">${(part.price || 0).toLocaleString()}</td>
+                    <td class="amount-cell">${amount.toLocaleString()}</td>
+                    <td class="amount-cell">${tax.toLocaleString()}</td>
+                  </tr>
+                `;
+              }).join('')}
+              <tr class="total-row">
+                <td colspan="3" style="text-align:center;">합계</td>
+                <td class="amount-cell">${estimateTotal.toLocaleString()}</td>
+                <td class="amount-cell">${Math.round(estimateTotal * 0.1).toLocaleString()}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="note-section">
+            <div class="note-title">비고</div>
+            <div class="note-content">${formData.solution || ''}</div>
+          </div>
+        </body>
+      </html>
+    `;
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(estimateHtml);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
+  };
+
+  // 하단 버튼 영역 수정
+  <Box sx={{ 
+    mt: 5, 
+    pt: 3, 
+    display: 'flex', 
+    justifyContent: 'space-between', 
+    gap: 2,
+    borderTop: '1px solid #f2f2f2' 
+  }}>
+    <Box />
+    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+      <Button 
+        onClick={handleCancel}
+        sx={{
+          color: '#4e5968',
+          fontSize: '0.95rem',
+          fontWeight: 600,
+          textTransform: 'none',
+          '&:hover': {
+            bgcolor: '#f2f4f6'
+          }
+        }}
+      >
+        취소
+      </Button>
+      <Button 
+        onClick={handlePrintEstimate}
+        startIcon={<ReceiptIcon />}
+        sx={{
+          color: '#3182f6',
+          fontSize: '0.95rem',
+          fontWeight: 600,
+          textTransform: 'none',
+          '&:hover': {
+            bgcolor: 'rgba(49, 130, 246, 0.04)'
+          }
+        }}
+      >
+        견적서
+      </Button>
+      <Button 
+        onClick={handlePrint}
+        startIcon={<PrintIcon />}
+        sx={{
+          color: '#3182f6',
+          fontSize: '0.95rem',
+          fontWeight: 600,
+          textTransform: 'none',
+          '&:hover': {
+            bgcolor: 'rgba(49, 130, 246, 0.04)'
+          }
+        }}
+      >
+        프린트
+      </Button>
+      <Button 
+        type="submit"
+        variant="contained"
+        disabled={submitting}
+        sx={{
+          bgcolor: '#3182f6',
+          fontSize: '0.95rem',
+          fontWeight: 600,
+          textTransform: 'none',
+          px: 4,
+          '&:hover': {
+            bgcolor: '#1b64da'
+          }
+        }}
+      >
+        등록
+      </Button>
+    </Box>
+  </Box>
+
   return (
     <Box sx={{ mt: 3, mx: 'auto', width: '95%', maxWidth: 1400 }}>
       <Box sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
@@ -1863,6 +2113,21 @@ function AddService() {
                 }}
               >
                 취소
+              </Button>
+              <Button 
+                onClick={handlePrintEstimate}
+                startIcon={<ReceiptIcon />}
+                sx={{
+                  color: '#3182f6',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  textTransform: 'none',
+                  '&:hover': {
+                    bgcolor: 'rgba(49, 130, 246, 0.04)'
+                  }
+                }}
+              >
+                견적서
               </Button>
               <Button 
                 onClick={handlePrint}
