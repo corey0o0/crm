@@ -535,20 +535,43 @@ function ShipmentDetail() {
     printWindow.close();
   };
 
+  // 한글 금액 변환 함수(간단 버전)
+  function numberToKorean(num) {
+    const hanA = ["", "일", "이", "삼", "사", "오", "육", "칠", "팔", "구", "십"];
+    const danA = ["", "만", "억", "조", "경"];
+    let result = "";
+    let i = 0;
+    while (num > 0) {
+      let str = "";
+      let tmpNum = num % 10000;
+      num = Math.floor(num / 10000);
+      let unit = 1000;
+      while (unit > 0) {
+        let digit = Math.floor(tmpNum / unit);
+        if (digit > 0) str += hanA[digit] + (unit > 1 ? (unit === 1000 ? "천" : unit === 100 ? "백" : "십") : "");
+        tmpNum %= unit;
+        unit = Math.floor(unit / 10);
+      }
+      if (str !== "") result = str + danA[i] + result;
+      i++;
+    }
+    return result === "" ? "영" : result + "원";
+  }
+
   const handlePrintEstimate = () => {
     const today = new Date();
     const estimateTotal = shipmentParts.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 1), 0);
     const taxTotal = Math.round(estimateTotal * 0.1);
-    const totalInKorean = '영'; // 숫자 한글 변환 함수 필요시 추가
-    const printHtml = `
+    const totalInKorean = numberToKorean(estimateTotal);
+    const printContent = `
       <html>
         <head>
           <title>견적서</title>
           <style>
             body { font-family: 'Noto Sans KR', Arial, sans-serif; margin: 0; padding: 40px; }
-            .title { font-size: 2.2rem; font-weight: bold; margin-bottom: 32px; margin-top: 10px; letter-spacing: 1px; }
-            .info-table { width: 100%; border-collapse: separate; border-spacing: 0 6px; margin-bottom: 28px; }
-            .info-table td { padding: 10px 12px 10px 10px; font-size: 1.05rem; border: none; }
+            .title { font-size: 2.2rem; font-weight: bold; margin-bottom: 24px; }
+            .info-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+            .info-table td { padding: 7px 12px; font-size: 1rem; border: none; }
             .info-table .label { font-weight: 500; width: 110px; }
             .info-table .value { font-weight: 400; }
             .info-table .section { font-weight: 500; width: 80px; }
@@ -557,17 +580,17 @@ function ShipmentDetail() {
             .info-table .border-b { border-bottom: 1.5px solid #222; }
             .estimate-box {
               border: 2.5px solid #111;
-              margin: 32px 0 16px 0;
-              padding: 16px 0;
+              margin: 18px 0 12px 0;
+              padding: 12px 0;
               display: flex;
               align-items: center;
-              font-size: 1.13rem;
+              font-size: 1.1rem;
               font-weight: 500;
             }
             .estimate-box > div { flex: 1; text-align: center; }
-            .estimate-box .label { font-weight: bold; font-size: 1.13rem; }
-            .estimate-box .amount { font-size: 1.22rem; font-weight: bold; }
-            .estimate-box .note { font-size: 1.02rem; text-align: right; }
+            .estimate-box .label { font-weight: bold; font-size: 1.1rem; }
+            .estimate-box .amount { font-size: 1.2rem; font-weight: bold; }
+            .estimate-box .note { font-size: 1rem; text-align: right; }
             .estimate-table {
               width: 100%;
               border-collapse: collapse;
@@ -576,8 +599,10 @@ function ShipmentDetail() {
             }
             .estimate-table th, .estimate-table td {
               border: 1.5px solid #222;
-              padding: 8px 6px;
+              padding: 10px 8px;
               text-align: center;
+              word-break: keep-all;
+              white-space: nowrap;
             }
             .estimate-table th {
               background: #f8f9fa;
@@ -669,7 +694,7 @@ function ShipmentDetail() {
       </html>
     `;
     const printWindow = window.open('', '_blank');
-    printWindow.document.write(printHtml);
+    printWindow.document.write(printContent);
     printWindow.document.close();
     printWindow.focus();
     printWindow.print();
