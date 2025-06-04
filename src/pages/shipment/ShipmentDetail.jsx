@@ -570,26 +570,26 @@ function ShipmentDetail() {
           <style>
             body { font-family: 'Noto Sans KR', Arial, sans-serif; margin: 0; padding: 40px; }
             .title { font-size: 2.2rem; font-weight: bold; margin-bottom: 24px; }
-            .info-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
-            .info-table td { padding: 7px 12px; font-size: 1rem; border: none; }
-            .info-table .label { font-weight: 500; width: 110px; }
-            .info-table .value { font-weight: 400; }
-            .info-table .section { font-weight: 500; width: 80px; }
-            .info-table .right { text-align: right; }
-            .info-table .bold { font-weight: bold; }
-            .info-table .border-b { border-bottom: 1.5px solid #222; }
+            .estimate-header {
+              display: flex;
+              justify-content: space-between;
+              margin-bottom: 18px;
+              gap: 32px;
+              width: 100%;
+              box-sizing: border-box;
+            }
+            .customer-info { flex: 1; min-width: 220px; }
+            .company-info { flex: 1; min-width: 260px; text-align: right; }
             .estimate-box {
               border: 2.5px solid #111;
               margin: 18px 0 12px 0;
               padding: 12px 0;
-              display: flex;
-              align-items: center;
-              font-size: 1.1rem;
-              font-weight: 500;
+              text-align: center;
+              font-size: 1.2rem;
+              font-weight: 600;
+              width: 100%;
+              box-sizing: border-box;
             }
-            .estimate-box > div { flex: 1; text-align: center; }
-            .estimate-box .label { font-weight: bold; font-size: 1.1rem; }
-            .estimate-box .amount { font-size: 1.2rem; font-weight: bold; }
             .estimate-box .note { font-size: 1rem; text-align: right; }
             .estimate-table {
               width: 100%;
@@ -615,41 +615,26 @@ function ShipmentDetail() {
         </head>
         <body>
           <div class="title">견적서</div>
-          <table class="info-table">
-            <tr>
-              <td class="label">수&nbsp;&nbsp;&nbsp;&nbsp;신</td>
-              <td class="value">${shipmentData?.customer_name || ''}</td>
-              <td class="label">상&nbsp;&nbsp;&nbsp;&nbsp;호</td>
-              <td class="value">(주)슬림팩</td>
-              <td class="label">대표</td>
-              <td class="value"> </td>
-            </tr>
-            <tr>
-              <td class="label">견적명</td>
-              <td class="value">${shipmentData?.product_name || ''} 출고</td>
-              <td class="label">사업자번호</td>
-              <td class="value">230-81-03757</td>
-              <td class="label">전화번호</td>
-              <td class="value">02-548-8890</td>
-            </tr>
-            <tr>
-              <td class="label">견적날짜</td>
-              <td class="value">${today.getFullYear()}년 ${String(today.getMonth()+1).padStart(2,'0')}월 ${String(today.getDate()).padStart(2,'0')}일</td>
-              <td class="label">주소</td>
-              <td class="value" colspan="3">서울시 강남구 도산대로55길 18 1층</td>
-            </tr>
-            <tr>
-              <td class="label">유효기간</td>
-              <td class="value">견적일로부터 1개월</td>
-              <td class="label">E-mail</td>
-              <td class="value" colspan="3"></td>
-            </tr>
-          </table>
+          <div class="estimate-header">
+            <div class="customer-info">
+              <div style="font-weight:600; margin-bottom:8px; font-size:1.08rem;">고객 정보</div>
+              <div><b>고객명</b>: ${shipmentData?.customer_name || ''}</div>
+              <div><b>연락처</b>: ${shipmentData?.customer_phone || ''}</div>
+              <div><b>견적날짜</b>: ${today.getFullYear()}년 ${String(today.getMonth()+1).padStart(2,'0')}월 ${String(today.getDate()).padStart(2,'0')}일</div>
+              <div><b>유효기간</b>: 견적일로부터 1개월</div>
+            </div>
+            <div class="company-info">
+              <div style="font-weight:600; margin-bottom:8px; font-size:1.08rem;">회사 정보</div>
+              <div><b>상호</b>: (주)슬림팩</div>
+              <div><b>사업자번호</b>: 230-81-03757</div>
+              <div><b>대표</b>: 이영종</div>
+              <div><b>주소</b>: 서울시 강남구 도산대로55길 18 1층</div>
+              <div><b>연락처</b>: 02-548-8890</div>
+            </div>
+          </div>
           <div class="estimate-box">
-            <div class="label">견적금액</div>
-            <div>일금&nbsp;${totalInKorean}</div>
-            <div class="amount">( ￦${estimateTotal.toLocaleString()} )</div>
-            <div class="note">※ 부가세포함</div>
+            견적금액 <span style="margin-left:16px; font-size:1.25rem; font-weight:700;">( ￦${estimateTotal.toLocaleString()}원 )</span>
+            <span class="note" style="margin-left:16px; font-size:1rem; font-weight:400;">※ 부가세포함</span>
           </div>
           <table class="estimate-table">
             <thead>
