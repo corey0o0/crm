@@ -570,11 +570,11 @@ function ShipmentDetail() {
           <style>
             body { font-family: 'Noto Sans KR', Arial, sans-serif; margin: 0; padding: 40px; }
             .title { font-size: 2.2rem; font-weight: bold; margin-bottom: 24px; }
-            .estimate-header {
-              display: flex;
-              justify-content: space-between;
-              margin-bottom: 18px;
-              gap: 32px;
+            .estimate-header { 
+              display: flex; 
+              justify-content: space-between; 
+              margin-bottom: 18px; 
+              gap: 32px; 
               width: 100%;
               box-sizing: border-box;
             }
@@ -593,6 +593,7 @@ function ShipmentDetail() {
             .estimate-box .note { font-size: 1rem; text-align: right; }
             .estimate-table {
               width: 100%;
+              box-sizing: border-box;
               border-collapse: collapse;
               margin-top: 0;
               font-size: 1rem;
