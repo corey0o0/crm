@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import {
   Box,
@@ -76,6 +76,7 @@ function SalesStats() {
   const currentMonth = getMonth(new Date());
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const [currentPeriod, setCurrentPeriod] = useState(null);
+  const partsPriceMapRef = useRef(new Map());
 
   // 월별 버튼 클릭 핸들러
   const handleMonthSelect = (monthIndex) => {
@@ -163,6 +164,7 @@ function SalesStats() {
           }
         });
       }
+      partsPriceMapRef.current = partsPriceMap;
       console.log('[DEBUG] Parts Price Map:', partsPriceMap);
 
       // 날짜 범위를 'YYYY-MM-DD 00:00:00' ~ 'YYYY-MM-DD 23:59:59'로 변환
@@ -543,7 +545,8 @@ function SalesStats() {
           shipmentSales: 0,
           shipmentCount: 0,
           laborSalesOnly: 0,
-          totalSales: 0
+          totalSales: 0,
+          warrantyNormalValue: 0
         };
         currentDate.setDate(currentDate.getDate() + 1);
       }
@@ -555,12 +558,11 @@ function SalesStats() {
           let dailyServiceSalesAS = 0;
           let dailyServiceSalesSell = 0;
           let dailyLaborSales = 0;
-
+          let warrantyNormalValue = 0;
           parts.forEach(part => {
             const isLabor = (part.name && part.name.includes('공임')) || 
                            (part.usage && part.usage.toString().trim() === '공임') ||
                            (part.parts_note && part.parts_note.toString().trim() === '공임');
-            
             if (isLabor) {
               dailyLaborSales += (part.total || 0);
             } else {
@@ -568,19 +570,23 @@ function SalesStats() {
               if (part.usage === '판매') {
                 dailyServiceSalesSell += (part.total || 0);
               } else {
-                // usage가 '판매'가 아닌 모든 경우를 AS로 처리
                 dailyServiceSalesAS += (part.total || 0);
               }
             }
+            // 워런티 0원 처리 정상가치
+            if (part.usage === '워런티' && (part.price === 0 || part.price === '0')) {
+              const normalPrice = partsPriceMapRef.current.get((part.name || '').trim()) || 0;
+              warrantyNormalValue += (part.quantity || 0) * normalPrice;
+            }
             dailyServiceIds.add(part.service_id);
           });
-
           // 일별 A/S 매출 업데이트
           aggregatedSales[date].serviceSalesAS = dailyServiceSalesAS;
           aggregatedSales[date].serviceSalesSell = dailyServiceSalesSell;
           aggregatedSales[date].laborSalesOnly = dailyLaborSales;
           aggregatedSales[date].serviceSales = dailyServiceSalesAS + dailyServiceSalesSell + dailyLaborSales;
           aggregatedSales[date].serviceCount = dailyServiceIds.size;
+          aggregatedSales[date].warrantyNormalValue = warrantyNormalValue;
         }
       });
 
@@ -725,86 +731,107 @@ function SalesStats() {
         {Object.keys(serviceGroupedByDate).length === 0 ? (
           <Typography sx={{my: 2, color: 'text.secondary'}}>해당 기간에 A/S된 부품 내역이 없습니다.</Typography>
         ) : (
-          Object.entries(serviceGroupedByDate).map(([date, parts]) => (
-            <Box key={`service-${date}`} sx={{ mb: 3 }}>
-              <Typography variant="subtitle1" gutterBottom sx={{fontWeight: 'bold'}}>
-                {format(parseISO(date), 'MM월 dd일 (EEE)', { locale: ko })} - A/S
-              </Typography>
-              <TableContainer component={Paper} variant="outlined">
-                <Table size="small">
-                  <TableHead>
-                    <TableRow sx={{backgroundColor: 'grey.100'}}>
-                      <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>제품/부품명</TableCell>
-                      <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>부품코드</TableCell>
-                      <TableCell align="right" sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>수량</TableCell>
-                      <TableCell align="right" sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>단가</TableCell>
-                      <TableCell align="right" sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>합계</TableCell>
-                      <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>구분</TableCell>
-                      <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>세부 구분(Parts Note)</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {parts.map((part, index) => {
-                      // Log the first A/S part for debugging
-                      if (index === 0 && date === Object.keys(serviceGroupedByDate)[0]) { // 첫 번째 날짜의 첫 번째 항목만 로그
-                        console.log('[DEBUG] Rendering First A/S Part of First Date:', part);
-                        console.log('[DEBUG] Rendering First A/S Part Name of First Date:', part.name);
-                      }
-                      return (
-                        <TableRow key={`servicepart-${part.service_id}-${part.code}-${index}`}> {/* 키를 더 고유하게 만듭니다. */}
-                          <TableCell>{part.name}</TableCell> {/* Tooltip과 스타일 없이 직접 표시 */}
-                          <TableCell>{part.code}</TableCell>
-                          <TableCell align="right">{part.quantity}</TableCell>
-                          <TableCell align="right">{formatCurrency(part.price)}</TableCell>
-                          <TableCell align="right">{formatCurrency(part.total)}</TableCell>
-                          <TableCell>{part.usage}</TableCell>
-                          <TableCell>{part.parts_note || '-'}</TableCell>
-                        </TableRow>
-                      );
-                    })}
-                    {/* 구분별(usage) 합계 */}
-                    {(() => {
-                      const usageMap = {};
-                      parts.forEach(p => {
-                        const key = p.usage || '기타';
-                        if (!usageMap[key]) usageMap[key] = { quantity: 0, total: 0 };
-                        usageMap[key].quantity += p.quantity || 0;
-                        usageMap[key].total += p.total || 0;
-                      });
-                      return Object.entries(usageMap).map(([usage, sum], idx) => (
-                        <TableRow key={`usage-sum-${usage}-${idx}`} sx={{ backgroundColor: '#f7f7f7' }}>
-                          <TableCell colSpan={2} align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{usage} 합계</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>{sum.quantity}</TableCell>
-                          <TableCell></TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(sum.total)}</TableCell>
-                          <TableCell colSpan={2}></TableCell>
-                        </TableRow>
-                      ));
-                    })()}
-                    {/* 세부 구분별(parts_note) 합계 */}
-                    {(() => {
-                      const noteMap = {};
-                      parts.forEach(p => {
-                        const key = p.parts_note || '기타';
-                        if (!noteMap[key]) noteMap[key] = { quantity: 0, total: 0 };
-                        noteMap[key].quantity += p.quantity || 0;
-                        noteMap[key].total += p.total || 0;
-                      });
-                      return Object.entries(noteMap).map(([note, sum], idx) => (
-                        <TableRow key={`note-sum-${note}-${idx}`} sx={{ backgroundColor: '#f0f4ff' }}>
-                          <TableCell colSpan={2} align="right" sx={{ fontWeight: 'bold', color: 'secondary.main' }}>{note} 합계</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>{sum.quantity}</TableCell>
-                          <TableCell></TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(sum.total)}</TableCell>
-                          <TableCell colSpan={2}></TableCell>
-                        </TableRow>
-                      ));
-                    })()}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Box>
-          ))
+          Object.entries(serviceGroupedByDate).map(([date, parts]) => {
+            // 워런티 0원 처리 정상가치 계산
+            let warrantyNormalValue = 0;
+            parts.forEach(p => {
+              if (p.usage === '워런티' && (p.price === 0 || p.price === '0')) {
+                const normalPrice = partsPriceMapRef.current.get((p.name || '').trim()) || 0;
+                warrantyNormalValue += (p.quantity || 0) * normalPrice;
+              }
+            });
+            return (
+              <Box key={`service-${date}`} sx={{ mb: 3 }}>
+                <Typography variant="subtitle1" gutterBottom sx={{fontWeight: 'bold'}}>
+                  {format(parseISO(date), 'MM월 dd일 (EEE)', { locale: ko })} - A/S
+                </Typography>
+                <TableContainer component={Paper} variant="outlined">
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow sx={{backgroundColor: 'grey.100'}}>
+                        <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>제품/부품명</TableCell>
+                        <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>부품코드</TableCell>
+                        <TableCell align="right" sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>수량</TableCell>
+                        <TableCell align="right" sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>단가</TableCell>
+                        <TableCell align="right" sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>합계</TableCell>
+                        <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>구분</TableCell>
+                        <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>세부 구분(Parts Note)</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {parts.map((part, index) => {
+                        // Log the first A/S part for debugging
+                        if (index === 0 && date === Object.keys(serviceGroupedByDate)[0]) { // 첫 번째 날짜의 첫 번째 항목만 로그
+                          console.log('[DEBUG] Rendering First A/S Part of First Date:', part);
+                          console.log('[DEBUG] Rendering First A/S Part Name of First Date:', part.name);
+                        }
+                        return (
+                          <TableRow key={`servicepart-${part.service_id}-${part.code}-${index}`}> {/* 키를 더 고유하게 만듭니다. */}
+                            <TableCell>{part.name}</TableCell> {/* Tooltip과 스타일 없이 직접 표시 */}
+                            <TableCell>{part.code}</TableCell>
+                            <TableCell align="right">{part.quantity}</TableCell>
+                            <TableCell align="right">{formatCurrency(part.price)}</TableCell>
+                            <TableCell align="right">{formatCurrency(part.total)}</TableCell>
+                            <TableCell>{part.usage}</TableCell>
+                            <TableCell>{part.parts_note || '-'}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      {/* 구분별(usage) 합계 */}
+                      {(() => {
+                        const usageMap = {};
+                        parts.forEach(p => {
+                          const key = p.usage || '기타';
+                          if (!usageMap[key]) usageMap[key] = { quantity: 0, total: 0 };
+                          usageMap[key].quantity += p.quantity || 0;
+                          usageMap[key].total += p.total || 0;
+                        });
+                        const rows = Object.entries(usageMap).map(([usage, sum], idx) => (
+                          <TableRow key={`usage-sum-${usage}-${idx}`} sx={{ backgroundColor: '#f7f7f7' }}>
+                            <TableCell colSpan={2} align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{usage} 합계</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>{sum.quantity}</TableCell>
+                            <TableCell></TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(sum.total)}</TableCell>
+                            <TableCell colSpan={2}></TableCell>
+                          </TableRow>
+                        ));
+                        // 워런티 정상가치 행 추가
+                        if (warrantyNormalValue > 0) {
+                          rows.push(
+                            <TableRow key={`warranty-normal-value`} sx={{ backgroundColor: '#fffde7' }}>
+                              <TableCell colSpan={4} align="right" sx={{ fontWeight: 'bold', color: 'warning.main' }}>워런티 정상가치</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold', color: 'warning.main' }}>{formatCurrency(warrantyNormalValue)}</TableCell>
+                              <TableCell colSpan={2}></TableCell>
+                            </TableRow>
+                          );
+                        }
+                        return rows;
+                      })()}
+                      {/* 세부 구분별(parts_note) 합계 */}
+                      {(() => {
+                        const noteMap = {};
+                        parts.forEach(p => {
+                          const key = p.parts_note || '기타';
+                          if (!noteMap[key]) noteMap[key] = { quantity: 0, total: 0 };
+                          noteMap[key].quantity += p.quantity || 0;
+                          noteMap[key].total += p.total || 0;
+                        });
+                        return Object.entries(noteMap).map(([note, sum], idx) => (
+                          <TableRow key={`note-sum-${note}-${idx}`} sx={{ backgroundColor: '#f0f4ff' }}>
+                            <TableCell colSpan={2} align="right" sx={{ fontWeight: 'bold', color: 'secondary.main' }}>{note} 합계</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>{sum.quantity}</TableCell>
+                            <TableCell></TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(sum.total)}</TableCell>
+                            <TableCell colSpan={2}></TableCell>
+                          </TableRow>
+                        ));
+                      })()}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Box>
+            );
+          })
         )}
 
         <Divider sx={{ my: 4, borderStyle: 'dashed' }} />
@@ -970,6 +997,7 @@ function SalesStats() {
       '출고 매출': row.shipmentSales,
       '출고 건수': row.shipmentCount,
       '총계': row.totalSales,
+      '워런티 정상가치': row.warrantyNormalValue,
     }));
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
@@ -1366,6 +1394,7 @@ function SalesStats() {
                         <TableCell align="right">A/S 검수 건수</TableCell>
                         <TableCell align="right">출고 매출</TableCell>
                         <TableCell align="right">출고 건수</TableCell>
+                        <TableCell align="right">워런티 정상가치</TableCell>
                         <TableCell align="right">총계</TableCell>
                       </TableRow>
                     </TableHead>
@@ -1380,6 +1409,7 @@ function SalesStats() {
                           <TableCell align="right">{row.serviceCount}</TableCell>
                           <TableCell align="right">{formatCurrency(row.shipmentSales)}</TableCell>
                           <TableCell align="right">{row.shipmentCount}</TableCell>
+                          <TableCell align="right">{formatCurrency(row.warrantyNormalValue)}</TableCell>
                           <TableCell align="right">{formatCurrency(row.totalSales)}</TableCell>
                         </TableRow>
                       ))}
@@ -1414,6 +1444,9 @@ function SalesStats() {
                         </TableCell>
                         <TableCell align="right">
                           {salesData.reduce((sum, row) => sum + (row.shipmentCount || 0), 0)}건
+                        </TableCell>
+                        <TableCell align="right">
+                          {formatCurrency(salesData.reduce((sum, row) => sum + (row.warrantyNormalValue || 0), 0))}
                         </TableCell>
                         <TableCell align="right">
                           {formatCurrency(salesData.reduce((sum, row) => sum + (row.totalSales || 0), 0))}
