@@ -780,32 +780,34 @@ function SalesStats() {
                       {/* 구분별(usage) 합계 */}
                       {(() => {
                         const usageMap = {};
+                        let warrantyNormalValue = 0;
                         parts.forEach(p => {
                           const key = p.usage || '기타';
                           if (!usageMap[key]) usageMap[key] = { quantity: 0, total: 0 };
                           usageMap[key].quantity += p.quantity || 0;
                           usageMap[key].total += p.total || 0;
+                          // 워런티 정상가치 누적
+                          if (p.usage === '워런티' && (p.price === 0 || p.price === '0')) {
+                            const normalPrice = partsPriceMapRef.current.get((p.name || '').trim()) || 0;
+                            warrantyNormalValue += (p.quantity || 0) * normalPrice;
+                          }
                         });
-                        const rows = Object.entries(usageMap).map(([usage, sum], idx) => (
-                          <TableRow key={`usage-sum-${usage}-${idx}`} sx={{ backgroundColor: '#f7f7f7' }}>
-                            <TableCell colSpan={2} align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{usage} 합계</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>{sum.quantity}</TableCell>
-                            <TableCell></TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(sum.total)}</TableCell>
-                            <TableCell colSpan={2}></TableCell>
-                          </TableRow>
-                        ));
-                        // 워런티 정상가치 행 추가
-                        if (warrantyNormalValue > 0) {
-                          rows.push(
-                            <TableRow key={`warranty-normal-value`} sx={{ backgroundColor: '#fffde7' }}>
-                              <TableCell colSpan={4} align="right" sx={{ fontWeight: 'bold', color: 'warning.main' }}>워런티 정상가치</TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 'bold', color: 'warning.main' }}>{formatCurrency(warrantyNormalValue)}</TableCell>
+                        return Object.entries(usageMap).map(([usage, sum], idx) => {
+                          // 워런티 합계만 금액 포맷 변경
+                          let displayTotal = formatCurrency(sum.total);
+                          if (usage === '워런티') {
+                            displayTotal = `0원${warrantyNormalValue > 0 ? ` (판매가: ${formatCurrency(warrantyNormalValue)})` : ''}`;
+                          }
+                          return (
+                            <TableRow key={`usage-sum-${usage}-${idx}`} sx={{ backgroundColor: '#f7f7f7' }}>
+                              <TableCell colSpan={2} align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{usage} 합계</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold' }}>{sum.quantity}</TableCell>
+                              <TableCell></TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold' }}>{displayTotal}</TableCell>
                               <TableCell colSpan={2}></TableCell>
                             </TableRow>
                           );
-                        }
-                        return rows;
+                        });
                       })()}
                       {/* 세부 구분별(parts_note) 합계 */}
                       {(() => {
@@ -997,7 +999,13 @@ function SalesStats() {
       '출고 매출': row.shipmentSales,
       '출고 건수': row.shipmentCount,
       '총계': row.totalSales,
-      '워런티 정상가치': row.warrantyNormalValue,
+      '워런티 정상가치': row.warrantyNormalValue > 0 ? (
+        <span style={{ color: '#d32f2f', fontWeight: 600 }}>
+          ({formatCurrency(row.warrantyNormalValue)})
+        </span>
+      ) : (
+        formatCurrency(0)
+      ),
     }));
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
@@ -1409,7 +1417,15 @@ function SalesStats() {
                           <TableCell align="right">{row.serviceCount}</TableCell>
                           <TableCell align="right">{formatCurrency(row.shipmentSales)}</TableCell>
                           <TableCell align="right">{row.shipmentCount}</TableCell>
-                          <TableCell align="right">{formatCurrency(row.warrantyNormalValue)}</TableCell>
+                          <TableCell align="right">
+                            {row.warrantyNormalValue > 0 ? (
+                              <span style={{ color: '#d32f2f', fontWeight: 600 }}>
+                                ({formatCurrency(row.warrantyNormalValue)})
+                              </span>
+                            ) : (
+                              formatCurrency(0)
+                            )}
+                          </TableCell>
                           <TableCell align="right">{formatCurrency(row.totalSales)}</TableCell>
                         </TableRow>
                       ))}
@@ -1446,7 +1462,9 @@ function SalesStats() {
                           {salesData.reduce((sum, row) => sum + (row.shipmentCount || 0), 0)}건
                         </TableCell>
                         <TableCell align="right">
-                          {formatCurrency(salesData.reduce((sum, row) => sum + (row.warrantyNormalValue || 0), 0))}
+                          {formatCurrency(salesData.reduce((sum, row) => sum + (row.warrantyNormalValue || 0), 0) > 0
+                            ? salesData.reduce((sum, row) => sum + (row.warrantyNormalValue || 0), 0)
+                            : 0)}
                         </TableCell>
                         <TableCell align="right">
                           {formatCurrency(salesData.reduce((sum, row) => sum + (row.totalSales || 0), 0))}
