@@ -216,7 +216,7 @@ function SalesStats() {
         // 2. shipment_parts에서 실제 부품별 금액/수량/합계 조회
         const { data: shipmentPartsData, error: shipmentPartsError } = await supabase
           .from('shipment_parts')
-          .select('shipment_id, part_name, part_code, quantity, price, total_price, created_at')
+          .select('shipment_id, part_name, part_code, part_category, quantity, price, total_price, created_at')
           .in('shipment_id', shipmentIds);
         if (shipmentPartsError) {
           console.error('shipment_parts 조회 오류:', shipmentPartsError);
@@ -233,9 +233,10 @@ function SalesStats() {
               shipment_id: part.shipment_id,
               name: part.part_name,
               code: part.part_code,
+              part_category: part.part_category,
               quantity: part.quantity,
-              price: part.price, // shipment_parts의 price를 그대로 사용
-              total: part.total_price, // shipment_parts의 total_price를 그대로 사용
+              price: part.price,
+              total: part.total_price,
               customer_name: shipment.customer_name,
               customer_phone: shipment.customer_phone,
               sales_channel: extractSalesChannel(shipment.note, shipment.sales_channel),
@@ -761,6 +762,44 @@ function SalesStats() {
                         </TableRow>
                       );
                     })}
+                    {/* 구분별(usage) 합계 */}
+                    {(() => {
+                      const usageMap = {};
+                      parts.forEach(p => {
+                        const key = p.usage || '기타';
+                        if (!usageMap[key]) usageMap[key] = { quantity: 0, total: 0 };
+                        usageMap[key].quantity += p.quantity || 0;
+                        usageMap[key].total += p.total || 0;
+                      });
+                      return Object.entries(usageMap).map(([usage, sum], idx) => (
+                        <TableRow key={`usage-sum-${usage}-${idx}`} sx={{ backgroundColor: '#f7f7f7' }}>
+                          <TableCell colSpan={2} align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{usage} 합계</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>{sum.quantity}</TableCell>
+                          <TableCell></TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(sum.total)}</TableCell>
+                          <TableCell colSpan={2}></TableCell>
+                        </TableRow>
+                      ));
+                    })()}
+                    {/* 세부 구분별(parts_note) 합계 */}
+                    {(() => {
+                      const noteMap = {};
+                      parts.forEach(p => {
+                        const key = p.parts_note || '기타';
+                        if (!noteMap[key]) noteMap[key] = { quantity: 0, total: 0 };
+                        noteMap[key].quantity += p.quantity || 0;
+                        noteMap[key].total += p.total || 0;
+                      });
+                      return Object.entries(noteMap).map(([note, sum], idx) => (
+                        <TableRow key={`note-sum-${note}-${idx}`} sx={{ backgroundColor: '#f0f4ff' }}>
+                          <TableCell colSpan={2} align="right" sx={{ fontWeight: 'bold', color: 'secondary.main' }}>{note} 합계</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>{sum.quantity}</TableCell>
+                          <TableCell></TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(sum.total)}</TableCell>
+                          <TableCell colSpan={2}></TableCell>
+                        </TableRow>
+                      ));
+                    })()}
                   </TableBody>
                 </Table>
               </TableContainer>
@@ -787,6 +826,7 @@ function SalesStats() {
                   <TableHead>
                     <TableRow sx={{backgroundColor: 'grey.100'}}>
                       <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>제품/부품명</TableCell>
+                      <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>카테고리</TableCell>
                       <TableCell align="right" sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>수량</TableCell>
                       <TableCell align="right" sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>단가</TableCell>
                       <TableCell align="right" sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>합계</TableCell>
@@ -796,27 +836,56 @@ function SalesStats() {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {parts.map((part, index) => {
-                      // Log the first shipment part for debugging
-                      if (index === 0 && date === Object.keys(shipmentGroupedByDate)[0]) { // 첫 번째 날짜의 첫 번째 항목만 로그
-                        console.log('[DEBUG] Rendering First Shipment Part of First Date:', part);
-                        console.log('[DEBUG] Rendering First Shipment Part Name of First Date:', part.name);
-                      }
-                      return (
-                        <TableRow key={part.shipment_item_key || `shipmentpart-${part.shipment_id}-${index}`}> 
-                          <TableCell>{part.name}</TableCell>
-                          <TableCell align="right">{part.quantity}</TableCell>
-                          <TableCell align="right">
-                            {/* 단가: part.price 사용 (fetchSalesData에서 parts 테이블 기준으로 계산됨) */}
-                            {formatCurrency(part.price)}
-                          </TableCell>
-                          <TableCell align="right">{formatCurrency(part.total)}</TableCell>
-                          <TableCell>{part.customer_name || '-'}</TableCell>
-                          <TableCell>{part.customer_phone || '-'}</TableCell>
-                          <TableCell>{part.sales_channel || '-'}</TableCell>
+                    {parts.map((part, idx) => (
+                      <TableRow key={part.shipment_item_key || idx}>
+                        <TableCell>{part.name}</TableCell>
+                        <TableCell>{part.part_category || '기타'}</TableCell>
+                        <TableCell align="right">{part.quantity}</TableCell>
+                        <TableCell align="right">{formatCurrency(part.price)}</TableCell>
+                        <TableCell align="right">{formatCurrency(part.total)}</TableCell>
+                        <TableCell>{part.customer_name || '-'}</TableCell>
+                        <TableCell>{part.customer_phone || '-'}</TableCell>
+                        <TableCell>{part.sales_channel || '-'}</TableCell>
+                      </TableRow>
+                    ))}
+                    {/* 구분별(카테고리) 합계 */}
+                    {(() => {
+                      const catMap = {};
+                      parts.forEach(p => {
+                        const key = p.part_category || '기타';
+                        if (!catMap[key]) catMap[key] = { quantity: 0, total: 0 };
+                        catMap[key].quantity += p.quantity || 0;
+                        catMap[key].total += p.total || 0;
+                      });
+                      return Object.entries(catMap).map(([cat, sum], idx) => (
+                        <TableRow key={`cat-sum-${cat}-${idx}`} sx={{ backgroundColor: '#e3f2fd' }}>
+                          <TableCell colSpan={1} align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{cat} 합계</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>{sum.quantity}</TableCell>
+                          <TableCell></TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(sum.total)}</TableCell>
+                          <TableCell colSpan={3}></TableCell>
                         </TableRow>
-                      );
-                    })}
+                      ));
+                    })()}
+                    {/* 판매채널별 합계 */}
+                    {(() => {
+                      const channelMap = {};
+                      parts.forEach(p => {
+                        const key = p.sales_channel || '미지정';
+                        if (!channelMap[key]) channelMap[key] = { quantity: 0, total: 0 };
+                        channelMap[key].quantity += p.quantity || 0;
+                        channelMap[key].total += p.total || 0;
+                      });
+                      return Object.entries(channelMap).map(([ch, sum], idx) => (
+                        <TableRow key={`channel-sum-${ch}-${idx}`} sx={{ backgroundColor: '#e8f5e9' }}>
+                          <TableCell colSpan={1} align="right" sx={{ fontWeight: 'bold', color: 'success.main' }}>{ch} 합계</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>{sum.quantity}</TableCell>
+                          <TableCell></TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(sum.total)}</TableCell>
+                          <TableCell colSpan={3}></TableCell>
+                        </TableRow>
+                      ));
+                    })()}
                   </TableBody>
                 </Table>
               </TableContainer>
