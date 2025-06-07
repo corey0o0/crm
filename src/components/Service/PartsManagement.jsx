@@ -215,6 +215,68 @@ const PartsFormDialog = memo(({
 
 PartsFormDialog.displayName = 'PartsFormDialog';
 
+// [1] 검색 입력창 분리 (React.memo)
+const SearchInput = React.memo(function SearchInput({
+  searchInput,
+  setSearchInput,
+  onSearch,
+  onClear,
+  isSearching
+}) {
+  const handleInputChange = (e) => setSearchInput(e.target.value);
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') onSearch();
+  };
+  return (
+    <Box sx={{ display: 'flex', gap: 1 }}>
+      <TextField
+        fullWidth
+        size="small"
+        placeholder="제품명, 코드, 바코드로 검색"
+        value={searchInput}
+        onChange={handleInputChange}
+        onKeyPress={handleKeyPress}
+        InputProps={{
+          startAdornment: (
+            <InputAdornment position="start">
+              <SearchIcon />
+            </InputAdornment>
+          ),
+          endAdornment: searchInput && (
+            <InputAdornment position="end">
+              <IconButton size="small" onClick={onClear} edge="end">
+                <CloseIcon />
+              </IconButton>
+            </InputAdornment>
+          )
+        }}
+      />
+      <Button
+        variant="contained"
+        onClick={onSearch}
+        disabled={isSearching}
+        sx={{ minWidth: '100px', height: '40px', px: 3, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      >
+        {isSearching ? <CircularProgress size={20} /> : '검색'}
+      </Button>
+    </Box>
+  );
+});
+
+// [useDebounce 커스텀 훅 추가]
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = React.useState(value);
+  React.useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+  return debouncedValue;
+}
+
 function PartsManagement() {
   const [parts, setParts] = useState([]);
   const [openDialog, setOpenDialog] = useState(false);
@@ -225,8 +287,8 @@ function PartsManagement() {
     message: '',
     severity: 'success'
   });
-  const [searchTerm, setSearchTerm] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [uploadStatus, setUploadStatus] = useState({
     open: false,
@@ -246,22 +308,19 @@ function PartsManagement() {
   const [openCopyDialog, setOpenCopyDialog] = useState(false);
   const [copyTargetBrand, setCopyTargetBrand] = useState('');
 
-  // 검색 관련 함수들
-  const handleSearchInputChange = useCallback((e) => {
-    setSearchInput(e.target.value);
-  }, []);
+  // [디바운스 적용]
+  const debouncedSearchInput = useDebounce(searchInput, 300);
+  React.useEffect(() => {
+    // 입력이 멈춘 뒤 300ms 후에만 검색 실행
+    setSearchTerm(debouncedSearchInput);
+  }, [debouncedSearchInput]);
 
+  // [검색 버튼/엔터는 즉시 검색]
   const executeSearch = useCallback(() => {
     setIsSearching(true);
     setSearchTerm(searchInput);
     setIsSearching(false);
   }, [searchInput]);
-
-  const handleKeyPress = useCallback((event) => {
-    if (event.key === 'Enter') {
-      executeSearch();
-    }
-  }, [executeSearch]);
 
   const handleClearSearch = useCallback(() => {
     setSearchInput('');
@@ -951,53 +1010,13 @@ function PartsManagement() {
             </Grid>
 
             <Grid item xs={12} sm={6} md={6}>
-              <Box sx={{ display: 'flex', gap: 1 }}>
-      <TextField
-        fullWidth
-        size="small"
-                  placeholder="제품명, 코드, 바코드로 검색"
-                  value={searchInput}
-                  onChange={handleSearchInputChange}
-                  onKeyPress={handleKeyPress}
-        InputProps={{
-          startAdornment: (
-            <InputAdornment position="start">
-              <SearchIcon />
-            </InputAdornment>
-          ),
-                    endAdornment: searchInput && (
-            <InputAdornment position="end">
-                        <IconButton
-                          size="small"
-                          onClick={handleClearSearch}
-                          edge="end"
-                        >
-                <CloseIcon />
-              </IconButton>
-            </InputAdornment>
-          )
-        }}
-      />
-                <Button
-                  variant="contained"
-                  onClick={executeSearch}
-                  disabled={isSearching}
-                  sx={{ 
-                    minWidth: '100px',
-                    height: '40px',
-                    px: 3,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                >
-                  {isSearching ? (
-                    <CircularProgress size={20} />
-                  ) : (
-                    '검색'
-                  )}
-                </Button>
-              </Box>
+              <SearchInput
+                searchInput={searchInput}
+                setSearchInput={setSearchInput}
+                onSearch={executeSearch}
+                onClear={handleClearSearch}
+                isSearching={isSearching}
+              />
             </Grid>
 
             <Grid item xs={12} sm={6} md={3}>

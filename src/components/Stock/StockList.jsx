@@ -23,6 +23,54 @@ const STOCK_FILTER_OPTIONS = [
   { value: '1개 이하', label: '1개 이하' }
 ];
 
+// [검색 입력창 분리]
+const SearchInput = React.memo(function SearchInput({
+  searchInput,
+  setSearchInput,
+  onSearch,
+  onClear,
+  isSearching
+}) {
+  const handleInputChange = (e) => setSearchInput(e.target.value);
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') onSearch();
+  };
+  return (
+    <Box sx={{ display: 'flex', gap: 1 }}>
+      <TextField
+        label="제품명/코드 검색"
+        value={searchInput}
+        onChange={handleInputChange}
+        onKeyPress={handleKeyPress}
+        size="small"
+        sx={{ width: 300 }}
+        InputProps={{
+          startAdornment: (
+            <InputAdornment position="start">
+              <SearchIcon />
+            </InputAdornment>
+          ),
+          endAdornment: searchInput && (
+            <InputAdornment position="end">
+              <IconButton size="small" onClick={onClear} edge="end">
+                <CloseIcon />
+              </IconButton>
+            </InputAdornment>
+          )
+        }}
+      />
+      <Button
+        variant="contained"
+        onClick={onSearch}
+        disabled={isSearching}
+        sx={{ height: 40, ml: 1 }}
+      >
+        {isSearching ? <CircularProgress size={20} /> : '검색'}
+      </Button>
+    </Box>
+  );
+});
+
 function StockList() {
   const [loading, setLoading] = useState(true);
   const [parts, setParts] = useState([]);
@@ -45,6 +93,7 @@ function StockList() {
   const [showSupplyPrice, setShowSupplyPrice] = useState(false);
   const [selectedItems, setSelectedItems] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
     fetchParts();
@@ -138,17 +187,13 @@ function StockList() {
     });
   };
 
-  // 검색어 입력 처리 함수 - 입력만 처리하고 검색은 실행하지 않음
-  const handleSearchInput = (event) => {
-    setSearchInput(event.target.value);
-  };
-
-  // 검색 실행 함수 - 엔터키나 검색 버튼 클릭 시에만 실행
+  // [검색 버튼/엔터는 즉시 검색만]
   const executeSearch = () => {
+    setIsSearching(true);
     setSearchTerm(searchInput.toLowerCase().trim());
+    setIsSearching(false);
   };
 
-  // 검색어 초기화 함수
   const handleClearSearch = () => {
     setSearchInput('');
     setSearchTerm('');
@@ -593,43 +638,13 @@ function StockList() {
               </MenuItem>
             ))}
           </TextField>
-          <TextField
-            label="제품명/코드 검색"
-            value={searchInput}
-            onChange={handleSearchInput}
-            onKeyPress={(event) => { // onKeyPress 직접 처리
-              if (event.key === 'Enter') {
-                executeSearch();
-              }
-            }}
-            size="small"
-            sx={{ width: 300 }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              ),
-              endAdornment: searchInput && (
-                <InputAdornment position="end">
-                  <IconButton
-                    size="small"
-                    onClick={handleClearSearch}
-                    edge="end"
-                  >
-                    <CloseIcon />
-                  </IconButton>
-                </InputAdornment>
-              )
-            }}
+          <SearchInput
+            searchInput={searchInput}
+            setSearchInput={setSearchInput}
+            onSearch={executeSearch}
+            onClear={handleClearSearch}
+            isSearching={isSearching}
           />
-          <Button
-            variant="contained"
-            onClick={executeSearch}
-            sx={{ height: 40, ml: 1 }}
-          >
-            검색
-          </Button>
           <Button
             variant="outlined"
             startIcon={<HistoryIcon />}

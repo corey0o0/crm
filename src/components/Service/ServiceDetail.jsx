@@ -1018,72 +1018,71 @@ function ServiceDetail() {
     setSelectedParts(updatedParts);
   };
 
+  const handleCustomerSearchInput = (event) => {
+    setCustomerInputValue(event.target.value);
+  };
+
+  const executeCustomerSearch = async () => {
+    const term = customerInputValue.trim();
+    await searchCustomers(term);
+  };
+
+  const handleCustomerSearchKeyPress = (event) => {
+    if (event.key === 'Enter') {
+      executeCustomerSearch();
+    }
+  };
+
   const searchCustomers = async (searchTerm) => {
     try {
       setSearchLoading(true);
-      console.log('검색 시작:', { searchTerm, brand });
-
       if (searchTerm.length < 2) {
         // 최근 고객 정보 조회 (A/S + 출고)
         const { data: recentServices, error: recentServicesError } = await supabase
           .from('services')
-          .select('customer_name, customer_phone, customer_address, brand')
-          .eq('brand', brand)
+          .select('customer_name, customer_phone, customer_address, brand, product_name, seller')
+          .eq('brand', formData.brand)
           .order('created_at', { ascending: false })
           .limit(5);
-
         const { data: recentShipments, error: recentShipmentsError } = await supabase
           .from('shipments')
           .select('customer_name, customer_phone, customer_address, brand')
-          .eq('brand', brand)
+          .eq('brand', formData.brand)
           .order('created_at', { ascending: false })
           .limit(5);
-
         if (recentServicesError) throw recentServicesError;
         if (recentShipmentsError) throw recentShipmentsError;
-
-        // A/S와 출고 데이터 통합
         const allRecentCustomers = [...(recentServices || []), ...(recentShipments || [])];
-        
         const uniqueCustomers = Array.from(new Set(allRecentCustomers.map(c => c.customer_phone)))
           .map(phone => allRecentCustomers.find(c => c.customer_phone === phone))
           .filter(customer => customer.customer_name && customer.customer_phone)
           .slice(0, 10);
-
         setCustomerSearchResults(uniqueCustomers.map(c => ({
           id: c.customer_phone,
           name: c.customer_name,
           phone: c.customer_phone,
-          address: c.customer_address || ''
+          address: c.customer_address || '',
+          product_name: c.product_name || '',
+          seller: c.seller || ''
         })));
         return;
       }
-
       const cleanSearchTerm = searchTerm.replace(/-/g, '');
-
-      // A/S 고객 검색
       const { data: serviceResults, error: serviceError } = await supabase
         .from('services')
-        .select('customer_name, customer_phone, customer_address, brand')
-        .eq('brand', brand)
+        .select('customer_name, customer_phone, customer_address, brand, product_name, seller')
+        .eq('brand', formData.brand)
         .or(`customer_phone.ilike.%${cleanSearchTerm}%,customer_name.ilike.%${searchTerm}%`)
         .order('created_at', { ascending: false });
-
       if (serviceError) throw serviceError;
-
-      // 출고 고객 검색
       const { data: shipmentResults, error: shipmentError } = await supabase
         .from('shipments')
         .select('customer_name, customer_phone, customer_address, brand')
-        .eq('brand', brand)
+        .eq('brand', formData.brand)
         .or(`customer_phone.ilike.%${cleanSearchTerm}%,customer_name.ilike.%${searchTerm}%`)
         .order('created_at', { ascending: false });
-
       if (shipmentError) throw shipmentError;
-
-      // A/S와 출고 결과 통합
       const allResults = [...(serviceResults || []), ...(shipmentResults || [])];
-      
       const uniqueResults = Array.from(new Set(allResults.map(c => c.customer_phone)))
         .map(phone => allResults.find(c => c.customer_phone === phone))
         .filter(customer => customer.customer_name && customer.customer_phone)
@@ -1091,13 +1090,12 @@ function ServiceDetail() {
           id: customer.customer_phone,
           name: customer.customer_name,
           phone: customer.customer_phone,
-          address: customer.customer_address || ''
+          address: customer.customer_address || '',
+          product_name: customer.product_name || '',
+          seller: customer.seller || ''
         }));
-
       setCustomerSearchResults(uniqueResults);
-      
     } catch (err) {
-      console.error('고객 검색 중 오류:', err);
       setSnackbar({
         open: true,
         message: '고객 검색 중 오류가 발생했습니다.',
@@ -1108,28 +1106,14 @@ function ServiceDetail() {
     }
   };
 
-  const handleCustomerSearchInput = (event) => {
-    setCustomerInputValue(event.target.value);
-  };
-
-  const executeCustomerSearch = async () => {
-    const term = customerInputValue.trim();
-    setCustomerSearchTerm(term);
-    await searchCustomers(term);
-  };
-
-  const handleCustomerSearchKeyPress = (event) => {
-    if (event.key === 'Enter') {
-      executeCustomerSearch();
-    }
-  };
-
   const handleCustomerSelect = (customer) => {
     setFormData(prev => ({
       ...prev,
       customer_name: customer.name,
       customer_phone: customer.phone,
-      customer_address: customer.address || ''
+      customer_address: customer.address || '',
+      product_name: customer.product_name || prev.product_name,
+      seller: customer.seller || prev.seller
     }));
     setCustomerSearchOpen(false);
     setCustomerInputValue('');
@@ -2462,11 +2446,7 @@ function ServiceDetail() {
             고객 검색
             <IconButton
               onClick={() => setCustomerSearchOpen(false)}
-              sx={{
-                position: 'absolute',
-                right: 8,
-                top: 8
-              }}
+              sx={{ position: 'absolute', right: 8, top: 8 }}
             >
               <CloseIcon />
             </IconButton>
@@ -2501,13 +2481,15 @@ function ServiceDetail() {
                     <TableCell>고객명</TableCell>
                     <TableCell>연락처</TableCell>
                     <TableCell>주소</TableCell>
+                    <TableCell>기종</TableCell>
+                    <TableCell>구입처</TableCell>
                     <TableCell align="center">선택</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {customerSearchResults.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} align="center">
+                      <TableCell colSpan={6} align="center">
                         {customerInputValue.length > 0 
                           ? '검색 결과가 없습니다.'
                           : '검색어를 입력하세요. (2글자 이상)'}
@@ -2519,6 +2501,8 @@ function ServiceDetail() {
                         <TableCell>{customer.name}</TableCell>
                         <TableCell>{customer.phone}</TableCell>
                         <TableCell>{customer.address}</TableCell>
+                        <TableCell>{customer.product_name || '-'}</TableCell>
+                        <TableCell>{customer.seller || '-'}</TableCell>
                         <TableCell align="center">
                           <Button
                             size="small"
