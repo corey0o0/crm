@@ -32,7 +32,8 @@ import {
   FormControl,
   InputLabel,
   Select,
-  CircularProgress
+  CircularProgress,
+  TablePagination
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -747,6 +748,23 @@ function PartsManagement() {
     return sortData([...filteredParts], order, orderBy);
   }, [filteredParts, order, orderBy]);
 
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(20);
+
+  // 페이지네이션 핸들러
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
+  };
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  // 페이지네이션 적용된 파츠 목록
+  const pagedParts = useMemo(() => {
+    return sortedParts.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  }, [sortedParts, page, rowsPerPage]);
+
   const renderSortableHeader = (id, label, align = 'left') => (
     <TableCell 
       align={align} 
@@ -1105,7 +1123,7 @@ function PartsManagement() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {sortedParts.map((part) => (
+            {pagedParts.map((part) => (
               <TableRow key={part.id}>
                 <TableCell padding="checkbox">
                   <Checkbox
@@ -1149,6 +1167,16 @@ function PartsManagement() {
             ))}
           </TableBody>
         </Table>
+        <TablePagination
+          component="div"
+          count={sortedParts.length}
+          page={page}
+          onPageChange={handleChangePage}
+          rowsPerPage={rowsPerPage}
+          onRowsPerPageChange={handleChangeRowsPerPage}
+          rowsPerPageOptions={[10, 20, 50, 100]}
+          labelRowsPerPage="페이지당 표시"
+        />
       </TableContainer>
 
       <PartsFormDialog

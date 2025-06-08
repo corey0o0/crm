@@ -12,6 +12,7 @@ import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import SaveIcon from '@mui/icons-material/Save';
 import SearchIcon from '@mui/icons-material/Search';
 import { sendTelegramNotification } from '../../lib/telegram';
+import TablePagination from '@mui/material/TablePagination';
 
 // 메모이제이션된 옵션 상수
 const BRAND_OPTIONS = ['전체', 'XRB', 'NB'];
@@ -94,6 +95,8 @@ function StockList() {
   const [selectedItems, setSelectedItems] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(20);
 
   useEffect(() => {
     fetchParts();
@@ -603,6 +606,20 @@ function StockList() {
     }
   }, [selectedItems, filteredParts]);
 
+  // 페이지네이션 핸들러
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
+  };
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  // 페이지네이션 적용된 파츠 목록
+  const pagedParts = useMemo(() => {
+    return sortedParts.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  }, [sortedParts, page, rowsPerPage]);
+
   return (
     <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
       <Typography variant="h5" sx={{ mb: 3, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -708,7 +725,7 @@ function StockList() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {sortedParts.map(part => (
+              {pagedParts.map(part => (
                 <TableRow key={part.id}>
                     <TableCell padding="checkbox">
                       <Checkbox
@@ -763,6 +780,16 @@ function StockList() {
               ))}
             </TableBody>
           </Table>
+          <TablePagination
+            component="div"
+            count={sortedParts.length}
+            page={page}
+            onPageChange={handleChangePage}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+            rowsPerPageOptions={[10, 20, 50, 100]}
+            labelRowsPerPage="페이지당 표시"
+          />
         </TableContainer>
           
           {/* 저장 버튼 영역 */}
