@@ -104,6 +104,7 @@ function CustomerList({ refreshTrigger, onRefresh }) {
           customer_name,
           reception_date,
           brand,
+          product_name,
           service_tags (
             tag_name
           )
@@ -115,7 +116,7 @@ function CustomerList({ refreshTrigger, onRefresh }) {
       // 3. 출고 데이터 조회 (전체 출고 데이터 조회)
       const { data: shipmentsData, error: shipmentsError } = await supabase
         .from('shipments')
-        .select('*')
+        .select('*, shipment_parts(*)')
         .order('shipment_date', { ascending: false });
 
       if (shipmentsError) throw shipmentsError;
@@ -138,7 +139,8 @@ function CustomerList({ refreshTrigger, onRefresh }) {
           recentTag: null,
           shipmentCount: 0,
           lastShipmentDate: null,
-          brands: new Set()
+          brands: new Set(),
+          recentModelName: ''
         });
       });
 
@@ -147,6 +149,7 @@ function CustomerList({ refreshTrigger, onRefresh }) {
         const phone = service.customer_phone;
         const name = service.customer_name;
         const brand = service.brand;
+        const productName = service.product_name || '';
         
         if (!phone) return;
         
@@ -162,7 +165,8 @@ function CustomerList({ refreshTrigger, onRefresh }) {
             recentTag: null,
             shipmentCount: 0,
             lastShipmentDate: null,
-            brands: new Set()
+            brands: new Set(),
+            recentModelName: ''
           });
         }
         
@@ -178,6 +182,7 @@ function CustomerList({ refreshTrigger, onRefresh }) {
         if (!customer.lastServiceDate || service.reception_date > customer.lastServiceDate) {
           customer.lastServiceDate = service.reception_date;
           customer.recentTag = service.service_tags?.[0]?.tag_name || null;
+          customer.recentModelName = productName;
         }
       });
 
@@ -186,6 +191,7 @@ function CustomerList({ refreshTrigger, onRefresh }) {
         const phone = shipment.customer_phone;
         const name = shipment.customer_name;
         const brand = shipment.brand;
+        const productName = shipment.product_name || '';
         
         if (!phone) return;
         
@@ -201,7 +207,8 @@ function CustomerList({ refreshTrigger, onRefresh }) {
             recentTag: null,
             shipmentCount: 0,
             lastShipmentDate: null,
-            brands: new Set()
+            brands: new Set(),
+            recentModelName: ''
           });
         }
         
@@ -209,8 +216,24 @@ function CustomerList({ refreshTrigger, onRefresh }) {
         customer.shipmentCount++;
         if (brand) customer.brands.add(brand);
         
-        if (!customer.lastShipmentDate || shipment.shipment_date > customer.lastShipmentDate) {
+        // 최근 출고내역의 기종명 저장 (A/S 내역이 없을 때만)
+        if (
+          (!customer.lastServiceDate && (!customer.lastShipmentDate || shipment.shipment_date > customer.lastShipmentDate))
+          || (!customer.recentModelName && shipment.shipment_date > (customer.lastShipmentDate || ''))
+        ) {
           customer.lastShipmentDate = shipment.shipment_date;
+          // shipment_parts에서 기체만 추출
+          let modelName = '';
+          if (shipment.shipment_parts && shipment.shipment_parts.length > 0) {
+            const bodyPart = shipment.shipment_parts.find(p => p.part_category === '기체');
+            modelName = bodyPart ? bodyPart.part_name : shipment.shipment_parts[0].part_name;
+          } else {
+            // fallback: 기존 product_name에서 첫 번째
+            modelName = (shipment.product_name || '').split(',')[0].trim();
+          }
+          if (!customer.recentModelName) {
+            customer.recentModelName = modelName;
+          }
         }
       });
 
@@ -549,6 +572,7 @@ function CustomerList({ refreshTrigger, onRefresh }) {
               <TableCell>이름</TableCell>
               <TableCell>연락처</TableCell>
               <TableCell>최근 A/S</TableCell>
+              <TableCell>최근 기종명</TableCell>
               <TableCell>최근 출고</TableCell>
               <TableCell>건수</TableCell>
               <TableCell align="center">관리</TableCell>
@@ -605,6 +629,9 @@ function CustomerList({ refreshTrigger, onRefresh }) {
                         />
                       )}
                     </Stack>
+                  </TableCell>
+                  <TableCell>
+                    {customer.recentModelName || '-'}
                   </TableCell>
                   <TableCell>
                     {customer.lastShipmentDate ? new Date(customer.lastShipmentDate).toLocaleDateString() : '-'}

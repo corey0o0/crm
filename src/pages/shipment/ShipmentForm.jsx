@@ -1308,6 +1308,13 @@ function ShipmentForm() {
     );
   }
 
+  // 제품 정보 테이블(조회/수정 모두)에서 정렬된 배열 사용
+  const sortedParts = [...selectedParts].sort((a, b) => {
+    if ((a.category || '기체') === '기체' && (b.category || '기체') !== '기체') return -1;
+    if ((a.category || '기체') !== '기체' && (b.category || '기체') === '기체') return 1;
+    return 0;
+  });
+
   return (
     <Box sx={{ maxWidth: '1200px', mx: 'auto', p: 2 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -1577,7 +1584,7 @@ function ShipmentForm() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {selectedParts.map((part) => (
+                {sortedParts.map((part) => (
                   <TableRow key={part.id}>
                     <TableCell>
                       {part.part_name}
@@ -1642,7 +1649,7 @@ function ShipmentForm() {
                     총 합계
                   </TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                    {selectedParts.reduce((sum, part) => sum + (part.totalPrice || calculateTotal(part)), 0).toLocaleString()}원
+                    {sortedParts.reduce((sum, part) => sum + (part.totalPrice || calculateTotal(part)), 0).toLocaleString()}원
                   </TableCell>
                   <TableCell></TableCell>
                 </TableRow>

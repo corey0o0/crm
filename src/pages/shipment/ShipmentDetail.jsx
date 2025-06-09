@@ -865,6 +865,19 @@ function ShipmentDetail() {
     // 다이얼로그는 닫지 않음. selectedPart, partQuantity, modifiedPrice 관련 상태 초기화 불필요
   };
 
+  // 제품 정보 테이블(조회용)에서 정렬된 배열 사용
+  const sortedParts = [...shipmentParts].sort((a, b) => {
+    if ((a.part_category || '기체') === '기체' && (b.part_category || '기체') !== '기체') return -1;
+    if ((a.part_category || '기체') !== '기체' && (b.part_category || '기체') === '기체') return 1;
+    return 0;
+  });
+  // 제품 정보 테이블(수정모드)에서 정렬된 배열 사용
+  const sortedEditableParts = [...editableParts].sort((a, b) => {
+    if ((a.part_category || '기체') === '기체' && (b.part_category || '기체') !== '기체') return -1;
+    if ((a.part_category || '기체') !== '기체' && (b.part_category || '기체') === '기체') return 1;
+    return 0;
+  });
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -1057,7 +1070,7 @@ function ShipmentDetail() {
                   제품 정보 수정 모드
                 </Typography>
                 
-                {editableParts.length > 0 ? (
+                {sortedEditableParts.length > 0 ? (
                   <TableContainer>
                     <Table size="small">
                       <TableHead>
@@ -1071,7 +1084,7 @@ function ShipmentDetail() {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {editableParts.map((part) => (
+                        {sortedEditableParts.map((part) => (
                           <TableRow key={part.id}>
                             <TableCell>
                               {part.part_name}
@@ -1134,7 +1147,7 @@ function ShipmentDetail() {
                             총 합계
                           </TableCell>
                           <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                            {editableParts.reduce((sum, part) => sum + (part.total_price || (part.price * part.quantity)), 0).toLocaleString()}원
+                            {sortedEditableParts.reduce((sum, part) => sum + (part.total_price || (part.price * part.quantity)), 0).toLocaleString()}원
                           </TableCell>
                           <TableCell></TableCell>
                         </TableRow>
@@ -1181,7 +1194,7 @@ function ShipmentDetail() {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {shipmentParts.map((part, idx) => (
+                      {sortedParts.map((part, idx) => (
                         <TableRow key={idx}>
                           <TableCell>{part.part_name}</TableCell>
                           <TableCell>{part.part_code}</TableCell>

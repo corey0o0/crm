@@ -165,7 +165,7 @@ function ShipmentList() {
       setLoading(true);
       let query = supabase
         .from('shipments')
-        .select('*')
+        .select('*, shipment_parts(*)')
         .eq('brand', selectedBrand);
 
       // 날짜 필터 적용
@@ -1020,6 +1020,29 @@ function ShipmentList() {
     setPage(newPage);
   };
 
+  // 제품명 정렬 함수: 기체가 1번
+  function getSortedProductNames(shipment) {
+    if (!shipment.product_name) return '';
+    const names = shipment.product_name.split(',').map(n => n.trim()).filter(Boolean);
+    // shipment_parts에서 part_category 정보 가져오기
+    // shipment에 shipment_parts가 없으면 그냥 기존 순서 반환
+    if (!shipment.shipment_parts || !Array.isArray(shipment.shipment_parts)) return names.join(', ');
+    // 각 제품명에 대해 part_category 확인
+    const partsMap = new Map();
+    shipment.shipment_parts.forEach(part => {
+      partsMap.set(part.part_name, part.part_category || '기타');
+    });
+    // 정렬: 기체 먼저, 그 외 뒤에
+    names.sort((a, b) => {
+      const aCat = partsMap.get(a) || '기타';
+      const bCat = partsMap.get(b) || '기타';
+      if (aCat === '기체' && bCat !== '기체') return -1;
+      if (aCat !== '기체' && bCat === '기체') return 1;
+      return 0;
+    });
+    return names.join(', ');
+  }
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -1266,7 +1289,7 @@ function ShipmentList() {
                     <TableCell>{shipment.customer_phone}</TableCell>
                     <TableCell>
                       <Typography noWrap sx={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {shipment.product_name}
+                        {getSortedProductNames(shipment)}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
                         {shipment.quantity}개 / {shipment.price?.toLocaleString()}원

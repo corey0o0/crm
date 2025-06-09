@@ -472,7 +472,7 @@ function SalesStats() {
               newTotalServiceSalesAS += (part.total || 0);
             }
           }
-          uniqueServiceIds.add(part.service_id);
+          uniqueServiceIds.add(part.service_id); 
         });
       });
 
@@ -490,11 +490,11 @@ function SalesStats() {
           
           // 판매처별 매출 집계
           const salesChannel = part.sales_channel || '미지정';
-          if (!newTotalCustomerSales[salesChannel]) {
-            newTotalCustomerSales[salesChannel] = {
-              name: salesChannel,
-              totalAmount: 0,
-              shipmentCount: 0,
+        if (!newTotalCustomerSales[salesChannel]) {
+          newTotalCustomerSales[salesChannel] = {
+            name: salesChannel,
+            totalAmount: 0,
+            shipmentCount: 0,
               processedShipments: new Set()
             };
           }
@@ -525,7 +525,7 @@ function SalesStats() {
         totalServiceSalesSell: newTotalServiceSalesSell,    // 판매 부품 매출
         totalServiceCount: newTotalServiceCount,            // A/S 건수
         totalShipmentCount: newTotalShipmentCount,
-        totalCustomerSales: newTotalCustomerSales,
+        totalCustomerSales: newTotalCustomerSales, 
         totalLaborSalesOnly: newTotalLaborSalesOnly,        // 공임 매출
       });
 
@@ -538,18 +538,18 @@ function SalesStats() {
         const dateStr = format(currentDate, 'yyyy-MM-dd');
         aggregatedSales[dateStr] = {
           date: dateStr,
-          serviceSales: 0,
-          serviceSalesAS: 0,
-          serviceSalesSell: 0,
+            serviceSales: 0,
+            serviceSalesAS: 0,
+            serviceSalesSell: 0,
           serviceCount: 0,
-          shipmentSales: 0,
+            shipmentSales: 0,
           shipmentCount: 0,
           laborSalesOnly: 0,
           totalSales: 0,
           warrantyNormalValue: 0
-        };
+          };
         currentDate.setDate(currentDate.getDate() + 1);
-      }
+        }
 
       // A/S 부품 매출 집계 (일별)
       Object.entries(servicePartsByDate).forEach(([date, parts]) => {
@@ -559,7 +559,7 @@ function SalesStats() {
           let dailyServiceSalesSell = 0;
           let dailyLaborSales = 0;
           let warrantyNormalValue = 0;
-          parts.forEach(part => {
+        parts.forEach(part => {
             const isLabor = (part.name && part.name.includes('공임')) || 
                            (part.usage && part.usage.toString().trim() === '공임') ||
                            (part.parts_note && part.parts_note.toString().trim() === '공임');
@@ -727,7 +727,7 @@ function SalesStats() {
         <Typography variant="h6" sx={{ mt: 2, mb: 1, color: 'primary.main', borderBottom: '2px solid', borderColor: 'primary.main', pb: 0.5 }}>
           <BuildIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
           A/S 부품 상세 내역
-        </Typography>
+            </Typography>
         {Object.keys(serviceGroupedByDate).length === 0 ? (
           <Typography sx={{my: 2, color: 'text.secondary'}}>해당 기간에 A/S된 부품 내역이 없습니다.</Typography>
         ) : (
@@ -741,42 +741,42 @@ function SalesStats() {
               }
             });
             return (
-              <Box key={`service-${date}`} sx={{ mb: 3 }}>
-                <Typography variant="subtitle1" gutterBottom sx={{fontWeight: 'bold'}}>
-                  {format(parseISO(date), 'MM월 dd일 (EEE)', { locale: ko })} - A/S
+            <Box key={`service-${date}`} sx={{ mb: 3 }}>
+              <Typography variant="subtitle1" gutterBottom sx={{fontWeight: 'bold'}}>
+                {format(parseISO(date), 'MM월 dd일 (EEE)', { locale: ko })} - A/S
                 </Typography>
                 <TableContainer component={Paper} variant="outlined">
                   <Table size="small">
                     <TableHead>
-                      <TableRow sx={{backgroundColor: 'grey.100'}}>
-                        <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>제품/부품명</TableCell>
-                        <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>부품코드</TableCell>
-                        <TableCell align="right" sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>수량</TableCell>
-                        <TableCell align="right" sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>단가</TableCell>
-                        <TableCell align="right" sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>합계</TableCell>
-                        <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>구분</TableCell>
-                        <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>세부 구분(Parts Note)</TableCell>
+                    <TableRow sx={{backgroundColor: 'grey.100'}}>
+                      <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>제품/부품명</TableCell>
+                      <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>부품코드</TableCell>
+                      <TableCell align="right" sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>수량</TableCell>
+                      <TableCell align="right" sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>단가</TableCell>
+                      <TableCell align="right" sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>합계</TableCell>
+                      <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>구분</TableCell>
+                      <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>세부 구분(Parts Note)</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {parts.map((part, index) => {
-                        // Log the first A/S part for debugging
-                        if (index === 0 && date === Object.keys(serviceGroupedByDate)[0]) { // 첫 번째 날짜의 첫 번째 항목만 로그
-                          console.log('[DEBUG] Rendering First A/S Part of First Date:', part);
-                          console.log('[DEBUG] Rendering First A/S Part Name of First Date:', part.name);
-                        }
-                        return (
-                          <TableRow key={`servicepart-${part.service_id}-${part.code}-${index}`}> {/* 키를 더 고유하게 만듭니다. */}
-                            <TableCell>{part.name}</TableCell> {/* Tooltip과 스타일 없이 직접 표시 */}
-                            <TableCell>{part.code}</TableCell>
-                            <TableCell align="right">{part.quantity}</TableCell>
-                            <TableCell align="right">{formatCurrency(part.price)}</TableCell>
-                            <TableCell align="right">{formatCurrency(part.total)}</TableCell>
-                            <TableCell>{part.usage}</TableCell>
-                            <TableCell>{part.parts_note || '-'}</TableCell>
-                          </TableRow>
-                        );
-                      })}
+                    {parts.map((part, index) => {
+                      // Log the first A/S part for debugging
+                      if (index === 0 && date === Object.keys(serviceGroupedByDate)[0]) { // 첫 번째 날짜의 첫 번째 항목만 로그
+                        console.log('[DEBUG] Rendering First A/S Part of First Date:', part);
+                        console.log('[DEBUG] Rendering First A/S Part Name of First Date:', part.name);
+                      }
+                      return (
+                        <TableRow key={`servicepart-${part.service_id}-${part.code}-${index}`}> {/* 키를 더 고유하게 만듭니다. */}
+                          <TableCell>{part.name}</TableCell> {/* Tooltip과 스타일 없이 직접 표시 */}
+                          <TableCell>{part.code}</TableCell>
+                          <TableCell align="right">{part.quantity}</TableCell>
+                          <TableCell align="right">{formatCurrency(part.price)}</TableCell>
+                          <TableCell align="right">{formatCurrency(part.total)}</TableCell>
+                          <TableCell>{part.usage}</TableCell>
+                          <TableCell>{part.parts_note || '-'}</TableCell>
+                        </TableRow>
+                      );
+                    })}
                       {/* 구분별(usage) 합계 */}
                       {(() => {
                         const usageMap = {};
@@ -849,10 +849,10 @@ function SalesStats() {
             <Box key={`shipment-${date}`} sx={{ mb: 3 }}>
               <Typography variant="subtitle1" gutterBottom sx={{fontWeight: 'bold'}}>
                 {format(parseISO(date), 'MM월 dd일 (EEE)', { locale: ko })} - 출고
-              </Typography>
-              <TableContainer component={Paper} variant="outlined">
-                <Table size="small">
-                  <TableHead>
+                </Typography>
+                <TableContainer component={Paper} variant="outlined">
+                  <Table size="small">
+                    <TableHead>
                     <TableRow sx={{backgroundColor: 'grey.100'}}>
                       <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>제품/부품명</TableCell>
                       <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>카테고리</TableCell>
@@ -862,20 +862,20 @@ function SalesStats() {
                       <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>고객명</TableCell>
                       <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>연락처</TableCell>
                       <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>판매채널</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
                     {parts.map((part, idx) => (
                       <TableRow key={part.shipment_item_key || idx}>
-                        <TableCell>{part.name}</TableCell>
+                          <TableCell>{part.name}</TableCell>
                         <TableCell>{part.part_category || '기타'}</TableCell>
-                        <TableCell align="right">{part.quantity}</TableCell>
+                          <TableCell align="right">{part.quantity}</TableCell>
                         <TableCell align="right">{formatCurrency(part.price)}</TableCell>
-                        <TableCell align="right">{formatCurrency(part.total)}</TableCell>
-                        <TableCell>{part.customer_name || '-'}</TableCell>
-                        <TableCell>{part.customer_phone || '-'}</TableCell>
-                        <TableCell>{part.sales_channel || '-'}</TableCell>
-                      </TableRow>
+                          <TableCell align="right">{formatCurrency(part.total)}</TableCell>
+                          <TableCell>{part.customer_name || '-'}</TableCell>
+                          <TableCell>{part.customer_phone || '-'}</TableCell>
+                          <TableCell>{part.sales_channel || '-'}</TableCell>
+                        </TableRow>
                     ))}
                     {/* 구분별(카테고리) 합계 */}
                     {(() => {
@@ -915,12 +915,12 @@ function SalesStats() {
                         </TableRow>
                       ));
                     })()}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Box>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Box>
           ))
-        )}
+            )}
       </Box>
     );
   };
@@ -1334,7 +1334,7 @@ function SalesStats() {
                               {/* firstOrderDate, lastOrderDate는 제거 또는 다른 방식으로 표시 */}
                             </Typography>
                           </Paper>
-                        </Grid>
+        </Grid>
                       ))}
                     {Object.keys(totalStats.totalCustomerSales || {}).length === 0 && (
                       <Grid item xs={12}>
@@ -1390,33 +1390,33 @@ function SalesStats() {
                     엑셀 다운로드
                   </Button>
                 </Box>
-                <TableContainer>
-                  <Table>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>날짜</TableCell>
-                        <TableCell align="right">A/S 매출(공임포함)</TableCell>
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>날짜</TableCell>
+                      <TableCell align="right">A/S 매출(공임포함)</TableCell>
                         <TableCell align="right" sx={{ color: 'primary.main', fontWeight: 'bold' }}>A/S매출(AS-부품)</TableCell>
                         <TableCell align="right" sx={{ color: 'secondary.main', fontWeight: 'bold' }}>A/S매출(판매-부품)</TableCell>
                         <TableCell align="right" sx={{ color: 'success.main', fontWeight: 'bold' }}>A/S 공임만</TableCell>
-                        <TableCell align="right">A/S 검수 건수</TableCell>
-                        <TableCell align="right">출고 매출</TableCell>
-                        <TableCell align="right">출고 건수</TableCell>
+                      <TableCell align="right">A/S 검수 건수</TableCell>
+                      <TableCell align="right">출고 매출</TableCell>
+                      <TableCell align="right">출고 건수</TableCell>
                         <TableCell align="right">워런티 정상가치</TableCell>
-                        <TableCell align="right">총계</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {salesData.map((row) => (
-                        <TableRow key={row.date}>
-                          <TableCell>{row.date}</TableCell>
-                          <TableCell align="right">{formatCurrency(row.serviceSales)}</TableCell>
-                          <TableCell align="right">{formatCurrency(row.serviceSalesAS)}</TableCell>
-                          <TableCell align="right">{formatCurrency(row.serviceSalesSell)}</TableCell>
-                          <TableCell align="right">{formatCurrency(row.laborSalesOnly)}</TableCell>
-                          <TableCell align="right">{row.serviceCount}</TableCell>
-                          <TableCell align="right">{formatCurrency(row.shipmentSales)}</TableCell>
-                          <TableCell align="right">{row.shipmentCount}</TableCell>
+                      <TableCell align="right">총계</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {salesData.map((row) => (
+                      <TableRow key={row.date}>
+                        <TableCell>{row.date}</TableCell>
+                        <TableCell align="right">{formatCurrency(row.serviceSales)}</TableCell>
+                        <TableCell align="right">{formatCurrency(row.serviceSalesAS)}</TableCell>
+                        <TableCell align="right">{formatCurrency(row.serviceSalesSell)}</TableCell>
+                        <TableCell align="right">{formatCurrency(row.laborSalesOnly)}</TableCell>
+                        <TableCell align="right">{row.serviceCount}</TableCell>
+                        <TableCell align="right">{formatCurrency(row.shipmentSales)}</TableCell>
+                        <TableCell align="right">{row.shipmentCount}</TableCell>
                           <TableCell align="right">
                             {row.warrantyNormalValue > 0 ? (
                               <span style={{ color: '#d32f2f', fontWeight: 600 }}>
@@ -1426,9 +1426,9 @@ function SalesStats() {
                               formatCurrency(0)
                             )}
                           </TableCell>
-                          <TableCell align="right">{formatCurrency(row.totalSales)}</TableCell>
-                        </TableRow>
-                      ))}
+                        <TableCell align="right">{formatCurrency(row.totalSales)}</TableCell>
+                      </TableRow>
+                    ))}
                       {/* 합계 행 추가 */}
                       <TableRow 
                         sx={{ 
@@ -1470,9 +1470,9 @@ function SalesStats() {
                           {formatCurrency(salesData.reduce((sum, row) => sum + (row.totalSales || 0), 0))}
                         </TableCell>
                       </TableRow>
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                  </TableBody>
+                </Table>
+              </TableContainer>
               </>
             ) : (
               <>

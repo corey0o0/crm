@@ -202,6 +202,18 @@ function StockList() {
     setSearchTerm('');
   };
 
+  // 디바운스 적용: searchInput 변경 시 500ms 후 searchTerm 업데이트
+  useEffect(() => {
+    if (searchInput === '') {
+      setSearchTerm('');
+      return;
+    }
+    const handler = setTimeout(() => {
+      setSearchTerm(searchInput.toLowerCase().trim());
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [searchInput]);
+
   // 필터링 로직 최적화
   const filteredParts = useMemo(() => {
     // 브랜드와 재고 상태로 1차 필터링

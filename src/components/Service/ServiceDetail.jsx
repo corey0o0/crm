@@ -1404,6 +1404,12 @@ function ServiceDetail() {
     printWindow.close();
   };
 
+  // 대문자 변환 함수 추가
+  const toUpperCaseIfEnglish = (value) => {
+    if (!value) return '';
+    return value.replace(/[a-z]/g, (c) => c.toUpperCase());
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -2032,13 +2038,13 @@ function ServiceDetail() {
                           onChange={(event, newValue) => {
                             setFormData(prev => ({
                               ...prev,
-                              product_name: newValue || ''
+                              product_name: toUpperCaseIfEnglish(newValue)
                             }));
                           }}
                           onInputChange={(event, newInputValue) => {
                             setFormData(prev => ({
                               ...prev,
-                              product_name: newInputValue
+                              product_name: toUpperCaseIfEnglish(newInputValue)
                             }));
                           }}
                           renderInput={(params) => (
@@ -2054,6 +2060,10 @@ function ServiceDetail() {
                                   bgcolor: '#f9fafb'
                                 }
                               }}
+                              onChange={e => setFormData(prev => ({
+                                ...prev,
+                                product_name: toUpperCaseIfEnglish(e.target.value)
+                              }))}
                             />
                           )}
                           renderOption={(props, option) => (

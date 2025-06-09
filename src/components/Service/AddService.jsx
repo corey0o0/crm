@@ -68,6 +68,12 @@ const PREDEFINED_TAGS = [
   'E010', 'E004', 'E007', '사고수리', '충전안됨'
 ];
 
+// 대문자 변환 함수 추가
+const toUpperCaseIfEnglish = (value) => {
+  if (!value) return '';
+  return value.replace(/[a-z]/g, (c) => c.toUpperCase());
+};
+
 function AddService() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -1683,13 +1689,13 @@ function AddService() {
                           onChange={(event, newValue) => {
                             setFormData(prev => ({
                               ...prev,
-                              product_name: newValue || ''
+                              product_name: toUpperCaseIfEnglish(newValue)
                             }));
                           }}
                           onInputChange={(event, newInputValue) => {
                             setFormData(prev => ({
                               ...prev,
-                              product_name: newInputValue
+                              product_name: toUpperCaseIfEnglish(newInputValue)
                             }));
                           }}
                           renderInput={(params) => (
@@ -1706,6 +1712,10 @@ function AddService() {
                                   bgcolor: '#f9fafb'
                                 }
                               }}
+                              onChange={e => setFormData(prev => ({
+                                ...prev,
+                                product_name: toUpperCaseIfEnglish(e.target.value)
+                              }))}
                             />
                           )}
                           renderOption={(props, option) => (
