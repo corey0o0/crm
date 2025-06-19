@@ -1074,6 +1074,7 @@ function ShipmentList() {
           >
             엑셀 다운로드
           </Button>
+          {/*
           <Tooltip title="부품 정보가 없는 출고 정보에 대해 일괄적으로 부품 정보를 추가합니다">
             <Button
               variant="outlined"
@@ -1084,6 +1085,7 @@ function ShipmentList() {
               제품 정보 일괄 업데이트
             </Button>
           </Tooltip>
+          */}
         </Stack>
       </Box>
       
