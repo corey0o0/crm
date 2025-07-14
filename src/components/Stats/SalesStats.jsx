@@ -119,8 +119,15 @@ function SalesStats() {
       if (match && match[1]) {
         return match[1].trim();
       }
-      // 주요 키워드 검색 (스마트할부 추가)
-      const keywords = ['공홈', '블로그', '네이버', '인스타', '청담', '쿠팡', '매장', '스마트할부', '라이클-우리'];
+      // 주요 키워드 검색 (청담매장 우선 처리)
+      if (note.includes('청담매장')) {
+        return '청담매장';
+      }
+      if (note.includes('청담')) {
+        return '청담매장';
+      }
+      
+      const keywords = ['공홈', '블로그', '네이버', '인스타', '쿠팡', '매장', '스마트할부', '라이클-우리', '스마트스토어'];
       for (const keyword of keywords) {
         if (note.includes(keyword)) {
           return keyword;
@@ -348,7 +355,7 @@ function SalesStats() {
               parts_note: item.parts.note,
               quantity: item.quantity || 0,
               price: item.price || 0,
-              total: (item.quantity || 0) * (item.price || 0),
+              total: Math.round((item.quantity || 0) * (item.price || 0)),
               usage: item.usage || 'AS'  // 기본값을 'AS'로 설정
             });
           }
@@ -363,6 +370,21 @@ function SalesStats() {
             tempShipmentPartsByDate[date] = [];
           }
           const salesChannel = extractSalesChannel(shipment.note, shipment.sales_channel);
+          
+          // 청담매장 출고 데이터 가공 디버깅
+          if (salesChannel === '청담매장' || salesChannel.includes('청담')) {
+            console.log('청담매장 출고 데이터 가공:', {
+              shipment_id: shipment.id,
+              date: date,
+              customer: shipment.customer_name,
+              product_name: shipment.product_name,
+              price: shipment.price,
+              quantity: shipment.quantity,
+              sales_channel_field: shipment.sales_channel,
+              note: shipment.note,
+              extracted_channel: salesChannel
+            });
+          }
 
           const productNames = (shipment.product_name || "").split(',').map(pn => pn.trim()).filter(pn => pn);
           const numIndividualProducts = productNames.length > 0 ? productNames.length : 1;
@@ -483,27 +505,38 @@ function SalesStats() {
         판매부품: newTotalServiceSalesSell
       });
 
-      // 출고 매출 및 판매처별 매출 집계
-      Object.values(tempShipmentPartsByDate).forEach(dailyParts => {
-        dailyParts.forEach(part => {
-          newTotalShipmentSales += (part.total || 0);
-          
-          // 판매처별 매출 집계
-          const salesChannel = part.sales_channel || '미지정';
+      // 출고 매출 집계 (원본 shipmentsData 기준으로 정확한 계산)
+      shipmentsData.forEach(shipment => {
+        const shipmentPrice = shipment.price || 0;
+        newTotalShipmentSales += shipmentPrice;
+        
+        // 판매처별 매출 집계 (원본 데이터 기준)
+        const salesChannel = extractSalesChannel(shipment.note, shipment.sales_channel);
+        
+        // 청담매장 관련 디버깅 로그
+        if (salesChannel === '청담매장' || salesChannel.includes('청담')) {
+          console.log('청담매장 총 출고매출 집계 (원본 기준):', {
+            shipment_id: shipment.id,
+            price: shipmentPrice,
+            running_total: newTotalShipmentSales
+          });
+        }
+        
         if (!newTotalCustomerSales[salesChannel]) {
           newTotalCustomerSales[salesChannel] = {
             name: salesChannel,
             totalAmount: 0,
             shipmentCount: 0,
-              processedShipments: new Set()
-            };
-          }
-          newTotalCustomerSales[salesChannel].totalAmount += (part.total || 0);
-          if (!newTotalCustomerSales[salesChannel].processedShipments.has(part.shipment_id)) {
-            newTotalCustomerSales[salesChannel].shipmentCount++;
-            newTotalCustomerSales[salesChannel].processedShipments.add(part.shipment_id);
-          }
-        });
+            processedShipments: new Set()
+          };
+        }
+        
+        // 원본 출고 가격으로 판매처별 매출 집계
+        newTotalCustomerSales[salesChannel].totalAmount += shipmentPrice;
+        if (!newTotalCustomerSales[salesChannel].processedShipments.has(shipment.id)) {
+          newTotalCustomerSales[salesChannel].shipmentCount++;
+          newTotalCustomerSales[salesChannel].processedShipments.add(shipment.id);
+        }
       });
 
       // 총 건수 계산
@@ -516,18 +549,6 @@ function SalesStats() {
 
       // 디버깅을 위한 로그 추가
       console.log('A/S 매출 총계:', finalTotalServiceSalesWithLabor);
-
-      setTotalStats({
-        totalServiceSales: finalTotalServiceSalesWithLabor,  // A/S 매출 총계 (공임 + AS부품 + 판매부품)
-        totalShipmentSales: newTotalShipmentSales,
-        totalSales: finalTotalServiceSalesWithLabor + newTotalShipmentSales,
-        totalServiceSalesAS: newTotalServiceSalesAS,        // AS 부품 매출
-        totalServiceSalesSell: newTotalServiceSalesSell,    // 판매 부품 매출
-        totalServiceCount: newTotalServiceCount,            // A/S 건수
-        totalShipmentCount: newTotalShipmentCount,
-        totalCustomerSales: newTotalCustomerSales, 
-        totalLaborSalesOnly: newTotalLaborSalesOnly,        // 공임 매출
-      });
 
       // 날짜별 판매 데이터 생성
       const aggregatedSales = {};
@@ -594,14 +615,33 @@ function SalesStats() {
       const dailyShipmentAggregates = {};
       shipmentsData.forEach(shipment => {
         const dateStr = format(parseISO(shipment.order_date), 'yyyy-MM-dd');
+        const salesChannel = extractSalesChannel(shipment.note, shipment.sales_channel);
+        
         if (!dailyShipmentAggregates[dateStr]) {
           dailyShipmentAggregates[dateStr] = {
             sales: 0,
             ids: new Set()
           };
         }
+        
         // shipment.price가 0이거나 undefined인 경우 0을 사용
         const shipmentPrice = shipment.price || 0;
+        
+        // 청담매장 관련 디버깅 로그
+        if (salesChannel === '청담매장' || salesChannel.includes('청담')) {
+          console.log('청담매장 출고 데이터:', {
+            id: shipment.id,
+            date: dateStr,
+            customer: shipment.customer_name,
+            product: shipment.product_name,
+            price: shipmentPrice,
+            quantity: shipment.quantity,
+            sales_channel: shipment.sales_channel,
+            note: shipment.note,
+            extracted_channel: salesChannel
+          });
+        }
+        
         dailyShipmentAggregates[dateStr].sales += shipmentPrice;
         dailyShipmentAggregates[dateStr].ids.add(shipment.id);
       });
@@ -611,15 +651,69 @@ function SalesStats() {
         if (aggregatedSales[date]) {
           aggregatedSales[date].shipmentSales = data.sales;
           aggregatedSales[date].shipmentCount = data.ids.size;
-          // 총 매출 업데이트 (A/S + 출고)
-          aggregatedSales[date].totalSales = 
-            aggregatedSales[date].serviceSales + 
-            aggregatedSales[date].shipmentSales;
         }
       });
 
-      setSalesData(Object.values(aggregatedSales).sort((a, b) => new Date(a.date) - new Date(b.date)));
-      console.log('매출 데이터 집계 완료 (A/S 포함):', Object.values(aggregatedSales));
+      // 모든 날짜에 대해 총 매출 계산 (A/S + 출고)
+      Object.keys(aggregatedSales).forEach(date => {
+        aggregatedSales[date].totalSales = 
+          (aggregatedSales[date].serviceSales || 0) + 
+          (aggregatedSales[date].shipmentSales || 0);
+      });
+
+      const sortedSalesData = Object.values(aggregatedSales).sort((a, b) => new Date(a.date) - new Date(b.date));
+      setSalesData(sortedSalesData);
+      
+      // 일별 데이터를 기준으로 매출 요약 재계산 (정확한 동일성 보장)
+      const dailyTotalServiceSales = sortedSalesData.reduce((sum, row) => sum + (row.serviceSales || 0), 0);
+      const dailyTotalServiceSalesAS = sortedSalesData.reduce((sum, row) => sum + (row.serviceSalesAS || 0), 0);
+      const dailyTotalServiceSalesSell = sortedSalesData.reduce((sum, row) => sum + (row.serviceSalesSell || 0), 0);
+      const dailyTotalLaborSalesOnly = sortedSalesData.reduce((sum, row) => sum + (row.laborSalesOnly || 0), 0);
+      const dailyTotalShipmentSales = sortedSalesData.reduce((sum, row) => sum + (row.shipmentSales || 0), 0);
+      const calculatedTotalFromDaily = sortedSalesData.reduce((sum, row) => {
+        const rowTotal = (row.serviceSales || 0) + (row.shipmentSales || 0);
+        return sum + rowTotal;
+      }, 0);
+
+      // 매출 요약을 일별 집계 데이터 기준으로 업데이트
+      setTotalStats({
+        totalServiceSales: dailyTotalServiceSales,  // 일별 A/S 매출 총계
+        totalShipmentSales: dailyTotalShipmentSales, // 일별 출고 매출 총계
+        totalSales: calculatedTotalFromDaily,        // 일별 전체 매출 총계
+        totalServiceSalesAS: dailyTotalServiceSalesAS,        // 일별 AS 부품 매출
+        totalServiceSalesSell: dailyTotalServiceSalesSell,    // 일별 판매 부품 매출
+        totalServiceCount: newTotalServiceCount,            // A/S 건수
+        totalShipmentCount: newTotalShipmentCount,
+        totalCustomerSales: newTotalCustomerSales, 
+        totalLaborSalesOnly: dailyTotalLaborSalesOnly,        // 일별 공임 매출
+      });
+      
+      // 디버깅을 위한 상세 로그
+      console.log('매출 데이터 집계 완료 (A/S 포함):', sortedSalesData);
+      
+      // 상세 매출 분석
+      console.log('=== 매출 분석 (일별 집계 기준) ===');
+      console.log('A/S 매출 (전체):', dailyTotalServiceSales);
+      console.log('  - AS 부품:', dailyTotalServiceSalesAS);
+      console.log('  - 판매 부품:', dailyTotalServiceSalesSell);
+      console.log('  - 공임:', dailyTotalLaborSalesOnly);
+      console.log('출고 매출 (전체):', dailyTotalShipmentSales);
+      console.log('매출 요약 총계:', calculatedTotalFromDaily);
+      console.log('검색결과 총계:', calculatedTotalFromDaily);
+      console.log('차이:', Math.abs(calculatedTotalFromDaily - calculatedTotalFromDaily)); // 항상 0이 됨
+
+      // 청담매장 관련 최종 결과 로그
+      const chungdamData = newTotalCustomerSales['청담매장'];
+      if (chungdamData) {
+        console.log('청담매장 최종 집계 결과:', {
+          총매출: chungdamData.totalAmount,
+          출고건수: chungdamData.shipmentCount,
+          처리된출고ID: Array.from(chungdamData.processedShipments)
+        });
+      } else {
+        console.log('청담매장 데이터가 집계되지 않았습니다.');
+      }
+      
       console.log('매출 데이터 조회 완료');
 
     } catch (error) {
@@ -700,7 +794,16 @@ function SalesStats() {
     if (isNaN(numAmount)) {
       return '0원'; 
     }
-    return numAmount.toLocaleString('ko-KR') + '원';
+    
+    // 정수인 경우 소수점 없이 표시, 소수가 있는 경우 2자리까지 표시
+    if (numAmount % 1 === 0) {
+      return numAmount.toLocaleString('ko-KR') + '원';
+    } else {
+      return numAmount.toLocaleString('ko-KR', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2
+      }) + '원';
+    }
   };
 
   const renderPartsDetail = () => {
@@ -1426,7 +1529,7 @@ function SalesStats() {
                               formatCurrency(0)
                             )}
                           </TableCell>
-                        <TableCell align="right">{formatCurrency(row.totalSales)}</TableCell>
+                        <TableCell align="right">{formatCurrency((row.serviceSales || 0) + (row.shipmentSales || 0))}</TableCell>
                       </TableRow>
                     ))}
                       {/* 합계 행 추가 */}
@@ -1467,7 +1570,10 @@ function SalesStats() {
                             : 0)}
                         </TableCell>
                         <TableCell align="right">
-                          {formatCurrency(salesData.reduce((sum, row) => sum + (row.totalSales || 0), 0))}
+                          {formatCurrency(salesData.reduce((sum, row) => {
+                            const rowTotal = (row.serviceSales || 0) + (row.shipmentSales || 0);
+                            return sum + rowTotal;
+                          }, 0))}
                         </TableCell>
                       </TableRow>
                   </TableBody>
