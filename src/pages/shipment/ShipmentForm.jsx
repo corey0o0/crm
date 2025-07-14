@@ -49,6 +49,7 @@ import { ko } from 'date-fns/locale';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { debounce } from 'lodash';
+import { useUnsavedChangesWarning } from '../../hooks/useUnsavedChangesWarning';
 
 // 부품 카테고리 정의
 const PART_CATEGORIES = ['기체', '파츠', '공임', '기타'];
@@ -133,6 +134,9 @@ function ShipmentForm() {
 
   // 검색을 위한 상태 수정
   const [isSearching, setIsSearching] = useState(false);
+
+  const [isDirty, setIsDirty] = useState(false);
+  useUnsavedChangesWarning(isDirty);
 
   // 메모이제이션된 필터링 함수
   const filteredParts = useMemo(() => {
@@ -309,7 +313,6 @@ function ShipmentForm() {
   };
 
   const handleOpenPartsDialog = () => {
-    fetchAllParts(); // 브랜드 기준 parts 새로 불러오기 (수정)
     setOpenPartsDialog(true);
     setPartInputValue('');
     setSearchTerm('');

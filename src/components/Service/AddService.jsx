@@ -57,6 +57,7 @@ import { API_CONFIG } from '../../config/api';
 import XLSX from 'xlsx';
 import { formatKoreanDateTime } from '../../utils/dateUtils';
 import { sendTelegramNotification } from '../../lib/telegram'; // 텔레그램 유틸리티 함수 import
+import { useUnsavedChangesWarning } from '../../hooks/useUnsavedChangesWarning';
 
 // 접수방법과 배송방법 옵션
 const RECEPTION_TYPES = ['공홈', '방문', '전화', '대리점', '기타'];
@@ -141,6 +142,8 @@ function AddService() {
     message: '',
     onConfirm: null
   });
+  const [isDirty, setIsDirty] = useState(false);
+  useUnsavedChangesWarning(isDirty);
 
   // 접수시간 옵션 (10:00~20:00, 30분 단위)
   const RECEPTION_TIME_OPTIONS = useMemo(() => {

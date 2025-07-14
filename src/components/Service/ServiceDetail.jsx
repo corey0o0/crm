@@ -62,6 +62,7 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import { formatKoreanDateTime } from '../../utils/dateUtils';
 import { sendTelegramNotification } from '../../lib/telegram';
+import { useUnsavedChangesWarning } from '../../hooks/useUnsavedChangesWarning';
 
 // PDF worker 설정
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
@@ -131,6 +132,9 @@ function ServiceDetail() {
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [brand, setBrand] = useState('');
+  const [isDirty, setIsDirty] = useState(false);
+
+  useUnsavedChangesWarning(isDirty);
 
   // 접수시간 옵션 (10:00~20:00, 30분 단위)
   const RECEPTION_TIME_OPTIONS = [];
@@ -523,6 +527,7 @@ function ServiceDetail() {
     }));
     }
     setIsEditing(true);
+    setIsDirty(true);
   };
 
   const fetchParts = async () => {
