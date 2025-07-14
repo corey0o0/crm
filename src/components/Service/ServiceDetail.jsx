@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
 import {
@@ -62,7 +62,6 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import { formatKoreanDateTime } from '../../utils/dateUtils';
 import { sendTelegramNotification } from '../../lib/telegram';
-import { useUnsavedChangesWarning } from '../../hooks/useUnsavedChangesWarning';
 
 // PDF worker 설정
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
@@ -132,9 +131,96 @@ function ServiceDetail() {
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [brand, setBrand] = useState('');
-  const [isDirty, setIsDirty] = useState(false);
 
-  useUnsavedChangesWarning(isDirty);
+  // 변경사항 감지를 위한 상태 추가
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [initialData, setInitialData] = useState(null);
+  const [isFormSubmitted, setIsFormSubmitted] = useState(false);
+
+  // 변경사항 감지 함수
+  const checkForChanges = useCallback(() => {
+    if (!initialData || isFormSubmitted || !isEditing) return;
+    
+    const currentData = {
+      formData,
+      selectedParts: selectedParts.map(part => ({
+        id: part.id,
+        part_id: part.part_id,
+        quantity: part.quantity,
+        price: part.price,
+        usage: part.usage
+      })),
+      tags: tags.slice().sort(),
+      receiptLink
+    };
+    
+    const hasChanges = JSON.stringify(currentData) !== JSON.stringify(initialData);
+    setHasUnsavedChanges(hasChanges);
+  }, [formData, selectedParts, tags, receiptLink, initialData, isFormSubmitted, isEditing]);
+
+  // 폼 데이터 변경 감지
+  useEffect(() => {
+    checkForChanges();
+  }, [checkForChanges]);
+
+  // 페이지 떠날 때 확인 메시지
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  // 브라우저 새로고침/닫기 방지
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (hasUnsavedChanges && !isFormSubmitted) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [hasUnsavedChanges, isFormSubmitted]);
+
+  // 브라우저 뒤로가기 방지
+  useEffect(() => {
+    if (hasUnsavedChanges && !isFormSubmitted) {
+      // 현재 페이지를 히스토리에 추가
+      window.history.pushState(null, '', window.location.href);
+      
+      const handlePopState = (event) => {
+        if (hasUnsavedChanges && !isFormSubmitted) {
+          // 브라우저 뒤로가기 시 확인 다이얼로그 표시
+          const confirmLeave = window.confirm('변경사항이 저장되지 않았습니다. 정말 나가시겠습니까?');
+          
+          if (confirmLeave) {
+            // 사용자가 확인하면 실제로 뒤로가기 실행
+            setHasUnsavedChanges(false);
+            window.history.back();
+          } else {
+            // 사용자가 취소하면 현재 페이지 유지
+            window.history.pushState(null, '', window.location.href);
+          }
+        }
+      };
+
+      window.addEventListener('popstate', handlePopState);
+
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+      };
+    }
+  }, [hasUnsavedChanges, isFormSubmitted]);
 
   // 접수시간 옵션 (10:00~20:00, 30분 단위)
   const RECEPTION_TIME_OPTIONS = [];
@@ -259,6 +345,46 @@ function ServiceDetail() {
         });
 
         setSelectedParts(selectedParts);
+        
+        // 초기 데이터 설정 (변경사항 감지용)
+        setInitialData({
+          formData: {
+            ...serviceData,
+            reception_date: receptionDate,
+            reception_time: receptionTime,
+            completion_date: completionDate,
+            completion_time: completionTime,
+            service_parts: serviceData.service_parts || [],
+            writer: serviceData.writer || '관리자',
+            mileage: mileage
+          },
+          selectedParts: selectedParts.map(part => ({
+            id: part.id,
+            part_id: part.part_id,
+            quantity: part.quantity,
+            price: part.price,
+            usage: part.usage
+          })),
+          tags: serviceData.service_tags ? serviceData.service_tags.map(t => t.tag_name).sort() : [],
+          receiptLink: serviceData.receipt_link || ''
+        });
+      } else {
+        // 부품이 없는 경우에도 초기 데이터 설정
+        setInitialData({
+          formData: {
+            ...serviceData,
+            reception_date: receptionDate,
+            reception_time: receptionTime,
+            completion_date: completionDate,
+            completion_time: completionTime,
+            service_parts: serviceData.service_parts || [],
+            writer: serviceData.writer || '관리자',
+            mileage: mileage
+          },
+          selectedParts: [],
+          tags: serviceData.service_tags ? serviceData.service_tags.map(t => t.tag_name).sort() : [],
+          receiptLink: serviceData.receipt_link || ''
+        });
       }
     } catch (err) {
       console.error('Error fetching service detail:', err);
@@ -350,6 +476,7 @@ function ServiceDetail() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
+    setIsFormSubmitted(true); // 폼 제출 상태로 변경
     
     try {
       let receptionDateTime = null;
@@ -492,20 +619,25 @@ function ServiceDetail() {
         severity: notificationSuccess ? 'success' : 'warning'
       });
       
+      // 변경사항 초기화
+      setHasUnsavedChanges(false);
+      setIsEditing(false);
+      
       localStorage.setItem('highlightServiceId', id);
 
       // 성공적으로 모든 작업 완료 후 페이지 이동
       setTimeout(() => {
         navigate('/services');
       }, 1500); // 사용자 메시지 인지 시간
-      
+
     } catch (error) {
-      console.error('Error updating service:', error);
+      console.error('Error in handleSubmit:', error);
       setSnackbar({
         open: true,
-        message: `저장 중 오류가 발생했습니다: ${error.message}`,
+        message: `오류가 발생했습니다: ${error.message}`,
         severity: 'error'
       });
+      setIsFormSubmitted(false); // 오류 발생 시 제출 상태 해제
     } finally {
       setSubmitting(false);
     }
@@ -527,7 +659,6 @@ function ServiceDetail() {
     }));
     }
     setIsEditing(true);
-    setIsDirty(true);
   };
 
   const fetchParts = async () => {
@@ -1415,6 +1546,37 @@ function ServiceDetail() {
     return value.replace(/[a-z]/g, (c) => c.toUpperCase());
   };
 
+  // 뒤로가기 핸들러
+  const handleBack = () => {
+    if (hasUnsavedChanges) {
+      if (window.confirm('저장하지 않은 변경사항이 있습니다. 정말 나가시겠습니까?')) {
+        navigate('/services');
+      }
+    } else {
+      navigate('/services');
+    }
+  };
+
+  // 편집 시작 핸들러
+  const handleStartEdit = () => {
+    setIsEditing(true);
+    // 편집 시작 시 현재 상태를 초기 데이터로 재설정
+    if (initialData) {
+      setInitialData({
+        formData: { ...formData },
+        selectedParts: selectedParts.map(part => ({
+          id: part.id,
+          part_id: part.part_id,
+          quantity: part.quantity,
+          price: part.price,
+          usage: part.usage
+        })),
+        tags: tags.slice().sort(),
+        receiptLink
+      });
+    }
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -1781,7 +1943,7 @@ function ServiceDetail() {
       <Box component="form" onSubmit={handleSubmit} sx={{ mt: 3, mx: 'auto', width: '95%', maxWidth: 1400 }}>
         <Box sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
           <Button
-            onClick={() => navigate('/services')}
+            onClick={handleBack}
             startIcon={<ArrowBackIcon />}
             sx={{
               color: 'text.secondary',
@@ -2251,23 +2413,10 @@ function ServiceDetail() {
             gap: 2,
             borderTop: '1px solid #f2f2f2' 
           }}>
-            <Button 
-              onClick={handleDelete}
-              sx={{
-                color: '#f04452',
-                fontSize: '0.95rem',
-                fontWeight: 600,
-                textTransform: 'none',
-                '&:hover': {
-                  bgcolor: 'rgba(240, 68, 82, 0.04)'
-                }
-              }}
-            >
-              삭제
-            </Button>
+            <Box />
             <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
               <Button 
-                onClick={() => navigate('/services')}
+                onClick={handleBack}
                 sx={{
                   color: '#4e5968',
                   fontSize: '0.95rem',
@@ -2278,7 +2427,7 @@ function ServiceDetail() {
                   }
                 }}
               >
-                취소
+                목록
               </Button>
               <Button 
                 onClick={handlePrintEstimate}
@@ -2312,7 +2461,7 @@ function ServiceDetail() {
               </Button>
               {isEditing ? (
                 <Button 
-                  type="submit" 
+                  type="submit"
                   variant="contained"
                   disabled={submitting}
                   sx={{
@@ -2330,7 +2479,7 @@ function ServiceDetail() {
                 </Button>
               ) : (
                 <Button 
-                  onClick={() => setIsEditing(true)}
+                  onClick={handleStartEdit}
                   variant="contained"
                   sx={{
                     bgcolor: '#3182f6',

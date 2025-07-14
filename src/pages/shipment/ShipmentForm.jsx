@@ -49,7 +49,6 @@ import { ko } from 'date-fns/locale';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { debounce } from 'lodash';
-import { useUnsavedChangesWarning } from '../../hooks/useUnsavedChangesWarning';
 
 // 부품 카테고리 정의
 const PART_CATEGORIES = ['기체', '파츠', '공임', '기타'];
@@ -135,8 +134,81 @@ function ShipmentForm() {
   // 검색을 위한 상태 수정
   const [isSearching, setIsSearching] = useState(false);
 
-  const [isDirty, setIsDirty] = useState(false);
-  useUnsavedChangesWarning(isDirty);
+  // 변경사항 감지를 위한 상태 추가
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [initialData, setInitialData] = useState(null);
+  const [isFormSubmitted, setIsFormSubmitted] = useState(false);
+
+  // 변경사항 감지 함수
+  const checkForChanges = useCallback(() => {
+    if (!initialData || isFormSubmitted) return;
+    
+    const currentData = {
+      shipmentData,
+      selectedParts: selectedParts.map(part => ({
+        part_name: part.part_name,
+        part_code: part.part_code,
+        category: part.category,
+        quantity: part.quantity,
+        price: part.price,
+        totalPrice: part.totalPrice
+      }))
+    };
+    
+    const hasChanges = JSON.stringify(currentData) !== JSON.stringify(initialData);
+    setHasUnsavedChanges(hasChanges);
+  }, [shipmentData, selectedParts, initialData, isFormSubmitted]);
+
+  // 폼 데이터 변경 감지
+  useEffect(() => {
+    checkForChanges();
+  }, [checkForChanges]);
+
+  // 페이지 떠날 때 확인 메시지
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (hasUnsavedChanges && !isFormSubmitted) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [hasUnsavedChanges, isFormSubmitted]);
+
+  // 브라우저 뒤로가기 방지
+  useEffect(() => {
+    if (hasUnsavedChanges && !isFormSubmitted) {
+      // 현재 페이지를 히스토리에 추가
+      window.history.pushState(null, '', window.location.href);
+      
+      const handlePopState = (event) => {
+        if (hasUnsavedChanges && !isFormSubmitted) {
+          // 브라우저 뒤로가기 시 확인 다이얼로그 표시
+          const confirmLeave = window.confirm('변경사항이 저장되지 않았습니다. 정말 나가시겠습니까?');
+          
+          if (confirmLeave) {
+            // 사용자가 확인하면 실제로 뒤로가기 실행
+            setHasUnsavedChanges(false);
+            window.history.back();
+          } else {
+            // 사용자가 취소하면 현재 페이지 유지
+            window.history.pushState(null, '', window.location.href);
+          }
+        }
+      };
+
+      window.addEventListener('popstate', handlePopState);
+
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+      };
+    }
+  }, [hasUnsavedChanges, isFormSubmitted]);
 
   // 메모이제이션된 필터링 함수
   const filteredParts = useMemo(() => {
@@ -192,12 +264,14 @@ function ShipmentForm() {
       if (error) throw error;
       
       // 날짜 형식 조정
-      setShipmentData({
+      const shipmentInfo = {
         ...data,
         order_date: data.order_date || data.created_at?.split('T')[0],
         shipment_date: data.shipment_date || new Date().toISOString().split('T')[0],
         sales_channel: extractSalesChannel(data.note) || '공홈'
-      });
+      };
+      
+      setShipmentData(shipmentInfo);
 
       // 부품 정보 조회
       try {
@@ -218,6 +292,19 @@ function ShipmentForm() {
           }));
           
           setSelectedParts(formattedParts);
+          
+          // 초기 데이터 설정 (변경사항 감지용)
+          setInitialData({
+            shipmentData: shipmentInfo,
+            selectedParts: formattedParts.map(part => ({
+              part_name: part.part_name,
+              part_code: part.part_code,
+              category: part.category,
+              quantity: part.quantity,
+              price: part.price,
+              totalPrice: part.totalPrice
+            }))
+          });
         }
       } catch (partsError) {
         console.error('Error fetching shipment parts:', partsError);
@@ -233,6 +320,28 @@ function ShipmentForm() {
       setLoading(false);
     }
   };
+
+  // 초기 데이터 설정 (새 등록 모드)
+  useEffect(() => {
+    if (!isEditMode && !initialData) {
+      setInitialData({
+        shipmentData: {
+          brand: 'XRB',
+          customer_name: '',
+          customer_phone: '',
+          customer_address: '',
+          order_date: new Date().toISOString().split('T')[0],
+          shipment_date: new Date().toISOString().split('T')[0],
+          status: '준비중',
+          delivery_method: '택배',
+          tracking_number: '',
+          note: '',
+          sales_channel: '공홈'
+        },
+        selectedParts: []
+      });
+    }
+  }, [isEditMode, initialData]);
 
   const fetchAllParts = async () => {
     try {
@@ -424,6 +533,7 @@ function ShipmentForm() {
     }
     
     setSaving(true);
+    setIsFormSubmitted(true); // 폼 제출 상태로 변경
     let shipmentId = id;
 
     try {
@@ -509,56 +619,40 @@ function ShipmentForm() {
       }
       
       // 등록 성공 후 알림 추가
-      const notificationPayload = {
-        type: isEditMode ? 'shipment_update' : 'shipment_create',
-        message: isEditMode 
-          ? `출고 수정 (출고번호: ${id}) - 고객: ${shipmentSaveData.customer_name}, 연락처: ${shipmentSaveData.customer_phone}`
-          : `출고 등록 (출고번호: ${shipmentId}) - 고객: ${shipmentSaveData.customer_name}, 연락처: ${shipmentSaveData.customer_phone}`,
-        link: `/shipment/${isEditMode ? id : shipmentId}`
-      };
-      
-      const { error: notificationError } = await supabase.from('notifications').insert(notificationPayload);
-      if (notificationError) {
-        console.error('Supabase 알림 저장 실패:', notificationError);
-        // 알림 저장 실패는 사용자에게 심각한 오류로 알리지 않되, 로깅은 중요
-        setSnackbar({
-          open: true,
-          message: '출고 정보는 저장되었으나, 알림 등록에 실패했습니다.',
-          severity: 'warning'
-        });
-      } else {
-        console.log('Supabase 알림 저장 성공.');
-      }
-
-      // 텔레그램 알림은 여기서 await으로 결과 기다림
-      await sendTelegramNotification(notificationPayload.message);
-      console.log('텔레그램 알림 전송 시도 완료.');
-
       setSnackbar({
         open: true,
-        message: isEditMode ? '출고 정보가 성공적으로 수정되었습니다.' : '출고 정보가 성공적으로 등록되었습니다.',
+        message: isEditMode ? '출고 정보가 수정되었습니다.' : '출고 정보가 등록되었습니다.',
         severity: 'success'
       });
       
-      // 모든 작업이 성공적으로 끝난 후 목록 페이지로 이동
+      // 변경사항 초기화
+      setHasUnsavedChanges(false);
+      
       setTimeout(() => {
         navigate('/shipment');
-      }, 1500); // 사용자 메시지 인지 시간
+      }, 1500);
       
     } catch (error) {
-      console.error('Error saving shipment:', error);
+      console.error('Error in handleSubmit:', error);
       setSnackbar({
         open: true,
-        message: `저장 중 오류가 발생했습니다: ${error.message}`,
+        message: `오류가 발생했습니다: ${error.message}`,
         severity: 'error'
       });
+      setIsFormSubmitted(false); // 오류 발생 시 제출 상태 해제
     } finally {
       setSaving(false);
     }
   };
 
   const handleBack = () => {
-    navigate('/shipment');
+    if (hasUnsavedChanges) {
+      if (window.confirm('저장하지 않은 변경사항이 있습니다. 정말 나가시겠습니까?')) {
+        navigate('/shipment');
+      }
+    } else {
+      navigate('/shipment');
+    }
   };
 
   // 제품 정보 다시 분석 함수 추가
