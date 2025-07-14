@@ -1087,24 +1087,29 @@ function AddService() {
     }
   }, [selectedBrand]);
 
+  // selectedBrand와 formData.brand 동기화
+  useEffect(() => {
+    if (selectedBrand !== formData.brand) {
+      setFormData(prev => ({ ...prev, brand: selectedBrand }));
+    }
+  }, [selectedBrand, formData.brand]);
+
   // 고객 검색 함수
   const searchCustomers = async (searchTerm) => {
     try {
       setSearchLoading(true);
       if (searchTerm.length < 2) {
-        // 최근 고객 정보 조회 (A/S + 출고)
+        // 최근 고객 정보 조회 (A/S + 출고) - 브랜드 구분 없이 모든 고객 검색
         const { data: recentServices, error: recentServicesError } = await supabase
           .from('services')
           .select('customer_name, customer_phone, customer_address, brand, product_name, seller')
-          .eq('brand', selectedBrand)
           .order('created_at', { ascending: false })
-          .limit(5);
+          .limit(10);
         const { data: recentShipments, error: recentShipmentsError } = await supabase
           .from('shipments')
           .select('customer_name, customer_phone, customer_address, brand')
-          .eq('brand', selectedBrand)
           .order('created_at', { ascending: false })
-          .limit(5);
+          .limit(10);
         if (recentServicesError) throw recentServicesError;
         if (recentShipmentsError) throw recentShipmentsError;
         const allRecentCustomers = [...(recentServices || []), ...(recentShipments || [])];
@@ -1118,22 +1123,22 @@ function AddService() {
           phone: c.customer_phone,
           address: c.customer_address || '',
           product_name: c.product_name || '',
-          seller: c.seller || ''
+          seller: c.seller || '',
+          brand: c.brand || ''
         })));
         return;
       }
       const cleanSearchTerm = searchTerm.replace(/-/g, '');
+      // 브랜드 구분 없이 모든 고객 검색
       const { data: serviceResults, error: serviceError } = await supabase
         .from('services')
         .select('customer_name, customer_phone, customer_address, brand, product_name, seller')
-        .eq('brand', selectedBrand)
         .or(`customer_phone.ilike.%${cleanSearchTerm}%,customer_name.ilike.%${searchTerm}%`)
         .order('created_at', { ascending: false });
       if (serviceError) throw serviceError;
       const { data: shipmentResults, error: shipmentError } = await supabase
         .from('shipments')
         .select('customer_name, customer_phone, customer_address, brand')
-        .eq('brand', selectedBrand)
         .or(`customer_phone.ilike.%${cleanSearchTerm}%,customer_name.ilike.%${searchTerm}%`)
         .order('created_at', { ascending: false });
       if (shipmentError) throw shipmentError;
@@ -1147,7 +1152,8 @@ function AddService() {
           phone: customer.customer_phone,
           address: customer.customer_address || '',
           product_name: customer.product_name || '',
-          seller: customer.seller || ''
+          seller: customer.seller || '',
+          brand: customer.brand || ''
         }));
       setCustomerSearchResults(uniqueResults);
     } catch (err) {
@@ -1819,10 +1825,15 @@ function AddService() {
                           name="brand"
                           label="브랜드"
                           value={selectedBrand}
-                          disabled
                           onChange={(e) => {
                             setSelectedBrand(e.target.value);
-                            setFormData(prev => ({ ...prev, brand: e.target.value }));
+                            setFormData(prev => ({ ...prev, brand: e.target.value, product_name: '' }));
+                          }}
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              borderRadius: 1,
+                              bgcolor: '#f9fafb'
+                            }
                           }}
                         >
                           <MenuItem value="XRB">X-RIDER BIKE</MenuItem>
@@ -2514,13 +2525,14 @@ function AddService() {
                   <TableCell>주소</TableCell>
                   <TableCell>기종</TableCell>
                   <TableCell>구입처</TableCell>
+                  <TableCell>브랜드</TableCell>
                   <TableCell align="center">선택</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {customerSearchResults.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} align="center">
+                    <TableCell colSpan={7} align="center">
                       {customerInputValue.length > 0 
                         ? '검색 결과가 없습니다.'
                         : '검색어를 입력하세요. (2글자 이상)'}
@@ -2534,6 +2546,7 @@ function AddService() {
                       <TableCell>{customer.address}</TableCell>
                       <TableCell>{customer.product_name || '-'}</TableCell>
                       <TableCell>{customer.seller || '-'}</TableCell>
+                      <TableCell>{customer.brand || '-'}</TableCell>
                       <TableCell align="center">
                         <Button
                           size="small"
