@@ -404,14 +404,6 @@ function ShipmentForm() {
       ...prev,
       [name]: value
     }));
-
-    // 판매처가 청담매장인 경우 자동으로 주소 채우기
-    if (name === 'sales_channel' && value === '청담매장') {
-      setShipmentData(prev => ({
-        ...prev,
-        customer_address: '서울특별시 강남구 청담동 88-6 1층'
-      }));
-    }
   };
 
   const handleDateChange = (name) => (date) => {
@@ -1550,6 +1542,7 @@ function ShipmentForm() {
                 <MenuItem value="청담매장">청담매장</MenuItem>
                 <MenuItem value="라이클-우리">라이클-우리</MenuItem>
                 <MenuItem value="스마트할부">스마트할부</MenuItem>
+                <MenuItem value="스마트스토어">스마트스토어</MenuItem>
                 <MenuItem value="기타">기타</MenuItem>
               </Select>
             </FormControl>
