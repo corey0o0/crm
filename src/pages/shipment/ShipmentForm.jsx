@@ -309,6 +309,7 @@ function ShipmentForm() {
   };
 
   const handleOpenPartsDialog = () => {
+    fetchAllParts(); // 브랜드 기준 parts 새로 불러오기 (수정)
     setOpenPartsDialog(true);
     setPartInputValue('');
     setSearchTerm('');

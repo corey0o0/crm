@@ -1763,6 +1763,14 @@ function ServiceList() {
       endDate: ''
     });
     
+    // 다중 상태, 태그, 검색 모드 초기화
+    setSelectedStatuses([]);
+    setSelectedTags([]);
+    setSearchMode('AND');
+
+    // 필터 저장값 삭제
+    localStorage.removeItem(FILTER_KEY);
+    
     // 필터링된 서비스 초기화
     setFilteredServices(services);
     
