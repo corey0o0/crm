@@ -418,6 +418,8 @@ function ShipmentForm() {
     setPartInputValue('');
     setSearchTerm('');
     setPage(0);
+    // 부품 추가 다이얼로그를 열 때 현재 브랜드의 부품 목록을 새로 불러오기
+    fetchAllParts();
   };
 
   const handleClosePartsDialog = () => {
