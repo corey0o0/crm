@@ -340,7 +340,7 @@ function ServiceDetail() {
             quantity: sp.quantity,
             price: sp.price,
             usage: sp.usage || 'A/S',
-            totalPrice: sp.price * sp.quantity
+            total: sp.price * sp.quantity
           };
         });
 
@@ -1816,9 +1816,7 @@ function ServiceDetail() {
               <TableCell align="right">
                 <Typography variant="subtitle2">
                   {selectedParts.reduce((sum, part) => {
-                    const partTotal = part.price && part.quantity 
-                      ? part.price * part.quantity 
-                      : 0;
+                    const partTotal = (part.price || 0) * (part.quantity || 1);
                     return sum + partTotal;
                   }, 0).toLocaleString()}원
                 </Typography>

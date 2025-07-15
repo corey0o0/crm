@@ -310,6 +310,7 @@ function ServiceList() {
           ),
           service_parts (
             price,
+            quantity,
             parts (
               name
             )
@@ -1209,7 +1210,10 @@ function ServiceList() {
                     </Typography>
                   ))}
                   <Typography variant="body2" sx={{ fontWeight: 900, color: '#fff', mt: 1 }}>
-                    합계: {row.service_parts.reduce((sum, sp) => sum + ((sp.price || 0) * (sp.quantity ?? 1)), 0).toLocaleString()}원
+                    합계: {row.service_parts.reduce((sum, sp) => {
+                      const partTotal = (sp.price || 0) * (sp.quantity ?? 1);
+                      return sum + partTotal;
+                    }, 0).toLocaleString()}원
                   </Typography>
                 </Box>
               }
