@@ -239,10 +239,16 @@ function ShipmentForm() {
 
   // 폼 데이터 변경 시 임시 저장
   useEffect(() => {
-    if (hasUnsavedChanges && !isFormSubmitted) {
-      saveTempData();
+    const shouldSaveTemp = hasUnsavedChanges && !isFormSubmitted;
+    if (shouldSaveTemp) {
+      const temp = {
+        shipmentData,
+        selectedParts
+      };
+      localStorage.setItem(TEMP_KEY, JSON.stringify(temp));
+      setHasTempData(true);
     }
-  }, [shipmentData, selectedParts, hasUnsavedChanges, isFormSubmitted, saveTempData]);
+  }, [shipmentData, selectedParts, hasUnsavedChanges, isFormSubmitted]);
 
   // 정상 등록 시 임시 데이터 삭제
   useEffect(() => {
@@ -1447,16 +1453,6 @@ function ShipmentForm() {
     if ((a.category || '기체') !== '기체' && (b.category || '기체') === '기체') return 1;
     return 0;
   });
-
-  // ShipmentForm 함수 내에서 조건문 밖, 최상단에 위치하도록 수정
-  const saveTempData = useCallback(() => {
-    const temp = {
-      shipmentData,
-      selectedParts
-    };
-    localStorage.setItem(TEMP_KEY, JSON.stringify(temp));
-    setHasTempData(true);
-  }, [shipmentData, selectedParts]);
 
   return (
     <Box sx={{ maxWidth: '1200px', mx: 'auto', p: 2 }}>
