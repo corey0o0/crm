@@ -87,6 +87,9 @@ const calculateTotal = (part) => {
   return (part.price || 0) * (part.quantity || 1);
 };
 
+// ... 기존 import 위에 추가
+const TEMP_KEY = 'shipmentFormTemp';
+
 function ShipmentForm() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -138,6 +141,9 @@ function ShipmentForm() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [initialData, setInitialData] = useState(null);
   const [isFormSubmitted, setIsFormSubmitted] = useState(false);
+
+  // 임시 저장
+  const [hasTempData, setHasTempData] = useState(false);
 
   // 변경사항 감지 함수
   const checkForChanges = useCallback(() => {
@@ -209,6 +215,41 @@ function ShipmentForm() {
       };
     }
   }, [hasUnsavedChanges, isFormSubmitted]);
+
+  // 임시 데이터 불러오기
+  const loadTempData = () => {
+    const temp = localStorage.getItem(TEMP_KEY);
+    if (temp) {
+      const { shipmentData, selectedParts } = JSON.parse(temp);
+      setShipmentData(shipmentData);
+      setSelectedParts(selectedParts);
+    }
+  };
+
+  // 임시 데이터 삭제
+  const clearTempData = () => {
+    localStorage.removeItem(TEMP_KEY);
+    setHasTempData(false);
+  };
+
+  // 마운트 시 임시 데이터 존재 여부 확인
+  useEffect(() => {
+    setHasTempData(!!localStorage.getItem(TEMP_KEY));
+  }, []);
+
+  // 폼 데이터 변경 시 임시 저장
+  useEffect(() => {
+    if (hasUnsavedChanges && !isFormSubmitted) {
+      saveTempData();
+    }
+  }, [shipmentData, selectedParts, hasUnsavedChanges, isFormSubmitted, saveTempData]);
+
+  // 정상 등록 시 임시 데이터 삭제
+  useEffect(() => {
+    if (isFormSubmitted) {
+      clearTempData();
+    }
+  }, [isFormSubmitted]);
 
   // 메모이제이션된 필터링 함수
   const filteredParts = useMemo(() => {
@@ -1407,12 +1448,43 @@ function ShipmentForm() {
     return 0;
   });
 
+  // ... ShipmentForm 함수 내에 추가
+  const saveTempData = useCallback(() => {
+    const temp = {
+      shipmentData,
+      selectedParts
+    };
+    localStorage.setItem(TEMP_KEY, JSON.stringify(temp));
+    setHasTempData(true);
+  }, [shipmentData, selectedParts]);
+
   return (
     <Box sx={{ maxWidth: '1200px', mx: 'auto', p: 2 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
         <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={handleBack}>
           목록으로
         </Button>
+        {hasTempData && (
+          <>
+            <Button 
+              variant="outlined" 
+              onClick={loadTempData}
+              sx={{ ml: 2, minWidth: 150 }}
+            >
+              임시 데이터 불러오기
+            </Button>
+            <Button 
+              variant="outlined" 
+              color="error"
+              onClick={clearTempData}
+              sx={{ ml: 1, minWidth: 120 }}
+            >
+              임시 데이터 삭제
+            </Button>
+          </>
+        )}
+      </Box>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h5">
           {isEditMode ? '출고 정보 수정' : '신규 출고 등록'}
         </Typography>

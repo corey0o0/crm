@@ -74,6 +74,9 @@ const toUpperCaseIfEnglish = (value) => {
   return value.replace(/[a-z]/g, (c) => c.toUpperCase());
 };
 
+// ... 기존 import 위에 추가
+const TEMP_KEY = 'addServiceTemp';
+
 function AddService() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -146,6 +149,9 @@ function AddService() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [initialData, setInitialData] = useState(null);
   const [isFormSubmitted, setIsFormSubmitted] = useState(false);
+
+  // ... AddService 함수 내에 추가
+  const [hasTempData, setHasTempData] = useState(false);
 
   // 변경사항 감지 함수
   const checkForChanges = useCallback(() => {
@@ -1570,9 +1576,60 @@ function AddService() {
     </Box>
   </Box>
 
+  // 임시 저장
+  const saveTempData = useCallback(() => {
+    const temp = {
+      formData,
+      selectedParts,
+      tags,
+      receiptLink,
+      status
+    };
+    localStorage.setItem(TEMP_KEY, JSON.stringify(temp));
+    setHasTempData(true);
+  }, [formData, selectedParts, tags, receiptLink, status]);
+
+  // 임시 데이터 불러오기
+  const loadTempData = () => {
+    const temp = localStorage.getItem(TEMP_KEY);
+    if (temp) {
+      const { formData, selectedParts, tags, receiptLink, status } = JSON.parse(temp);
+      setFormData(formData);
+      setSelectedParts(selectedParts);
+      setTags(tags);
+      setReceiptLink(receiptLink);
+      setStatus(status);
+    }
+  };
+
+  // 임시 데이터 삭제
+  const clearTempData = () => {
+    localStorage.removeItem(TEMP_KEY);
+    setHasTempData(false);
+  };
+
+  // 마운트 시 임시 데이터 존재 여부 확인
+  useEffect(() => {
+    setHasTempData(!!localStorage.getItem(TEMP_KEY));
+  }, []);
+
+  // 폼 데이터 변경 시 임시 저장
+  useEffect(() => {
+    if (hasUnsavedChanges && !isFormSubmitted) {
+      saveTempData();
+    }
+  }, [formData, selectedParts, tags, receiptLink, status, hasUnsavedChanges, isFormSubmitted, saveTempData]);
+
+  // 정상 등록 시 임시 데이터 삭제
+  useEffect(() => {
+    if (isFormSubmitted) {
+      clearTempData();
+    }
+  }, [isFormSubmitted]);
+
   return (
     <Box sx={{ mt: 3, mx: 'auto', width: '95%', maxWidth: 1400 }}>
-      <Box sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
         <Button
           onClick={handleCancel}
           startIcon={<ArrowBackIcon />}
@@ -1587,6 +1644,25 @@ function AddService() {
         >
           A/S 관리
         </Button>
+        {hasTempData && (
+          <>
+            <Button 
+              variant="outlined" 
+              onClick={loadTempData}
+              sx={{ ml: 2, minWidth: 150 }}
+            >
+              임시 데이터 불러오기
+            </Button>
+            <Button 
+              variant="outlined" 
+              color="error"
+              onClick={clearTempData}
+              sx={{ ml: 1, minWidth: 120 }}
+            >
+              임시 데이터 삭제
+            </Button>
+          </>
+        )}
       </Box>
 
       <Paper sx={{ p: 4, borderRadius: 3, boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)', bgcolor: '#ffffff' }}>
@@ -1788,7 +1864,7 @@ function AddService() {
                       <Grid item xs={12}>
                         <TextField
                           fullWidth
-                          required
+                          requirㅞㅡed
                           size="small"
                           label="연락처"
                           name="customer_phone"
