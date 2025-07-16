@@ -1448,7 +1448,7 @@ function ShipmentForm() {
     return 0;
   });
 
-  // ... ShipmentForm 함수 내에 추가
+  // ShipmentForm 함수 내에서 조건문 밖, 최상단에 위치하도록 수정
   const saveTempData = useCallback(() => {
     const temp = {
       shipmentData,
