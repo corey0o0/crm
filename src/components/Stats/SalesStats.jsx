@@ -999,23 +999,66 @@ function SalesStats() {
                         </TableRow>
                       ));
                     })()}
-                    {/* 판매채널별 합계 */}
+                    {/* 판매채널별 + 카테고리별 합계 */}
                     {(() => {
-                      const channelMap = {};
+                      const channelCategoryMap = {};
                       parts.forEach(p => {
-                        const key = p.sales_channel || '미지정';
-                        if (!channelMap[key]) channelMap[key] = { quantity: 0, total: 0 };
-                        channelMap[key].quantity += p.quantity || 0;
-                        channelMap[key].total += p.total || 0;
+                        const channelKey = p.sales_channel || '미지정';
+                        const categoryKey = p.part_category || '기타';
+                        const combinedKey = `${channelKey}-${categoryKey}`;
+                        
+                        if (!channelCategoryMap[combinedKey]) {
+                          channelCategoryMap[combinedKey] = { 
+                            channel: channelKey,
+                            category: categoryKey,
+                            quantity: 0, 
+                            total: 0 
+                          };
+                        }
+                        channelCategoryMap[combinedKey].quantity += p.quantity || 0;
+                        channelCategoryMap[combinedKey].total += p.total || 0;
                       });
-                      return Object.entries(channelMap).map(([ch, sum], idx) => (
-                        <TableRow key={`channel-sum-${ch}-${idx}`} sx={{ backgroundColor: '#e8f5e9' }}>
-                          <TableCell colSpan={1} align="right" sx={{ fontWeight: 'bold', color: 'success.main' }}>{ch} 합계</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>{sum.quantity}</TableCell>
-                          <TableCell></TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(sum.total)}</TableCell>
-                          <TableCell colSpan={3}></TableCell>
-                        </TableRow>
+                      
+                      // 판매채널별로 그룹화하여 표시
+                      const channelGroups = {};
+                      Object.values(channelCategoryMap).forEach(item => {
+                        if (!channelGroups[item.channel]) {
+                          channelGroups[item.channel] = [];
+                        }
+                        channelGroups[item.channel].push(item);
+                      });
+                      
+                      return Object.entries(channelGroups).map(([channel, categories]) => (
+                        <React.Fragment key={`channel-group-${channel}`}>
+                          {/* 판매채널별 카테고리 상세 */}
+                          {categories.map((cat, catIdx) => (
+                            <TableRow key={`channel-cat-${channel}-${cat.category}-${catIdx}`} sx={{ backgroundColor: '#f3e5f5' }}>
+                              <TableCell align="right" sx={{ fontWeight: 'bold', color: 'success.main', fontSize: '0.85rem' }}>
+                                {channel} ({cat.category})
+                              </TableCell>
+                              <TableCell></TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold', fontSize: '0.85rem' }}>{cat.quantity}</TableCell>
+                              <TableCell></TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold', fontSize: '0.85rem' }}>{formatCurrency(cat.total)}</TableCell>
+                              <TableCell colSpan={3}></TableCell>
+                            </TableRow>
+                          ))}
+                          {/* 판매채널 총합계 */}
+                          <TableRow key={`channel-total-${channel}`} sx={{ backgroundColor: '#e8f5e9' }}>
+                            <TableCell colSpan={1} align="right" sx={{ fontWeight: 'bold', color: 'success.main' }}>
+                              {channel} 총합계
+                            </TableCell>
+                            <TableCell></TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                              {categories.reduce((sum, cat) => sum + cat.quantity, 0)}
+                            </TableCell>
+                            <TableCell></TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                              {formatCurrency(categories.reduce((sum, cat) => sum + cat.total, 0))}
+                            </TableCell>
+                            <TableCell colSpan={3}></TableCell>
+                          </TableRow>
+                        </React.Fragment>
                       ));
                     })()}
                     </TableBody>
