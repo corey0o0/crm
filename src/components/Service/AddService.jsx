@@ -56,6 +56,7 @@ import {
 import { API_CONFIG } from '../../config/api';
 import XLSX from 'xlsx';
 import { formatKoreanDateTime } from '../../utils/dateUtils';
+import { format } from 'date-fns';
 import { sendTelegramNotification } from '../../lib/telegram'; // 텔레그램 유틸리티 함수 import
 
 // 접수방법과 배송방법 옵션
@@ -144,6 +145,13 @@ function AddService() {
     message: '',
     onConfirm: null
   });
+  
+  // 고객 이전 기록 관련 상태
+  const [customerHistoryOpen, setCustomerHistoryOpen] = useState(false);
+  const [customerHistoryData, setCustomerHistoryData] = useState([]);
+  const [customerHistoryLoading, setCustomerHistoryLoading] = useState(false);
+  const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState(null);
+  const [customerHistoryCounts, setCustomerHistoryCounts] = useState({});
 
   // 변경사항 감지를 위한 상태 추가
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -1162,6 +1170,11 @@ function AddService() {
           brand: customer.brand || ''
         }));
       setCustomerSearchResults(uniqueResults);
+      
+      // 각 고객의 이력 건수를 미리 조회
+      uniqueResults.forEach(customer => {
+        fetchCustomerHistoryCount(customer);
+      });
     } catch (err) {
       setSnackbar({
         open: true,
@@ -1189,6 +1202,110 @@ function AddService() {
   const handleCustomerSearchKeyPress = (event) => {
     if (event.key === 'Enter') {
       executeCustomerSearch();
+    }
+  };
+
+  // 고객별 이력 건수 조회 함수
+  const fetchCustomerHistoryCount = async (customer) => {
+    try {
+      // A/S 이력 건수 조회
+      const { count: serviceCount, error: serviceError } = await supabase
+        .from('services')
+        .select('*', { count: 'exact', head: true })
+        .or(`customer_phone.eq.${customer.phone},customer_name.ilike.%${customer.name}%`);
+
+      // 출고 이력 건수 조회
+      const { count: shipmentCount, error: shipmentError } = await supabase
+        .from('shipments')
+        .select('*', { count: 'exact', head: true })
+        .or(`customer_phone.eq.${customer.phone},customer_name.ilike.%${customer.name}%`);
+
+      const totalCount = (serviceCount || 0) + (shipmentCount || 0);
+      
+      setCustomerHistoryCounts(prev => ({
+        ...prev,
+        [`${customer.phone}_${customer.name}`]: totalCount
+      }));
+
+      return totalCount;
+    } catch (error) {
+      console.error('고객 이력 건수 조회 오류:', error);
+      return 0;
+    }
+  };
+
+  // 고객 이전 기록 조회 함수
+  const fetchCustomerHistory = async (customer) => {
+    try {
+      setCustomerHistoryLoading(true);
+      setSelectedCustomerForHistory(customer);
+      
+      console.log('고객 이력 조회 시작:', customer);
+      
+      // A/S 이력 조회 - 먼저 전체 필드를 조회해서 구조 확인
+      const { data: serviceHistory, error: serviceError } = await supabase
+        .from('services')
+        .select('*')
+        .or(`customer_phone.eq.${customer.phone},customer_name.ilike.%${customer.name}%`)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      console.log('A/S 이력 조회 결과:', { serviceHistory, serviceError });
+
+      if (serviceError) {
+        console.error('A/S 이력 조회 오류:', serviceError);
+      }
+
+      // 출고 이력 조회
+      const { data: shipmentHistory, error: shipmentError } = await supabase
+        .from('shipments')
+        .select('*')
+        .or(`customer_phone.eq.${customer.phone},customer_name.ilike.%${customer.name}%`)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      console.log('출고 이력 조회 결과:', { shipmentHistory, shipmentError });
+
+      if (shipmentError) {
+        console.error('출고 이력 조회 오류:', shipmentError);
+      }
+
+      // 데이터 통합 및 정렬
+      const combinedHistory = [
+        ...(serviceHistory || []).map(item => ({
+          ...item,
+          type: 'service',
+          date: item.reception_date || item.created_at,
+          title: `A/S 접수 - ${item.product_name || '제품명 없음'}`,
+          description: item.symptom || item.repair_content || item.solution || '증상/수리내용 없음',
+          amount: item.total_amount,
+          status: item.status
+        })),
+        ...(shipmentHistory || []).map(item => ({
+          ...item,
+          type: 'shipment',
+          date: item.order_date || item.created_at,
+          title: `출고 - ${item.product_name || '제품명 없음'}`,
+          description: `수량: ${item.quantity}개${item.note ? ` / ${item.note}` : ''}`,
+          amount: item.price,
+          status: item.shipment_date ? '출고완료' : '출고대기'
+        }))
+      ].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      console.log('통합된 이력 데이터:', combinedHistory);
+      
+      setCustomerHistoryData(combinedHistory);
+      setCustomerHistoryOpen(true);
+
+    } catch (error) {
+      console.error('고객 이력 조회 오류:', error);
+      setSnackbar({
+        open: true,
+        message: '고객 이력 조회 중 오류가 발생했습니다.',
+        severity: 'error'
+      });
+    } finally {
+      setCustomerHistoryLoading(false);
     }
   };
 
@@ -2602,13 +2719,14 @@ function AddService() {
                   <TableCell>기종</TableCell>
                   <TableCell>구입처</TableCell>
                   <TableCell>브랜드</TableCell>
+                  <TableCell align="center">기록보기</TableCell>
                   <TableCell align="center">선택</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {customerSearchResults.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} align="center">
+                    <TableCell colSpan={8} align="center">
                       {customerInputValue.length > 0 
                         ? '검색 결과가 없습니다.'
                         : '검색어를 입력하세요. (2글자 이상)'}
@@ -2623,6 +2741,27 @@ function AddService() {
                       <TableCell>{customer.product_name || '-'}</TableCell>
                       <TableCell>{customer.seller || '-'}</TableCell>
                       <TableCell>{customer.brand || '-'}</TableCell>
+                      <TableCell align="center">
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={() => fetchCustomerHistory(customer)}
+                          disabled={customerHistoryLoading}
+                          sx={{
+                            minWidth: '50px',
+                            color: '#ff9800',
+                            borderColor: '#ff9800',
+                            '&:hover': {
+                              bgcolor: 'rgba(255, 152, 0, 0.04)',
+                              borderColor: '#f57c00'
+                            }
+                          }}
+                        >
+                          {customerHistoryLoading ? '...' : 
+                            (customerHistoryCounts[`${customer.phone}_${customer.name}`] || '')
+                          }
+                        </Button>
+                      </TableCell>
                       <TableCell align="center">
                         <Button
                           size="small"
@@ -2645,6 +2784,100 @@ function AddService() {
             </Table>
           </TableContainer>
         </DialogContent>
+      </Dialog>
+
+      {/* 고객 이력 다이얼로그 */}
+      <Dialog
+        open={customerHistoryOpen}
+        onClose={() => setCustomerHistoryOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h6">
+              고객 이력 - {selectedCustomerForHistory?.name} ({selectedCustomerForHistory?.phone})
+            </Typography>
+            <IconButton onClick={() => setCustomerHistoryOpen(false)}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {customerHistoryLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+              <CircularProgress />
+            </Box>
+          ) : customerHistoryData.length === 0 ? (
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              <Typography color="text.secondary">
+                이 고객의 이력이 없습니다.
+              </Typography>
+            </Box>
+          ) : (
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>구분</TableCell>
+                    <TableCell>날짜</TableCell>
+                    <TableCell>내용</TableCell>
+                    <TableCell>상태</TableCell>
+                    <TableCell align="right">금액</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {customerHistoryData.map((record, index) => (
+                    <TableRow key={`${record.type}-${record.id}-${index}`}>
+                      <TableCell>
+                        <Chip
+                          label={record.type === 'service' ? 'A/S' : '출고'}
+                          size="small"
+                          sx={{
+                            bgcolor: record.type === 'service' ? '#e3f2fd' : '#f3e5f5',
+                            color: record.type === 'service' ? '#1976d2' : '#7b1fa2'
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {format(new Date(record.date), 'yyyy.MM.dd')}
+                      </TableCell>
+                      <TableCell>
+                        <Box>
+                          <Typography variant="body2" fontWeight="medium">
+                            {record.title}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {record.description}
+                          </Typography>
+                        </Box>
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={record.status}
+                          size="small"
+                          variant="outlined"
+                          sx={{
+                            borderColor: record.status === '완료' || record.status === '출고완료' ? '#4caf50' : '#ff9800',
+                            color: record.status === '완료' || record.status === '출고완료' ? '#4caf50' : '#ff9800'
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell align="right">
+                        {record.amount ? `${record.amount.toLocaleString()}원` : '-'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCustomerHistoryOpen(false)}>
+            닫기
+          </Button>
+        </DialogActions>
       </Dialog>
 
       {/* 확인 다이얼로그 */}

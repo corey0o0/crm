@@ -1032,28 +1032,28 @@ function SalesStats() {
                         <React.Fragment key={`channel-group-${channel}`}>
                           {/* 판매채널별 카테고리 상세 */}
                           {categories.map((cat, catIdx) => (
-                            <TableRow key={`channel-cat-${channel}-${cat.category}-${catIdx}`} sx={{ backgroundColor: '#f3e5f5' }}>
-                              <TableCell align="right" sx={{ fontWeight: 'bold', color: 'success.main', fontSize: '0.85rem' }}>
+                            <TableRow key={`channel-cat-${channel}-${cat.category}-${catIdx}`} sx={{ backgroundColor: '#f8f9ff' }}>
+                              <TableCell align="right" sx={{ fontWeight: 'bold', color: '#1565c0', fontSize: '0.9rem' }}>
                                 {channel} ({cat.category})
                               </TableCell>
                               <TableCell></TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 'bold', fontSize: '0.85rem' }}>{cat.quantity}</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold', color: '#424242', fontSize: '0.9rem' }}>{cat.quantity}</TableCell>
                               <TableCell></TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 'bold', fontSize: '0.85rem' }}>{formatCurrency(cat.total)}</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold', color: '#424242', fontSize: '0.9rem' }}>{formatCurrency(cat.total)}</TableCell>
                               <TableCell colSpan={3}></TableCell>
                             </TableRow>
                           ))}
                           {/* 판매채널 총합계 */}
                           <TableRow key={`channel-total-${channel}`} sx={{ backgroundColor: '#e8f5e9' }}>
-                            <TableCell colSpan={1} align="right" sx={{ fontWeight: 'bold', color: 'success.main' }}>
+                            <TableCell colSpan={1} align="right" sx={{ fontWeight: 'bold', color: '#2e7d32', fontSize: '0.95rem' }}>
                               {channel} 총합계
                             </TableCell>
                             <TableCell></TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', color: '#424242' }}>
                               {categories.reduce((sum, cat) => sum + cat.quantity, 0)}
                             </TableCell>
                             <TableCell></TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', color: '#424242' }}>
                               {formatCurrency(categories.reduce((sum, cat) => sum + cat.total, 0))}
                             </TableCell>
                             <TableCell colSpan={3}></TableCell>
