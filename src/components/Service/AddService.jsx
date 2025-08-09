@@ -1130,48 +1130,91 @@ function AddService() {
         if (recentServicesError) throw recentServicesError;
         if (recentShipmentsError) throw recentShipmentsError;
         const allRecentCustomers = [...(recentServices || []), ...(recentShipments || [])];
-        const uniqueCustomers = Array.from(new Set(allRecentCustomers.map(c => c.customer_phone)))
-          .map(phone => allRecentCustomers.find(c => c.customer_phone === phone))
-          .filter(customer => customer.customer_name && customer.customer_phone)
-          .slice(0, 10);
-        setCustomerSearchResults(uniqueCustomers.map(c => ({
-          id: c.customer_phone,
-          name: c.customer_name,
-          phone: c.customer_phone,
-          address: c.customer_address || '',
-          product_name: c.product_name || '',
-          seller: c.seller || '',
-          brand: c.brand || ''
-        })));
+        
+        // 최근 고객도 이름 + 전화번호 조합으로 중복 제거
+        const recentUniqueMap = new Map();
+        allRecentCustomers.forEach(customer => {
+          if (customer.customer_name && customer.customer_phone) {
+            const key = `${customer.customer_name.trim()}_${customer.customer_phone.trim()}`;
+            if (!recentUniqueMap.has(key)) {
+              recentUniqueMap.set(key, {
+                id: key,
+                name: customer.customer_name,
+                phone: customer.customer_phone,
+                address: customer.customer_address || '',
+                product_name: customer.product_name || '',
+                seller: customer.seller || '',
+                brand: customer.brand || ''
+              });
+            }
+          }
+        });
+        
+        const uniqueRecentCustomers = Array.from(recentUniqueMap.values()).slice(0, 10);
+        setCustomerSearchResults(uniqueRecentCustomers);
         return;
       }
       const cleanSearchTerm = searchTerm.replace(/-/g, '');
-      // 브랜드 구분 없이 모든 고객 검색
-      const { data: serviceResults, error: serviceError } = await supabase
-        .from('services')
-        .select('customer_name, customer_phone, customer_address, brand, product_name, seller')
-        .or(`customer_phone.ilike.%${cleanSearchTerm}%,customer_name.ilike.%${searchTerm}%`)
-        .order('created_at', { ascending: false });
+      
+      // 전화번호 패턴인지 확인 (숫자나 하이픈이 포함된 경우)
+      const isPhoneSearch = /^[\d-]+$/.test(searchTerm) && cleanSearchTerm.length >= 3;
+      
+      let serviceQuery, shipmentQuery;
+      
+      if (isPhoneSearch) {
+        // 전화번호 검색: 하이픈 있는/없는 형태 모두 검색
+        serviceQuery = supabase
+          .from('services')
+          .select('customer_name, customer_phone, customer_address, brand, product_name, seller')
+          .or(`customer_phone.ilike.%${cleanSearchTerm}%,customer_phone.ilike.%${searchTerm}%`)
+          .order('created_at', { ascending: false });
+          
+        shipmentQuery = supabase
+          .from('shipments')
+          .select('customer_name, customer_phone, customer_address, brand')
+          .or(`customer_phone.ilike.%${cleanSearchTerm}%,customer_phone.ilike.%${searchTerm}%`)
+          .order('created_at', { ascending: false });
+      } else {
+        // 이름 검색 + 혼합 검색
+        serviceQuery = supabase
+          .from('services')
+          .select('customer_name, customer_phone, customer_address, brand, product_name, seller')
+          .or(`customer_name.ilike.%${searchTerm}%,customer_phone.ilike.%${cleanSearchTerm}%,customer_phone.ilike.%${searchTerm}%`)
+          .order('created_at', { ascending: false });
+          
+        shipmentQuery = supabase
+          .from('shipments')
+          .select('customer_name, customer_phone, customer_address, brand')
+          .or(`customer_name.ilike.%${searchTerm}%,customer_phone.ilike.%${cleanSearchTerm}%,customer_phone.ilike.%${searchTerm}%`)
+          .order('created_at', { ascending: false });
+      }
+      
+      const { data: serviceResults, error: serviceError } = await serviceQuery;
       if (serviceError) throw serviceError;
-      const { data: shipmentResults, error: shipmentError } = await supabase
-        .from('shipments')
-        .select('customer_name, customer_phone, customer_address, brand')
-        .or(`customer_phone.ilike.%${cleanSearchTerm}%,customer_name.ilike.%${searchTerm}%`)
-        .order('created_at', { ascending: false });
+      const { data: shipmentResults, error: shipmentError } = await shipmentQuery;
       if (shipmentError) throw shipmentError;
       const allResults = [...(serviceResults || []), ...(shipmentResults || [])];
-      const uniqueResults = Array.from(new Set(allResults.map(c => c.customer_phone)))
-        .map(phone => allResults.find(c => c.customer_phone === phone))
-        .filter(customer => customer.customer_name && customer.customer_phone)
-        .map(customer => ({
-          id: customer.customer_phone,
-          name: customer.customer_name,
-          phone: customer.customer_phone,
-          address: customer.customer_address || '',
-          product_name: customer.product_name || '',
-          seller: customer.seller || '',
-          brand: customer.brand || ''
-        }));
+      
+      // 이름 + 전화번호 조합으로 중복 제거 (더 정확한 고객 식별)
+      const uniqueMap = new Map();
+      allResults.forEach(customer => {
+        if (customer.customer_name && customer.customer_phone) {
+          const key = `${customer.customer_name.trim()}_${customer.customer_phone.trim()}`;
+          if (!uniqueMap.has(key)) {
+            uniqueMap.set(key, {
+              id: key,
+              name: customer.customer_name,
+              phone: customer.customer_phone,
+              address: customer.customer_address || '',
+              product_name: customer.product_name || '',
+              seller: customer.seller || '',
+              brand: customer.brand || ''
+            });
+          }
+        }
+      });
+      
+      const uniqueResults = Array.from(uniqueMap.values());
       setCustomerSearchResults(uniqueResults);
       
       // 각 고객의 이력 건수를 미리 조회
@@ -1211,17 +1254,27 @@ function AddService() {
   // 고객별 이력 건수 조회 함수
   const fetchCustomerHistoryCount = async (customer) => {
     try {
-      // A/S 이력 건수 조회
+      // A/S 이력 건수 조회 - 이름과 전화번호 모두 정확히 매칭
       const { count: serviceCount, error: serviceError } = await supabase
         .from('services')
         .select('*', { count: 'exact', head: true })
-        .or(`customer_phone.eq.${customer.phone},customer_name.ilike.%${customer.name}%`);
+        .eq('customer_phone', customer.phone)
+        .eq('customer_name', customer.name);
 
-      // 출고 이력 건수 조회
+      if (serviceError) {
+        console.error('A/S 이력 조회 오류:', serviceError);
+      }
+
+      // 출고 이력 건수 조회 - 이름과 전화번호 모두 정확히 매칭
       const { count: shipmentCount, error: shipmentError } = await supabase
         .from('shipments')
         .select('*', { count: 'exact', head: true })
-        .or(`customer_phone.eq.${customer.phone},customer_name.ilike.%${customer.name}%`);
+        .eq('customer_phone', customer.phone)
+        .eq('customer_name', customer.name);
+
+      if (shipmentError) {
+        console.error('출고 이력 조회 오류:', shipmentError);
+      }
 
       const totalCount = (serviceCount || 0) + (shipmentCount || 0);
       
@@ -1245,11 +1298,12 @@ function AddService() {
       
       console.log('고객 이력 조회 시작:', customer);
       
-      // A/S 이력 조회 - 먼저 전체 필드를 조회해서 구조 확인
+      // A/S 이력 조회 - 이름과 전화번호 정확히 매칭
       const { data: serviceHistory, error: serviceError } = await supabase
         .from('services')
         .select('*')
-        .or(`customer_phone.eq.${customer.phone},customer_name.ilike.%${customer.name}%`)
+        .eq('customer_phone', customer.phone)
+        .eq('customer_name', customer.name)
         .order('created_at', { ascending: false })
         .limit(10);
 
@@ -1259,11 +1313,12 @@ function AddService() {
         console.error('A/S 이력 조회 오류:', serviceError);
       }
 
-      // 출고 이력 조회
+      // 출고 이력 조회 - 이름과 전화번호 정확히 매칭
       const { data: shipmentHistory, error: shipmentError } = await supabase
         .from('shipments')
         .select('*')
-        .or(`customer_phone.eq.${customer.phone},customer_name.ilike.%${customer.name}%`)
+        .eq('customer_phone', customer.phone)
+        .eq('customer_name', customer.name)
         .order('created_at', { ascending: false })
         .limit(10);
 
