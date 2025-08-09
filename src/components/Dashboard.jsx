@@ -52,8 +52,11 @@ function Dashboard() {
   const [selectedRecentBrand, setSelectedRecentBrand] = useState('ALL');
   const [memoList, setMemoList] = useState([
     { content: '', lastSaved: null },
+    { content: '', lastSaved: null },
     { content: '', lastSaved: null }
   ]);
+  const [memoNames, setMemoNames] = useState(['메모 1', '메모 2', '메모 3']);
+  const [editingMemoName, setEditingMemoName] = useState(null);
   const [selectedMemoTab, setSelectedMemoTab] = useState(0);
   const [stats, setStats] = useState({
     totalCustomers: 0,
@@ -166,13 +169,28 @@ function Dashboard() {
 
           setMemoList(prev => [
             { content: newMemo.memo1 || '', lastSaved: newMemo.updated_at },
-            { content: newMemo.memo2 || '', lastSaved: newMemo.updated_at }
+            { content: newMemo.memo2 || '', lastSaved: newMemo.updated_at },
+            { content: newMemo.memo3 || '', lastSaved: newMemo.updated_at }
           ]);
         } else {
           setMemoList(prev => [
             { content: existingMemo.memo1 || '', lastSaved: existingMemo.updated_at },
-            { content: existingMemo.memo2 || '', lastSaved: existingMemo.updated_at }
+            { content: existingMemo.memo2 || '', lastSaved: existingMemo.updated_at },
+            { content: existingMemo.memo3 || '', lastSaved: existingMemo.updated_at }
           ]);
+          
+          // 로컬 스토리지에서 메모 이름 불러오기
+          try {
+            const savedNames = localStorage.getItem(`memo_names_${userId}`);
+            if (savedNames) {
+              const loadedNames = JSON.parse(savedNames);
+              if (Array.isArray(loadedNames) && loadedNames.length === 3) {
+                setMemoNames(loadedNames);
+              }
+            }
+          } catch (e) {
+            console.error('메모 이름 로딩 오류:', e);
+          }
         }
       } catch (err) {
         console.error('메모 불러오기 오류:', err);
@@ -194,7 +212,12 @@ function Dashboard() {
         },
         payload => {
           if (payload.new) {
-            setMemoList(prev => prev.map((m, i) => i === 0 ? { ...m, content: payload.new.memo1 || '', lastSaved: payload.new.updated_at } : i === 1 ? { ...m, content: payload.new.memo2 || '', lastSaved: payload.new.updated_at } : m));
+            setMemoList(prev => prev.map((m, i) => 
+              i === 0 ? { ...m, content: payload.new.memo1 || '', lastSaved: payload.new.updated_at } : 
+              i === 1 ? { ...m, content: payload.new.memo2 || '', lastSaved: payload.new.updated_at } : 
+              i === 2 ? { ...m, content: payload.new.memo3 || '', lastSaved: payload.new.updated_at } : m
+            ));
+            
           }
         }
       )
@@ -210,25 +233,28 @@ function Dashboard() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const userId = user?.id || session?.user?.id;
-      if (!userId) return;
+      if (!userId) {
+        setTelegramResult({ open: true, message: '사용자 인증이 필요합니다.', success: false });
+        return;
+      }
       const now = new Date().toISOString();
-      // memo1~memo5로 upsert
+      // memo1~memo3로 upsert
       const upsertData = {
         user_id: userId,
         updated_at: now,
         memo1: memoList[0]?.content || '',
         memo2: memoList[1]?.content || '',
-        memo3: memoList[2]?.content || '',
-        memo4: memoList[3]?.content || '',
-        memo5: memoList[4]?.content || ''
+        memo3: memoList[2]?.content || ''
       };
       const { error } = await supabase
         .from('user_memos')
         .upsert(upsertData, { onConflict: 'user_id' });
       if (error) throw error;
       setMemoList(prev => prev.map((m, i) => i === idx ? { ...m, lastSaved: now } : m));
+      setTelegramResult({ open: true, message: '메모가 저장되었습니다.', success: true });
     } catch (err) {
-      setError(err.message);
+      console.error('메모 저장 오류:', err);
+      setTelegramResult({ open: true, message: '메모 저장 중 오류가 발생했습니다.', success: false });
     }
   };
   
@@ -253,6 +279,36 @@ function Dashboard() {
 
   // 메모 탭 변경
   const handleMemoTabChange = (event, newValue) => setSelectedMemoTab(newValue);
+
+  // 메모 이름 편집 시작
+  const handleMemoNameEdit = (index) => {
+    setEditingMemoName(index);
+  };
+
+  // 메모 이름 변경
+  const handleMemoNameChange = (index, newName) => {
+    setMemoNames(prev => prev.map((name, i) => i === index ? newName : name));
+  };
+
+  // 메모 이름 편집 완료
+  const handleMemoNameEditComplete = async (index) => {
+    setEditingMemoName(null);
+    await saveMemoNames();
+  };
+
+  // 메모 이름 저장 (로컬 스토리지 사용)
+  const saveMemoNames = async () => {
+    try {
+      // 로컬 스토리지에 메모 이름 저장
+      const userId = user?.id;
+      if (userId) {
+        localStorage.setItem(`memo_names_${userId}`, JSON.stringify(memoNames));
+        console.log('메모 이름이 로컬 스토리지에 저장되었습니다:', memoNames);
+      }
+    } catch (err) {
+      console.error('메모 이름 저장 오류:', err);
+    }
+  };
 
   // 상태별 색상 정의
   const statusColors = {
@@ -598,12 +654,18 @@ function Dashboard() {
       return;
     }
     try {
-      await sendTelegramNotification(`[메모 ${idx + 1}]\n${content}`);
+      const memoName = memoNames[idx] || `메모 ${idx + 1}`;
+      const message = `[${memoName}]\n${content}`;
+      await sendTelegramNotification(message);
       setTelegramResult({ open: true, message: '텔레그램 전송 성공!', success: true });
     } catch (e) {
       setTelegramResult({ open: true, message: '텔레그램 전송 실패', success: false });
     }
   };
+
+
+
+
 
   if (loading) {
     return (
@@ -660,62 +722,227 @@ function Dashboard() {
 
       {/* 메모 섹션 */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
-        {/* 메모 1 */}
+        {/* 메모 1과 메모 3 탭 */}
         <Grid item xs={12} md={6}>
           <Paper elevation={0} sx={{ p: 2, bgcolor: '#f8f9fa', border: '1px solid #e9ecef', minHeight: '200px' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="subtitle2" sx={{ color: '#4e5968', fontSize: '0.875rem', fontWeight: 600 }}>
-                메모 1
-              </Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                {memoList[0]?.lastSaved && (
-                  <Typography variant="caption" sx={{ color: '#868e96', fontSize: '0.75rem' }}>
-                    마지막 저장: {dayjs(memoList[0].lastSaved).locale('ko').format('YYYY.MM.DD HH:mm')}
-                  </Typography>
-                )}
-                <Tooltip title="이 메모를 텔레그램으로 전송">
-                  <IconButton onClick={() => handleSendMemoToTelegram(0)} size="small">
-                    <SendIcon fontSize="small" color="primary" />
-                  </IconButton>
-                </Tooltip>
+            <Tabs value={selectedMemoTab} onChange={handleMemoTabChange} variant="scrollable" scrollButtons="auto">
+              <Tab label={memoNames[0]} />
+              <Tab label={memoNames[2]} />
+            </Tabs>
+            
+            {/* 메모 1 내용 */}
+            {selectedMemoTab === 0 && (
+              <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  {editingMemoName === 0 ? (
+                    <TextField
+                      size="small"
+                      value={memoNames[0]}
+                      onChange={(e) => handleMemoNameChange(0, e.target.value)}
+                      onBlur={() => handleMemoNameEditComplete(0)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleMemoNameEditComplete(0);
+                        } else if (e.key === 'Escape') {
+                          setEditingMemoName(null);
+                        }
+                      }}
+                      sx={{ 
+                        width: '120px', 
+                        '& .MuiInputBase-input': { 
+                          fontSize: '0.875rem', 
+                          fontWeight: 600,
+                          padding: '4px 8px',
+                          color: '#4e5968'
+                        } 
+                      }}
+                      autoFocus
+                    />
+                  ) : (
+                    <Typography 
+                      variant="subtitle2" 
+                      sx={{ 
+                        color: '#4e5968', 
+                        fontSize: '0.875rem', 
+                        fontWeight: 600, 
+                        cursor: 'pointer',
+                        '&:hover': { bgcolor: 'rgba(0,0,0,0.04)', borderRadius: '4px', padding: '2px 4px' }
+                      }}
+                      onClick={() => handleMemoNameEdit(0)}
+                    >
+                      {memoNames[0]}
+                    </Typography>
+                  )}
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {memoList[0]?.lastSaved && (
+                      <Typography variant="caption" sx={{ color: '#868e96', fontSize: '0.75rem' }}>
+                        마지막 저장: {dayjs(memoList[0].lastSaved).locale('ko').format('YYYY.MM.DD HH:mm')}
+                      </Typography>
+                    )}
+                    <Tooltip title="이 메모를 텔레그램으로 전송">
+                      <IconButton onClick={() => handleSendMemoToTelegram(0)} size="small">
+                        <SendIcon fontSize="small" color="primary" />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                </Box>
+                <TextField
+                  multiline
+                  fullWidth
+                  value={memoList[0]?.content || ''}
+                  onChange={e => handleMemoContentChange(0, e.target.value)}
+                  placeholder="메모를 입력하세요..."
+                  variant="outlined"
+                  sx={{
+                    bgcolor: '#fff',
+                    fontSize: '0.875rem',
+                    '& textarea': {
+                      resize: 'vertical',
+                      minHeight: '100px',
+                      maxHeight: '500px'
+                    }
+                  }}
+                />
+                <Button
+                  variant="contained"
+                  onClick={() => handleSaveMemo(0)}
+                  sx={{ bgcolor: '#3182f6', '&:hover': { bgcolor: '#1b64da' }, alignSelf: 'flex-end' }}
+                >
+                  저장
+                </Button>
               </Box>
-            </Box>
-            <TextField
-              multiline
-              fullWidth
-              value={memoList[0]?.content || ''}
-              onChange={e => handleMemoContentChange(0, e.target.value)}
-              placeholder="메모를 입력하세요..."
-              variant="outlined"
-              sx={{
-                flex: 1,
-                bgcolor: '#fff',
-                fontSize: '0.875rem',
-                mt: 2,
-                '& textarea': {
-                  flex: 1,
-                  resize: 'vertical',
-                  minHeight: '100px',
-                  maxHeight: '500px'
-                }
-              }}
-            />
-            <Button
-              variant="contained"
-              onClick={() => handleSaveMemo(0)}
-              sx={{ bgcolor: '#3182f6', '&:hover': { bgcolor: '#1b64da' }, alignSelf: 'flex-end', mt: 2 }}
-            >
-              저장
-            </Button>
+            )}
+            
+            {/* 메모 3 내용 */}
+            {selectedMemoTab === 1 && (
+              <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  {editingMemoName === 2 ? (
+                    <TextField
+                      size="small"
+                      value={memoNames[2]}
+                      onChange={(e) => handleMemoNameChange(2, e.target.value)}
+                      onBlur={() => handleMemoNameEditComplete(2)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleMemoNameEditComplete(2);
+                        } else if (e.key === 'Escape') {
+                          setEditingMemoName(null);
+                        }
+                      }}
+                      sx={{ 
+                        width: '120px', 
+                        '& .MuiInputBase-input': { 
+                          fontSize: '0.875rem', 
+                          fontWeight: 600,
+                          padding: '4px 8px',
+                          color: '#4e5968'
+                        } 
+                      }}
+                      autoFocus
+                    />
+                  ) : (
+                    <Typography 
+                      variant="subtitle2" 
+                      sx={{ 
+                        color: '#4e5968', 
+                        fontSize: '0.875rem', 
+                        fontWeight: 600, 
+                        cursor: 'pointer',
+                        '&:hover': { bgcolor: 'rgba(0,0,0,0.04)', borderRadius: '4px', padding: '2px 4px' }
+                      }}
+                      onClick={() => handleMemoNameEdit(2)}
+                    >
+                      {memoNames[2]}
+                    </Typography>
+                  )}
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {memoList[2]?.lastSaved && (
+                      <Typography variant="caption" sx={{ color: '#868e96', fontSize: '0.75rem' }}>
+                        마지막 저장: {dayjs(memoList[2].lastSaved).locale('ko').format('YYYY.MM.DD HH:mm')}
+                      </Typography>
+                    )}
+                    <Tooltip title="이 메모를 텔레그램으로 전송">
+                      <IconButton onClick={() => handleSendMemoToTelegram(2)} size="small">
+                        <SendIcon fontSize="small" color="primary" />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                </Box>
+                <TextField
+                  multiline
+                  fullWidth
+                  value={memoList[2]?.content || ''}
+                  onChange={e => handleMemoContentChange(2, e.target.value)}
+                  placeholder="메모를 입력하세요..."
+                  variant="outlined"
+                  sx={{
+                    bgcolor: '#fff',
+                    fontSize: '0.875rem',
+                    '& textarea': {
+                      resize: 'vertical',
+                      minHeight: '100px',
+                      maxHeight: '500px'
+                    }
+                  }}
+                />
+                <Button
+                  variant="contained"
+                  onClick={() => handleSaveMemo(2)}
+                  sx={{ bgcolor: '#3182f6', '&:hover': { bgcolor: '#1b64da' }, alignSelf: 'flex-end' }}
+                >
+                  저장
+                </Button>
+              </Box>
+            )}
           </Paper>
         </Grid>
         {/* 메모 2 */}
         <Grid item xs={12} md={6}>
           <Paper elevation={0} sx={{ p: 2, bgcolor: '#f8f9fa', border: '1px solid #e9ecef', minHeight: '200px' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="subtitle2" sx={{ color: '#4e5968', fontSize: '0.875rem', fontWeight: 600 }}>
-                메모 2
-              </Typography>
+              {editingMemoName === 1 ? (
+                <TextField
+                  size="small"
+                  value={memoNames[1]}
+                  onChange={(e) => handleMemoNameChange(1, e.target.value)}
+                  onBlur={() => handleMemoNameEditComplete(1)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleMemoNameEditComplete(1);
+                    } else if (e.key === 'Escape') {
+                      setEditingMemoName(null);
+                    }
+                  }}
+                  sx={{ 
+                    width: '120px', 
+                    '& .MuiInputBase-input': { 
+                      fontSize: '0.875rem', 
+                      fontWeight: 600,
+                      padding: '4px 8px',
+                      color: '#4e5968'
+                    } 
+                  }}
+                  autoFocus
+                />
+              ) : (
+                <Typography 
+                  variant="subtitle2" 
+                  sx={{ 
+                    color: '#4e5968', 
+                    fontSize: '0.875rem', 
+                    fontWeight: 600, 
+                    cursor: 'pointer',
+                    '&:hover': { bgcolor: 'rgba(0,0,0,0.04)', borderRadius: '4px', padding: '2px 4px' }
+                  }}
+                  onClick={() => handleMemoNameEdit(1)}
+                >
+                  {memoNames[1]}
+                </Typography>
+              )}
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 {memoList[1]?.lastSaved && (
                   <Typography variant="caption" sx={{ color: '#868e96', fontSize: '0.75rem' }}>
@@ -758,72 +985,6 @@ function Dashboard() {
             </Button>
           </Paper>
         </Grid>
-        {/* 3번 이상 메모는 탭으로 */}
-        {memoList.length > 2 && (
-          <Grid item xs={12}>
-            <Paper elevation={0} sx={{ p: 2, bgcolor: '#f8f9fa', border: '1px solid #e9ecef', minHeight: '200px' }}>
-              <Tabs value={selectedMemoTab} onChange={handleMemoTabChange} variant="scrollable" scrollButtons="auto">
-                {memoList.slice(2).map((_, idx) => (
-                  <Tab label={`메모 ${idx + 3}`} key={idx} />
-                ))}
-                <Tab label="+ 새 메모" onClick={handleAddMemo} disabled={memoList.length >= 5} />
-              </Tabs>
-              {memoList.slice(2).map((memo, idx) => (
-                selectedMemoTab === idx && (
-                  <Box key={idx} sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Typography variant="subtitle2" sx={{ color: '#4e5968', fontSize: '0.875rem', fontWeight: 600 }}>
-                        메모 {idx + 3}
-                      </Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        {memo.lastSaved && (
-                          <Typography variant="caption" sx={{ color: '#868e96', fontSize: '0.75rem' }}>
-                            마지막 저장: {dayjs(memo.lastSaved).locale('ko').format('YYYY.MM.DD HH:mm')}
-                          </Typography>
-                        )}
-                        <Tooltip title="이 메모를 텔레그램으로 전송">
-                          <IconButton onClick={() => handleSendMemoToTelegram(idx + 2)} size="small">
-                            <SendIcon fontSize="small" color="primary" />
-                          </IconButton>
-                        </Tooltip>
-                        <IconButton size="small" onClick={() => handleDeleteMemo(idx + 2)}>
-                          <CloseIcon fontSize="small" />
-                        </IconButton>
-                      </Box>
-                    </Box>
-                    <TextField
-                      multiline
-                      fullWidth
-                      value={memo.content}
-                      onChange={e => handleMemoContentChange(idx + 2, e.target.value)}
-                      placeholder="메모를 입력하세요..."
-                      variant="outlined"
-                      sx={{
-                        flex: 1,
-                        bgcolor: '#fff',
-                        fontSize: '0.875rem',
-                        mt: 2,
-                        '& textarea': {
-                          flex: 1,
-                          resize: 'vertical',
-                          minHeight: '100px',
-                          maxHeight: '500px'
-                        }
-                      }}
-                    />
-                    <Button
-                      variant="contained"
-                      onClick={() => handleSaveMemo(idx + 2)}
-                      sx={{ bgcolor: '#3182f6', '&:hover': { bgcolor: '#1b64da' }, alignSelf: 'flex-end', mt: 2 }}
-                    >
-                      저장
-                    </Button>
-                  </Box>
-                )
-              ))}
-            </Paper>
-          </Grid>
-        )}
       </Grid>
 
       {/* 캘린더 섹션 */}

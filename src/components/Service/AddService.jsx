@@ -3,6 +3,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
 import { read, utils, writeFile } from 'xlsx';
 import ReceiptScanner from '../Receipt/ReceiptScanner';
+import CustomerHistoryDialog from './CustomerHistoryDialog';
+import CustomerSearchModal from './CustomerSearchModal';
+import PartsSelectionDialog from './PartsSelectionDialog';
 import {
   Box,
   Button,
@@ -65,7 +68,7 @@ const DELIVERY_METHODS = ['방문수령', '택배', '퀵-선불', '퀵-착불'];
 
 // 사전 정의된 태그 목록
 const PREDEFINED_TAGS = [
-  'DBSM', '배터리', '모터', '컨트롤러', '브레이크', '타이어', '전체점검',
+  '배터리스위치', 'DBSM', '배터리', '모터', '컨트롤러', '브레이크', '타이어', '전체점검',
   'E010', 'E004', 'E007', '사고수리', '충전안됨'
 ];
 
@@ -119,8 +122,8 @@ function AddService() {
   const [partQuantity, setPartQuantity] = useState(1);
   const [status, setStatus] = useState('접수');
   const [availableTags] = useState([
-    '전체점검', '브레이크-패드', '브레이크-로터', '브레이크-교체', '배터리',
-    '충전기', '모터', '워런티', '사고-보험', 'E07','E09','E010'
+    '배터리스위치','전체점검', '브레이크-패드', '브레이크-로터', '브레이크-교체', '배터리',
+    '충전기', '모터', '워런티', '사고-보험', 'E07','E09','E010','배터리스위치'
   ]);
   const [receiptLink, setReceiptLink] = useState('');
   const [receiptPreviewAnchor, setReceiptPreviewAnchor] = useState(null);
@@ -2557,68 +2560,24 @@ function AddService() {
       </Dialog>
 
       {/* 부품 검색 다이얼로그 */}
-      <Dialog
+      <PartsSelectionDialog
         open={openPartsDialog}
         onClose={handleClosePartsDialog}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>부품 추가</DialogTitle>
-        <DialogContent>
-          <Box sx={{ mb: 2 }}>
-            <TextField
-              fullWidth
-              size="small"
-              placeholder="부품명 또는 코드로 검색"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </Box>
-          <TableContainer>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>부품명</TableCell>
-                  <TableCell>코드</TableCell>
-                  <TableCell>브랜드</TableCell>
-                  <TableCell align="right">단가</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {availableParts
-                  .filter(part => 
-                    part.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    part.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    part.brand.toLowerCase().includes(searchTerm.toLowerCase())
-                  )
-                  .map((part) => (
-                    <TableRow 
-                      key={part.id}
-                      selected={selectedPart?.id === part.id}
-                      onClick={() => handlePartSelect(part)}
-                      sx={{ cursor: 'pointer' }}
-                    >
-                      <TableCell>{part.name}</TableCell>
-                      <TableCell>{part.code}</TableCell>
-                      <TableCell>{part.brand}</TableCell>
-                      <TableCell align="right">{part.price.toLocaleString()}원</TableCell>
-                    </TableRow>
-                  ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleClosePartsDialog}>취소</Button>
-          <Button 
-            onClick={handleAddPart} 
-            variant="contained" 
-            disabled={!selectedPart}
-          >
-            추가
-          </Button>
-        </DialogActions>
-      </Dialog>
+        searchTerm={searchTerm}
+        onSearchChange={(e) => setSearchTerm(e.target.value)}
+        onSearchKeyPress={() => {}}
+        parts={availableParts
+          .filter(part => 
+            part.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            part.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            part.brand.toLowerCase().includes(searchTerm.toLowerCase())
+          )}
+        selectedPart={selectedPart}
+        onPartSelect={handlePartSelect}
+        onAddPart={handleAddPart}
+        quantity={1}
+        onQuantityChange={() => {}}
+      />
 
       {/* 미리보기 다이얼로그 */}
       <Dialog
@@ -2667,218 +2626,28 @@ function AddService() {
       </Dialog>
 
       {/* 고객 검색 다이얼로그 */}
-      <Dialog
+      <CustomerSearchModal
         open={customerSearchOpen}
         onClose={() => setCustomerSearchOpen(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>
-          고객 검색
-          <IconButton
-            onClick={() => setCustomerSearchOpen(false)}
-            sx={{
-              position: 'absolute',
-              right: 8,
-              top: 8
-            }}
-          >
-            <CloseIcon />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent>
-          <Box sx={{ mb: 2 }}>
-            <TextField
-              fullWidth
-              size="small"
-              placeholder="고객명 또는 연락처로 검색"
-              value={customerInputValue}
-              onChange={handleCustomerSearchInput}
-              onKeyPress={handleCustomerSearchKeyPress}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon />
-                  </InputAdornment>
-                ),
-                endAdornment: searchLoading && (
-                  <InputAdornment position="end">
-                    <CircularProgress size={20} />
-                  </InputAdornment>
-                )
-              }}
-            />
-          </Box>
-          <TableContainer component={Paper} variant="outlined">
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>고객명</TableCell>
-                  <TableCell>연락처</TableCell>
-                  <TableCell>주소</TableCell>
-                  <TableCell>기종</TableCell>
-                  <TableCell>구입처</TableCell>
-                  <TableCell>브랜드</TableCell>
-                  <TableCell align="center">기록보기</TableCell>
-                  <TableCell align="center">선택</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {customerSearchResults.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} align="center">
-                      {customerInputValue.length > 0 
-                        ? '검색 결과가 없습니다.'
-                        : '검색어를 입력하세요. (2글자 이상)'}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  customerSearchResults.map((customer) => (
-                    <TableRow key={customer.id} hover>
-                      <TableCell>{customer.name}</TableCell>
-                      <TableCell>{customer.phone}</TableCell>
-                      <TableCell>{customer.address}</TableCell>
-                      <TableCell>{customer.product_name || '-'}</TableCell>
-                      <TableCell>{customer.seller || '-'}</TableCell>
-                      <TableCell>{customer.brand || '-'}</TableCell>
-                      <TableCell align="center">
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          onClick={() => fetchCustomerHistory(customer)}
-                          disabled={customerHistoryLoading}
-                          sx={{
-                            minWidth: '50px',
-                            color: '#ff9800',
-                            borderColor: '#ff9800',
-                            '&:hover': {
-                              bgcolor: 'rgba(255, 152, 0, 0.04)',
-                              borderColor: '#f57c00'
-                            }
-                          }}
-                        >
-                          {customerHistoryLoading ? '...' : 
-                            (customerHistoryCounts[`${customer.phone}_${customer.name}`] || '')
-                          }
-                        </Button>
-                      </TableCell>
-                      <TableCell align="center">
-                        <Button
-                          size="small"
-                          onClick={() => handleCustomerSelect(customer)}
-                          sx={{
-                            minWidth: 'auto',
-                            color: '#3182f6',
-                            '&:hover': {
-                              bgcolor: 'rgba(49, 130, 246, 0.04)'
-                            }
-                          }}
-                        >
-                          선택
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </DialogContent>
-      </Dialog>
+        searchValue={customerInputValue}
+        onSearchChange={handleCustomerSearchInput}
+        onSearchKeyPress={handleCustomerSearchKeyPress}
+        searchResults={customerSearchResults}
+        searchLoading={searchLoading}
+        historyCounts={customerHistoryCounts}
+        onHistoryClick={fetchCustomerHistory}
+        onCustomerSelect={handleCustomerSelect}
+        historyLoading={customerHistoryLoading}
+      />
 
       {/* 고객 이력 다이얼로그 */}
-      <Dialog
+      <CustomerHistoryDialog
         open={customerHistoryOpen}
         onClose={() => setCustomerHistoryOpen(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography variant="h6">
-              고객 이력 - {selectedCustomerForHistory?.name} ({selectedCustomerForHistory?.phone})
-            </Typography>
-            <IconButton onClick={() => setCustomerHistoryOpen(false)}>
-              <CloseIcon />
-            </IconButton>
-          </Box>
-        </DialogTitle>
-        <DialogContent>
-          {customerHistoryLoading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-              <CircularProgress />
-            </Box>
-          ) : customerHistoryData.length === 0 ? (
-            <Box sx={{ textAlign: 'center', py: 4 }}>
-              <Typography color="text.secondary">
-                이 고객의 이력이 없습니다.
-              </Typography>
-            </Box>
-          ) : (
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>구분</TableCell>
-                    <TableCell>날짜</TableCell>
-                    <TableCell>내용</TableCell>
-                    <TableCell>상태</TableCell>
-                    <TableCell align="right">금액</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {customerHistoryData.map((record, index) => (
-                    <TableRow key={`${record.type}-${record.id}-${index}`}>
-                      <TableCell>
-                        <Chip
-                          label={record.type === 'service' ? 'A/S' : '출고'}
-                          size="small"
-                          sx={{
-                            bgcolor: record.type === 'service' ? '#e3f2fd' : '#f3e5f5',
-                            color: record.type === 'service' ? '#1976d2' : '#7b1fa2'
-                          }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        {format(new Date(record.date), 'yyyy.MM.dd')}
-                      </TableCell>
-                      <TableCell>
-                        <Box>
-                          <Typography variant="body2" fontWeight="medium">
-                            {record.title}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {record.description}
-                          </Typography>
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={record.status}
-                          size="small"
-                          variant="outlined"
-                          sx={{
-                            borderColor: record.status === '완료' || record.status === '출고완료' ? '#4caf50' : '#ff9800',
-                            color: record.status === '완료' || record.status === '출고완료' ? '#4caf50' : '#ff9800'
-                          }}
-                        />
-                      </TableCell>
-                      <TableCell align="right">
-                        {record.amount ? `${record.amount.toLocaleString()}원` : '-'}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCustomerHistoryOpen(false)}>
-            닫기
-          </Button>
-        </DialogActions>
-      </Dialog>
+        selectedCustomer={selectedCustomerForHistory}
+        historyData={customerHistoryData}
+        loading={customerHistoryLoading}
+      />
 
       {/* 확인 다이얼로그 */}
       <Dialog

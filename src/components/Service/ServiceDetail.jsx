@@ -101,7 +101,7 @@ function ServiceDetail() {
   const [searchTerm, setSearchTerm] = useState('');
   const [tags, setTags] = useState([]);
   const [availableTags] = useState([
-    '전체점검', '브레이크-패드', '브레이크-로터', '브레이크-교체', '배터리', '펑크',
+    '배터리스위치', '전체점검', '브레이크-패드', '브레이크-로터', '브레이크-교체', '배터리', '펑크',
     '충전기', '모터', '워런티', '사고-보험', 'E07','E09','E010'
   ]);
   const [submitting, setSubmitting] = useState(false);
@@ -225,7 +225,7 @@ function ServiceDetail() {
   // 접수시간 옵션 (10:00~20:00, 30분 단위)
   const RECEPTION_TIME_OPTIONS = [];
   for (let h = 10; h <= 20; h++) {
-    RECEPTION_TIME_OPTIONS.push(`${String(h).padStart(2, '0')}:00`);
+    RECEPTION_TIME_OPTIONS.push(`m  ${String(h).padStart(2, '0')}:00`);
     if (h !== 20) RECEPTION_TIME_OPTIONS.push(`${String(h).padStart(2, '0')}:30`);
   }
 
