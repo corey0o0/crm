@@ -225,7 +225,7 @@ function ServiceDetail() {
   // 접수시간 옵션 (10:00~20:00, 30분 단위)
   const RECEPTION_TIME_OPTIONS = [];
   for (let h = 10; h <= 20; h++) {
-    RECEPTION_TIME_OPTIONS.push(`m  ${String(h).padStart(2, '0')}:00`);
+    RECEPTION_TIME_OPTIONS.push(`${String(h).padStart(2, '0')}:00`);
     if (h !== 20) RECEPTION_TIME_OPTIONS.push(`${String(h).padStart(2, '0')}:30`);
   }
 
