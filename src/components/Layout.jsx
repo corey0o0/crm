@@ -30,7 +30,9 @@ import {
   DriveFileMove as DriveIcon,
   Message as MessageIcon,
   Assessment as AssessmentIcon,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Settings as SettingsIcon,
+  History as HistoryIcon
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
@@ -126,6 +128,8 @@ function Layout() {
     { text: '고객 관리', icon: <PeopleIcon />, path: '/customers' },
     { text: '파츠 관리', icon: <InventoryIcon />, path: '/parts' },
     { text: '재고 관리', icon: <InventoryIcon />, path: '/stocks' },
+    { text: '재고 변경 내역', icon: <HistoryIcon />, path: '/inventory-logs' },
+    { text: '브랜드 설정', icon: <SettingsIcon />, path: '/brand-settings' },
     // { text: 'A/S 통계', icon: <AssessmentIcon />, path: '/stats/service' }, //
     { text: '매출 통계', icon: <BarChartIcon />, path: '/sales/stats' }
     // { text: '영수증 스캔', icon: <ReceiptIcon />, path: '/receipts' },

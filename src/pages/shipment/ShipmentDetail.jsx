@@ -24,7 +24,11 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel
 } from '@mui/material';
 import { 
   ArrowBack as ArrowBackIcon, 
@@ -39,6 +43,7 @@ import {
 import { supabase } from '../../lib/supabaseClient';
 import { useNavigate, useParams } from 'react-router-dom';
 import { format, parseISO, isValid } from 'date-fns';
+import { processShipmentCompletion, processShipmentRevert } from '../../utils/inventoryUtils';
 
 function ShipmentDetail() {
   const [loading, setLoading] = useState(true);
@@ -375,6 +380,92 @@ function ShipmentDetail() {
 
   const handleEdit = () => {
     navigate(`/shipment/edit/${id}`);
+  };
+
+  // 상태 변경 및 재고 처리
+  const handleStatusChange = async (newStatus) => {
+    setSaving(true);
+    try {
+      const previousStatus = shipmentData.status;
+      
+      // 브랜드 코드 확인 (출고 정보에서 브랜드 추정)
+      let brandCode = 'XRB'; // 기본값
+      
+      // shipment_parts에서 part_code를 확인하여 브랜드 추정
+      if (shipmentParts.length > 0) {
+        const firstPartCode = shipmentParts[0]?.part_code;
+        if (firstPartCode) {
+          if (firstPartCode.startsWith('NB') || firstPartCode.includes('NEARBIKE')) {
+            brandCode = 'NB';
+          }
+        }
+      }
+      
+      // 상태 업데이트
+      const { error: updateError } = await supabase
+        .from('shipments')
+        .update({ 
+          status: newStatus,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
+
+      if (updateError) {
+        throw new Error(`상태 업데이트 실패: ${updateError.message}`);
+      }
+
+      let inventoryMessage = '';
+
+      // 재고 처리 로직
+      if (newStatus === '출고완료' && previousStatus !== '출고완료') {
+        // 출고완료로 변경: 재고 차감
+        console.log(`출고 완료 처리 시작 - 출고ID: ${id}, 브랜드: ${brandCode}`);
+        
+        const inventoryResult = await processShipmentCompletion(id, brandCode);
+        
+        if (inventoryResult.success) {
+          if (!inventoryResult.skipped) {
+            inventoryMessage = `, ${inventoryResult.message}`;
+          }
+        } else {
+          inventoryMessage = ` (재고 차감 오류: ${inventoryResult.message})`;
+          console.error('재고 차감 오류 상세:', inventoryResult.errors);
+        }
+      } else if (previousStatus === '출고완료' && newStatus !== '출고완료') {
+        // 출고완료에서 다른 상태로 변경: 재고 복구
+        console.log(`출고 상태 복구 처리 시작 - 출고ID: ${id}, 브랜드: ${brandCode}`);
+        
+        const inventoryResult = await processShipmentRevert(id, brandCode);
+        
+        if (inventoryResult.success) {
+          if (!inventoryResult.skipped) {
+            inventoryMessage = `, ${inventoryResult.message}`;
+          }
+        } else {
+          inventoryMessage = ` (재고 복구 오류: ${inventoryResult.message})`;
+          console.error('재고 복구 오류 상세:', inventoryResult.errors);
+        }
+      }
+
+      setSnackbar({
+        open: true,
+        message: `상태가 '${newStatus}'로 변경되었습니다${inventoryMessage}`,
+        severity: inventoryMessage.includes('오류') ? 'warning' : 'success'
+      });
+
+      // 데이터 새로고침
+      await fetchShipmentDetail();
+
+    } catch (error) {
+      console.error('상태 변경 중 오류:', error);
+      setSnackbar({
+        open: true,
+        message: `상태 변경 실패: ${error.message}`,
+        severity: 'error'
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handlePrint = () => {
@@ -967,11 +1058,28 @@ function ShipmentDetail() {
           <Typography variant="h5" gutterBottom>
             출고 상세 정보
           </Typography>
-          <Chip 
-            label={shipmentData.status} 
-            color={getStatusColor(shipmentData.status)}
-            sx={{ fontSize: '1rem', py: 0.5, height: 'auto' }}
-          />
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Chip 
+              label={shipmentData.status} 
+              color={getStatusColor(shipmentData.status)}
+              sx={{ fontSize: '1rem', py: 0.5, height: 'auto' }}
+            />
+            {!isEditing && (
+              <FormControl size="small" sx={{ minWidth: 120 }}>
+                <InputLabel>상태 변경</InputLabel>
+                <Select
+                  value=""
+                  onChange={(e) => handleStatusChange(e.target.value)}
+                  label="상태 변경"
+                  disabled={saving}
+                >
+                  <MenuItem value="준비중">준비중</MenuItem>
+                  <MenuItem value="배송중">배송중</MenuItem>
+                  <MenuItem value="출고완료">출고완료</MenuItem>
+                </Select>
+              </FormControl>
+            )}
+          </Box>
         </Box>
         
         <Divider sx={{ mb: 3 }} />

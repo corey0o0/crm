@@ -62,6 +62,7 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import { formatKoreanDateTime } from '../../utils/dateUtils';
 import { sendTelegramNotification } from '../../lib/telegram';
+import { processServiceCompletion } from '../../utils/inventoryUtils';
 
 // PDF worker 설정
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
@@ -610,13 +611,37 @@ function ServiceDetail() {
         }
       }
 
+      // 재고 차감 처리 (상태가 "완료"인 경우)
+      let inventoryMessage = '';
+      if (formData.status === '완료') {
+        try {
+          console.log(`A/S 완료 처리 시작 - 서비스ID: ${id}, 브랜드: ${formData.brand}`);
+          
+          const inventoryResult = await processServiceCompletion(id, formData.brand);
+          
+          if (inventoryResult.success) {
+            if (inventoryResult.skipped) {
+              inventoryMessage = ` ${inventoryResult.message}`;
+            } else {
+              inventoryMessage = ` ${inventoryResult.message}`;
+            }
+          } else {
+            inventoryMessage = ` 하지만 재고 차감 중 오류 발생: ${inventoryResult.message}`;
+            console.error('재고 차감 오류 상세:', inventoryResult.errors);
+          }
+        } catch (inventoryError) {
+          console.error('재고 차감 처리 중 예외:', inventoryError);
+          inventoryMessage = ` 하지만 재고 차감 중 오류 발생: ${inventoryError.message}`;
+        }
+      }
+
       // 모든 DB 작업 완료 후 데이터 다시 불러오기
       // await fetchServiceDetail(); // handleSubmit 이후 navigate 하므로, 여기서는 호출 불필요
 
       setSnackbar({
         open: true,
-        message: notificationSuccess ? '성공적으로 저장되었습니다.' : '저장되었으나 알림 등록에 실패했습니다.',
-        severity: notificationSuccess ? 'success' : 'warning'
+        message: (notificationSuccess ? '성공적으로 저장되었습니다.' : '저장되었으나 알림 등록에 실패했습니다.') + inventoryMessage,
+        severity: notificationSuccess && !inventoryMessage.includes('오류') ? 'success' : 'warning'
       });
       
       // 변경사항 초기화

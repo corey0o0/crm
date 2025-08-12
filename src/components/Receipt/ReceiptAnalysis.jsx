@@ -15,6 +15,34 @@ function ReceiptAnalysis() {
       
       if (!file) return;
 
+      // 클라이언트 측 파일 검증
+      const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+      const ALLOWED_TYPES = [
+        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
+        'application/pdf'
+      ];
+
+      // 파일 크기 검증
+      if (file.size > MAX_FILE_SIZE) {
+        setError('파일 크기가 10MB를 초과합니다.');
+        setLoading(false);
+        return;
+      }
+
+      // 파일 타입 검증
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        setError('지원되지 않는 파일 형식입니다. JPEG, PNG, GIF, WebP, PDF 파일만 지원됩니다.');
+        setLoading(false);
+        return;
+      }
+
+      // 파일명 검증
+      if (file.name.match(/[<>:"/\\|?*\x00-\x1f]/)) {
+        setError('파일명에 허용되지 않는 문자가 포함되어 있습니다.');
+        setLoading(false);
+        return;
+      }
+
       // 1. Google Drive에 영수증 이미지 업로드
       const timestamp = new Date().toISOString();
       const fileName = `receipt_${timestamp}_${file.name}`;

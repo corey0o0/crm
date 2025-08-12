@@ -664,6 +664,62 @@ function ReceiptScanner({
     const files = event.target.files;
     if (!files.length) return;
 
+    // 클라이언트 측 파일 검증
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    const MAX_FILES = 5; // 최대 5개 파일
+    const ALLOWED_TYPES = [
+      'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
+      'application/pdf', 'image/heic', 'image/heif'
+    ];
+
+    // 파일 개수 검증
+    if (files.length > MAX_FILES) {
+      setSnackbar({
+        open: true,
+        message: `한 번에 최대 ${MAX_FILES}개의 파일만 업로드할 수 있습니다.`,
+        severity: 'error'
+      });
+      return;
+    }
+
+    // 각 파일 검증
+    for (let file of files) {
+      // 파일 크기 검증
+      if (file.size > MAX_FILE_SIZE) {
+        setSnackbar({
+          open: true,
+          message: `파일 "${file.name}"의 크기가 10MB를 초과합니다.`,
+          severity: 'error'
+        });
+        return;
+      }
+
+      // 파일 타입 검증
+      const isValidType = ALLOWED_TYPES.some(type => 
+        file.type === type || 
+        file.type.startsWith('image/') && (file.name.toLowerCase().includes('heic') || file.name.toLowerCase().includes('heif'))
+      );
+      
+      if (!isValidType) {
+        setSnackbar({
+          open: true,
+          message: `파일 "${file.name}"은 지원되지 않는 형식입니다. JPEG, PNG, GIF, WebP, PDF, HEIC 파일만 지원됩니다.`,
+          severity: 'error'
+        });
+        return;
+      }
+
+      // 파일명 검증 (위험한 문자 확인)
+      if (file.name.match(/[<>:"/\\|?*\x00-\x1f]/)) {
+        setSnackbar({
+          open: true,
+          message: `파일 "${file.name}"에 허용되지 않는 문자가 포함되어 있습니다.`,
+          severity: 'error'
+        });
+        return;
+      }
+    }
+
     try {
       setLoading(true);
       setActiveStep(1);

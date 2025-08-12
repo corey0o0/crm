@@ -44,12 +44,43 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + '-' + file.originalname);
+    // 파일명에서 위험한 문자 제거
+    const sanitizedOriginalname = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+    // UUID 형태의 더 안전한 파일명 생성
+    const crypto = require('crypto');
+    const uniqueId = crypto.randomUUID();
+    const timestamp = Date.now();
+    const fileExtension = path.extname(sanitizedOriginalname);
+    
+    cb(null, `${uniqueId}-${timestamp}${fileExtension}`);
   }
 });
 
-const upload = multer({ storage });
+// 파일 크기 제한 (10MB)
+const upload = multer({ 
+  storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB
+    files: 1 // 한 번에 하나의 파일만
+  },
+  fileFilter: (req, file, cb) => {
+    // 허용되는 파일 타입
+    const allowedTypes = [
+      'image/jpeg',
+      'image/jpg', 
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'application/pdf'
+    ];
+    
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`지원되지 않는 파일 형식입니다. 허용되는 형식: ${allowedTypes.join(', ')}`), false);
+    }
+  }
+});
 
 // OCR 엔진 선택 (환경 변수로 제어)
 const useClaudeApi = process.env.USE_CLAUDE_API !== 'false'; // 기본값은 Claude API 사용
@@ -251,12 +282,34 @@ async function analyzePdfWithClaudeViaImages(pdfPath) {
   }
 }
 
+// Multer 에러 처리 미들웨어
+const handleMulterError = (err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: '파일 크기가 10MB를 초과합니다.' });
+    }
+    if (err.code === 'LIMIT_FILE_COUNT') {
+      return res.status(400).json({ error: '한 번에 하나의 파일만 업로드할 수 있습니다.' });
+    }
+    if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+      return res.status(400).json({ error: '예상치 못한 필드에서 파일이 업로드되었습니다.' });
+    }
+  } else if (err) {
+    return res.status(400).json({ error: err.message });
+  }
+  next();
+};
+
 // 파일 업로드 및 OCR 처리 엔드포인트
-app.post('/api/analyze-receipt', upload.single('file'), async (req, res) => {
+app.post('/api/analyze-receipt', upload.single('file'), handleMulterError, async (req, res) => {
+  let uploadedFilePath = null;
+  
   try {
     if (!req.file) {
       return res.status(400).json({ error: '파일이 업로드되지 않았습니다.' });
     }
+    
+    uploadedFilePath = req.file.path;
 
     const filePath = req.file.path;
     const fileType = req.file.mimetype;
@@ -271,6 +324,43 @@ app.post('/api/analyze-receipt', upload.single('file'), async (req, res) => {
       fs.unlinkSync(filePath);
       return res.status(400).json({ 
         error: '지원되지 않는 파일 형식입니다. JPEG, PNG, GIF, WebP 또는 PDF 파일만 지원합니다.' 
+      });
+    }
+
+    // 파일 확장자 검증
+    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf'];
+    const fileExtension = path.extname(req.file.originalname).toLowerCase();
+    if (!allowedExtensions.includes(fileExtension)) {
+      fs.unlinkSync(filePath);
+      return res.status(400).json({ 
+        error: '지원되지 않는 파일 확장자입니다.' 
+      });
+    }
+
+    // 매직 넘버로 실제 파일 타입 검증
+    const fileBuffer = fs.readFileSync(filePath, { buffer: Buffer.alloc(16) });
+    const magicNumbers = {
+      'image/jpeg': [0xFF, 0xD8, 0xFF],
+      'image/png': [0x89, 0x50, 0x4E, 0x47],
+      'image/gif': [0x47, 0x49, 0x46],
+      'image/webp': [0x52, 0x49, 0x46, 0x46], // RIFF header for WebP
+      'application/pdf': [0x25, 0x50, 0x44, 0x46] // %PDF
+    };
+
+    let isValidFile = false;
+    for (const [mimeType, signature] of Object.entries(magicNumbers)) {
+      if (signature.every((byte, index) => fileBuffer[index] === byte)) {
+        if (mimeType === fileType || (mimeType === 'image/jpeg' && fileType === 'image/jpg')) {
+          isValidFile = true;
+          break;
+        }
+      }
+    }
+
+    if (!isValidFile) {
+      fs.unlinkSync(filePath);
+      return res.status(400).json({ 
+        error: '파일 내용이 파일 형식과 일치하지 않습니다. 악성 파일일 가능성이 있습니다.' 
       });
     }
     

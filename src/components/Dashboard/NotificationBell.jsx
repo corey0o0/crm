@@ -74,40 +74,90 @@ function NotificationBell() {
     // 초기 알림 로드
     fetchNotifications(page);
 
-    // Supabase Realtime 구독 설정
-    const channel = supabase
-      .channel('public:notifications')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'notifications' },
-        (payload) => {
-          console.log('New notification received (Bell):', payload.new);
-          // 새 알림을 기존 알림 목록의 맨 앞에 추가
-          setNotifications((prevNotifications) => [payload.new, ...prevNotifications].slice(0, pageSize * (page + 1))); // 현재 페이지만 유지하거나, 더 많은 페이지를 미리 로드할 수 있음
-          setTotalCount((prevTotalCount) => prevTotalCount + 1);
-          
-          // 읽지 않은 알림 수 증가
-          setUnreadCount((prevUnreadCount) => prevUnreadCount + 1);
-        }
-      )
-      .subscribe((status, err) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('Subscribed to notifications channel (Bell)');
-        }
-        if (status === 'CHANNEL_ERROR') {
-          console.error('CHANNEL_ERROR (Bell):', err);
-        }
-        if (status === 'TIMED_OUT') {
-          console.error('TIMED_OUT (Bell)');
-        }
-        if (status === 'CLOSED') {
-          console.log('CLOSED (Bell)');
-        }
-      });
+    let channel;
+    let reconnectTimeout;
 
-    // 컴포넌트 언마운트 시 구독 해제
+    const setupRealtimeSubscription = () => {
+      // 기존 채널이 있다면 제거
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+
+      // Supabase Realtime 구독 설정
+      channel = supabase
+        .channel('public:notifications')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'notifications' },
+          (payload) => {
+            console.log('New notification received (Bell):', payload.new);
+            // 새 알림을 기존 알림 목록의 맨 앞에 추가
+            setNotifications((prevNotifications) => [payload.new, ...prevNotifications].slice(0, pageSize * (page + 1)));
+            setTotalCount((prevTotalCount) => prevTotalCount + 1);
+            
+            // 읽지 않은 알림 수 증가
+            setUnreadCount((prevUnreadCount) => prevUnreadCount + 1);
+          }
+        )
+        .subscribe((status, err) => {
+          if (status === 'SUBSCRIBED') {
+            console.log('Subscribed to notifications channel (Bell)');
+            // 연결 성공 시 재연결 타이머 클리어
+            if (reconnectTimeout) {
+              clearTimeout(reconnectTimeout);
+              reconnectTimeout = null;
+            }
+          }
+          if (status === 'CHANNEL_ERROR') {
+            console.error('CHANNEL_ERROR (Bell):', err);
+            // 토큰 만료 오류인 경우 세션 갱신 후 재연결 시도
+            if (err && err.message && err.message.includes('expired')) {
+              console.log('Token expired, attempting to refresh session...');
+              supabase.auth.getSession().then(({ data: { session }, error }) => {
+                if (error) {
+                  console.error('Session refresh failed:', error);
+                } else if (session) {
+                  console.log('Session refreshed, reconnecting...');
+                  // 5초 후 재연결 시도
+                  reconnectTimeout = setTimeout(() => {
+                    setupRealtimeSubscription();
+                  }, 5000);
+                }
+              });
+            }
+          }
+          if (status === 'TIMED_OUT') {
+            console.error('TIMED_OUT (Bell)');
+            // 타임아웃 시 재연결 시도
+            reconnectTimeout = setTimeout(() => {
+              console.log('Attempting to reconnect after timeout...');
+              setupRealtimeSubscription();
+            }, 10000);
+          }
+          if (status === 'CLOSED') {
+            console.log('CLOSED (Bell)');
+            // 연결이 종료된 경우 재연결 시도
+            if (!reconnectTimeout) {
+              reconnectTimeout = setTimeout(() => {
+                console.log('Attempting to reconnect after close...');
+                setupRealtimeSubscription();
+              }, 5000);
+            }
+          }
+        });
+    };
+
+    // 초기 구독 설정
+    setupRealtimeSubscription();
+
+    // 컴포넌트 언마운트 시 구독 해제 및 타이머 클리어
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
     };
   }, [page]); // page가 변경될 때마다 fetchNotifications를 다시 호출하여 해당 페이지 데이터를 가져옵니다.
 

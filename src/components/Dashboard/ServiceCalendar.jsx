@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Paper, Typography, Badge } from '@mui/material';
 import { DateCalendar } from '@mui/x-date-pickers/DateCalendar';
+import { PickersDay } from '@mui/x-date-pickers/PickersDay';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
@@ -143,10 +144,14 @@ const ServiceCalendar = () => {
           onChange={(newValue) => setSelectedDate(newValue)}
           slots={{
             day: (props) => {
-              const { day, ...other } = props;
+              const { day, outsideCurrentMonth, ...other } = props;
               return (
                 <Box sx={{ position: 'relative' }}>
-                  <DateCalendar.Day day={day} {...other} />
+                  <PickersDay 
+                    day={day} 
+                    outsideCurrentMonth={outsideCurrentMonth}
+                    {...other} 
+                  />
                   {renderDayContent(day)}
                 </Box>
               );

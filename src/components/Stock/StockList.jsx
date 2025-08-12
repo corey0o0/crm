@@ -135,7 +135,39 @@ function StockList() {
 
       if (updateError) throw updateError;
 
-      // 재고 로그 기록
+      // 부품 정보 조회 (inventory_logs 기록용)
+      const { data: partInfo, error: partError } = await supabase
+        .from('parts')
+        .select('name, code, brand')
+        .eq('id', id)
+        .single();
+
+      if (partError) {
+        console.error('부품 정보 조회 실패:', partError);
+      } else {
+        // inventory_logs 테이블에 기록 (재고변경내역에서 확인 가능)
+        const { error: inventoryLogError } = await supabase
+          .from('inventory_logs')
+          .insert({
+            part_id: id,
+            part_name: partInfo.name,
+            part_code: partInfo.code,
+            brand_code: partInfo.brand || 'UNKNOWN',
+            change_type: 'manual_adjust',
+            quantity_change: stockValue - currentStock,
+            previous_quantity: currentStock,
+            new_quantity: stockValue,
+            reference_id: null,
+            reference_type: null,
+            notes: '재고 관리에서 개별 수정'
+          });
+
+        if (inventoryLogError) {
+          console.error('재고 변경 내역 기록 실패:', inventoryLogError);
+        }
+      }
+
+      // 기존 stock_logs 테이블에도 기록 (호환성 유지)
       const { error: logError } = await supabase
         .from('stock_logs')
         .insert({
@@ -568,6 +600,28 @@ function StockList() {
         
         // 재고 로그 기록 (값이 실제로 변경된 경우에만)
         if (currentStock !== part.stock) {
+          // inventory_logs 테이블에 기록 (재고변경내역에서 확인 가능)
+          const { error: inventoryLogError } = await supabase
+            .from('inventory_logs')
+            .insert({
+              part_id: part.id,
+              part_name: part.name,
+              part_code: part.code,
+              brand_code: part.brand || 'UNKNOWN',
+              change_type: 'manual_adjust',
+              quantity_change: part.stock - currentStock,
+              previous_quantity: currentStock,
+              new_quantity: part.stock,
+              reference_id: null,
+              reference_type: null,
+              notes: '재고 관리에서 수동 수정'
+            });
+
+          if (inventoryLogError) {
+            console.error('재고 변경 내역 기록 실패:', inventoryLogError);
+          }
+
+          // 기존 stock_logs 테이블에도 기록 (호환성 유지)
           const { error: logError } = await supabase
             .from('stock_logs')
             .insert({

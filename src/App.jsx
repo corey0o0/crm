@@ -24,6 +24,8 @@ import GoogleDriveTest from './components/Test/GoogleDriveTest';
 import ServiceStats from './components/Stats/ServiceStats';
 import SalesStats from './components/Stats/SalesStats';
 import StockList from './components/Stock/StockList';
+import BrandSettings from './components/Settings/BrandSettings';
+import InventoryLogs from './components/Inventory/InventoryLogs';
 
 // 새로운 출고 관리 페이지 import
 import ShipmentList from './pages/shipment/ShipmentList';
@@ -97,6 +99,8 @@ function App() {
             <Route path="sales/stats" element={<SalesStats />} />
             <Route path="stocks" element={<StockList />} />
             <Route path="stats/service" element={<ServiceStats />} />
+            <Route path="brand-settings" element={<BrandSettings />} />
+            <Route path="inventory-logs" element={<InventoryLogs />} />
           </Route>
         </Routes>
       </Router>
