@@ -13,7 +13,7 @@ import {
 } from '@mui/icons-material';
 import CustomerList from './CustomerList';
 import AddCustomer from './AddCustomer';
-import * as XLSX from 'xlsx';
+import { downloadExcel } from '../../utils/excelUtils';
 import { supabase } from '../../lib/supabaseClient';
 
 function TabPanel(props) {
@@ -69,23 +69,17 @@ function CustomerManagement() {
         등록일: new Date(customer.created_at).toLocaleDateString()
       }));
 
-      // 엑셀 워크북 생성
-      const ws = XLSX.utils.json_to_sheet(exportData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "고객목록");
-
-      // 컬럼 너비 설정
-      const wscols = [
-        { wch: 15 },  // 고객명
-        { wch: 15 },  // 연락처
-        { wch: 40 },  // 주소
-        { wch: 12 },  // 등급
-        { wch: 12 },  // 등록일
+      // 헤더 정의
+      const headers = [
+        { label: '고객명', key: '고객명' },
+        { label: '연락처', key: '연락처' },
+        { label: '주소', key: '주소' },
+        { label: '등급', key: '등급' },
+        { label: '등록일', key: '등록일' }
       ];
-      ws['!cols'] = wscols;
 
-      // 파일 다운로드
-      XLSX.writeFile(wb, `고객목록_${new Date().toLocaleDateString()}.xlsx`);
+      // 엑셀 다운로드
+      downloadExcel(exportData, headers, `고객목록_${new Date().toLocaleDateString()}.xlsx`);
 
     } catch (error) {
       console.error('Error downloading excel:', error);

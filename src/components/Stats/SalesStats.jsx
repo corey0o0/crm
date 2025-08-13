@@ -26,7 +26,7 @@ import {
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { ko } from 'date-fns/locale';
-import { format, startOfMonth, endOfMonth, parseISO, setMonth, getMonth } from 'date-fns';
+import { format, startOfMonth, endOfMonth, parseISO, setMonth, getMonth, startOfWeek, endOfWeek, addWeeks, startOfYear, endOfYear } from 'date-fns';
 import {
   BarChart,
   Bar,
@@ -41,7 +41,7 @@ import InventoryIcon from '@mui/icons-material/Inventory';
 import BuildIcon from '@mui/icons-material/Build';
 import StorefrontIcon from '@mui/icons-material/Storefront';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import * as XLSX from 'xlsx';
+import { downloadExcel } from '../../utils/excelUtils';
 import DownloadIcon from '@mui/icons-material/Download';
 
 function SalesStats() {
@@ -66,6 +66,11 @@ function SalesStats() {
     servicePartsByDate: {},
     shipmentPartsByDate: {}
   });
+  const [monthlyStats, setMonthlyStats] = useState([]);
+  const [weeklyStats, setWeeklyStats] = useState([]);
+  const [typeStats, setTypeStats] = useState([]);
+  const [yearlyStats, setYearlyStats] = useState([]);
+  const [chartPeriod, setChartPeriod] = useState('daily'); // 'daily', 'weekly', 'monthly', 'yearly'
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
@@ -663,6 +668,12 @@ function SalesStats() {
 
       const sortedSalesData = Object.values(aggregatedSales).sort((a, b) => new Date(a.date) - new Date(b.date));
       setSalesData(sortedSalesData);
+
+      // 월별, 주별, 연도별, 유형별 통계 생성
+      generateMonthlyStats(sortedSalesData);
+      generateWeeklyStats(sortedSalesData);
+      generateYearlyStats(sortedSalesData);
+      generateTypeStats(sortedSalesData);
       
       // 일별 데이터를 기준으로 매출 요약 재계산 (정확한 동일성 보장)
       const dailyTotalServiceSales = sortedSalesData.reduce((sum, row) => sum + (row.serviceSales || 0), 0);
@@ -745,6 +756,169 @@ function SalesStats() {
       setTimeout(() => {
         setSnackbar(prev => ({ ...prev, open: false }));
       }, 3000);
+    }
+  };
+
+  // 월별 통계 생성 함수
+  const generateMonthlyStats = (salesData) => {
+    const monthlyMap = {};
+    
+    salesData.forEach(day => {
+      const monthKey = format(parseISO(day.date), 'yyyy-MM');
+      if (!monthlyMap[monthKey]) {
+        monthlyMap[monthKey] = {
+          period: format(parseISO(day.date), 'yyyy년 MM월'),
+          serviceSales: 0,
+          serviceSalesAS: 0,
+          serviceSalesSell: 0,
+          laborSalesOnly: 0,
+          shipmentSales: 0,
+          serviceCount: 0,
+          shipmentCount: 0,
+          totalSales: 0
+        };
+      }
+      
+      monthlyMap[monthKey].serviceSales += day.serviceSales || 0;
+      monthlyMap[monthKey].serviceSalesAS += day.serviceSalesAS || 0;
+      monthlyMap[monthKey].serviceSalesSell += day.serviceSalesSell || 0;
+      monthlyMap[monthKey].laborSalesOnly += day.laborSalesOnly || 0;
+      monthlyMap[monthKey].shipmentSales += day.shipmentSales || 0;
+      monthlyMap[monthKey].serviceCount += day.serviceCount || 0;
+      monthlyMap[monthKey].shipmentCount += day.shipmentCount || 0;
+      monthlyMap[monthKey].totalSales += day.totalSales || 0;
+    });
+
+    const monthlyData = Object.values(monthlyMap).sort((a, b) => a.period.localeCompare(b.period));
+    setMonthlyStats(monthlyData);
+  };
+
+  // 주별 통계 생성 함수
+  const generateWeeklyStats = (salesData) => {
+    const weeklyMap = {};
+    
+    salesData.forEach(day => {
+      const date = parseISO(day.date);
+      const weekStart = startOfWeek(date, { weekStartsOn: 1 }); // 월요일 시작
+      const weekEnd = endOfWeek(date, { weekStartsOn: 1 });
+      const weekKey = format(weekStart, 'yyyy-MM-dd');
+      
+      if (!weeklyMap[weekKey]) {
+        weeklyMap[weekKey] = {
+          period: `${format(weekStart, 'MM.dd')} ~ ${format(weekEnd, 'MM.dd')}`,
+          serviceSales: 0,
+          serviceSalesAS: 0,
+          serviceSalesSell: 0,
+          laborSalesOnly: 0,
+          shipmentSales: 0,
+          serviceCount: 0,
+          shipmentCount: 0,
+          totalSales: 0,
+          weekStart: weekStart,
+          weekEnd: weekEnd
+        };
+      }
+      
+      weeklyMap[weekKey].serviceSales += day.serviceSales || 0;
+      weeklyMap[weekKey].serviceSalesAS += day.serviceSalesAS || 0;
+      weeklyMap[weekKey].serviceSalesSell += day.serviceSalesSell || 0;
+      weeklyMap[weekKey].laborSalesOnly += day.laborSalesOnly || 0;
+      weeklyMap[weekKey].shipmentSales += day.shipmentSales || 0;
+      weeklyMap[weekKey].serviceCount += day.serviceCount || 0;
+      weeklyMap[weekKey].shipmentCount += day.shipmentCount || 0;
+      weeklyMap[weekKey].totalSales += day.totalSales || 0;
+    });
+
+    const weeklyData = Object.values(weeklyMap).sort((a, b) => a.weekStart - b.weekStart);
+    setWeeklyStats(weeklyData);
+  };
+
+  // 매출 유형별 통계 생성 함수
+  const generateTypeStats = (salesData) => {
+    const typeData = [
+      {
+        type: 'A/S 부품 (AS)',
+        amount: salesData.reduce((sum, day) => sum + (day.serviceSalesAS || 0), 0),
+        count: salesData.reduce((sum, day) => sum + (day.serviceCount || 0), 0),
+        color: '#1976d2'
+      },
+      {
+        type: 'A/S 부품 (판매)',
+        amount: salesData.reduce((sum, day) => sum + (day.serviceSalesSell || 0), 0),
+        count: salesData.reduce((sum, day) => sum + (day.serviceCount || 0), 0),
+        color: '#9c27b0'
+      },
+      {
+        type: 'A/S 공임',
+        amount: salesData.reduce((sum, day) => sum + (day.laborSalesOnly || 0), 0),
+        count: salesData.reduce((sum, day) => sum + (day.serviceCount || 0), 0),
+        color: '#2e7d32'
+      },
+      {
+        type: '출고 매출',
+        amount: salesData.reduce((sum, day) => sum + (day.shipmentSales || 0), 0),
+        count: salesData.reduce((sum, day) => sum + (day.shipmentCount || 0), 0),
+        color: '#f57c00'
+      }
+    ].filter(item => item.amount > 0); // 0원인 항목은 제외
+
+    setTypeStats(typeData);
+  };
+
+  // 연도별 통계 생성 함수
+  const generateYearlyStats = (salesData) => {
+    const yearlyMap = {};
+    
+    salesData.forEach(day => {
+      const yearKey = format(parseISO(day.date), 'yyyy');
+      if (!yearlyMap[yearKey]) {
+        yearlyMap[yearKey] = {
+          period: `${yearKey}년`,
+          serviceSales: 0,
+          serviceSalesAS: 0,
+          serviceSalesSell: 0,
+          laborSalesOnly: 0,
+          shipmentSales: 0,
+          serviceCount: 0,
+          shipmentCount: 0,
+          totalSales: 0
+        };
+      }
+      
+      yearlyMap[yearKey].serviceSales += day.serviceSales || 0;
+      yearlyMap[yearKey].serviceSalesAS += day.serviceSalesAS || 0;
+      yearlyMap[yearKey].serviceSalesSell += day.serviceSalesSell || 0;
+      yearlyMap[yearKey].laborSalesOnly += day.laborSalesOnly || 0;
+      yearlyMap[yearKey].shipmentSales += day.shipmentSales || 0;
+      yearlyMap[yearKey].serviceCount += day.serviceCount || 0;
+      yearlyMap[yearKey].shipmentCount += day.shipmentCount || 0;
+      yearlyMap[yearKey].totalSales += day.totalSales || 0;
+    });
+
+    const yearlyData = Object.values(yearlyMap).sort((a, b) => a.period.localeCompare(b.period));
+    setYearlyStats(yearlyData);
+  };
+
+  // 차트용 데이터 가져오기 함수
+  const getChartData = () => {
+    switch (chartPeriod) {
+      case 'weekly':
+        return weeklyStats.map(item => ({
+          ...item,
+          date: item.period
+        }));
+      case 'monthly':
+        return monthlyStats.map(item => ({
+          ...item,
+          date: item.period
+        }));
+      case 'yearly':
+        return yearlyStats.map(item => ({
+          ...item,
+          date: item.period
+        }));
+      default:
+        return salesData;
     }
   };
 
@@ -1153,28 +1327,81 @@ function SalesStats() {
         formatCurrency(0)
       ),
     }));
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, '매출요약');
-    XLSX.writeFile(wb, `매출요약_${new Date().toLocaleDateString()}.xlsx`);
+    const headers = [
+      { label: '날짜', key: '날짜' },
+      { label: 'A/S 매출(공임포함)', key: 'A/S 매출(공임포함)' },
+      { label: 'A/S매출(AS-부품)', key: 'A/S매출(AS-부품)' },
+      { label: 'A/S매출(판매-부품)', key: 'A/S매출(판매-부품)' },
+      { label: 'A/S 공임만', key: 'A/S 공임만' },
+      { label: 'A/S 검수 건수', key: 'A/S 검수 건수' },
+      { label: '출고 매출', key: '출고 매출' },
+      { label: '출고 건수', key: '출고 건수' },
+      { label: '총계', key: '총계' },
+      { label: '워런티 정상가치', key: '워런티 정상가치' }
+    ];
+    const today = format(new Date(), 'yyyy-MM-dd');
+    downloadExcel(exportData, headers, `매출요약_${today}`);
   };
 
   // 부품 상세 엑셀 다운로드 함수
   const handleDownloadPartsExcel = () => {
     if (!partsData || Object.keys(partsData).length === 0) return;
-    const exportData = Object.entries(partsData.servicePartsByDate)
+    
+    // A/S 부품 데이터
+    const serviceExportData = Object.entries(partsData.servicePartsByDate || {})
       .flatMap(([date, parts]) => parts.map(part => ({
         '날짜': date,
+        '유형': 'A/S',
         '부품명': part.name,
+        '부품코드': part.code || '',
         '구분': part.usage,
         '수량': part.quantity,
         '단가': part.price,
         '합계': part.total,
+        '세부구분': part.parts_note || '',
+        '고객명': '',
+        '연락처': '',
+        '판매채널': ''
       })));
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, '부품상세');
-    XLSX.writeFile(wb, `부품상세_${new Date().toLocaleDateString()}.xlsx`);
+
+    // 출고 부품 데이터
+    const shipmentExportData = Object.entries(partsData.shipmentPartsByDate || {})
+      .flatMap(([date, parts]) => parts.map(part => ({
+        '날짜': date,
+        '유형': '출고',
+        '부품명': part.name,
+        '부품코드': part.code || '',
+        '구분': part.part_category || '기타',
+        '수량': part.quantity,
+        '단가': part.price,
+        '합계': part.total,
+        '세부구분': '',
+        '고객명': part.customer_name || '',
+        '연락처': part.customer_phone || '',
+        '판매채널': part.sales_channel || ''
+      })));
+
+    // 두 데이터 합치기
+    const exportData = [...serviceExportData, ...shipmentExportData]
+      .sort((a, b) => new Date(b.날짜) - new Date(a.날짜)); // 날짜 내림차순 정렬
+
+    const headers = [
+      { label: '날짜', key: '날짜' },
+      { label: '유형', key: '유형' },
+      { label: '부품명', key: '부품명' },
+      { label: '부품코드', key: '부품코드' },
+      { label: '구분', key: '구분' },
+      { label: '수량', key: '수량' },
+      { label: '단가', key: '단가' },
+      { label: '합계', key: '합계' },
+      { label: '세부구분', key: '세부구분' },
+      { label: '고객명', key: '고객명' },
+      { label: '연락처', key: '연락처' },
+      { label: '판매채널', key: '판매채널' }
+    ];
+
+    const today = format(new Date(), 'yyyy-MM-dd');
+    downloadExcel(exportData, headers, `부품상세_${today}`);
   };
 
   if (loading) {
@@ -1501,28 +1728,73 @@ function SalesStats() {
           <Tabs value={tabValue} onChange={handleTabChange} sx={{ borderBottom: 1, borderColor: 'divider' }}>
             <Tab label="차트" />
             <Tab label="매출 요약" />
+            <Tab label="월별 통계" />
+            <Tab label="주별 통계" />
+            <Tab label="매출 유형별" />
             <Tab label="부품 상세" />
           </Tabs>
           
           <Box sx={{ p: 3 }}>
             {tabValue === 0 ? (
-              <Box sx={{ height: 400 }}>
-                <ResponsiveContainer>
-                  <BarChart data={salesData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis yAxisId="left" orientation="left" stroke="#8884d8" />
-                    <YAxis yAxisId="right" orientation="right" stroke="#82ca9d" />
-                    <Tooltip formatter={(value, name) => formatCurrency(value)} />
-                    <Legend />
-                    <Bar yAxisId="left" name="A/S 매출(공임포함)" dataKey="serviceSales" fill="#8884d8" />
-                    <Bar yAxisId="left" name="출고 매출" dataKey="shipmentSales" fill="#ffc658" />
-                    <Bar yAxisId="left" name="A/S 공임만" dataKey="laborSalesOnly" fill="#82ca9d" />
-                    <Bar yAxisId="right" name="A/S 검수 건수" dataKey="serviceCount" fill="#ff8042" />
-                    <Bar yAxisId="right" name="출고 건수" dataKey="shipmentCount" fill="#00C49F" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </Box>
+              <>
+                {/* 차트 기간 선택 버튼 */}
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h6">매출 차트</Typography>
+                  <ButtonGroup size="small" variant="outlined">
+                    <Button 
+                      variant={chartPeriod === 'daily' ? 'contained' : 'outlined'}
+                      onClick={() => setChartPeriod('daily')}
+                    >
+                      일별
+                    </Button>
+                    <Button 
+                      variant={chartPeriod === 'weekly' ? 'contained' : 'outlined'}
+                      onClick={() => setChartPeriod('weekly')}
+                    >
+                      주별
+                    </Button>
+                    <Button 
+                      variant={chartPeriod === 'monthly' ? 'contained' : 'outlined'}
+                      onClick={() => setChartPeriod('monthly')}
+                    >
+                      월별
+                    </Button>
+                    <Button 
+                      variant={chartPeriod === 'yearly' ? 'contained' : 'outlined'}
+                      onClick={() => setChartPeriod('yearly')}
+                    >
+                      년별
+                    </Button>
+                  </ButtonGroup>
+                </Box>
+                
+                <Box sx={{ height: 400 }}>
+                  <ResponsiveContainer>
+                    <BarChart data={getChartData()}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis 
+                        dataKey="date" 
+                        angle={chartPeriod === 'daily' ? -45 : 0}
+                        textAnchor={chartPeriod === 'daily' ? 'end' : 'middle'}
+                        height={chartPeriod === 'daily' ? 80 : 60}
+                        interval={chartPeriod === 'daily' ? 'preserveStartEnd' : 0}
+                      />
+                      <YAxis yAxisId="left" orientation="left" stroke="#8884d8" />
+                      <YAxis yAxisId="right" orientation="right" stroke="#82ca9d" />
+                      <Tooltip 
+                        formatter={(value, name) => [formatCurrency(value), name]}
+                        labelFormatter={(label) => `기간: ${label}`}
+                      />
+                      <Legend />
+                      <Bar yAxisId="left" name="A/S 매출(공임포함)" dataKey="serviceSales" fill="#8884d8" />
+                      <Bar yAxisId="left" name="출고 매출" dataKey="shipmentSales" fill="#ffc658" />
+                      <Bar yAxisId="left" name="A/S 공임만" dataKey="laborSalesOnly" fill="#82ca9d" />
+                      <Bar yAxisId="right" name="A/S 검수 건수" dataKey="serviceCount" fill="#ff8042" />
+                      <Bar yAxisId="right" name="출고 건수" dataKey="shipmentCount" fill="#00C49F" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Box>
+              </>
             ) : tabValue === 1 ? (
               <>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
@@ -1623,7 +1895,143 @@ function SalesStats() {
                 </Table>
               </TableContainer>
               </>
+            ) : tabValue === 2 ? (
+              // 월별 통계
+              <>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h6">월별 매출 통계</Typography>
+                </Box>
+                <TableContainer>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>기간</TableCell>
+                        <TableCell align="right">A/S 매출</TableCell>
+                        <TableCell align="right">A/S(AS-부품)</TableCell>
+                        <TableCell align="right">A/S(판매-부품)</TableCell>
+                        <TableCell align="right">A/S 공임</TableCell>
+                        <TableCell align="right">출고 매출</TableCell>
+                        <TableCell align="right">총 매출</TableCell>
+                        <TableCell align="right">A/S 건수</TableCell>
+                        <TableCell align="right">출고 건수</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {monthlyStats.map((row, index) => (
+                        <TableRow key={index}>
+                          <TableCell sx={{ fontWeight: 'bold' }}>{row.period}</TableCell>
+                          <TableCell align="right">{formatCurrency(row.serviceSales)}</TableCell>
+                          <TableCell align="right">{formatCurrency(row.serviceSalesAS)}</TableCell>
+                          <TableCell align="right">{formatCurrency(row.serviceSalesSell)}</TableCell>
+                          <TableCell align="right">{formatCurrency(row.laborSalesOnly)}</TableCell>
+                          <TableCell align="right">{formatCurrency(row.shipmentSales)}</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                            {formatCurrency(row.totalSales)}
+                          </TableCell>
+                          <TableCell align="right">{row.serviceCount}건</TableCell>
+                          <TableCell align="right">{row.shipmentCount}건</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </>
+            ) : tabValue === 3 ? (
+              // 주별 통계
+              <>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h6">주별 매출 통계</Typography>
+                </Box>
+                <TableContainer>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>기간</TableCell>
+                        <TableCell align="right">A/S 매출</TableCell>
+                        <TableCell align="right">A/S(AS-부품)</TableCell>
+                        <TableCell align="right">A/S(판매-부품)</TableCell>
+                        <TableCell align="right">A/S 공임</TableCell>
+                        <TableCell align="right">출고 매출</TableCell>
+                        <TableCell align="right">총 매출</TableCell>
+                        <TableCell align="right">A/S 건수</TableCell>
+                        <TableCell align="right">출고 건수</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {weeklyStats.map((row, index) => (
+                        <TableRow key={index}>
+                          <TableCell sx={{ fontWeight: 'bold' }}>{row.period}</TableCell>
+                          <TableCell align="right">{formatCurrency(row.serviceSales)}</TableCell>
+                          <TableCell align="right">{formatCurrency(row.serviceSalesAS)}</TableCell>
+                          <TableCell align="right">{formatCurrency(row.serviceSalesSell)}</TableCell>
+                          <TableCell align="right">{formatCurrency(row.laborSalesOnly)}</TableCell>
+                          <TableCell align="right">{formatCurrency(row.shipmentSales)}</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                            {formatCurrency(row.totalSales)}
+                          </TableCell>
+                          <TableCell align="right">{row.serviceCount}건</TableCell>
+                          <TableCell align="right">{row.shipmentCount}건</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </>
+            ) : tabValue === 4 ? (
+              // 매출 유형별 통계
+              <>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h6">매출 유형별 통계</Typography>
+                </Box>
+                <Grid container spacing={3} sx={{ mb: 3 }}>
+                  {typeStats.map((type, index) => (
+                    <Grid item xs={12} sm={6} md={3} key={index}>
+                      <Card sx={{ height: '100%' }}>
+                        <CardContent>
+                          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                            <Box 
+                              sx={{ 
+                                width: 12, 
+                                height: 12, 
+                                bgcolor: type.color, 
+                                borderRadius: '50%', 
+                                mr: 1 
+                              }} 
+                            />
+                            <Typography variant="subtitle2" color="textSecondary">
+                              {type.type}
+                            </Typography>
+                          </Box>
+                          <Typography variant="h5" component="div" sx={{ color: type.color, fontWeight: 'bold' }}>
+                            {formatCurrency(type.amount)}
+                          </Typography>
+                          <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+                            건수: {type.count}건
+                          </Typography>
+                          <Typography variant="body2" color="textSecondary">
+                            비율: {totalStats.totalSales > 0 ? ((type.amount / totalStats.totalSales) * 100).toFixed(1) : 0}%
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
+                
+                {/* 유형별 차트 */}
+                <Box sx={{ height: 300, mt: 3 }}>
+                  <ResponsiveContainer>
+                    <BarChart data={typeStats}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="type" />
+                      <YAxis />
+                      <Tooltip formatter={(value) => formatCurrency(value)} />
+                      <Bar dataKey="amount" fill="#8884d8" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Box>
+              </>
             ) : (
+              // 부품 상세 (tabValue === 5)
               <>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                   <Typography variant="h6">부품 상세</Typography>

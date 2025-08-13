@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
-import { read, utils, writeFile } from 'xlsx';
+import { readExcelFile } from '../../utils/excelUtils';
 import ReceiptScanner from '../Receipt/ReceiptScanner';
 import CustomerHistoryDialog from './CustomerHistoryDialog';
 import CustomerSearchModal from './CustomerSearchModal';
@@ -57,7 +57,7 @@ import {
   Visibility as VisibilityIcon
 } from '@mui/icons-material';
 import { API_CONFIG } from '../../config/api';
-import XLSX from 'xlsx';
+import { downloadExcel } from '../../utils/excelUtils';
 import { formatKoreanDateTime } from '../../utils/dateUtils';
 import { format } from 'date-fns';
 import { sendTelegramNotification } from '../../lib/telegram'; // 텔레그램 유틸리티 함수 import
@@ -596,34 +596,26 @@ function AddService() {
         }
       ];
 
-      // 워크시트 생성
-      const ws = XLSX.utils.json_to_sheet(templateData);
-
-      // 열 너비 설정
-      const wscols = [
-        { wch: 12 },  // 날짜
-        { wch: 10 },  // 완료 여부
-        { wch: 10 },  // 작성자
-        { wch: 15 },  // 이름
-        { wch: 15 },  // 연락처
-        { wch: 30 },  // 기종명
-        { wch: 15 },  // 누적 주행거리
-        { wch: 15 },  // 구입처
-        { wch: 40 },  // 문의내용
-        { wch: 40 },  // 처리내용
-        { wch: 30 },  // 첨부
-        { wch: 10 },  // JPG
-        { wch: 30 },  // 기타
-        { wch: 20 }   // 문의 위치
+      // 헤더 정의
+      const headers = [
+        { label: '날짜', key: '날짜' },
+        { label: '완료 여부', key: '완료 여부' },
+        { label: '작성자', key: '작성자' },
+        { label: '이름', key: '이름' },
+        { label: '연락처', key: '연락처' },
+        { label: '기종명', key: '기종명' },
+        { label: '누적 주행거리', key: '누적 주행거리' },
+        { label: '구입처', key: '구입처' },
+        { label: '문의내용', key: '문의내용' },
+        { label: '처리내용', key: '처리내용' },
+        { label: '첨부', key: '첨부' },
+        { label: 'JPG', key: 'JPG' },
+        { label: '기타', key: '기타' },
+        { label: '문의 위치', key: '문의 위치' }
       ];
-      ws['!cols'] = wscols;
-
-      // 워크북 생성
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "A/S등록템플릿");
 
       // 파일 다운로드
-      XLSX.writeFile(wb, `A/S등록템플릿_${selectedBrand}.xlsx`);
+      downloadExcel(templateData, headers, `A/S등록템플릿_${selectedBrand}`);
 
       setSnackbar({
         open: true,
@@ -694,106 +686,87 @@ function AddService() {
       const file = event.target.files[0];
       if (!file) return;
 
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const data = new Uint8Array(e.target.result);
-          const workbook = XLSX.read(data, { type: 'array' });
-          const sheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[sheetName];
-          const jsonData = XLSX.utils.sheet_to_json(worksheet);
+      const jsonData = await readExcelFile(file);
+      console.log('엑셀 데이터 파싱 결과:', jsonData);
 
-          console.log('엑셀 데이터 파싱 결과:', jsonData);
+      // 데이터 처리
+      const validData = jsonData.map((row, index) => {
+        const currentDate = new Date().toLocaleDateString('ko-KR', {year:'numeric', month:'2-digit', day:'2-digit'});
+        
+        return {
+          brand: selectedBrand,
+          reception_date: parseDate(row['접수일자']) || currentDate,
+          reception_time: row['접수시간'] || new Date().toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit'}),
+          reception_type: row['접수방법'] || '',
+          repair_date: parseDate(row['입고일']) || '',
+          completion_date: parseDate(row['출고일']) || '',
+          delivery_method: row['배송방법'] || '',
+          customer_name: row['고객명'] || '',
+          customer_phone: row['연락처'] || '',
+          customer_address: row['주소'] || '',
+          product_name: row['제품'] || '',
+          symptom: row['문의내용'] || '',
+          solution: row['처리내역'] || '',
+          status: row['상태'] || '접수',
+          note: row['메모'] || '',
+          receipt_link: row['JPG'] || '',
+          seller: row['구매처'] || '',
+          created_at: new Date().toISOString()
+        };
+      });
 
-          // 데이터 처리
-          const validData = jsonData.map((row, index) => {
-            const currentDate = new Date().toLocaleDateString('ko-KR', {year:'numeric', month:'2-digit', day:'2-digit'});
-            
-            return {
-              brand: selectedBrand,
-              reception_date: parseDate(row['접수일자']) || currentDate,
-              reception_time: row['접수시간'] || new Date().toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit'}),
-              reception_type: row['접수방법'] || '',
-              repair_date: parseDate(row['입고일']) || '',
-              completion_date: parseDate(row['출고일']) || '',
-              delivery_method: row['배송방법'] || '',
-              customer_name: row['고객명'] || '',
-              customer_phone: row['연락처'] || '',
-              customer_address: row['주소'] || '',
-              product_name: row['제품'] || '',
-              symptom: row['문의내용'] || '',
-              solution: row['처리내역'] || '',
-              status: row['상태'] || '접수',
-              note: row['메모'] || '',
-              receipt_link: row['JPG'] || '',
-              seller: row['구매처'] || '',
-              created_at: new Date().toISOString()
-            };
-          });
+      // 데이터 일괄 등록
+      const { data: insertedData, error } = await supabase
+        .from('services')
+        .insert(validData)
+        .select();
 
-          // 데이터 일괄 등록
-          const { data: insertedData, error } = await supabase
-            .from('services')
-            .insert(validData)
-            .select();
+      if (error) throw error;
 
-          if (error) throw error;
-
-          console.log('등록된 데이터:', insertedData);
-          
-          setSnackbar({
-            open: true,
-            message: `${validData.length}건의 A/S 정보가 등록되었습니다.`,
-            severity: 'success'
-          });
-
-          // 목록 새로고침
-          fetchServices();
-
-          // 등록 성공 후 알림 추가
-          if (insertedData && insertedData.length > 0) {
-            // 알림 데이터 생성
-            const notificationsToInsert = insertedData.map(service => ({
-              type: 'service_create',
-              message: `A/S 등록 (접수번호: ${service.id}) - 고객: ${service.customer_name || '정보없음'}, 연락처: ${service.customer_phone || '정보없음'}`,
-              link: `/service/${service.id}`
-            }));
-            
-            const { error: notificationError } = await supabase.from('notifications').insert(notificationsToInsert);
-
-            if (notificationError) {
-              console.error('A/S 등록 알림 저장 실패 (엑셀/단일):', notificationError);
-            } else {
-              // 텔레그램 알림 전송 (엑셀/단일)
-              for (const service of insertedData) {
-                try {
-                  await sendTelegramNotification({
-                    message: `A/S 등록 (접수번호: ${service.id}) - 고객: ${service.customer_name || '정보없음'}, 연락처: ${service.customer_phone || '정보없음'}`,
-                    link: `/service/${service.id}`
-                  });
-                } catch (telegramError) {
-                  console.error('엑셀 업로드 A/S 텔레그램 알림 전송 중 오류:', telegramError);
-                }
-              }
-            }
-          }
-
-        } catch (err) {
-          console.error('엑셀 데이터 처리 중 오류:', err);
-          setSnackbar({
-            open: true,
-            message: '엑셀 데이터 처리 중 오류가 발생했습니다.',
-            severity: 'error'
-          });
-        }
-      };
-
-      reader.readAsArrayBuffer(file);
-    } catch (err) {
-      console.error('파일 업로드 중 오류:', err);
+      console.log('등록된 데이터:', insertedData);
+      
       setSnackbar({
         open: true,
-        message: '파일 업로드 중 오류가 발생했습니다.',
+        message: `${validData.length}건의 A/S 정보가 등록되었습니다.`,
+        severity: 'success'
+      });
+
+      // 목록 새로고침
+      fetchServices();
+
+      // 등록 성공 후 알림 추가
+      if (insertedData && insertedData.length > 0) {
+        // 알림 데이터 생성
+        const notificationsToInsert = insertedData.map(service => ({
+          type: 'service_create',
+          message: `A/S 등록 (접수번호: ${service.id}) - 고객: ${service.customer_name || '정보없음'}, 연락처: ${service.customer_phone || '정보없음'}`,
+          link: `/service/${service.id}`
+        }));
+        
+        const { error: notificationError } = await supabase.from('notifications').insert(notificationsToInsert);
+
+        if (notificationError) {
+          console.error('A/S 등록 알림 저장 실패 (엑셀/단일):', notificationError);
+        } else {
+          // 텔레그램 알림 전송 (엑셀/단일)
+          for (const service of insertedData) {
+            try {
+              await sendTelegramNotification({
+                message: `A/S 등록 (접수번호: ${service.id}) - 고객: ${service.customer_name || '정보없음'}, 연락처: ${service.customer_phone || '정보없음'}`,
+                link: `/service/${service.id}`
+              });
+            } catch (telegramError) {
+              console.error('엑셀 업로드 A/S 텔레그램 알림 전송 중 오류:', telegramError);
+            }
+          }
+        }
+      }
+
+    } catch (err) {
+      console.error('엑셀 데이터 처리 중 오류:', err);
+      setSnackbar({
+        open: true,
+        message: '엑셀 데이터 처리 중 오류가 발생했습니다.',
         severity: 'error'
       });
     }

@@ -46,7 +46,7 @@ import {
   FileCopy as FileCopyIcon,
   CheckBox as CheckBoxIcon
 } from '@mui/icons-material';
-import * as XLSX from 'xlsx';
+import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { supabase } from '../../lib/supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import { sendTelegramNotification } from '../../lib/telegram';
@@ -541,10 +541,7 @@ function PartsManagement() {
 
     reader.onload = async (e) => {
       try {
-        const workbook = XLSX.read(e.target.result, { type: 'binary' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const data = XLSX.utils.sheet_to_json(worksheet);
+        const data = await readExcelFile(file);
 
         if (data.length === 0) {
           closeUploadStatus();
@@ -685,31 +682,17 @@ function PartsManagement() {
       }
     ];
 
-    const ws = XLSX.utils.json_to_sheet(template);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Template");
-
-    const columnDescriptions = [
-      ['필수 입력 항목: 브랜드(XRB/NB), 상품코드, 파츠명'],
-      ['선택 입력 항목: 공급가, 판매가, 바코드, 비고'],
-      ['* 브랜드는 반드시 XRB 또는 NB로 입력해주세요.'],
-      ['* 금액은 숫자만 입력하거나 비워두세요. (빈 값은 0으로 처리됩니다)']
+    const headers = [
+      { label: 'brand', key: 'brand' },
+      { label: 'code', key: 'code' },
+      { label: 'name', key: 'name' },
+      { label: 'supplyPrice', key: 'supplyPrice' },
+      { label: 'price', key: 'price' },
+      { label: 'barcode', key: 'barcode' },
+      { label: 'note', key: 'note' }
     ];
 
-    XLSX.utils.sheet_add_aoa(ws, columnDescriptions, { origin: -1 });
-
-    const wscols = [
-      { wch: 10 },  // brand
-      { wch: 15 },  // code
-      { wch: 20 },  // name
-      { wch: 12 },  // supplyPrice
-      { wch: 12 },  // price
-      { wch: 15 },  // barcode
-      { wch: 30 },  // note
-    ];
-    ws['!cols'] = wscols;
-
-    XLSX.writeFile(wb, "parts_template.xlsx");
+    downloadExcel(template, headers, "parts_template.xlsx");
   };
 
   const showSnackbar = (message, severity) => {

@@ -49,7 +49,7 @@ import {
 import { supabase } from '../../lib/supabaseClient';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { format, parseISO, isValid } from 'date-fns';
-import * as XLSX from 'xlsx';
+import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -435,26 +435,23 @@ function ShipmentList() {
         '상태': shipment.status
       }));
 
-      const worksheet = XLSX.utils.json_to_sheet(exportData);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "출고목록");
-
-      const wscols = [
-        { wch: 15 },
-        { wch: 15 },
-        { wch: 30 },
-        { wch: 30 },
-        { wch: 8 },
-        { wch: 10 },
-        { wch: 10 },
-        { wch: 12 },
-        { wch: 30 },
-        { wch: 10 }
+      const headers = [
+        { label: '고객명', key: '고객명' },
+        { label: '연락처', key: '연락처' },
+        { label: '주소', key: '주소' },
+        { label: '제품명', key: '제품명' },
+        { label: '수량', key: '수량' },
+        { label: '가격', key: '가격' },
+        { label: '상태', key: '상태' },
+        { label: '판매채널', key: '판매채널' },
+        { label: '배송방법', key: '배송방법' },
+        { label: '출고일', key: '출고일' },
+        { label: '메모', key: '메모' },
+        { label: '상태', key: '상태' }
       ];
-      worksheet['!cols'] = wscols;
 
       const brandName = selectedBrand === 'XRB' ? 'X-RIDER' : 'NEARBIKE';
-      XLSX.writeFile(workbook, `출고목록_${brandName}_${new Date().toLocaleDateString()}.xlsx`);
+      downloadExcel(exportData, headers, `출고목록_${brandName}_${new Date().toLocaleDateString()}.xlsx`);
 
       setSnackbar({
         open: true,
@@ -536,33 +533,24 @@ function ShipmentList() {
         }
       ];
 
-      // 워크시트 생성
-      const worksheet = XLSX.utils.json_to_sheet(templateData);
-
-      // 열 너비 설정
-      const wscols = [
-        { wch: 15 },  // 고객명
-        { wch: 15 },  // 연락처
-        { wch: 30 },  // 주소
-        { wch: 25 },  // 제품명
-        { wch: 15 },  // 제품코드
-        { wch: 8 },   // 수량
-        { wch: 12 },  // 가격
-        { wch: 10 },  // 카테고리
-        { wch: 10 },  // 판매처
-        { wch: 10 },  // 배송방법
-        { wch: 12 },  // 주문일
-        { wch: 12 },  // 출고일
-        { wch: 30 },  // 메모
+      const headers = [
+        { label: '고객명', key: '고객명' },
+        { label: '연락처', key: '연락처' },
+        { label: '주소', key: '주소' },
+        { label: '제품명', key: '제품명' },
+        { label: '제품코드', key: '제품코드' },
+        { label: '수량', key: '수량' },
+        { label: '가격', key: '가격' },
+        { label: '카테고리', key: '카테고리' },
+        { label: '판매처', key: '판매처' },
+        { label: '배송방법', key: '배송방법' },
+        { label: '주문일', key: '주문일' },
+        { label: '출고일', key: '출고일' },
+        { label: '메모', key: '메모' }
       ];
-      worksheet['!cols'] = wscols;
-
-      // 워크북 생성
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "출고등록템플릿");
 
       // 파일 다운로드
-      XLSX.writeFile(workbook, `출고등록템플릿_${selectedBrand}.xlsx`);
+      downloadExcel(templateData, headers, `출고등록템플릿_${selectedBrand}.xlsx`);
 
       setSnackbar({
         open: true,
@@ -599,64 +587,46 @@ function ShipmentList() {
   };
 
   // 엑셀 파일 업로드 핸들러
-  const handleFileUpload = (event) => {
+  const handleFileUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
 
     setIsUploading(true);
     setUploadProgress(10);
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+    try {
+      const jsonData = await readExcelFile(file);
 
-        setUploadProgress(50);
-        
-        if (jsonData.length === 0) {
-          setSnackbar({
-            open: true,
-            message: '업로드한 파일에 데이터가 없습니다.',
-            severity: 'warning'
-          });
-          setIsUploading(false);
-          return;
-        }
-
-        // 프리뷰 데이터 생성 (최대 5개 항목)
-        setPreviewData(jsonData.slice(0, 5));
-        
-        // 전체 데이터 저장
-        setUploadedData(jsonData);
-        
-        setUploadProgress(100);
-        setExcelUploadDialog(true);
-        setIsUploading(false);
-      } catch (error) {
-        console.error('엑셀 파일 처리 중 오류:', error);
+      setUploadProgress(50);
+      
+      if (jsonData.length === 0) {
         setSnackbar({
           open: true,
-          message: '엑셀 파일 형식이 올바르지 않습니다.',
-          severity: 'error'
+          message: '업로드한 파일에 데이터가 없습니다.',
+          severity: 'warning'
         });
         setIsUploading(false);
+        return;
       }
-    };
 
-    reader.onerror = () => {
+      // 프리뷰 데이터 생성 (최대 5개 항목)
+      setPreviewData(jsonData.slice(0, 5));
+      
+      // 전체 데이터 저장
+      setUploadedData(jsonData);
+      
+      setUploadProgress(100);
+      setExcelUploadDialog(true);
+      setIsUploading(false);
+    } catch (error) {
+      console.error('엑셀 파일 처리 중 오류:', error);
       setSnackbar({
         open: true,
-        message: '파일 읽기 중 오류가 발생했습니다.',
+        message: '엑셀 파일 형식이 올바르지 않습니다.',
         severity: 'error'
       });
       setIsUploading(false);
-    };
-
-    reader.readAsArrayBuffer(file);
+    }
     
     // 파일 input 초기화
     event.target.value = '';

@@ -50,7 +50,7 @@ import {
 } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
-import * as XLSX from 'xlsx';
+import { downloadExcel } from '../../utils/excelUtils';
 
 function CustomerList({ refreshTrigger, onRefresh }) {
   const [customers, setCustomers] = useState([]);

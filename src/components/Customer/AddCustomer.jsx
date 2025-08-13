@@ -17,7 +17,7 @@ import {
   Download as DownloadIcon
 } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
-import * as XLSX from 'xlsx';
+import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 
 function AddCustomer({ onSuccess }) {
   const [formData, setFormData] = useState({
@@ -64,10 +64,7 @@ function AddCustomer({ onSuccess }) {
 
     reader.onload = async (e) => {
       try {
-        const workbook = XLSX.read(e.target.result, { type: 'binary' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const data = XLSX.utils.sheet_to_json(worksheet);
+        const data = await readExcelFile(file);
 
         // 데이터 형식 검증 및 변환
         const formattedData = data.map(row => ({
@@ -121,20 +118,14 @@ function AddCustomer({ onSuccess }) {
       }
     ];
 
-    const ws = XLSX.utils.json_to_sheet(template);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Template");
-
-    // 컬럼 너비 설정
-    const wscols = [
-      { wch: 15 },  // name
-      { wch: 15 },  // phone
-      { wch: 40 },  // address
-      { wch: 10 },  // grade
+    const headers = [
+      { label: 'name', key: 'name' },
+      { label: 'phone', key: 'phone' },
+      { label: 'address', key: 'address' },
+      { label: 'grade', key: 'grade' }
     ];
-    ws['!cols'] = wscols;
 
-    XLSX.writeFile(wb, "customer_template.xlsx");
+    downloadExcel(template, headers, "customer_template.xlsx");
   };
 
   return (

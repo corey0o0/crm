@@ -20,7 +20,11 @@ import {
   Tab,
   TextField,
   Container,
-  IconButton
+  IconButton,
+  ButtonGroup,
+  Select,
+  MenuItem,
+  FormControl
 } from '@mui/material';
 import {
   Build as BuildIcon,
@@ -29,8 +33,13 @@ import {
   Speed as SpeedIcon,
   Refresh as RefreshIcon,
   LocalShipping as LocalShippingIcon,
-  Close as CloseIcon
+  Close as CloseIcon,
+  FormatBold as FormatBoldIcon,
+  Highlight as HighlightIcon,
+  FormatSize as FormatSizeIcon
 } from '@mui/icons-material';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
@@ -47,49 +56,24 @@ function Dashboard() {
   const navigate = useNavigate();
   const { user, loading: authLoading, setUser } = useAuth();
   const [selectedBrand, setSelectedBrand] = useState('ALL');
-  const [selectedStatusBrand, setSelectedStatusBrand] = useState('ALL');
-  const [selectedShipmentBrand, setSelectedShipmentBrand] = useState('ALL');
-  const [selectedRecentBrand, setSelectedRecentBrand] = useState('ALL');
   const [memoList, setMemoList] = useState([
-    { content: '', lastSaved: null },
-    { content: '', lastSaved: null },
-    { content: '', lastSaved: null }
+    { content: '', lastSaved: null, hasChanges: false, saving: false },
+    { content: '', lastSaved: null, hasChanges: false, saving: false },
+    { content: '', lastSaved: null, hasChanges: false, saving: false }
   ]);
   const [memoNames, setMemoNames] = useState(['메모 1', '메모 2', '메모 3']);
   const [editingMemoName, setEditingMemoName] = useState(null);
   const [selectedMemoTab, setSelectedMemoTab] = useState(0);
-  const [stats, setStats] = useState({
-    totalCustomers: 0,
-    totalServices: 0,
-    pendingServices: 0,
-    completedServices: 0,
-    recentServices: {
-      ALL: [],
-      XRB: [],
-      NBK: []
-    },
-    recentShipments: [],
-    monthlyStats: {
-      total: 0,
-      completed: 0,
-      avgProcessingDays: 0
-    },
-    statusCounts: {
-      접수: 0,
-      처리중: 0,
-      부분완료: 0,
-      완료: 0
-    },
-    shipmentStats: {
-      total: 0,
-      pending: 0,
-      completed: 0,
-      todayShipments: 0
-    }
-  });
+  const [autoSaveTimers, setAutoSaveTimers] = useState([null, null, null]);
+  const [memoFormats, setMemoFormats] = useState([
+    { bold: false, highlight: false, fontSize: 'medium' },
+    { bold: false, highlight: false, fontSize: 'medium' },
+    { bold: false, highlight: false, fontSize: 'medium' }
+  ]);
+  const [selectedText, setSelectedText] = useState('');
+  const [textSelection, setTextSelection] = useState({ start: 0, end: 0, memoIndex: -1 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [recentShipments, setRecentShipments] = useState([]);
   const [telegramResult, setTelegramResult] = useState({ open: false, message: '', success: true });
 
   // 초기 사용자 세션 확인
@@ -173,10 +157,30 @@ function Dashboard() {
             { content: newMemo.memo3 || '', lastSaved: newMemo.updated_at }
           ]);
         } else {
+          // 임시 저장된 내용 확인 후 복구
+          const tempMemo1 = localStorage.getItem(`temp_memo_${userId}_0`);
+          const tempMemo2 = localStorage.getItem(`temp_memo_${userId}_1`);
+          const tempMemo3 = localStorage.getItem(`temp_memo_${userId}_2`);
+
           setMemoList(prev => [
-            { content: existingMemo.memo1 || '', lastSaved: existingMemo.updated_at },
-            { content: existingMemo.memo2 || '', lastSaved: existingMemo.updated_at },
-            { content: existingMemo.memo3 || '', lastSaved: existingMemo.updated_at }
+            { 
+              content: tempMemo1 || existingMemo.memo1 || '', 
+              lastSaved: existingMemo.updated_at,
+              hasChanges: !!tempMemo1,
+              saving: false
+            },
+            { 
+              content: tempMemo2 || existingMemo.memo2 || '', 
+              lastSaved: existingMemo.updated_at,
+              hasChanges: !!tempMemo2,
+              saving: false
+            },
+            { 
+              content: tempMemo3 || existingMemo.memo3 || '', 
+              lastSaved: existingMemo.updated_at,
+              hasChanges: !!tempMemo3,
+              saving: false
+            }
           ]);
           
           // 로컬 스토리지에서 메모 이름 불러오기
@@ -228,17 +232,47 @@ function Dashboard() {
     };
   }, [user]);
 
-  // 메모 저장
-  const handleSaveMemo = async (idx) => {
+  
+  // 메모 내용 변경
+  const handleMemoContentChange = (idx, value) => {
+    // 메모 내용 업데이트 및 변경사항 표시
+    setMemoList(prev => prev.map((m, i) => 
+      i === idx ? { ...m, content: value, hasChanges: true } : m
+    ));
+
+    // 로컬 스토리지에 임시 저장
+    const userId = user?.id;
+    if (userId) {
+      const tempKey = `temp_memo_${userId}_${idx}`;
+      localStorage.setItem(tempKey, value);
+    }
+
+    // 기존 자동 저장 타이머 해제
+    if (autoSaveTimers[idx]) {
+      clearTimeout(autoSaveTimers[idx]);
+    }
+
+    // 3초 후 자동 저장 설정
+    const newTimer = setTimeout(() => {
+      handleAutoSave(idx);
+    }, 3000);
+
+    setAutoSaveTimers(prev => prev.map((timer, i) => i === idx ? newTimer : timer));
+  };
+
+  // 자동 저장 함수
+  const handleAutoSave = async (idx) => {
     try {
+      // 저장 중 상태 설정
+      setMemoList(prev => prev.map((m, i) => 
+        i === idx ? { ...m, saving: true } : m
+      ));
+
       const { data: { session } } = await supabase.auth.getSession();
       const userId = user?.id || session?.user?.id;
-      if (!userId) {
-        setTelegramResult({ open: true, message: '사용자 인증이 필요합니다.', success: false });
-        return;
-      }
+      if (!userId) return;
+
       const now = new Date().toISOString();
-      // memo1~memo3로 upsert
       const upsertData = {
         user_id: userId,
         updated_at: now,
@@ -246,22 +280,86 @@ function Dashboard() {
         memo2: memoList[1]?.content || '',
         memo3: memoList[2]?.content || ''
       };
+
       const { error } = await supabase
         .from('user_memos')
         .upsert(upsertData, { onConflict: 'user_id' });
+
       if (error) throw error;
-      setMemoList(prev => prev.map((m, i) => i === idx ? { ...m, lastSaved: now } : m));
-      setTelegramResult({ open: true, message: '메모가 저장되었습니다.', success: true });
-    } catch (err) {
-      console.error('메모 저장 오류:', err);
-      setTelegramResult({ open: true, message: '메모 저장 중 오류가 발생했습니다.', success: false });
+
+      // 저장 성공 상태 업데이트
+      setMemoList(prev => prev.map((m, i) => 
+        i === idx ? { 
+          ...m, 
+          lastSaved: now, 
+          hasChanges: false, 
+          saving: false 
+        } : m
+      ));
+
+      // 임시 저장 데이터 제거
+      const tempKey = `temp_memo_${userId}_${idx}`;
+      localStorage.removeItem(tempKey);
+
+    } catch (error) {
+      console.error('자동 저장 오류:', error);
+      // 저장 실패 시 saving 상태 해제
+      setMemoList(prev => prev.map((m, i) => 
+        i === idx ? { ...m, saving: false } : m
+      ));
     }
   };
-  
-  // 메모 내용 변경
-  const handleMemoContentChange = (idx, value) => {
-    setMemoList(prev => prev.map((m, i) => i === idx ? { ...m, content: value } : m));
+
+  // 수동 저장 함수
+  const handleSaveMemo = async (idx) => {
+    try {
+      // 자동 저장 타이머 해제
+      if (autoSaveTimers[idx]) {
+        clearTimeout(autoSaveTimers[idx]);
+        setAutoSaveTimers(prev => prev.map((timer, i) => i === idx ? null : timer));
+      }
+
+      // 수동 저장 실행
+      await handleAutoSave(idx);
+      
+      setTelegramResult({ 
+        open: true, 
+        message: `${memoNames[idx]} 저장이 완료되었습니다.`, 
+        success: true 
+      });
+    } catch (error) {
+      console.error('수동 저장 오류:', error);
+      setTelegramResult({ 
+        open: true, 
+        message: '저장 중 오류가 발생했습니다.', 
+        success: false 
+      });
+    }
   };
+
+
+  // 폰트 사이즈 변경
+  const handleFontSize = (memoIndex, fontSize) => {
+    const newFormats = [...memoFormats];
+    newFormats[memoIndex] = { ...newFormats[memoIndex], fontSize };
+    setMemoFormats(newFormats);
+  };
+
+  // Quill 에디터 설정
+  const quillModules = {
+    toolbar: [
+      ['bold', 'italic', 'underline'],
+      [{ 'background': ['yellow', 'lightblue', 'lightgreen'] }],
+      [{ 'size': ['small', false, 'large'] }],
+      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+      ['clean']
+    ],
+  };
+
+  const quillFormats = [
+    'bold', 'italic', 'underline', 'background', 'size',
+    'list', 'bullet'
+  ];
 
   // 새 메모 추가
   const handleAddMemo = () => {
@@ -286,8 +384,20 @@ function Dashboard() {
   };
 
   // 메모 이름 변경
-  const handleMemoNameChange = (index, newName) => {
+  const handleMemoNameChange = async (index, newName) => {
     setMemoNames(prev => prev.map((name, i) => i === index ? newName : name));
+    // 변경 즉시 저장
+    try {
+      const userId = user?.id;
+      if (userId) {
+        const updatedNames = [...memoNames];
+        updatedNames[index] = newName;
+        localStorage.setItem(`memo_names_${userId}`, JSON.stringify(updatedNames));
+        console.log(`메모 ${index + 1} 이름이 "${newName}"으로 저장되었습니다.`);
+      }
+    } catch (err) {
+      console.error('메모 이름 즉시 저장 오류:', err);
+    }
   };
 
   // 메모 이름 편집 완료
@@ -377,45 +487,11 @@ function Dashboard() {
         throw new Error('최근 서비스 데이터를 불러오는데 실패했습니다.');
       }
 
-      // 4. 최근 출고 데이터 가져오기
-      let recentShipments = [];
-      try {
-        const { data: recentShipmentsData, error: recentShipmentsError } = await supabase
-          .from('shipments')
-          .select(`
-            id,
-            customer_name,
-            customer_phone,
-            product_name,
-            status,
-            created_at,
-            shipment_date,
-            brand
-          `)
-          .order('created_at', { ascending: false })
-          .limit(5);
-
-        if (recentShipmentsError) {
-          console.error('최근 출고 데이터 조회 오류:', recentShipmentsError);
-          throw new Error(`최근 출고 데이터를 불러오는데 실패했습니다: ${recentShipmentsError.message}`);
-        }
-
-        if (!recentShipmentsData) {
-          console.warn('최근 출고 데이터가 없습니다.');
-          recentShipments = [];
-        } else {
-          recentShipments = recentShipmentsData;
-        }
-      } catch (recentShipmentError) {
-        console.error('최근 출고 데이터 처리 중 오류:', recentShipmentError);
-        throw new Error('최근 출고 데이터 처리 중 오류가 발생했습니다.');
-      }
 
       // 안전한 데이터 처리를 위한 기본값 설정
       const safeServices = services || [];
       const safeShipments = shipments || [];
       const safeRecentServices = recentServices || [];
-      const safeRecentShipments = recentShipments || [];
 
       // 고객 수 계산
       const uniqueCustomers = [...new Set(safeServices.map(service => service.customer_phone))];
@@ -432,126 +508,8 @@ function Dashboard() {
         new Date(service.reception_date) >= startOfMonth
       );
 
-      // 상태별 카운트 계산
-      const statusCounts = {
-        접수: 0,
-        처리중: 0,
-        부분완료: 0,
-        완료: 0
-      };
 
-      safeServices.forEach(service => {
-        if (statusCounts.hasOwnProperty(service.status)) {
-          statusCounts[service.status]++;
-        }
-      });
-
-      // 출고 통계 계산
-      const shipmentStats = {
-        total: safeShipments.length,
-        pending: safeShipments.filter(s => !s.shipment_date).length,
-        completed: safeShipments.filter(s => s.shipment_date).length,
-        todayShipments: safeShipments.filter(s => {
-          const shipDate = new Date(s.created_at);
-          return shipDate >= today;
-        }).length
-      };
-
-      // 평균 처리 기간 계산
-      const completedServices = safeServices.filter(service => 
-        service.status === '완료' && service.completion_date && service.reception_date
-      );
-
-      let avgProcessingDays = 0;
-      if (completedServices.length > 0) {
-        const totalDays = completedServices.reduce((sum, service) => {
-          const receptionDate = new Date(service.reception_date);
-          const completionDate = new Date(service.completion_date);
-          const days = Math.round((completionDate - receptionDate) / (1000 * 60 * 60 * 24));
-          return sum + Math.max(0, days); // 음수 일수 방지
-        }, 0);
-        avgProcessingDays = (totalDays / completedServices.length).toFixed(1);
-      }
-
-      // 브랜드별 최근 서비스 데이터 정리
-      const processedRecentServices = {
-        ALL: [],
-        XRB: [],
-        NBK: []
-      };
-
-      // 전체 데이터
-      processedRecentServices.ALL = safeRecentServices
-        .slice(0, 5)  // 이미 5건으로 제한되어 있음
-        .map(service => ({
-          id: service.id,
-          customerName: service.customer_name || '이름 없음',
-          productName: service.product_name || '제품명 없음',
-          status: service.status || '상태 없음',
-          brand: service.brand || 'UNKNOWN',
-          requestDate: service.reception_date ? 
-            new Date(service.reception_date).toLocaleDateString('ko-KR') : 
-            '날짜 없음'
-        }));
-
-      // X-RIDER 데이터
-      processedRecentServices.XRB = safeRecentServices
-        .filter(service => service.brand === 'XRB')
-        .slice(0, 5)
-        .map(service => ({
-          id: service.id,
-          customerName: service.customer_name || '이름 없음',
-          productName: service.product_name || '제품명 없음',
-          status: service.status || '상태 없음',
-          brand: service.brand,
-          requestDate: service.reception_date ? 
-            new Date(service.reception_date).toLocaleDateString('ko-KR') : 
-            '날짜 없음'
-        }));
-
-      // NEARBIKE 데이터
-      processedRecentServices.NBK = safeRecentServices
-        .filter(service => service.brand === 'NBK')
-        .slice(0, 5)
-        .map(service => ({
-          id: service.id,
-          customerName: service.customer_name || '이름 없음',
-          productName: service.product_name || '제품명 없음',
-          status: service.status || '상태 없음',
-          brand: service.brand,
-          requestDate: service.reception_date ? 
-            new Date(service.reception_date).toLocaleDateString('ko-KR') : 
-            '날짜 없음'
-        }));
-
-      // 최근 출고 데이터 처리
-      const processedRecentShipments = safeRecentShipments.map(shipment => ({
-        id: shipment.id,
-        customerName: shipment.customer_name || '이름 없음',
-        customerPhone: shipment.customer_phone || '전화번호 없음',
-        productName: shipment.product_name || '제품명 없음',
-        status: shipment.shipment_date ? '출고완료' : '출고대기',
-        brand: shipment.brand || 'UNKNOWN',
-        shipDate: shipment.shipment_date ? 
-          new Date(shipment.shipment_date).toLocaleDateString('ko-KR') :
-          new Date(shipment.created_at).toLocaleDateString('ko-KR')
-      }));
-
-      setStats({
-        totalCustomers,
-        totalServices: safeServices.length,
-        pendingServices: safeServices.filter(s => s.status !== '완료').length,
-        completedServices: safeServices.filter(s => s.status === '완료').length,
-        recentServices: processedRecentServices,
-        recentShipments: processedRecentShipments,
-        monthlyStats: {
-          total: monthlyServices.length,
-          completed: monthlyServices.filter(s => s.status === '완료').length,
-          avgProcessingDays
-        },
-        statusCounts,
-        shipmentStats
-      });
+      // 삭제된 현황 섹션들과 관련된 데이터 처리 완료
 
     } catch (err) {
       console.error('대시보드 데이터 로딩 오류:', err);
@@ -565,87 +523,13 @@ function Dashboard() {
     fetchDashboardData();
   }, []);
 
-  const getStatusColor = (status) => {
-    switch(status) {
-      case '접수': return 'info';
-      case '처리중': return 'warning';
-      case '부분완료': return 'secondary';
-      case '완료': return 'success';
-      default: return 'default';
-    }
-  };
-
-  const handleServiceClick = (serviceId) => {
-    navigate(`/services/${serviceId}`);
-  };
 
   const handleBrandChange = (event, newValue) => {
     setSelectedBrand(newValue);
   };
 
-  const handleStatusBrandChange = (brand) => {
-    setSelectedStatusBrand(brand);
-  };
 
-  const handleShipmentBrandChange = (brand) => {
-    setSelectedShipmentBrand(brand);
-  };
 
-  const handleRecentBrandChange = (brand) => {
-    setSelectedRecentBrand(brand);
-  };
-
-  const fetchRecentShipments = async () => {
-    try {
-      setLoading(true);
-      let query = supabase
-        .from('shipments')
-        .select(`
-          id,
-          customer_name,
-          customer_phone,
-          product_name,
-          status,
-          created_at,
-          shipment_date,
-          brand
-        `)
-        .order('created_at', { ascending: false })
-        .limit(5);  // 10에서 5로 수정
-
-      // ALL이 아닐 때만 브랜드 필터링 적용
-      if (selectedBrand !== 'ALL') {
-        query = query.eq('brand', selectedBrand);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-
-      // 데이터 처리 개선
-      const processedShipments = data.map(shipment => ({
-        id: shipment.id,
-        customerName: shipment.customer_name || '이름 없음',
-        customerPhone: shipment.customer_phone || '전화번호 없음',
-        productName: shipment.product_name || '제품명 없음',
-        status: shipment.shipment_date ? '출고완료' : '출고대기',
-        brand: shipment.brand || 'UNKNOWN',
-        shipDate: shipment.shipment_date ? 
-          new Date(shipment.shipment_date).toLocaleDateString('ko-KR') :
-          new Date(shipment.created_at).toLocaleDateString('ko-KR')
-      }));
-
-      setRecentShipments(processedShipments);
-    } catch (err) {
-      console.error('Error fetching recent shipments:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchRecentShipments();
-  }, [selectedBrand]);
 
   const handleSendMemoToTelegram = async (idx) => {
     const content = memoList[idx]?.content?.trim();
@@ -775,7 +659,18 @@ function Dashboard() {
                     </Typography>
                   )}
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    {memoList[0]?.lastSaved && (
+                    {memoList[0]?.saving && (
+                      <Typography variant="caption" sx={{ color: '#ffa927', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <CircularProgress size={12} />
+                        저장 중...
+                      </Typography>
+                    )}
+                    {!memoList[0]?.saving && memoList[0]?.hasChanges && (
+                      <Typography variant="caption" sx={{ color: '#ff6b6b', fontSize: '0.75rem' }}>
+                        • 저장되지 않은 변경사항
+                      </Typography>
+                    )}
+                    {!memoList[0]?.saving && !memoList[0]?.hasChanges && memoList[0]?.lastSaved && (
                       <Typography variant="caption" sx={{ color: '#868e96', fontSize: '0.75rem' }}>
                         마지막 저장: {dayjs(memoList[0].lastSaved).locale('ko').format('YYYY.MM.DD HH:mm')}
                       </Typography>
@@ -787,23 +682,34 @@ function Dashboard() {
                     </Tooltip>
                   </Box>
                 </Box>
-                <TextField
-                  multiline
-                  fullWidth
-                  value={memoList[0]?.content || ''}
-                  onChange={e => handleMemoContentChange(0, e.target.value)}
-                  placeholder="메모를 입력하세요..."
-                  variant="outlined"
-                  sx={{
-                    bgcolor: '#fff',
-                    fontSize: '0.875rem',
-                    '& textarea': {
-                      resize: 'vertical',
-                      minHeight: '100px',
-                      maxHeight: '500px'
-                    }
-                  }}
-                />
+                
+                {/* ReactQuill 에디터 */}
+                <Box sx={{ 
+                  '& .ql-editor': {
+                    minHeight: '100px',
+                    fontSize: memoFormats[0]?.fontSize === 'large' ? '1.2rem' : 
+                             memoFormats[0]?.fontSize === 'small' ? '0.8rem' : '0.875rem',
+                  },
+                  '& .ql-toolbar': {
+                    borderTop: '1px solid #ccc',
+                    borderLeft: '1px solid #ccc',
+                    borderRight: '1px solid #ccc',
+                  },
+                  '& .ql-container': {
+                    borderBottom: '1px solid #ccc',
+                    borderLeft: '1px solid #ccc',
+                    borderRight: '1px solid #ccc',
+                  }
+                }}>
+                  <ReactQuill
+                    theme="snow"
+                    value={memoList[0]?.content || ''}
+                    onChange={(content) => handleMemoContentChange(0, content)}
+                    modules={quillModules}
+                    formats={quillFormats}
+                    placeholder="메모를 입력하세요..."
+                  />
+                </Box>
                 <Button
                   variant="contained"
                   onClick={() => handleSaveMemo(0)}
@@ -859,7 +765,18 @@ function Dashboard() {
                     </Typography>
                   )}
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    {memoList[2]?.lastSaved && (
+                    {memoList[2]?.saving && (
+                      <Typography variant="caption" sx={{ color: '#ffa927', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <CircularProgress size={12} />
+                        저장 중...
+                      </Typography>
+                    )}
+                    {!memoList[2]?.saving && memoList[2]?.hasChanges && (
+                      <Typography variant="caption" sx={{ color: '#ff6b6b', fontSize: '0.75rem' }}>
+                        • 저장되지 않은 변경사항
+                      </Typography>
+                    )}
+                    {!memoList[2]?.saving && !memoList[2]?.hasChanges && memoList[2]?.lastSaved && (
                       <Typography variant="caption" sx={{ color: '#868e96', fontSize: '0.75rem' }}>
                         마지막 저장: {dayjs(memoList[2].lastSaved).locale('ko').format('YYYY.MM.DD HH:mm')}
                       </Typography>
@@ -871,23 +788,34 @@ function Dashboard() {
                     </Tooltip>
                   </Box>
                 </Box>
-                <TextField
-                  multiline
-                  fullWidth
-                  value={memoList[2]?.content || ''}
-                  onChange={e => handleMemoContentChange(2, e.target.value)}
-                  placeholder="메모를 입력하세요..."
-                  variant="outlined"
-                  sx={{
-                    bgcolor: '#fff',
-                    fontSize: '0.875rem',
-                    '& textarea': {
-                      resize: 'vertical',
-                      minHeight: '100px',
-                      maxHeight: '500px'
-                    }
-                  }}
-                />
+                
+                {/* ReactQuill 에디터 */}
+                <Box sx={{ 
+                  '& .ql-editor': {
+                    minHeight: '100px',
+                    fontSize: memoFormats[2]?.fontSize === 'large' ? '1.2rem' : 
+                             memoFormats[2]?.fontSize === 'small' ? '0.8rem' : '0.875rem',
+                  },
+                  '& .ql-toolbar': {
+                    borderTop: '1px solid #ccc',
+                    borderLeft: '1px solid #ccc',
+                    borderRight: '1px solid #ccc',
+                  },
+                  '& .ql-container': {
+                    borderBottom: '1px solid #ccc',
+                    borderLeft: '1px solid #ccc',
+                    borderRight: '1px solid #ccc',
+                  }
+                }}>
+                  <ReactQuill
+                    theme="snow"
+                    value={memoList[2]?.content || ''}
+                    onChange={(content) => handleMemoContentChange(2, content)}
+                    modules={quillModules}
+                    formats={quillFormats}
+                    placeholder="메모를 입력하세요..."
+                  />
+                </Box>
                 <Button
                   variant="contained"
                   onClick={() => handleSaveMemo(2)}
@@ -944,7 +872,18 @@ function Dashboard() {
                 </Typography>
               )}
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                {memoList[1]?.lastSaved && (
+                {memoList[1]?.saving && (
+                  <Typography variant="caption" sx={{ color: '#ffa927', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <CircularProgress size={12} />
+                    저장 중...
+                  </Typography>
+                )}
+                {!memoList[1]?.saving && memoList[1]?.hasChanges && (
+                  <Typography variant="caption" sx={{ color: '#ff6b6b', fontSize: '0.75rem' }}>
+                    • 저장되지 않은 변경사항
+                  </Typography>
+                )}
+                {!memoList[1]?.saving && !memoList[1]?.hasChanges && memoList[1]?.lastSaved && (
                   <Typography variant="caption" sx={{ color: '#868e96', fontSize: '0.75rem' }}>
                     마지막 저장: {dayjs(memoList[1].lastSaved).locale('ko').format('YYYY.MM.DD HH:mm')}
                   </Typography>
@@ -956,26 +895,35 @@ function Dashboard() {
                 </Tooltip>
               </Box>
             </Box>
-            <TextField
-              multiline
-              fullWidth
-              value={memoList[1]?.content || ''}
-              onChange={e => handleMemoContentChange(1, e.target.value)}
-              placeholder="메모를 입력하세요..."
-              variant="outlined"
-              sx={{
-                flex: 1,
-                bgcolor: '#fff',
-                fontSize: '0.875rem',
-                mt: 2,
-                '& textarea': {
-                  flex: 1,
-                  resize: 'vertical',
-                  minHeight: '100px',
-                  maxHeight: '500px'
-                }
-              }}
-            />
+            
+            {/* ReactQuill 에디터 */}
+            <Box sx={{ 
+              mt: 2,
+              '& .ql-editor': {
+                minHeight: '100px',
+                fontSize: memoFormats[1]?.fontSize === 'large' ? '1.2rem' : 
+                         memoFormats[1]?.fontSize === 'small' ? '0.8rem' : '0.875rem',
+              },
+              '& .ql-toolbar': {
+                borderTop: '1px solid #ccc',
+                borderLeft: '1px solid #ccc',
+                borderRight: '1px solid #ccc',
+              },
+              '& .ql-container': {
+                borderBottom: '1px solid #ccc',
+                borderLeft: '1px solid #ccc',
+                borderRight: '1px solid #ccc',
+              }
+            }}>
+              <ReactQuill
+                theme="snow"
+                value={memoList[1]?.content || ''}
+                onChange={(content) => handleMemoContentChange(1, content)}
+                modules={quillModules}
+                formats={quillFormats}
+                placeholder="메모를 입력하세요..."
+              />
+            </Box>
             <Button
               variant="contained"
               onClick={() => handleSaveMemo(1)}
@@ -992,397 +940,7 @@ function Dashboard() {
         <ServiceCalendar />
       </Box>
 
-      {/* A/S 상태 및 출고 현황 */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 3 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 2, sm: 0 } }}>
-              <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary' }}>
-                A/S 상태 현황
-              </Typography>
-              <Box sx={{ 
-                display: 'flex', 
-                gap: 1,
-                flexWrap: 'wrap',
-                width: { xs: '100%', sm: 'auto' },
-                justifyContent: { xs: 'space-between', sm: 'flex-start' },
-                '& .MuiButton-root': {
-                  flex: { xs: '1 1 calc(33% - 4px)', sm: 'none' },
-                  minWidth: { xs: 'calc(33% - 4px)', sm: 'auto' },
-                  fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                  padding: { xs: '4px 8px', sm: '6px 16px' }
-                }
-              }}>
-                <Button 
-                  size="small"
-                  variant={selectedStatusBrand === 'ALL' ? 'contained' : 'outlined'}
-                  onClick={() => handleStatusBrandChange('ALL')}
-                >
-                  전체
-                </Button>
-                <Button 
-                  size="small"
-                  variant={selectedStatusBrand === 'XRB' ? 'contained' : 'outlined'}
-                  onClick={() => handleStatusBrandChange('XRB')}
-                >
-                  X-RIDER
-                </Button>
-                <Button 
-                  size="small"
-                  variant={selectedStatusBrand === 'NBK' ? 'contained' : 'outlined'}
-                  onClick={() => handleStatusBrandChange('NBK')}
-                >
-                  NEARBIKE
-                </Button>
-              </Box>
-            </Box>
-            <Divider sx={{ my: 2 }} />
-            <Stack spacing={2}>
-              <Box>
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
-                  <Typography variant="body2" color="text.secondary">접수</Typography>
-                  <Typography variant="body2" color="text.primary">{stats.statusCounts.접수}건</Typography>
-                </Stack>
-              </Box>
-              <Box>
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
-                  <Typography variant="body2" color="text.secondary">처리중</Typography>
-                  <Typography variant="body2" color="text.primary">{stats.statusCounts.처리중}건</Typography>
-                </Stack>
-              </Box>
-              <Box>
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
-                  <Typography variant="body2" color="text.secondary">부분완료</Typography>
-                  <Typography variant="body2" color="text.primary">{stats.statusCounts.부분완료}건</Typography>
-                </Stack>
-              </Box>
-              <Box>
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
-                  <Typography variant="body2" color="text.secondary">완료</Typography>
-                  <Typography variant="body2" color="text.primary">{stats.statusCounts.완료}건</Typography>
-                </Stack>
-              </Box>
-            </Stack>
-          </Paper>
-        </Grid>
 
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 3 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 2, sm: 0 } }}>
-              <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary' }}>
-                출고 현황
-              </Typography>
-              <Box sx={{ 
-                display: 'flex', 
-                gap: 1,
-                flexWrap: 'wrap',
-                width: { xs: '100%', sm: 'auto' },
-                justifyContent: { xs: 'space-between', sm: 'flex-start' },
-                '& .MuiButton-root': {
-                  flex: { xs: '1 1 calc(33% - 4px)', sm: 'none' },
-                  minWidth: { xs: 'calc(33% - 4px)', sm: 'auto' },
-                  fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                  padding: { xs: '4px 8px', sm: '6px 16px' }
-                }
-              }}>
-                <Button 
-                  size="small"
-                  variant={selectedShipmentBrand === 'ALL' ? 'contained' : 'outlined'}
-                  onClick={() => handleShipmentBrandChange('ALL')}
-                >
-                  전체
-                </Button>
-                <Button 
-                  size="small"
-                  variant={selectedShipmentBrand === 'XRB' ? 'contained' : 'outlined'}
-                  onClick={() => handleShipmentBrandChange('XRB')}
-                >
-                  X-RIDER
-                </Button>
-                <Button 
-                  size="small"
-                  variant={selectedShipmentBrand === 'NBK' ? 'contained' : 'outlined'}
-                  onClick={() => handleShipmentBrandChange('NBK')}
-                >
-                  NEARBIKE
-                </Button>
-              </Box>
-            </Box>
-            <Divider sx={{ my: 2 }} />
-            <Grid container spacing={3}>
-              <Grid item xs={6}>
-                <Card sx={{ bgcolor: '#e3f2fd', p: 2 }}>
-                  <Stack direction="row" alignItems="center" spacing={2}>
-                    <LocalShippingIcon sx={{ fontSize: 30, color: '#1976d2' }} />
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">오늘 출고</Typography>
-                      <Typography variant="h5" sx={{ color: '#1976d2', fontWeight: 600 }}>
-                        {stats.shipmentStats.todayShipments}건
-                      </Typography>
-                    </Box>
-                  </Stack>
-                </Card>
-              </Grid>
-              <Grid item xs={6}>
-                <Card sx={{ bgcolor: '#e8f5e9', p: 2 }}>
-                  <Stack direction="row" alignItems="center" spacing={2}>
-                    <LocalShippingIcon sx={{ fontSize: 30, color: '#2e7d32' }} />
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">총 출고</Typography>
-                      <Typography variant="h5" sx={{ color: '#2e7d32', fontWeight: 600 }}>
-                        {stats.shipmentStats.completed}건
-                      </Typography>
-                    </Box>
-                  </Stack>
-                </Card>
-              </Grid>
-            </Grid>
-          </Paper>
-        </Grid>
-      </Grid>
-
-      {/* 최근 현황 섹션 */}
-      <Grid container spacing={3}>
-        {/* 최근 A/S 현황 */}
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 3 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 2, sm: 0 } }}>
-              <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary' }}>
-                최근 A/S 현황
-              </Typography>
-              <Box sx={{ 
-                display: 'flex', 
-                gap: 1,
-                flexWrap: 'wrap',
-                width: { xs: '100%', sm: 'auto' },
-                justifyContent: { xs: 'space-between', sm: 'flex-start' },
-                '& .MuiButton-root': {
-                  flex: { xs: '1 1 calc(33% - 4px)', sm: 'none' },
-                  minWidth: { xs: 'calc(33% - 4px)', sm: 'auto' },
-                  fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                  padding: { xs: '4px 8px', sm: '6px 16px' }
-                }
-              }}>
-                <Button 
-                  size="small"
-                  variant={selectedRecentBrand === 'ALL' ? 'contained' : 'outlined'}
-                  onClick={() => handleRecentBrandChange('ALL')}
-                >
-                  전체
-                </Button>
-                <Button 
-                  size="small"
-                  variant={selectedRecentBrand === 'XRB' ? 'contained' : 'outlined'}
-                  onClick={() => handleRecentBrandChange('XRB')}
-                >
-                  X-RIDER
-                </Button>
-                <Button 
-                  size="small"
-                  variant={selectedRecentBrand === 'NBK' ? 'contained' : 'outlined'}
-                  onClick={() => handleRecentBrandChange('NBK')}
-                >
-                  NEARBIKE
-                </Button>
-              </Box>
-            </Box>
-            <Divider sx={{ my: 2 }} />
-            {stats.recentServices[selectedRecentBrand].length > 0 ? (
-              <List>
-                {stats.recentServices[selectedRecentBrand].map((service) => (
-                  <ListItem 
-                    key={service.id} 
-                    sx={{ 
-                      borderRadius: 2, 
-                      mb: 1,
-                      bgcolor: 'background.paper',
-                      '&:hover': { bgcolor: 'background.default', cursor: 'pointer' } 
-                    }}
-                    onClick={() => handleServiceClick(service.id)}
-                  >
-                    <ListItemText
-                      primary={
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
-                            {service.customerName} - {service.productName}
-                          </Typography>
-                          <Chip 
-                            label={service.brand === 'XRB' ? 'X-RIDER' : 'NEARBIKE'} 
-                            size="small"
-                            sx={{ 
-                              bgcolor: service.brand === 'XRB' ? '#e3f2fd' : '#e8f5e9',
-                              color: service.brand === 'XRB' ? '#1976d2' : '#2e7d32',
-                              fontWeight: 600
-                            }}
-                          />
-                        </Box>
-                      }
-                      secondary={service.requestDate}
-                    />
-                    <Chip 
-                      label={service.status} 
-                      color={getStatusColor(service.status)}
-                      size="small"
-                      sx={{ fontWeight: 600 }}
-                    />
-                  </ListItem>
-                ))}
-              </List>
-            ) : (
-              <Box sx={{ py: 4, textAlign: 'center' }}>
-                <Typography variant="body1" color="text.secondary">
-                  최근 A/S 데이터가 없습니다
-                </Typography>
-              </Box>
-            )}
-            <Box sx={{ 
-              mt: 2, 
-              display: 'flex', 
-              justifyContent: 'flex-end',
-              '& .MuiButton-root': {
-                width: { xs: '100%', sm: 'auto' },
-                fontSize: { xs: '0.875rem', sm: '0.875rem' }
-              }
-            }}>
-              <Button 
-                variant="outlined" 
-                onClick={() => navigate('/services')}
-                sx={{ 
-                  color: 'primary.main', 
-                  borderColor: 'primary.main',
-                  '&:hover': { borderColor: 'primary.dark', bgcolor: 'primary.light' }
-                }}
-              >
-                모든 A/S 보기
-              </Button>
-            </Box>
-          </Paper>
-        </Grid>
-
-        {/* 최근 출고 현황 */}
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 3 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 2, sm: 0 } }}>
-              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, color: 'text.primary' }}>
-                최근 출고 현황
-              </Typography>
-              <Box sx={{ 
-                display: 'flex', 
-                gap: 1,
-                flexWrap: 'wrap',
-                width: { xs: '100%', sm: 'auto' },
-                justifyContent: { xs: 'space-between', sm: 'flex-start' },
-                '& .MuiButton-root': {
-                  flex: { xs: '1 1 calc(33% - 4px)', sm: 'none' },
-                  minWidth: { xs: 'calc(33% - 4px)', sm: 'auto' },
-                  fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                  padding: { xs: '4px 8px', sm: '6px 16px' }
-                }
-              }}>
-                <Button 
-                  size="small"
-                  variant={selectedBrand === 'ALL' ? 'contained' : 'outlined'}
-                  onClick={() => handleBrandChange(null, 'ALL')}
-                >
-                  전체
-                </Button>
-                <Button 
-                  size="small"
-                  variant={selectedBrand === 'XRB' ? 'contained' : 'outlined'}
-                  onClick={() => handleBrandChange(null, 'XRB')}
-                >
-                  X-RIDER
-                </Button>
-                <Button 
-                  size="small"
-                  variant={selectedBrand === 'NBK' ? 'contained' : 'outlined'}
-                  onClick={() => handleBrandChange(null, 'NBK')}
-                >
-                  NEARBIKE
-                </Button>
-              </Box>
-            </Box>
-            <Divider sx={{ my: 2 }} />
-            {recentShipments.length > 0 ? (
-              <List>
-                {recentShipments.map((shipment) => (
-                  <ListItem 
-                    key={shipment.id} 
-                    sx={{ 
-                      borderRadius: 2, 
-                      mb: 1,
-                      bgcolor: 'background.paper',
-                      '&:hover': { bgcolor: 'background.default', cursor: 'pointer' } 
-                    }}
-                    onClick={() => navigate(`/shipments/${shipment.id}`)}
-                  >
-                    <ListItemText
-                      primary={
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
-                              {shipment.customerName}
-                            </Typography>
-                            <Chip 
-                              label={shipment.brand === 'XRB' ? 'X-RIDER' : 'NEARBIKE'} 
-                              size="small"
-                              sx={{ 
-                                bgcolor: shipment.brand === 'XRB' ? '#e3f2fd' : '#e8f5e9',
-                                color: shipment.brand === 'XRB' ? '#1976d2' : '#2e7d32',
-                                fontWeight: 600
-                              }}
-                            />
-                          </Box>
-                          <Typography variant="body2" color="text.secondary">
-                            {shipment.productName}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {shipment.customerPhone}
-                          </Typography>
-                        </Box>
-                      }
-                      secondary={shipment.shipDate}
-                    />
-                    <Chip 
-                      label={shipment.status} 
-                      color={shipment.status === '출고완료' ? 'success' : 'warning'}
-                      size="small"
-                      sx={{ fontWeight: 600 }}
-                    />
-                  </ListItem>
-                ))}
-              </List>
-            ) : (
-              <Box sx={{ py: 4, textAlign: 'center' }}>
-                <Typography variant="body1" color="text.secondary">
-                  최근 출고 데이터가 없습니다
-                </Typography>
-              </Box>
-            )}
-            <Box sx={{ 
-              mt: 2, 
-              display: 'flex', 
-              justifyContent: 'flex-end',
-              '& .MuiButton-root': {
-                width: { xs: '100%', sm: 'auto' },
-                fontSize: { xs: '0.875rem', sm: '0.875rem' }
-              }
-            }}>
-              <Button 
-                variant="outlined" 
-                onClick={() => navigate('/shipments')}
-                sx={{ 
-                  color: 'primary.main', 
-                  borderColor: 'primary.main',
-                  '&:hover': { borderColor: 'primary.dark', bgcolor: 'primary.light' }
-                }}
-              >
-                모든 출고 보기
-              </Button>
-            </Box>
-          </Paper>
-        </Grid>
-      </Grid>
     </Box>
     <Snackbar
       open={telegramResult.open}

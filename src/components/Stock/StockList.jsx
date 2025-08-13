@@ -11,6 +11,9 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import SaveIcon from '@mui/icons-material/Save';
 import SearchIcon from '@mui/icons-material/Search';
+import DownloadIcon from '@mui/icons-material/Download';
+import UploadIcon from '@mui/icons-material/Upload';
+import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { sendTelegramNotification } from '../../lib/telegram';
 import TablePagination from '@mui/material/TablePagination';
 
@@ -97,6 +100,9 @@ function StockList() {
   const [isSearching, setIsSearching] = useState(false);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(20);
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [uploadedData, setUploadedData] = useState([]);
+  const [uploadFile, setUploadFile] = useState(null);
 
   useEffect(() => {
     fetchParts();
@@ -686,6 +692,277 @@ function StockList() {
     return sortedParts.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   }, [sortedParts, page, rowsPerPage]);
 
+  // 엑셀 다운로드 함수
+  const handleDownloadExcel = () => {
+    if (filteredParts.length === 0) {
+      setSnackbar({ open: true, message: '다운로드할 데이터가 없습니다.', severity: 'warning' });
+      return;
+    }
+
+    const exportData = filteredParts.map(part => ({
+      '브랜드': part.brand,
+      '제품코드': part.code,
+      '제품명': part.name,
+      '공급가': part.supply_price || 0,
+      '단가': part.price || 0,
+      '재고': part.stock || 0,
+      '비고': part.note || ''
+    }));
+
+    const headers = [
+      { label: '브랜드', key: '브랜드' },
+      { label: '제품코드', key: '제품코드' },
+      { label: '제품명', key: '제품명' },
+      { label: '공급가', key: '공급가' },
+      { label: '단가', key: '단가' },
+      { label: '재고', key: '재고' },
+      { label: '비고', key: '비고' }
+    ];
+
+    const today = new Date().toISOString().split('T')[0];
+    const brandText = brand === '전체' ? '전체' : brand;
+    downloadExcel(exportData, headers, `재고목록_${brandText}_${today}`);
+  };
+
+  // 엑셀 템플릿 다운로드 함수
+  const handleDownloadTemplate = () => {
+    const templateData = [
+      {
+        '브랜드': 'XRB',
+        '제품코드': 'SAMPLE001',
+        '제품명': '샘플 제품',
+        '공급가': 10000,
+        '단가': 15000,
+        '재고': 10,
+        '비고': '샘플 데이터입니다.'
+      },
+      {
+        '브랜드': 'NB',
+        '제품코드': 'SAMPLE002',
+        '제품명': '샘플 제품 2',
+        '공급가': 20000,
+        '단가': 25000,
+        '재고': 5,
+        '비고': '이 행을 삭제하고 실제 데이터를 입력하세요.'
+      }
+    ];
+
+    const headers = [
+      { label: '브랜드', key: '브랜드' },
+      { label: '제품코드', key: '제품코드' },
+      { label: '제품명', key: '제품명' },
+      { label: '공급가', key: '공급가' },
+      { label: '단가', key: '단가' },
+      { label: '재고', key: '재고' },
+      { label: '비고', key: '비고' }
+    ];
+
+    downloadExcel(templateData, headers, '재고_업로드_템플릿');
+  };
+
+  // 엑셀 파일 업로드 처리
+  const handleFileUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+      const data = await readExcelFile(file);
+      console.log('업로드된 엑셀 데이터:', data);
+      
+      // 필수 컬럼 확인
+      const requiredColumns = ['브랜드', '제품코드', '제품명', '단가', '재고'];
+      const sampleRow = data[0];
+      
+      if (!sampleRow) {
+        throw new Error('업로드된 파일이 비어있습니다.');
+      }
+
+      const missingColumns = requiredColumns.filter(col => !(col in sampleRow));
+      if (missingColumns.length > 0) {
+        throw new Error(`필수 컬럼이 없습니다: ${missingColumns.join(', ')}`);
+      }
+
+      // 데이터 유효성 검사 및 변환
+      const processedData = data.map((row, index) => {
+        const lineNumber = index + 2; // 헤더를 제외한 실제 행 번호
+
+        // 필수 필드 검사
+        if (!row['브랜드'] || !row['제품코드'] || !row['제품명']) {
+          throw new Error(`${lineNumber}행: 브랜드, 제품코드, 제품명은 필수 입력 항목입니다.`);
+        }
+
+        // 브랜드 유효성 검사
+        if (!['XRB', 'NB'].includes(row['브랜드'])) {
+          throw new Error(`${lineNumber}행: 브랜드는 'XRB' 또는 'NB'만 가능합니다.`);
+        }
+
+        // 숫자 필드 변환
+        const supply_price = parseFloat(row['공급가'] || 0);
+        const price = parseFloat(row['단가'] || 0);
+        const stock = parseInt(row['재고'] || 0);
+
+        if (isNaN(price) || price < 0) {
+          throw new Error(`${lineNumber}행: 단가는 0 이상의 숫자여야 합니다.`);
+        }
+        if (isNaN(stock) || stock < 0) {
+          throw new Error(`${lineNumber}행: 재고는 0 이상의 정수여야 합니다.`);
+        }
+
+        return {
+          brand: row['브랜드'],
+          code: row['제품코드'],
+          name: row['제품명'],
+          supply_price: isNaN(supply_price) ? 0 : supply_price,
+          price: price,
+          stock: stock,
+          note: row['비고'] || ''
+        };
+      });
+
+      setUploadedData(processedData);
+      setUploadFile(file);
+      setUploadDialogOpen(true);
+      
+      setSnackbar({
+        open: true,
+        message: `${processedData.length}개의 데이터가 성공적으로 읽어졌습니다.`,
+        severity: 'success'
+      });
+
+    } catch (error) {
+      console.error('엑셀 파일 처리 중 오류:', error);
+      setSnackbar({
+        open: true,
+        message: `파일 처리 중 오류: ${error.message}`,
+        severity: 'error'
+      });
+    }
+
+    // 파일 입력 초기화
+    event.target.value = '';
+  };
+
+  // 업로드된 데이터를 데이터베이스에 저장
+  const handleConfirmUpload = async () => {
+    if (uploadedData.length === 0) return;
+
+    try {
+      let updatedCount = 0;
+      let insertedCount = 0;
+      const errors = [];
+
+      for (const item of uploadedData) {
+        try {
+          // 기존 제품 확인
+          const { data: existingPart, error: findError } = await supabase
+            .from('parts')
+            .select('id, stock')
+            .eq('code', item.code)
+            .single();
+
+          if (findError && findError.code !== 'PGRST116') { // PGRST116은 데이터 없음 에러
+            throw findError;
+          }
+
+          if (existingPart) {
+            // 기존 제품 업데이트
+            const { error: updateError } = await supabase
+              .from('parts')
+              .update({
+                brand: item.brand,
+                name: item.name,
+                supply_price: item.supply_price,
+                price: item.price,
+                stock: item.stock,
+                note: item.note
+              })
+              .eq('id', existingPart.id);
+
+            if (updateError) throw updateError;
+
+            // 재고 변경 로그 기록 (재고가 변경된 경우만)
+            if (existingPart.stock !== item.stock) {
+              await supabase
+                .from('inventory_logs')
+                .insert({
+                  part_id: existingPart.id,
+                  part_name: item.name,
+                  part_code: item.code,
+                  brand_code: item.brand,
+                  change_type: 'manual_adjust',
+                  quantity_change: item.stock - existingPart.stock,
+                  previous_quantity: existingPart.stock,
+                  new_quantity: item.stock,
+                  reference_id: null,
+                  reference_type: null,
+                  notes: '엑셀 업로드를 통한 재고 수정'
+                });
+
+              await supabase
+                .from('stock_logs')
+                .insert({
+                  product_id: existingPart.id,
+                  previous_quantity: existingPart.stock,
+                  new_quantity: item.stock,
+                  change_quantity: item.stock - existingPart.stock,
+                  reason: '엑셀 업로드',
+                  created_by: (await supabase.auth.getUser()).data.user?.email || '관리자'
+                });
+            }
+
+            updatedCount++;
+          } else {
+            // 새 제품 추가
+            const { error: insertError } = await supabase
+              .from('parts')
+              .insert({
+                brand: item.brand,
+                code: item.code,
+                name: item.name,
+                supply_price: item.supply_price,
+                price: item.price,
+                stock: item.stock,
+                note: item.note
+              });
+
+            if (insertError) throw insertError;
+            insertedCount++;
+          }
+        } catch (itemError) {
+          errors.push(`제품코드 ${item.code}: ${itemError.message}`);
+        }
+      }
+
+      if (errors.length > 0) {
+        setSnackbar({
+          open: true,
+          message: `일부 항목 처리 실패: ${errors.slice(0, 3).join(', ')}${errors.length > 3 ? ` 외 ${errors.length - 3}건` : ''}`,
+          severity: 'warning'
+        });
+      } else {
+        setSnackbar({
+          open: true,
+          message: `업로드 완료: 신규 ${insertedCount}개, 수정 ${updatedCount}개`,
+          severity: 'success'
+        });
+      }
+
+      // 업로드 완료 후 목록 새로고침
+      fetchParts();
+      setUploadDialogOpen(false);
+      setUploadedData([]);
+      setUploadFile(null);
+
+    } catch (error) {
+      console.error('데이터 업로드 중 오류:', error);
+      setSnackbar({
+        open: true,
+        message: `데이터 업로드 중 오류: ${error.message}`,
+        severity: 'error'
+      });
+    }
+  };
+
   return (
     <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
       <Typography variant="h5" sx={{ mb: 3, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -735,6 +1012,35 @@ function StockList() {
             sx={{ height: 40 }}
           >
             변동내역
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<DownloadIcon />}
+            onClick={handleDownloadExcel}
+            sx={{ height: 40 }}
+          >
+            엑셀 다운로드
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<UploadIcon />}
+            component="label"
+            sx={{ height: 40 }}
+          >
+            엑셀 업로드
+            <input
+              type="file"
+              accept=".xlsx,.xls"
+              hidden
+              onChange={handleFileUpload}
+            />
+          </Button>
+          <Button
+            variant="text"
+            onClick={handleDownloadTemplate}
+            sx={{ height: 40 }}
+          >
+            템플릿
           </Button>
           <IconButton
             onClick={() => setShowSupplyPrice(!showSupplyPrice)}
@@ -1064,6 +1370,87 @@ function StockList() {
               </Table>
             </TableContainer>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 엑셀 업로드 확인 다이얼로그 */}
+      <Dialog
+        open={uploadDialogOpen}
+        onClose={() => setUploadDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h6">
+              엑셀 업로드 미리보기
+            </Typography>
+            <IconButton onClick={() => setUploadDialogOpen(false)}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="body2" color="text.secondary">
+              업로드할 데이터를 확인하세요. 제품코드가 중복되는 경우 기존 데이터가 수정됩니다.
+            </Typography>
+            <Typography variant="body2" sx={{ mt: 1, fontWeight: 'bold' }}>
+              총 {uploadedData.length}개 항목
+            </Typography>
+          </Box>
+          
+          <TableContainer sx={{ maxHeight: 400 }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>브랜드</TableCell>
+                  <TableCell>제품코드</TableCell>
+                  <TableCell>제품명</TableCell>
+                  <TableCell align="right">공급가</TableCell>
+                  <TableCell align="right">단가</TableCell>
+                  <TableCell align="right">재고</TableCell>
+                  <TableCell>비고</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {uploadedData.slice(0, 10).map((item, index) => (
+                  <TableRow key={index}>
+                    <TableCell>{item.brand}</TableCell>
+                    <TableCell>{item.code}</TableCell>
+                    <TableCell>{item.name}</TableCell>
+                    <TableCell align="right">{item.supply_price?.toLocaleString()}원</TableCell>
+                    <TableCell align="right">{item.price?.toLocaleString()}원</TableCell>
+                    <TableCell align="right">{item.stock}</TableCell>
+                    <TableCell>{item.note}</TableCell>
+                  </TableRow>
+                ))}
+                {uploadedData.length > 10 && (
+                  <TableRow>
+                    <TableCell colSpan={7} align="center" sx={{ color: 'text.secondary' }}>
+                      ... 외 {uploadedData.length - 10}개 항목
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+
+          <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+            <Button
+              variant="outlined"
+              onClick={() => setUploadDialogOpen(false)}
+            >
+              취소
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleConfirmUpload}
+              color="primary"
+            >
+              업로드 확인
+            </Button>
+          </Box>
         </DialogContent>
       </Dialog>
     </Box>

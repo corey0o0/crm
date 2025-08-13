@@ -567,7 +567,7 @@ function ShipmentDetail() {
             <div class="product-card">
               ${shipmentParts.length > 0 ? `
                 <div class="product-title">
-                  ${shipmentParts.map(part => part.part_name).join(', ')}
+                  ${shipmentParts.length > 1 ? `${shipmentParts[0]?.part_name || '기체모델명'} 외 ${shipmentParts.length - 1}건` : shipmentParts.map(part => part.part_name).join(', ')}
                 </div>
                 <div class="product-details">
                   <div class="product-quantity">

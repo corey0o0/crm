@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Paper, Typography, Badge } from '@mui/material';
-import { DateCalendar } from '@mui/x-date-pickers/DateCalendar';
-import { PickersDay } from '@mui/x-date-pickers/PickersDay';
+import { Box, Paper, Typography, Badge, Grid, IconButton, Button } from '@mui/material';
+import { ChevronLeft, ChevronRight } from '@mui/icons-material';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import { DateCalendar } from '@mui/x-date-pickers/DateCalendar';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ko';
 import { supabase } from '../../lib/supabaseClient';
@@ -11,6 +11,7 @@ import { supabase } from '../../lib/supabaseClient';
 const ServiceCalendar = () => {
   const [serviceData, setServiceData] = useState({});
   const [selectedDate, setSelectedDate] = useState(dayjs());
+  const [currentMonth, setCurrentMonth] = useState(dayjs());
 
   useEffect(() => {
     fetchServiceData();
@@ -105,6 +106,35 @@ const ServiceCalendar = () => {
     );
   };
 
+  // 선택된 날짜 정보 렌더링
+  const renderSelectedDateInfo = () => {
+    if (!selectedDate) return null;
+    
+    const dateKey = selectedDate.format('YYYY-MM-DD');
+    const dayData = serviceData[dateKey] || { 접수: 0, 처리중: 0, 완료: 0, 출고: 0 };
+    
+    return (
+      <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Badge color="info" variant="dot" />
+          <Typography variant="body2">접수: {dayData.접수}건</Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Badge color="warning" variant="dot" />
+          <Typography variant="body2">처리중: {dayData.처리중}건</Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Badge color="success" variant="dot" />
+          <Typography variant="body2">완료: {dayData.완료}건</Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Badge color="secondary" variant="dot" />
+          <Typography variant="body2">출고: {dayData.출고}건</Typography>
+        </Box>
+      </Box>
+    );
+  };
+
   return (
     <Paper 
       elevation={0}
@@ -142,21 +172,6 @@ const ServiceCalendar = () => {
         <DateCalendar
           value={selectedDate}
           onChange={(newValue) => setSelectedDate(newValue)}
-          slots={{
-            day: (props) => {
-              const { day, outsideCurrentMonth, ...other } = props;
-              return (
-                <Box sx={{ position: 'relative' }}>
-                  <PickersDay 
-                    day={day} 
-                    outsideCurrentMonth={outsideCurrentMonth}
-                    {...other} 
-                  />
-                  {renderDayContent(day)}
-                </Box>
-              );
-            }
-          }}
           sx={{
             width: '100%',
             '& .MuiDayCalendar-weekDayLabel': {
@@ -180,6 +195,16 @@ const ServiceCalendar = () => {
             }
           }}
         />
+        
+        {/* 선택된 날짜 정보 표시 */}
+        {selectedDate && (
+          <Box sx={{ mt: 2, p: 2, bgcolor: '#f8f9fa', borderRadius: 1 }}>
+            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+              {selectedDate.format('YYYY년 MM월 DD일')} 현황
+            </Typography>
+            {renderSelectedDateInfo()}
+          </Box>
+        )}
       </LocalizationProvider>
     </Paper>
   );

@@ -55,7 +55,7 @@ import {
   Link as LinkIcon
 } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
-import * as XLSX from 'xlsx';
+import { downloadExcel } from '../../utils/excelUtils';
 import imageCompression from 'browser-image-compression';
 import heic2any from 'heic2any';
 import { useNavigate } from 'react-router-dom';
@@ -1007,15 +1007,17 @@ function ReceiptScanner({
         '매칭 유사도': item.similarity ? (item.similarity * 100).toFixed(2) + '%' : '0%'
       }));
       
-      // 워크시트 생성
-      const ws = XLSX.utils.json_to_sheet(excelData);
+      // 헤더 정의
+      const headers = [
+        { label: '상품명', key: '상품명' },
+        { label: '수량', key: '수량' },
+        { label: '금액', key: '금액' },
+        { label: '매칭된 파츠', key: '매칭된 파츠' },
+        { label: '매칭 유사도', key: '매칭 유사도' }
+      ];
       
-      // 워크북 생성
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, '영수증 분석 결과');
-      
-      // 엑셀 파일 저장
-      XLSX.writeFile(wb, `영수증_분석_결과_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      // 엑셀 파일 다운로드
+      downloadExcel(excelData, headers, `영수증_분석_결과_${new Date().toISOString().slice(0, 10)}.xlsx`);
       
       setSnackbar({
         open: true,

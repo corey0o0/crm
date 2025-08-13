@@ -74,7 +74,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ko } from 'date-fns/locale';
 import { format, parseISO, isValid } from 'date-fns';
-import * as XLSX from 'xlsx';
+import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { getCookie, setCookie, removeCookie, getJSONCookie, setJSONCookie } from '../../utils/cookieUtils';
 import { alpha } from '@mui/material/styles';
 
@@ -1250,26 +1250,21 @@ function ProductShipment() {
         '상태': shipment.status
       }));
 
-      const worksheet = XLSX.utils.json_to_sheet(exportData);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "출고목록");
-
-      const wscols = [
-        { wch: 15 },  // 고객명
-        { wch: 15 },  // 연락처
-        { wch: 30 },  // 주소
-        { wch: 30 },  // 제품명
-        { wch: 8 },   // 수량
-        { wch: 10 },  // 판매처
-        { wch: 10 },  // 배송방법
-        { wch: 12 },  // 출고일
-        { wch: 30 },  // 메모
-        { wch: 10 }   // 상태
+      const headers = [
+        { label: '고객명', key: '고객명' },
+        { label: '연락처', key: '연락처' },
+        { label: '주소', key: '주소' },
+        { label: '제품명', key: '제품명' },
+        { label: '수량', key: '수량' },
+        { label: '판매처', key: '판매처' },
+        { label: '배송방법', key: '배송방법' },
+        { label: '출고일', key: '출고일' },
+        { label: '메모', key: '멤모' },
+        { label: '상태', key: '상태' }
       ];
-      worksheet['!cols'] = wscols;
 
       const brandName = selectedBrand === 'XRB' ? 'X-RIDER' : 'NEARBIKE';
-      XLSX.writeFile(workbook, `출고목록_${brandName}_${new Date().toLocaleDateString()}.xlsx`);
+      downloadExcel(exportData, headers, `출고목록_${brandName}_${new Date().toLocaleDateString()}.xlsx`);
 
     } catch (error) {
       console.error('엑셀 다운로드 중 오류:', error);
@@ -1853,30 +1848,21 @@ function ProductShipment() {
         }
       ];
 
-      // 워크시트 생성
-      const worksheet = XLSX.utils.json_to_sheet(templateData);
-
-      // 열 너비 설정
-      const wscols = [
-        { wch: 15 },  // 고객명
-        { wch: 15 },  // 연락처
-        { wch: 30 },  // 주소
-        { wch: 30 },  // 제품명
-        { wch: 8 },   // 수량
-        { wch: 10 },  // 판매처
-        { wch: 10 },  // 배송방법
-        { wch: 12 },  // 주문일
-        { wch: 12 },  // 출고일
-        { wch: 30 },  // 메모
+      const headers = [
+        { label: '고객명', key: '고객명' },
+        { label: '연락처', key: '연락처' },
+        { label: '주소', key: '주소' },
+        { label: '제품명', key: '제품명' },
+        { label: '수량', key: '수량' },
+        { label: '판매처', key: '판매처' },
+        { label: '배송방법', key: '배송방법' },
+        { label: '주문일', key: '주문일' },
+        { label: '출고일', key: '출고일' },
+        { label: '멤모', key: '멤모' }
       ];
-      worksheet['!cols'] = wscols;
-
-      // 워크북 생성
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "출고등록템플릿");
 
       // 파일 다운로드
-      XLSX.writeFile(workbook, `출고등록템플릿_${selectedBrand}.xlsx`);
+      downloadExcel(templateData, headers, `출고등록템플릿_${selectedBrand}.xlsx`);
 
       setSnackbar({
         open: true,
@@ -1964,11 +1950,7 @@ function ProductShipment() {
       const reader = new FileReader();
       reader.onload = async (e) => {
         try {
-          const data = new Uint8Array(e.target.result);
-          const workbook = XLSX.read(data, { type: 'array' });
-          const sheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[sheetName];
-          const excelData = XLSX.utils.sheet_to_json(worksheet);
+          const excelData = await readExcelFile(file);
 
           console.log('엑셀 데이터 파싱 결과:', excelData);
 
