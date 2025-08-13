@@ -13,9 +13,11 @@ import SaveIcon from '@mui/icons-material/Save';
 import SearchIcon from '@mui/icons-material/Search';
 import DownloadIcon from '@mui/icons-material/Download';
 import UploadIcon from '@mui/icons-material/Upload';
+import SettingsIcon from '@mui/icons-material/Settings';
 import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { sendTelegramNotification } from '../../lib/telegram';
 import TablePagination from '@mui/material/TablePagination';
+import { useNavigate } from 'react-router-dom';
 
 // 메모이제이션된 옵션 상수
 const BRAND_OPTIONS = ['전체', 'XRB', 'NB'];
@@ -76,6 +78,7 @@ const SearchInput = React.memo(function SearchInput({
 });
 
 function StockList() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [parts, setParts] = useState([]);
   const [brand, setBrand] = useState('전체');
@@ -1041,6 +1044,14 @@ function StockList() {
             sx={{ height: 40 }}
           >
             템플릿
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<SettingsIcon />}
+            onClick={() => navigate('/brand-settings')}
+            sx={{ height: 40 }}
+          >
+            브랜드 설정
           </Button>
           <IconButton
             onClick={() => setShowSupplyPrice(!showSupplyPrice)}

@@ -38,8 +38,6 @@ import {
   Highlight as HighlightIcon,
   FormatSize as FormatSizeIcon
 } from '@mui/icons-material';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
@@ -51,6 +49,8 @@ import Snackbar from '@mui/material/Snackbar';
 import MuiAlert from '@mui/material/Alert';
 import Tooltip from '@mui/material/Tooltip';
 import SendIcon from '@mui/icons-material/Send';
+import ReactQuill, { Quill } from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 
 function Dashboard() {
   const navigate = useNavigate();
@@ -183,13 +183,32 @@ function Dashboard() {
             }
           ]);
           
-          // 로컬 스토리지에서 메모 이름 불러오기
+          // 데이터베이스에서 메모 이름 불러오기
           try {
-            const savedNames = localStorage.getItem(`memo_names_${userId}`);
-            if (savedNames) {
-              const loadedNames = JSON.parse(savedNames);
-              if (Array.isArray(loadedNames) && loadedNames.length === 3) {
-                setMemoNames(loadedNames);
+            if (existingMemo?.memo_name_1 || existingMemo?.memo_name_2 || existingMemo?.memo_name_3) {
+              // 데이터베이스에 메모 이름이 있으면 사용
+              setMemoNames([
+                existingMemo.memo_name_1 || '메모 1',
+                existingMemo.memo_name_2 || '메모 2', 
+                existingMemo.memo_name_3 || '메모 3'
+              ]);
+            } else {
+              // 데이터베이스에 없으면 로컬 스토리지에서 불러오기
+              const savedNames = localStorage.getItem(`memo_names_${userId}`);
+              if (savedNames) {
+                const loadedNames = JSON.parse(savedNames);
+                if (Array.isArray(loadedNames) && loadedNames.length === 3) {
+                  setMemoNames(loadedNames);
+                  // 로컬 스토리지에만 있던 데이터를 데이터베이스에 저장
+                  await supabase
+                    .from('user_memos')
+                    .update({
+                      memo_name_1: loadedNames[0],
+                      memo_name_2: loadedNames[1],
+                      memo_name_3: loadedNames[2]
+                    })
+                    .eq('user_id', userId);
+                }
               }
             }
           } catch (e) {
@@ -353,13 +372,21 @@ function Dashboard() {
       [{ 'size': ['small', false, 'large'] }],
       [{ 'list': 'ordered'}, { 'list': 'bullet' }],
       ['clean']
-    ],
+    ]
   };
 
   const quillFormats = [
     'bold', 'italic', 'underline', 'background', 'size',
     'list', 'bullet'
   ];
+
+
+  // Quill 에디터 참조를 위한 ref 배열
+  const [quillRefs, setQuillRefs] = useState([
+    React.createRef(),
+    React.createRef(), 
+    React.createRef()
+  ]);
 
   // 새 메모 추가
   const handleAddMemo = () => {
@@ -384,20 +411,8 @@ function Dashboard() {
   };
 
   // 메모 이름 변경
-  const handleMemoNameChange = async (index, newName) => {
+  const handleMemoNameChange = (index, newName) => {
     setMemoNames(prev => prev.map((name, i) => i === index ? newName : name));
-    // 변경 즉시 저장
-    try {
-      const userId = user?.id;
-      if (userId) {
-        const updatedNames = [...memoNames];
-        updatedNames[index] = newName;
-        localStorage.setItem(`memo_names_${userId}`, JSON.stringify(updatedNames));
-        console.log(`메모 ${index + 1} 이름이 "${newName}"으로 저장되었습니다.`);
-      }
-    } catch (err) {
-      console.error('메모 이름 즉시 저장 오류:', err);
-    }
   };
 
   // 메모 이름 편집 완료
@@ -406,14 +421,33 @@ function Dashboard() {
     await saveMemoNames();
   };
 
-  // 메모 이름 저장 (로컬 스토리지 사용)
+  // 메모 이름 저장 (데이터베이스와 로컬 스토리지 모두)
   const saveMemoNames = async () => {
     try {
-      // 로컬 스토리지에 메모 이름 저장
-      const userId = user?.id;
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = user?.id || session?.user?.id;
+      
       if (userId) {
+        // 데이터베이스에 저장
+        const { error } = await supabase
+          .from('user_memos')
+          .upsert({
+            user_id: userId,
+            memo_name_1: memoNames[0],
+            memo_name_2: memoNames[1], 
+            memo_name_3: memoNames[2],
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'user_id' });
+
+        if (error) {
+          console.error('메모 이름 DB 저장 오류:', error);
+          // DB 저장 실패 시에도 로컬 스토리지에는 저장
+        }
+
+        // 로컬 스토리지에 백업 저장
         localStorage.setItem(`memo_names_${userId}`, JSON.stringify(memoNames));
-        console.log('메모 이름이 로컬 스토리지에 저장되었습니다:', memoNames);
+        
+        console.log('메모 이름이 저장되었습니다:', memoNames);
       }
     } catch (err) {
       console.error('메모 이름 저장 오류:', err);
@@ -702,6 +736,7 @@ function Dashboard() {
                   }
                 }}>
                   <ReactQuill
+                    ref={quillRefs[0]}
                     theme="snow"
                     value={memoList[0]?.content || ''}
                     onChange={(content) => handleMemoContentChange(0, content)}
@@ -808,6 +843,7 @@ function Dashboard() {
                   }
                 }}>
                   <ReactQuill
+                    ref={quillRefs[2]}
                     theme="snow"
                     value={memoList[2]?.content || ''}
                     onChange={(content) => handleMemoContentChange(2, content)}
@@ -898,7 +934,6 @@ function Dashboard() {
             
             {/* ReactQuill 에디터 */}
             <Box sx={{ 
-              mt: 2,
               '& .ql-editor': {
                 minHeight: '100px',
                 fontSize: memoFormats[1]?.fontSize === 'large' ? '1.2rem' : 
@@ -916,6 +951,7 @@ function Dashboard() {
               }
             }}>
               <ReactQuill
+                ref={quillRefs[1]}
                 theme="snow"
                 value={memoList[1]?.content || ''}
                 onChange={(content) => handleMemoContentChange(1, content)}

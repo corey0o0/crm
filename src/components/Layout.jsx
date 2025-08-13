@@ -32,7 +32,8 @@ import {
   Assessment as AssessmentIcon,
   Link as LinkIcon,
   Settings as SettingsIcon,
-  History as HistoryIcon
+  History as HistoryIcon,
+  MenuBook as MenuBookIcon
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
@@ -129,7 +130,7 @@ function Layout() {
     { text: '파츠 관리', icon: <InventoryIcon />, path: '/parts' },
     { text: '재고 관리', icon: <InventoryIcon />, path: '/stocks' },
     { text: '재고 변경 내역', icon: <HistoryIcon />, path: '/inventory-logs' },
-    { text: '브랜드 설정', icon: <SettingsIcon />, path: '/brand-settings' },
+    { text: '메뉴얼', icon: <MenuBookIcon />, path: '/xrider-manual' },
     // { text: 'A/S 통계', icon: <AssessmentIcon />, path: '/stats/service' }, //
     { text: '매출 통계', icon: <BarChartIcon />, path: '/sales/stats' }
     // { text: '영수증 스캔', icon: <ReceiptIcon />, path: '/receipts' },

@@ -26,6 +26,7 @@ import SalesStats from './components/Stats/SalesStats';
 import StockList from './components/Stock/StockList';
 import BrandSettings from './components/Settings/BrandSettings';
 import InventoryLogs from './components/Inventory/InventoryLogs';
+import XRiderManual from './components/Manual/XRiderManual';
 
 // 새로운 출고 관리 페이지 import
 import ShipmentList from './pages/shipment/ShipmentList';
@@ -101,6 +102,7 @@ function App() {
             <Route path="stats/service" element={<ServiceStats />} />
             <Route path="brand-settings" element={<BrandSettings />} />
             <Route path="inventory-logs" element={<InventoryLogs />} />
+            <Route path="xrider-manual" element={<XRiderManual />} />
           </Route>
         </Routes>
       </Router>
