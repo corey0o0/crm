@@ -152,7 +152,6 @@ function ServiceList() {
     const savedIdFromStorage = localStorage.getItem('highlightServiceId');
     const savedId = savedIdFromCookie || savedIdFromStorage;
     
-    console.log('Initial highlightServiceId from cookie/storage (on mount):', savedId);
     return savedId ? parseInt(savedId, 10) : null;
   });
 
@@ -178,12 +177,10 @@ function ServiceList() {
 
   // 하이라이트 설정 함수 수정
   const setHighlightWithTimeout = (id) => {
-    console.log('Setting highlight for ID:', id);
     setHighlightedId(id);
     setCookie('highlightServiceId', String(id));
     // 로컬스토리지에도 저장
     localStorage.setItem('highlightServiceId', String(id));
-    console.log('Saved highlightServiceId to cookie and localStorage:', id);
 
     // 이전 타이머가 있다면 제거
     if (highlightTimerRef.current) {
@@ -192,7 +189,6 @@ function ServiceList() {
 
     // 새로운 타이머 설정 (시간을 30초로 늘림)
     highlightTimerRef.current = setTimeout(() => {
-      console.log('Clearing highlight for ID:', id);
       setHighlightedId(null);
       removeCookie('highlightServiceId');
       localStorage.removeItem('highlightServiceId');
@@ -217,17 +213,13 @@ function ServiceList() {
       const savedIdFromStorage = localStorage.getItem('highlightServiceId');
       const savedId = savedIdFromCookie || savedIdFromStorage;
       
-      console.log('Checking highlight after data load. SavedId:', savedId, 'Loading:', loading);
-      
       if (savedId) {
         const numericId = parseInt(savedId, 10);
         const serviceExists = services.some(service => service.id === numericId);
         
         if (serviceExists) {
-          console.log('Found service to highlight:', numericId);
           setHighlightWithTimeout(numericId);
         } else {
-          console.log('Service not found, clearing highlight');
           removeCookie('highlightServiceId');
           localStorage.removeItem('highlightServiceId');
           setHighlightedId(null);
@@ -238,7 +230,8 @@ function ServiceList() {
 
   // 하이라이트 ID가 변경될 때마다 콘솔에 출력
   useEffect(() => {
-    console.log('Current highlightedId (state):', highlightedId);
+    // Debug용 - 필요시 활성화
+    // console.log('Current highlightedId (state):', highlightedId);
   }, [highlightedId]);
 
   const brandColors = {
@@ -290,15 +283,13 @@ function ServiceList() {
         throw countError;
       }
       
-      console.log(`Total services in database: ${count}`);
       const totalPages = Math.ceil(count / PAGE_SIZE);
-      console.log(`Will fetch data in ${totalPages} pages`);
       
       // 진행 중인 페이지 번호
       let currentPage = 1;
       
       while (hasMoreData) {
-        console.log(`Fetching page ${currentPage}/${totalPages}: from=${currentOffset}, to=${currentOffset + PAGE_SIZE - 1}`);
+        // 페이지 로딩 상태 업데이트
         
         // 페이지네이션 방식으로 데이터 가져오기 - range 함수 사용
       const { data: servicesData, error: servicesError } = await supabase
@@ -327,7 +318,6 @@ function ServiceList() {
         
         if (!servicesData || servicesData.length === 0) {
           // 더 이상 데이터가 없음
-          console.log('No more data found, ending fetch cycle');
           hasMoreData = false;
         } else {
           // 데이터 병합
@@ -339,7 +329,7 @@ function ServiceList() {
           
           // 가져온 데이터가 PAGE_SIZE보다 적으면 마지막 페이지
           if (servicesData.length < PAGE_SIZE) {
-            console.log(`Last page reached with ${servicesData.length} records`);
+            // 마지막 페이지 도달
             hasMoreData = false;
           }
           

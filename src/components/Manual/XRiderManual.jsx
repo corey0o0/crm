@@ -32,7 +32,6 @@ import {
 import {
   ExpandMore as ExpandMoreIcon,
   Warning as WarningIcon,
-  ElectricBike as BikeIcon,
   Edit as EditIcon,
   Save as SaveIcon,
   Restore as RestoreIcon,
@@ -106,8 +105,10 @@ function XRiderManual() {
 
   // 파라미터 값 변경
   const handleParameterChange = (param, value) => {
-    // P05는 문자열 값이므로 특별 처리
-    if (param === 'P05') {
+    // P05나 E 시리즈 파라미터는 문자열로, 나머지는 숫자로 처리
+    const isStringParam = param === 'P05' || param.startsWith('E');
+    
+    if (isStringParam) {
       setTempSettings(prev => ({
         ...prev,
         [param]: value
@@ -134,9 +135,11 @@ function XRiderManual() {
     }
 
     // 새 파라미터를 tempSettings에 추가
+    // P05나 E 시리즈 파라미터는 문자열로, 나머지는 숫자로 처리
+    const isStringParam = newParameter.param === 'P05' || newParameter.param.startsWith('E');
     setTempSettings(prev => ({
       ...prev,
-      [newParameter.param]: newParameter.param === 'P05' ? newParameter.value : parseInt(newParameter.value) || 0
+      [newParameter.param]: isStringParam ? newParameter.value : parseInt(newParameter.value) || 0
     }));
 
     // 설명 추가 (필요시)
@@ -168,8 +171,16 @@ function XRiderManual() {
     
     if (action === 'save') {
       try {
-        // 실제로는 여기서 서버에 저장하거나 로컬 스토리지에 저장
-        modelSettings[editingModel].parameters = { ...tempSettings };
+        // modelSettings 상태 업데이트
+        setModelSettings(prevSettings => {
+          const newSettings = [...prevSettings];
+          newSettings[editingModel] = {
+            ...newSettings[editingModel],
+            parameters: { ...tempSettings }
+          };
+          return newSettings;
+        });
+        
         setEditMode(false);
         setEditingModel(null);
         showSnackbar('저장 성공', 'success');
@@ -196,8 +207,8 @@ function XRiderManual() {
     P12: 3, P13: 22, P14: 0, P15: 12, P16: 0
   };
 
-  // X-Rider 모델별 디스플레이 쓰로틀 세팅값
-  const modelSettings = [
+  // X-Rider 모델별 디스플레이 쓰로틀 세팅값 (상태로 관리)
+  const [modelSettings, setModelSettings] = useState([
     {
       model: 'X200 맥스/X100 맥스/X200 프로',
       series: 'X200',
@@ -205,6 +216,11 @@ function XRiderManual() {
     },
     {
       model: 'Turbo Pro',
+      series: 'Turbo',
+      parameters: { ...standardParameters }
+    },
+    {
+      model: 'X200 Turbo',
       series: 'Turbo',
       parameters: { ...standardParameters }
     },
@@ -229,8 +245,13 @@ function XRiderManual() {
       parameters: { ...standardParameters }
     },
     {
-      model: 'Cafe',
-      series: 'Cafe',
+      model: 'X100 Standard',
+      series: 'X100',
+      parameters: { ...standardParameters }
+    },
+    {
+      model: 'X100 Pro',
+      series: 'X100',
       parameters: { ...standardParameters }
     },
     {
@@ -246,7 +267,7 @@ function XRiderManual() {
         P13: 35  // 고급형만 P13이 35로 다름
       }
     }
-  ];
+  ]);
 
   // 시리즈별 모델 그룹화
   const modelsBySeries = modelSettings.reduce((acc, model) => {
@@ -306,11 +327,11 @@ function XRiderManual() {
                     {isEditing ? (
                       <TextField
                         size="small"
-                        type={param === 'P05' ? 'text' : 'number'}
+                        type={param === 'P05' || param.startsWith('E') ? 'text' : 'number'}
                         value={value}
                         onChange={(e) => handleParameterChange(param, e.target.value)}
                         sx={{ 
-                          width: param === 'P05' ? 200 : 100,
+                          width: param === 'P05' || param.startsWith('E') ? 200 : 100,
                           '& .MuiOutlinedInput-root': {
                             backgroundColor: hasChanged ? '#fff3cd' : 'transparent',
                             '& fieldset': {
@@ -362,7 +383,7 @@ function XRiderManual() {
                 <TableCell>
                   <TextField
                     size="small"
-                    placeholder="P17"
+                    placeholder="P17, E06 등"
                     value={newParameter.param}
                     onChange={(e) => setNewParameter(prev => ({ ...prev, param: e.target.value }))}
                     sx={{ width: 80 }}
@@ -446,7 +467,6 @@ function XRiderManual() {
             <Accordion key={index} sx={{ mb: 1 }} disabled={editMode && !isEditing}>
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-                  <BikeIcon color="primary" />
                   <Typography variant="h6">{model.model}</Typography>
                   <Chip 
                     label={model.series} 
@@ -550,47 +570,6 @@ function XRiderManual() {
         </Typography>
       </Alert>
 
-      {/* 개요 카드 */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                지원 모델
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                총 {modelSettings.length}개 모델의 디스플레이 쓰로틀 세팅값을 제공합니다.
-              </Typography>
-              <Box sx={{ mt: 2 }}>
-                {Object.keys(modelsBySeries).map((series) => (
-                  <Chip 
-                    key={series}
-                    label={`${series} 시리즈`}
-                    sx={{ mr: 1, mb: 1 }}
-                    color="primary"
-                    variant="outlined"
-                  />
-                ))}
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                파라미터 설명
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                P01~P30까지 30개의 파라미터를 통해 전동자전거의 성능과 안전을 제어합니다.
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                각 모델별로 최적화된 설정값이 적용되어 있습니다.
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
 
       {/* 시리즈별 탭 */}
       <Paper sx={{ mb: 2 }}>
@@ -604,7 +583,6 @@ function XRiderManual() {
             <Tab 
               key={series} 
               label={`${series} 시리즈`}
-              icon={<BikeIcon />}
             />
           ))}
         </Tabs>

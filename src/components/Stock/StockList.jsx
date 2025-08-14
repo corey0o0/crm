@@ -4,7 +4,6 @@ import {
   Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Button, MenuItem, CircularProgress, Snackbar, Alert, IconButton, Dialog, DialogTitle, DialogContent,
   Checkbox, FormControlLabel, Stack, InputAdornment
 } from '@mui/material';
-import InventoryIcon from '@mui/icons-material/Inventory';
 import CloseIcon from '@mui/icons-material/Close';
 import HistoryIcon from '@mui/icons-material/History';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -968,8 +967,8 @@ function StockList() {
 
   return (
     <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
-      <Typography variant="h5" sx={{ mb: 3, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
-        <InventoryIcon sx={{ fontSize: 32 }} /> 재고 관리
+      <Typography variant="h6" sx={{ mb: 3, fontWeight: 500 }}>
+        재고 관리
       </Typography>
       <Paper sx={{ p: 2, mb: 2 }}>
         <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
