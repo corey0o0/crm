@@ -828,7 +828,7 @@ function AddService() {
       if (tags.length > 0) {
         const formattedTags = tags.map(tag => ({
           service_id: insertedService.id,
-          tag_name: tag.startsWith('#') ? tag : `#${tag}`
+          tag_name: tag
         }));
         const { error: tagError } = await supabase.from('service_tags').insert(formattedTags);
         if (tagError) {
