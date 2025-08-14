@@ -5,14 +5,9 @@ import {
   Checkbox, FormControlLabel, Stack, InputAdornment
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
-import HistoryIcon from '@mui/icons-material/History';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
-import SaveIcon from '@mui/icons-material/Save';
 import SearchIcon from '@mui/icons-material/Search';
-import DownloadIcon from '@mui/icons-material/Download';
-import UploadIcon from '@mui/icons-material/Upload';
-import SettingsIcon from '@mui/icons-material/Settings';
 import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { sendTelegramNotification } from '../../lib/telegram';
 import TablePagination from '@mui/material/TablePagination';
@@ -971,7 +966,7 @@ function StockList() {
         재고 관리
       </Typography>
       <Paper sx={{ p: 2, mb: 2 }}>
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
           <TextField
             select
             label="브랜드"
@@ -1009,25 +1004,22 @@ function StockList() {
           />
           <Button
             variant="outlined"
-            startIcon={<HistoryIcon />}
             onClick={handleOpenAllLogs}
-            sx={{ height: 40 }}
+            sx={{ height: 40, minWidth: 'max-content' }}
           >
             변동내역
           </Button>
           <Button
             variant="outlined"
-            startIcon={<DownloadIcon />}
             onClick={handleDownloadExcel}
-            sx={{ height: 40 }}
+            sx={{ height: 40, minWidth: 'max-content' }}
           >
             엑셀 다운로드
           </Button>
           <Button
             variant="contained"
-            startIcon={<UploadIcon />}
             component="label"
-            sx={{ height: 40 }}
+            sx={{ height: 40, minWidth: 'max-content' }}
           >
             엑셀 업로드
             <input
@@ -1040,15 +1032,14 @@ function StockList() {
           <Button
             variant="text"
             onClick={handleDownloadTemplate}
-            sx={{ height: 40 }}
+            sx={{ height: 40, minWidth: 'max-content' }}
           >
             템플릿
           </Button>
           <Button
             variant="outlined"
-            startIcon={<SettingsIcon />}
             onClick={() => navigate('/brand-settings')}
-            sx={{ height: 40 }}
+            sx={{ height: 40, minWidth: 'max-content' }}
           >
             브랜드 설정
           </Button>
@@ -1180,7 +1171,6 @@ function StockList() {
               <Button
                 variant="contained"
                 color="primary"
-                startIcon={<SaveIcon />}
                 disabled={selectedItems.length === 0}
                 onClick={handleSaveSelectedItems}
               >
@@ -1189,7 +1179,6 @@ function StockList() {
               <Button
                 variant="outlined"
                 color="primary"
-                startIcon={<SaveIcon />}
                 onClick={handleSaveAllItems}
               >
                 전체 저장 ({filteredParts.length}개)
