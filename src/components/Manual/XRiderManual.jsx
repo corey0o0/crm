@@ -46,6 +46,7 @@ function XRiderManual() {
   const [editingModel, setEditingModel] = useState(null);
   const [tempSettings, setTempSettings] = useState({});
   const [originalSettings, setOriginalSettings] = useState({});
+  const [originalDescriptions, setOriginalDescriptions] = useState({});
   const [confirmDialog, setConfirmDialog] = useState({ open: false, action: null });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
   const [newParameter, setNewParameter] = useState({ param: '', value: '', description: '' });
@@ -68,6 +69,7 @@ function XRiderManual() {
     const model = modelSettings[modelIndex];
     setEditingModel(modelIndex);
     setOriginalSettings({ ...model.parameters });
+    setOriginalDescriptions({ ...parameterDescriptions });
     setTempSettings({ ...model.parameters });
     setEditMode(true);
     showSnackbar('편집 모드가 시작되었습니다', 'info');
@@ -189,11 +191,13 @@ function XRiderManual() {
       }
     } else if (action === 'cancel') {
       setTempSettings({ ...originalSettings });
+      setParameterDescriptions({ ...originalDescriptions });
       setEditMode(false);
       setEditingModel(null);
       showSnackbar('편집이 취소되었습니다', 'info');
     } else if (action === 'restore') {
       setTempSettings({ ...originalSettings });
+      setParameterDescriptions({ ...originalDescriptions });
       showSnackbar('기본값으로 복원되었습니다', 'info');
     }
     
@@ -353,13 +357,33 @@ function XRiderManual() {
                     )}
                   </TableCell>
                   <TableCell sx={{ width: isEditing ? '50%' : '60%' }}>
-                    <Typography 
-                      variant="body2" 
-                      color="text.secondary"
-                      sx={{ fontSize: '0.875rem' }}
-                    >
-                      {parameterDescriptions[param] || '설명 없음'}
-                    </Typography>
+                    {isEditing ? (
+                      <TextField
+                        size="small"
+                        multiline
+                        rows={1}
+                        value={parameterDescriptions[param] || ''}
+                        onChange={(e) => setParameterDescriptions(prev => ({
+                          ...prev,
+                          [param]: e.target.value
+                        }))}
+                        placeholder="파라미터 설명 입력"
+                        sx={{ 
+                          width: '100%',
+                          '& .MuiOutlinedInput-root': {
+                            fontSize: '0.875rem'
+                          }
+                        }}
+                      />
+                    ) : (
+                      <Typography 
+                        variant="body2" 
+                        color="text.secondary"
+                        sx={{ fontSize: '0.875rem' }}
+                      >
+                        {parameterDescriptions[param] || '설명 없음'}
+                      </Typography>
+                    )}
                   </TableCell>
                   {isEditing && (
                     <TableCell>
