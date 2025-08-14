@@ -21,14 +21,13 @@ import {
   Tab,
   Button,
   TextField,
-  Switch,
-  FormControlLabel,
   Stack,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  Snackbar
+  Snackbar,
+  IconButton
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
@@ -37,7 +36,9 @@ import {
   Edit as EditIcon,
   Save as SaveIcon,
   Restore as RestoreIcon,
-  Cancel as CancelIcon
+  Cancel as CancelIcon,
+  Add as AddIcon,
+  Delete as DeleteIcon
 } from '@mui/icons-material';
 
 function XRiderManual() {
@@ -48,6 +49,8 @@ function XRiderManual() {
   const [originalSettings, setOriginalSettings] = useState({});
   const [confirmDialog, setConfirmDialog] = useState({ open: false, action: null });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
+  const [newParameter, setNewParameter] = useState({ param: '', value: '', description: '' });
+  const [showAddParameter, setShowAddParameter] = useState(false);
 
   const handleTabChange = (event, newValue) => {
     setSelectedTab(newValue);
@@ -118,16 +121,61 @@ function XRiderManual() {
     }
   };
 
+  // 새 파라미터 추가
+  const addParameter = () => {
+    if (!newParameter.param || !newParameter.value) {
+      showSnackbar('파라미터 이름과 값을 모두 입력해주세요.', 'warning');
+      return;
+    }
+
+    if (tempSettings[newParameter.param]) {
+      showSnackbar('이미 존재하는 파라미터입니다.', 'warning');
+      return;
+    }
+
+    // 새 파라미터를 tempSettings에 추가
+    setTempSettings(prev => ({
+      ...prev,
+      [newParameter.param]: newParameter.param === 'P05' ? newParameter.value : parseInt(newParameter.value) || 0
+    }));
+
+    // 설명 추가 (필요시)
+    if (newParameter.description) {
+      setParameterDescriptions(prev => ({
+        ...prev,
+        [newParameter.param]: newParameter.description
+      }));
+    }
+
+    setNewParameter({ param: '', value: '', description: '' });
+    setShowAddParameter(false);
+    showSnackbar('새 파라미터가 추가되었습니다.', 'success');
+  };
+
+  // 파라미터 삭제
+  const deleteParameter = (paramToDelete) => {
+    setTempSettings(prev => {
+      const newSettings = { ...prev };
+      delete newSettings[paramToDelete];
+      return newSettings;
+    });
+    showSnackbar(`${paramToDelete} 파라미터가 삭제되었습니다.`, 'info');
+  };
+
   // 확인 대화상자 처리
   const handleConfirmAction = () => {
     const { action } = confirmDialog;
     
     if (action === 'save') {
-      // 실제로는 여기서 서버에 저장하거나 로컬 스토리지에 저장
-      modelSettings[editingModel].parameters = { ...tempSettings };
-      setEditMode(false);
-      setEditingModel(null);
-      showSnackbar('설정값이 저장되었습니다', 'success');
+      try {
+        // 실제로는 여기서 서버에 저장하거나 로컬 스토리지에 저장
+        modelSettings[editingModel].parameters = { ...tempSettings };
+        setEditMode(false);
+        setEditingModel(null);
+        showSnackbar('저장 성공', 'success');
+      } catch (error) {
+        showSnackbar('저장 실패', 'error');
+      }
     } else if (action === 'cancel') {
       setTempSettings({ ...originalSettings });
       setEditMode(false);
@@ -211,8 +259,8 @@ function XRiderManual() {
 
   const seriesList = Object.keys(modelsBySeries);
 
-  // 파라미터 설명 데이터
-  const parameterDescriptions = {
+  // 파라미터 설명 데이터 (state로 관리)
+  const [parameterDescriptions, setParameterDescriptions] = useState({
     P00: '전압 설정 (24V/36V/48V)',
     P01: '최대 속도 제한 (km/h)',
     P02: '모터 극수 설정',
@@ -230,7 +278,7 @@ function XRiderManual() {
     P14: '시동 전류 설정',
     P15: '저전압 보호 설정',
     P16: '온도 보호 설정'
-  };
+  });
 
   const renderParameterTable = (model, modelIndex) => {
     const isEditing = editMode && editingModel === modelIndex;
@@ -244,6 +292,7 @@ function XRiderManual() {
               <TableCell><strong>파라미터</strong></TableCell>
               <TableCell><strong>값</strong></TableCell>
               <TableCell><strong>설명</strong></TableCell>
+              {isEditing && <TableCell width="100px"><strong>작업</strong></TableCell>}
             </TableRow>
           </TableHead>
           <TableBody>
@@ -282,7 +331,7 @@ function XRiderManual() {
                       </Typography>
                     )}
                   </TableCell>
-                  <TableCell sx={{ width: '60%' }}>
+                  <TableCell sx={{ width: isEditing ? '50%' : '60%' }}>
                     <Typography 
                       variant="body2" 
                       color="text.secondary"
@@ -291,9 +340,94 @@ function XRiderManual() {
                       {parameterDescriptions[param] || '설명 없음'}
                     </Typography>
                   </TableCell>
+                  {isEditing && (
+                    <TableCell>
+                      <IconButton
+                        size="small"
+                        onClick={() => deleteParameter(param)}
+                        color="error"
+                        title={`${param} 삭제`}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </TableCell>
+                  )}
                 </TableRow>
               );
             })}
+            
+            {/* 새 파라미터 추가 행 */}
+            {isEditing && showAddParameter && (
+              <TableRow>
+                <TableCell>
+                  <TextField
+                    size="small"
+                    placeholder="P17"
+                    value={newParameter.param}
+                    onChange={(e) => setNewParameter(prev => ({ ...prev, param: e.target.value }))}
+                    sx={{ width: 80 }}
+                  />
+                </TableCell>
+                <TableCell>
+                  <TextField
+                    size="small"
+                    placeholder="값"
+                    value={newParameter.value}
+                    onChange={(e) => setNewParameter(prev => ({ ...prev, value: e.target.value }))}
+                    sx={{ width: 100 }}
+                  />
+                </TableCell>
+                <TableCell>
+                  <TextField
+                    size="small"
+                    placeholder="파라미터 설명"
+                    value={newParameter.description}
+                    onChange={(e) => setNewParameter(prev => ({ ...prev, description: e.target.value }))}
+                    sx={{ width: 200 }}
+                  />
+                </TableCell>
+                <TableCell>
+                  <Stack direction="row" spacing={1}>
+                    <IconButton
+                      size="small"
+                      onClick={addParameter}
+                      color="primary"
+                      title="추가"
+                    >
+                      <SaveIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      onClick={() => {
+                        setShowAddParameter(false);
+                        setNewParameter({ param: '', value: '', description: '' });
+                      }}
+                      color="error"
+                      title="취소"
+                    >
+                      <CancelIcon fontSize="small" />
+                    </IconButton>
+                  </Stack>
+                </TableCell>
+              </TableRow>
+            )}
+            
+            {/* 파라미터 추가 버튼 행 */}
+            {isEditing && !showAddParameter && (
+              <TableRow>
+                <TableCell colSpan={4} sx={{ textAlign: 'center', py: 1 }}>
+                  <Button
+                    size="small"
+                    startIcon={<AddIcon />}
+                    onClick={() => setShowAddParameter(true)}
+                    variant="outlined"
+                    color="primary"
+                  >
+                    새 파라미터 추가
+                  </Button>
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </TableContainer>
