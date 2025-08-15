@@ -117,48 +117,9 @@ function NewManual() {
         }));
         setModels(processedData);
       } else {
-        // 기본 모델 생성
-        const defaultModels = [
-          {
-            id: '550e8400-e29b-41d4-a716-446655440001',
-            model_name: 'X200 맥스/X100 맥스/X200 프로',
-            parameters: { ...standardParameters },
-            descriptions: { ...standardDescriptions },
-            error_codes: { ...standardErrorCodes },
-            pdf_link: '',
-            order_index: 0
-          },
-          {
-            id: '550e8400-e29b-41d4-a716-446655440002',
-            model_name: 'Turbo Pro',
-            parameters: { ...standardParameters },
-            descriptions: { ...standardDescriptions },
-            error_codes: { ...standardErrorCodes },
-            pdf_link: '',
-            order_index: 1
-          },
-          {
-            id: '550e8400-e29b-41d4-a716-446655440003',
-            model_name: 'X200 Turbo',
-            parameters: { ...standardParameters },
-            descriptions: { ...standardDescriptions },
-            error_codes: { ...standardErrorCodes },
-            pdf_link: '',
-            order_index: 2
-          }
-        ];
-
-        // DB에 기본 모델 삽입
-        for (const model of defaultModels) {
-          const { series, ...modelToInsert } = model;
-          const { error: insertError } = await supabase
-            .from('model_settings')
-            .insert(modelToInsert);
-          if (insertError) console.error('기본 설정값 삽입 오류:', insertError);
-        }
-
-        setModels(defaultModels);
-        showSnackbar('기본 모델이 생성되었습니다.', 'success');
+        // 자동 기본 데이터 삽입 제거: 비어 있으면 비어 있는 상태로 표시
+        setModels([]);
+        showSnackbar('모델이 없습니다. "모델 추가"로 새 모델을 생성하세요.', 'info');
       }
     } catch (error) {
       console.error('모델 로드 오류:', error);
@@ -201,17 +162,48 @@ function NewManual() {
   const handleDeleteModel = async (modelId) => {
     if (window.confirm('이 모델을 삭제하시겠습니까?')) {
       try {
-        const { error } = await supabase
+        console.log('모델 삭제 시도:', { modelId });
+        const { data: deletedRows, error } = await supabase
           .from('model_settings')
           .delete()
-          .eq('id', modelId);
+          .eq('id', modelId)
+          .select('id');
 
         if (error) throw error;
 
-        setModels(prev => prev.filter(m => m.id !== modelId));
+        if (!deletedRows || deletedRows.length === 0) {
+          console.warn('DB에서 삭제된 행이 없습니다. 조건을 확인하세요.', { modelId });
+        }
+
+        // 삭제된 모델이 현재 편집 중인 모델인지 확인
+        if (editingModel && editingModel.id === modelId) {
+          console.log('편집 중이던 모델이 삭제되었습니다. 편집 상태를 초기화합니다.');
+          setEditingModel(null);
+          setIsAdding(false);
+        }
+
+        setModels(prev => {
+          const before = prev.length;
+          const next = prev.filter(m => m.id !== modelId);
+          const removed = before - next.length;
+          console.log('모델 삭제 반영(클라이언트 상태):', { removed, before, after: next.length });
+          if (removed === 0) {
+            console.warn('클라이언트 상태에서 일치하는 모델을 찾지 못했습니다.', { modelId });
+          }
+          return next;
+        });
+
+        console.log('모델 삭제 완료:', { modelId, deletedCount: deletedRows ? deletedRows.length : 0 });
+        // DB와 동기화
+        await loadModels();
         showSnackbar('모델이 삭제되었습니다.', 'success');
       } catch (error) {
         console.error('모델 삭제 오류:', error);
+        console.error('삭제 오류 상세:', {
+          message: error.message,
+          code: error.code,
+          details: error.details
+        });
         showSnackbar(`모델 삭제 실패: ${error.message}`, 'error');
       }
     }
@@ -220,8 +212,8 @@ function NewManual() {
   // 모델 저장
   const handleSaveModel = async () => {
     try {
-      // 시리즈 필드가 있다면 제거
-      const { series, ...modelToSave } = editingModel;
+      // 시리즈, error_codes, pdf_link 필드가 있다면 제거 (임시)
+      const { series, error_codes, pdf_link, ...modelToSave } = editingModel;
       console.log('저장할 모델 데이터:', modelToSave);
       
       if (isAdding) {
@@ -231,12 +223,25 @@ function NewManual() {
 
         if (error) {
           console.error('모델 추가 오류 상세:', error);
+          console.error('오류 메시지:', error.message);
+          console.error('오류 코드:', error.code);
+          console.error('오류 상세:', error.details);
+          console.error('오류 힌트:', error.hint);
           throw error;
         }
 
         setModels(prev => [...prev, modelToSave]);
         showSnackbar('새 모델이 추가되었습니다.', 'success');
       } else {
+        // 수정 시 모델이 여전히 존재하는지 확인
+        const existingModel = models.find(m => m.id === modelToSave.id);
+        if (!existingModel) {
+          showSnackbar('수정하려는 모델이 존재하지 않습니다. 모델이 삭제되었을 수 있습니다.', 'error');
+          setEditingModel(null);
+          setIsAdding(false);
+          return;
+        }
+
         const { data, error } = await supabase
           .from('model_settings')
           .update(modelToSave)
@@ -244,6 +249,10 @@ function NewManual() {
 
         if (error) {
           console.error('모델 수정 오류 상세:', error);
+          console.error('오류 메시지:', error.message);
+          console.error('오류 코드:', error.code);
+          console.error('오류 상세:', error.details);
+          console.error('오류 힌트:', error.hint);
           throw error;
         }
 
