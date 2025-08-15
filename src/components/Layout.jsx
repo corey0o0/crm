@@ -130,7 +130,8 @@ function Layout() {
     { text: '파츠 관리', icon: <InventoryIcon />, path: '/parts' },
     { text: '재고 관리', icon: <InventoryIcon />, path: '/stocks' },
     { text: '재고 변경 내역', icon: <HistoryIcon />, path: '/inventory-logs' },
-    { text: '메뉴얼', icon: <MenuBookIcon />, path: '/xrider-manual' },
+    { text: '메뉴얼', icon: <MenuBookIcon />, path: '/new-manual' },
+    // { text: '기존 메뉴얼', icon: <MenuBookIcon />, path: '/xrider-manual' },
     // { text: 'A/S 통계', icon: <AssessmentIcon />, path: '/stats/service' }, //
     { text: '매출 통계', icon: <BarChartIcon />, path: '/sales/stats' }
     // { text: '영수증 스캔', icon: <ReceiptIcon />, path: '/receipts' },

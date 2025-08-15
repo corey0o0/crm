@@ -27,6 +27,7 @@ import StockList from './components/Stock/StockList';
 import BrandSettings from './components/Settings/BrandSettings';
 import InventoryLogs from './components/Inventory/InventoryLogs';
 import XRiderManual from './components/Manual/XRiderManual';
+import NewManual from './components/Manual/NewManual';
 
 // 새로운 출고 관리 페이지 import
 import ShipmentList from './pages/shipment/ShipmentList';
@@ -103,6 +104,7 @@ function App() {
             <Route path="brand-settings" element={<BrandSettings />} />
             <Route path="inventory-logs" element={<InventoryLogs />} />
             <Route path="xrider-manual" element={<XRiderManual />} />
+            <Route path="new-manual" element={<NewManual />} />
           </Route>
         </Routes>
       </Router>

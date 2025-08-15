@@ -7,6 +7,7 @@ import { DateCalendar } from '@mui/x-date-pickers/DateCalendar';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ko';
 import { supabase } from '../../lib/supabaseClient';
+import { PickersDay } from '@mui/x-date-pickers/PickersDay';
 
 const ServiceCalendar = () => {
   const [serviceData, setServiceData] = useState({});
@@ -172,6 +173,23 @@ const ServiceCalendar = () => {
         <DateCalendar
           value={selectedDate}
           onChange={(newValue) => setSelectedDate(newValue)}
+          slots={{
+            day: (props) => (
+              <Badge
+                key={props.day.toString()}
+                overlap="circular"
+                badgeContent={renderDayContent(props.day)}
+                sx={{
+                  ".MuiBadge-badge": {
+                    right: 7,
+                    top: 30
+                  }
+                }}
+              >
+                <PickersDay {...props} outsideCurrentMonth={props.outsideCurrentMonth} />
+              </Badge>
+            ),
+          }}
           sx={{
             width: '100%',
             '& .MuiDayCalendar-weekDayLabel': {
