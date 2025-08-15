@@ -150,7 +150,11 @@ function NewManual() {
 
         // DB에 기본 모델 삽입
         for (const model of defaultModels) {
-          await supabase.from('model_settings').insert(model);
+          const { series, ...modelToInsert } = model;
+          const { error: insertError } = await supabase
+            .from('model_settings')
+            .insert(modelToInsert);
+          if (insertError) console.error('기본 설정값 삽입 오류:', insertError);
         }
 
         setModels(defaultModels);
@@ -216,24 +220,34 @@ function NewManual() {
   // 모델 저장
   const handleSaveModel = async () => {
     try {
+      // 시리즈 필드가 있다면 제거
+      const { series, ...modelToSave } = editingModel;
+      console.log('저장할 모델 데이터:', modelToSave);
+      
       if (isAdding) {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('model_settings')
-          .insert(editingModel);
+          .insert(modelToSave);
 
-        if (error) throw error;
+        if (error) {
+          console.error('모델 추가 오류 상세:', error);
+          throw error;
+        }
 
-        setModels(prev => [...prev, editingModel]);
+        setModels(prev => [...prev, modelToSave]);
         showSnackbar('새 모델이 추가되었습니다.', 'success');
       } else {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('model_settings')
-          .update(editingModel)
-          .eq('id', editingModel.id);
+          .update(modelToSave)
+          .eq('id', modelToSave.id);
 
-        if (error) throw error;
+        if (error) {
+          console.error('모델 수정 오류 상세:', error);
+          throw error;
+        }
 
-        setModels(prev => prev.map(m => m.id === editingModel.id ? editingModel : m));
+        setModels(prev => prev.map(m => m.id === modelToSave.id ? modelToSave : m));
         showSnackbar('모델이 수정되었습니다.', 'success');
       }
 
@@ -241,6 +255,12 @@ function NewManual() {
       setIsAdding(false);
     } catch (error) {
       console.error('모델 저장 오류:', error);
+      console.error('오류 상세 정보:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      });
       showSnackbar(`모델 저장 실패: ${error.message}`, 'error');
     }
   };
@@ -257,7 +277,7 @@ function NewManual() {
       ...prev,
       parameters: {
         ...prev.parameters,
-        [param]: param === 'P05' || param.startsWith('E') ? value : parseInt(value) || 0
+        [param]: param === 'P05' || param.startsWith('E') ? value : (value === '' ? 0 : parseInt(value) || 0)
       }
     }));
   };
@@ -434,7 +454,7 @@ function NewManual() {
                         <TextField
                           size="small"
                           type={param === 'P05' || param.startsWith('E') ? 'text' : 'number'}
-                          value={editingModel.parameters[param] || ''}
+                          value={editingModel.parameters[param] !== undefined ? editingModel.parameters[param] : ''}
                           onChange={(e) => handleParameterChange(param, e.target.value)}
                           sx={{ width: 120 }}
                         />
@@ -574,7 +594,7 @@ function NewManual() {
                     {parameterKeys.map(param => (
                       <TableRow key={param}>
                         <TableCell sx={{ fontWeight: 'bold' }}>{param}</TableCell>
-                        <TableCell>{viewingModel.parameters?.[param] || '-'}</TableCell>
+                        <TableCell>{viewingModel.parameters?.[param] !== undefined ? viewingModel.parameters[param] : '-'}</TableCell>
                         <TableCell>{viewingModel.descriptions?.[param] || '-'}</TableCell>
                       </TableRow>
                     ))}

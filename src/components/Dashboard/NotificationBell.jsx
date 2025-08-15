@@ -76,6 +76,7 @@ function NotificationBell() {
 
     let channel;
     let reconnectTimeout;
+    let reconnectAttempts = 0; // 재연결 시도 횟수 추적
 
     const setupRealtimeSubscription = () => {
       // 기존 채널이 있다면 제거
@@ -107,23 +108,36 @@ function NotificationBell() {
               clearTimeout(reconnectTimeout);
               reconnectTimeout = null;
             }
+            reconnectAttempts = 0; // 성공 시 재시도 횟수 초기화
           }
           if (status === 'CHANNEL_ERROR') {
             console.error('CHANNEL_ERROR (Bell):', err);
-            // 토큰 만료 오류인 경우 세션 갱신 후 재연결 시도
-            if (err && err.message && err.message.includes('expired')) {
-              console.log('Token expired, attempting to refresh session...');
-              supabase.auth.getSession().then(({ data: { session }, error }) => {
-                if (error) {
-                  console.error('Session refresh failed:', error);
-                } else if (session) {
-                  console.log('Session refreshed, reconnecting...');
-                  // 5초 후 재연결 시도
-                  reconnectTimeout = setTimeout(() => {
-                    setupRealtimeSubscription();
-                  }, 5000);
-                }
-              });
+            // 재연결 시도 횟수 제한
+            if (reconnectAttempts < 3) {
+              reconnectAttempts++;
+              console.log(`Reconnection attempt ${reconnectAttempts}/3`);
+              // 토큰 만료 오류인 경우 세션 갱신 후 재연결 시도
+              if (err && err.message && err.message.includes('expired')) {
+                console.log('Token expired, attempting to refresh session...');
+                supabase.auth.getSession().then(({ data: { session }, error }) => {
+                  if (error) {
+                    console.error('Session refresh failed:', error);
+                  } else if (session) {
+                    console.log('Session refreshed, reconnecting...');
+                    // 5초 후 재연결 시도
+                    reconnectTimeout = setTimeout(() => {
+                      setupRealtimeSubscription();
+                    }, 5000);
+                  }
+                });
+              } else {
+                // 일반 오류인 경우 10초 후 재연결 시도
+                reconnectTimeout = setTimeout(() => {
+                  setupRealtimeSubscription();
+                }, 10000);
+              }
+            } else {
+              console.log('Max reconnection attempts reached, stopping reconnection');
             }
           }
           if (status === 'TIMED_OUT') {
