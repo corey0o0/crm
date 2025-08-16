@@ -26,8 +26,8 @@ import SalesStats from './components/Stats/SalesStats';
 import StockList from './components/Stock/StockList';
 import BrandSettings from './components/Settings/BrandSettings';
 import InventoryLogs from './components/Inventory/InventoryLogs';
-import XRiderManual from './components/Manual/XRiderManual';
-import NewManual from './components/Manual/NewManual';
+// import XRiderManual from './components/Manual/XRiderManual';
+// import NewManual from './components/Manual/NewManual';
 
 // 새로운 출고 관리 페이지 import
 import ShipmentList from './pages/shipment/ShipmentList';
@@ -103,8 +103,7 @@ function App() {
             <Route path="stats/service" element={<ServiceStats />} />
             <Route path="brand-settings" element={<BrandSettings />} />
             <Route path="inventory-logs" element={<InventoryLogs />} />
-            <Route path="xrider-manual" element={<XRiderManual />} />
-            <Route path="new-manual" element={<NewManual />} />
+            {/* 메뉴얼 기능 제거됨 */}
           </Route>
         </Routes>
       </Router>
