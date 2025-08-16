@@ -83,6 +83,15 @@ function SalesStats() {
   const [currentPeriod, setCurrentPeriod] = useState(null);
   const partsPriceMapRef = useRef(new Map());
 
+  // 개발 모드 전용 디버그 로그
+  const ENABLE_DEBUG_LOGS = false;
+  const debugLog = (...args) => {
+    if (process.env.NODE_ENV === 'development' && ENABLE_DEBUG_LOGS) {
+      // eslint-disable-next-line no-console
+      console.log(...args);
+    }
+  };
+
   // 월별 버튼 클릭 핸들러
   const handleMonthSelect = (monthIndex) => {
     // monthIndex는 0부터 시작하는 인덱스임 (0: 1월, 1: 2월, ..., 11: 12월)
@@ -378,7 +387,7 @@ function SalesStats() {
           
           // 청담매장 출고 데이터 가공 디버깅
           if (salesChannel === '청담매장' || salesChannel.includes('청담')) {
-            console.log('청담매장 출고 데이터 가공:', {
+            debugLog('청담매장 출고 데이터 가공:', {
               shipment_id: shipment.id,
               date: date,
               customer: shipment.customer_name,
@@ -520,7 +529,7 @@ function SalesStats() {
         
         // 청담매장 관련 디버깅 로그
         if (salesChannel === '청담매장' || salesChannel.includes('청담')) {
-          console.log('청담매장 총 출고매출 집계 (원본 기준):', {
+          debugLog('청담매장 총 출고매출 집계 (원본 기준):', {
             shipment_id: shipment.id,
             price: shipmentPrice,
             running_total: newTotalShipmentSales
@@ -634,7 +643,7 @@ function SalesStats() {
         
         // 청담매장 관련 디버깅 로그
         if (salesChannel === '청담매장' || salesChannel.includes('청담')) {
-          console.log('청담매장 출고 데이터:', {
+          debugLog('청담매장 출고 데이터:', {
             id: shipment.id,
             date: dateStr,
             customer: shipment.customer_name,
@@ -700,32 +709,32 @@ function SalesStats() {
       });
       
       // 디버깅을 위한 상세 로그
-      console.log('매출 데이터 집계 완료 (A/S 포함):', sortedSalesData);
+      debugLog('매출 데이터 집계 완료 (A/S 포함):', sortedSalesData);
       
       // 상세 매출 분석
-      console.log('=== 매출 분석 (일별 집계 기준) ===');
-      console.log('A/S 매출 (전체):', dailyTotalServiceSales);
-      console.log('  - AS 부품:', dailyTotalServiceSalesAS);
-      console.log('  - 판매 부품:', dailyTotalServiceSalesSell);
-      console.log('  - 공임:', dailyTotalLaborSalesOnly);
-      console.log('출고 매출 (전체):', dailyTotalShipmentSales);
-      console.log('매출 요약 총계:', calculatedTotalFromDaily);
-      console.log('검색결과 총계:', calculatedTotalFromDaily);
-      console.log('차이:', Math.abs(calculatedTotalFromDaily - calculatedTotalFromDaily)); // 항상 0이 됨
+      debugLog('=== 매출 분석 (일별 집계 기준) ===');
+      debugLog('A/S 매출 (전체):', dailyTotalServiceSales);
+      debugLog('  - AS 부품:', dailyTotalServiceSalesAS);
+      debugLog('  - 판매 부품:', dailyTotalServiceSalesSell);
+      debugLog('  - 공임:', dailyTotalLaborSalesOnly);
+      debugLog('출고 매출 (전체):', dailyTotalShipmentSales);
+      debugLog('매출 요약 총계:', calculatedTotalFromDaily);
+      debugLog('검색결과 총계:', calculatedTotalFromDaily);
+      debugLog('차이:', Math.abs(calculatedTotalFromDaily - calculatedTotalFromDaily));
 
       // 청담매장 관련 최종 결과 로그
       const chungdamData = newTotalCustomerSales['청담매장'];
       if (chungdamData) {
-        console.log('청담매장 최종 집계 결과:', {
+        debugLog('청담매장 최종 집계 결과:', {
           총매출: chungdamData.totalAmount,
           출고건수: chungdamData.shipmentCount,
           처리된출고ID: Array.from(chungdamData.processedShipments)
         });
       } else {
-        console.log('청담매장 데이터가 집계되지 않았습니다.');
+        debugLog('청담매장 데이터가 집계되지 않았습니다.');
       }
       
-      console.log('매출 데이터 조회 완료');
+      debugLog('매출 데이터 조회 완료');
 
     } catch (error) {
       console.error('데이터 조회 중 오류:', error);
@@ -738,19 +747,11 @@ function SalesStats() {
       setLoading(false);
       
       // 강제 새로고침 또는 일반 검색 완료 메시지
-      if (forceRefresh > 0) {
-        setSnackbar({
-          open: true,
-          message: '매출 데이터가 성공적으로, 재계산되었습니다.',
-          severity: 'success'
-        });
-      } else {
-        setSnackbar({
-          open: true,
-          message: '매출 데이터 조회가 완료되었습니다.',
-          severity: 'success'
-        });
-      }
+      setSnackbar({
+        open: true,
+        message: forceRefresh > 0 ? '매출 데이터가 성공적으로, 재계산되었습니다.' : '매출 데이터 조회가 완료되었습니다.',
+        severity: 'success'
+      });
       
       // 3초 후 알림 닫기
       setTimeout(() => {

@@ -73,6 +73,15 @@ import { sendTelegramNotification } from '../../lib/telegram'; // 텔레그램 �
 // KST 변환 함수 추가
 // function toKST(dateString) { ... } // 삭제
 
+// 개발 모드 전용 디버그 로그
+const ENABLE_DEBUG_LOGS = false;
+const debugLog = (...args) => {
+  if (process.env.NODE_ENV === 'development' && ENABLE_DEBUG_LOGS) {
+    // eslint-disable-next-line no-console
+    console.log(...args);
+  }
+};
+
 function formatDateYYMMDD(dateString) {
   if (!dateString) return '';
   const date = new Date(dateString);
@@ -230,8 +239,7 @@ function ServiceList() {
 
   // 하이라이트 ID가 변경될 때마다 콘솔에 출력
   useEffect(() => {
-    // Debug용 - 필요시 활성화
-    // console.log('Current highlightedId (state):', highlightedId);
+    debugLog('Current highlightedId (state):', highlightedId);
   }, [highlightedId]);
 
   const brandColors = {
@@ -335,12 +343,12 @@ function ServiceList() {
           
           // 모든 페이지를 가져왔는지 확인
           if (currentPage > totalPages) {
-            console.log('All pages fetched');
+            debugLog('All pages fetched');
             hasMoreData = false;
           }
           
           // 진행 상황 업데이트
-          console.log(`Loaded ${allServicesData.length}/${count} services (${Math.floor(allServicesData.length/count*100)}%)`);
+          debugLog(`Loaded ${allServicesData.length}/${count} services (${Math.floor(allServicesData.length/count*100)}%)`);
           
           // 페이지별 데이터를 바로 상태에 적용하여 UI 반응성 향상
           const partialServicesWithTags = servicesData.map(service => ({
@@ -378,13 +386,13 @@ function ServiceList() {
       setServices(servicesWithTags);
       
       // 총 데이터 개수 확인 (로그용)
-      console.log(`Total services loaded: ${servicesWithTags.length}`);
+      debugLog(`Total services loaded: ${servicesWithTags.length}`);
       
       // 데이터 로딩 완료 후 하이라이트 ID 체크
       const savedIdFromCookie = getCookie('highlightServiceId');
       const savedIdFromStorage = localStorage.getItem('highlightServiceId');
       const savedId = savedIdFromCookie || savedIdFromStorage;
-      console.log('Checking highlightServiceId after data load:', savedId);
+      debugLog('Checking highlightServiceId after data load:', savedId);
       
       if (savedId) {
         const numericId = parseInt(savedId, 10);
@@ -392,18 +400,18 @@ function ServiceList() {
         const serviceExists = servicesWithTags.some(service => service.id === numericId);
         
         if (serviceExists) {
-          console.log('Service found, setting highlight:', numericId);
+          debugLog('Service found, setting highlight:', numericId);
           setHighlightWithTimeout(numericId);
           
           // 30초 후 하이라이트 제거
           setTimeout(() => {
-            console.log('Clearing highlight effect after timeout');
+            debugLog('Clearing highlight effect after timeout');
             setHighlightedId(null);
             removeCookie('highlightServiceId');
             localStorage.removeItem('highlightServiceId');
           }, 30000);
         } else {
-          console.log('Service not found, clearing highlight');
+          debugLog('Service not found, clearing highlight');
           removeCookie('highlightServiceId');
           localStorage.removeItem('highlightServiceId');
         }
@@ -423,10 +431,10 @@ function ServiceList() {
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'services' }, 
         payload => {
-          console.log('Received real-time update:', payload);
+          debugLog('Received real-time update:', payload);
           if (payload.eventType === 'INSERT' && payload.new.brand === selectedBrand) {
             const newServiceId = payload.new.id;
-            console.log('New service added, ID:', newServiceId);
+            debugLog('New service added, ID:', newServiceId);
             
             // 새로운 서비스 추가 및 하이라이트 설정
             setServices(prev => [{
@@ -436,11 +444,11 @@ function ServiceList() {
             
             // 하이라이트 ID 설정
             setHighlightWithTimeout(newServiceId);
-            console.log('Highlight set for service:', newServiceId);
+            debugLog('Highlight set for service:', newServiceId);
             
             // 30초 후 하이라이트 제거
             setTimeout(() => {
-              console.log('Removing highlight for service:', newServiceId);
+              debugLog('Removing highlight for service:', newServiceId);
               setHighlightedId(null);
               removeCookie('highlightServiceId');
               localStorage.removeItem('highlightServiceId');
@@ -499,9 +507,9 @@ function ServiceList() {
 
   // 데이터 로딩 상태 확인을 위한 useEffect
   useEffect(() => {
-    console.log('Current services state:', services); // 현재 services 상태 확인
-    console.log('Current loading state:', loading); // 로딩 상태 확인
-    console.log('Current error state:', error); // 에러 상태 확인
+    debugLog('Current services state:', services);
+    debugLog('Current loading state:', loading);
+    debugLog('Current error state:', error);
   }, [services, loading, error]);
 
   const getStatusColor = (status) => {
@@ -531,7 +539,7 @@ function ServiceList() {
     if (serviceId) {
       setCookie('highlightServiceId', String(serviceId));
       localStorage.setItem('highlightServiceId', String(serviceId));
-      console.log('Setting highlightServiceId before navigation:', serviceId);
+      debugLog('Setting highlightServiceId before navigation:', serviceId);
     }
     navigate(`/services/${serviceId}`);
   };
@@ -930,7 +938,7 @@ function ServiceList() {
     if (service.id) {
       setCookie('highlightServiceId', String(service.id));
       localStorage.setItem('highlightServiceId', String(service.id));
-      console.log('Setting highlightServiceId before navigation:', service.id);
+      debugLog('Setting highlightServiceId before navigation:', service.id);
     }
     
     navigate(`/services/${service.id}`);
@@ -1716,7 +1724,7 @@ function ServiceList() {
     setInputValue('');
     setSearchTerm('');
     localStorage.removeItem('serviceSearchTerm');
-    console.log('Search cleared');
+    debugLog('Search cleared');
     setFilteredServices(services);
   };
 
@@ -2046,6 +2054,20 @@ function ServiceList() {
             size="small"
             label="시작일"
             InputLabelProps={{ shrink: true }}
+            InputProps={{
+              endAdornment: dateFilter.startDate ? (
+                <InputAdornment position="end">
+                  <IconButton
+                    edge="end"
+                    size="small"
+                    aria-label="시작일 초기화"
+                    onClick={() => setDateFilter(prev => ({ ...prev, startDate: '' }))}
+                  >
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ) : null
+            }}
           />
           <Typography variant="body2" sx={{ mx: 0.5 }}>~</Typography>
           <TextField
@@ -2056,6 +2078,20 @@ function ServiceList() {
             size="small"
             label="종료일"
             InputLabelProps={{ shrink: true }}
+            InputProps={{
+              endAdornment: dateFilter.endDate ? (
+                <InputAdornment position="end">
+                  <IconButton
+                    edge="end"
+                    size="small"
+                    aria-label="종료일 초기화"
+                    onClick={() => setDateFilter(prev => ({ ...prev, endDate: '' }))}
+                  >
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ) : null
+            }}
           />
           <ButtonGroup sx={{ ml: 1 }}>
             <Button onClick={() => handleQuickDate('today')}>오늘</Button>

@@ -1183,7 +1183,7 @@ function ShipmentList() {
           value={inputValue}
           onChange={handleSearchInput}
           onKeyPress={handleKeyPress}
-          sx={{ flexGrow: 1, width: '70%' }}
+          sx={{ flex: '0 1 400px', maxWidth: 400, minWidth: 200 }}
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">

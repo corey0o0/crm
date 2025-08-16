@@ -6,14 +6,28 @@ import reportWebVitals from './reportWebVitals';
 import { StyledEngineProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 
+// 개발 환경에서 ReactQuill의 findDOMNode 경고만 무시
+if (process.env.NODE_ENV === 'development') {
+  const originalConsoleError = console.error;
+  console.error = (...args) => {
+    try {
+      const firstArg = args && args[0];
+      if (typeof firstArg === 'string' && firstArg.includes('findDOMNode is deprecated')) {
+        return; // 특정 경고만 무시
+      }
+    } catch (_) {
+      // no-op
+    }
+    originalConsoleError(...args);
+  };
+}
+
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
-  <React.StrictMode>
-    <StyledEngineProvider injectFirst>
-      <CssBaseline />
-      <App />
-    </StyledEngineProvider>
-  </React.StrictMode>
+  <StyledEngineProvider injectFirst>
+    <CssBaseline />
+    <App />
+  </StyledEngineProvider>
 );
 
 // If you want to start measuring performance in your app, pass a function

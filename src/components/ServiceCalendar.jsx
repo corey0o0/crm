@@ -84,6 +84,7 @@ const ServiceCalendar = () => {
           <PickersDay 
             day={day} 
             {...other}
+            outsideCurrentMonth={outsideCurrentMonth}
             sx={{
               ...other.sx,
               backgroundColor: total > 0 ? 'rgba(25, 118, 210, 0.05)' : 'transparent',
