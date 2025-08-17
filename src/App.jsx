@@ -33,6 +33,9 @@ import InventoryLogs from './components/Inventory/InventoryLogs';
 import ShipmentList from './pages/shipment/ShipmentList';
 import ShipmentDetail from './pages/shipment/ShipmentDetail';
 import ShipmentForm from './pages/shipment/ShipmentForm';
+import BoardList from './pages/board/BoardList';
+import BoardNew from './pages/board/BoardNew';
+import BoardDetail from './pages/board/BoardDetail';
 
 function App() {
   const [session, setSession] = useState(null);
@@ -103,7 +106,10 @@ function App() {
             <Route path="stats/service" element={<ServiceStats />} />
             <Route path="brand-settings" element={<BrandSettings />} />
             <Route path="inventory-logs" element={<InventoryLogs />} />
-            {/* 메뉴얼 기능 제거됨 */}
+            {/* 게시판 */}
+            <Route path="board" element={<BoardList />} />
+            <Route path="board/new" element={<BoardNew />} />
+            <Route path="board/:id" element={<BoardDetail />} />
           </Route>
         </Routes>
       </Router>
