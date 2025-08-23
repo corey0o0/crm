@@ -26,7 +26,7 @@ import {
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { ko } from 'date-fns/locale';
-import { format, startOfMonth, endOfMonth, parseISO, setMonth, getMonth, startOfWeek, endOfWeek, addWeeks, startOfYear, endOfYear } from 'date-fns';
+import { format, startOfMonth, endOfMonth, parseISO, setMonth, getMonth, startOfWeek, endOfWeek, addWeeks, startOfYear, endOfYear, getWeekOfMonth } from 'date-fns';
 import {
   BarChart,
   Bar,
@@ -71,6 +71,9 @@ function SalesStats() {
   const [typeStats, setTypeStats] = useState([]);
   const [yearlyStats, setYearlyStats] = useState([]);
   const [chartPeriod, setChartPeriod] = useState('daily'); // 'daily', 'weekly', 'monthly', 'yearly'
+  const [compareStats, setCompareStats] = useState({ context: null, mom: null, yoy: null, wow: null, yoyWeek: null });
+  const [topProducts, setTopProducts] = useState([]);
+  const [topServiceParts, setTopServiceParts] = useState([]);
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
@@ -260,6 +263,7 @@ function SalesStats() {
               quantity: part.quantity,
               price: part.price,
               total: part.total_price,
+              brand: shipment.brand,
               customer_name: shipment.customer_name,
               customer_phone: shipment.customer_phone,
               sales_channel: extractSalesChannel(shipment.note, shipment.sales_channel),
@@ -288,6 +292,7 @@ function SalesStats() {
             quantity: actualQuantity,
             price: displayedUnitPrice,
             total: shipment.price || 0,
+            brand: shipment.brand,
             customer_name: shipment.customer_name,
             customer_phone: shipment.customer_phone,
             sales_channel: extractSalesChannel(shipment.note, shipment.sales_channel),
@@ -370,7 +375,8 @@ function SalesStats() {
               quantity: item.quantity || 0,
               price: item.price || 0,
               total: Math.round((item.quantity || 0) * (item.price || 0)),
-              usage: item.usage || 'AS'  // 기본값을 'AS'로 설정
+              usage: item.usage || 'AS',  // 기본값을 'AS'로 설정
+              brand: item.services.brand
             });
           }
         });
@@ -478,6 +484,80 @@ function SalesStats() {
         servicePartsByDate, 
         shipmentPartsByDate // shipment_parts 기준으로 반드시 반영
       });
+
+      // 베스트 상품 Top 5 (출고 기준) 계산 - 브랜드 구분 포함
+      try {
+        const byBrand = {};
+        Object.values(shipmentPartsByDate).forEach(parts => {
+          parts.forEach(p => {
+            const brandKey = (p.brand || '미지정');
+            if (!byBrand[brandKey]) byBrand[brandKey] = {};
+            const productKey = (p.name || 'N/A').toString().trim();
+            if (!byBrand[brandKey][productKey]) byBrand[brandKey][productKey] = { name: productKey, quantity: 0, total: 0, brand: brandKey };
+            byBrand[brandKey][productKey].quantity += Number(p.quantity || 0);
+            byBrand[brandKey][productKey].total += Number(p.total || 0);
+          });
+        });
+
+        // 선택한 브랜드만 보거나 전체일 때는 합산/또는 브랜드별을 따로 준비
+        if (queryBrand !== '전체') {
+          const map = byBrand[queryBrand] || {};
+          const top = Object.values(map)
+            .sort((a, b) => (b.quantity - a.quantity) || (b.total - a.total))
+            .slice(0, 5);
+          setTopProducts(top);
+        } else {
+          // 전체: 브랜드별 Top 5 목록 배열로 변환
+          const brandTopLists = Object.entries(byBrand).map(([brandName, products]) => ({
+            brand: brandName,
+            list: Object.values(products)
+              .sort((a, b) => (b.quantity - a.quantity) || (b.total - a.total))
+              .slice(0, 5)
+          }));
+          setTopProducts(brandTopLists);
+        }
+      } catch (e) {
+        console.error('베스트 상품 집계 오류:', e);
+        setTopProducts(queryBrand === '전체' ? [] : []);
+      }
+
+      // 베스트 부품 Top 5 (A/S 기준, 공임 제외) 계산 - 브랜드 구분 포함
+      try {
+        const svcByBrand = {};
+        Object.values(servicePartsByDate).forEach(parts => {
+          parts.forEach(p => {
+            const isLabor = (p.name && p.name.includes('공임')) || 
+                            (p.usage && p.usage.toString().trim() === '공임') ||
+                            (p.parts_note && p.parts_note.toString().trim() === '공임');
+            if (isLabor) return; // 공임 제외
+            const brandKey = (p.brand || '미지정');
+            if (!svcByBrand[brandKey]) svcByBrand[brandKey] = {};
+            const key = (p.name || 'N/A').toString().trim();
+            if (!svcByBrand[brandKey][key]) svcByBrand[brandKey][key] = { name: key, quantity: 0, total: 0, brand: brandKey };
+            svcByBrand[brandKey][key].quantity += Number(p.quantity || 0);
+            svcByBrand[brandKey][key].total += Number(p.total || 0);
+          });
+        });
+
+        if (queryBrand !== '전체') {
+          const map = svcByBrand[queryBrand] || {};
+          const topSvc = Object.values(map)
+            .sort((a, b) => (b.quantity - a.quantity) || (b.total - a.total))
+            .slice(0, 5);
+          setTopServiceParts(topSvc);
+        } else {
+          const brandTopSvcLists = Object.entries(svcByBrand).map(([brandName, products]) => ({
+            brand: brandName,
+            list: Object.values(products)
+              .sort((a, b) => (b.quantity - a.quantity) || (b.total - a.total))
+              .slice(0, 5)
+          }));
+          setTopServiceParts(brandTopSvcLists);
+        }
+      } catch (e) {
+        console.error('A/S 베스트 부품 집계 오류:', e);
+        setTopServiceParts(queryBrand === '전체' ? [] : []);
+      }
 
       // 총 매출 및 통계 계산
       let newTotalServiceSales = 0;
@@ -760,6 +840,120 @@ function SalesStats() {
     }
   };
 
+  // 범위 합계 조회(간단 총액) - 전월/전년 또는 전주/전년동주 비교용
+  const fetchTotalsForRange = async ({ start, end, brand: brandFilter }) => {
+    const startDateTime = format(start, 'yyyy-MM-dd') + ' 00:00:00';
+    const endDateTime = format(end, 'yyyy-MM-dd') + ' 23:59:59';
+    // Shipments 총액
+    let shipmentQuery = supabase
+      .from('shipments')
+      .select('price, brand, order_date')
+      .gte('order_date', startDateTime)
+      .lte('order_date', endDateTime);
+    if (brandFilter && brandFilter !== '전체') {
+      shipmentQuery = shipmentQuery.eq('brand', brandFilter);
+    }
+    const { data: shipmentRows, error: shipmentErr } = await shipmentQuery;
+    if (shipmentErr) throw shipmentErr;
+    const shipmentTotal = (shipmentRows || []).reduce((sum, r) => sum + (r.price || 0), 0);
+
+    // Service Parts 총액 (공임 포함)
+    let spQuery = supabase
+      .from('service_parts')
+      .select(`
+        price,
+        quantity,
+        usage,
+        services!inner ( completion_date, brand ),
+        parts!inner ( name, note )
+      `)
+      .gte('services.completion_date', startDateTime)
+      .lte('services.completion_date', endDateTime);
+    if (brandFilter && brandFilter !== '전체') {
+      spQuery = spQuery.eq('services.brand', brandFilter);
+    }
+    const { data: spRows, error: spErr } = await spQuery;
+    if (spErr) throw spErr;
+    const serviceTotal = (spRows || []).reduce((sum, item) => {
+      const isLabor = (item.parts?.name && item.parts.name.includes('공임')) ||
+        (item.usage && item.usage.toString().trim() === '공임') ||
+        (item.parts?.note && item.parts.note.toString().trim() === '공임');
+      const total = Math.round((item.quantity || 0) * (item.price || 0));
+      return sum + total + 0; // 공임도 이미 price*qty로 합산됨
+    }, 0);
+
+    return { shipmentTotal, serviceTotal, total: shipmentTotal + serviceTotal };
+  };
+
+  const percentChange = (current, previous) => {
+    if (previous === 0 || previous === null || previous === undefined) return null;
+    return ((current - previous) / previous) * 100;
+  };
+
+  // 현재 조회 기간이 주/월이면 비교 수치 계산
+  useEffect(() => {
+    const compute = async () => {
+      try {
+        if (!currentPeriod) return;
+        const curStart = currentPeriod.startDate;
+        const curEnd = currentPeriod.endDate;
+        const curBrand = currentPeriod.brand;
+
+        const days = Math.floor((curEnd - curStart) / (24*60*60*1000)) + 1;
+        const isFullMonth = format(curStart, 'yyyy-MM-dd') === format(startOfMonth(curStart), 'yyyy-MM-dd') &&
+          format(curEnd, 'yyyy-MM-dd') === format(endOfMonth(curStart), 'yyyy-MM-dd');
+        const isApproxWeek = days >= 7 && days <= 8; // 7일 범위
+
+        const currentTotal = totalStats.totalSales || 0;
+
+        if (isFullMonth) {
+          // 전월 / 전년 동월
+          const prevMonthStart = startOfMonth(setMonth(curStart, getMonth(curStart) - 1));
+          const prevMonthEnd = endOfMonth(prevMonthStart);
+          const lastYearMonthStart = startOfMonth(new Date(curStart.getFullYear() - 1, getMonth(curStart), 1));
+          const lastYearMonthEnd = endOfMonth(lastYearMonthStart);
+
+          const [prev, yoyBase] = await Promise.all([
+            fetchTotalsForRange({ start: prevMonthStart, end: prevMonthEnd, brand: curBrand }),
+            fetchTotalsForRange({ start: lastYearMonthStart, end: lastYearMonthEnd, brand: curBrand })
+          ]);
+          setCompareStats({
+            context: 'month',
+            mom: percentChange(currentTotal, prev.total),
+            yoy: percentChange(currentTotal, yoyBase.total),
+            wow: null,
+            yoyWeek: null
+          });
+        } else if (isApproxWeek) {
+          // 전주 / 전년 동주
+          const prevWeekStart = startOfWeek(new Date(curStart.getTime() - 7*24*60*60*1000), { weekStartsOn: 1 });
+          const prevWeekEnd = endOfWeek(prevWeekStart, { weekStartsOn: 1 });
+          const lastYearWeekStart = startOfWeek(new Date(curStart.getFullYear() - 1, curStart.getMonth(), curStart.getDate()), { weekStartsOn: 1 });
+          const lastYearWeekEnd = endOfWeek(lastYearWeekStart, { weekStartsOn: 1 });
+
+          const [prev, yoyBase] = await Promise.all([
+            fetchTotalsForRange({ start: prevWeekStart, end: prevWeekEnd, brand: curBrand }),
+            fetchTotalsForRange({ start: lastYearWeekStart, end: lastYearWeekEnd, brand: curBrand })
+          ]);
+          setCompareStats({
+            context: 'week',
+            mom: null,
+            yoy: null,
+            wow: percentChange(currentTotal, prev.total),
+            yoyWeek: percentChange(currentTotal, yoyBase.total)
+          });
+        } else {
+          setCompareStats({ context: null, mom: null, yoy: null, wow: null, yoyWeek: null });
+        }
+      } catch (e) {
+        console.error('비교 지표 계산 오류:', e);
+        setCompareStats({ context: null, mom: null, yoy: null, wow: null, yoyWeek: null });
+      }
+    };
+    compute();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [salesData, currentPeriod, totalStats.totalSales]);
+
   // 월별 통계 생성 함수
   const generateMonthlyStats = (salesData) => {
     const monthlyMap = {};
@@ -831,6 +1025,18 @@ function SalesStats() {
     });
 
     const weeklyData = Object.values(weeklyMap).sort((a, b) => a.weekStart - b.weekStart);
+    // 주차 라벨(예: 5월 1주차)과 전주 대비 증감률 계산
+    weeklyData.forEach((item, idx) => {
+      const monthLabel = format(item.weekStart, 'M');
+      const weekOfMonth = getWeekOfMonth(item.weekStart, { weekStartsOn: 1 });
+      item.weekLabel = `${monthLabel}월 ${weekOfMonth}주차`;
+      if (idx > 0) {
+        const prev = weeklyData[idx - 1];
+        item.wowPct = percentChange(item.totalSales || 0, prev.totalSales || 0);
+      } else {
+        item.wowPct = null;
+      }
+    });
     setWeeklyStats(weeklyData);
   };
 
@@ -979,6 +1185,12 @@ function SalesStats() {
         maximumFractionDigits: 2
       }) + '원';
     }
+  };
+
+  const formatPercent = (val) => {
+    if (val === null || val === undefined) return '—';
+    const sign = val > 0 ? '+' : '';
+    return `${sign}${val.toFixed(1)}%`;
   };
 
   const renderPartsDetail = () => {
@@ -1596,7 +1808,7 @@ function SalesStats() {
           </Grid>
         </Paper>
 
-        {/* 총계 카드 */}
+        {/* 총계 카드 + 비교 지표 */}
         <Paper sx={{ p: 2, mb: 3, borderLeft: '4px solid #4caf50' }}>
           <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 500, color: '#4caf50', display: 'flex', alignItems: 'center' }}>
             <Box component="span" sx={{ mr: 1 }}>검색 결과</Box>
@@ -1722,7 +1934,193 @@ function SalesStats() {
               </Card>
             </Grid>
           </Grid>
+          {/* 비교 지표 행 */}
+          {(compareStats.context === 'month' || compareStats.context === 'week') && (
+            <Box sx={{ mt: 2, p: 2, bgcolor: '#f6f8ff', borderRadius: 1 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, color: 'primary.main', fontWeight: 600 }}>
+                {compareStats.context === 'month' ? '월별 비교' : '주별 비교'} (현재 검색 기간 기준)
+              </Typography>
+              <Grid container spacing={2}>
+                {compareStats.context === 'month' && (
+                  <>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Paper sx={{ p: 2 }}>
+                        <Typography variant="body2" color="text.secondary">전월 대비</Typography>
+                        <Typography variant="h6" sx={{ color: compareStats.mom > 0 ? 'error.main' : 'success.main' }}>{formatPercent(compareStats.mom)}</Typography>
+                      </Paper>
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Paper sx={{ p: 2 }}>
+                        <Typography variant="body2" color="text.secondary">전년 동월 대비</Typography>
+                        <Typography variant="h6" sx={{ color: compareStats.yoy > 0 ? 'error.main' : 'success.main' }}>{formatPercent(compareStats.yoy)}</Typography>
+                      </Paper>
+                    </Grid>
+                  </>
+                )}
+                {compareStats.context === 'week' && (
+                  <>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Paper sx={{ p: 2 }}>
+                        <Typography variant="body2" color="text.secondary">전주 대비</Typography>
+                        <Typography variant="h6" sx={{ color: compareStats.wow > 0 ? 'error.main' : 'success.main' }}>{formatPercent(compareStats.wow)}</Typography>
+                      </Paper>
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Paper sx={{ p: 2 }}>
+                        <Typography variant="body2" color="text.secondary">전년 동주 대비</Typography>
+                        <Typography variant="h6" sx={{ color: compareStats.yoyWeek > 0 ? 'error.main' : 'success.main' }}>{formatPercent(compareStats.yoyWeek)}</Typography>
+                      </Paper>
+                    </Grid>
+                  </>
+                )}
+              </Grid>
+            </Box>
+          )}
         </Paper>
+
+        {/* 베스트 상품/부품 Top 5 - 출고 vs A/S 분리 */}
+        <Grid container spacing={3} sx={{ mb: 3 }}>
+          <Grid item xs={12} md={6}>
+            <Paper sx={{ p: 2, borderLeft: '4px solid #1976d2', height: '100%' }}>
+              <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 500, color: '#1976d2' }}>
+                많이 팔린 상품 TOP 5 (출고 기준)
+              </Typography>
+              {(!topProducts || (Array.isArray(topProducts) && topProducts.length === 0)) ? (
+                <Typography variant="body2" color="text.secondary">데이터가 없습니다.</Typography>
+              ) : (
+                <>
+                  {brand === '전체' ? (
+                    // 브랜드별 Top5 블록 반복
+                    (topProducts || []).map((group) => (
+                      <Box key={`brand-top-${group.brand}`} sx={{ mb: 2 }}>
+                        <Typography variant="subtitle2" sx={{ mb: 1 }}>{group.brand}</Typography>
+                        <TableContainer>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow>
+                                <TableCell width="60">순위</TableCell>
+                                <TableCell>상품명</TableCell>
+                                <TableCell align="right" width="100">수량</TableCell>
+                                <TableCell align="right" width="140">매출</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {(group.list || []).map((item, idx) => (
+                                <TableRow key={`${group.brand}-${item.name}`}>
+                                  <TableCell>{idx + 1}</TableCell>
+                                  <TableCell sx={{ maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.name}>
+                                    {item.name}
+                                  </TableCell>
+                                  <TableCell align="right">{item.quantity.toLocaleString('ko-KR')}</TableCell>
+                                  <TableCell align="right">{formatCurrency(item.total)}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      </Box>
+                    ))
+                  ) : (
+                    // 단일 브랜드 Top5 표
+                    <TableContainer>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell width="60">순위</TableCell>
+                            <TableCell>상품명</TableCell>
+                            <TableCell align="right" width="100">수량</TableCell>
+                            <TableCell align="right" width="140">매출</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {(topProducts || []).map((item, idx) => (
+                            <TableRow key={item.name}>
+                              <TableCell>{idx + 1}</TableCell>
+                              <TableCell sx={{ maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.name}>
+                                {item.name}
+                              </TableCell>
+                              <TableCell align="right">{item.quantity.toLocaleString('ko-KR')}</TableCell>
+                              <TableCell align="right">{formatCurrency(item.total)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  )}
+                </>
+              )}
+            </Paper>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <Paper sx={{ p: 2, borderLeft: '4px solid #2e7d32', height: '100%' }}>
+              <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 500, color: '#2e7d32' }}>
+                많이 사용된 부품 TOP 5 (A/S 기준)
+              </Typography>
+              {(!topServiceParts || (Array.isArray(topServiceParts) && topServiceParts.length === 0)) ? (
+                <Typography variant="body2" color="text.secondary">데이터가 없습니다.</Typography>
+              ) : (
+                <>
+                  {brand === '전체' ? (
+                    (topServiceParts || []).map((group) => (
+                      <Box key={`brand-svc-${group.brand}`} sx={{ mb: 2 }}>
+                        <Typography variant="subtitle2" sx={{ mb: 1 }}>{group.brand}</Typography>
+                        <TableContainer>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow>
+                                <TableCell width="60">순위</TableCell>
+                                <TableCell>부품명</TableCell>
+                                <TableCell align="right" width="100">수량</TableCell>
+                                <TableCell align="right" width="140">매출(부품가)</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {(group.list || []).map((item, idx) => (
+                                <TableRow key={`${group.brand}-${item.name}`}>
+                                  <TableCell>{idx + 1}</TableCell>
+                                  <TableCell sx={{ maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.name}>
+                                    {item.name}
+                                  </TableCell>
+                                  <TableCell align="right">{item.quantity.toLocaleString('ko-KR')}</TableCell>
+                                  <TableCell align="right">{formatCurrency(item.total)}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      </Box>
+                    ))
+                  ) : (
+                    <TableContainer>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell width="60">순위</TableCell>
+                            <TableCell>부품명</TableCell>
+                            <TableCell align="right" width="100">수량</TableCell>
+                            <TableCell align="right" width="140">매출(부품가)</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {(topServiceParts || []).map((item, idx) => (
+                            <TableRow key={item.name}>
+                              <TableCell>{idx + 1}</TableCell>
+                              <TableCell sx={{ maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.name}>
+                                {item.name}
+                              </TableCell>
+                              <TableCell align="right">{item.quantity.toLocaleString('ko-KR')}</TableCell>
+                              <TableCell align="right">{formatCurrency(item.total)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  )}
+                </>
+              )}
+            </Paper>
+          </Grid>
+        </Grid>
 
         {/* 차트와 테이블 탭 */}
         <Paper sx={{ mb: 3 }}>
@@ -1948,12 +2346,13 @@ function SalesStats() {
                     <TableHead>
                       <TableRow>
                         <TableCell>기간</TableCell>
+                        <TableCell align="right">총 매출</TableCell>
+                        <TableCell align="right">전주 대비</TableCell>
                         <TableCell align="right">A/S 매출</TableCell>
                         <TableCell align="right">A/S(AS-부품)</TableCell>
                         <TableCell align="right">A/S(판매-부품)</TableCell>
                         <TableCell align="right">A/S 공임</TableCell>
                         <TableCell align="right">출고 매출</TableCell>
-                        <TableCell align="right">총 매출</TableCell>
                         <TableCell align="right">A/S 건수</TableCell>
                         <TableCell align="right">출고 건수</TableCell>
                       </TableRow>
@@ -1961,15 +2360,14 @@ function SalesStats() {
                     <TableBody>
                       {weeklyStats.map((row, index) => (
                         <TableRow key={index}>
-                          <TableCell sx={{ fontWeight: 'bold' }}>{row.period}</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold' }}>{row.weekLabel || row.period}</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{formatCurrency(row.totalSales)}</TableCell>
+                          <TableCell align="right" sx={{ color: row.wowPct > 0 ? 'error.main' : 'success.main' }}>{formatPercent(row.wowPct)}</TableCell>
                           <TableCell align="right">{formatCurrency(row.serviceSales)}</TableCell>
                           <TableCell align="right">{formatCurrency(row.serviceSalesAS)}</TableCell>
                           <TableCell align="right">{formatCurrency(row.serviceSalesSell)}</TableCell>
                           <TableCell align="right">{formatCurrency(row.laborSalesOnly)}</TableCell>
                           <TableCell align="right">{formatCurrency(row.shipmentSales)}</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
-                            {formatCurrency(row.totalSales)}
-                          </TableCell>
                           <TableCell align="right">{row.serviceCount}건</TableCell>
                           <TableCell align="right">{row.shipmentCount}건</TableCell>
                         </TableRow>
