@@ -36,6 +36,7 @@ import ShipmentForm from './pages/shipment/ShipmentForm';
 import BoardList from './pages/board/BoardList';
 import BoardNew from './pages/board/BoardNew';
 import BoardDetail from './pages/board/BoardDetail';
+import BoardEdit from './pages/board/BoardEdit';
 
 function App() {
   const [session, setSession] = useState(null);
@@ -110,6 +111,7 @@ function App() {
             <Route path="board" element={<BoardList />} />
             <Route path="board/new" element={<BoardNew />} />
             <Route path="board/:id" element={<BoardDetail />} />
+            <Route path="board/:id/edit" element={<BoardEdit />} />
           </Route>
         </Routes>
       </Router>

@@ -30,6 +30,7 @@ function BoardDetail() {
         <Typography variant="h5">{post.title}</Typography>
         <Stack direction="row" spacing={1}>
           <Button variant="outlined" onClick={() => navigate('/board')}>목록</Button>
+          <Button variant="outlined" onClick={() => navigate(`/board/${id}/edit`)}>수정</Button>
           <Button variant="outlined" color="error" onClick={handleDelete}>삭제</Button>
         </Stack>
       </Stack>
