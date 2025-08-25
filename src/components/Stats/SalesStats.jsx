@@ -23,6 +23,8 @@ import {
   ButtonGroup,
   Container
 } from '@mui/material';
+import Select from '@mui/material/Select';
+import MenuItem from '@mui/material/MenuItem';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { ko } from 'date-fns/locale';
@@ -74,6 +76,8 @@ function SalesStats() {
   const [compareStats, setCompareStats] = useState({ context: null, mom: null, yoy: null, wow: null, yoyWeek: null });
   const [topProducts, setTopProducts] = useState([]);
   const [topServiceParts, setTopServiceParts] = useState([]);
+  const [topN, setTopN] = useState(5); // Top 리스트 개수 (기본 5)
+  const [topSort, setTopSort] = useState('qty'); // 'qty' | 'amount'
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
@@ -503,16 +507,16 @@ function SalesStats() {
         if (queryBrand !== '전체') {
           const map = byBrand[queryBrand] || {};
           const top = Object.values(map)
-            .sort((a, b) => (b.quantity - a.quantity) || (b.total - a.total))
-            .slice(0, 5);
+            .sort((a, b) => topSort === 'qty' ? ((b.quantity - a.quantity) || (b.total - a.total)) : ((b.total - a.total) || (b.quantity - a.quantity)))
+            .slice(0, topN);
           setTopProducts(top);
         } else {
           // 전체: 브랜드별 Top 5 목록 배열로 변환
           const brandTopLists = Object.entries(byBrand).map(([brandName, products]) => ({
             brand: brandName,
             list: Object.values(products)
-              .sort((a, b) => (b.quantity - a.quantity) || (b.total - a.total))
-              .slice(0, 5)
+              .sort((a, b) => topSort === 'qty' ? ((b.quantity - a.quantity) || (b.total - a.total)) : ((b.total - a.total) || (b.quantity - a.quantity)))
+              .slice(0, topN)
           }));
           setTopProducts(brandTopLists);
         }
@@ -542,15 +546,15 @@ function SalesStats() {
         if (queryBrand !== '전체') {
           const map = svcByBrand[queryBrand] || {};
           const topSvc = Object.values(map)
-            .sort((a, b) => (b.quantity - a.quantity) || (b.total - a.total))
-            .slice(0, 5);
+            .sort((a, b) => topSort === 'qty' ? ((b.quantity - a.quantity) || (b.total - a.total)) : ((b.total - a.total) || (b.quantity - a.quantity)))
+            .slice(0, topN);
           setTopServiceParts(topSvc);
         } else {
           const brandTopSvcLists = Object.entries(svcByBrand).map(([brandName, products]) => ({
             brand: brandName,
             list: Object.values(products)
-              .sort((a, b) => (b.quantity - a.quantity) || (b.total - a.total))
-              .slice(0, 5)
+              .sort((a, b) => topSort === 'qty' ? ((b.quantity - a.quantity) || (b.total - a.total)) : ((b.total - a.total) || (b.quantity - a.quantity)))
+              .slice(0, topN)
           }));
           setTopServiceParts(brandTopSvcLists);
         }
@@ -1743,9 +1747,6 @@ function SalesStats() {
               />
             </Grid>
             <Grid item xs={12} sm={4} md={3}>
-              <Typography variant="body2" sx={{ mb: 0.5, color: 'text.secondary' }}>
-                브랜드
-              </Typography>
               <Box sx={{ display: 'flex', gap: 1 }}>
                 {brandOptions.map(option => (
                   <Button
@@ -1985,6 +1986,18 @@ function SalesStats() {
               <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 500, color: '#1976d2' }}>
                 많이 팔린 상품 TOP 5 (출고 기준)
               </Typography>
+              <Box sx={{ display: 'flex', gap: 1, mb: 1, alignItems: 'center' }}>
+                <Typography variant="caption" color="text.secondary">Top</Typography>
+                <Select size="small" value={topN} onChange={(e) => setTopN(Number(e.target.value))} sx={{ width: 80 }}>
+                  <MenuItem value={5}>5</MenuItem>
+                  <MenuItem value={10}>10</MenuItem>
+                  <MenuItem value={20}>20</MenuItem>
+                </Select>
+                <ButtonGroup size="small">
+                  <Button variant={topSort === 'qty' ? 'contained' : 'outlined'} onClick={() => setTopSort('qty')}>수량</Button>
+                  <Button variant={topSort === 'amount' ? 'contained' : 'outlined'} onClick={() => setTopSort('amount')}>매출</Button>
+                </ButtonGroup>
+              </Box>
               {(!topProducts || (Array.isArray(topProducts) && topProducts.length === 0)) ? (
                 <Typography variant="body2" color="text.secondary">데이터가 없습니다.</Typography>
               ) : (
@@ -2065,6 +2078,18 @@ function SalesStats() {
               <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 500, color: '#2e7d32' }}>
                 많이 사용된 부품 TOP 5 (A/S 기준)
               </Typography>
+              <Box sx={{ display: 'flex', gap: 1, mb: 1, alignItems: 'center' }}>
+                <Typography variant="caption" color="text.secondary">Top</Typography>
+                <Select size="small" value={topN} onChange={(e) => setTopN(Number(e.target.value))} sx={{ width: 80 }}>
+                  <MenuItem value={5}>5</MenuItem>
+                  <MenuItem value={10}>10</MenuItem>
+                  <MenuItem value={20}>20</MenuItem>
+                </Select>
+                <ButtonGroup size="small">
+                  <Button variant={topSort === 'qty' ? 'contained' : 'outlined'} onClick={() => setTopSort('qty')}>수량</Button>
+                  <Button variant={topSort === 'amount' ? 'contained' : 'outlined'} onClick={() => setTopSort('amount')}>매출</Button>
+                </ButtonGroup>
+              </Box>
               {(!topServiceParts || (Array.isArray(topServiceParts) && topServiceParts.length === 0)) ? (
                 <Typography variant="body2" color="text.secondary">데이터가 없습니다.</Typography>
               ) : (
