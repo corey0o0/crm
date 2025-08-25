@@ -2021,31 +2021,40 @@ function SalesStats() {
                       </Box>
                     ))
                   ) : (
-                    // 단일 브랜드 Top5 표
-                    <TableContainer>
-                      <Table size="small">
-                        <TableHead>
-                          <TableRow>
-                            <TableCell width="60">순위</TableCell>
-                            <TableCell>상품명</TableCell>
-                            <TableCell align="right" width="100">수량</TableCell>
-                            <TableCell align="right" width="140">매출</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {(topProducts || []).map((item, idx) => (
-                            <TableRow key={item.name}>
-                              <TableCell>{idx + 1}</TableCell>
-                              <TableCell sx={{ maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.name}>
-                                {item.name}
-                              </TableCell>
-                              <TableCell align="right">{item.quantity.toLocaleString('ko-KR')}</TableCell>
-                              <TableCell align="right">{formatCurrency(item.total)}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
+                    // 단일 브랜드 Top5 표 (그룹/아이템 혼합 상태 안전 처리)
+                    (() => {
+                      const items = Array.isArray(topProducts)
+                        ? (topProducts[0] && topProducts[0].list
+                            ? ((topProducts.find(g => g.brand === brand) || {}).list || [])
+                            : topProducts)
+                        : [];
+                      return (
+                        <TableContainer>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow>
+                                <TableCell width="60">순위</TableCell>
+                                <TableCell>상품명</TableCell>
+                                <TableCell align="right" width="100">수량</TableCell>
+                                <TableCell align="right" width="140">매출</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {items.map((item, idx) => (
+                                <TableRow key={item.name || idx}>
+                                  <TableCell>{idx + 1}</TableCell>
+                                  <TableCell sx={{ maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.name}>
+                                    {item.name}
+                                  </TableCell>
+                                  <TableCell align="right">{Number(item.quantity || 0).toLocaleString('ko-KR')}</TableCell>
+                                  <TableCell align="right">{formatCurrency(item.total || 0)}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      );
+                    })()
                   )}
                 </>
               )}
@@ -2091,30 +2100,39 @@ function SalesStats() {
                       </Box>
                     ))
                   ) : (
-                    <TableContainer>
-                      <Table size="small">
-                        <TableHead>
-                          <TableRow>
-                            <TableCell width="60">순위</TableCell>
-                            <TableCell>부품명</TableCell>
-                            <TableCell align="right" width="100">수량</TableCell>
-                            <TableCell align="right" width="140">매출(부품가)</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {(topServiceParts || []).map((item, idx) => (
-                            <TableRow key={item.name}>
-                              <TableCell>{idx + 1}</TableCell>
-                              <TableCell sx={{ maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.name}>
-                                {item.name}
-                              </TableCell>
-                              <TableCell align="right">{item.quantity.toLocaleString('ko-KR')}</TableCell>
-                              <TableCell align="right">{formatCurrency(item.total)}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
+                    (() => {
+                      const items = Array.isArray(topServiceParts)
+                        ? (topServiceParts[0] && topServiceParts[0].list
+                            ? ((topServiceParts.find(g => g.brand === brand) || {}).list || [])
+                            : topServiceParts)
+                        : [];
+                      return (
+                        <TableContainer>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow>
+                                <TableCell width="60">순위</TableCell>
+                                <TableCell>부품명</TableCell>
+                                <TableCell align="right" width="100">수량</TableCell>
+                                <TableCell align="right" width="140">매출(부품가)</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {items.map((item, idx) => (
+                                <TableRow key={item.name || idx}>
+                                  <TableCell>{idx + 1}</TableCell>
+                                  <TableCell sx={{ maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.name}>
+                                    {item.name}
+                                  </TableCell>
+                                  <TableCell align="right">{Number(item.quantity || 0).toLocaleString('ko-KR')}</TableCell>
+                                  <TableCell align="right">{formatCurrency(item.total || 0)}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      );
+                    })()
                   )}
                 </>
               )}
