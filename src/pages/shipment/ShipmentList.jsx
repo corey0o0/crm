@@ -62,7 +62,7 @@ function ShipmentList() {
   const [shipments, setShipments] = useState([]);
   const [selectedBrand, setSelectedBrand] = useState(() => {
     const savedBrand = getCookie('shipment_selectedBrand');
-    return savedBrand || 'XRB';
+    return (savedBrand === 'XRB' || savedBrand === 'NB') ? savedBrand : 'XRB';
   });
   const [statusFilter, setStatusFilter] = useState(() => {
     const savedStatus = getCookie('shipment_statusFilter');
@@ -127,6 +127,13 @@ function ShipmentList() {
     setCookie('shipment_selectedBrand', selectedBrand);
   }, [selectedBrand]);
 
+  // 브랜드 값 정규화 (안정성): 예상치 못한 값일 때 기본값으로 복원
+  useEffect(() => {
+    if (selectedBrand !== 'XRB' && selectedBrand !== 'NB') {
+      setSelectedBrand('XRB');
+    }
+  }, [selectedBrand]);
+
   useEffect(() => {
     setCookie('shipment_statusFilter', statusFilter);
   }, [statusFilter]);
@@ -159,6 +166,18 @@ function ShipmentList() {
       }
     };
   }, []);
+
+  const extractSalesChannel = (note, salesChannelField) => {
+    if (salesChannelField && salesChannelField.trim() !== '') return salesChannelField.trim();
+    if (!note) return '공홈';
+    const match = note.match(/\[판매처:\s*(.*?)\]/);
+    if (match && match[1]) return match[1].trim();
+    // 키워드 보정
+    if (note.includes('청담매장') || note.includes('청담')) return '청담매장';
+    const keywords = ['공홈','블로그','네이버','인스타','쿠팡','매장','스마트할부','라이클-우리','스마트스토어'];
+    for (const k of keywords) if (note.includes(k)) return k;
+    return '공홈';
+  };
 
   const fetchShipments = async () => {
     try {
@@ -208,12 +227,9 @@ function ShipmentList() {
       setShipments(sortedData);
       
       // 판매처 목록 업데이트
-      const uniqueSellers = new Set(['전체', '공홈', '청담매장', '라이클-우리', '기타']);
-      data.forEach(shipment => {
-        const salesChannelMatch = shipment.note?.match(/\[판매처: (.*?)\]/);
-        if (salesChannelMatch && salesChannelMatch[1]) {
-          uniqueSellers.add(salesChannelMatch[1]);
-        }
+      const uniqueSellers = new Set(['전체']);
+      (data || []).forEach(shipment => {
+        uniqueSellers.add(extractSalesChannel(shipment.note, shipment.sales_channel));
       });
       setSellers(Array.from(uniqueSellers));
     } catch (error) {
@@ -248,11 +264,7 @@ function ShipmentList() {
 
     // 판매처 필터
     if (sellerFilter !== 'all') {
-      filtered = filtered.filter(shipment => {
-        const salesChannelMatch = shipment.note?.match(/\[판매처: (.*?)\]/);
-        const currentSeller = salesChannelMatch ? salesChannelMatch[1] : '공홈';
-        return currentSeller === sellerFilter;
-      });
+      filtered = filtered.filter(shipment => extractSalesChannel(shipment.note, shipment.sales_channel) === sellerFilter);
     }
 
     // 날짜 필터 - 메모리에서의 추가 필터링 제거
@@ -275,7 +287,8 @@ function ShipmentList() {
   }, [shipments, searchTerm, statusFilter, sellerFilter, dateFilter.type]);
 
   const handleBrandChange = (event, newValue) => {
-    setSelectedBrand(newValue);
+    const next = newValue === 'XRB' || newValue === 'NB' ? newValue : 'XRB';
+    setSelectedBrand(next);
   };
 
   const handleStatusFilterChange = (event) => {
@@ -338,6 +351,22 @@ function ShipmentList() {
         start.setHours(0,0,0,0);
         end = new Date();
         end.setHours(23,59,59,999);
+        break;
+      case 'lastWeek':
+        // 월요일 시작 기준 지난주
+        {
+          const day = today.getDay();
+          const thisWeekStartOffset = today.getDate() - day + (day === 0 ? -6 : 1);
+          const thisWeekStart = new Date(today.getFullYear(), today.getMonth(), thisWeekStartOffset);
+          const lastWeekStart = new Date(thisWeekStart);
+          lastWeekStart.setDate(thisWeekStart.getDate() - 7);
+          const lastWeekEnd = new Date(lastWeekStart);
+          lastWeekEnd.setDate(lastWeekStart.getDate() + 6);
+          start = lastWeekStart;
+          end = lastWeekEnd;
+          start.setHours(0,0,0,0);
+          end.setHours(23,59,59,999);
+        }
         break;
       case 'thisMonth':
         start = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -1129,6 +1158,7 @@ function ShipmentList() {
                 <Button onClick={() => handleQuickDateFilter('today')}>오늘</Button>
                 <Button onClick={() => handleQuickDateFilter('yesterday')}>어제</Button>
                 <Button onClick={() => handleQuickDateFilter('thisWeek')}>이번주</Button>
+                <Button onClick={() => handleQuickDateFilter('lastWeek')}>지난주</Button>
                 <Button onClick={() => handleQuickDateFilter('thisMonth')}>이번달</Button>
                 <Button onClick={() => handleQuickDateFilter('lastMonth')}>지난달</Button>
               </ButtonGroup>
@@ -1175,7 +1205,15 @@ function ShipmentList() {
         </Grid>
       </Box>
       
-      <Box sx={{ mb: 2, display: 'flex', gap: 1, alignItems: 'center' }}>
+      <Box sx={{ mb: 2, display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+        {(dateFilter.startDate || dateFilter.endDate) && (
+          <Chip 
+            label={`${dateFilter.startDate || '—'} ~ ${dateFilter.endDate || '—'}`} 
+            size="small" 
+            variant="outlined" 
+            sx={{ mr: 1 }}
+          />
+        )}
         <TextField
           placeholder="고객명, 연락처, 제품명으로 검색"
           variant="outlined"

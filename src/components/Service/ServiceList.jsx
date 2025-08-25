@@ -117,6 +117,7 @@ function extractDate(dateStr) {
 }
 
 function ServiceList() {
+  const validateBrand = (value) => (value === 'XRB' || value === 'NB' ? value : 'XRB');
   const [selectedBrand, setSelectedBrand] = useState('XRB');
   const [services, setServices] = useState([]);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -769,7 +770,8 @@ function ServiceList() {
   };
 
   const handleBrandChange = (event, newValue) => {
-    setSelectedBrand(newValue);
+    if (!newValue) return;
+    setSelectedBrand(validateBrand(newValue));
   };
 
   const handleStatusFilterChange = (event) => {
@@ -1802,7 +1804,7 @@ function ServiceList() {
     }
     try {
       const filterState = JSON.parse(saved);
-      setSelectedBrand(filterState.selectedBrand || 'XRB');
+      setSelectedBrand(validateBrand(filterState.selectedBrand || 'XRB'));
       setStatusFilter(filterState.statusFilter || 'all');
       setDateFilter(filterState.dateFilter || { type: 'reception_date', startDate: '', endDate: '' });
       setInputValue(filterState.inputValue || '');
@@ -1823,6 +1825,13 @@ function ServiceList() {
       });
     }
   };
+
+  // 브랜드 값 정규화 가드: 유효하지 않은 값이면 기본값으로 복원
+  useEffect(() => {
+    if (selectedBrand !== 'XRB' && selectedBrand !== 'NB') {
+      setSelectedBrand('XRB');
+    }
+  }, [selectedBrand]);
 
   const [searchMode, setSearchMode] = useState('AND'); // AND/OR 검색 모드
   const [selectedStatuses, setSelectedStatuses] = useState([]); // 다중 상태
