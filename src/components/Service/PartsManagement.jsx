@@ -57,7 +57,8 @@ const PartsFormDialog = memo(({
   onClose, 
   onSubmit, 
   initialData, 
-  brands 
+  brands,
+  getNextPartCode
 }) => {
   const [formData, setFormData] = useState({
     name: '',
@@ -81,25 +82,37 @@ const PartsFormDialog = memo(({
         note: initialData.note || ''
       });
     } else {
+      const defaultBrand = brands[0] || '';
+      const suggestedCode = typeof getNextPartCode === 'function' ? getNextPartCode(defaultBrand) : '';
       setFormData({
         name: '',
-        brand: brands[0] || '',
-        code: '',
+        brand: defaultBrand,
+        code: suggestedCode,
         supplyPrice: '',
         price: '',
         barcode: '',
         note: ''
       });
     }
-  }, [initialData, brands]);
+  }, [initialData, brands, getNextPartCode]);
 
   const handleChange = useCallback((e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: ['price', 'supplyPrice'].includes(name) ? value.replace(/[^0-9]/g, '') : value
-    }));
-  }, []);
+    setFormData(prev => {
+      const next = {
+        ...prev,
+        [name]: ['price', 'supplyPrice'].includes(name) ? value.replace(/[^0-9]/g, '') : value
+      };
+      // 브랜드 변경 시 코드가 비어있으면 자동 제안
+      if (name === 'brand') {
+        const shouldSuggest = !prev.code || prev.code.trim() === '';
+        if (shouldSuggest && typeof getNextPartCode === 'function') {
+          next.code = getNextPartCode(value);
+        }
+      }
+      return next;
+    });
+  }, [getNextPartCode]);
 
   const handleSubmit = useCallback(() => {
     onSubmit(formData);
@@ -309,6 +322,35 @@ function PartsManagement() {
   const [openCopyDialog, setOpenCopyDialog] = useState(false);
   const [copyTargetBrand, setCopyTargetBrand] = useState('');
 
+  // 다음 상품코드 생성기: 같은 브랜드의 기존 코드 중 숫자 접미사를 증가
+  const getNextPartCode = useCallback((brandCode) => {
+    try {
+      const brandPrefix = String(brandCode || '').toUpperCase();
+      const brandParts = parts.filter(p => p.brand === brandPrefix && typeof p.code === 'string');
+      if (brandParts.length === 0) {
+        // 기본 접두사와 시드 번호
+        return `${brandPrefix}-001`;
+      }
+
+      // 코드에서 숫자 꼬리를 추출하여 최대값+1 생성
+      let maxNum = 0;
+      brandParts.forEach(p => {
+        const match = String(p.code).match(/(\d+)$/);
+        if (match) {
+          const n = parseInt(match[1], 10);
+          if (!isNaN(n)) maxNum = Math.max(maxNum, n);
+        }
+      });
+      const nextNum = maxNum + 1;
+      const padded = String(nextNum).padStart(3, '0');
+      const base = String(brandParts[0]?.code || '').split('-')[0];
+      const prefix = base && base.length >= 2 ? base : brandPrefix;
+      return `${prefix}-${padded}`;
+    } catch (e) {
+      return `${String(brandCode || 'XRB').toUpperCase()}-001`;
+    }
+  }, [parts]);
+
   // [디바운스 적용]
   const debouncedSearchInput = useDebounce(searchInput, 300);
   React.useEffect(() => {
@@ -377,7 +419,7 @@ function PartsManagement() {
   };
 
   const handleOpenDialog = useCallback((part = null) => {
-      setSelectedPart(part);
+    setSelectedPart(part);
     setOpenDialog(true);
   }, []);
 
@@ -695,6 +737,39 @@ function PartsManagement() {
     downloadExcel(template, headers, "parts_template.xlsx");
   };
 
+  const handleDownloadExcel = () => {
+    if (!filteredParts || filteredParts.length === 0) {
+      showSnackbar('다운로드할 데이터가 없습니다.', 'warning');
+      return;
+    }
+
+    const exportData = filteredParts.map(part => ({
+      '브랜드': part.brand || '',
+      '코드': part.code || '',
+      '제품명': part.name || '',
+      '매입가': Number(part.supply_price) || 0,
+      '판매가': Number(part.price) || 0,
+      '재고': Number(part.stock) || 0,
+      '바코드': part.barcode || '',
+      '구분': part.note || ''
+    }));
+
+    const headers = [
+      { label: '브랜드', key: '브랜드' },
+      { label: '코드', key: '코드' },
+      { label: '제품명', key: '제품명' },
+      { label: '매입가', key: '매입가' },
+      { label: '판매가', key: '판매가' },
+      { label: '재고', key: '재고' },
+      { label: '바코드', key: '바코드' },
+      { label: '구분', key: '구분' }
+    ];
+
+    const today = new Date().toISOString().split('T')[0];
+    const brandText = selectedBrand || '전체';
+    downloadExcel(exportData, headers, `parts_${brandText}_${today}.xlsx`);
+  };
+
   const showSnackbar = (message, severity) => {
     setSnackbar({
       open: true,
@@ -978,6 +1053,16 @@ function PartsManagement() {
             </Grid>
             
             <Grid item>
+            <Button
+                variant="outlined"
+                startIcon={<DownloadIcon />}
+                onClick={handleDownloadExcel}
+            >
+                엑셀 다운로드
+            </Button>
+            </Grid>
+
+            <Grid item>
           <Button
                 variant="outlined"
                 startIcon={<DownloadIcon />}
@@ -1097,6 +1182,7 @@ function PartsManagement() {
               </TableCell>
               {renderSortableHeader('brand', '브랜드')}
               {renderSortableHeader('code', '코드')}
+              {renderSortableHeader('barcode', '바코드')}
               {renderSortableHeader('name', '제품명')}
               {showSupplyPrice && renderSortableHeader('supply_price', '매입가', 'right')}
               {renderSortableHeader('price', '판매가', 'right')}
@@ -1116,6 +1202,17 @@ function PartsManagement() {
                 </TableCell>
                 <TableCell>{part.brand}</TableCell>
                 <TableCell>{part.code}</TableCell>
+                <TableCell>
+                  <Typography 
+                    sx={{ 
+                      fontSize: '0.875rem',
+                      color: part.barcode ? 'text.primary' : 'text.secondary',
+                      fontStyle: part.barcode ? 'normal' : 'italic'
+                    }}
+                  >
+                    {part.barcode || '-'}
+                  </Typography>
+                </TableCell>
                 <TableCell>{part.name}</TableCell>
                 {showSupplyPrice && <TableCell align="right">{part.supply_price?.toLocaleString()}</TableCell>}
                 <TableCell align="right">{part.price?.toLocaleString()}</TableCell>
@@ -1168,6 +1265,7 @@ function PartsManagement() {
         onSubmit={handleSubmit}
         initialData={selectedPart}
         brands={brands}
+        getNextPartCode={getNextPartCode}
       />
 
       <Snackbar

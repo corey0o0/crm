@@ -1081,6 +1081,9 @@ function StockList() {
                   <TableCell onClick={() => handleSort('code')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
                     코드{sortArrow('code')}
                 </TableCell>
+                <TableCell onClick={() => handleSort('barcode')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
+                  바코드{sortArrow('barcode')}
+                </TableCell>
                 <TableCell onClick={() => handleSort('name')} sx={{ cursor: 'pointer', fontWeight: 700 }}>
                   제품명{sortArrow('name')}
                 </TableCell>
@@ -1114,6 +1117,15 @@ function StockList() {
                         color: 'text.primary' 
                       }}>
                         {part.code}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography sx={{ 
+                        fontSize: '0.9rem',
+                        color: part.barcode ? 'text.primary' : 'text.secondary',
+                        fontStyle: part.barcode ? 'normal' : 'italic'
+                      }}>
+                        {part.barcode || '-'}
                       </Typography>
                     </TableCell>
                     <TableCell>
