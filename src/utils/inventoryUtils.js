@@ -401,7 +401,7 @@ export const processServiceCompletion = async (serviceId, brandCode) => {
         quantity,
         parts (
           name,
-          part_code
+          code
         )
       `)
       .eq('service_id', serviceId);
@@ -422,7 +422,7 @@ export const processServiceCompletion = async (serviceId, brandCode) => {
     const parts = serviceParts.map(sp => ({
       part_id: sp.part_id,
       part_name: sp.parts?.name || 'Unknown',
-      part_code: sp.parts?.part_code || 'Unknown',
+      part_code: sp.parts?.code || 'Unknown',
       quantity: sp.quantity
     }));
 
@@ -479,7 +479,7 @@ export const processServiceRevert = async (serviceId, brandCode) => {
         quantity,
         parts (
           name,
-          part_code
+          code
         )
       `)
       .eq('service_id', serviceId);
@@ -500,7 +500,7 @@ export const processServiceRevert = async (serviceId, brandCode) => {
     const parts = serviceParts.map(sp => ({
       part_id: sp.part_id,
       part_name: sp.parts?.name || 'Unknown',
-      part_code: sp.parts?.part_code || 'Unknown',
+      part_code: sp.parts?.code || 'Unknown',
       quantity: sp.quantity
     }));
 
