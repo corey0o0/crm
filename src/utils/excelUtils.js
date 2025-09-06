@@ -156,10 +156,29 @@ export const readExcelFile = async (file, options = {}) => {
           // 날짜 처리
           if (value instanceof Date) {
             value = value.toISOString().split('T')[0];
-          } else if (value && typeof value === 'object' && value.formula) {
-            value = value.result || '';
+          } else if (value && typeof value === 'object') {
+            // ExcelJS 객체 처리
+            if (value.formula) {
+              value = value.result || '';
+            } else if (value.richText) {
+              // 리치 텍스트의 경우 텍스트만 추출
+              value = value.richText.map(rt => rt.text).join('');
+            } else if (value.text) {
+              // 텍스트 객체
+              value = value.text;
+            } else if (value.value !== undefined) {
+              // 값 객체
+              value = value.value;
+            } else {
+              // 기타 객체는 JSON 문자열로 변환 시도
+              try {
+                value = JSON.stringify(value);
+              } catch (e) {
+                value = String(value);
+              }
+            }
           } else if (value !== null && value !== undefined) {
-            value = value.toString().trim();
+            value = String(value).trim();
           } else {
             value = '';
           }
