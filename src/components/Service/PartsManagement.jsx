@@ -67,7 +67,7 @@ const PartsFormDialog = memo(({
     supplyPrice: '',
     price: '',
     barcode: '',
-    note: ''
+    note: '파츠'
   });
 
   useEffect(() => {
@@ -79,11 +79,12 @@ const PartsFormDialog = memo(({
         supplyPrice: initialData.supply_price?.toString() || '',
         price: initialData.price?.toString() || '',
         barcode: initialData.barcode || '',
-        note: initialData.note || ''
+        note: initialData.note || '파츠'
       });
     } else {
       const defaultBrand = brands[0] || '';
-      const suggestedCode = typeof getNextPartCode === 'function' ? getNextPartCode(defaultBrand) : '';
+      const defaultCategory = '파츠';
+      const suggestedCode = typeof getNextPartCode === 'function' ? getNextPartCode(defaultBrand, defaultCategory) : '';
       setFormData({
         name: '',
         brand: defaultBrand,
@@ -91,7 +92,7 @@ const PartsFormDialog = memo(({
         supplyPrice: '',
         price: '',
         barcode: '',
-        note: ''
+        note: defaultCategory
       });
     }
   }, [initialData, brands, getNextPartCode]);
@@ -103,11 +104,12 @@ const PartsFormDialog = memo(({
         ...prev,
         [name]: ['price', 'supplyPrice'].includes(name) ? value.replace(/[^0-9]/g, '') : value
       };
-      // 브랜드 변경 시 코드가 비어있으면 자동 제안
-      if (name === 'brand') {
-        const shouldSuggest = !prev.code || prev.code.trim() === '';
-        if (shouldSuggest && typeof getNextPartCode === 'function') {
-          next.code = getNextPartCode(value);
+      const shouldSuggest = (!prev.code || prev.code.trim() === '');
+      if ((name === 'brand' || name === 'note') && typeof getNextPartCode === 'function') {
+        if (shouldSuggest) {
+          const brandForCode = name === 'brand' ? value : prev.brand;
+          const categoryForCode = name === 'note' ? value : prev.note;
+          next.code = getNextPartCode(brandForCode, categoryForCode);
         }
       }
       return next;
@@ -203,17 +205,19 @@ const PartsFormDialog = memo(({
               onChange={handleChange}
             />
           </Grid>
-          <Grid item xs={12}>
+          <Grid item xs={12} md={6}>
             <TextField
+              select
               fullWidth
               label="구분"
               name="note"
               value={formData.note}
               onChange={handleChange}
-              multiline
-              rows={2}
-              placeholder="추가 정보를 입력하세요"
-            />
+            >
+              {['파츠','기체','공임','기타'].map(opt => (
+                <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+              ))}
+            </TextField>
           </Grid>
         </Grid>
       </DialogContent>
@@ -315,6 +319,7 @@ function PartsManagement() {
   const [order, setOrder] = useState('asc');
   const [orderBy, setOrderBy] = useState('code');
   const [showSupplyPrice, setShowSupplyPrice] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('전체');
   
   // 체크박스 관련 상태 추가
   const [selectedItems, setSelectedItems] = useState([]);
@@ -323,13 +328,21 @@ function PartsManagement() {
   const [copyTargetBrand, setCopyTargetBrand] = useState('');
 
   // 다음 상품코드 생성기: 같은 브랜드의 기존 코드 중 숫자 접미사를 증가
-  const getNextPartCode = useCallback((brandCode) => {
+  const getNextPartCode = useCallback((brandCode, category = '파츠') => {
     try {
       const brandPrefix = String(brandCode || '').toUpperCase();
-      const brandParts = parts.filter(p => p.brand === brandPrefix && typeof p.code === 'string');
+      const brandParts = parts.filter(p => p.brand === brandPrefix && typeof p.code === 'string' && (!p.note || ['파츠','기체','공임','기타'].includes(p.note)));
+      // 카테고리별 접두사 규칙
+      const categoryPrefixMap = {
+        '파츠': brandPrefix,
+        '기체': brandPrefix, // 필요 시 별도 접두사로 변경 가능
+        '공임': brandPrefix,
+        '기타': brandPrefix
+      };
+      const selectedPrefix = categoryPrefixMap[category] || brandPrefix;
       if (brandParts.length === 0) {
         // 기본 접두사와 시드 번호
-        return `${brandPrefix}-001`;
+        return `${selectedPrefix}-001`;
       }
 
       // 코드에서 숫자 꼬리를 추출하여 최대값+1 생성
@@ -344,10 +357,11 @@ function PartsManagement() {
       const nextNum = maxNum + 1;
       const padded = String(nextNum).padStart(3, '0');
       const base = String(brandParts[0]?.code || '').split('-')[0];
-      const prefix = base && base.length >= 2 ? base : brandPrefix;
+      const prefix = base && base.length >= 2 ? base : selectedPrefix;
       return `${prefix}-${padded}`;
     } catch (e) {
-      return `${String(brandCode || 'XRB').toUpperCase()}-001`;
+      const fallback = (category && category.length > 0) ? String(brandCode || 'XRB').toUpperCase() : String(brandCode || 'XRB').toUpperCase();
+      return `${fallback}-001`;
     }
   }, [parts]);
 
@@ -789,6 +803,9 @@ function PartsManagement() {
       // 브랜드로 필터링
       const brandMatch = selectedBrand === '전체' || part.brand === selectedBrand;
       if (!brandMatch) return false;
+      // 구분(카테고리)로 필터링
+      const categoryMatch = selectedCategory === '전체' || (part.note || '') === selectedCategory;
+      if (!categoryMatch) return false;
       
       // 검색어가 없으면 브랜드 필터링만 적용
       if (!searchTerm) return true;
@@ -799,7 +816,7 @@ function PartsManagement() {
         part.barcode?.toLowerCase().includes(searchTermLower) ||
         part.note?.toLowerCase().includes(searchTermLower);
     });
-  }, [parts, searchTerm, selectedBrand]);
+  }, [parts, searchTerm, selectedBrand, selectedCategory]);
 
   // 정렬된 파츠 목록
   const sortedParts = useMemo(() => {
@@ -1095,7 +1112,7 @@ function PartsManagement() {
               </TextField>
             </Grid>
 
-            <Grid item xs={12} sm={6} md={6}>
+            <Grid item xs={12} sm={6} md={4}>
               <SearchInput
                 searchInput={searchInput}
                 setSearchInput={setSearchInput}
@@ -1103,6 +1120,20 @@ function PartsManagement() {
                 onClear={handleClearSearch}
                 isSearching={isSearching}
               />
+            </Grid>
+            <Grid item xs={12} sm={6} md={2}>
+              <TextField
+                select
+                fullWidth
+                size="small"
+                label="구분"
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+              >
+                {['전체','파츠','기체','공임','기타'].map(opt => (
+                  <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+                ))}
+              </TextField>
             </Grid>
 
             <Grid item xs={12} sm={6} md={3}>
