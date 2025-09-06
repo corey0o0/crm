@@ -544,7 +544,6 @@ function PartsManagement() {
       const rowErrors = [];
       
       if (!row.brand) rowErrors.push('brand');
-      if (!row.code) rowErrors.push('code');
       if (!row.name) rowErrors.push('name');
 
       if (row.brand && !['XRB', 'NB'].includes(String(row.brand).toUpperCase())) {
@@ -622,9 +621,10 @@ function PartsManagement() {
           return;
         }
 
+        // 1) 기본 포맷 변환 (code는 비어있을 수 있음)
         const formattedData = validData.map(row => ({
           brand: String(row.brand).toUpperCase(),
-          code: String(row.code).trim(),
+          code: (row.code !== undefined && row.code !== null) ? String(row.code).trim() : '',
           name: String(row.name).trim(),
           supply_price: row.supplyPrice === undefined || row.supplyPrice === '' 
             ? 0 
@@ -636,6 +636,35 @@ function PartsManagement() {
           note: row.note ? String(row.note).trim() : null
         }));
 
+        // 2) 업로드 배치 내에서 고유 코드를 만들기 위한 헬퍼
+        const bumpCode = (code) => {
+          const match = String(code).match(/(.*?)(\d+)$/);
+          if (!match) return `${code}-001`;
+          const prefix = match[1];
+          const num = match[2];
+          const next = String(parseInt(num, 10) + 1).padStart(num.length, '0');
+          return `${prefix}${next}`;
+        };
+
+        // 3) 비어있는 코드 자동 생성 + 배치 내 중복 방지
+        const assigned = new Set();
+        const withCodes = formattedData.map((row) => {
+          const originalProvided = !!(row.code && row.code.trim() !== '');
+          let code = row.code || '';
+          if (!originalProvided) {
+            // 기본 카테고리
+            const category = row.note || '파츠';
+            // 기존 함수 활용 (현재 parts 상태 기준)
+            code = getNextPartCode(row.brand, category);
+          }
+          // 배치 내 중복 해결
+          while (assigned.has(code)) {
+            code = bumpCode(code);
+          }
+          assigned.add(code);
+          return { ...row, code, __auto: !originalProvided };
+        });
+
         setUploadStatus(prev => ({
           ...prev,
           step: 3,
@@ -646,17 +675,36 @@ function PartsManagement() {
         const { data: existingParts, error: checkError } = await supabase
           .from('parts')
           .select('code')
-          .in('code', formattedData.map(d => d.code));
+          .in('code', withCodes.map(d => d.code));
 
         if (checkError) throw checkError;
 
-        const duplicateCodes = existingParts.map(p => p.code);
-        if (duplicateCodes.length > 0) {
+        const dbExisting = new Set((existingParts || []).map(p => p.code));
+        // 사용자가 직접 입력한 코드가 DB에 이미 있으면 에러
+        const userDupes = withCodes
+          .filter(r => !r.__auto && dbExisting.has(r.code))
+          .map(r => r.code);
+        if (userDupes.length > 0) {
           closeUploadStatus();
-          showSnackbar(`다음 상품코드는 이미 존재합니다: ${duplicateCodes.join(', ')}`, 'error');
+          showSnackbar(`다음 상품코드는 이미 존재합니다: ${userDupes.join(', ')}`, 'error');
           event.target.value = '';
           return;
         }
+
+        // 자동 생성된 코드가 DB에 있으면 충돌 해소를 위해 증가
+        const finalAssigned = new Set(withCodes.map(r => r.code));
+        const finalData = withCodes.map((row) => {
+          if (row.__auto && dbExisting.has(row.code)) {
+            let code = row.code;
+            // DB 및 배치 내 중복 모두 해결될 때까지 증가
+            while (dbExisting.has(code) || finalAssigned.has(code)) {
+              code = bumpCode(code);
+            }
+            finalAssigned.add(code);
+            return { ...row, code };
+          }
+          return row;
+        }).map(({ __auto, ...rest }) => rest);
 
         setUploadStatus(prev => ({
           ...prev,
@@ -667,7 +715,7 @@ function PartsManagement() {
 
         const { error: insertError } = await supabase
           .from('parts')
-          .insert(formattedData);
+          .insert(finalData);
 
         if (insertError) throw insertError;
 
@@ -679,7 +727,7 @@ function PartsManagement() {
         }));
 
         // 텔레그램 알림 전송 (엑셀 업로드)
-        for (const newPart of formattedData) {
+        for (const newPart of finalData) {
           try {
             await sendTelegramNotification({
               message: `부품 등록 (코드: ${newPart.code}) - 품명: ${newPart.name}`,

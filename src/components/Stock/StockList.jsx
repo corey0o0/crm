@@ -5,6 +5,8 @@ import {
   Checkbox, FormControlLabel, Stack, InputAdornment
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import AddIcon from '@mui/icons-material/Add';
+import RemoveIcon from '@mui/icons-material/Remove';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import SearchIcon from '@mui/icons-material/Search';
@@ -997,6 +999,22 @@ function StockList() {
               </MenuItem>
             ))}
           </TextField>
+          <Button
+            variant={stockFilter === '품절 제외' ? 'contained' : 'outlined'}
+            onClick={() => setStockFilter('품절 제외')}
+            size="small"
+            sx={{ height: 40, minWidth: 'max-content' }}
+          >
+            재고 있음
+          </Button>
+          <Button
+            variant={stockFilter === '품절' ? 'contained' : 'outlined'}
+            onClick={() => setStockFilter('품절')}
+            size="small"
+            sx={{ height: 40, minWidth: 'max-content' }}
+          >
+            재고 없음
+          </Button>
           <SearchInput
             searchInput={searchInput}
             setSearchInput={setSearchInput}
@@ -1143,11 +1161,22 @@ function StockList() {
                     )}
                   <TableCell align="right">{part.price?.toLocaleString()}원</TableCell>
                   <TableCell align="right">
-                    <TextField
-                      type="number"
-                      size="small"
-                      value={part.stock ?? 0}
-                      onChange={e => handleStockChange(part.id, e.target.value)}
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
+                      <IconButton
+                        size="small"
+                        onClick={() => {
+                          const next = Math.max(0, (part.stock ?? 0) - 1);
+                          handleStockChange(part.id, String(next));
+                        }}
+                        aria-label="decrement"
+                      >
+                        <RemoveIcon fontSize="small" />
+                      </IconButton>
+                      <TextField
+                        type="number"
+                        size="small"
+                        value={part.stock ?? 0}
+                        onChange={e => handleStockChange(part.id, e.target.value)}
                         sx={{ 
                           width: 80,
                           '& input': {
@@ -1157,11 +1186,20 @@ function StockList() {
                         }}
                         inputProps={{ 
                           min: 0,
-                          style: { 
-                            textAlign: 'right',
-                          }
+                          style: { textAlign: 'right' }
                         }}
-                    />
+                      />
+                      <IconButton
+                        size="small"
+                        onClick={() => {
+                          const next = (part.stock ?? 0) + 1;
+                          handleStockChange(part.id, String(next));
+                        }}
+                        aria-label="increment"
+                      >
+                        <AddIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
                   </TableCell>
                 </TableRow>
               ))}
