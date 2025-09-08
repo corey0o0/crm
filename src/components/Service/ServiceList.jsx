@@ -118,7 +118,11 @@ function extractDate(dateStr) {
 
 function ServiceList() {
   const validateBrand = (value) => (value === 'XRB' || value === 'NB' ? value : 'XRB');
-  const [selectedBrand, setSelectedBrand] = useState('XRB');
+  const [selectedBrand, setSelectedBrand] = useState(() => {
+    // URL 파라미터나 로컬스토리지에서 브랜드 정보를 가져오려고 시도
+    const savedBrand = localStorage.getItem('selectedBrand');
+    return validateBrand(savedBrand || 'XRB');
+  });
   const [services, setServices] = useState([]);
   const [statusFilter, setStatusFilter] = useState('all');
   const [loading, setLoading] = useState(true);
@@ -264,6 +268,7 @@ function ServiceList() {
   ];
 
   useEffect(() => {
+    console.log('selectedBrand changed to:', selectedBrand);
     fetchServices();
   }, [selectedBrand]);
 
@@ -271,6 +276,8 @@ function ServiceList() {
     try {
       setLoading(true);
       setServices([]); // 데이터 로드 시작 시 초기화
+      
+      console.log('fetchServices called with selectedBrand:', selectedBrand);
       
       // 쿼리당 가져올 데이터 개수 (최대 1,000건, Supabase 기본 제한)
       const PAGE_SIZE = 1000;
@@ -479,6 +486,9 @@ function ServiceList() {
     // 브랜드와 검색어, 상태 필터, 날짜 필터 모두 적용
     const filtered = services.filter(service => {
       const matchesBrand = service.brand === selectedBrand;
+      if (!matchesBrand) {
+        console.log(`Service ${service.id} brand mismatch: service.brand=${service.brand}, selectedBrand=${selectedBrand}`);
+      }
       const matchesSearch = searchTerm === '' || 
         service.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         service.customer_phone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -770,8 +780,13 @@ function ServiceList() {
   };
 
   const handleBrandChange = (event, newValue) => {
+    console.log('handleBrandChange called with newValue:', newValue);
     if (!newValue) return;
-    setSelectedBrand(validateBrand(newValue));
+    const validatedBrand = validateBrand(newValue);
+    console.log('validatedBrand:', validatedBrand);
+    setSelectedBrand(validatedBrand);
+    // 브랜드 변경 시 로컬스토리지에 저장
+    localStorage.setItem('selectedBrand', validatedBrand);
   };
 
   const handleStatusFilterChange = (event) => {
