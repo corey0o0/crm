@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Table, 
   TableBody, 
@@ -47,6 +47,9 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   ButtonGroup,
+  Skeleton,
+  Container,
+  Backdrop,
 } from '@mui/material';
 import { 
   Edit as EditIcon,
@@ -272,42 +275,147 @@ function ServiceList() {
     fetchServices();
   }, [selectedBrand]);
 
-  const fetchServices = async () => {
+  // 첫 페이지만 빠르게 로딩하는 함수
+  const fetchFirstPage = async (retryAttempt = 0) => {
     try {
       setLoading(true);
-      setServices([]); // 데이터 로드 시작 시 초기화
+      setNetworkError(false);
+      setFirstPageLoaded(false);
+      setLoadedChunks(0);
+      setHasMoreData(true);
       
-      console.log('fetchServices called with selectedBrand:', selectedBrand);
-      
-      // 쿼리당 가져올 데이터 개수 (최대 1,000건, Supabase 기본 제한)
-      const PAGE_SIZE = 1000;
-      // 모든 데이터를 저장할 배열
-      let allServicesData = [];
-      // 데이터가 더 있는지 여부
-      let hasMoreData = true;
-      // 현재 오프셋
-      let currentOffset = 0;
-      
-      // 먼저 총 데이터 개수 확인
-      const { count, error: countError } = await supabase
-        .from('services')
-        .select('id', { count: 'exact', head: true })
-        .eq('brand', selectedBrand);
-        
-      if (countError) {
-        console.error('Error counting services:', countError);
-        throw countError;
+      if (retryAttempt === 0) {
+        setServices([]); // 첫 번째 시도에서만 초기화
       }
       
-      const totalPages = Math.ceil(count / PAGE_SIZE);
+      console.log('fetchFirstPage called with selectedBrand:', selectedBrand, 'retry:', retryAttempt);
       
-      // 진행 중인 페이지 번호
-      let currentPage = 1;
+      // 첫 페이지 크기 (빠른 로딩을 위해 작게)
+      const FIRST_PAGE_SIZE = 50;
       
-      while (hasMoreData) {
-        // 페이지 로딩 상태 업데이트
+      // 총 데이터 개수와 첫 페이지 데이터를 동시에 가져오기
+      const [countResult, firstPageResult] = await Promise.all([
+        supabase
+        .from('services')
+        .select('id', { count: 'exact', head: true })
+          .eq('brand', selectedBrand),
+        supabase
+          .from('services')
+          .select(`
+            *,
+            service_tags (
+              tag_name
+            ),
+            service_parts (
+              price,
+              quantity,
+              parts (
+                name
+              )
+            )
+          `)
+          .eq('brand', selectedBrand)
+          .order('reception_date', { ascending: false })
+          .range(0, FIRST_PAGE_SIZE - 1)
+      ]);
+      
+      if (countResult.error) {
+        console.error('Error counting services:', countResult.error);
+        throw countResult.error;
+      }
+      
+      if (firstPageResult.error) {
+        console.error('Error fetching first page:', firstPageResult.error);
+        throw firstPageResult.error;
+      }
+      
+      const totalCount = countResult.count;
+      const firstPageData = firstPageResult.data;
+      
+      setTotalExpected(totalCount);
+      console.log(`Total services: ${totalCount}, First page loaded: ${firstPageData?.length || 0}`);
+      
+      if (firstPageData && firstPageData.length > 0) {
+        // 첫 페이지 데이터 처리 및 즉시 표시
+        const processedServices = firstPageData.map(service => ({
+          ...service,
+          status: service.status || '접수',
+          tags: service.service_tags?.map(tag => tag.tag_name) || [],
+          parts: service.service_parts?.map(part => ({
+            name: part.parts?.name || '',
+            price: part.price,
+            quantity: part.quantity
+          })) || []
+        }));
         
-        // 페이지네이션 방식으로 데이터 가져오기 - range 함수 사용
+        setServices(processedServices);
+        setFirstPageLoaded(true);
+        setLoading(false); // 첫 페이지 로딩 완료
+        setLoadedChunks(1); // 첫 번째 청크 로드 완료
+        
+        // 하이라이트 ID 체크 (첫 페이지에서)
+        const savedIdFromCookie = getCookie('highlightServiceId');
+        const savedIdFromStorage = localStorage.getItem('highlightServiceId');
+        const savedId = savedIdFromCookie || savedIdFromStorage;
+        
+        if (savedId) {
+          const numericId = parseInt(savedId, 10);
+          const serviceExists = processedServices.some(service => service.id === numericId);
+          
+          if (serviceExists) {
+            setHighlightWithTimeout(numericId);
+          }
+        }
+        
+        // 백그라운드에서 한 청크(100건)만 더 로딩
+        if (totalCount > FIRST_PAGE_SIZE) {
+          setTimeout(() => {
+            fetchNextChunk(FIRST_PAGE_SIZE);
+          }, 200); // 200ms 후 백그라운드 로딩 시작
+        } else {
+          setHasMoreData(false);
+        }
+      } else {
+        setFirstPageLoaded(true);
+        setLoading(false);
+        setHasMoreData(false);
+      }
+      
+      // 재시도 카운트 초기화
+      setRetryCount(0);
+      
+    } catch (err) {
+      console.error('Error fetching first page:', err);
+      setNetworkError(true);
+      
+      // 네트워크 오류 시 재시도 로직
+      if (retryAttempt < 3) {
+        const nextRetry = retryAttempt + 1;
+        setRetryCount(nextRetry);
+        console.log(`Retrying fetchFirstPage... attempt ${nextRetry}`);
+        
+        // 지수 백오프로 재시도 간격 증가
+        const retryDelay = Math.pow(2, retryAttempt) * 1000;
+        setTimeout(() => {
+          fetchFirstPage(nextRetry);
+        }, retryDelay);
+      } else {
+        setError(`네트워크 오류로 데이터를 불러올 수 없습니다: ${err.message}`);
+        setLoading(false);
+      }
+    }
+  };
+
+  // 다음 청크(100건) 로딩하는 함수
+  const fetchNextChunk = async (startOffset) => {
+    try {
+      setIsLoadingNextChunk(true);
+      
+      const CHUNK_SIZE = 100;
+      const endOffset = startOffset + CHUNK_SIZE - 1;
+      
+      console.log(`Loading next chunk: ${startOffset}-${endOffset}`);
+      
       const { data: servicesData, error: servicesError } = await supabase
         .from('services')
         .select(`
@@ -325,111 +433,297 @@ function ServiceList() {
         `)
         .eq('brand', selectedBrand)
         .order('reception_date', { ascending: false })
-        .range(currentOffset, currentOffset + PAGE_SIZE - 1);
+        .range(startOffset, endOffset);
 
         if (servicesError) {
-          console.error('Error fetching services page:', servicesError);
-          throw servicesError;
+        console.error('Error fetching next chunk:', servicesError);
+        return;
         }
         
         if (!servicesData || servicesData.length === 0) {
-          // 더 이상 데이터가 없음
-          hasMoreData = false;
-        } else {
-          // 데이터 병합
-          allServicesData = [...allServicesData, ...servicesData];
-          
-          // 다음 페이지 준비
-          currentOffset += servicesData.length;
-          currentPage++;
-          
-          // 가져온 데이터가 PAGE_SIZE보다 적으면 마지막 페이지
-          if (servicesData.length < PAGE_SIZE) {
-            // 마지막 페이지 도달
-            hasMoreData = false;
-          }
-          
-          // 모든 페이지를 가져왔는지 확인
-          if (currentPage > totalPages) {
-            debugLog('All pages fetched');
-            hasMoreData = false;
-          }
-          
-          // 진행 상황 업데이트
-          debugLog(`Loaded ${allServicesData.length}/${count} services (${Math.floor(allServicesData.length/count*100)}%)`);
-          
-          // 페이지별 데이터를 바로 상태에 적용하여 UI 반응성 향상
-          const partialServicesWithTags = servicesData.map(service => ({
-            ...service,
-            status: service.status || '접수',
-            tags: service.service_tags?.map(tag => tag.tag_name) || [],
-            parts: service.service_parts?.map(part => ({
-              name: part.parts?.name || '',
-              price: part.price
-            })) || []
-          }));
-          
-          // 기존 데이터와 병합하여 상태 업데이트
-          setServices(prev => [...prev, ...partialServicesWithTags]);
-        }
+        setHasMoreData(false);
+        return;
       }
-
-      // 최종 데이터 확인 및 갱신
-      if (allServicesData.length !== count) {
-        console.warn(`Warning: Loaded ${allServicesData.length} services, but expected ${count}`);
-      }
-
-      // 2. 서비스와 태그 데이터 병합
-      const servicesWithTags = allServicesData.map(service => ({
+      
+      // 데이터 처리 및 기존 데이터에 추가
+      const processedServices = servicesData.map(service => ({
         ...service,
         status: service.status || '접수',
         tags: service.service_tags?.map(tag => tag.tag_name) || [],
         parts: service.service_parts?.map(part => ({
           name: part.parts?.name || '',
-          price: part.price
+          price: part.price,
+          quantity: part.quantity
+        })) || []
+      }));
+      
+      // 기존 데이터에 추가
+      setServices(prev => [...prev, ...processedServices]);
+      setLoadedChunks(prev => prev + 1);
+      
+      // 로드된 데이터가 청크 크기보다 작으면 더 이상 데이터 없음
+      if (servicesData.length < CHUNK_SIZE) {
+        setHasMoreData(false);
+      }
+      
+      console.log(`Chunk loaded: ${servicesData.length} items. Total chunks: ${loadedChunks + 1}`);
+      
+    } catch (err) {
+      console.error('Error loading next chunk:', err);
+    } finally {
+      setIsLoadingNextChunk(false);
+    }
+  };
+
+  // 페이지 변경 시 필요하면 새 청크 로딩
+  const handlePageChangeWithLoading = (event, newPage) => {
+    // 표시할 데이터가 없으면 페이지 변경하지 않음
+    if (filteredServices.length === 0) {
+      console.log('No data to display, staying on current page');
+      return;
+    }
+    
+    // 현재 페이지에 표시할 데이터가 있는지 확인
+    const maxPage = Math.max(0, Math.ceil(filteredServices.length / rowsPerPage) - 1);
+    const validPage = Math.min(newPage, maxPage);
+    
+    setPage(validPage);
+    
+    // 3페이지마다 새 청크 로딩 체크
+    const itemsNeeded = (validPage + 1) * rowsPerPage;
+    const currentItemsLoaded = services.length;
+    
+    // 현재 로드된 데이터로 충분하지 않고, 더 로드할 데이터가 있으며, 현재 로딩 중이 아닐 때
+    if (itemsNeeded > currentItemsLoaded && hasMoreData && !isLoadingNextChunk && !hasActiveSearch) {
+      console.log(`Need ${itemsNeeded} items, have ${currentItemsLoaded}. Loading next chunk...`);
+      fetchNextChunk(currentItemsLoaded);
+    }
+  };
+
+  // 서버 사이드 검색 함수
+  const performServerSearch = async (searchParams = {}) => {
+    try {
+      setSearchLoading(true);
+      setServices([]); // 검색 시 기존 데이터 초기화
+      setFirstPageLoaded(false);
+      setBackgroundLoading(false);
+      
+      console.log('Performing server search with params:', searchParams);
+      
+      // 검색 쿼리 구성
+      let query = supabase
+        .from('services')
+        .select(`
+          *,
+          service_tags (
+            tag_name
+          ),
+          service_parts (
+            price,
+            quantity,
+            parts (
+              name
+            )
+          )
+        `)
+        .eq('brand', selectedBrand)
+        .order('reception_date', { ascending: false });
+      
+      // 검색어 필터링 (최소 2글자 이상일 때만)
+      if (searchParams.searchTerm && searchParams.searchTerm.length >= 2) {
+        console.log('Applying search filter for term:', searchParams.searchTerm);
+        query = query.or(`customer_name.ilike.%${searchParams.searchTerm}%,customer_phone.ilike.%${searchParams.searchTerm}%,product_name.ilike.%${searchParams.searchTerm}%,symptom.ilike.%${searchParams.searchTerm}%`);
+      } else if (searchParams.searchTerm && searchParams.searchTerm.length < 2) {
+        console.log('Search term too short, ignoring:', searchParams.searchTerm);
+        // 검색어가 너무 짧으면 검색하지 않고 전체 데이터 로딩으로 변경
+        setSearchLoading(false);
+        setFirstPageLoaded(true);
+        setHasActiveSearch(false);
+        fetchServices();
+        return;
+      }
+      
+      // 상태 필터링
+      if (searchParams.selectedStatuses && searchParams.selectedStatuses.length > 0) {
+        query = query.in('status', searchParams.selectedStatuses);
+      }
+      
+      // 날짜 필터링
+      if (searchParams.dateFilter && (searchParams.dateFilter.startDate || searchParams.dateFilter.endDate)) {
+        const dateField = searchParams.dateFilter.type || 'reception_date';
+        if (searchParams.dateFilter.startDate) {
+          query = query.gte(dateField, `${searchParams.dateFilter.startDate}T00:00:00.000Z`);
+        }
+        if (searchParams.dateFilter.endDate) {
+          query = query.lte(dateField, `${searchParams.dateFilter.endDate}T23:59:59.999Z`);
+        }
+      }
+      
+      // 첫 페이지만 먼저 가져오기 (검색 결과)
+      const FIRST_PAGE_SIZE = 50;
+      const firstPageQuery = query.range(0, FIRST_PAGE_SIZE - 1);
+      
+      // 카운트용 쿼리 (별도로 생성)
+      let countQuery = supabase
+        .from('services')
+        .select('id', { count: 'exact', head: true })
+        .eq('brand', selectedBrand);
+
+      // 카운트 쿼리에도 필터 적용
+      if (searchParams.searchTerm && searchParams.searchTerm.length >= 2) {
+        countQuery = countQuery.or(`customer_name.ilike.%${searchParams.searchTerm}%,customer_phone.ilike.%${searchParams.searchTerm}%,product_name.ilike.%${searchParams.searchTerm}%,symptom.ilike.%${searchParams.searchTerm}%`);
+      }
+
+      if (searchParams.selectedStatuses && searchParams.selectedStatuses.length > 0) {
+        if (searchParams.selectedStatuses.length === 1) {
+          countQuery = countQuery.eq('status', searchParams.selectedStatuses[0]);
+        } else {
+          countQuery = countQuery.in('status', searchParams.selectedStatuses);
+        }
+      }
+
+      if (searchParams.selectedTags && searchParams.selectedTags.length > 0) {
+        countQuery = countQuery.overlaps('tag_names', searchParams.selectedTags);
+      }
+
+      if (searchParams.dateFilter) {
+        const { startDate, endDate, dateType } = searchParams.dateFilter;
+        if (startDate && endDate) {
+          const dateField = dateType === 'receipt_date' ? 'receipt_date' : 'request_date';
+          countQuery = countQuery
+            .gte(dateField, startDate)
+            .lte(dateField, endDate);
+        }
+      }
+
+      // 총 검색 결과 수와 첫 페이지를 동시에 가져오기
+      const [countResult, firstPageResult] = await Promise.all([
+        countQuery,
+        firstPageQuery
+      ]);
+      
+      if (countResult.error) {
+        console.error('Error counting search results:', countResult.error);
+        throw countResult.error;
+      }
+      
+      if (firstPageResult.error) {
+        console.error('Error fetching search results:', firstPageResult.error);
+        throw firstPageResult.error;
+      }
+      
+      const totalCount = countResult.count;
+      const firstPageData = firstPageResult.data;
+      
+      setTotalExpected(totalCount);
+      console.log(`Search results: ${totalCount} total, ${firstPageData?.length || 0} loaded`);
+      
+      if (firstPageData && firstPageData.length > 0) {
+        // 검색 결과 처리 및 표시
+        const processedServices = firstPageData.map(service => ({
+            ...service,
+            status: service.status || '접수',
+            tags: service.service_tags?.map(tag => tag.tag_name) || [],
+            parts: service.service_parts?.map(part => ({
+              name: part.parts?.name || '',
+            price: part.price,
+            quantity: part.quantity
+            })) || []
+          }));
+          
+        setServices(processedServices);
+        setFirstPageLoaded(true);
+        
+        // 검색 결과가 첫 페이지보다 많으면 나머지도 백그라운드에서 로딩
+        if (totalCount > FIRST_PAGE_SIZE) {
+          setTimeout(() => {
+            fetchRemainingSearchResults(query, FIRST_PAGE_SIZE, totalCount);
+          }, 300); // 검색 후 조금 더 기다렸다가 백그라운드 로딩
+        }
+      } else {
+        setFirstPageLoaded(true);
+      }
+      
+      setHasActiveSearch(true);
+      
+    } catch (err) {
+      console.error('Error in server search:', err);
+      setError(`검색 중 오류가 발생했습니다: ${err.message}`);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+  
+  // 검색 결과의 나머지 데이터를 백그라운드에서 로딩
+  const fetchRemainingSearchResults = async (baseQuery, startOffset, totalCount) => {
+    try {
+      setBackgroundLoading(true);
+      setLoadProgress(0);
+      
+      const PAGE_SIZE = 200;
+      let currentOffset = startOffset;
+      
+      console.log(`Loading remaining search results from offset ${startOffset}`);
+      
+      while (currentOffset < totalCount) {
+        try {
+          const progress = Math.min((currentOffset / totalCount) * 100, 95);
+          setLoadProgress(progress);
+          
+          const { data: servicesData, error: servicesError } = await baseQuery
+            .range(currentOffset, currentOffset + PAGE_SIZE - 1);
+            
+          if (servicesError) {
+            console.error('Error fetching remaining search results:', servicesError);
+            break;
+          }
+          
+          if (!servicesData || servicesData.length === 0) {
+            break;
+          }
+          
+          const processedServices = servicesData.map(service => ({
+        ...service,
+        status: service.status || '접수',
+        tags: service.service_tags?.map(tag => tag.tag_name) || [],
+        parts: service.service_parts?.map(part => ({
+          name: part.parts?.name || '',
+              price: part.price,
+              quantity: part.quantity
         })) || []
       }));
 
-      // 전체 데이터를 한 번에 다시 설정 (혹시 모를 중복 방지)
-      setServices(servicesWithTags);
-      
-      // 총 데이터 개수 확인 (로그용)
-      debugLog(`Total services loaded: ${servicesWithTags.length}`);
-      
-      // 데이터 로딩 완료 후 하이라이트 ID 체크
-      const savedIdFromCookie = getCookie('highlightServiceId');
-      const savedIdFromStorage = localStorage.getItem('highlightServiceId');
-      const savedId = savedIdFromCookie || savedIdFromStorage;
-      debugLog('Checking highlightServiceId after data load:', savedId);
-      
-      if (savedId) {
-        const numericId = parseInt(savedId, 10);
-        // 해당 ID가 현재 데이터에 존재하는지 확인
-        const serviceExists = servicesWithTags.some(service => service.id === numericId);
-        
-        if (serviceExists) {
-          debugLog('Service found, setting highlight:', numericId);
-          setHighlightWithTimeout(numericId);
+          setServices(prev => [...prev, ...processedServices]);
           
-          // 30초 후 하이라이트 제거
-          setTimeout(() => {
-            debugLog('Clearing highlight effect after timeout');
-            setHighlightedId(null);
-            removeCookie('highlightServiceId');
-            localStorage.removeItem('highlightServiceId');
-          }, 30000);
-        } else {
-          debugLog('Service not found, clearing highlight');
-          removeCookie('highlightServiceId');
-          localStorage.removeItem('highlightServiceId');
+          currentOffset += servicesData.length;
+          
+          if (servicesData.length < PAGE_SIZE) {
+            break;
+          }
+          
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
+        } catch (pageError) {
+          console.error(`Error loading search page:`, pageError);
+          currentOffset += PAGE_SIZE;
         }
       }
+      
+      setLoadProgress(100);
+      console.log(`Search background loading completed.`);
+      
     } catch (err) {
-      console.error('Error fetching services:', err);
-      setError(err.message);
+      console.error('Error in search background loading:', err);
     } finally {
-      setLoading(false);
+      setBackgroundLoading(false);
+      setLoadProgress(0);
     }
+  };
+
+  // 메인 fetchServices 함수 (첫 페이지 우선 로딩)
+  const fetchServices = (retryAttempt = 0) => {
+    setHasActiveSearch(false);
+    fetchFirstPage(retryAttempt);
   };
 
   // 실시간 업데이트 구독
@@ -482,39 +776,8 @@ function ServiceList() {
     };
   }, [selectedBrand]);
 
-  useEffect(() => {
-    // 브랜드와 검색어, 상태 필터, 날짜 필터 모두 적용
-    const filtered = services.filter(service => {
-      const matchesBrand = service.brand === selectedBrand;
-      if (!matchesBrand) {
-        console.log(`Service ${service.id} brand mismatch: service.brand=${service.brand}, selectedBrand=${selectedBrand}`);
-      }
-      const matchesSearch = searchTerm === '' || 
-        service.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        service.customer_phone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        service.product_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        service.symptom?.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      const matchesStatus = 
-        statusFilter === 'all' || service.status === statusFilter;
-
-      // 날짜 필터링 개선: 날짜만 추출해서 비교
-      let matchesDate = true;
-      if (dateFilter.startDate || dateFilter.endDate) {
-        const serviceDate = extractDate(service[dateFilter.type]);
-        if (dateFilter.startDate && (!serviceDate || serviceDate < dateFilter.startDate)) {
-          matchesDate = false;
-        }
-        if (dateFilter.endDate && (!serviceDate || serviceDate > dateFilter.endDate)) {
-          matchesDate = false;
-        }
-      }
-
-      return matchesBrand && matchesSearch && matchesStatus && matchesDate;
-    });
-    setFilteredServices(filtered);
-    setPage(0);
-  }, [searchTerm, statusFilter, services, selectedBrand, dateFilter]);
+  // 클라이언트 필터링 제거 - 서버 사이드 검색으로 대체됨
+  // 이제 services가 이미 서버에서 필터링된 데이터임
 
   // 데이터 로딩 상태 확인을 위한 useEffect
   useEffect(() => {
@@ -995,10 +1258,7 @@ function ServiceList() {
     });
   };
 
-  // 페이지 변경 핸들러
-  const handleChangePage = (event, newPage) => {
-    setPage(newPage);
-  };
+  // 페이지 변경 핸들러 (기존 함수는 handlePageChangeWithLoading으로 대체됨)
 
   // 페이지당 행 수 변경 핸들러
   const handleChangeRowsPerPage = (event) => {
@@ -1006,11 +1266,6 @@ function ServiceList() {
     setPage(0);
   };
 
-  // 현재 페이지에 표시할 데이터 계산
-  const paginatedServices = sortData(filteredServices).slice(
-    page * rowsPerPage,
-    page * rowsPerPage + rowsPerPage
-  );
 
   // 테이블 컬럼 정의
   const columns = [
@@ -1707,7 +1962,7 @@ function ServiceList() {
     setInputValue(event.target.value);
   };
 
-  // 검색 실행 함수
+  // 검색 실행 함수 (서버 사이드 검색)
   const executeSearch = () => {
     const term = inputValue.toLowerCase().trim();
     setSearchTerm(term);
@@ -1719,21 +1974,32 @@ function ServiceList() {
       localStorage.removeItem('serviceSearchTerm');
     }
     
-    if (!term) {
-      setFilteredServices(services);
+    // 검색어가 1글자면 경고 메시지 표시하고 검색하지 않음
+    if (term && term.length === 1) {
+      setSnackbar({
+        open: true,
+        message: '검색어는 최소 2글자 이상 입력해주세요.',
+        severity: 'warning'
+      });
       return;
     }
 
-    const filtered = services.filter(service => {
-      const nameMatch = service.customer_name?.toLowerCase().includes(term);
-      const phoneMatch = service.customer_phone?.toLowerCase().includes(term);
-      const productMatch = service.product_name?.toLowerCase().includes(term);
-      const symptomMatch = service.symptom?.toLowerCase().includes(term);
-      
-      return nameMatch || phoneMatch || productMatch || symptomMatch;
-    });
+    // 검색어가 없거나 다른 필터도 없으면 전체 데이터 로딩으로 돌아가기
+    if (!term && selectedStatuses.length === 0 && selectedTags.length === 0 && !dateFilter.startDate && !dateFilter.endDate) {
+      fetchServices();
+      return;
+    }
     
-    setFilteredServices(filtered);
+    // 서버 사이드 검색 실행
+    const searchParams = {
+      searchTerm: term,
+      selectedStatuses: selectedStatuses.length > 0 ? selectedStatuses : null,
+      selectedTags: selectedTags.length > 0 ? selectedTags : null,
+      dateFilter: (dateFilter.startDate || dateFilter.endDate) ? dateFilter : null,
+      searchMode
+    };
+    
+    performServerSearch(searchParams);
   };
 
   //1. 초기화 함수 추가
@@ -1742,7 +2008,11 @@ function ServiceList() {
     setSearchTerm('');
     localStorage.removeItem('serviceSearchTerm');
     debugLog('Search cleared');
-    setFilteredServices(services);
+    
+    // 검색 초기화 시 전체 데이터 다시 로딩
+    if (hasActiveSearch) {
+      fetchServices();
+    }
   };
 
   // 검색, 필터 모두 초기화하는 함수 추가
@@ -1770,11 +2040,11 @@ function ServiceList() {
     // 필터 저장값 삭제
     localStorage.removeItem(FILTER_KEY);
     
-    // 필터링된 서비스 초기화
-    setFilteredServices(services);
-    
     // 페이지 초기화
     setPage(0);
+    
+    // 전체 데이터 다시 로딩
+    fetchServices();
     
     console.log('모든 필터가 초기화되었습니다.');
     
@@ -1851,6 +2121,20 @@ function ServiceList() {
   const [searchMode, setSearchMode] = useState('AND'); // AND/OR 검색 모드
   const [selectedStatuses, setSelectedStatuses] = useState([]); // 다중 상태
   const [selectedTags, setSelectedTags] = useState([]); // 다중 태그
+  const [progressiveLoading, setProgressiveLoading] = useState(false); // 점진적 로딩 상태
+  const [loadProgress, setLoadProgress] = useState(0); // 로딩 진행률
+  const [retryCount, setRetryCount] = useState(0); // 재시도 횟수
+  const [networkError, setNetworkError] = useState(false); // 네트워크 오류 상태
+  const [isOnline, setIsOnline] = useState(navigator.onLine); // 온라인 상태
+  const [backgroundLoading, setBackgroundLoading] = useState(false); // 백그라운드 로딩 상태
+  const [firstPageLoaded, setFirstPageLoaded] = useState(false); // 첫 페이지 로딩 완료 상태
+  const [totalExpected, setTotalExpected] = useState(0); // 전체 예상 데이터 수
+  const [searchLoading, setSearchLoading] = useState(false); // 검색 로딩 상태
+  const [hasActiveSearch, setHasActiveSearch] = useState(false); // 활성 검색 여부
+  const [loadedChunks, setLoadedChunks] = useState(0); // 로드된 청크 수
+  const [isLoadingNextChunk, setIsLoadingNextChunk] = useState(false); // 다음 청크 로딩 상태
+  const [hasMoreData, setHasMoreData] = useState(true); // 더 로드할 데이터가 있는지
+  
   const statusOptions = ['접수', '처리중', '부분완료', '완료'];
   const tagOptions = Array.from(new Set(services.flatMap(s => s.tags || [])));
 
@@ -1887,38 +2171,48 @@ function ServiceList() {
     }));
   };
 
+  // 서버 사이드 검색으로 클라이언트 필터링 제거
+  // filteredServices는 항상 services와 동일 (서버에서 이미 필터링됨)
   useEffect(() => {
-    const filtered = services.filter(service => {
-      // 다중 상태 필터
-      const matchesStatus = selectedStatuses.length === 0 || selectedStatuses.includes(service.status);
-      // 다중 태그 필터
-      const matchesTags = selectedTags.length === 0 || (service.tags && selectedTags.every(tag => service.tags.includes(tag)));
-      // 날짜 필터
-      let matchesDate = true;
-      if (dateFilter.startDate || dateFilter.endDate) {
-        const serviceDate = extractDate(service[dateFilter.type]);
-        if (dateFilter.startDate && (!serviceDate || serviceDate < dateFilter.startDate)) {
-          matchesDate = false;
-        }
-        if (dateFilter.endDate && (!serviceDate || serviceDate > dateFilter.endDate)) {
-          matchesDate = false;
-        }
-      }
-      // 복합 검색 (AND/OR)
-      if (searchTerm) {
-        const keywords = searchTerm.split(/\s+/).filter(Boolean);
-        const fields = [service.customer_name, service.customer_phone, service.product_name, service.symptom].map(f => (f || '').toLowerCase());
-        if (searchMode === 'AND') {
-          if (!keywords.every(kw => fields.some(f => f.includes(kw)))) return false;
-        } else {
-          if (!keywords.some(kw => fields.some(f => f.includes(kw)))) return false;
-        }
-      }
-      return matchesStatus && matchesTags && matchesDate;
-    });
-    setFilteredServices(filtered);
+    setFilteredServices(services);
+  }, [services]);
+
+  // 검색이나 필터 변경 시에만 페이지 초기화
+  useEffect(() => {
     setPage(0);
-  }, [searchTerm, searchMode, selectedStatuses, selectedTags, statusFilter, services, selectedBrand, dateFilter]);
+  }, [searchTerm, selectedStatuses, selectedTags, dateFilter, hasActiveSearch]);
+
+  // 페이지네이션된 서비스 데이터 계산
+  const paginatedServices = useMemo(() => {
+    const startIndex = page * rowsPerPage;
+    const endIndex = startIndex + rowsPerPage;
+    return filteredServices.slice(startIndex, endIndex);
+  }, [filteredServices, page, rowsPerPage]);
+
+  // 네트워크 상태 감지
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      setNetworkError(false);
+      // 온라인 복구 시 자동으로 데이터 다시 로드
+      if (services.length === 0) {
+        fetchFirstPage();
+      }
+    };
+    
+    const handleOffline = () => {
+      setIsOnline(false);
+      setNetworkError(true);
+    };
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [services.length]);
 
   // 컴포넌트 마운트 시 자동으로 필터 불러오기
   useEffect(() => {
@@ -1932,19 +2226,180 @@ function ServiceList() {
     // eslint-disable-next-line
   }, [selectedBrand, statusFilter, dateFilter, inputValue, searchTerm, selectedStatuses, selectedTags, searchMode]);
 
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-        <CircularProgress />
+  // 스켈레톤 로딩 컴포넌트
+  const renderSkeletonTable = () => (
+    <Box sx={{ maxWidth: '1800px', width: 'auto', mx: 'auto' }}>
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center">
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <Skeleton variant="rectangular" width={120} height={48} />
+            <Skeleton variant="rectangular" width={120} height={48} />
+          </Box>
+          <Stack direction="row" spacing={2}>
+            <Skeleton variant="rectangular" width={100} height={36} />
+            <Skeleton variant="rectangular" width={100} height={36} />
+            <Skeleton variant="rectangular" width={120} height={36} />
+          </Stack>
+        </Stack>
       </Box>
+      
+      <Box sx={{ mb: 2 }}>
+        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+          <Skeleton variant="rectangular" width={300} height={40} />
+          <Skeleton variant="rectangular" width={80} height={40} />
+          <Skeleton variant="rectangular" width={120} height={40} />
+          <Skeleton variant="rectangular" width={120} height={40} />
+          <Skeleton variant="rectangular" width={100} height={40} />
+          <Skeleton variant="rectangular" width={100} height={40} />
+        </Stack>
+      </Box>
+      
+      <Paper>
+        <Table>
+          <TableHead>
+            <TableRow>
+              {columns.map((column, index) => (
+                <TableCell key={index}>
+                  <Skeleton variant="text" width="80%" height={20} />
+                </TableCell>
+              ))}
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {Array.from({ length: 10 }).map((_, index) => (
+              <TableRow key={index}>
+                {columns.map((column, colIndex) => (
+                  <TableCell key={colIndex}>
+                    <Skeleton 
+                      variant={colIndex === 0 ? "circular" : "text"} 
+                      width={colIndex === 0 ? 24 : "90%"} 
+                      height={colIndex === 0 ? 24 : 20}
+                    />
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Paper>
+      
+      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+        <Skeleton variant="rectangular" width={400} height={52} />
+      </Box>
+    </Box>
+  );
+
+  // 첫 페이지 로딩 중이거나 검색 중이면 스켈레톤 표시
+  if ((loading && !firstPageLoaded) || searchLoading) {
+    return (
+      <>
+        {renderSkeletonTable()}
+        <Backdrop
+          sx={{ 
+            color: '#fff', 
+            zIndex: (theme) => theme.zIndex.drawer + 1,
+            backgroundColor: 'rgba(0, 0, 0, 0.3)'
+          }}
+          open={loading}
+        >
+          <Box sx={{ textAlign: 'center', maxWidth: 400, px: 3 }}>
+            <CircularProgress color="inherit" size={60} />
+            <Typography variant="h6" sx={{ mt: 2 }}>
+              {searchLoading ? 'A/S 데이터를 검색하는 중...' : 'A/S 데이터를 불러오는 중...'}
+            </Typography>
+            
+            {progressiveLoading && loadProgress > 0 && (
+              <Box sx={{ mt: 2, mb: 1 }}>
+                <LinearProgress 
+                  variant="determinate" 
+                  value={loadProgress}
+                  sx={{
+                    height: 8,
+                    borderRadius: 4,
+                    backgroundColor: 'rgba(255,255,255,0.3)',
+                    '& .MuiLinearProgress-bar': {
+                      backgroundColor: '#4fc3f7'
+                    }
+                  }}
+                />
+                <Typography variant="body2" sx={{ mt: 1 }}>
+                  {Math.round(loadProgress)}% 완료
+                </Typography>
+      </Box>
+            )}
+            
+            <Typography variant="body2" sx={{ mt: 1, opacity: 0.8 }}>
+              {services.length > 0 ? `${services.length}건 로드됨` : '잠시만 기다려주세요'}
+            </Typography>
+            
+            {retryCount > 0 && (
+              <Typography variant="body2" sx={{ mt: 1, color: '#ffb74d' }}>
+                재시도 중... ({retryCount}/3)
+              </Typography>
+            )}
+            
+            {networkError && (
+              <Box sx={{ mt: 2 }}>
+                <Typography variant="body2" sx={{ color: '#f44336', mb: 1 }}>
+                  네트워크 연결이 불안정합니다
+                </Typography>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => fetchServices()}
+                  sx={{
+                    color: '#fff',
+                    borderColor: '#fff',
+                    '&:hover': {
+                      borderColor: '#fff',
+                      backgroundColor: 'rgba(255,255,255,0.1)'
+                    }
+                  }}
+                >
+                  다시 시도
+                </Button>
+              </Box>
+            )}
+          </Box>
+        </Backdrop>
+      </>
     );
   }
 
   if (error) {
     return (
-      <Box sx={{ mt: 4, color: 'error.main' }}>
-        에러가 발생했습니다: {error}
+      <Container maxWidth="md" sx={{ mt: 4, textAlign: 'center' }}>
+        <Alert 
+          severity="error" 
+          sx={{ mb: 3 }}
+          action={
+            <Button color="inherit" size="small" onClick={() => {
+              setError(null);
+              fetchServices();
+            }}>
+              다시 시도
+            </Button>
+          }
+        >
+          <Typography variant="h6" gutterBottom>
+            데이터를 불러올 수 없습니다
+          </Typography>
+          <Typography variant="body2">
+            {error}
+          </Typography>
+        </Alert>
+        
+        <Box sx={{ mt: 2 }}>
+          <Typography variant="body2" color="text.secondary" gutterBottom>
+            문제가 지속되면 다음을 확인해보세요:
+          </Typography>
+          <Box component="ul" sx={{ textAlign: 'left', maxWidth: 400, mx: 'auto' }}>
+            <li>인터넷 연결 상태</li>
+            <li>브라우저 새로고침 (Ctrl+F5)</li>
+            <li>잠시 후 다시 시도</li>
       </Box>
+        </Box>
+      </Container>
     );
   }
 
@@ -1954,6 +2409,76 @@ function ServiceList() {
       width: 'auto', 
       mx: 'auto'
     }}>
+      {/* 오프라인 상태 알림 */}
+      {!isOnline && (
+        <Alert 
+          severity="warning" 
+          sx={{ mb: 2 }}
+          action={
+            <Button 
+              color="inherit" 
+              size="small" 
+              onClick={() => window.location.reload()}
+            >
+              새로고침
+            </Button>
+          }
+        >
+          <Typography variant="body2">
+            오프라인 상태입니다. 일부 기능이 제한될 수 있습니다.
+          </Typography>
+        </Alert>
+      )}
+      
+      {/* 백그라운드 로딩 상태 표시 */}
+      {(backgroundLoading || isLoadingNextChunk) && firstPageLoaded && (
+        <Box sx={{ 
+          position: 'fixed', 
+          bottom: 20, 
+          right: 20, 
+          zIndex: 1000,
+          minWidth: 280
+        }}>
+          <Alert 
+            severity="info" 
+            variant="filled"
+            sx={{ 
+              boxShadow: 3,
+              borderRadius: 2,
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <CircularProgress size={20} color="inherit" />
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  {isLoadingNextChunk ? '다음 페이지 로딩 중...' : '추가 데이터 로딩 중...'}
+                </Typography>
+                <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                  {services.length}/{hasActiveSearch ? services.length : totalExpected}건 
+                  {loadProgress > 0 && ` (${Math.round(loadProgress)}%)`}
+                  {isLoadingNextChunk && ` • 청크 ${loadedChunks + 1} 로딩`}
+                </Typography>
+              </Box>
+            </Box>
+            {loadProgress > 0 && (
+              <LinearProgress 
+                variant="determinate" 
+                value={loadProgress}
+                sx={{
+                  mt: 1,
+                  height: 4,
+                  borderRadius: 2,
+                  backgroundColor: 'rgba(255,255,255,0.3)',
+                  '& .MuiLinearProgress-bar': {
+                    backgroundColor: 'rgba(255,255,255,0.8)'
+                  }
+                }}
+              />
+            )}
+          </Alert>
+        </Box>
+      )}
+      
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
           <Tabs 
@@ -2010,7 +2535,20 @@ function ServiceList() {
             placeholder="고객명, 연락처, 제품명으로 검색"
             value={inputValue}
             onChange={handleSearchInput}
-            onKeyPress={(e) => e.key === 'Enter' && executeSearch()}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                const term = inputValue.toLowerCase().trim();
+                if (term && term.length === 1) {
+                  setSnackbar({
+                    open: true,
+                    message: '검색어는 최소 2글자 이상 입력해주세요.',
+                    severity: 'warning'
+                  });
+                  return;
+                }
+                executeSearch();
+              }
+            }}
             sx={{ flex: 1, minWidth: 200, maxWidth: 400 }}
             size="small"
             InputProps={{
@@ -2129,9 +2667,11 @@ function ServiceList() {
               variant="contained"
               color="primary"
               onClick={executeSearch}
+              disabled={searchLoading}
               sx={{ minWidth: 70, height: 40 }}
+              startIcon={searchLoading ? <CircularProgress size={16} color="inherit" /> : null}
             >
-              검색
+              {searchLoading ? '검색 중' : '검색'}
             </Button>
             <Button
               variant="outlined"
@@ -2191,9 +2731,9 @@ function ServiceList() {
       {/* 페이지네이션 추가 */}
       <TablePagination
         component="div"
-        count={filteredServices.length}
+        count={hasActiveSearch ? filteredServices.length : Math.max(filteredServices.length, totalExpected)}
         page={page}
-        onPageChange={handleChangePage}
+        onPageChange={handlePageChangeWithLoading}
         rowsPerPage={rowsPerPage}
         onRowsPerPageChange={handleChangeRowsPerPage}
         rowsPerPageOptions={[10, 20, 50, 100]}

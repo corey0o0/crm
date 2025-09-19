@@ -33,7 +33,10 @@ import {
   DialogContent,
   DialogActions,
   LinearProgress,
-  TablePagination
+  TablePagination,
+  Skeleton,
+  Container,
+  Backdrop
 } from '@mui/material';
 import { 
   Add as AddIcon, 
@@ -119,6 +122,21 @@ function ShipmentList() {
   // 페이징 상태 추가
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(30);
+  
+  // 지연 로딩 관련 상태 추가
+  const [firstPageLoaded, setFirstPageLoaded] = useState(false);
+  const [totalExpected, setTotalExpected] = useState(0);
+  const [loadedChunks, setLoadedChunks] = useState(0);
+  const [isLoadingNextChunk, setIsLoadingNextChunk] = useState(false);
+  const [hasMoreData, setHasMoreData] = useState(true);
+  const [networkError, setNetworkError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [backgroundLoading, setBackgroundLoading] = useState(false);
+  const [progressiveLoading, setProgressiveLoading] = useState(false);
+  const [loadProgress, setLoadProgress] = useState(0);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [hasActiveSearch, setHasActiveSearch] = useState(false);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -154,6 +172,30 @@ function ShipmentList() {
     fetchShipments();
   }, [selectedBrand, dateFilter, statusFilter, sellerFilter]);
 
+  // 네트워크 상태 감지
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      setNetworkError(false);
+      // 데이터가 없으면 다시 로딩
+      if (shipments.length === 0) {
+        fetchFirstPage();
+      }
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [shipments.length]);
+
   useEffect(() => {
     return () => {
       const currentPath = window.location.pathname;
@@ -179,44 +221,208 @@ function ShipmentList() {
     return '공홈';
   };
 
-  const fetchShipments = async () => {
+  // 첫 페이지만 빠르게 로딩하는 함수
+  const fetchFirstPage = async (retryAttempt = 0) => {
     try {
       setLoading(true);
-      let query = supabase
+      setNetworkError(false);
+      setFirstPageLoaded(false);
+      setLoadedChunks(0);
+      setHasMoreData(true);
+      setHasActiveSearch(false);
+      
+      if (retryAttempt === 0) {
+        setShipments([]); // 첫 번째 시도에서만 초기화
+      }
+      
+      console.log('fetchFirstPage called with selectedBrand:', selectedBrand, 'retry:', retryAttempt);
+      
+      const FIRST_PAGE_SIZE = 50;
+      
+      // 기본 쿼리 구성 - 각각 별도로 생성
+      let countQuery = supabase
+        .from('shipments')
+        .select('id', { count: 'exact', head: true })
+        .eq('brand', selectedBrand);
+
+      let dataQuery = supabase
         .from('shipments')
         .select('*, shipment_parts(*)')
         .eq('brand', selectedBrand);
 
-      // 날짜 필터 적용
+      // 날짜 필터 적용 (공통)
       if (dateFilter.startDate && dateFilter.endDate) {
         const startDate = format(new Date(dateFilter.startDate), 'yyyy-MM-dd 00:00:00');
         const endDate = format(new Date(dateFilter.endDate), 'yyyy-MM-dd 23:59:59');
         
         if (dateFilter.type === 'order_date') {
-          query = query
+          countQuery = countQuery
+            .gte('order_date', startDate)
+            .lte('order_date', endDate);
+          dataQuery = dataQuery
             .gte('order_date', startDate)
             .lte('order_date', endDate);
         } else if (dateFilter.type === 'completion_date') {
-          query = query
+          countQuery = countQuery
+            .gte('shipment_date', startDate)
+            .lte('shipment_date', endDate);
+          dataQuery = dataQuery
             .gte('shipment_date', startDate)
             .lte('shipment_date', endDate);
         }
       }
 
-      query = query.order('order_date', { ascending: false });
-      const { data, error } = await query;
+      // 총 데이터 개수와 첫 페이지 데이터를 동시에 가져오기
+      const [countResult, firstPageResult] = await Promise.all([
+        countQuery,
+        dataQuery
+          .order('order_date', { ascending: false })
+          .range(0, FIRST_PAGE_SIZE - 1)
+      ]);
+      
+      if (countResult.error) {
+        console.error('Error counting shipments:', countResult.error);
+        throw countResult.error;
+      }
+      
+      if (firstPageResult.error) {
+        console.error('Error fetching first page:', firstPageResult.error);
+        throw firstPageResult.error;
+      }
+      
+      const totalCount = countResult.count;
+      const firstPageData = firstPageResult.data;
+      
+      setTotalExpected(totalCount);
+      console.log(`Total shipments: ${totalCount}, First page loaded: ${firstPageData?.length || 0}`);
+      
+      if (firstPageData && firstPageData.length > 0) {
+        // 날짜 기준으로 정렬
+        const sortedData = [...firstPageData].sort((a, b) => {
+          let dateA, dateB;
+          if (dateFilter.type === 'order_date') {
+            dateA = a.order_date ? new Date(a.order_date) : new Date(a.created_at || 0);
+            dateB = b.order_date ? new Date(b.order_date) : new Date(b.created_at || 0);
+          } else if (dateFilter.type === 'completion_date') {
+            dateA = a.shipment_date ? new Date(a.shipment_date) : new Date(a.created_at || 0);
+            dateB = b.shipment_date ? new Date(b.shipment_date) : new Date(b.created_at || 0);
+          } else {
+            dateA = new Date(a.created_at || 0);
+            dateB = new Date(b.created_at || 0);
+          }
+          return dateB - dateA;
+        });
+        
+        setShipments(sortedData);
+        setFirstPageLoaded(true);
+        setLoading(false); // 첫 페이지 로딩 완료
+        setLoadedChunks(1); // 첫 번째 청크 로드 완료
+        
+        // 판매처 목록 업데이트
+        const uniqueSellers = new Set(['전체']);
+        sortedData.forEach(shipment => {
+          uniqueSellers.add(extractSalesChannel(shipment.note, shipment.sales_channel));
+        });
+        setSellers(Array.from(uniqueSellers));
+        
+        // 백그라운드에서 한 청크(100건)만 더 로딩
+        if (totalCount > FIRST_PAGE_SIZE) {
+          setTimeout(() => {
+            fetchNextChunk(FIRST_PAGE_SIZE);
+          }, 200); // 200ms 후 백그라운드 로딩 시작
+        } else {
+          setHasMoreData(false);
+        }
+      } else {
+        setFirstPageLoaded(true);
+        setLoading(false);
+        setHasMoreData(false);
+      }
+      
+      // 재시도 카운트 초기화
+      setRetryCount(0);
+      
+    } catch (err) {
+      console.error('Error fetching first page:', err);
+      setNetworkError(true);
+      
+      // 네트워크 오류 시 재시도 로직
+      if (retryAttempt < 3) {
+        const nextRetry = retryAttempt + 1;
+        setRetryCount(nextRetry);
+        console.log(`Retrying fetchFirstPage... attempt ${nextRetry}`);
+        
+        // 지수 백오프로 재시도 간격 증가
+        const retryDelay = Math.pow(2, retryAttempt) * 1000;
+        setTimeout(() => {
+          fetchFirstPage(nextRetry);
+        }, retryDelay);
+      } else {
+        setSnackbar({
+          open: true,
+          message: `네트워크 오류로 데이터를 불러올 수 없습니다: ${err.message}`,
+          severity: 'error'
+        });
+        setLoading(false);
+      }
+    }
+  };
 
-      if (error) throw error;
+  // 다음 청크(100건) 로딩하는 함수
+  const fetchNextChunk = async (startOffset) => {
+    try {
+      setIsLoadingNextChunk(true);
+      
+      const CHUNK_SIZE = 100;
+      const endOffset = startOffset + CHUNK_SIZE - 1;
+      
+      console.log(`Loading next chunk: ${startOffset}-${endOffset}`);
+      
+      // 기본 쿼리 구성
+      let dataQuery = supabase
+        .from('shipments')
+        .select('*, shipment_parts(*)')
+        .eq('brand', selectedBrand);
+
+      // 날짜 필터 적용 (공통)
+      if (dateFilter.startDate && dateFilter.endDate) {
+        const startDate = format(new Date(dateFilter.startDate), 'yyyy-MM-dd 00:00:00');
+        const endDate = format(new Date(dateFilter.endDate), 'yyyy-MM-dd 23:59:59');
+        
+        if (dateFilter.type === 'order_date') {
+          dataQuery = dataQuery
+            .gte('order_date', startDate)
+            .lte('order_date', endDate);
+        } else if (dateFilter.type === 'completion_date') {
+          dataQuery = dataQuery
+            .gte('shipment_date', startDate)
+            .lte('shipment_date', endDate);
+        }
+      }
+
+      const { data: shipmentsData, error: shipmentsError } = await dataQuery
+        .order('order_date', { ascending: false })
+        .range(startOffset, endOffset);
+
+      if (shipmentsError) {
+        console.error('Error fetching next chunk:', shipmentsError);
+        return;
+      }
+      
+      if (!shipmentsData || shipmentsData.length === 0) {
+        setHasMoreData(false);
+        return;
+      }
       
       // 날짜 기준으로 정렬
-      const sortedData = [...(data || [])].sort((a, b) => {
+      const sortedData = [...shipmentsData].sort((a, b) => {
         let dateA, dateB;
         if (dateFilter.type === 'order_date') {
           dateA = a.order_date ? new Date(a.order_date) : new Date(a.created_at || 0);
-          dateB = b.order_date ? new Date(b.order_date) : new Date(b.created_at || 0);
+          dateB = b.order_date ? new Date(b.order_date) : new Date(a.created_at || 0);
         } else if (dateFilter.type === 'completion_date') {
           dateA = a.shipment_date ? new Date(a.shipment_date) : new Date(a.created_at || 0);
-          dateB = b.shipment_date ? new Date(b.shipment_date) : new Date(b.created_at || 0);
+          dateB = b.shipment_date ? new Date(b.shipment_date) : new Date(a.created_at || 0);
         } else {
           dateA = new Date(a.created_at || 0);
           dateB = new Date(b.created_at || 0);
@@ -224,24 +430,62 @@ function ShipmentList() {
         return dateB - dateA;
       });
       
-      setShipments(sortedData);
+      // 기존 데이터에 추가
+      setShipments(prev => [...prev, ...sortedData]);
+      setLoadedChunks(prev => prev + 1);
       
       // 판매처 목록 업데이트
       const uniqueSellers = new Set(['전체']);
-      (data || []).forEach(shipment => {
-        uniqueSellers.add(extractSalesChannel(shipment.note, shipment.sales_channel));
+      setShipments(currentShipments => {
+        currentShipments.forEach(shipment => {
+          uniqueSellers.add(extractSalesChannel(shipment.note, shipment.sales_channel));
+        });
+        setSellers(Array.from(uniqueSellers));
+        return currentShipments;
       });
-      setSellers(Array.from(uniqueSellers));
-    } catch (error) {
-      console.error('Error fetching shipments:', error);
-      setSnackbar({
-        open: true,
-        message: '출고 목록을 불러오는 중 오류가 발생했습니다.',
-        severity: 'error'
-      });
+      
+      // 로드된 데이터가 청크 크기보다 작으면 더 이상 데이터 없음
+      if (shipmentsData.length < CHUNK_SIZE) {
+        setHasMoreData(false);
+      }
+      
+      console.log(`Chunk loaded: ${shipmentsData.length} items. Total chunks: ${loadedChunks + 1}`);
+      
+    } catch (err) {
+      console.error('Error loading next chunk:', err);
     } finally {
-      setLoading(false);
+      setIsLoadingNextChunk(false);
     }
+  };
+
+  // 페이지 변경 시 필요하면 새 청크 로딩
+  const handlePageChangeWithLoading = (event, newPage) => {
+    // 표시할 데이터가 없으면 페이지 변경하지 않음
+    if (filteredShipments.length === 0) {
+      console.log('No data to display, staying on current page');
+      return;
+    }
+    
+    // 현재 페이지에 표시할 데이터가 있는지 확인
+    const maxPage = Math.max(0, Math.ceil(filteredShipments.length / rowsPerPage) - 1);
+    const validPage = Math.min(newPage, maxPage);
+    
+    setPage(validPage);
+    
+    // 3페이지마다 새 청크 로딩 체크
+    const itemsNeeded = (validPage + 1) * rowsPerPage;
+    const currentItemsLoaded = shipments.length;
+    
+    // 현재 로드된 데이터로 충분하지 않고, 더 로드할 데이터가 있으며, 현재 로딩 중이 아닐 때
+    if (itemsNeeded > currentItemsLoaded && hasMoreData && !isLoadingNextChunk && !hasActiveSearch) {
+      console.log(`Need ${itemsNeeded} items, have ${currentItemsLoaded}. Loading next chunk...`);
+      fetchNextChunk(currentItemsLoaded);
+    }
+  };
+
+  // 기존 함수명 유지를 위한 래퍼
+  const fetchShipments = () => {
+    fetchFirstPage();
   };
 
   // filteredShipments useMemo로 계산
@@ -285,6 +529,11 @@ function ShipmentList() {
 
     return filtered;
   }, [shipments, searchTerm, statusFilter, sellerFilter, dateFilter.type]);
+
+  // 검색이나 필터 변경 시에만 페이지 초기화 (청크 로딩 시에는 유지)
+  useEffect(() => {
+    setPage(0);
+  }, [searchTerm, statusFilter, sellerFilter, dateFilter, hasActiveSearch]);
 
   const handleBrandChange = (event, newValue) => {
     const next = newValue === 'XRB' || newValue === 'NB' ? newValue : 'XRB';
@@ -1014,9 +1263,84 @@ function ShipmentList() {
     }
   };
 
-  // 페이지 변경 핸들러
-  const handleChangePage = (event, newPage) => {
-    setPage(newPage);
+  // 페이지 변경 핸들러 (기존 함수는 handlePageChangeWithLoading으로 대체됨)
+
+  // 스켈레톤 테이블 렌더링
+  const renderSkeletonTable = () => {
+    const isInitialLoading = loading && !firstPageLoaded;
+    const isSearchLoading = searchLoading;
+    
+    return (
+      <>
+        {(isInitialLoading || isSearchLoading) && (
+          <Backdrop sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1, flexDirection: 'column' }} open>
+            <CircularProgress color="inherit" size={60} />
+            <Box sx={{ mt: 2, textAlign: 'center' }}>
+              <Typography variant="h6" sx={{ mb: 1 }}>
+                {isSearchLoading ? '출고 데이터를 검색하는 중...' : '출고 데이터를 불러오는 중...'}
+              </Typography>
+              {networkError && (
+                <Typography variant="body2" color="error" sx={{ mb: 1 }}>
+                  네트워크 오류가 발생했습니다. 재시도 중... ({retryCount}/3)
+                </Typography>
+              )}
+              {!isOnline && (
+                <Typography variant="body2" color="warning.main">
+                  인터넷 연결을 확인해주세요.
+                </Typography>
+              )}
+              <LinearProgress 
+                sx={{ width: 300, mt: 2 }}
+                variant={networkError ? "indeterminate" : "determinate"}
+                value={isSearchLoading ? 50 : 25}
+              />
+            </Box>
+          </Backdrop>
+        )}
+        
+        <TableContainer component={Paper} sx={{ width: '100%', overflowX: 'auto' }}>
+          <Table sx={{ minWidth: 650, width: '100%', tableLayout: 'fixed' }}>
+            <TableHead>
+              <TableRow>
+                <TableCell width="10%">주문일자</TableCell>
+                <TableCell width="10%">출고일자</TableCell>
+                <TableCell width="10%">고객명</TableCell>
+                <TableCell width="12%">연락처</TableCell>
+                <TableCell width="20%">제품정보</TableCell>
+                <TableCell width="10%">판매처</TableCell>
+                <TableCell width="20%">배송정보</TableCell>
+                <TableCell width="8%">상태</TableCell>
+                <TableCell width="10%">관리</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {Array.from({ length: 10 }).map((_, index) => (
+                <TableRow key={`skeleton-${index}`}>
+                  <TableCell><Skeleton variant="text" width="80%" /></TableCell>
+                  <TableCell><Skeleton variant="text" width="80%" /></TableCell>
+                  <TableCell><Skeleton variant="text" width="90%" /></TableCell>
+                  <TableCell><Skeleton variant="text" width="100%" /></TableCell>
+                  <TableCell>
+                    <Skeleton variant="text" width="100%" />
+                    <Skeleton variant="text" width="70%" />
+                  </TableCell>
+                  <TableCell><Skeleton variant="rectangular" width={60} height={24} /></TableCell>
+                  <TableCell>
+                    <Skeleton variant="text" width="80%" />
+                    <Skeleton variant="text" width="60%" />
+                  </TableCell>
+                  <TableCell><Skeleton variant="rectangular" width={50} height={24} /></TableCell>
+                  <TableCell>
+                    <Skeleton variant="circular" width={32} height={32} sx={{ display: 'inline-block', mr: 1 }} />
+                    <Skeleton variant="circular" width={32} height={32} sx={{ display: 'inline-block' }} />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </>
+    );
   };
 
   // 제품명 정렬 함수: 기체가 1번
@@ -1042,10 +1366,53 @@ function ShipmentList() {
     return names.join(', ');
   }
 
-  if (loading) {
+  // 초기 로딩 중일 때 스켈레톤 표시
+  if (loading && !firstPageLoaded) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-        <CircularProgress />
+      <Box sx={{ width: '100%', maxWidth: '1800px', mx: 'auto', p: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Typography variant="h5">출고 관리</Typography>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <Button 
+              variant="contained" 
+              startIcon={<AddIcon />}
+              disabled
+              sx={{
+                bgcolor: '#3182f6',
+                '&:hover': { bgcolor: '#1b64da' }
+              }}
+            >
+              신규 등록
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<DownloadIcon />}
+              disabled
+            >
+              엑셀 다운로드
+            </Button>
+          </Stack>
+        </Box>
+        
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+          <Tabs
+            value={selectedBrand}
+            onChange={handleBrandChange}
+          >
+            <Tab
+              label="X-RIDER"
+              value="XRB"
+              sx={{ fontWeight: 'bold' }}
+            />
+            <Tab
+              label="NEARBIKE"
+              value="NB"
+              sx={{ fontWeight: 'bold' }}
+            />
+          </Tabs>
+        </Box>
+
+        {renderSkeletonTable()}
       </Box>
     );
   }
@@ -1249,6 +1616,69 @@ function ShipmentList() {
         </Button>
       </Box>
       
+      {/* 오프라인 상태 알림 */}
+      {!isOnline && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          <Typography variant="body2">
+            오프라인 상태입니다. 일부 기능이 제한될 수 있습니다.
+          </Typography>
+        </Alert>
+      )}
+      
+      {/* 백그라운드 로딩 상태 표시 */}
+      {(backgroundLoading || isLoadingNextChunk) && firstPageLoaded && (
+        <Box sx={{ 
+          position: 'fixed', 
+          bottom: 20, 
+          right: 20, 
+          zIndex: 1000,
+          bgcolor: 'rgba(0, 0, 0, 0.8)', 
+          color: 'white', 
+          borderRadius: 2, 
+          p: 2,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          minWidth: 200,
+          boxShadow: 3
+        }}>
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minWidth: 200
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <CircularProgress size={20} color="inherit" />
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  {isLoadingNextChunk ? '다음 페이지 로딩 중...' : '추가 데이터 로딩 중...'}
+                </Typography>
+                <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                  {shipments.length}/{hasActiveSearch ? shipments.length : totalExpected}건 
+                  {loadProgress > 0 && ` (${Math.round(loadProgress)}%)`}
+                  {isLoadingNextChunk && ` • 청크 ${loadedChunks + 1} 로딩`}
+                </Typography>
+              </Box>
+            </Box>
+            {loadProgress > 0 && (
+              <LinearProgress 
+                variant="determinate" 
+                value={loadProgress} 
+                sx={{ 
+                  width: '100%', 
+                  mt: 1,
+                  '& .MuiLinearProgress-bar': {
+                    backgroundColor: 'white'
+                  }
+                }} 
+              />
+            )}
+          </Box>
+        </Box>
+      )}
+      
       {filteredShipments.length === 0 ? (
         <Typography align="center" sx={{ mt: 3 }}>
           {searchTerm || statusFilter !== 'all' || sellerFilter !== 'all' || dateFilter.startDate || dateFilter.endDate ? 
@@ -1354,12 +1784,15 @@ function ShipmentList() {
           </Table>
           <TablePagination
             component="div"
-            count={filteredShipments.length}
+            count={hasActiveSearch ? filteredShipments.length : Math.max(filteredShipments.length, totalExpected)}
             page={page}
-            onPageChange={handleChangePage}
+            onPageChange={handlePageChangeWithLoading}
             rowsPerPage={rowsPerPage}
             rowsPerPageOptions={[30, 50, 100]}
             labelRowsPerPage="페이지당 행 수"
+            labelDisplayedRows={({ from, to, count }) => 
+              `${count}개 중 ${from}-${to}`
+            }
           />
         </TableContainer>
       )}
