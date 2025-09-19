@@ -15,7 +15,14 @@ import {
   useTheme,
   useMediaQuery,
   SwipeableDrawer,
-  Link
+  Link,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Grid,
+  Paper,
+  Chip
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -33,12 +40,17 @@ import {
   Link as LinkIcon,
   Settings as SettingsIcon,
   History as HistoryIcon,
-  MenuBook as MenuBookIcon
+  MenuBook as MenuBookIcon,
+  CalendarToday as CalendarTodayIcon,
+  Close as CloseIcon
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import NotificationBell from './Dashboard/NotificationBell';
+import ServiceCalendar from './ServiceCalendar';
+import dayjs from 'dayjs';
+import 'dayjs/locale/ko';
 
 // 드로어 너비 설정
 const drawerWidth = 240;
@@ -102,6 +114,9 @@ function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(dayjs());
+  const [dailyServices, setDailyServices] = useState([]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -120,6 +135,52 @@ function Layout() {
       minute: '2-digit',
       hour12: false
     });
+  };
+
+  const formatDateTimeWithWeekday = (date) => {
+    const dayjs_date = dayjs(date).locale('ko');
+    return {
+      date: dayjs_date.format('MM월 DD일'),
+      weekday: dayjs_date.format('dddd'),
+      time: dayjs_date.format('HH:mm'),
+      year: dayjs_date.format('YYYY년')
+    };
+  };
+
+  // 선택된 날짜의 A/S 현황 가져오기
+  const fetchDailyServices = async (date) => {
+    try {
+      const selectedDateStr = date.format('YYYY-MM-DD');
+      const { data, error } = await supabase
+        .from('services')
+        .select('*')
+        .gte('reception_date', `${selectedDateStr}T00:00:00.000Z`)
+        .lte('reception_date', `${selectedDateStr}T23:59:59.999Z`)
+        .order('reception_date', { ascending: false });
+
+      if (error) throw error;
+      setDailyServices(data || []);
+    } catch (error) {
+      console.error('일일 A/S 현황 조회 중 오류:', error);
+      setDailyServices([]);
+    }
+  };
+
+  // 달력 열기
+  const handleCalendarOpen = () => {
+    setCalendarOpen(true);
+    fetchDailyServices(selectedDate);
+  };
+
+  // 달력 닫기
+  const handleCalendarClose = () => {
+    setCalendarOpen(false);
+  };
+
+  // 날짜 변경
+  const handleDateChange = (newDate) => {
+    setSelectedDate(newDate);
+    fetchDailyServices(newDate);
   };
 
   const menuItems = [
@@ -179,17 +240,53 @@ function Layout() {
             고객관리시스템
           </Typography>
           <NotificationBell />
-          <Typography
-            variant="body2"
+          <Box
+            onClick={handleCalendarOpen}
             sx={{
-              color: 'inherit',
-              fontSize: '0.875rem',
-              fontWeight: 500,
-              mr: 2
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              mr: 2,
+              cursor: 'pointer',
+              borderRadius: 1,
+              px: 1.5,
+              py: 0.5,
+              transition: 'all 0.2s ease-in-out',
+              '&:hover': {
+                bgcolor: 'rgba(255, 255, 255, 0.1)',
+                transform: 'scale(1.02)'
+              }
             }}
           >
-            {formatDateTime(currentDateTime)}
-          </Typography>
+            <CalendarTodayIcon sx={{ fontSize: '1.1rem', color: 'inherit' }} />
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: 'inherit',
+                  fontSize: { xs: '0.9rem', sm: '1rem' },
+                  fontWeight: 700,
+                  lineHeight: 1,
+                  textAlign: 'center'
+                }}
+              >
+                {formatDateTimeWithWeekday(currentDateTime).date}
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: 'inherit',
+                  fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                  fontWeight: 500,
+                  opacity: 0.9,
+                  lineHeight: 1,
+                  textAlign: 'center'
+                }}
+              >
+                {formatDateTimeWithWeekday(currentDateTime).weekday} • {formatDateTimeWithWeekday(currentDateTime).time}
+              </Typography>
+            </Box>
+          </Box>
           <Button
             color="inherit"
             startIcon={<MessageIcon />}
@@ -331,6 +428,106 @@ function Layout() {
         <DrawerHeader />
         <Outlet />
       </Main>
+      
+      {/* 달력 모달 */}
+      <Dialog 
+        open={calendarOpen} 
+        onClose={handleCalendarClose}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle sx={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          pb: 2
+        }}>
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>
+            📅 달력 및 A/S 현황
+          </Typography>
+          <IconButton onClick={handleCalendarClose} size="small">
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          <Grid container spacing={3}>
+            {/* 달력 */}
+            <Grid item xs={12} md={7}>
+              <ServiceCalendar 
+                selectedDate={selectedDate}
+                onDateChange={handleDateChange}
+              />
+            </Grid>
+            
+            {/* 선택된 날짜의 A/S 현황 */}
+            <Grid item xs={12} md={5}>
+              <Paper elevation={0} sx={{ p: 2, bgcolor: '#f8f9fa', border: '1px solid #e9ecef' }}>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  {selectedDate.locale('ko').format('MM월 DD일 dddd')} A/S 현황
+                </Typography>
+                
+                {dailyServices.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
+                    선택된 날짜에 A/S 접수 내역이 없습니다.
+                  </Typography>
+                ) : (
+                  <List sx={{ maxHeight: 400, overflow: 'auto' }}>
+                    {dailyServices.map((service) => (
+                      <ListItem 
+                        key={service.id} 
+                        sx={{ 
+                          mb: 1, 
+                          bgcolor: 'white', 
+                          borderRadius: 1,
+                          border: '1px solid #e9ecef',
+                          cursor: 'pointer',
+                          '&:hover': { bgcolor: '#f1f3f4' }
+                        }}
+                        onClick={() => {
+                          handleCalendarClose();
+                          navigate(`/services/${service.id}`);
+                        }}
+                      >
+                        <ListItemText
+                          primary={
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                                {service.customer_name}
+                              </Typography>
+                              <Chip 
+                                label={service.status} 
+                                size="small"
+                                sx={{
+                                  bgcolor: service.status === '접수' ? '#3182f6' :
+                                          service.status === '처리중' ? '#ffa927' :
+                                          service.status === '부분완료' ? '#4e5968' :
+                                          '#00c773',
+                                  color: 'white',
+                                  fontSize: '0.75rem'
+                                }}
+                              />
+                            </Box>
+                          }
+                          secondary={
+                            <Typography variant="body2" color="text.secondary">
+                              {service.product_name} • {dayjs(service.reception_date).format('HH:mm')}
+                            </Typography>
+                          }
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
+                )}
+              </Paper>
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCalendarClose} variant="contained">
+            닫기
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

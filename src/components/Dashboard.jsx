@@ -24,7 +24,7 @@ import {
   ButtonGroup,
   Select,
   MenuItem,
-  FormControl
+  FormControl,
 } from '@mui/material';
 import {
   Build as BuildIcon,
@@ -585,6 +585,7 @@ function Dashboard() {
 
 
 
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '70vh' }}>
@@ -637,6 +638,7 @@ function Dashboard() {
           새로고침
         </Button>
       </Box>
+
 
       {/* 메모 섹션 */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
@@ -978,6 +980,8 @@ function Dashboard() {
 
 
     </Box>
+    
+
     <Snackbar
       open={telegramResult.open}
       autoHideDuration={2500}

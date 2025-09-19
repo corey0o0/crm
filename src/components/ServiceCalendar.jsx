@@ -8,13 +8,20 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/ko';
 import { supabase } from '../lib/supabaseClient';
 
-const ServiceCalendar = () => {
+const ServiceCalendar = ({ onDateChange, selectedDate: propSelectedDate }) => {
   const [serviceData, setServiceData] = useState({});
-  const [selectedDate, setSelectedDate] = useState(dayjs());
+  const [selectedDate, setSelectedDate] = useState(propSelectedDate || dayjs());
 
   useEffect(() => {
     fetchServiceData();
   }, []);
+
+  // props로 받은 selectedDate가 변경될 때 내부 상태 업데이트
+  useEffect(() => {
+    if (propSelectedDate) {
+      setSelectedDate(propSelectedDate);
+    }
+  }, [propSelectedDate]);
 
   const fetchServiceData = async () => {
     try {
@@ -64,7 +71,7 @@ const ServiceCalendar = () => {
     const tooltipContent = (
       <Box sx={{ p: 1 }}>
         <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
-          {day.format('YYYY년 MM월 DD일')}
+          {day.locale('ko').format('YYYY년 MM월 DD일 dddd')}
         </Typography>
         {dayData.접수.length > 0 ? (
           dayData.접수.map(s => (
@@ -127,11 +134,10 @@ const ServiceCalendar = () => {
     >
       <Box sx={{ 
         display: 'flex', 
-        alignItems: 'center', 
+        alignItems: { xs: 'flex-start', sm: 'center' },
         mb: 3,
         gap: 3,
-        flexDirection: { xs: 'column', sm: 'row' },
-        alignItems: { xs: 'flex-start', sm: 'center' }
+        flexDirection: { xs: 'column', sm: 'row' }
       }}>
         <Typography variant="h6" sx={{ fontWeight: 600, color: '#191f28' }}>
           A/S 현황
@@ -158,7 +164,12 @@ const ServiceCalendar = () => {
       <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="ko">
         <DateCalendar
           value={selectedDate}
-          onChange={(newValue) => setSelectedDate(newValue)}
+          onChange={(newValue) => {
+            setSelectedDate(newValue);
+            if (onDateChange) {
+              onDateChange(newValue);
+            }
+          }}
           slots={{
             day: ServerDay
           }}
