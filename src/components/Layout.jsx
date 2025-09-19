@@ -236,7 +236,16 @@ function Layout() {
           >
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
+          <Typography 
+            variant="h6" 
+            noWrap 
+            component="div" 
+            sx={{ 
+              flexGrow: 1, 
+              cursor: 'pointer'
+            }}
+            onClick={() => navigate('/')}
+          >
             고객관리시스템
           </Typography>
           <NotificationBell />

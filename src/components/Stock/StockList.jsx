@@ -102,6 +102,8 @@ function StockList() {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [uploadedData, setUploadedData] = useState([]);
   const [uploadFile, setUploadFile] = useState(null);
+  const [changedItems, setChangedItems] = useState(new Set());
+  const [originalStocks, setOriginalStocks] = useState({});
 
   useEffect(() => {
     fetchParts();
@@ -115,8 +117,17 @@ function StockList() {
     if (error) {
       setSnackbar({ open: true, message: '재고 목록을 불러오지 못했습니다.', severity: 'error' });
       setParts([]);
+      setOriginalStocks({});
     } else {
       setParts(data || []);
+      // 원본 재고 값 저장
+      const originalStockData = {};
+      (data || []).forEach(part => {
+        originalStockData[part.id] = part.stock;
+      });
+      setOriginalStocks(originalStockData);
+      // 변경된 항목 초기화
+      setChangedItems(new Set());
     }
     setLoading(false);
   };
@@ -126,7 +137,20 @@ function StockList() {
     const numericValue = value.replace(/[^0-9]/g, '');
     // 숫자로 변환
     const stockValue = numericValue === '' ? 0 : parseInt(numericValue, 10);
+    
+    // 재고 값 업데이트
     setParts(prev => prev.map(p => p.id === id ? { ...p, stock: stockValue } : p));
+    
+    // 변경된 항목 추적
+    setChangedItems(prev => {
+      const newSet = new Set(prev);
+      if (originalStocks[id] !== stockValue) {
+        newSet.add(id);
+      } else {
+        newSet.delete(id);
+      }
+      return newSet;
+    });
   };
 
   const handleSaveStock = async (id, currentStock, newStock) => {
@@ -210,6 +234,20 @@ function StockList() {
       });
 
       setSnackbar({ open: true, message: '재고가 저장되었습니다.', severity: 'success' });
+      
+      // 변경된 항목에서 해당 아이템 제거
+      setChangedItems(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(id);
+        return newSet;
+      });
+      
+      // 원본 재고 값 업데이트
+      setOriginalStocks(prev => ({
+        ...prev,
+        [id]: stockValue
+      }));
+      
       fetchParts();
     } catch (error) {
       console.error('재고 저장 중 오류:', error);
@@ -562,6 +600,21 @@ function StockList() {
       }
       
       setSnackbar({ open: true, message: `${selectedItems.length}개 항목의 재고가 저장되었습니다.`, severity: 'success' });
+      
+      // 저장된 항목들의 하이라이트 제거
+      setChangedItems(prev => {
+        const newSet = new Set(prev);
+        selectedItems.forEach(id => newSet.delete(id));
+        return newSet;
+      });
+      
+      // 저장된 항목들의 원본 재고 값 업데이트
+      const updatedOriginalStocks = { ...originalStocks };
+      selectedParts.forEach(part => {
+        updatedOriginalStocks[part.id] = part.stock;
+      });
+      setOriginalStocks(updatedOriginalStocks);
+      
       fetchParts(); // 목록 새로고침
       setSelectedItems([]); // 선택 초기화
       setSelectAll(false); // 전체 선택 해제
@@ -660,6 +713,21 @@ function StockList() {
       }
       
       setSnackbar({ open: true, message: `${partsToSave.length}개 항목의 재고가 저장되었습니다.`, severity: 'success' });
+      
+      // 저장된 항목들의 하이라이트 제거
+      setChangedItems(prev => {
+        const newSet = new Set(prev);
+        partsToSave.forEach(part => newSet.delete(part.id));
+        return newSet;
+      });
+      
+      // 저장된 항목들의 원본 재고 값 업데이트
+      const updatedOriginalStocks = { ...originalStocks };
+      partsToSave.forEach(part => {
+        updatedOriginalStocks[part.id] = part.stock;
+      });
+      setOriginalStocks(updatedOriginalStocks);
+      
       fetchParts(); // 목록 새로고침
     } catch (error) {
       console.error('재고 일괄 저장 중 오류:', error);
@@ -1122,7 +1190,17 @@ function StockList() {
             </TableHead>
             <TableBody>
               {pagedParts.map(part => (
-                <TableRow key={part.id}>
+                <TableRow 
+                  key={part.id}
+                  sx={{
+                    backgroundColor: changedItems.has(part.id) ? 'rgba(255, 235, 59, 0.15)' : 'inherit',
+                    borderLeft: changedItems.has(part.id) ? '4px solid #ffcc02' : 'none',
+                    transition: 'background-color 0.3s ease, border-left 0.3s ease',
+                    '&:hover': {
+                      backgroundColor: changedItems.has(part.id) ? 'rgba(255, 235, 59, 0.25)' : 'rgba(0, 0, 0, 0.04)'
+                    }
+                  }}
+                >
                     <TableCell padding="checkbox">
                       <Checkbox
                         checked={selectedItems.includes(part.id)}
@@ -1181,7 +1259,14 @@ function StockList() {
                           width: 80,
                           '& input': {
                             fontWeight: (part.stock > 0) ? 700 : 400,
-                            color: (part.stock === 0) ? 'error.main' : 'inherit'
+                            color: (part.stock === 0) ? 'error.main' : 'inherit',
+                            backgroundColor: changedItems.has(part.id) ? 'rgba(255, 235, 59, 0.3)' : 'inherit'
+                          },
+                          '& .MuiOutlinedInput-root': {
+                            '& fieldset': {
+                              borderColor: changedItems.has(part.id) ? '#ffcc02' : 'inherit',
+                              borderWidth: changedItems.has(part.id) ? '2px' : '1px'
+                            }
                           }
                         }}
                         inputProps={{ 
@@ -1225,15 +1310,33 @@ function StockList() {
                 color="primary"
                 disabled={selectedItems.length === 0}
                 onClick={handleSaveSelectedItems}
+                sx={{
+                  backgroundColor: selectedItems.some(id => changedItems.has(id)) ? '#ff9800' : 'primary.main',
+                  '&:hover': {
+                    backgroundColor: selectedItems.some(id => changedItems.has(id)) ? '#f57c00' : 'primary.dark'
+                  }
+                }}
               >
                 선택 저장 ({selectedItems.length}개)
+                {selectedItems.filter(id => changedItems.has(id)).length > 0 && 
+                  ` - 변경된 ${selectedItems.filter(id => changedItems.has(id)).length}개`
+                }
               </Button>
               <Button
                 variant="outlined"
                 color="primary"
                 onClick={handleSaveAllItems}
+                sx={{
+                  borderColor: changedItems.size > 0 ? '#ff9800' : 'primary.main',
+                  color: changedItems.size > 0 ? '#ff9800' : 'primary.main',
+                  '&:hover': {
+                    borderColor: changedItems.size > 0 ? '#f57c00' : 'primary.dark',
+                    backgroundColor: changedItems.size > 0 ? 'rgba(255, 152, 0, 0.04)' : 'rgba(25, 118, 210, 0.04)'
+                  }
+                }}
               >
                 전체 저장 ({filteredParts.length}개)
+                {changedItems.size > 0 && ` - 변경된 ${changedItems.size}개`}
               </Button>
             </Stack>
           </Box>
