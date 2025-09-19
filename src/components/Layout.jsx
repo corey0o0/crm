@@ -509,9 +509,14 @@ function Layout() {
                             </Box>
                           }
                           secondary={
-                            <Typography variant="body2" color="text.secondary">
-                              {service.product_name} • {dayjs(service.reception_date).format('HH:mm')}
-                            </Typography>
+                            <Box>
+                              <Typography variant="body2" color="text.secondary">
+                                {service.product_name} • {dayjs(service.reception_date).format('HH:mm')}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem', mt: 0.5 }}>
+                                📞 {service.customer_phone}
+                              </Typography>
+                            </Box>
                           }
                         />
                       </ListItem>
