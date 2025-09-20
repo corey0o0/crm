@@ -532,7 +532,19 @@ function ServiceList() {
       // 검색어 필터링 (최소 2글자 이상일 때만)
       if (searchParams.searchTerm && searchParams.searchTerm.length >= 2) {
         console.log('Applying search filter for term:', searchParams.searchTerm);
-        query = query.or(`customer_name.ilike.%${searchParams.searchTerm}%,customer_phone.ilike.%${searchParams.searchTerm}%,product_name.ilike.%${searchParams.searchTerm}%,symptom.ilike.%${searchParams.searchTerm}%`);
+        // 기본 필드 검색 (고객명, 연락처, 제품명, 증상)
+        const basicSearch = `customer_name.ilike.%${searchParams.searchTerm}%,customer_phone.ilike.%${searchParams.searchTerm}%,product_name.ilike.%${searchParams.searchTerm}%,symptom.ilike.%${searchParams.searchTerm}%`;
+        
+        // A/S ID 검색 - 숫자인지 확인
+        const isNumeric = /^\d+$/.test(searchParams.searchTerm);
+        
+        if (isNumeric) {
+          // 숫자인 경우: 정확한 일치로 검색
+          query = query.or(`${basicSearch},id.eq.${searchParams.searchTerm}`);
+        } else {
+          // 문자열인 경우: 기본 검색만 (UUID 검색은 복잡하므로 제외)
+          query = query.or(basicSearch);
+        }
       } else if (searchParams.searchTerm && searchParams.searchTerm.length < 2) {
         console.log('Search term too short, ignoring:', searchParams.searchTerm);
         // 검색어가 너무 짧으면 검색하지 않고 전체 데이터 로딩으로 변경
@@ -571,7 +583,16 @@ function ServiceList() {
 
       // 카운트 쿼리에도 필터 적용
       if (searchParams.searchTerm && searchParams.searchTerm.length >= 2) {
-        countQuery = countQuery.or(`customer_name.ilike.%${searchParams.searchTerm}%,customer_phone.ilike.%${searchParams.searchTerm}%,product_name.ilike.%${searchParams.searchTerm}%,symptom.ilike.%${searchParams.searchTerm}%`);
+        const basicSearch = `customer_name.ilike.%${searchParams.searchTerm}%,customer_phone.ilike.%${searchParams.searchTerm}%,product_name.ilike.%${searchParams.searchTerm}%,symptom.ilike.%${searchParams.searchTerm}%`;
+        const isNumeric = /^\d+$/.test(searchParams.searchTerm);
+        
+        if (isNumeric) {
+          // 숫자인 경우: 정확한 일치로 검색
+          countQuery = countQuery.or(`${basicSearch},id.eq.${searchParams.searchTerm}`);
+        } else {
+          // 문자열인 경우: 기본 검색만
+          countQuery = countQuery.or(basicSearch);
+        }
       }
 
       if (searchParams.selectedStatuses && searchParams.selectedStatuses.length > 0) {
@@ -2532,7 +2553,7 @@ function ServiceList() {
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
           <TextField
             variant="outlined"
-            placeholder="고객명, 연락처, 제품명으로 검색"
+            placeholder="고객명, 연락처, 제품명, A/S ID로 검색"
             value={inputValue}
             onChange={handleSearchInput}
             onKeyPress={(e) => {

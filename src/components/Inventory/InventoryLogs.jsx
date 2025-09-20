@@ -177,15 +177,15 @@ const InventoryLogs = () => {
   const getChangeTypeLabel = (changeType) => {
     switch (changeType) {
       case 'shipment_complete':
-        return '출고 완료';
+        return '출고';
       case 'service_complete':
-        return 'A/S 완료';
+        return 'A/S';
       case 'shipment_revert':
-        return '출고 취소';
+        return '출고취소';
       case 'service_revert':
-        return 'A/S 취소';
+        return 'A/S취소';
       case 'manual_adjust':
-        return '수동 조정';
+        return '수동조정';
       default:
         return changeType;
     }
@@ -354,7 +354,7 @@ const InventoryLogs = () => {
                       <TableCell align="center">이전 수량</TableCell>
                       <TableCell align="center">변경 후 수량</TableCell>
                       <TableCell>참조 ID</TableCell>
-                      <TableCell>비고</TableCell>
+                      <TableCell>처리내역</TableCell>
                     </>
                   ) : (
                     <>
@@ -399,16 +399,9 @@ const InventoryLogs = () => {
                       </TableCell>
                       
                       <TableCell>
-                        <Box>
-                          <Typography variant="body2" fontWeight="medium">
-                            {getChangeTypeLabel(log.change_type)}
-                          </Typography>
-                          {log.reference_type && (
-                            <Typography variant="caption" color="text.secondary">
-                              ({log.reference_type === 'shipment' ? '출고완료' : 'A/S완료'} 처리)
-                            </Typography>
-                          )}
-                        </Box>
+                        <Typography variant="body2" fontWeight="medium">
+                          {getChangeTypeLabel(log.change_type)}
+                        </Typography>
                       </TableCell>
                       
                       <TableCell>
@@ -453,7 +446,16 @@ const InventoryLogs = () => {
                               size="small"
                               color={log.reference_type === 'shipment' ? 'primary' : 'secondary'}
                             />
-                            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                            <Typography 
+                              variant="body2" 
+                              color="text.secondary" 
+                              sx={{ 
+                                fontSize: '0.75rem',
+                                fontFamily: 'monospace',
+                                fontWeight: 'medium'
+                              }}
+                              title={`전체 ID: ${log.reference_id}`}
+                            >
                               {log.reference_id.slice(-8)}
                             </Typography>
                           </Box>
@@ -464,7 +466,7 @@ const InventoryLogs = () => {
                       
                       <TableCell>
                         <Typography variant="body2" color="text.secondary">
-                          {log.notes || '-'}
+                          {log.notes || (log.reference_type ? `${log.reference_type === 'shipment' ? '출고' : 'A/S'} 완료 처리` : '-')}
                         </Typography>
                       </TableCell>
                     </TableRow>

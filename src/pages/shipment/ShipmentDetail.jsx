@@ -1103,7 +1103,17 @@ function ShipmentDetail() {
           </Grid>
           
           <Grid item xs={12} md={6}>
-            <Typography variant="h6" gutterBottom>출고 정보</Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+              <Typography variant="h6">출고 정보</Typography>
+              <Box sx={{ textAlign: 'right' }}>
+                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                  출고 ID
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 'medium', fontFamily: 'monospace', fontSize: '0.875rem' }}>
+                  {shipmentData.id}
+                </Typography>
+              </Box>
+            </Box>
             <Card variant="outlined">
               <CardContent>
                 <Grid container spacing={1}>

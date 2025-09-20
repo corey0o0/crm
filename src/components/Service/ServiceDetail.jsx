@@ -1982,13 +1982,22 @@ function ServiceDetail() {
         </Box>
 
         <Paper sx={paperStyle}>
-          <Typography variant="h5" gutterBottom sx={{ 
-            mb: 4, 
-            color: '#191f28',
-            fontWeight: 600 
-          }}>
-            A/S 상세 정보
-          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+            <Typography variant="h5" sx={{ 
+              color: '#191f28',
+              fontWeight: 600 
+            }}>
+              A/S 상세 정보
+            </Typography>
+            <Box sx={{ textAlign: 'right' }}>
+              <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                A/S ID
+              </Typography>
+              <Typography variant="body2" sx={{ fontWeight: 'medium', fontFamily: 'monospace', fontSize: '0.875rem' }}>
+                {id}
+              </Typography>
+            </Box>
+          </Box>
 
           <Grid container spacing={4}>
             <Grid item xs={12} md={6}>

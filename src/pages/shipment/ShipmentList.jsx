@@ -497,7 +497,8 @@ function ShipmentList() {
       filtered = filtered.filter(shipment =>
         shipment.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         shipment.customer_phone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        shipment.product_name?.toLowerCase().includes(searchTerm.toLowerCase())
+        shipment.product_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        shipment.id?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
@@ -1582,7 +1583,7 @@ function ShipmentList() {
           />
         )}
         <TextField
-          placeholder="고객명, 연락처, 제품명으로 검색"
+          placeholder="고객명, 연락처, 제품명, 출고ID로 검색"
           variant="outlined"
           size="small"
           value={inputValue}

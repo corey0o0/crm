@@ -1243,6 +1243,7 @@ function SalesStats() {
                   <Table size="small">
                     <TableHead>
                     <TableRow sx={{backgroundColor: 'grey.100'}}>
+                      <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>A/S ID</TableCell>
                       <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>제품/부품명</TableCell>
                       <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>부품코드</TableCell>
                       <TableCell align="right" sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>수량</TableCell>
@@ -1257,10 +1258,16 @@ function SalesStats() {
                       // Log the first A/S part for debugging
                       if (index === 0 && date === Object.keys(serviceGroupedByDate)[0]) { // 첫 번째 날짜의 첫 번째 항목만 로그
                         console.log('[DEBUG] Rendering First A/S Part of First Date:', part);
-                        console.log('[DEBUG] Rendering First A/S Part Name of First Date:', part.name);
+                        console.log('[DEBUG] service_id:', part.service_id, 'type:', typeof part.service_id);
+                        console.log('[DEBUG] Part object keys:', Object.keys(part));
                       }
                       return (
                         <TableRow key={`servicepart-${part.service_id}-${part.code}-${index}`}> {/* 키를 더 고유하게 만듭니다. */}
+                          <TableCell>
+                            <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                              {part.service_id ? String(part.service_id).slice(-8) : '-'}
+                            </Typography>
+                          </TableCell>
                           <TableCell>{part.name}</TableCell> {/* Tooltip과 스타일 없이 직접 표시 */}
                           <TableCell>{part.code}</TableCell>
                           <TableCell align="right">{part.quantity}</TableCell>
@@ -1294,7 +1301,7 @@ function SalesStats() {
                           }
                           return (
                             <TableRow key={`usage-sum-${usage}-${idx}`} sx={{ backgroundColor: '#f7f7f7' }}>
-                              <TableCell colSpan={2} align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{usage} 합계</TableCell>
+                              <TableCell colSpan={3} align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{usage} 합계</TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold' }}>{sum.quantity}</TableCell>
                               <TableCell></TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold' }}>{displayTotal}</TableCell>
@@ -1314,7 +1321,7 @@ function SalesStats() {
                         });
                         return Object.entries(noteMap).map(([note, sum], idx) => (
                           <TableRow key={`note-sum-${note}-${idx}`} sx={{ backgroundColor: '#f0f4ff' }}>
-                            <TableCell colSpan={2} align="right" sx={{ fontWeight: 'bold', color: 'secondary.main' }}>{note} 합계</TableCell>
+                            <TableCell colSpan={3} align="right" sx={{ fontWeight: 'bold', color: 'secondary.main' }}>{note} 합계</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold' }}>{sum.quantity}</TableCell>
                             <TableCell></TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(sum.total)}</TableCell>
@@ -1348,6 +1355,7 @@ function SalesStats() {
                   <Table size="small">
                     <TableHead>
                     <TableRow sx={{backgroundColor: 'grey.100'}}>
+                      <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>출고 ID</TableCell>
                       <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>제품/부품명</TableCell>
                       <TableCell sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>카테고리</TableCell>
                       <TableCell align="right" sx={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>수량</TableCell>
@@ -1361,6 +1369,11 @@ function SalesStats() {
                     <TableBody>
                     {parts.map((part, idx) => (
                       <TableRow key={part.shipment_item_key || idx}>
+                          <TableCell>
+                            <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                              {part.shipment_id ? String(part.shipment_id).slice(-8) : '-'}
+                            </Typography>
+                          </TableCell>
                           <TableCell>{part.name}</TableCell>
                         <TableCell>{part.part_category || '기타'}</TableCell>
                           <TableCell align="right">{part.quantity}</TableCell>
@@ -1382,11 +1395,11 @@ function SalesStats() {
                       });
                       return Object.entries(catMap).map(([cat, sum], idx) => (
                         <TableRow key={`cat-sum-${cat}-${idx}`} sx={{ backgroundColor: '#e3f2fd' }}>
-                          <TableCell colSpan={1} align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{cat} 합계</TableCell>
+                          <TableCell colSpan={2} align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{cat} 합계</TableCell>
                           <TableCell align="right" sx={{ fontWeight: 'bold' }}>{sum.quantity}</TableCell>
                           <TableCell></TableCell>
                           <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(sum.total)}</TableCell>
-                          <TableCell colSpan={3}></TableCell>
+                          <TableCell colSpan={4}></TableCell>
                         </TableRow>
                       ));
                     })()}
@@ -1424,22 +1437,20 @@ function SalesStats() {
                           {/* 판매채널별 카테고리 상세 */}
                           {categories.map((cat, catIdx) => (
                             <TableRow key={`channel-cat-${channel}-${cat.category}-${catIdx}`} sx={{ backgroundColor: '#f8f9ff' }}>
-                              <TableCell align="right" sx={{ fontWeight: 'bold', color: '#1565c0', fontSize: '0.9rem' }}>
+                              <TableCell colSpan={2} align="right" sx={{ fontWeight: 'bold', color: '#1565c0', fontSize: '0.9rem' }}>
                                 {channel} ({cat.category})
                               </TableCell>
-                              <TableCell></TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold', color: '#424242', fontSize: '0.9rem' }}>{cat.quantity}</TableCell>
                               <TableCell></TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold', color: '#424242', fontSize: '0.9rem' }}>{formatCurrency(cat.total)}</TableCell>
-                              <TableCell colSpan={3}></TableCell>
+                              <TableCell colSpan={4}></TableCell>
                             </TableRow>
                           ))}
                           {/* 판매채널 총합계 */}
                           <TableRow key={`channel-total-${channel}`} sx={{ backgroundColor: '#e8f5e9' }}>
-                            <TableCell colSpan={1} align="right" sx={{ fontWeight: 'bold', color: '#2e7d32', fontSize: '0.95rem' }}>
+                            <TableCell colSpan={2} align="right" sx={{ fontWeight: 'bold', color: '#2e7d32', fontSize: '0.95rem' }}>
                               {channel} 총합계
                             </TableCell>
-                            <TableCell></TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', color: '#424242' }}>
                               {categories.reduce((sum, cat) => sum + cat.quantity, 0)}
                             </TableCell>
@@ -1447,7 +1458,7 @@ function SalesStats() {
                             <TableCell align="right" sx={{ fontWeight: 'bold', color: '#424242' }}>
                               {formatCurrency(categories.reduce((sum, cat) => sum + cat.total, 0))}
                             </TableCell>
-                            <TableCell colSpan={3}></TableCell>
+                            <TableCell colSpan={4}></TableCell>
                           </TableRow>
                         </React.Fragment>
                       ));
