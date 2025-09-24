@@ -1605,11 +1605,14 @@ function ShipmentList() {
         >
           검색
         </Button>
-        <Button 
-          variant="outlined" 
+        <Button
+          variant="outlined"
           onClick={() => {
             setInputValue('');
             setSearchTerm('');
+            setStatusFilter('all');
+            setSellerFilter('all');
+            resetDateFilter();
           }}
           size="small"
         >

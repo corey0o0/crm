@@ -401,13 +401,20 @@ function ShipmentDetail() {
         }
       }
       
-      // 상태 업데이트
+      // 상태 업데이트 데이터 준비
+      const updateData = { 
+        status: newStatus,
+        updated_at: new Date().toISOString()
+      };
+      
+      // 출고완료로 변경 시 출고일도 현재 시점으로 업데이트
+      if (newStatus === '출고완료') {
+        updateData.shipment_date = new Date().toISOString().split('T')[0];
+      }
+      
       const { error: updateError } = await supabase
         .from('shipments')
-        .update({ 
-          status: newStatus,
-          updated_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('id', id);
 
       if (updateError) {
@@ -1261,8 +1268,14 @@ function ShipmentDetail() {
                           </TableRow>
                         ))}
                         <TableRow>
-                          <TableCell colSpan={4} align="right" sx={{ fontWeight: 'bold' }}>
+                          <TableCell colSpan={2} align="right" sx={{ fontWeight: 'bold' }}>
                             총 합계
+                          </TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                            {sortedEditableParts.reduce((sum, part) => sum + (part.quantity || 0), 0)}개
+                          </TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                            -
                           </TableCell>
                           <TableCell align="right" sx={{ fontWeight: 'bold' }}>
                             {sortedEditableParts.reduce((sum, part) => sum + (part.total_price || (part.price * part.quantity)), 0).toLocaleString()}원
@@ -1328,8 +1341,14 @@ function ShipmentDetail() {
                       ))}
                       {/* 총합계 */}
                       <TableRow>
-                        <TableCell colSpan={5} align="right" sx={{ fontWeight: 700, bgcolor: '#e9ecef' }}>
+                        <TableCell colSpan={3} align="right" sx={{ fontWeight: 700, bgcolor: '#e9ecef' }}>
                           총 합계
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 700, bgcolor: '#e9ecef' }}>
+                          {shipmentParts.reduce((sum, p) => sum + (p.quantity || 0), 0)}개
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 700, bgcolor: '#e9ecef' }}>
+                          -
                         </TableCell>
                         <TableCell sx={{ fontWeight: 700, bgcolor: '#e9ecef' }}>
                           {shipmentParts.reduce((sum, p) => sum + (p.price * p.quantity), 0).toLocaleString()}원

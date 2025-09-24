@@ -564,10 +564,10 @@ function ServiceList() {
       if (searchParams.dateFilter && (searchParams.dateFilter.startDate || searchParams.dateFilter.endDate)) {
         const dateField = searchParams.dateFilter.type || 'reception_date';
         if (searchParams.dateFilter.startDate) {
-          query = query.gte(dateField, `${searchParams.dateFilter.startDate}T00:00:00.000Z`);
+          query = query.gte(dateField, searchParams.dateFilter.startDate);
         }
         if (searchParams.dateFilter.endDate) {
-          query = query.lte(dateField, `${searchParams.dateFilter.endDate}T23:59:59.999Z`);
+          query = query.lte(dateField, searchParams.dateFilter.endDate);
         }
       }
       
@@ -607,13 +607,13 @@ function ServiceList() {
         countQuery = countQuery.overlaps('tag_names', searchParams.selectedTags);
       }
 
-      if (searchParams.dateFilter) {
-        const { startDate, endDate, dateType } = searchParams.dateFilter;
-        if (startDate && endDate) {
-          const dateField = dateType === 'receipt_date' ? 'receipt_date' : 'request_date';
-          countQuery = countQuery
-            .gte(dateField, startDate)
-            .lte(dateField, endDate);
+      if (searchParams.dateFilter && (searchParams.dateFilter.startDate || searchParams.dateFilter.endDate)) {
+        const dateField = searchParams.dateFilter.type || 'reception_date';
+        if (searchParams.dateFilter.startDate) {
+          countQuery = countQuery.gte(dateField, searchParams.dateFilter.startDate);
+        }
+        if (searchParams.dateFilter.endDate) {
+          countQuery = countQuery.lte(dateField, searchParams.dateFilter.endDate);
         }
       }
 
