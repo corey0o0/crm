@@ -37,16 +37,32 @@ function NotificationBell() {
   const localStorageKey = 'lastCheckedNotificationTimestamp'; // localStorage 키 정의
 
   const fetchNotifications = async (currentPage = 0) => {
-    const from = currentPage * pageSize;
-    const to = from + pageSize - 1;
-    const { data, error, count } = await supabase
-      .from('notifications')
-      .select('*', { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range(from, to);
+    try {
+      const from = currentPage * pageSize;
+      const to = from + pageSize - 1;
+      const { data, error, count } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(from, to);
 
-    if (error) {
-      console.error('[NotificationBell] Error fetching notifications:', error);
+      if (error) {
+        // notifications 테이블이 없는 경우 조용히 처리
+        if (error.code === 'PGRST116' || error.message.includes('does not exist')) {
+          console.log('[NotificationBell] notifications 테이블이 없습니다. 알림 기능을 비활성화합니다.');
+          setNotifications([]);
+          setUnreadCount(0);
+          setTotalCount(0);
+          return;
+        }
+        console.error('[NotificationBell] Error fetching notifications:', error);
+        setNotifications([]);
+        setUnreadCount(0);
+        setTotalCount(0);
+        return;
+      }
+    } catch (error) {
+      console.log('[NotificationBell] 알림 기능을 임시로 비활성화합니다:', error.message);
       setNotifications([]);
       setUnreadCount(0);
       setTotalCount(0);
@@ -79,38 +95,51 @@ function NotificationBell() {
     let reconnectAttempts = 0; // 재연결 시도 횟수 추적
 
     const setupRealtimeSubscription = () => {
-      // 기존 채널이 있다면 제거
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
+      try {
+        // 기존 채널이 있다면 제거
+        if (channel) {
+          supabase.removeChannel(channel);
+        }
 
-      // Supabase Realtime 구독 설정
-      channel = supabase
-        .channel('public:notifications')
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'notifications' },
-          (payload) => {
-            console.log('New notification received (Bell):', payload.new);
-            // 새 알림을 기존 알림 목록의 맨 앞에 추가
-            setNotifications((prevNotifications) => [payload.new, ...prevNotifications].slice(0, pageSize * (page + 1)));
-            setTotalCount((prevTotalCount) => prevTotalCount + 1);
-            
-            // 읽지 않은 알림 수 증가
-            setUnreadCount((prevUnreadCount) => prevUnreadCount + 1);
-          }
-        )
-        .subscribe((status, err) => {
-          if (status === 'SUBSCRIBED') {
-            console.log('Subscribed to notifications channel (Bell)');
-            // 연결 성공 시 재연결 타이머 클리어
-            if (reconnectTimeout) {
-              clearTimeout(reconnectTimeout);
-              reconnectTimeout = null;
+        // notifications 테이블이 없는 경우 구독 설정하지 않음
+        console.log('[NotificationBell] 실시간 알림 구독을 비활성화합니다 (테이블 없음)');
+        return;
+
+        // Supabase Realtime 구독 설정 (주석 처리)
+        /*
+        channel = supabase
+          .channel('public:notifications')
+          .on(
+            'postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'notifications' },
+            (payload) => {
+              console.log('New notification received (Bell):', payload.new);
+              // 새 알림을 기존 알림 목록의 맨 앞에 추가
+              setNotifications((prevNotifications) => [payload.new, ...prevNotifications].slice(0, pageSize * (page + 1)));
+              setTotalCount((prevTotalCount) => prevTotalCount + 1);
+              
+              // 읽지 않은 알림 수 증가
+              setUnreadCount((prevUnreadCount) => prevUnreadCount + 1);
             }
-            reconnectAttempts = 0; // 성공 시 재시도 횟수 초기화
-          }
-          if (status === 'CHANNEL_ERROR') {
+          )
+          .subscribe((status, err) => {
+            if (status === 'SUBSCRIBED') {
+              console.log('Subscribed to notifications channel (Bell)');
+              // 연결 성공 시 재연결 타이머 클리어
+              if (reconnectTimeout) {
+                clearTimeout(reconnectTimeout);
+                reconnectTimeout = null;
+              }
+              reconnectAttempts = 0; // 성공 시 재시도 횟수 초기화
+            }
+            if (status === 'CHANNEL_ERROR') {
+        */
+      } catch (error) {
+        console.log('[NotificationBell] 실시간 구독 설정 중 오류:', error.message);
+      }
+      
+      // 임시로 CHANNEL_ERROR 처리 (주석 처리된 코드 대신)
+      if (false) { // status === 'CHANNEL_ERROR'
             console.error('CHANNEL_ERROR (Bell):', err);
             // 재연결 시도 횟수 제한
             if (reconnectAttempts < 3) {

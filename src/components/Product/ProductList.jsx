@@ -33,6 +33,7 @@ import {
   ArrowDownward as ArrowDownIcon
 } from '@mui/icons-material';
 import { getCookie, setCookie, removeCookie, getJSONCookie, setJSONCookie } from '../../utils/cookieUtils';
+import { productApi } from '../../api/productApi';
 
 function ProductList() {
   const [products, setProducts] = useState([]);
@@ -110,14 +111,8 @@ function ProductList() {
   const fetchProducts = async () => {
     setLoading(true);
     try {
-      // 임시 데이터
-      const dummyData = [
-        { id: 1, code: 'P001', name: '제품1', category: '카테고리1', price: 10000, stock: 100, description: '설명1' },
-        { id: 2, code: 'P002', name: '제품2', category: '카테고리2', price: 20000, stock: 200, description: '설명2' },
-        { id: 3, code: 'P003', name: '제품3', category: '카테고리1', price: 15000, stock: 150, description: '설명3' },
-        { id: 4, code: 'P004', name: '제품4', category: '카테고리3', price: 25000, stock: 50, description: '설명4' },
-      ];
-      setProducts(dummyData);
+      const data = await productApi.getAll();
+      setProducts(data);
     } catch (error) {
       showSnackbar('제품 목록을 불러오는데 실패했습니다.', 'error');
     } finally {
@@ -180,21 +175,29 @@ function ProductList() {
         return;
       }
 
+      const productData = {
+        ...formData,
+        price: Number(formData.price),
+        stock: Number(formData.stock)
+      };
+
       if (selectedProduct) {
-        setProducts(prev => prev.map(p => 
-          p.id === selectedProduct.id ? { ...formData, id: selectedProduct.id } : p
-        ));
-        showSnackbar('제품이 수정되었습니다.', 'success');
+        const oldStock = selectedProduct.stock;
+        const newStock = productData.stock;
+        await productApi.update(selectedProduct.id, productData);
+        
+        // 재고가 변경된 경우 알림
+        if (oldStock !== newStock) {
+          showSnackbar(`제품이 수정되었습니다. 재고: ${oldStock}개 → ${newStock}개 (연동된 창고 재고도 자동 업데이트됨)`, 'success');
+        } else {
+          showSnackbar('제품이 수정되었습니다.', 'success');
+        }
       } else {
-        const newProduct = {
-          ...formData,
-          id: Date.now(),
-          price: Number(formData.price),
-          stock: Number(formData.stock)
-        };
-        setProducts(prev => [...prev, newProduct]);
+        await productApi.create(productData);
         showSnackbar('제품이 등록되었습니다.', 'success');
       }
+      
+      fetchProducts(); // 목록 새로고침
       handleCloseDialog();
     } catch (error) {
       showSnackbar('제품 저장에 실패했습니다.', 'error');
@@ -204,8 +207,9 @@ function ProductList() {
   const handleDelete = async (id) => {
     if (window.confirm('정말 삭제하시겠습니까?')) {
       try {
-        setProducts(prev => prev.filter(p => p.id !== id));
+        await productApi.delete(id);
         showSnackbar('제품이 삭제되었습니다.', 'success');
+        fetchProducts(); // 목록 새로고침
       } catch (error) {
         showSnackbar('제품 삭제에 실패했습니다.', 'error');
       }

@@ -1092,10 +1092,10 @@ function StockList() {
           />
           <Button
             variant="outlined"
-            onClick={handleOpenAllLogs}
+            onClick={() => navigate('/inventory-logs')}
             sx={{ height: 40, minWidth: 'max-content' }}
           >
-            변동내역
+            재고 변경 이력
           </Button>
           <Button
             variant="outlined"

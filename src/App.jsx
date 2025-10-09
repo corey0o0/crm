@@ -26,6 +26,7 @@ import SalesStats from './components/Stats/SalesStats';
 import StockList from './components/Stock/StockList';
 import BrandSettings from './components/Settings/BrandSettings';
 import InventoryLogs from './components/Inventory/InventoryLogs';
+import InventoryManagement from './components/Inventory/InventoryManagement';
 // import XRiderManual from './components/Manual/XRiderManual';
 // import NewManual from './components/Manual/NewManual';
 
@@ -107,6 +108,7 @@ function App() {
             <Route path="stats/service" element={<ServiceStats />} />
             <Route path="brand-settings" element={<BrandSettings />} />
             <Route path="inventory-logs" element={<InventoryLogs />} />
+            <Route path="inventory-management" element={<InventoryManagement />} />
             {/* 게시판 */}
             <Route path="board" element={<BoardList />} />
             <Route path="board/new" element={<BoardNew />} />

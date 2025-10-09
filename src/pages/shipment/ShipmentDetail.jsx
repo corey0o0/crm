@@ -407,8 +407,9 @@ function ShipmentDetail() {
         updated_at: new Date().toISOString()
       };
       
-      // 출고완료로 변경 시 출고일도 현재 시점으로 업데이트
-      if (newStatus === '출고완료') {
+      // 배송중/출고완료로 변경 시 출고일도 현재 시점으로 업데이트
+      // (요청사항: 출고상태가 '배송중' 또는 '출고완료'로 변경되면 출고일을 현재 날짜로 설정)
+      if (newStatus === '출고완료' || newStatus === '배송중') {
         updateData.shipment_date = new Date().toISOString().split('T')[0];
       }
       

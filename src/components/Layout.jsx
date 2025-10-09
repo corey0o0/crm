@@ -40,6 +40,7 @@ import {
   Link as LinkIcon,
   Settings as SettingsIcon,
   History as HistoryIcon,
+  Warehouse as WarehouseIcon,
   MenuBook as MenuBookIcon,
   CalendarToday as CalendarTodayIcon,
   Close as CloseIcon
@@ -47,7 +48,7 @@ import {
 import { styled } from '@mui/material/styles';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
-import NotificationBell from './Dashboard/NotificationBell';
+// import NotificationBell from './Dashboard/NotificationBell'; // 임시 비활성화
 import ServiceCalendar from './ServiceCalendar';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ko';
@@ -184,19 +185,26 @@ function Layout() {
   };
 
   const menuItems = [
+    // 📊 대시보드
     { text: '대시보드', icon: <DashboardIcon />, path: '/' },
-    { text: 'A/S 관리', icon: <BuildIcon />, path: '/services' },
-    { text: '출고 관리', icon: <LocalShippingIcon />, path: '/shipment' },
+    
+    // 👥 CRM & 고객 관리
     { text: '고객 관리', icon: <PeopleIcon />, path: '/customers' },
+    
+    // 🔧 서비스 관리
+    { text: 'A/S 관리', icon: <BuildIcon />, path: '/services' },
+    
+    // 📦 재고 & 물류 관리
+    { text: '출고 관리', icon: <LocalShippingIcon />, path: '/shipment' },
     { text: '파츠 관리', icon: <InventoryIcon />, path: '/parts' },
-    { text: '재고 관리', icon: <InventoryIcon />, path: '/stocks' },
-    { text: '재고 변경 내역', icon: <HistoryIcon />, path: '/inventory-logs' },
-    { text: '게시판', icon: <MenuBookIcon />, path: '/board' },
-    // { text: '기존 메뉴얼', icon: <MenuBookIcon />, path: '/xrider-manual' },
-    // { text: 'A/S 통계', icon: <AssessmentIcon />, path: '/stats/service' }, //
-    { text: '매출 통계', icon: <BarChartIcon />, path: '/sales/stats' }
-    // { text: '영수증 스캔', icon: <ReceiptIcon />, path: '/receipts' },
-    // { text: '드라이브 테스트', icon: <DriveIcon />, path: '/google-drive-test' }
+    { text: '매장 재고 관리', icon: <InventoryIcon />, path: '/stocks' },
+    { text: '입출고 관리', icon: <WarehouseIcon />, path: '/inventory-management' },
+    
+    // 📊 통계 & 분석
+    { text: '매출 통계', icon: <BarChartIcon />, path: '/sales/stats' },
+    
+    // 💬 커뮤니티
+    { text: '게시판', icon: <MenuBookIcon />, path: '/board' }
   ];
 
   const handleDrawerToggle = () => {
@@ -248,7 +256,7 @@ function Layout() {
           >
             고객관리시스템
           </Typography>
-          <NotificationBell />
+          {/* <NotificationBell /> */} {/* 임시 비활성화 */}
           <Box
             onClick={handleCalendarOpen}
             sx={{
