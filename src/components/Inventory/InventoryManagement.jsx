@@ -2434,7 +2434,7 @@ function InventoryManagement() {
       </Snackbar>
       
       {/* 거래내역 상세 Dialog */}
-      <Dialog open={transactionDetailOpen} onClose={closeTransactionDetail} maxWidth="lg" fullWidth>
+      <Dialog open={transactionDetailOpen} onClose={closeTransactionDetail} maxWidth="xl" fullWidth>
         <DialogTitle>
           거래내역 상세 정보
           <IconButton
@@ -2546,25 +2546,26 @@ function InventoryManagement() {
                                 placeholder="메모"
                               />
                             </Grid>
-                            <Grid item xs={12} md={1.5}>
-                              <TextField
-                                fullWidth
-                                label="개별 메모"
-                                size="small"
-                                value={product.additionalNote}
-                                onChange={(e) => updateEditProduct(index, 'additionalNote', e.target.value)}
-                                placeholder="개별 메모"
-                              />
-                            </Grid>
-                            <Grid item xs={12} md={1}>
-                              <IconButton
-                                color="error"
-                                onClick={() => removeEditProduct(index)}
-                                disabled={editProducts.length === 1}
-                                size="small"
-                              >
-                                <DeleteIcon />
-                              </IconButton>
+                            <Grid item xs={12} md={2.5}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <TextField
+                                  fullWidth
+                                  label="개별 메모"
+                                  size="small"
+                                  value={product.additionalNote}
+                                  onChange={(e) => updateEditProduct(index, 'additionalNote', e.target.value)}
+                                  placeholder="개별 메모"
+                                  sx={{ flex: 1 }}
+                                />
+                                <IconButton
+                                  color="error"
+                                  onClick={() => removeEditProduct(index)}
+                                  disabled={editProducts.length === 1}
+                                  size="small"
+                                >
+                                  <DeleteIcon />
+                                </IconButton>
+                              </Box>
                             </Grid>
                           </Grid>
                         </Card>
@@ -2577,9 +2578,9 @@ function InventoryManagement() {
                       </Box>
                     </Box>
                   ) : (
-                    // 읽기 모드: 기존 테이블 표시
-                    <TableContainer component={Paper} sx={{ mt: 2 }}>
-                      <Table size="small">
+                    // 읽기 모드: 경계선 없는 테이블 표시
+                    <TableContainer component={Box} sx={{ mt: 2 }}>
+                      <Table size="small" sx={{ '& td, & th': { border: 0 } }}>
                         <TableHead>
                           <TableRow>
                             <TableCell>상품명</TableCell>
