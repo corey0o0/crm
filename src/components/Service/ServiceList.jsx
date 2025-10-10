@@ -529,6 +529,9 @@ function ServiceList() {
         .eq('brand', selectedBrand)
         .order('reception_date', { ascending: false });
       
+      // 태그로 매칭되는 서비스 ID 목록 (중복 제거) - 본문/카운트 모두에 재사용
+      let tagMatchedServiceIds = null;
+      
       // 검색어 필터링 (최소 2글자 이상일 때만)
       if (searchParams.searchTerm && searchParams.searchTerm.length >= 2) {
         console.log('Applying search filter for term:', searchParams.searchTerm);
@@ -570,6 +573,30 @@ function ServiceList() {
           query = query.lte(dateField, searchParams.dateFilter.endDate);
         }
       }
+
+      // 태그 필터링 (서비스 태그 테이블 조회 후 해당 서비스 ID로 필터)
+      if (searchParams.selectedTags && searchParams.selectedTags.length > 0) {
+        const { data: tagRows, error: tagQueryError } = await supabase
+          .from('service_tags')
+          .select('service_id, tag_name')
+          .in('tag_name', searchParams.selectedTags);
+        if (tagQueryError) {
+          console.error('Error fetching services by tags:', tagQueryError);
+          throw tagQueryError;
+        }
+        const idSet = new Set((tagRows || []).map(r => r.service_id));
+        tagMatchedServiceIds = Array.from(idSet);
+        // 태그에 매칭되는 서비스가 하나도 없으면 바로 종료 (0건)
+        if (tagMatchedServiceIds.length === 0) {
+          setTotalExpected(0);
+          setServices([]);
+          setFirstPageLoaded(true);
+          setHasActiveSearch(true);
+          setSearchLoading(false);
+          return;
+        }
+        query = query.in('id', tagMatchedServiceIds);
+      }
       
       // 첫 페이지만 먼저 가져오기 (검색 결과)
       const FIRST_PAGE_SIZE = 50;
@@ -603,8 +630,9 @@ function ServiceList() {
         }
       }
 
-      if (searchParams.selectedTags && searchParams.selectedTags.length > 0) {
-        countQuery = countQuery.overlaps('tag_names', searchParams.selectedTags);
+      // 태그 필터 (본문과 동일한 ID 필터 적용)
+      if (tagMatchedServiceIds && tagMatchedServiceIds.length > 0) {
+        countQuery = countQuery.in('id', tagMatchedServiceIds);
       }
 
       if (searchParams.dateFilter && (searchParams.dateFilter.startDate || searchParams.dateFilter.endDate)) {
