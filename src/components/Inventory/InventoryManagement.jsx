@@ -137,8 +137,10 @@ function InventoryManagement() {
   const [filter, setFilter] = useState({
     dateFrom: '',
     dateTo: '',
-    location: '',
+    fromLocation: '',
+    toLocation: '',
     product: '',
+    note: '',
     type: 'all', // 'all' | 'in' | 'out'
     // 정렬 키/순서
     sortBy: 'date', // 'date' | 'type' | 'product' | 'quantity' | 'from' | 'to' | 'note'
@@ -152,14 +154,20 @@ function InventoryManagement() {
   }, []);
 
   useEffect(() => {
-    if (products.length > 0) {
+    if (products.length > 0 && warehouses.length > 0) {
       fetchTransactions();
-      // 거래내역을 기반으로 재고 계산
-      setTimeout(() => {
-        recalculateInventoryFromTransactions();
-      }, 200);
     }
-  }, [warehouses, dealers, products]);
+  }, [products, warehouses]);
+
+  useEffect(() => {
+    if (products.length > 0 && warehouses.length > 0 && transactions.length >= 0) {
+      // 거래내역을 기반으로 재고 계산
+      const timer = setTimeout(() => {
+        recalculateInventoryFromTransactions();
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [warehouses, dealers, products, transactions]);
 
   // 상품 데이터 가져오기 (파츠관리와 연동)
   const fetchProducts = async () => {
@@ -168,14 +176,6 @@ function InventoryManagement() {
       const productsData = await productApi.getAll();
       setProducts(productsData);
       console.log(`실제 니어바이크 파츠관리에서 ${productsData.length}개의 상품을 가져왔습니다.`);
-      
-      // 상품 데이터 로딩 후 거래내역 기반 재고 계산
-      setTimeout(() => {
-        fetchTransactions();
-        setTimeout(() => {
-          recalculateInventoryFromTransactions();
-        }, 100);
-      }, 100);
     } catch (error) {
       console.error('상품 데이터 로딩 실패:', error);
       showSnackbar('파츠관리에서 상품 데이터를 불러오는데 실패했습니다.', 'error');
@@ -1428,12 +1428,16 @@ function InventoryManagement() {
       if (!tx || !tx.date) return;
       const key = typeof tx.date === 'string' ? tx.date.split('T')[0] : new Date(tx.date).toISOString().split('T')[0];
       if (!set.has(key)) return;
-      if (tx.type === 'in' && warehouseIds.has(tx.toLocation)) {
+      
+      // 입고: 목적지가 창고인 경우
+      if (warehouseIds.has(tx.toLocation)) {
         const wid = tx.toLocation; const pid = tx.productId;
         acc[wid] = acc[wid] || {}; acc[wid][pid] = acc[wid][pid] || {}; acc[wid][pid][key] = acc[wid][pid][key] || { inQty: 0, outQty: 0 };
         acc[wid][pid][key].inQty += Number(tx.quantity) || 0;
       }
-      if (tx.type === 'out' && warehouseIds.has(tx.fromLocation)) {
+      
+      // 출고: 출발지가 창고인 경우
+      if (warehouseIds.has(tx.fromLocation)) {
         const wid = tx.fromLocation; const pid = tx.productId;
         acc[wid] = acc[wid] || {}; acc[wid][pid] = acc[wid][pid] || {}; acc[wid][pid][key] = acc[wid][pid][key] || { inQty: 0, outQty: 0 };
         acc[wid][pid][key].outQty += Number(tx.quantity) || 0;
@@ -1444,19 +1448,43 @@ function InventoryManagement() {
   
   const filteredTransactions = groupedTransactions.filter(group => {
     const matchesType = filter.type === 'all' || group.type === filter.type;
-    const matchesLocation = !filter.location || 
-                          group.items.some(item => 
-                            item.fromLocation.includes(filter.location) ||
-                            item.toLocation.includes(filter.location)
-                          );
+    
+    const matchesFromLocation = !filter.fromLocation || 
+                          group.items.some(item => {
+                            const srcId = item.fromLocation;
+                            if (!srcId || srcId === '외부') return '외부'.includes(filter.fromLocation);
+                            const w = warehouses.find(w => w.id === srcId);
+                            if (w) return (w.name + w.id).toLowerCase().includes(filter.fromLocation.toLowerCase());
+                            const d = dealers.find(d => d.id === srcId);
+                            if (d) return (d.name + d.id).toLowerCase().includes(filter.fromLocation.toLowerCase());
+                            return srcId.toLowerCase().includes(filter.fromLocation.toLowerCase());
+                          });
+    
+    const matchesToLocation = !filter.toLocation || 
+                          group.items.some(item => {
+                            const destId = item.toLocation;
+                            const w = warehouses.find(w => w.id === destId);
+                            if (w) return (w.name + w.id).toLowerCase().includes(filter.toLocation.toLowerCase());
+                            const d = dealers.find(d => d.id === destId);
+                            if (d) return (d.name + d.id).toLowerCase().includes(filter.toLocation.toLowerCase());
+                            return destId.toLowerCase().includes(filter.toLocation.toLowerCase());
+                          });
+    
     const matchesProduct = !filter.product || 
                          group.items.some(item => 
                            item.productName.toLowerCase().includes(filter.product.toLowerCase())
                          );
+    
+    const matchesNote = !filter.note || 
+                       group.items.some(item => 
+                         (item.note || '').toLowerCase().includes(filter.note.toLowerCase())
+                       ) ||
+                       (group.note || '').toLowerCase().includes(filter.note.toLowerCase());
+    
     const matchesDateFrom = !filter.dateFrom || group.date >= filter.dateFrom;
     const matchesDateTo = !filter.dateTo || group.date <= filter.dateTo;
     
-    return matchesType && matchesLocation && matchesProduct && matchesDateFrom && matchesDateTo;
+    return matchesType && matchesFromLocation && matchesToLocation && matchesProduct && matchesNote && matchesDateFrom && matchesDateTo;
   }).sort((a, b) => {
     const dir = filter.sortOrder === 'asc' ? 1 : -1;
     const key = filter.sortBy;
@@ -1636,9 +1664,18 @@ function InventoryManagement() {
                 <TextField
                   fullWidth
                   size="small"
-                  label="위치 검색"
-                  value={filter.location}
-                  onChange={(e) => setFilter(prev => ({ ...prev, location: e.target.value }))}
+                  label="출발지 검색"
+                  value={filter.fromLocation}
+                  onChange={(e) => setFilter(prev => ({ ...prev, fromLocation: e.target.value }))}
+                />
+              </Grid>
+              <Grid item xs={12} md={2}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="목적지 검색"
+                  value={filter.toLocation}
+                  onChange={(e) => setFilter(prev => ({ ...prev, toLocation: e.target.value }))}
                 />
               </Grid>
               <Grid item xs={12} md={2}>
@@ -1648,6 +1685,15 @@ function InventoryManagement() {
                   label="상품 검색"
                   value={filter.product}
                   onChange={(e) => setFilter(prev => ({ ...prev, product: e.target.value }))}
+                />
+              </Grid>
+              <Grid item xs={12} md={2}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="메모 검색"
+                  value={filter.note}
+                  onChange={(e) => setFilter(prev => ({ ...prev, note: e.target.value }))}
                 />
               </Grid>
               <Grid item xs={12} md={3}>
@@ -1688,8 +1734,10 @@ function InventoryManagement() {
                   onClick={() => setFilter({
                     dateFrom: '',
                     dateTo: '',
-                    location: '',
+                    fromLocation: '',
+                    toLocation: '',
                     product: '',
+                    note: '',
                     type: 'all',
                     sortBy: 'date',
                     sortOrder: 'desc'
@@ -1793,6 +1841,15 @@ function InventoryManagement() {
                                   <TableRow><TableCell colSpan={1 + productCols.length} align="center">해당 기간 움직임이 없습니다.</TableCell></TableRow>
                                 ) : (
                                   dateKeys.map(dk => {
+                                    // 해당 날짜에 해당 창고의 입출고 이력이 있는지 확인
+                                    const hasAnyMovement = productCols.some(p => {
+                                      const io = ioByWarehouseProductDate[wid]?.[p.id]?.[dk] || { inQty: 0, outQty: 0 };
+                                      return (io.inQty || 0) > 0 || (io.outQty || 0) > 0;
+                                    });
+                                    
+                                    // 이력이 없으면 행을 렌더링하지 않음
+                                    if (!hasAnyMovement) return null;
+                                    
                                     // 해당 날짜/창고의 거래에서 출발지/목적지 정보 수집
                                     const dayTransactions = transactions.filter(tx => {
                                       if (!tx || !tx.date) return false;
