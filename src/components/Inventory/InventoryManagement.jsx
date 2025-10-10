@@ -1792,26 +1792,66 @@ function InventoryManagement() {
                                 {dateKeys.length === 0 ? (
                                   <TableRow><TableCell colSpan={1 + productCols.length} align="center">해당 기간 움직임이 없습니다.</TableCell></TableRow>
                                 ) : (
-                                  dateKeys.map(dk => (
-                                    <TableRow key={`date-row-${wid}-${dk}`} hover>
-                                      <TableCell sx={{ position: 'sticky', left: 0, zIndex: 2, backgroundColor: 'background.paper', fontWeight: 'bold', width: 120, maxWidth: 120, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{dk}</TableCell>
-                                      {productCols.map(p => {
-                                        const io = ioByWarehouseProductDate[wid]?.[p.id]?.[dk] || { inQty: 0, outQty: 0 };
-                                        const hasAny = (io.inQty || 0) > 0 || (io.outQty || 0) > 0;
-                                        return (
-                                          <TableCell key={`cell-${wid}-${dk}-${p.id}`} align="right" sx={{ width: 140, maxWidth: 140, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                            {hasAny ? (
-                                              <Box sx={{ display: 'inline-flex', gap: 0.5 }}>
-                                                {io.inQty > 0 && (<span style={{ color: 'var(--mui-palette-success-main, #2e7d32)' }}>+{io.inQty.toLocaleString()}</span>)}
-                                                {io.outQty > 0 && (<span style={{ color: 'var(--mui-palette-error-main, #d32f2f)' }}>−{io.outQty.toLocaleString()}</span>)}
-                                              </Box>
-                                            ) : ''}
-                                          </TableCell>
-                                        );
-                                      })}
-                                    </TableRow>
-                                  ))
+                                  dateKeys.map(dk => {
+                                    // 해당 날짜/창고의 거래에서 출발지/목적지 정보 수집
+                                    const dayTransactions = transactions.filter(tx => {
+                                      if (!tx || !tx.date) return false;
+                                      const txDate = typeof tx.date === 'string' ? tx.date.split('T')[0] : new Date(tx.date).toISOString().split('T')[0];
+                                      return txDate === dk && (tx.toLocation === wid || tx.fromLocation === wid);
+                                    });
+                                    const fromSet = new Set();
+                                    const toSet = new Set();
+                                    dayTransactions.forEach(tx => {
+                                      if (tx.fromLocation && tx.fromLocation !== wid) {
+                                        const loc = tx.fromLocation === '외부' ? '외부' : (warehouses.find(w => w.id === tx.fromLocation)?.name || dealers.find(d => d.id === tx.fromLocation)?.name || tx.fromLocation);
+                                        fromSet.add(loc);
+                                      }
+                                      if (tx.toLocation && tx.toLocation !== wid) {
+                                        const loc = warehouses.find(w => w.id === tx.toLocation)?.name || dealers.find(d => d.id === tx.toLocation)?.name || tx.toLocation;
+                                        toSet.add(loc);
+                                      }
+                                    });
+                                    const fromText = fromSet.size > 0 ? Array.from(fromSet).join(', ') : '';
+                                    const toText = toSet.size > 0 ? Array.from(toSet).join(', ') : '';
+                                    return (
+                                      <TableRow key={`date-row-${wid}-${dk}`} hover>
+                                        <TableCell sx={{ position: 'sticky', left: 0, zIndex: 2, backgroundColor: 'background.paper', fontWeight: 'bold', width: 120, maxWidth: 120, whiteSpace: 'normal', wordWrap: 'break-word', lineHeight: 1.2, fontSize: '0.8rem' }}>
+                                          <Box>{dk}</Box>
+                                          {fromText && (<Box sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>출: {fromText}</Box>)}
+                                          {toText && (<Box sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>도: {toText}</Box>)}
+                                        </TableCell>
+                                        {productCols.map(p => {
+                                          const io = ioByWarehouseProductDate[wid]?.[p.id]?.[dk] || { inQty: 0, outQty: 0 };
+                                          const hasAny = (io.inQty || 0) > 0 || (io.outQty || 0) > 0;
+                                          return (
+                                            <TableCell key={`cell-${wid}-${dk}-${p.id}`} align="right" sx={{ width: 140, maxWidth: 140, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                              {hasAny ? (
+                                                <Box sx={{ display: 'inline-flex', gap: 0.5 }}>
+                                                  {io.inQty > 0 && (<span style={{ color: 'var(--mui-palette-success-main, #2e7d32)' }}>+{io.inQty.toLocaleString()}</span>)}
+                                                  {io.outQty > 0 && (<span style={{ color: 'var(--mui-palette-error-main, #d32f2f)' }}>−{io.outQty.toLocaleString()}</span>)}
+                                                </Box>
+                                              ) : ''}
+                                            </TableCell>
+                                          );
+                                        })}
+                                      </TableRow>
+                                    );
+                                  })
                                 )}
+                                {/* 현재 재고 잔량 행 */}
+                                <TableRow sx={{ backgroundColor: 'action.hover' }}>
+                                  <TableCell sx={{ position: 'sticky', left: 0, zIndex: 2, backgroundColor: 'action.hover', fontWeight: 'bold', width: 120, maxWidth: 120 }}>현재 재고</TableCell>
+                                  {productCols.map(p => {
+                                    const currentStock = inventory[wid]?.[p.id] || 0;
+                                    return (
+                                      <TableCell key={`stock-${wid}-${p.id}`} align="right" sx={{ fontWeight: 'bold', fontSize: '0.95rem' }}>
+                                        <span style={{ fontWeight: 'bold', color: currentStock > 0 ? 'var(--mui-palette-primary-main, #1976d2)' : 'var(--mui-palette-text-secondary, #666)' }}>
+                                          {currentStock.toLocaleString()}
+                                        </span>
+                                      </TableCell>
+                                    );
+                                  })}
+                                </TableRow>
                               </TableBody>
                             </Table>
                           </TableContainer>
