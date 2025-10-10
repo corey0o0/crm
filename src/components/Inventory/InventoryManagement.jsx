@@ -83,6 +83,10 @@ function InventoryManagement() {
   const [excelFile, setExcelFile] = useState(null);
   // 거래내역 보기 모드: 'list' | 'table'
   const [transactionViewMode, setTransactionViewMode] = useState('list');
+  
+  // 표보기 클릭된 거래 모달 상태
+  const [tableModalOpen, setTableModalOpen] = useState(false);
+  const [selectedTableTransactions, setSelectedTableTransactions] = useState([]);
   const [excelData, setExcelData] = useState([]);
   const [excelUploadType, setExcelUploadType] = useState(''); // 'in' | 'out'
   
@@ -146,6 +150,9 @@ function InventoryManagement() {
     sortBy: 'date', // 'date' | 'type' | 'product' | 'quantity' | 'from' | 'to' | 'note'
     sortOrder: 'desc' // 'asc' | 'desc'
   });
+
+  // 날짜 필터 버튼 상태
+  const [dateFilter, setDateFilter] = useState('all'); // 'all', 'today', 'week', 'month'
 
   useEffect(() => {
     fetchProducts();
@@ -232,6 +239,58 @@ function InventoryManagement() {
     // 대리점은 재고를 별도로 관리하지 않음 (출고 기록만 추적)
     
     setInventory(initialInventory);
+  };
+
+  // 날짜 필터 버튼 클릭 처리
+  const handleDateFilterClick = (filterType) => {
+    setDateFilter(filterType);
+    
+    const today = new Date();
+    let dateFrom = '';
+    let dateTo = '';
+    
+    switch (filterType) {
+      case 'today':
+        dateFrom = today.toISOString().split('T')[0];
+        dateTo = today.toISOString().split('T')[0];
+        break;
+      case 'week':
+        const startOfWeek = new Date(today);
+        startOfWeek.setDate(today.getDate() - today.getDay());
+        dateFrom = startOfWeek.toISOString().split('T')[0];
+        dateTo = today.toISOString().split('T')[0];
+        break;
+      case 'month':
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        dateFrom = startOfMonth.toISOString().split('T')[0];
+        dateTo = today.toISOString().split('T')[0];
+        break;
+      default:
+        dateFrom = '';
+        dateTo = '';
+    }
+    
+    setFilter(prev => ({
+      ...prev,
+      dateFrom,
+      dateTo
+    }));
+  };
+
+  // 표보기 셀 클릭 시 해당 거래들을 모달로 표시
+  const handleTableCellClick = (warehouseId, productId, date) => {
+    const dayTransactions = transactions.filter(tx => {
+      if (!tx || !tx.date) return false;
+      const txDate = typeof tx.date === 'string' ? tx.date.split('T')[0] : new Date(tx.date).toISOString().split('T')[0];
+      return txDate === date && 
+             (tx.toLocation === warehouseId || tx.fromLocation === warehouseId) &&
+             tx.productId === productId;
+    });
+    
+    if (dayTransactions.length > 0) {
+      setSelectedTableTransactions(dayTransactions);
+      setTableModalOpen(true);
+    }
   };
 
   // 거래내역을 기반으로 창고 재고 재계산
@@ -1522,7 +1581,7 @@ function InventoryManagement() {
     <Box sx={{ p: 3 }}>
       {/* 헤더 */}
       <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h4" fontWeight="bold">
+        <Typography variant="h5" fontWeight="bold">
           입출고 관리
         </Typography>
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
@@ -1623,6 +1682,38 @@ function InventoryManagement() {
             <Typography variant="h6" sx={{ mb: 2 }}>
               필터 옵션
             </Typography>
+            
+            {/* 날짜 필터 버튼 */}
+            <Box sx={{ mb: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              <Button
+                size="small"
+                variant={dateFilter === 'all' ? 'contained' : 'outlined'}
+                onClick={() => handleDateFilterClick('all')}
+              >
+                전체
+              </Button>
+              <Button
+                size="small"
+                variant={dateFilter === 'today' ? 'contained' : 'outlined'}
+                onClick={() => handleDateFilterClick('today')}
+              >
+                당일
+              </Button>
+              <Button
+                size="small"
+                variant={dateFilter === 'week' ? 'contained' : 'outlined'}
+                onClick={() => handleDateFilterClick('week')}
+              >
+                이번주
+              </Button>
+              <Button
+                size="small"
+                variant={dateFilter === 'month' ? 'contained' : 'outlined'}
+                onClick={() => handleDateFilterClick('month')}
+              >
+                당월
+              </Button>
+            </Box>
             <Grid container spacing={2}>
               <Grid item xs={12} md={2}>
                 <TextField
@@ -1731,17 +1822,20 @@ function InventoryManagement() {
                 <Button
                   fullWidth
                   variant="outlined"
-                  onClick={() => setFilter({
-                    dateFrom: '',
-                    dateTo: '',
-                    fromLocation: '',
-                    toLocation: '',
-                    product: '',
-                    note: '',
-                    type: 'all',
-                    sortBy: 'date',
-                    sortOrder: 'desc'
-                  })}
+                  onClick={() => {
+                    setFilter({
+                      dateFrom: '',
+                      dateTo: '',
+                      fromLocation: '',
+                      toLocation: '',
+                      product: '',
+                      note: '',
+                      type: 'all',
+                      sortBy: 'date',
+                      sortOrder: 'desc'
+                    });
+                    setDateFilter('all');
+                  }}
                 >
                   초기화
                 </Button>
@@ -1826,13 +1920,13 @@ function InventoryManagement() {
                       <Card>
                         <CardContent>
                           <Typography variant="h6" sx={{ mb: 1 }}>{w.name}</Typography>
-                          <TableContainer component={Paper} sx={{ width: '100%', maxHeight: 600, overflowY: 'auto', overflowX: 'hidden' }}>
-                            <Table size="small" stickyHeader sx={{ width: '100%', tableLayout: 'fixed' }}>
+                          <TableContainer component={Paper}>
+                            <Table>
                               <TableHead>
                                 <TableRow>
-                                  <TableCell sx={{ position: 'sticky', left: 0, zIndex: 3, backgroundColor: 'background.paper', width: 120, maxWidth: 120, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>날짜</TableCell>
+                                  <TableCell>날짜</TableCell>
                                   {productCols.map(p => (
-                                    <TableCell key={`prod-col-${wid}-${p.id}`} align="right" sx={{ width: 140, maxWidth: 140, whiteSpace: 'normal', wordWrap: 'break-word', lineHeight: 1.3, minHeight: 48 }}>{p.name}</TableCell>
+                                    <TableCell key={`prod-col-${wid}-${p.id}`} align="right">{p.name}</TableCell>
                                   ))}
                                 </TableRow>
                               </TableHead>
@@ -1872,7 +1966,7 @@ function InventoryManagement() {
                                     const toText = toSet.size > 0 ? Array.from(toSet).join(', ') : '';
                                     return (
                                       <TableRow key={`date-row-${wid}-${dk}`} hover>
-                                        <TableCell sx={{ position: 'sticky', left: 0, zIndex: 2, backgroundColor: 'background.paper', fontWeight: 'bold', width: 120, maxWidth: 120, whiteSpace: 'normal', wordWrap: 'break-word', lineHeight: 1.2, fontSize: '0.8rem' }}>
+                                        <TableCell sx={{ fontWeight: 'bold' }}>
                                           <Box>{dk}</Box>
                                           {fromText && (<Box sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>출: {fromText}</Box>)}
                                           {toText && (<Box sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>도: {toText}</Box>)}
@@ -1881,14 +1975,22 @@ function InventoryManagement() {
                                           const io = ioByWarehouseProductDate[wid]?.[p.id]?.[dk] || { inQty: 0, outQty: 0 };
                                           const hasAny = (io.inQty || 0) > 0 || (io.outQty || 0) > 0;
                                           return (
-                                            <TableCell key={`cell-${wid}-${dk}-${p.id}`} align="right" sx={{ width: 140, maxWidth: 140, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                              {hasAny ? (
-                                                <Box sx={{ display: 'inline-flex', gap: 0.5 }}>
-                                                  {io.inQty > 0 && (<span style={{ color: 'var(--mui-palette-success-main, #2e7d32)' }}>+{io.inQty.toLocaleString()}</span>)}
-                                                  {io.outQty > 0 && (<span style={{ color: 'var(--mui-palette-error-main, #d32f2f)' }}>−{io.outQty.toLocaleString()}</span>)}
-                                                </Box>
-                                              ) : ''}
-                                            </TableCell>
+                                             <TableCell key={`cell-${wid}-${dk}-${p.id}`} align="right">
+                                               {hasAny ? (
+                                                 <Box 
+                                                   sx={{ 
+                                                     display: 'inline-flex', 
+                                                     gap: 0.5, 
+                                                     cursor: 'pointer',
+                                                     '&:hover': { opacity: 0.7 }
+                                                   }}
+                                                   onClick={() => handleTableCellClick(wid, p.id, dk)}
+                                                 >
+                                                   {io.inQty > 0 && (<span style={{ color: 'var(--mui-palette-success-main, #2e7d32)', fontWeight: 'bold', fontSize: '0.95rem' }}>+{io.inQty.toLocaleString()}</span>)}
+                                                   {io.outQty > 0 && (<span style={{ color: 'var(--mui-palette-error-main, #d32f2f)', fontWeight: 'bold', fontSize: '0.95rem' }}>−{io.outQty.toLocaleString()}</span>)}
+                                                 </Box>
+                                               ) : ''}
+                                             </TableCell>
                                           );
                                         })}
                                       </TableRow>
@@ -1897,11 +1999,11 @@ function InventoryManagement() {
                                 )}
                                 {/* 현재 재고 잔량 행 */}
                                 <TableRow sx={{ backgroundColor: 'action.hover' }}>
-                                  <TableCell sx={{ position: 'sticky', left: 0, zIndex: 2, backgroundColor: 'action.hover', fontWeight: 'bold', width: 120, maxWidth: 120 }}>현재 재고</TableCell>
+                                  <TableCell sx={{ backgroundColor: 'action.hover', fontWeight: 'bold' }}>현재 재고</TableCell>
                                   {productCols.map(p => {
                                     const currentStock = inventory[wid]?.[p.id] || 0;
                                     return (
-                                      <TableCell key={`stock-${wid}-${p.id}`} align="right" sx={{ fontWeight: 'bold', fontSize: '0.95rem' }}>
+                                      <TableCell key={`stock-${wid}-${p.id}`} align="right" sx={{ backgroundColor: 'action.hover', fontWeight: 'bold', fontSize: '0.95rem' }}>
                                         <span style={{ fontWeight: 'bold', color: currentStock > 0 ? 'var(--mui-palette-primary-main, #1976d2)' : 'var(--mui-palette-text-secondary, #666)' }}>
                                           {currentStock.toLocaleString()}
                                         </span>
@@ -3457,6 +3559,87 @@ function InventoryManagement() {
           loading={loading}
         />
       )}
+
+      {/* 표보기 클릭 시 거래 상세 모달 */}
+      <Dialog 
+        open={tableModalOpen} 
+        onClose={() => setTableModalOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          거래 상세 내역
+          <IconButton
+            onClick={() => setTableModalOpen(false)}
+            sx={{ position: 'absolute', right: 8, top: 8 }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          {selectedTableTransactions.length > 0 && (
+            <Box>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                {selectedTableTransactions[0].date} - {selectedTableTransactions.length}건의 거래
+              </Typography>
+              <TableContainer component={Paper}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>시간</TableCell>
+                      <TableCell>유형</TableCell>
+                      <TableCell>상품</TableCell>
+                      <TableCell align="right">수량</TableCell>
+                      <TableCell>출발지</TableCell>
+                      <TableCell>목적지</TableCell>
+                      <TableCell>메모</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {selectedTableTransactions.map((tx) => {
+                      const product = products.find(p => p.id === tx.productId);
+                      const fromLocation = tx.fromLocation === '외부' ? '외부' : 
+                        warehouses.find(w => w.id === tx.fromLocation)?.name || 
+                        dealers.find(d => d.id === tx.fromLocation)?.name || 
+                        tx.fromLocation;
+                      const toLocation = 
+                        warehouses.find(w => w.id === tx.toLocation)?.name || 
+                        dealers.find(d => d.id === tx.toLocation)?.name || 
+                        tx.toLocation;
+                      
+                      return (
+                        <TableRow key={tx.id} hover>
+                          <TableCell>
+                            {new Date(tx.createdAt || tx.date).toLocaleTimeString('ko-KR', { 
+                              hour: '2-digit', 
+                              minute: '2-digit' 
+                            })}
+                          </TableCell>
+                          <TableCell>
+                            <Chip 
+                              label={tx.type === 'in' ? '입고' : '출고'} 
+                              size="small"
+                              color={tx.type === 'in' ? 'primary' : 'secondary'}
+                            />
+                          </TableCell>
+                          <TableCell>{product?.name || '알 수 없음'}</TableCell>
+                          <TableCell align="right">{tx.quantity.toLocaleString()}</TableCell>
+                          <TableCell>{fromLocation}</TableCell>
+                          <TableCell>{toLocation}</TableCell>
+                          <TableCell>{tx.note || '-'}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setTableModalOpen(false)}>닫기</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
