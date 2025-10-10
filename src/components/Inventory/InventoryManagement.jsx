@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import ExcelJS from 'exceljs';
 import {
   Box,
@@ -74,9 +74,15 @@ function InventoryManagement() {
     dealer: ''
   });
 
+  // 전체보기(창고 x 상품 매트릭스) 검색
+  const [overallSearch, setOverallSearch] = useState('');
+  const [overallStockFilter, setOverallStockFilter] = useState('inStock'); // 기본: 재고 있음
+
   // 엑셀 업로드 관련 상태
   const [excelUploadOpen, setExcelUploadOpen] = useState(false);
   const [excelFile, setExcelFile] = useState(null);
+  // 거래내역 보기 모드: 'list' | 'table'
+  const [transactionViewMode, setTransactionViewMode] = useState('list');
   const [excelData, setExcelData] = useState([]);
   const [excelUploadType, setExcelUploadType] = useState(''); // 'in' | 'out'
   
@@ -133,7 +139,10 @@ function InventoryManagement() {
     dateTo: '',
     location: '',
     product: '',
-    type: 'all' // 'all' | 'in' | 'out'
+    type: 'all', // 'all' | 'in' | 'out'
+    // 정렬 키/순서
+    sortBy: 'date', // 'date' | 'type' | 'product' | 'quantity' | 'from' | 'to' | 'note'
+    sortOrder: 'desc' // 'asc' | 'desc'
   });
 
   useEffect(() => {
@@ -509,11 +518,9 @@ function InventoryManagement() {
     }]);
   };
 
-  // 수정 모드에서 상품 삭제
+  // 수정 모드에서 상품 삭제 (마지막 1개여도 삭제 가능)
   const removeEditProduct = (index) => {
-    if (editProducts.length > 1) {
-      setEditProducts(editProducts.filter((_, i) => i !== index));
-    }
+    setEditProducts(prev => prev.filter((_, i) => i !== index));
   };
 
   // 수정 모드에서 상품 정보 업데이트
@@ -527,45 +534,85 @@ function InventoryManagement() {
   const saveEditTransaction = async () => {
     if (!selectedTransaction) return;
 
-    // 상품 정보가 변경된 경우 새로운 거래 구조로 업데이트
-    const updatedTransaction = {
-      ...selectedTransaction,
-      date: editFormData.date,
-      note: editFormData.note,
-      fromLocation: editFormData.fromLocation,
-      toLocation: editFormData.toLocation,
-      items: editProducts.map((item, index) => ({
-        productCode: item.product?.code || '',
-        productName: item.product?.name || '',
-        productSupplier: item.product?.supplier || 'NEARBIKE',
-        quantity: item.quantity,
-        fromLocation: item.fromLocation,
-        toLocation: item.toLocation,
-        note: item.note,
-        additionalNote: item.additionalNote
-      }))
-    };
-
-    const updatedTransactions = transactions.map(transaction => {
-      if (transaction.id === selectedTransaction.id) {
-        return updatedTransaction;
-      }
-      return transaction;
-    });
-
     try {
-      // 서버에 거래내역 수정 저장
-      await transactionApi.update(selectedTransaction.id, updatedTransaction);
-      
-      setTransactions(updatedTransactions);
-      
-      // 선택된 거래도 업데이트
-      setSelectedTransaction(updatedTransaction);
+      const isGroup = Array.isArray(selectedTransaction.items) && selectedTransaction.items.length >= 1;
+      if (isGroup) {
+        // 그룹 편집: 기존 그룹 삭제 후 재생성
+        const groupId = selectedTransaction.groupId || selectedTransaction.id;
+        await transactionApi.deleteByGroupId(groupId);
+
+        const baseDate = editFormData.date || selectedTransaction.date;
+        const baseNote = editFormData.note || selectedTransaction.note || null;
+        const txType = selectedTransaction.type;
+
+        const commonNote = (editFormData.note ?? '').toString().trim();
+        const newRows = editProducts
+          .filter(it => it.product && it.quantity)
+          .map((item, idx) => ({
+            id: groupId + idx,
+            groupId,
+            type: txType,
+            productId: parseInt(item.product.id, 10),
+            productName: item.product.name,
+            productCode: item.product.code || null,
+            productSupplier: item.product.supplier || 'NEARBIKE',
+            quantity: parseInt(item.quantity, 10) || 0,
+            fromLocation: item.fromLocation || null,
+            toLocation: item.toLocation || null,
+            date: baseDate,
+            note: (commonNote !== '' ? commonNote : ((item.note ?? '').toString().trim() || baseNote)),
+            additionalNote: item.additionalNote || null,
+            createdAt: new Date().toISOString(),
+            isGrouped: true
+          }));
+
+        if (newRows.length === 0) {
+          showSnackbar('저장할 상품이 없습니다.', 'error');
+          return;
+        }
+
+        await transactionApi.createMany(newRows);
+      } else {
+        // 단일 편집: 단일 트랜잭션 업데이트
+        const item = editProducts[0];
+        const payload = {
+          ...selectedTransaction,
+          type: selectedTransaction.type,
+          productId: parseInt(item.product?.id ?? selectedTransaction.productId, 10),
+          productName: item.product?.name ?? selectedTransaction.productName,
+          productCode: item.product?.code ?? selectedTransaction.productCode ?? null,
+          productSupplier: item.product?.supplier ?? selectedTransaction.productSupplier ?? 'NEARBIKE',
+          quantity: parseInt(item.quantity ?? selectedTransaction.quantity, 10) || 0,
+          fromLocation: item.fromLocation ?? selectedTransaction.fromLocation ?? null,
+          toLocation: item.toLocation ?? selectedTransaction.toLocation ?? null,
+          date: editFormData.date || selectedTransaction.date,
+          note: ((editFormData.note ?? '').toString().trim() !== '')
+            ? (editFormData.note).toString()
+            : (((item.note ?? '').toString().trim() !== '') ? item.note : (selectedTransaction.note || null)),
+          additionalNote: item.additionalNote ?? selectedTransaction.additionalNote ?? null,
+          isGrouped: false
+        };
+        await transactionApi.update(selectedTransaction.id, payload);
+      }
+
+      // 서버에서 최신 거래내역 다시 반영
+      const latest = await transactionApi.getAll();
+      setTransactions(latest);
+      // 선택된 거래 초기화
+      setSelectedTransaction(null);
 
       setEditMode(false);
       setEditFormData({});
       setEditProducts([]);
       showSnackbar('거래내역이 수정되었습니다.', 'success');
+
+      // 재고 재계산
+      setTimeout(() => {
+        recalculateInventoryFromTransactions();
+      }, 100);
+
+      // 상세 모달 닫기
+      closeTransactionDetail();
     } catch (error) {
       console.error('거래내역 수정 실패:', error);
       showSnackbar('거래내역 수정에 실패했습니다.', 'error');
@@ -1348,6 +1395,52 @@ function InventoryManagement() {
   };
   
   const dealerStats = getDealerIoStats();
+
+  // 거래내역 표보기용 날짜 키 생성 (일별)
+  const dateKeys = useMemo(() => {
+    const result = [];
+    const today = new Date();
+    const toKey = (d) => d.toISOString().split('T')[0];
+    let start = filter.dateFrom ? new Date(filter.dateFrom) : new Date(today);
+    if (!filter.dateFrom) {
+      start.setDate(start.getDate() - 13); // 최근 14일
+    }
+    let end = filter.dateTo ? new Date(filter.dateTo) : new Date(today);
+    // 최대 31일 가드
+    const maxEnd = new Date(start);
+    maxEnd.setDate(maxEnd.getDate() + 30);
+    if (end > maxEnd) end = maxEnd;
+    // normalize
+    start = new Date(toKey(start));
+    end = new Date(toKey(end));
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      result.push(toKey(d));
+    }
+    return result;
+  }, [filter.dateFrom, filter.dateTo]);
+
+  // 창고/상품/일자별 입고/출고 집계
+  const ioByWarehouseProductDate = useMemo(() => {
+    const set = new Set(dateKeys);
+    const warehouseIds = new Set(warehouses.map(w => w.id));
+    const acc = {};
+    transactions.forEach(tx => {
+      if (!tx || !tx.date) return;
+      const key = typeof tx.date === 'string' ? tx.date.split('T')[0] : new Date(tx.date).toISOString().split('T')[0];
+      if (!set.has(key)) return;
+      if (tx.type === 'in' && warehouseIds.has(tx.toLocation)) {
+        const wid = tx.toLocation; const pid = tx.productId;
+        acc[wid] = acc[wid] || {}; acc[wid][pid] = acc[wid][pid] || {}; acc[wid][pid][key] = acc[wid][pid][key] || { inQty: 0, outQty: 0 };
+        acc[wid][pid][key].inQty += Number(tx.quantity) || 0;
+      }
+      if (tx.type === 'out' && warehouseIds.has(tx.fromLocation)) {
+        const wid = tx.fromLocation; const pid = tx.productId;
+        acc[wid] = acc[wid] || {}; acc[wid][pid] = acc[wid][pid] || {}; acc[wid][pid][key] = acc[wid][pid][key] || { inQty: 0, outQty: 0 };
+        acc[wid][pid][key].outQty += Number(tx.quantity) || 0;
+      }
+    });
+    return acc;
+  }, [transactions, warehouses, dateKeys]);
   
   const filteredTransactions = groupedTransactions.filter(group => {
     const matchesType = filter.type === 'all' || group.type === filter.type;
@@ -1364,6 +1457,37 @@ function InventoryManagement() {
     const matchesDateTo = !filter.dateTo || group.date <= filter.dateTo;
     
     return matchesType && matchesLocation && matchesProduct && matchesDateFrom && matchesDateTo;
+  }).sort((a, b) => {
+    const dir = filter.sortOrder === 'asc' ? 1 : -1;
+    const key = filter.sortBy;
+    const val = (g, field) => {
+      switch (field) {
+        case 'date': return g.date || '';
+        case 'type': return g.type || '';
+        case 'product': return g.items.length === 1 ? (g.items[0].productName || '') : `${g.items.length}개 상품`;
+        case 'quantity': return g.items.length === 1 ? (parseInt(g.items[0].quantity) || 0) : g.items.reduce((s, it) => s + (parseInt(it.quantity) || 0), 0);
+        case 'from':
+          if (g.items.length === 1) return g.items[0].fromLocation || '';
+          {
+            const set = [...new Set(g.items.map(it => it.fromLocation))];
+            return set.length === 1 ? (set[0] || '') : '다양';
+          }
+        case 'to':
+          if (g.items.length === 1) return g.items[0].toLocation || '';
+          {
+            const set = [...new Set(g.items.map(it => it.toLocation))];
+            return set.length === 1 ? (set[0] || '') : '다양';
+          }
+        case 'note':
+          return (g.items.length === 1 ? (g.items[0].note || '') : (g.note || ''));
+        default:
+          return g.date || '';
+      }
+    };
+    const av = val(a, key);
+    const bv = val(b, key);
+    if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
+    return String(av).localeCompare(String(bv)) * dir;
   });
 
   return (
@@ -1454,6 +1578,7 @@ function InventoryManagement() {
         <Tabs value={activeTab} onChange={handleTabChange} variant="scrollable" scrollButtons allowScrollButtonsMobile>
           <Tab label="거래 내역" />
           <Tab label="입출고 통계" />
+          <Tab label="전체보기" />
           {warehouses.map(w => (
             <Tab key={`wtab-${w.id}`} label={w.name} />
           ))}
@@ -1525,6 +1650,37 @@ function InventoryManagement() {
                   onChange={(e) => setFilter(prev => ({ ...prev, product: e.target.value }))}
                 />
               </Grid>
+              <Grid item xs={12} md={3}>
+                <TextField
+                  select
+                  fullWidth
+                  size="small"
+                  label="정렬 기준"
+                  value={filter.sortBy}
+                  onChange={(e) => setFilter(prev => ({ ...prev, sortBy: e.target.value }))}
+                >
+                  <MenuItem value="date">날짜</MenuItem>
+                  <MenuItem value="type">유형</MenuItem>
+                  <MenuItem value="product">상품</MenuItem>
+                  <MenuItem value="quantity">수량</MenuItem>
+                  <MenuItem value="from">출발지</MenuItem>
+                  <MenuItem value="to">목적지</MenuItem>
+                  <MenuItem value="note">메모</MenuItem>
+                </TextField>
+              </Grid>
+              <Grid item xs={12} md={1.5}>
+                <TextField
+                  select
+                  fullWidth
+                  size="small"
+                  label="정렬"
+                  value={filter.sortOrder}
+                  onChange={(e) => setFilter(prev => ({ ...prev, sortOrder: e.target.value }))}
+                >
+                  <MenuItem value="asc">오름차순</MenuItem>
+                  <MenuItem value="desc">내림차순</MenuItem>
+                </TextField>
+              </Grid>
               <Grid item xs={12} md={2}>
                 <Button
                   fullWidth
@@ -1534,7 +1690,9 @@ function InventoryManagement() {
                     dateTo: '',
                     location: '',
                     product: '',
-                    type: 'all'
+                    type: 'all',
+                    sortBy: 'date',
+                    sortOrder: 'desc'
                   })}
                 >
                   초기화
@@ -1543,163 +1701,128 @@ function InventoryManagement() {
             </Grid>
           </Card>
 
-          {/* 거래 내역 테이블 */}
-          <TableContainer component={Paper}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>날짜</TableCell>
-                  <TableCell>유형</TableCell>
-                  <TableCell>상품</TableCell>
-                  <TableCell align="center">수량</TableCell>
-                  <TableCell>출발지</TableCell>
-                  <TableCell>목적지</TableCell>
-                  <TableCell>메모</TableCell>
-                  <TableCell align="center">작업</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredTransactions.length === 0 ? (
+          {/* 거래 내역 보기 전환 및 렌더 */}
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+            <Box sx={{ display: 'inline-flex', border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
+              <Button size="small" variant={transactionViewMode === 'list' ? 'contained' : 'text'} onClick={() => setTransactionViewMode('list')}>리스트 보기</Button>
+              <Button size="small" variant={transactionViewMode === 'table' ? 'contained' : 'text'} onClick={() => setTransactionViewMode('table')}>표 보기</Button>
+            </Box>
+          </Box>
+
+          {transactionViewMode === 'list' && (
+            <TableContainer component={Paper}>
+              <Table>
+                <TableHead>
                   <TableRow>
-                    <TableCell colSpan={8} align="center">
-                      검색 결과가 없습니다.
-                    </TableCell>
+                    <TableCell>날짜</TableCell>
+                    <TableCell>유형</TableCell>
+                    <TableCell>상품</TableCell>
+                    <TableCell align="center">품목수</TableCell>
+                    <TableCell align="center">수량</TableCell>
+                    <TableCell>출발지</TableCell>
+                    <TableCell>목적지</TableCell>
+                    <TableCell>메모</TableCell>
+                    <TableCell align="center">작업</TableCell>
                   </TableRow>
-                ) : (
-                  filteredTransactions.map((group) => (
-                    <TableRow key={group.id} hover>
-                      <TableCell>{group.date}</TableCell>
-                      <TableCell>
-                        <Chip 
-                          label={group.type === 'in' ? '입고' : '출고'} 
-                          size="small"
-                          color={group.type === 'in' ? 'primary' : 'secondary'}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        {group.items.length === 1 ? 
-                          group.items[0].productName : 
-                          `${group.items.length}개 상품`
-                        }
-                      </TableCell>
-                      <TableCell align="center">
-                        {group.items.length === 1 ? 
-                          group.items[0].quantity : 
-                          group.items.reduce((sum, item) => sum + item.quantity, 0)
-                        }
-                      </TableCell>
-                      <TableCell>
-                        {group.items.length === 1 ? 
-                          (() => {
-                            const srcId = group.items[0].fromLocation;
-                            if (!srcId || srcId === '외부') return '외부';
-                            const w = warehouses.find(w => w.id === srcId);
-                            if (w) return `${w.name} (${w.id})`;
-                            const d = dealers.find(d => d.id === srcId);
-                            if (d) return `${d.name} (${d.id})`;
-                            return srcId;
-                          })() : 
-                          (() => {
-                            const fromLocations = [...new Set(group.items.map(item => item.fromLocation))];
-                            if (fromLocations.length === 1) {
-                              const srcId = fromLocations[0];
-                              if (!srcId || srcId === '외부') return '외부';
-                              const w = warehouses.find(w => w.id === srcId);
-                              if (w) return `${w.name} (${w.id})`;
-                              const d = dealers.find(d => d.id === srcId);
-                              if (d) return `${d.name} (${d.id})`;
-                              return srcId;
-                            }
-                            return '다양';
-                          })()
-                        }
-                      </TableCell>
-                      <TableCell>
-                        {group.items.length === 1 ? 
-                          (() => {
-                            const destId = group.items[0].toLocation;
-                            const w = warehouses.find(w => w.id === destId);
-                            if (w) return `${w.name} (${w.id})`;
-                            const d = dealers.find(d => d.id === destId);
-                            if (d) return `${d.name} (${d.id})`;
-                            return destId;
-                          })() :
-                          (() => {
-                            const toLocations = [...new Set(group.items.map(item => item.toLocation))];
-                            if (toLocations.length === 1) {
-                              const destId = toLocations[0];
-                              const w = warehouses.find(w => w.id === destId);
-                              if (w) return `${w.name} (${w.id})`;
-                              const d = dealers.find(d => d.id === destId);
-                              if (d) return `${d.name} (${d.id})`;
-                              return destId;
-                            }
-                            return '다양';
-                          })()
-                        }
-                      </TableCell>
-                      <TableCell>
-                        {group.items.length === 1 ? 
-                          (group.items[0].note || '-') : 
-                          (group.note || '다중 상품')
-                        }
-                      </TableCell>
-                      
-                      <TableCell align="center">
-                        <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openTransactionDetail(group);
-                            }}
-                          >
-                            상세
-                          </Button>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            color="error"
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              if (window.confirm('이 거래내역을 삭제하시겠습니까?')) {
-                                try {
-                                  // 그룹의 모든 아이템 ID 수집
-                                  const itemIds = group.items.map(item => item.id);
-                                  
-                                  // 서버에서 삭제
-                                  for (const id of itemIds) {
-                                    await transactionApi.delete(id);
-                                  }
-                                  
-                                  // 서버에서 최신 거래내역 다시 가져오기
-                                  const updatedTransactions = await transactionApi.getAll();
-                                  setTransactions(updatedTransactions);
-                                  
-                                  // 삭제 후 재고 재계산
-                                  setTimeout(() => {
-                                    recalculateInventoryFromTransactions();
-                                  }, 100);
-                                  
-                                  showSnackbar('거래내역이 삭제되었습니다.', 'success');
-                                } catch (error) {
-                                  console.error('거래내역 삭제 실패:', error);
-                                  showSnackbar('거래내역 삭제에 실패했습니다.', 'error');
-                                }
-                              }
-                            }}
-                          >
-                            삭제
-                          </Button>
-                        </Box>
-                      </TableCell>
+                </TableHead>
+                <TableBody>
+                  {filteredTransactions.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={9} align="center">검색 결과가 없습니다.</TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                  ) : (
+                    filteredTransactions.map((group) => (
+                      <TableRow key={group.id} hover>
+                        <TableCell>{group.date}</TableCell>
+                        <TableCell>
+                          <Chip label={group.type === 'in' ? '입고' : '출고'} size="small" color={group.type === 'in' ? 'primary' : 'secondary'} />
+                        </TableCell>
+                        <TableCell>
+                          {group.items.length === 1 ? group.items[0].productName : `${group.items.length}개 상품`}
+                        </TableCell>
+                        <TableCell align="center">{group.items.length}</TableCell>
+                        <TableCell align="center">{group.items.length === 1 ? group.items[0].quantity : group.items.reduce((sum, item) => sum + item.quantity, 0)}</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>
+                          {group.items.length === 1 ? (() => { const srcId = group.items[0].fromLocation; if (!srcId || srcId === '외부') return '외부'; const w = warehouses.find(w => w.id === srcId); if (w) return `${w.name} (${w.id})`; const d = dealers.find(d => d.id === srcId); if (d) return `${d.name} (${d.id})`; return srcId; })() : (() => { const fromLocations = [...new Set(group.items.map(item => item.fromLocation))]; if (fromLocations.length === 1) { const srcId = fromLocations[0]; if (!srcId || srcId === '외부') return '외부'; const w = warehouses.find(w => w.id === srcId); if (w) return `${w.name} (${w.id})`; const d = dealers.find(d => d.id === srcId); if (d) return `${d.name} (${d.id})`; return srcId; } return '다양'; })()}
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>
+                          {group.items.length === 1 ? (() => { const destId = group.items[0].toLocation; const w = warehouses.find(w => w.id === destId); if (w) return `${w.name} (${w.id})`; const d = dealers.find(d => d.id === destId); if (d) return `${d.name} (${d.id})`; return destId; })() : (() => { const toLocations = [...new Set(group.items.map(item => item.toLocation))]; if (toLocations.length === 1) { const destId = toLocations[0]; const w = warehouses.find(w => w.id === destId); if (w) return `${w.name} (${w.id})`; const d = dealers.find(d => d.id === destId); if (d) return `${d.name} (${d.id})`; return destId; } return '다양'; })()}
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>{group.items.length === 1 ? (group.items[0].note || '-') : (group.note || '다중 상품')}</TableCell>
+                        <TableCell align="center">
+                          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+                            <Button size="small" variant="outlined" onClick={(e) => { e.stopPropagation(); openTransactionDetail(group); }}>상세</Button>
+                            <Button size="small" variant="outlined" color="error" onClick={async (e) => { e.stopPropagation(); if (window.confirm('이 거래내역을 삭제하시겠습니까?')) { try { const itemIds = group.items.map(item => item.id); for (const id of itemIds) { await transactionApi.delete(id); } const updatedTransactions = await transactionApi.getAll(); setTransactions(updatedTransactions); setTimeout(() => { recalculateInventoryFromTransactions(); }, 100); showSnackbar('거래내역이 삭제되었습니다.', 'success'); } catch (error) { console.error('거래내역 삭제 실패:', error); showSnackbar('거래내역 삭제에 실패했습니다.', 'error'); } } }}>삭제</Button>
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+
+          {transactionViewMode === 'table' && (
+            <Box>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>기간: {dateKeys[0]} ~ {dateKeys[dateKeys.length - 1]}</Typography>
+              <Grid container spacing={2}>
+                {warehouses.map(w => {
+                  const wid = w.id;
+                  const productIdsWithMoves = Object.entries(ioByWarehouseProductDate[wid] || {})
+                    .filter(([, dates]) => Object.values(dates).some(v => (v.inQty || 0) > 0 || (v.outQty || 0) > 0))
+                    .map(([pid]) => Number(pid));
+                  const productCols = products.filter(p => productIdsWithMoves.includes(p.id)).sort((a, b) => a.name.localeCompare(b.name));
+                  return (
+                    <Grid item xs={12} key={`wh-table-${wid}`}>
+                      <Card>
+                        <CardContent>
+                          <Typography variant="h6" sx={{ mb: 1 }}>{w.name}</Typography>
+                          <TableContainer component={Paper} sx={{ width: '100%', maxHeight: 600, overflowY: 'auto', overflowX: 'hidden' }}>
+                            <Table size="small" stickyHeader sx={{ width: '100%', tableLayout: 'fixed' }}>
+                              <TableHead>
+                                <TableRow>
+                                  <TableCell sx={{ position: 'sticky', left: 0, zIndex: 3, backgroundColor: 'background.paper', width: 120, maxWidth: 120, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>날짜</TableCell>
+                                  {productCols.map(p => (
+                                    <TableCell key={`prod-col-${wid}-${p.id}`} align="right" sx={{ width: 140, maxWidth: 140, whiteSpace: 'normal', wordWrap: 'break-word', lineHeight: 1.3, minHeight: 48 }}>{p.name}</TableCell>
+                                  ))}
+                                </TableRow>
+                              </TableHead>
+                              <TableBody>
+                                {dateKeys.length === 0 ? (
+                                  <TableRow><TableCell colSpan={1 + productCols.length} align="center">해당 기간 움직임이 없습니다.</TableCell></TableRow>
+                                ) : (
+                                  dateKeys.map(dk => (
+                                    <TableRow key={`date-row-${wid}-${dk}`} hover>
+                                      <TableCell sx={{ position: 'sticky', left: 0, zIndex: 2, backgroundColor: 'background.paper', fontWeight: 'bold', width: 120, maxWidth: 120, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{dk}</TableCell>
+                                      {productCols.map(p => {
+                                        const io = ioByWarehouseProductDate[wid]?.[p.id]?.[dk] || { inQty: 0, outQty: 0 };
+                                        const hasAny = (io.inQty || 0) > 0 || (io.outQty || 0) > 0;
+                                        return (
+                                          <TableCell key={`cell-${wid}-${dk}-${p.id}`} align="right" sx={{ width: 140, maxWidth: 140, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                            {hasAny ? (
+                                              <Box sx={{ display: 'inline-flex', gap: 0.5 }}>
+                                                {io.inQty > 0 && (<span style={{ color: 'var(--mui-palette-success-main, #2e7d32)' }}>+{io.inQty.toLocaleString()}</span>)}
+                                                {io.outQty > 0 && (<span style={{ color: 'var(--mui-palette-error-main, #d32f2f)' }}>−{io.outQty.toLocaleString()}</span>)}
+                                              </Box>
+                                            ) : ''}
+                                          </TableCell>
+                                        );
+                                      })}
+                                    </TableRow>
+                                  ))
+                                )}
+                              </TableBody>
+                            </Table>
+                          </TableContainer>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  );
+                })}
+              </Grid>
+            </Box>
+          )}
         </Box>
       )}
 
@@ -1979,9 +2102,85 @@ function InventoryManagement() {
           </Box>
         )}
 
+      {/* 전체보기 (창고 x 상품 매트릭스) */}
+      {activeTab === 2 && (
+        <Box>
+          <Card sx={{ p: 2, mb: 2 }}>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'space-between' }}>
+              <Typography variant="h6">전체보기 (창고 x 상품)</Typography>
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                <TextField
+                  size="small"
+                  placeholder="상품명/코드 검색"
+                  value={overallSearch}
+                  onChange={(e) => setOverallSearch(e.target.value)}
+                />
+                <Button
+                  size="small"
+                  variant={overallStockFilter === 'all' ? 'contained' : 'outlined'}
+                  onClick={() => setOverallStockFilter('all')}
+                >
+                  전체
+                </Button>
+                <Button
+                  size="small"
+                  variant={overallStockFilter === 'inStock' ? 'contained' : 'outlined'}
+                  onClick={() => setOverallStockFilter('inStock')}
+                >
+                  재고 있음
+                </Button>
+                <Button
+                  size="small"
+                  variant={overallStockFilter === 'outOfStock' ? 'contained' : 'outlined'}
+                  onClick={() => setOverallStockFilter('outOfStock')}
+                >
+                  재고 없음
+                </Button>
+              </Box>
+            </Box>
+          </Card>
+
+          <TableContainer component={Paper} sx={{ width: '100%', maxHeight: 600, overflowX: 'hidden', overflowY: 'auto' }}>
+            <Table size="small" stickyHeader sx={{ width: '100%', tableLayout: 'fixed', '& th, & td': { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }}>
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ position: 'sticky', left: 0, zIndex: 3, backgroundColor: 'background.paper', width: 240, maxWidth: 240 }}>상품</TableCell>
+                  {warehouses.map(w => (
+                    <TableCell key={`wh-col-${w.id}`} align="right" sx={{ width: 120, maxWidth: 140 }}>{w.name}</TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {(() => {
+                  const term = overallSearch.trim().toLowerCase();
+                  let rows = (products || []).filter(p => !term || p.name.toLowerCase().includes(term) || p.code.toLowerCase().includes(term));
+                  rows = rows.filter(p => {
+                    const stocks = warehouses.map(w => (inventory[w.id]?.[p.id] || 0));
+                    const anyStock = stocks.some(q => q > 0);
+                    if (overallStockFilter === 'inStock') return anyStock;
+                    if (overallStockFilter === 'outOfStock') return !anyStock;
+                    return true;
+                  });
+                  return rows.map(p => (
+                    <TableRow key={`prod-row-${p.id}`} hover>
+                      <TableCell sx={{ position: 'sticky', left: 0, zIndex: 2, backgroundColor: 'background.paper', fontWeight: 'bold', width: 240, maxWidth: 240 }}>
+                        {p.name} ({p.code})
+                      </TableCell>
+                      {warehouses.map(w => (
+                        <TableCell key={`cell-${p.id}-${w.id}`} align="right" sx={{ width: 120, maxWidth: 140 }}>{(inventory[w.id]?.[p.id] || 0).toLocaleString()}</TableCell>
+                      ))}
+                    </TableRow>
+                  ));
+                })()}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Box>
+      )}
+
       {/* 동적으로 생성되는 창고별 상세 탭 */}
       {warehouses.map((w, idx) => (
-        activeTab === 2 + idx && (
+        activeTab === 3 + idx && (
           <Box key={`wtab-content-${w.id}`}>
             <Card sx={{ p: 2, mb: 2 }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -2201,8 +2400,8 @@ function InventoryManagement() {
 
             {multipleIoProducts.map((product, index) => (
                 <Box key={product.id} sx={{ mb: 1, p: 1 }}>
-                  <Grid container spacing={1} alignItems="center">
-                    <Grid item xs={12} md={2.5}>
+                    <Grid container spacing={1} alignItems="center">
+                      <Grid item xs={12} md={3.5}>
                       <Autocomplete
                         options={products}
                         getOptionLabel={(option) => `${option.name} (${option.code}) [${option.supplier || 'NEARBIKE'}]`}
@@ -2248,7 +2447,7 @@ function InventoryManagement() {
                         )}
                       />
                     </Grid>
-                    <Grid item xs={12} md={1}>
+                      <Grid item xs={12} md={1}>
                       <TextField
                         fullWidth
                         label="수량"
@@ -2267,7 +2466,7 @@ function InventoryManagement() {
                         })()}
                       />
                     </Grid>
-                    <Grid item xs={12} md={2}>
+                      <Grid item xs={12} md={2.5}>
                       <Autocomplete
                         options={[
                           { id: '', name: '외부 (신규입고)', type: 'external' },
@@ -2314,7 +2513,7 @@ function InventoryManagement() {
                         isOptionEqualToValue={(option, value) => option?.id === value?.id}
                       />
                     </Grid>
-                    <Grid item xs={12} md={2}>
+                      <Grid item xs={12} md={2.5}>
                       <Autocomplete
                         options={[
                           ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
@@ -2358,7 +2557,7 @@ function InventoryManagement() {
                         isOptionEqualToValue={(option, value) => option?.id === value?.id}
                       />
                     </Grid>
-                    <Grid item xs={12} md={1.5}>
+                      <Grid item xs={12} md={1}>
                       <TextField
                         fullWidth
                         label="개별 메모"
@@ -2368,7 +2567,7 @@ function InventoryManagement() {
                         placeholder="개별 메모"
                       />
                     </Grid>
-                    <Grid item xs={12} md={1.5}>
+                      <Grid item xs={12} md={1}>
                       <TextField
                         fullWidth
                         label="추가 메모"
@@ -2378,7 +2577,7 @@ function InventoryManagement() {
                         placeholder="추가 메모"
                       />
                     </Grid>
-                    <Grid item xs={12} md={0.5}>
+                      <Grid item xs={12} md={0.5}>
                       <IconButton
                         color="error"
                       onClick={() => removeIoProductRow(product.id)}
@@ -2464,8 +2663,31 @@ function InventoryManagement() {
                   </Typography>
                   
                   {editMode ? (
-                    // 수정 모드: 상품 추가/삭제 가능
+                    // 수정 모드: 상품 추가/삭제 가능 + 공통 메모/날짜 수정
                     <Box>
+                      <Grid container spacing={2} sx={{ mb: 2 }}>
+                        <Grid item xs={12} md={3}>
+                          <TextField
+                            fullWidth
+                            size="small"
+                            type="date"
+                            label="거래 날짜"
+                            value={editFormData.date || ''}
+                            onChange={(e) => setEditFormData(prev => ({ ...prev, date: e.target.value }))}
+                            InputLabelProps={{ shrink: true }}
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            fullWidth
+                            size="small"
+                            label="공통 메모"
+                            value={editFormData.note || ''}
+                            onChange={(e) => setEditFormData(prev => ({ ...prev, note: e.target.value }))}
+                            placeholder="해당 거래에 대한 공통 메모"
+                          />
+                        </Grid>
+                      </Grid>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                         <Typography variant="h6">상품 목록</Typography>
                         <Button
@@ -2488,6 +2710,7 @@ function InventoryManagement() {
                                 getOptionLabel={(option) => option ? `${option.name} (${option.code})` : ''}
                                 value={product.product}
                                 onChange={(event, newValue) => updateEditProduct(index, 'product', newValue)}
+                                isOptionEqualToValue={(option, value) => option?.id === value?.id}
                                 renderInput={(params) => (
                                   <TextField {...params} label="상품 선택" placeholder="상품을 선택하세요" />
                                 )}
@@ -2517,23 +2740,67 @@ function InventoryManagement() {
                               />
                             </Grid>
                             <Grid item xs={12} md={2}>
-                              <TextField
-                                fullWidth
-                                label="출발지"
+                              <Autocomplete
                                 size="small"
-                                value={product.fromLocation}
-                                onChange={(e) => updateEditProduct(index, 'fromLocation', e.target.value)}
-                                placeholder="출발지"
+                                options={[
+                                  ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
+                                  ...dealers.map(d => ({ ...d, type: 'dealer' }))
+                                ]}
+                                getOptionLabel={(option) => option ? `${option.name} (${option.id})` : ''}
+                                value={(() => {
+                                  const w = warehouses.find(w => w.id === product.fromLocation);
+                                  if (w) return { ...w, type: 'warehouse' };
+                                  const d = dealers.find(d => d.id === product.fromLocation);
+                                  if (d) return { ...d, type: 'dealer' };
+                                  return null;
+                                })()}
+                                onChange={(event, value) => updateEditProduct(index, 'fromLocation', value?.id || '')}
+                                isOptionEqualToValue={(option, value) => option?.id === value?.id}
+                                renderInput={(params) => (
+                                  <TextField {...params} label="출발지" placeholder="출발지 선택" />
+                                )}
+                                renderOption={(props, option) => (
+                                  <Box component="li" {...props}>
+                                    <Box>
+                                      <Typography variant="body2">{option.name} ({option.id})</Typography>
+                                      <Typography variant="caption" color="text.secondary">
+                                        {option.type === 'warehouse' ? '창고' : '대리점'}{option.location ? ` • ${option.location}` : ''}
+                                      </Typography>
+                                    </Box>
+                                  </Box>
+                                )}
                               />
                             </Grid>
                             <Grid item xs={12} md={2}>
-                              <TextField
-                                fullWidth
-                                label="목적지"
+                              <Autocomplete
                                 size="small"
-                                value={product.toLocation}
-                                onChange={(e) => updateEditProduct(index, 'toLocation', e.target.value)}
-                                placeholder="목적지"
+                                options={[
+                                  ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
+                                  ...dealers.map(d => ({ ...d, type: 'dealer' }))
+                                ]}
+                                getOptionLabel={(option) => option ? `${option.name} (${option.id})` : ''}
+                                value={(() => {
+                                  const w = warehouses.find(w => w.id === product.toLocation);
+                                  if (w) return { ...w, type: 'warehouse' };
+                                  const d = dealers.find(d => d.id === product.toLocation);
+                                  if (d) return { ...d, type: 'dealer' };
+                                  return null;
+                                })()}
+                                onChange={(event, value) => updateEditProduct(index, 'toLocation', value?.id || '')}
+                                isOptionEqualToValue={(option, value) => option?.id === value?.id}
+                                renderInput={(params) => (
+                                  <TextField {...params} label="목적지" placeholder="목적지 선택" />
+                                )}
+                                renderOption={(props, option) => (
+                                  <Box component="li" {...props}>
+                                    <Box>
+                                      <Typography variant="body2">{option.name} ({option.id})</Typography>
+                                      <Typography variant="caption" color="text.secondary">
+                                        {option.type === 'warehouse' ? '창고' : '대리점'}{option.location ? ` • ${option.location}` : ''}
+                                      </Typography>
+                                    </Box>
+                                  </Box>
+                                )}
                               />
                             </Grid>
                             <Grid item xs={12} md={2}>
@@ -2560,7 +2827,6 @@ function InventoryManagement() {
                                 <IconButton
                                   color="error"
                                   onClick={() => removeEditProduct(index)}
-                                  disabled={editProducts.length === 1}
                                   size="small"
                                 >
                                   <DeleteIcon />
@@ -2646,8 +2912,31 @@ function InventoryManagement() {
                 // 개별 거래 상세
                 <Box>
                   {editMode ? (
-                    // 수정 모드: 상품 추가/삭제 가능
+                    // 수정 모드: 상품 추가/삭제 가능 + 공통 메모/날짜 수정
                     <Box>
+                      <Grid container spacing={2} sx={{ mb: 2 }}>
+                        <Grid item xs={12} md={3}>
+                          <TextField
+                            fullWidth
+                            size="small"
+                            type="date"
+                            label="거래 날짜"
+                            value={editFormData.date || ''}
+                            onChange={(e) => setEditFormData(prev => ({ ...prev, date: e.target.value }))}
+                            InputLabelProps={{ shrink: true }}
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            fullWidth
+                            size="small"
+                            label="공통 메모"
+                            value={editFormData.note || ''}
+                            onChange={(e) => setEditFormData(prev => ({ ...prev, note: e.target.value }))}
+                            placeholder="해당 거래에 대한 공통 메모"
+                          />
+                        </Grid>
+                      </Grid>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                         <Typography variant="h6">상품 목록</Typography>
                         <Button
@@ -2670,6 +2959,7 @@ function InventoryManagement() {
                                 getOptionLabel={(option) => option ? `${option.name} (${option.code})` : ''}
                                 value={product.product}
                                 onChange={(event, newValue) => updateEditProduct(index, 'product', newValue)}
+                                isOptionEqualToValue={(option, value) => option?.id === value?.id}
                                 renderInput={(params) => (
                                   <TextField {...params} label="상품 선택" placeholder="상품을 선택하세요" />
                                 )}
@@ -2699,23 +2989,67 @@ function InventoryManagement() {
                               />
                             </Grid>
                             <Grid item xs={12} md={2}>
-                              <TextField
-                                fullWidth
-                                label="출발지"
+                              <Autocomplete
                                 size="small"
-                                value={product.fromLocation}
-                                onChange={(e) => updateEditProduct(index, 'fromLocation', e.target.value)}
-                                placeholder="출발지"
+                                options={[
+                                  ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
+                                  ...dealers.map(d => ({ ...d, type: 'dealer' }))
+                                ]}
+                                getOptionLabel={(option) => option ? `${option.name} (${option.id})` : ''}
+                                value={(() => {
+                                  const w = warehouses.find(w => w.id === product.fromLocation);
+                                  if (w) return { ...w, type: 'warehouse' };
+                                  const d = dealers.find(d => d.id === product.fromLocation);
+                                  if (d) return { ...d, type: 'dealer' };
+                                  return null;
+                                })()}
+                                onChange={(event, value) => updateEditProduct(index, 'fromLocation', value?.id || '')}
+                                isOptionEqualToValue={(option, value) => option?.id === value?.id}
+                                renderInput={(params) => (
+                                  <TextField {...params} label="출발지" placeholder="출발지 선택" />
+                                )}
+                                renderOption={(props, option) => (
+                                  <Box component="li" {...props}>
+                                    <Box>
+                                      <Typography variant="body2">{option.name} ({option.id})</Typography>
+                                      <Typography variant="caption" color="text.secondary">
+                                        {option.type === 'warehouse' ? '창고' : '대리점'}{option.location ? ` • ${option.location}` : ''}
+                                      </Typography>
+                                    </Box>
+                                  </Box>
+                                )}
                               />
                             </Grid>
                             <Grid item xs={12} md={2}>
-                              <TextField
-                                fullWidth
-                                label="목적지"
+                              <Autocomplete
                                 size="small"
-                                value={product.toLocation}
-                                onChange={(e) => updateEditProduct(index, 'toLocation', e.target.value)}
-                                placeholder="목적지"
+                                options={[
+                                  ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
+                                  ...dealers.map(d => ({ ...d, type: 'dealer' }))
+                                ]}
+                                getOptionLabel={(option) => option ? `${option.name} (${option.id})` : ''}
+                                value={(() => {
+                                  const w = warehouses.find(w => w.id === product.toLocation);
+                                  if (w) return { ...w, type: 'warehouse' };
+                                  const d = dealers.find(d => d.id === product.toLocation);
+                                  if (d) return { ...d, type: 'dealer' };
+                                  return null;
+                                })()}
+                                onChange={(event, value) => updateEditProduct(index, 'toLocation', value?.id || '')}
+                                isOptionEqualToValue={(option, value) => option?.id === value?.id}
+                                renderInput={(params) => (
+                                  <TextField {...params} label="목적지" placeholder="목적지 선택" />
+                                )}
+                                renderOption={(props, option) => (
+                                  <Box component="li" {...props}>
+                                    <Box>
+                                      <Typography variant="body2">{option.name} ({option.id})</Typography>
+                                      <Typography variant="caption" color="text.secondary">
+                                        {option.type === 'warehouse' ? '창고' : '대리점'}{option.location ? ` • ${option.location}` : ''}
+                                      </Typography>
+                                    </Box>
+                                  </Box>
+                                )}
                               />
                             </Grid>
                             <Grid item xs={12} md={2}>
@@ -2742,7 +3076,6 @@ function InventoryManagement() {
                               <IconButton
                                 color="error"
                                 onClick={() => removeEditProduct(index)}
-                                disabled={editProducts.length === 1}
                                 size="small"
                               >
                                 <DeleteIcon />
@@ -3014,7 +3347,7 @@ function InventoryManagement() {
       </Dialog>
 
       {/* 창고/대리점 관리 탭 (마지막) */}
-      {activeTab === 2 + warehouses.length && (
+      {activeTab === 3 + warehouses.length && (
         <LocationManagement
           warehouses={warehouses}
           setWarehouses={setWarehouses}
