@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import ExcelJS from 'exceljs';
 import {
   Box,
@@ -27,7 +27,8 @@ import {
   Snackbar,
   Chip,
   Badge,
-  Autocomplete
+  Autocomplete,
+  Pagination
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -47,9 +48,11 @@ import {
   Sync as SyncIcon,
   SyncDisabled as SyncDisabledIcon,
   Close as CloseIcon,
-  ArrowDownward as ArrowDownwardIcon
+  ArrowDownward as ArrowDownwardIcon,
+  QrCodeScanner as QrCodeScannerIcon
 } from '@mui/icons-material';
 import LocationManagement from './LocationManagement';
+import BarcodeScanner from './BarcodeScanner';
 import { productApi } from '../../api/productApi';
 import { warehouseApi } from '../../api/warehouseApi';
 import { dealerApi } from '../../api/dealerApi';
@@ -153,11 +156,33 @@ function InventoryManagement() {
 
   // 날짜 필터 버튼 상태
   const [dateFilter, setDateFilter] = useState('all'); // 'all', 'today', 'week', 'month'
+  
+  // 페이지네이션 상태
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(50); // 페이지당 50개 항목
+  
+  // 바코드 스캔 상태
+  const [barcodeScannerOpen, setBarcodeScannerOpen] = useState(false);
+  const [currentScanningRow, setCurrentScanningRow] = useState(null); // 현재 스캔 중인 행 인덱스
+  
+  // 드래그 앤 드롭 상태
+  const [isDragOver, setIsDragOver] = useState(false);
 
   useEffect(() => {
-    fetchProducts();
-    fetchWarehouses();
-    fetchDealers();
+    // API 호출을 병렬로 실행하여 초기 로딩 속도 개선
+    const loadInitialData = async () => {
+      try {
+        await Promise.all([
+          fetchProducts(),
+          fetchWarehouses(),
+          fetchDealers()
+        ]);
+      } catch (error) {
+        console.error('초기 데이터 로딩 실패:', error);
+      }
+    };
+    
+    loadInitialData();
   }, []);
 
   useEffect(() => {
@@ -241,8 +266,8 @@ function InventoryManagement() {
     setInventory(initialInventory);
   };
 
-  // 날짜 필터 버튼 클릭 처리
-  const handleDateFilterClick = (filterType) => {
+  // 날짜 필터 버튼 클릭 처리 (useCallback으로 메모이제이션)
+  const handleDateFilterClick = useCallback((filterType) => {
     setDateFilter(filterType);
     
     const today = new Date();
@@ -275,10 +300,10 @@ function InventoryManagement() {
       dateFrom,
       dateTo
     }));
-  };
+  }, []);
 
-  // 표보기 셀 클릭 시 해당 거래들을 모달로 표시
-  const handleTableCellClick = (warehouseId, productId, date) => {
+  // 표보기 셀 클릭 시 해당 거래들을 모달로 표시 (useCallback으로 메모이제이션)
+  const handleTableCellClick = useCallback((warehouseId, productId, date) => {
     const dayTransactions = transactions.filter(tx => {
       if (!tx || !tx.date) return false;
       const txDate = typeof tx.date === 'string' ? tx.date.split('T')[0] : new Date(tx.date).toISOString().split('T')[0];
@@ -291,7 +316,7 @@ function InventoryManagement() {
       setSelectedTableTransactions(dayTransactions);
       setTableModalOpen(true);
     }
-  };
+  }, [transactions]);
 
   // 거래내역을 기반으로 창고 재고 재계산
   const recalculateInventoryFromTransactions = async () => {
@@ -589,8 +614,8 @@ function InventoryManagement() {
     setEditProducts(updated);
   };
 
-  // 거래내역 수정 저장
-  const saveEditTransaction = async () => {
+  // 거래내역 수정 저장 (useCallback으로 메모이제이션)
+  const saveEditTransaction = useCallback(async () => {
     if (!selectedTransaction) return;
 
     try {
@@ -676,10 +701,10 @@ function InventoryManagement() {
       console.error('거래내역 수정 실패:', error);
       showSnackbar('거래내역 수정에 실패했습니다.', 'error');
     }
-  };
+  }, [selectedTransaction, editFormData, editProducts]);
 
-  // 거래내역 삭제
-  const deleteTransaction = async (transactionId) => {
+  // 거래내역 삭제 (useCallback으로 메모이제이션)
+  const deleteTransaction = useCallback(async (transactionId) => {
     try {
       // 서버에서 거래내역 삭제
       await transactionApi.delete(transactionId);
@@ -698,7 +723,7 @@ function InventoryManagement() {
       console.error('거래내역 삭제 실패:', error);
       showSnackbar('거래내역 삭제에 실패했습니다.', 'error');
     }
-  };
+  }, []);
 
   // 재고 수동 동기화
   const syncWarehouseStock = (warehouseId) => {
@@ -798,7 +823,7 @@ function InventoryManagement() {
     ]);
   };
 
-  const handleSubmitTransaction = async () => {
+  const handleSubmitTransaction = useCallback(async () => {
     // 통합 제출: 각 행의 fromLocation이 창고이면 '출고', 아니면 '입고'로 판단
     // 유효성 검사
     const invalidItems = multipleIoProducts.filter(item => {
@@ -864,7 +889,7 @@ function InventoryManagement() {
       console.error('입출고 등록 실패:', error);
       showSnackbar('입출고 등록에 실패했습니다.', 'error');
     }
-  };
+  }, [multipleIoProducts, warehouses, inventory, products, formData, transactions]);
 
   // (통합됨) 기존 입/출고 개별 처리 함수는 통합 제출 로직으로 대체되었습니다.
 
@@ -1104,8 +1129,8 @@ function InventoryManagement() {
     }
   };
 
-  // 엑셀 데이터로 입고/출고 처리 (통합)
-  const handleExcelDataSubmit = async () => {
+  // 엑셀 데이터로 입고/출고 처리 (통합) (useCallback으로 메모이제이션)
+  const handleExcelDataSubmit = useCallback(async () => {
     if (excelData.length === 0) {
       showSnackbar('처리할 데이터가 없습니다.', 'error');
       return;
@@ -1176,7 +1201,7 @@ function InventoryManagement() {
       console.error('엑셀 업로드 처리 실패:', error);
       showSnackbar('엑셀 업로드 처리에 실패했습니다.', 'error');
     }
-  };
+  }, [excelData, products, formData, transactions]);
 
   // 엑셀 템플릿 다운로드 (통합)
   const downloadExcelTemplate = () => {
@@ -1371,8 +1396,8 @@ function InventoryManagement() {
     return summary;
   };
 
-  // 그룹화된 거래내역 생성
-  const getGroupedTransactions = () => {
+  // 그룹화된 거래내역 생성 (useMemo로 메모이제이션)
+  const groupedTransactions = useMemo(() => {
     const grouped = {};
     
     transactions.forEach(transaction => {
@@ -1406,12 +1431,10 @@ function InventoryManagement() {
     });
     
     return Object.values(grouped);
-  };
-
-  const groupedTransactions = getGroupedTransactions();
+  }, [transactions]);
   
-  // 대리점별 입출고 통계 계산 (→대리점: 출고, ←대리점: 입고)
-  const getDealerIoStats = () => {
+  // 대리점별 입출고 통계 계산 (→대리점: 출고, ←대리점: 입고) (useMemo로 메모이제이션)
+  const dealerStats = useMemo(() => {
     const stats = {};
     
     dealers.forEach(dealer => {
@@ -1451,9 +1474,23 @@ function InventoryManagement() {
     });
 
     return stats;
-  };
-  
-  const dealerStats = getDealerIoStats();
+  }, [dealers, transactions]);
+
+  // 창고/대리점 ID 매핑 객체 (필터링 성능 최적화)
+  const locationMappings = useMemo(() => {
+    const warehouseMap = {};
+    const dealerMap = {};
+    
+    warehouses.forEach(w => {
+      warehouseMap[w.id] = { name: w.name, id: w.id };
+    });
+    
+    dealers.forEach(d => {
+      dealerMap[d.id] = { name: d.name, id: d.id };
+    });
+    
+    return { warehouseMap, dealerMap };
+  }, [warehouses, dealers]);
 
   // 거래내역 표보기용 날짜 키 생성 (일별)
   const dateKeys = useMemo(() => {
@@ -1505,77 +1542,273 @@ function InventoryManagement() {
     return acc;
   }, [transactions, warehouses, dateKeys]);
   
-  const filteredTransactions = groupedTransactions.filter(group => {
-    const matchesType = filter.type === 'all' || group.type === filter.type;
+  // 필터링된 거래내역 (useMemo로 메모이제이션 및 성능 최적화)
+  const filteredTransactions = useMemo(() => {
+    const { warehouseMap, dealerMap } = locationMappings;
     
-    const matchesFromLocation = !filter.fromLocation || 
-                          group.items.some(item => {
-                            const srcId = item.fromLocation;
-                            if (!srcId || srcId === '외부') return '외부'.includes(filter.fromLocation);
-                            const w = warehouses.find(w => w.id === srcId);
-                            if (w) return (w.name + w.id).toLowerCase().includes(filter.fromLocation.toLowerCase());
-                            const d = dealers.find(d => d.id === srcId);
-                            if (d) return (d.name + d.id).toLowerCase().includes(filter.fromLocation.toLowerCase());
-                            return srcId.toLowerCase().includes(filter.fromLocation.toLowerCase());
-                          });
-    
-    const matchesToLocation = !filter.toLocation || 
-                          group.items.some(item => {
-                            const destId = item.toLocation;
-                            const w = warehouses.find(w => w.id === destId);
-                            if (w) return (w.name + w.id).toLowerCase().includes(filter.toLocation.toLowerCase());
-                            const d = dealers.find(d => d.id === destId);
-                            if (d) return (d.name + d.id).toLowerCase().includes(filter.toLocation.toLowerCase());
-                            return destId.toLowerCase().includes(filter.toLocation.toLowerCase());
-                          });
-    
-    const matchesProduct = !filter.product || 
+    return groupedTransactions.filter(group => {
+      const matchesType = filter.type === 'all' || group.type === filter.type;
+      
+      const matchesFromLocation = !filter.fromLocation || 
+                            group.items.some(item => {
+                              const srcId = item.fromLocation;
+                              if (!srcId || srcId === '외부') return '외부'.includes(filter.fromLocation);
+                              const w = warehouseMap[srcId];
+                              if (w) return (w.name + w.id).toLowerCase().includes(filter.fromLocation.toLowerCase());
+                              const d = dealerMap[srcId];
+                              if (d) return (d.name + d.id).toLowerCase().includes(filter.fromLocation.toLowerCase());
+                              return srcId.toLowerCase().includes(filter.fromLocation.toLowerCase());
+                            });
+      
+      const matchesToLocation = !filter.toLocation || 
+                            group.items.some(item => {
+                              const destId = item.toLocation;
+                              const w = warehouseMap[destId];
+                              if (w) return (w.name + w.id).toLowerCase().includes(filter.toLocation.toLowerCase());
+                              const d = dealerMap[destId];
+                              if (d) return (d.name + d.id).toLowerCase().includes(filter.toLocation.toLowerCase());
+                              return destId.toLowerCase().includes(filter.toLocation.toLowerCase());
+                            });
+      
+      const matchesProduct = !filter.product || 
+                           group.items.some(item => 
+                             item.productName.toLowerCase().includes(filter.product.toLowerCase())
+                           );
+      
+      const matchesNote = !filter.note || 
                          group.items.some(item => 
-                           item.productName.toLowerCase().includes(filter.product.toLowerCase())
-                         );
+                           (item.note || '').toLowerCase().includes(filter.note.toLowerCase())
+                         ) ||
+                         (group.note || '').toLowerCase().includes(filter.note.toLowerCase());
+      
+      const matchesDateFrom = !filter.dateFrom || group.date >= filter.dateFrom;
+      const matchesDateTo = !filter.dateTo || group.date <= filter.dateTo;
+      
+      return matchesType && matchesFromLocation && matchesToLocation && matchesProduct && matchesNote && matchesDateFrom && matchesDateTo;
+    }).sort((a, b) => {
+      const dir = filter.sortOrder === 'asc' ? 1 : -1;
+      const key = filter.sortBy;
+      const val = (g, field) => {
+        switch (field) {
+          case 'date': return g.date || '';
+          case 'type': return g.type || '';
+          case 'product': return g.items.length === 1 ? (g.items[0].productName || '') : `${g.items.length}개 상품`;
+          case 'quantity': return g.items.length === 1 ? (parseInt(g.items[0].quantity) || 0) : g.items.reduce((s, it) => s + (parseInt(it.quantity) || 0), 0);
+          case 'from':
+            if (g.items.length === 1) return g.items[0].fromLocation || '';
+            {
+              const set = [...new Set(g.items.map(it => it.fromLocation))];
+              return set.length === 1 ? (set[0] || '') : '다양';
+            }
+          case 'to':
+            if (g.items.length === 1) return g.items[0].toLocation || '';
+            {
+              const set = [...new Set(g.items.map(it => it.toLocation))];
+              return set.length === 1 ? (set[0] || '') : '다양';
+            }
+          case 'note':
+            return (g.items.length === 1 ? (g.items[0].note || '') : (g.note || ''));
+          default:
+            return g.date || '';
+        }
+      };
+      const av = val(a, key);
+      const bv = val(b, key);
+      if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
+      return String(av).localeCompare(String(bv)) * dir;
+    });
+  }, [groupedTransactions, filter, locationMappings]);
+
+  // 대시보드 통계 데이터 (useMemo로 메모이제이션)
+  const dashboardStats = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    const thisWeek = new Date();
+    thisWeek.setDate(thisWeek.getDate() - thisWeek.getDay());
+    const weekStart = thisWeek.toISOString().split('T')[0];
     
-    const matchesNote = !filter.note || 
-                       group.items.some(item => 
-                         (item.note || '').toLowerCase().includes(filter.note.toLowerCase())
-                       ) ||
-                       (group.note || '').toLowerCase().includes(filter.note.toLowerCase());
+    // 오늘 거래 통계
+    const todayTransactions = transactions.filter(tx => tx.date === today);
+    const todayInbound = todayTransactions.filter(tx => tx.type === 'in').reduce((sum, tx) => sum + tx.quantity, 0);
+    const todayOutbound = todayTransactions.filter(tx => tx.type === 'out').reduce((sum, tx) => sum + tx.quantity, 0);
     
-    const matchesDateFrom = !filter.dateFrom || group.date >= filter.dateFrom;
-    const matchesDateTo = !filter.dateTo || group.date <= filter.dateTo;
+    // 이번 주 거래 통계
+    const weekTransactions = transactions.filter(tx => tx.date >= weekStart);
+    const weekInbound = weekTransactions.filter(tx => tx.type === 'in').reduce((sum, tx) => sum + tx.quantity, 0);
+    const weekOutbound = weekTransactions.filter(tx => tx.type === 'out').reduce((sum, tx) => sum + tx.quantity, 0);
     
-    return matchesType && matchesFromLocation && matchesToLocation && matchesProduct && matchesNote && matchesDateFrom && matchesDateTo;
-  }).sort((a, b) => {
-    const dir = filter.sortOrder === 'asc' ? 1 : -1;
-    const key = filter.sortBy;
-    const val = (g, field) => {
-      switch (field) {
-        case 'date': return g.date || '';
-        case 'type': return g.type || '';
-        case 'product': return g.items.length === 1 ? (g.items[0].productName || '') : `${g.items.length}개 상품`;
-        case 'quantity': return g.items.length === 1 ? (parseInt(g.items[0].quantity) || 0) : g.items.reduce((s, it) => s + (parseInt(it.quantity) || 0), 0);
-        case 'from':
-          if (g.items.length === 1) return g.items[0].fromLocation || '';
-          {
-            const set = [...new Set(g.items.map(it => it.fromLocation))];
-            return set.length === 1 ? (set[0] || '') : '다양';
-          }
-        case 'to':
-          if (g.items.length === 1) return g.items[0].toLocation || '';
-          {
-            const set = [...new Set(g.items.map(it => it.toLocation))];
-            return set.length === 1 ? (set[0] || '') : '다양';
-          }
-        case 'note':
-          return (g.items.length === 1 ? (g.items[0].note || '') : (g.note || ''));
-        default:
-          return g.date || '';
+    // 전체 재고 통계
+    const totalInventory = Object.values(inventory).reduce((total, warehouse) => {
+      return total + Object.values(warehouse).reduce((sum, qty) => sum + qty, 0);
+    }, 0);
+    
+    // 재고 부족 상품 수
+    const lowStockProducts = products.filter(product => {
+      return warehouses.some(warehouse => {
+        const stock = inventory[warehouse.id]?.[product.id] || 0;
+        return stock <= 5; // 5개 이하를 재고 부족으로 간주
+      });
+    }).length;
+    
+    // 최근 거래 활동
+    const recentTransactions = transactions
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .slice(0, 5);
+    
+    return {
+      today: {
+        inbound: todayInbound,
+        outbound: todayOutbound,
+        transactions: todayTransactions.length
+      },
+      week: {
+        inbound: weekInbound,
+        outbound: weekOutbound,
+        transactions: weekTransactions.length
+      },
+      inventory: {
+        total: totalInventory,
+        lowStockCount: lowStockProducts,
+        warehouseCount: warehouses.length,
+        productCount: products.length
+      },
+      recent: recentTransactions
+    };
+  }, [transactions, inventory, warehouses, products]);
+
+  // 페이지네이션된 거래내역 (useMemo로 메모이제이션)
+  const paginatedTransactions = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredTransactions.slice(startIndex, endIndex);
+  }, [filteredTransactions, currentPage, itemsPerPage]);
+
+  // 총 페이지 수 계산
+  const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
+
+  // 페이지 변경 핸들러 (useCallback으로 메모이제이션)
+  const handlePageChange = useCallback((event, value) => {
+    setCurrentPage(value);
+  }, []);
+
+  // 필터 변경 시 첫 페이지로 이동
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter]);
+
+  // 키보드 단축키 지원 (useEffect로 전역 키보드 이벤트 처리)
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      // ESC 키로 모달 닫기
+      if (event.key === 'Escape') {
+        if (openDialog) {
+          handleCloseDialog();
+        } else if (transactionDetailOpen) {
+          closeTransactionDetail();
+        } else if (warehouseDetailOpen) {
+          setWarehouseDetailOpen(false);
+        } else if (excelUploadOpen) {
+          handleCloseExcelUpload();
+        } else if (barcodeScannerOpen) {
+          setBarcodeScannerOpen(false);
+          setCurrentScanningRow(null);
+        }
+      }
+      
+      // Enter 키로 상품 행 추가 (입출고 등록 모달이 열려있을 때)
+      if (event.key === 'Enter' && openDialog && !event.shiftKey) {
+        event.preventDefault();
+        addIoProductRow();
+      }
+      
+      // Ctrl+N으로 새 입출고 등록
+      if (event.ctrlKey && event.key === 'n') {
+        event.preventDefault();
+        if (!openDialog) {
+          handleOpenDialog('in');
+        }
+      }
+      
+      // Ctrl+F로 필터 포커스
+      if (event.ctrlKey && event.key === 'f') {
+        event.preventDefault();
+        // 필터 입력 필드에 포커스 (실제 구현 시 ref 사용)
       }
     };
-    const av = val(a, key);
-    const bv = val(b, key);
-    if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
-    return String(av).localeCompare(String(bv)) * dir;
-  });
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [openDialog, transactionDetailOpen, warehouseDetailOpen, excelUploadOpen, barcodeScannerOpen]);
+
+  // 바코드 스캔 핸들러 (useCallback으로 메모이제이션)
+  const handleBarcodeScan = useCallback((barcode) => {
+    if (currentScanningRow !== null) {
+      // 상품 코드로 상품 찾기
+      const product = products.find(p => p.code === barcode);
+      if (product) {
+        // 해당 행의 상품을 바코드로 스캔한 상품으로 설정
+        const updatedProducts = [...multipleIoProducts];
+        updatedProducts[currentScanningRow] = {
+          ...updatedProducts[currentScanningRow],
+          productId: product.id,
+          product: product
+        };
+        setMultipleIoProducts(updatedProducts);
+        showSnackbar(`상품이 스캔되었습니다: ${product.name}`, 'success');
+      } else {
+        showSnackbar('해당 바코드의 상품을 찾을 수 없습니다.', 'error');
+      }
+    }
+    setBarcodeScannerOpen(false);
+    setCurrentScanningRow(null);
+  }, [currentScanningRow, products, multipleIoProducts]);
+
+  // 바코드 스캔 시작 (useCallback으로 메모이제이션)
+  const startBarcodeScan = useCallback((rowIndex) => {
+    setCurrentScanningRow(rowIndex);
+    setBarcodeScannerOpen(true);
+  }, []);
+
+  // 바코드 스캔 에러 핸들러 (useCallback으로 메모이제이션)
+  const handleBarcodeScanError = useCallback((error) => {
+    showSnackbar(`바코드 스캔 오류: ${error}`, 'error');
+    setBarcodeScannerOpen(false);
+    setCurrentScanningRow(null);
+  }, []);
+
+  // 드래그 앤 드롭 핸들러 (useCallback으로 메모이제이션)
+  const handleDragOver = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      const file = files[0];
+      if (file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
+          file.type === 'application/vnd.ms-excel' ||
+          file.name.endsWith('.xlsx') || 
+          file.name.endsWith('.xls')) {
+        setExcelFile(file);
+        handleExcelFileUpload({ target: { files: [file] } });
+      } else {
+        showSnackbar('엑셀 파일(.xlsx, .xls)만 업로드 가능합니다.', 'error');
+      }
+    }
+  }, []);
 
   return (
     <Box sx={{ p: 3 }}>
@@ -1584,46 +1817,52 @@ function InventoryManagement() {
         <Typography variant="h5" fontWeight="bold">
           입출고 관리
         </Typography>
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-          <Button
-            variant="outlined"
-            color="warning"
-            onClick={async () => {
-              if (!window.confirm('모든 창고 재고를 초기화하고 베이스로 재설정할까요?')) return;
-              try {
-                // 서버 재고 전체 삭제
-                await inventoryApi.clearAll();
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+          <Typography variant="caption" color="text.secondary" sx={{ mr: 1 }}>
+            단축키: ESC(닫기) | Enter(행추가) | Ctrl+N(새등록)
+          </Typography>
+          {/* 재고 초기화 버튼 숨김 처리 */}
+          {false && (
+            <Button
+              variant="outlined"
+              color="warning"
+              onClick={async () => {
+                if (!window.confirm('모든 창고 재고를 초기화하고 베이스로 재설정할까요?')) return;
+                try {
+                  // 서버 재고 전체 삭제
+                  await inventoryApi.clearAll();
 
-                // 로컬 초기 베이스 재설정
-                const base = {};
-                warehouses.forEach(warehouse => {
-                  base[warehouse.id] = {};
-                  products.forEach(product => {
-                    base[warehouse.id][product.id] = warehouse.syncWithProductStock ? (product.stock || 0) : 0;
+                  // 로컬 초기 베이스 재설정
+                  const base = {};
+                  warehouses.forEach(warehouse => {
+                    base[warehouse.id] = {};
+                    products.forEach(product => {
+                      base[warehouse.id][product.id] = warehouse.syncWithProductStock ? (product.stock || 0) : 0;
+                    });
                   });
-                });
-                setInventory(base);
+                  setInventory(base);
 
-                // 서버에 일괄 반영
-                const updates = [];
-                Object.entries(base).forEach(([warehouseId, productMap]) => {
-                  Object.entries(productMap).forEach(([productId, quantity]) => {
-                    updates.push({ warehouse_id: warehouseId, product_id: parseInt(productId, 10), quantity });
+                  // 서버에 일괄 반영
+                  const updates = [];
+                  Object.entries(base).forEach(([warehouseId, productMap]) => {
+                    Object.entries(productMap).forEach(([productId, quantity]) => {
+                      updates.push({ warehouse_id: warehouseId, product_id: parseInt(productId, 10), quantity });
+                    });
                   });
-                });
-                if (updates.length > 0) {
-                  await inventoryApi.upsertMany(updates);
+                  if (updates.length > 0) {
+                    await inventoryApi.upsertMany(updates);
+                  }
+                  showSnackbar('재고가 초기화되었습니다.', 'success');
+                } catch (e) {
+                  console.error('재고 초기화 실패:', e);
+                  showSnackbar('재고 초기화에 실패했습니다.', 'error');
                 }
-                showSnackbar('재고가 초기화되었습니다.', 'success');
-              } catch (e) {
-                console.error('재고 초기화 실패:', e);
-                showSnackbar('재고 초기화에 실패했습니다.', 'error');
-              }
-            }}
-            size="small"
-          >
-            재고 초기화
-          </Button>
+              }}
+              size="small"
+            >
+              재고 초기화
+            </Button>
+          )}
           {products.length === 0 && (
             <Alert severity="warning" sx={{ mr: 2 }}>
               상품 데이터가 없습니다. 상품을 먼저 등록/업로드 해주세요.
@@ -1663,6 +1902,7 @@ function InventoryManagement() {
       {/* 탭 메뉴 */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
         <Tabs value={activeTab} onChange={handleTabChange} variant="scrollable" scrollButtons allowScrollButtonsMobile>
+          <Tab label="대시보드" />
           <Tab label="거래 내역" />
           <Tab label="입출고 통계" />
           <Tab label="전체보기" />
@@ -1675,7 +1915,186 @@ function InventoryManagement() {
 
       {/* 탭 컨텐츠 */}
 
+      {/* 대시보드 탭 */}
       {activeTab === 0 && (
+        <Box>
+          <Typography variant="h6" sx={{ mb: 3 }}>
+            📊 입출고 관리 대시보드
+          </Typography>
+          
+          {/* 주요 지표 카드들 */}
+          <Grid container spacing={3} sx={{ mb: 4 }}>
+            {/* 오늘 거래 현황 */}
+            <Grid item xs={12} md={3}>
+              <Card sx={{ p: 2, textAlign: 'center' }}>
+                <Typography variant="h4" color="primary" sx={{ fontWeight: 'bold' }}>
+                  {dashboardStats.today.transactions}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  오늘 거래 건수
+                </Typography>
+              </Card>
+            </Grid>
+            
+            {/* 오늘 입고량 */}
+            <Grid item xs={12} md={3}>
+              <Card sx={{ p: 2, textAlign: 'center' }}>
+                <Typography variant="h4" color="success.main" sx={{ fontWeight: 'bold' }}>
+                  {dashboardStats.today.inbound.toLocaleString()}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  오늘 입고량
+                </Typography>
+              </Card>
+            </Grid>
+            
+            {/* 오늘 출고량 */}
+            <Grid item xs={12} md={3}>
+              <Card sx={{ p: 2, textAlign: 'center' }}>
+                <Typography variant="h4" color="error.main" sx={{ fontWeight: 'bold' }}>
+                  {dashboardStats.today.outbound.toLocaleString()}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  오늘 출고량
+                </Typography>
+              </Card>
+            </Grid>
+            
+            {/* 전체 재고량 */}
+            <Grid item xs={12} md={3}>
+              <Card sx={{ p: 2, textAlign: 'center' }}>
+                <Typography variant="h4" color="info.main" sx={{ fontWeight: 'bold' }}>
+                  {dashboardStats.inventory.total.toLocaleString()}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  전체 재고량
+                </Typography>
+              </Card>
+            </Grid>
+          </Grid>
+          
+          {/* 주간 통계 및 재고 현황 */}
+          <Grid container spacing={3} sx={{ mb: 4 }}>
+            {/* 이번 주 통계 */}
+            <Grid item xs={12} md={6}>
+              <Card sx={{ p: 3 }}>
+                <Typography variant="h6" sx={{ mb: 2 }}>
+                  📈 이번 주 통계
+                </Typography>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                  <Typography variant="body2">거래 건수:</Typography>
+                  <Typography variant="body2" fontWeight="bold">
+                    {dashboardStats.week.transactions}건
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                  <Typography variant="body2">총 입고량:</Typography>
+                  <Typography variant="body2" fontWeight="bold" color="success.main">
+                    {dashboardStats.week.inbound.toLocaleString()}개
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography variant="body2">총 출고량:</Typography>
+                  <Typography variant="body2" fontWeight="bold" color="error.main">
+                    {dashboardStats.week.outbound.toLocaleString()}개
+                  </Typography>
+                </Box>
+              </Card>
+            </Grid>
+            
+            {/* 재고 현황 */}
+            <Grid item xs={12} md={6}>
+              <Card sx={{ p: 3 }}>
+                <Typography variant="h6" sx={{ mb: 2 }}>
+                  📦 재고 현황
+                </Typography>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                  <Typography variant="body2">창고 수:</Typography>
+                  <Typography variant="body2" fontWeight="bold">
+                    {dashboardStats.inventory.warehouseCount}개
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                  <Typography variant="body2">상품 수:</Typography>
+                  <Typography variant="body2" fontWeight="bold">
+                    {dashboardStats.inventory.productCount}개
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography variant="body2">재고 부족 상품:</Typography>
+                  <Typography 
+                    variant="body2" 
+                    fontWeight="bold" 
+                    color={dashboardStats.inventory.lowStockCount > 0 ? 'warning.main' : 'success.main'}
+                  >
+                    {dashboardStats.inventory.lowStockCount}개
+                  </Typography>
+                </Box>
+              </Card>
+            </Grid>
+          </Grid>
+          
+          {/* 최근 거래 활동 */}
+          <Card sx={{ p: 3 }}>
+            <Typography variant="h6" sx={{ mb: 2 }}>
+              🔄 최근 거래 활동
+            </Typography>
+            {dashboardStats.recent.length > 0 ? (
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>날짜</TableCell>
+                      <TableCell>유형</TableCell>
+                      <TableCell>상품</TableCell>
+                      <TableCell align="right">수량</TableCell>
+                      <TableCell>출발지</TableCell>
+                      <TableCell>목적지</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {dashboardStats.recent.map((tx) => {
+                      const product = products.find(p => p.id === tx.productId);
+                      const fromLocation = tx.fromLocation === '외부' ? '외부' : 
+                        warehouses.find(w => w.id === tx.fromLocation)?.name || 
+                        dealers.find(d => d.id === tx.fromLocation)?.name || 
+                        tx.fromLocation;
+                      const toLocation = 
+                        warehouses.find(w => w.id === tx.toLocation)?.name || 
+                        dealers.find(d => d.id === tx.toLocation)?.name || 
+                        tx.toLocation;
+                      
+                      return (
+                        <TableRow key={tx.id} hover>
+                          <TableCell>{tx.date}</TableCell>
+                          <TableCell>
+                            <Chip 
+                              label={tx.type === 'in' ? '입고' : '출고'} 
+                              size="small"
+                              color={tx.type === 'in' ? 'primary' : 'secondary'}
+                            />
+                          </TableCell>
+                          <TableCell>{product?.name || '알 수 없음'}</TableCell>
+                          <TableCell align="right">{tx.quantity.toLocaleString()}</TableCell>
+                          <TableCell>{fromLocation}</TableCell>
+                          <TableCell>{toLocation}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : (
+              <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
+                최근 거래 내역이 없습니다.
+              </Typography>
+            )}
+          </Card>
+        </Box>
+      )}
+
+      {/* 거래 내역 탭 */}
+      {activeTab === 1 && (
         <Box>
           {/* 필터 옵션 */}
           <Card sx={{ p: 2, mb: 3 }}>
@@ -1852,7 +2271,8 @@ function InventoryManagement() {
           </Box>
 
           {transactionViewMode === 'list' && (
-            <TableContainer component={Paper}>
+            <>
+              <TableContainer component={Paper}>
               <Table>
                 <TableHead>
                   <TableRow>
@@ -1868,12 +2288,12 @@ function InventoryManagement() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {filteredTransactions.length === 0 ? (
+                  {paginatedTransactions.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={9} align="center">검색 결과가 없습니다.</TableCell>
                     </TableRow>
                   ) : (
-                    filteredTransactions.map((group) => (
+                    paginatedTransactions.map((group) => (
                       <TableRow key={group.id} hover>
                         <TableCell>{group.date}</TableCell>
                         <TableCell>
@@ -1903,6 +2323,22 @@ function InventoryManagement() {
                 </TableBody>
               </Table>
             </TableContainer>
+            
+            {/* 페이지네이션 */}
+            {filteredTransactions.length > itemsPerPage && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                <Pagination
+                  count={totalPages}
+                  page={currentPage}
+                  onChange={handlePageChange}
+                  color="primary"
+                  size="large"
+                  showFirstButton
+                  showLastButton
+                />
+              </Box>
+            )}
+            </>
           )}
 
           {transactionViewMode === 'table' && (
@@ -2025,7 +2461,7 @@ function InventoryManagement() {
         </Box>
       )}
 
-        {activeTab === 1 && (
+        {activeTab === 2 && (
           <Box>
             {/* 재고 현황 요약 카드 */}
             <Grid container spacing={3} sx={{ mb: 3 }}>
@@ -2301,8 +2737,8 @@ function InventoryManagement() {
           </Box>
         )}
 
-      {/* 전체보기 (창고 x 상품 매트릭스) */}
-      {activeTab === 2 && (
+      {/* 전체보기 탭 */}
+      {activeTab === 3 && (
         <Box>
           <Card sx={{ p: 2, mb: 2 }}>
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'space-between' }}>
@@ -2379,7 +2815,7 @@ function InventoryManagement() {
 
       {/* 동적으로 생성되는 창고별 상세 탭 */}
       {warehouses.map((w, idx) => (
-        activeTab === 3 + idx && (
+        activeTab === 4 + idx && (
           <Box key={`wtab-content-${w.id}`}>
             <Card sx={{ p: 2, mb: 2 }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -2601,51 +3037,62 @@ function InventoryManagement() {
                 <Box key={product.id} sx={{ mb: 1, p: 1 }}>
                     <Grid container spacing={1} alignItems="center">
                       <Grid item xs={12} md={3.5}>
-                      <Autocomplete
-                        options={products}
-                        getOptionLabel={(option) => `${option.name} (${option.code}) [${option.supplier || 'NEARBIKE'}]`}
-                        value={products.find(p => p.id === product.productId) || null}
-                        onChange={(event, value) => 
-                        updateIoProductRow(product.id, 'productId', value?.id || '')
-                        }
-                        getOptionDisabled={(option) => {
-                          const srcId = product.fromLocation;
-                          const isOutbound = warehouses.find(w => w.id === srcId);
-                          if (!isOutbound) return false;
-                          const available = (inventory[srcId]?.[option.id]) || 0;
-                          return available <= 0;
-                        }}
-                        renderOption={(props, option) => (
-                          <Box component="li" {...props}>
-                            <Box>
-                              <Typography variant="body2" fontWeight="medium">
-                                {option.name}
-                              </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  {(() => {
-                                    const srcId = product.fromLocation;
-                                    const isOutbound = warehouses.find(w => w.id === srcId);
-                                    if (isOutbound) {
-                                      const available = (inventory[srcId]?.[option.id]) || 0;
-                                      return `${option.code} • ${option.category} • ${option.supplier || 'NEARBIKE'} • ${option.price?.toLocaleString()}원 • 출발지 재고 ${available}개`;
-                                    }
-                                    return `${option.code} • ${option.category} • ${option.supplier || 'NEARBIKE'} • ${option.price?.toLocaleString()}원`;
-                                  })()}
-                                </Typography>
-                            </Box>
-                          </Box>
-                        )}
-                        renderInput={(params) => (
-                          <TextField
-                            {...params}
-                          label={`상품 선택 ${products.find(p => p.id === product.productId) ? `[${products.find(p => p.id === product.productId)?.supplier || 'NEARBIKE'}]` : ''}`}
-                            required
-                            fullWidth
-                            size="small"
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                          <Autocomplete
+                            options={products}
+                            getOptionLabel={(option) => `${option.name} (${option.code}) [${option.supplier || 'NEARBIKE'}]`}
+                            value={products.find(p => p.id === product.productId) || null}
+                            onChange={(event, value) => 
+                            updateIoProductRow(product.id, 'productId', value?.id || '')
+                            }
+                            getOptionDisabled={(option) => {
+                              const srcId = product.fromLocation;
+                              const isOutbound = warehouses.find(w => w.id === srcId);
+                              if (!isOutbound) return false;
+                              const available = (inventory[srcId]?.[option.id]) || 0;
+                              return available <= 0;
+                            }}
+                            renderOption={(props, option) => (
+                              <Box component="li" {...props}>
+                                <Box>
+                                  <Typography variant="body2" fontWeight="medium">
+                                    {option.name}
+                                  </Typography>
+                                    <Typography variant="caption" color="text.secondary">
+                                      {(() => {
+                                        const srcId = product.fromLocation;
+                                        const isOutbound = warehouses.find(w => w.id === srcId);
+                                        if (isOutbound) {
+                                          const available = (inventory[srcId]?.[option.id]) || 0;
+                                          return `${option.code} • ${option.category} • ${option.supplier || 'NEARBIKE'} • ${option.price?.toLocaleString()}원 • 출발지 재고 ${available}개`;
+                                        }
+                                        return `${option.code} • ${option.category} • ${option.supplier || 'NEARBIKE'} • ${option.price?.toLocaleString()}원`;
+                                      })()}
+                                    </Typography>
+                                </Box>
+                              </Box>
+                            )}
+                            renderInput={(params) => (
+                              <TextField
+                                {...params}
+                              label={`상품 선택 ${products.find(p => p.id === product.productId) ? `[${products.find(p => p.id === product.productId)?.supplier || 'NEARBIKE'}]` : ''}`}
+                                required
+                                fullWidth
+                                size="small"
+                              />
+                            )}
                           />
-                        )}
-                      />
-                    </Grid>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={() => startBarcodeScan(index)}
+                            sx={{ minWidth: 'auto', px: 1 }}
+                            title="바코드 스캔"
+                          >
+                            <QrCodeScannerIcon />
+                          </Button>
+                        </Box>
+                      </Grid>
                       <Grid item xs={12} md={1}>
                       <TextField
                         fullWidth
@@ -3457,16 +3904,40 @@ function InventoryManagement() {
                 style={{ display: 'none' }}
                 id="excel-file-input"
               />
-              <label htmlFor="excel-file-input">
-                <Button
-                  variant="contained"
-                  component="span"
-                  startIcon={<UploadIcon />}
-                  disabled={!excelFile}
-                >
-                  {excelFile ? excelFile.name : '엑셀 파일 선택'}
-                </Button>
-              </label>
+              
+              {/* 드래그 앤 드롭 영역 */}
+              <Box
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                sx={{
+                  border: `2px dashed ${isDragOver ? '#1976d2' : '#ccc'}`,
+                  borderRadius: 2,
+                  p: 3,
+                  textAlign: 'center',
+                  backgroundColor: isDragOver ? '#f3f8ff' : '#fafafa',
+                  transition: 'all 0.2s ease',
+                  cursor: 'pointer',
+                  '&:hover': {
+                    backgroundColor: '#f0f0f0',
+                    borderColor: '#999'
+                  }
+                }}
+                onClick={() => document.getElementById('excel-file-input').click()}
+              >
+                <UploadIcon sx={{ fontSize: 48, color: isDragOver ? '#1976d2' : '#999', mb: 1 }} />
+                <Typography variant="h6" sx={{ mb: 1 }}>
+                  {isDragOver ? '파일을 놓아주세요' : '엑셀 파일을 드래그하거나 클릭하여 업로드'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  .xlsx, .xls 파일만 지원됩니다
+                </Typography>
+                {excelFile && (
+                  <Typography variant="body2" color="primary" sx={{ fontWeight: 'bold' }}>
+                    선택된 파일: {excelFile.name}
+                  </Typography>
+                )}
+              </Box>
             </Box>
 
             {/* 업로드된 데이터 미리보기 */}
@@ -3546,7 +4017,7 @@ function InventoryManagement() {
       </Dialog>
 
       {/* 창고/대리점 관리 탭 (마지막) */}
-      {activeTab === 3 + warehouses.length && (
+      {activeTab === 4 + warehouses.length && (
         <LocationManagement
           warehouses={warehouses}
           setWarehouses={setWarehouses}
@@ -3640,6 +4111,17 @@ function InventoryManagement() {
           <Button onClick={() => setTableModalOpen(false)}>닫기</Button>
         </DialogActions>
       </Dialog>
+
+      {/* 바코드 스캐너 */}
+      <BarcodeScanner
+        open={barcodeScannerOpen}
+        onClose={() => {
+          setBarcodeScannerOpen(false);
+          setCurrentScanningRow(null);
+        }}
+        onScan={handleBarcodeScan}
+        onError={handleBarcodeScanError}
+      />
     </Box>
   );
 }
