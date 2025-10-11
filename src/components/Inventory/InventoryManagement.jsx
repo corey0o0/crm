@@ -28,7 +28,8 @@ import {
   Chip,
   Badge,
   Autocomplete,
-  Pagination
+  Pagination,
+  InputAdornment
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -2832,12 +2833,6 @@ function InventoryManagement() {
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                    <TextField
-                      size="small"
-                      placeholder="브랜드/코드/바코드/제품명 검색"
-                      value={warehouseDetailSearch}
-                      onChange={(e) => setWarehouseDetailSearch(e.target.value)}
-                    />
                   <Button
                     variant="outlined"
                     onClick={() => {
@@ -2894,60 +2889,153 @@ function InventoryManagement() {
                 </Box>
               </Box>
               
-              {/* 재고 필터 */}
-              <Box sx={{ display: 'flex', gap: 1, mb: 2, alignItems: 'center' }}>
-                <Typography variant="body2" color="text.secondary">
-                  재고 필터:
+              {/* 개선된 검색 및 필터 UI */}
+              <Card sx={{ p: 2, mb: 2 }}>
+                <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <SearchIcon />
+                  상품 검색 및 필터
                 </Typography>
-                <Button
-                  size="small"
-                  variant={warehouseDetailFilter === 'all' ? 'contained' : 'outlined'}
-                  onClick={() => setWarehouseDetailFilter('all')}
-                >
-                  전체
-                </Button>
-                <Button
-                  size="small"
-                  variant={warehouseDetailFilter === 'inStock' ? 'contained' : 'outlined'}
-                  onClick={() => setWarehouseDetailFilter('inStock')}
-                >
-                  재고 있음
-                </Button>
-                <Button
-                  size="small"
-                  variant={warehouseDetailFilter === 'outOfStock' ? 'contained' : 'outlined'}
-                  onClick={() => setWarehouseDetailFilter('outOfStock')}
-                >
-                  재고 없음
-                </Button>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Button
-                    size="small"
-                    variant={warehouseDetailFilter === 'below' ? 'contained' : 'outlined'}
-                    onClick={() => setWarehouseDetailFilter('below')}
-                  >
-                    N개 미만
-                  </Button>
-                  <TextField
-                    size="small"
-                    type="number"
-                    value={warehouseDetailBelow}
-                    onChange={(e) => setWarehouseDetailBelow(parseInt(e.target.value) || 0)}
-                    inputProps={{ min: 0, style: { width: 80 } }}
-                  />
-                </Box>
-              </Box>
+                
+                <Grid container spacing={2} alignItems="center">
+                  {/* 검색 입력 */}
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="상품 검색"
+                      placeholder="브랜드/코드/바코드/제품명으로 검색"
+                      value={warehouseDetailSearch}
+                      onChange={(e) => setWarehouseDetailSearch(e.target.value)}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <SearchIcon />
+                          </InputAdornment>
+                        ),
+                        endAdornment: warehouseDetailSearch && (
+                          <InputAdornment position="end">
+                            <IconButton 
+                              size="small" 
+                              onClick={() => setWarehouseDetailSearch('')}
+                              edge="end"
+                            >
+                              <CloseIcon />
+                            </IconButton>
+                          </InputAdornment>
+                        )
+                      }}
+                    />
+                  </Grid>
+                  
+                  {/* 재고 상태 필터 */}
+                  <Grid item xs={12} md={3}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      select
+                      label="재고 상태"
+                      value={warehouseDetailFilter}
+                      onChange={(e) => setWarehouseDetailFilter(e.target.value)}
+                    >
+                      <MenuItem value="all">전체</MenuItem>
+                      <MenuItem value="inStock">재고 있음</MenuItem>
+                      <MenuItem value="outOfStock">재고 없음</MenuItem>
+                      <MenuItem value="below">N개 미만</MenuItem>
+                    </TextField>
+                  </Grid>
+                  
+                  {/* N개 미만 임계값 입력 */}
+                  {warehouseDetailFilter === 'below' && (
+                    <Grid item xs={12} md={2}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        type="number"
+                        label="임계값"
+                        value={warehouseDetailBelow}
+                        onChange={(e) => setWarehouseDetailBelow(parseInt(e.target.value) || 0)}
+                        inputProps={{ min: 0 }}
+                      />
+                    </Grid>
+                  )}
+                  
+                  {/* 검색 결과 통계 */}
+                  <Grid item xs={12} md={3}>
+                    <Box sx={{ 
+                      p: 1, 
+                      backgroundColor: '#f5f5f5', 
+                      borderRadius: 1,
+                      textAlign: 'center'
+                    }}>
+                      <Typography variant="body2" color="text.secondary">
+                        검색 결과: {(() => {
+                          const wid = w.id;
+                          const rows = (products || []).map(p => ({
+                            id: p.id,
+                            brand: p.supplier || '',
+                            code: p.code || '',
+                            barcode: p.barcode || '',
+                            name: p.name || '',
+                            stock: inventory[wid]?.[p.id] || 0
+                          }));
+                          const filtered = rows.filter(r => {
+                            const term = warehouseDetailSearch.trim().toLowerCase();
+                            const searchMatch = !term || (
+                              r.name.toLowerCase().includes(term) ||
+                              r.code.toLowerCase().includes(term) ||
+                              r.barcode.toLowerCase().includes(term) ||
+                              r.brand.toLowerCase().includes(term)
+                            );
+                            
+                            let stockMatch = true;
+                            if (warehouseDetailFilter === 'inStock') {
+                              stockMatch = r.stock > 0;
+                            } else if (warehouseDetailFilter === 'outOfStock') {
+                              stockMatch = r.stock === 0;
+                            } else if (warehouseDetailFilter === 'below') {
+                              stockMatch = r.stock < (warehouseDetailBelow || 0);
+                            }
+                            
+                            return searchMatch && stockMatch;
+                          });
+                          return filtered.length;
+                        })()}개
+                      </Typography>
+                    </Box>
+                  </Grid>
+                </Grid>
+              </Card>
             </Card>
 
             <TableContainer component={Paper}>
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableCell>브랜드</TableCell>
-                    <TableCell>상품코드</TableCell>
-                    <TableCell>바코드</TableCell>
-                    <TableCell>제품명</TableCell>
-                    <TableCell align="right">수량</TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="subtitle2" fontWeight="bold">브랜드</Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="subtitle2" fontWeight="bold">상품코드</Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="subtitle2" fontWeight="bold">바코드</Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="subtitle2" fontWeight="bold">제품명</Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'flex-end' }}>
+                        <Typography variant="subtitle2" fontWeight="bold">수량</Typography>
+                      </Box>
+                    </TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -2982,13 +3070,82 @@ function InventoryManagement() {
                       
                       return searchMatch && stockMatch;
                     }).sort((a, b) => b.stock - a.stock);
+                    
+                    if (filtered.length === 0) {
+                      return (
+                        <TableRow>
+                          <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                              <SearchIcon sx={{ fontSize: 48, color: 'text.secondary' }} />
+                              <Typography variant="h6" color="text.secondary">
+                                검색 결과가 없습니다
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                다른 검색어나 필터를 시도해보세요
+                              </Typography>
+                            </Box>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    }
+                    
                     return filtered.map(r => (
-                      <TableRow key={r.id}>
-                        <TableCell>{r.brand}</TableCell>
-                        <TableCell>{r.code}</TableCell>
-                        <TableCell>{r.barcode}</TableCell>
-                        <TableCell>{r.name}</TableCell>
-                        <TableCell align="right">{r.stock.toLocaleString()}</TableCell>
+                      <TableRow 
+                        key={r.id} 
+                        hover
+                        sx={{ 
+                          '&:hover': { backgroundColor: '#f5f5f5' },
+                          ...(r.stock === 0 && { backgroundColor: '#ffebee' }),
+                          ...(r.stock > 0 && r.stock < (warehouseDetailBelow || 5) && { backgroundColor: '#fff3e0' })
+                        }}
+                      >
+                        <TableCell>
+                          <Typography variant="body2" fontWeight={r.brand ? 'medium' : 'normal'}>
+                            {r.brand || '-'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight="medium" color="primary">
+                            {r.code}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" fontFamily="monospace">
+                            {r.barcode || '-'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight="medium">
+                            {r.name}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
+                            <Typography 
+                              variant="body2" 
+                              fontWeight="bold"
+                              color={r.stock === 0 ? 'error' : r.stock < (warehouseDetailBelow || 5) ? 'warning.main' : 'text.primary'}
+                            >
+                              {r.stock.toLocaleString()}
+                            </Typography>
+                            {r.stock === 0 && (
+                              <Chip 
+                                label="재고없음" 
+                                size="small" 
+                                color="error" 
+                                variant="outlined"
+                              />
+                            )}
+                            {r.stock > 0 && r.stock < (warehouseDetailBelow || 5) && (
+                              <Chip 
+                                label="부족" 
+                                size="small" 
+                                color="warning" 
+                                variant="outlined"
+                              />
+                            )}
+                          </Box>
+                        </TableCell>
                       </TableRow>
                     ));
                   })()}
