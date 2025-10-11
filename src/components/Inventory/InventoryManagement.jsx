@@ -1735,6 +1735,12 @@ function InventoryManagement() {
       }
     };
 
+    // 단축키 전체 보류: 전역 단축키 리스너 등록을 임시로 중단
+    const shortcutsEnabled = false; // 재개 시 true로 변경
+    if (!shortcutsEnabled) {
+      return;
+    }
+
     document.addEventListener('keydown', handleKeyDown);
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
@@ -3037,61 +3043,51 @@ function InventoryManagement() {
                 <Box key={product.id} sx={{ mb: 1, p: 1 }}>
                     <Grid container spacing={1} alignItems="center">
                       <Grid item xs={12} md={3.5}>
-                        <Box sx={{ display: 'flex', gap: 1 }}>
-                          <Autocomplete
-                            options={products}
-                            getOptionLabel={(option) => `${option.name} (${option.code}) [${option.supplier || 'NEARBIKE'}]`}
-                            value={products.find(p => p.id === product.productId) || null}
-                            onChange={(event, value) => 
-                            updateIoProductRow(product.id, 'productId', value?.id || '')
-                            }
-                            getOptionDisabled={(option) => {
-                              const srcId = product.fromLocation;
-                              const isOutbound = warehouses.find(w => w.id === srcId);
-                              if (!isOutbound) return false;
-                              const available = (inventory[srcId]?.[option.id]) || 0;
-                              return available <= 0;
-                            }}
-                            renderOption={(props, option) => (
-                              <Box component="li" {...props}>
-                                <Box>
-                                  <Typography variant="body2" fontWeight="medium">
-                                    {option.name}
+                        <Autocomplete
+                          fullWidth
+                          options={products}
+                          getOptionLabel={(option) => `${option.name} (${option.code}) [${option.supplier || 'NEARBIKE'}]`}
+                          value={products.find(p => p.id === product.productId) || null}
+                          onChange={(event, value) => 
+                          updateIoProductRow(product.id, 'productId', value?.id || '')
+                          }
+                          getOptionDisabled={(option) => {
+                            const srcId = product.fromLocation;
+                            const isOutbound = warehouses.find(w => w.id === srcId);
+                            if (!isOutbound) return false;
+                            const available = (inventory[srcId]?.[option.id]) || 0;
+                            return available <= 0;
+                          }}
+                          renderOption={(props, option) => (
+                            <Box component="li" {...props}>
+                              <Box>
+                                <Typography variant="body2" fontWeight="medium">
+                                  {option.name}
+                                </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {(() => {
+                                      const srcId = product.fromLocation;
+                                      const isOutbound = warehouses.find(w => w.id === srcId);
+                                      if (isOutbound) {
+                                        const available = (inventory[srcId]?.[option.id]) || 0;
+                                        return `${option.code} • ${option.category} • ${option.supplier || 'NEARBIKE'} • ${option.price?.toLocaleString()}원 • 출발지 재고 ${available}개`;
+                                      }
+                                      return `${option.code} • ${option.category} • ${option.supplier || 'NEARBIKE'} • ${option.price?.toLocaleString()}원`;
+                                    })()}
                                   </Typography>
-                                    <Typography variant="caption" color="text.secondary">
-                                      {(() => {
-                                        const srcId = product.fromLocation;
-                                        const isOutbound = warehouses.find(w => w.id === srcId);
-                                        if (isOutbound) {
-                                          const available = (inventory[srcId]?.[option.id]) || 0;
-                                          return `${option.code} • ${option.category} • ${option.supplier || 'NEARBIKE'} • ${option.price?.toLocaleString()}원 • 출발지 재고 ${available}개`;
-                                        }
-                                        return `${option.code} • ${option.category} • ${option.supplier || 'NEARBIKE'} • ${option.price?.toLocaleString()}원`;
-                                      })()}
-                                    </Typography>
-                                </Box>
                               </Box>
-                            )}
-                            renderInput={(params) => (
-                              <TextField
-                                {...params}
-                              label={`상품 선택 ${products.find(p => p.id === product.productId) ? `[${products.find(p => p.id === product.productId)?.supplier || 'NEARBIKE'}]` : ''}`}
-                                required
-                                fullWidth
-                                size="small"
-                              />
-                            )}
-                          />
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            onClick={() => startBarcodeScan(index)}
-                            sx={{ minWidth: 'auto', px: 1 }}
-                            title="바코드 스캔"
-                          >
-                            <QrCodeScannerIcon />
-                          </Button>
-                        </Box>
+                            </Box>
+                          )}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                            label={`상품 선택 ${products.find(p => p.id === product.productId) ? `[${products.find(p => p.id === product.productId)?.supplier || 'NEARBIKE'}]` : ''}`}
+                              required
+                              fullWidth
+                              size="small"
+                            />
+                          )}
+                        />
                       </Grid>
                       <Grid item xs={12} md={1}>
                       <TextField
