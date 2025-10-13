@@ -48,6 +48,7 @@ import {
 import { styled } from '@mui/material/styles';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
+import { useAuth } from '../contexts/AuthContext';
 // import NotificationBell from './Dashboard/NotificationBell'; // 임시 비활성화
 import ServiceCalendar from './ServiceCalendar';
 import dayjs from 'dayjs';
@@ -118,6 +119,7 @@ function Layout() {
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState(dayjs());
   const [dailyServices, setDailyServices] = useState([]);
+  const { hasPermission } = useAuth();
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -184,28 +186,34 @@ function Layout() {
     fetchDailyServices(newDate);
   };
 
-  const menuItems = [
+  const allMenuItems = [
     // 📊 대시보드
-    { text: '대시보드', icon: <DashboardIcon />, path: '/' },
+    { text: '대시보드', icon: <DashboardIcon />, path: '/', key: 'dashboard' },
     
     // 👥 CRM & 고객 관리
-    { text: '고객 관리', icon: <PeopleIcon />, path: '/customers' },
+    { text: '고객 관리', icon: <PeopleIcon />, path: '/customers', key: 'customers' },
     
     // 🔧 서비스 관리
-    { text: 'A/S 관리', icon: <BuildIcon />, path: '/services' },
+    { text: 'A/S 관리', icon: <BuildIcon />, path: '/services', key: 'services' },
     
     // 📦 재고 & 물류 관리
-    { text: '출고 관리', icon: <LocalShippingIcon />, path: '/shipment' },
-    { text: '파츠 관리', icon: <InventoryIcon />, path: '/parts' },
-    { text: '매장 재고 관리', icon: <InventoryIcon />, path: '/stocks' },
-    { text: '입출고 관리', icon: <WarehouseIcon />, path: '/inventory-management' },
+    { text: '출고 관리', icon: <LocalShippingIcon />, path: '/shipment', key: 'shipment' },
+    { text: '파츠 관리', icon: <InventoryIcon />, path: '/parts', key: 'parts' },
+    { text: '매장 재고 관리', icon: <InventoryIcon />, path: '/stocks', key: 'stocks' },
+    { text: '입출고 관리', icon: <WarehouseIcon />, path: '/inventory-management', key: 'inventory_management' },
     
     // 📊 통계 & 분석
-    { text: '매출 통계', icon: <BarChartIcon />, path: '/sales/stats' },
+    { text: '매출 통계', icon: <BarChartIcon />, path: '/sales/stats', key: 'sales_stats' },
     
     // 💬 커뮤니티
-    { text: '게시판', icon: <MenuBookIcon />, path: '/board' }
+    { text: '게시판', icon: <MenuBookIcon />, path: '/board', key: 'board' },
+    
+    // ⚙️ 설정
+    { text: '권한 설정', icon: <SettingsIcon />, path: '/role-settings', key: 'role_settings' }
   ];
+
+  // 권한에 따라 메뉴 필터링
+  const menuItems = allMenuItems.filter(item => hasPermission(item.key));
 
   const handleDrawerToggle = () => {
     setOpen(!open);

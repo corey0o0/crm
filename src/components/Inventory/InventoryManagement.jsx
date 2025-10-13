@@ -2790,6 +2790,7 @@ function InventoryManagement() {
                   {warehouses.map(w => (
                     <TableCell key={`wh-col-${w.id}`} align="right" sx={{ width: 120, maxWidth: 140 }}>{w.name}</TableCell>
                   ))}
+                  <TableCell align="right" sx={{ width: 120, maxWidth: 140, backgroundColor: '#f5f5f5', fontWeight: 'bold' }}>상품별 총합</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -2803,16 +2804,48 @@ function InventoryManagement() {
                     if (overallStockFilter === 'outOfStock') return !anyStock;
                     return true;
                   });
-                  return rows.map(p => (
-                    <TableRow key={`prod-row-${p.id}`} hover>
-                      <TableCell sx={{ position: 'sticky', left: 0, zIndex: 2, backgroundColor: 'background.paper', fontWeight: 'bold', width: 240, maxWidth: 240 }}>
-                        {p.name} ({p.code})
+                  
+                  // 창고별 총합 계산
+                  const warehouseTotals = warehouses.map(w => 
+                    rows.reduce((sum, p) => sum + (inventory[w.id]?.[p.id] || 0), 0)
+                  );
+                  
+                  // 전체 총합 계산
+                  const grandTotal = warehouseTotals.reduce((sum, total) => sum + total, 0);
+                  
+                  return [
+                    // 상품별 행들
+                    ...rows.map(p => {
+                      const productTotal = warehouses.reduce((sum, w) => sum + (inventory[w.id]?.[p.id] || 0), 0);
+                      return (
+                        <TableRow key={`prod-row-${p.id}`} hover>
+                          <TableCell sx={{ position: 'sticky', left: 0, zIndex: 2, backgroundColor: 'background.paper', fontWeight: 'bold', width: 240, maxWidth: 240 }}>
+                            {p.name} ({p.code})
+                          </TableCell>
+                          {warehouses.map(w => (
+                            <TableCell key={`cell-${p.id}-${w.id}`} align="right" sx={{ width: 120, maxWidth: 140 }}>{(inventory[w.id]?.[p.id] || 0).toLocaleString()}</TableCell>
+                          ))}
+                          <TableCell align="right" sx={{ width: 120, maxWidth: 140, backgroundColor: '#f5f5f5', fontWeight: 'bold' }}>
+                            {productTotal.toLocaleString()}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    }),
+                    // 창고별 총합 행
+                    <TableRow key="warehouse-totals" sx={{ backgroundColor: '#f8f9fa' }}>
+                      <TableCell sx={{ position: 'sticky', left: 0, zIndex: 2, backgroundColor: '#e3f2fd', fontWeight: 'bold', width: 240, maxWidth: 240 }}>
+                        창고별 총합
                       </TableCell>
-                      {warehouses.map(w => (
-                        <TableCell key={`cell-${p.id}-${w.id}`} align="right" sx={{ width: 120, maxWidth: 140 }}>{(inventory[w.id]?.[p.id] || 0).toLocaleString()}</TableCell>
+                      {warehouses.map((w, index) => (
+                        <TableCell key={`warehouse-total-${w.id}`} align="right" sx={{ width: 120, maxWidth: 140, backgroundColor: '#e3f2fd', fontWeight: 'bold' }}>
+                          {warehouseTotals[index].toLocaleString()}
+                        </TableCell>
                       ))}
+                      <TableCell align="right" sx={{ width: 120, maxWidth: 140, backgroundColor: '#bbdefb', fontWeight: 'bold' }}>
+                        {grandTotal.toLocaleString()}
+                      </TableCell>
                     </TableRow>
-                  ));
+                  ];
                 })()}
               </TableBody>
             </Table>

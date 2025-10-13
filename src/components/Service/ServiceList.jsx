@@ -2635,6 +2635,19 @@ function ServiceList() {
             size="small"
             sx={{ minWidth: 140, maxWidth: 180 }}
             renderInput={(params) => <TextField {...params} label="상태" size="small" />}
+            renderTags={(value, getTagProps) =>
+              value.map((option, index) => {
+                const { key, ...tagProps } = getTagProps({ index });
+                return (
+                  <Chip
+                    key={key}
+                    label={option}
+                    size="small"
+                    {...tagProps}
+                  />
+                );
+              })
+            }
           />
           <Autocomplete
             multiple
@@ -2645,6 +2658,19 @@ function ServiceList() {
             size="small"
             sx={{ minWidth: 140, maxWidth: 180 }}
             renderInput={(params) => <TextField {...params} label="태그" size="small" />}
+            renderTags={(value, getTagProps) =>
+              value.map((option, index) => {
+                const { key, ...tagProps } = getTagProps({ index });
+                return (
+                  <Chip
+                    key={key}
+                    label={option}
+                    size="small"
+                    {...tagProps}
+                  />
+                );
+              })
+            }
           />
           <TextField
             select

@@ -6,6 +6,7 @@ import Layout from './components/Layout';
 import Login from './components/Auth/Login';
 import { useEffect, useState } from 'react';
 import { supabase } from './lib/supabaseClient';
+import { AuthProvider } from './contexts/AuthContext';
 import theme from './theme';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import { setupStorage } from './lib/setupStorage';
@@ -27,6 +28,8 @@ import StockList from './components/Stock/StockList';
 import BrandSettings from './components/Settings/BrandSettings';
 import InventoryLogs from './components/Inventory/InventoryLogs';
 import InventoryManagement from './components/Inventory/InventoryManagement';
+import RoleManagement from './components/Settings/RoleManagement';
+import PermissionRoute from './components/Auth/PermissionRoute';
 // import XRiderManual from './components/Manual/XRiderManual';
 // import NewManual from './components/Manual/NewManual';
 
@@ -72,52 +75,175 @@ function App() {
   }, []);
 
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <Router>
-        <Routes>
-          <Route path="/login" element={!session ? <Login /> : <Navigate to="/" />} />
-          <Route path="/" element={session ? <Layout /> : <Navigate to="/login" />}>
-            <Route index element={<Dashboard />} />
-            <Route path="customers" element={<CustomerManagement />} />
-            <Route path="services" element={<ServiceList />} />
-            <Route path="services/:id" element={<ServiceDetail />} />
-            <Route path="add-service" element={<AddService />} />
-            <Route path="service-statistics" element={<ServiceStatistics />} />
-            <Route path="parts" element={<PartsManagement />} />
+    <AuthProvider>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <Router
+          future={{
+            v7_startTransition: true,
+            v7_relativeSplatPath: true
+          }}
+        >
+          <Routes>
+            <Route path="/login" element={!session ? <Login /> : <Navigate to="/" />} />
+            <Route path="/" element={session ? <Layout /> : <Navigate to="/login" />}>
+            <Route index element={
+              <PermissionRoute requiredPermission="dashboard">
+                <Dashboard />
+              </PermissionRoute>
+            } />
+            <Route path="customers" element={
+              <PermissionRoute requiredPermission="customers">
+                <CustomerManagement />
+              </PermissionRoute>
+            } />
+            <Route path="services" element={
+              <PermissionRoute requiredPermission="services">
+                <ServiceList />
+              </PermissionRoute>
+            } />
+            <Route path="services/:id" element={
+              <PermissionRoute requiredPermission="services">
+                <ServiceDetail />
+              </PermissionRoute>
+            } />
+            <Route path="add-service" element={
+              <PermissionRoute requiredPermission="services">
+                <AddService />
+              </PermissionRoute>
+            } />
+            <Route path="service-statistics" element={
+              <PermissionRoute requiredPermission="services">
+                <ServiceStatistics />
+              </PermissionRoute>
+            } />
+            <Route path="parts" element={
+              <PermissionRoute requiredPermission="parts">
+                <PartsManagement />
+              </PermissionRoute>
+            } />
             
             {/* 기존 출고 관리 페이지 */}
-            <Route path="shipments" element={<ProductShipment />} />
-            <Route path="shipments/:id" element={<ProductShipment />} />
-            <Route path="shipments/new" element={<ProductShipment />} />
+            <Route path="shipments" element={
+              <PermissionRoute requiredPermission="shipment">
+                <ProductShipment />
+              </PermissionRoute>
+            } />
+            <Route path="shipments/:id" element={
+              <PermissionRoute requiredPermission="shipment">
+                <ProductShipment />
+              </PermissionRoute>
+            } />
+            <Route path="shipments/new" element={
+              <PermissionRoute requiredPermission="shipment">
+                <ProductShipment />
+              </PermissionRoute>
+            } />
             
             {/* 새로운 출고 관리 페이지 라우팅 */}
-            <Route path="shipment" element={<ShipmentList />} />
-            <Route path="shipment/new" element={<ShipmentForm />} />
-            <Route path="shipment/edit/:id" element={<ShipmentForm />} />
-            <Route path="shipment/:id" element={<ShipmentDetail />} />
+            <Route path="shipment" element={
+              <PermissionRoute requiredPermission="shipment">
+                <ShipmentList />
+              </PermissionRoute>
+            } />
+            <Route path="shipment/new" element={
+              <PermissionRoute requiredPermission="shipment">
+                <ShipmentForm />
+              </PermissionRoute>
+            } />
+            <Route path="shipment/edit/:id" element={
+              <PermissionRoute requiredPermission="shipment">
+                <ShipmentForm />
+              </PermissionRoute>
+            } />
+            <Route path="shipment/:id" element={
+              <PermissionRoute requiredPermission="shipment">
+                <ShipmentDetail />
+              </PermissionRoute>
+            } />
             
             <Route path="receipts" element={<ReceiptScanner />} />
             <Route path="google-drive-test" element={<GoogleDriveTest />} />
-            <Route path="service" element={<ServiceList />} />
-            <Route path="service/add" element={<AddService />} />
-            <Route path="service/stats" element={<ServiceStats />} />
-            <Route path="service/:id" element={<ServiceDetail />} />
-            <Route path="sales/stats" element={<SalesStats />} />
-            <Route path="stocks" element={<StockList />} />
-            <Route path="stats/service" element={<ServiceStats />} />
+            <Route path="service" element={
+              <PermissionRoute requiredPermission="services">
+                <ServiceList />
+              </PermissionRoute>
+            } />
+            <Route path="service/add" element={
+              <PermissionRoute requiredPermission="services">
+                <AddService />
+              </PermissionRoute>
+            } />
+            <Route path="service/stats" element={
+              <PermissionRoute requiredPermission="services">
+                <ServiceStats />
+              </PermissionRoute>
+            } />
+            <Route path="service/:id" element={
+              <PermissionRoute requiredPermission="services">
+                <ServiceDetail />
+              </PermissionRoute>
+            } />
+            <Route path="sales/stats" element={
+              <PermissionRoute requiredPermission="sales_stats">
+                <SalesStats />
+              </PermissionRoute>
+            } />
+            <Route path="stocks" element={
+              <PermissionRoute requiredPermission="stocks">
+                <StockList />
+              </PermissionRoute>
+            } />
+            <Route path="stats/service" element={
+              <PermissionRoute requiredPermission="services">
+                <ServiceStats />
+              </PermissionRoute>
+            } />
             <Route path="brand-settings" element={<BrandSettings />} />
-            <Route path="inventory-logs" element={<InventoryLogs />} />
-            <Route path="inventory-management" element={<InventoryManagement />} />
+            <Route path="inventory-logs" element={
+              <PermissionRoute requiredPermission="inventory_management">
+                <InventoryLogs />
+              </PermissionRoute>
+            } />
+            <Route path="inventory-management" element={
+              <PermissionRoute requiredPermission="inventory_management">
+                <InventoryManagement />
+              </PermissionRoute>
+            } />
+            
+            {/* 권한 설정 */}
+            <Route path="role-settings" element={
+              <PermissionRoute requiredPermission="role_settings">
+                <RoleManagement />
+              </PermissionRoute>
+            } />
+            
             {/* 게시판 */}
-            <Route path="board" element={<BoardList />} />
-            <Route path="board/new" element={<BoardNew />} />
-            <Route path="board/:id" element={<BoardDetail />} />
-            <Route path="board/:id/edit" element={<BoardEdit />} />
+            <Route path="board" element={
+              <PermissionRoute requiredPermission="board">
+                <BoardList />
+              </PermissionRoute>
+            } />
+            <Route path="board/new" element={
+              <PermissionRoute requiredPermission="board">
+                <BoardNew />
+              </PermissionRoute>
+            } />
+            <Route path="board/:id" element={
+              <PermissionRoute requiredPermission="board">
+                <BoardDetail />
+              </PermissionRoute>
+            } />
+            <Route path="board/:id/edit" element={
+              <PermissionRoute requiredPermission="board">
+                <BoardEdit />
+              </PermissionRoute>
+            } />
           </Route>
         </Routes>
       </Router>
     </ThemeProvider>
+    </AuthProvider>
   );
 }
 

@@ -99,9 +99,9 @@ function Dashboard() {
     checkSession();
   }, [authLoading]);
 
-  // 메모 불러오기
+  // 공유 메모 불러오기 (전체 사용자 공유)
   useEffect(() => {
-    const fetchMemos = async () => {
+    const fetchSharedMemos = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         const userId = user?.id || session?.user?.id;
@@ -111,136 +111,99 @@ function Dashboard() {
           return;
         }
 
-        // 먼저 메모 데이터가 있는지 확인
-        const { data: existingMemo, error: checkError } = await supabase
-          .from('user_memos')
+        // 공유 메모 조회 (user_id 필터 없음 - 모든 사용자가 같은 메모 공유)
+        const { data: sharedMemo, error: checkError } = await supabase
+          .from('shared_memos')
           .select('*')
-          .eq('user_id', userId)
           .single();
 
-        if (checkError && checkError.code !== 'PGRST116') {
-          console.error('메모 조회 중 오류:', checkError);
+        if (checkError) {
+          // 공유 메모가 없으면 새로 생성
+          if (checkError.code === 'PGRST116') {
+            const { data: newMemo, error: insertError } = await supabase
+              .from('shared_memos')
+              .insert([{ memo1: '', memo2: '', memo3: '' }])
+              .select()
+              .single();
+
+            if (insertError) {
+              console.error('공유 메모 생성 중 오류:', insertError);
+              return;
+            }
+
+            setMemoList([
+              { content: '', lastSaved: newMemo.updated_at, hasChanges: false, saving: false },
+              { content: '', lastSaved: newMemo.updated_at, hasChanges: false, saving: false },
+              { content: '', lastSaved: newMemo.updated_at, hasChanges: false, saving: false }
+            ]);
+            setMemoNames(['메모 1', '메모 2', '메모 3']);
+          } else {
+            console.error('공유 메모 조회 중 오류:', checkError);
+          }
           return;
         }
 
-        // 메모 데이터가 없으면 새로 생성
-        if (!existingMemo) {
-          const { error: insertError } = await supabase
-            .from('user_memos')
-            .insert([
-              {
-                user_id: userId,
-                updated_at: new Date().toISOString()
-              }
-            ]);
-
-          if (insertError) {
-            console.error('새 메모 생성 중 오류:', insertError);
-            return;
+        // 공유 메모 데이터 설정
+        setMemoList([
+          { 
+            content: sharedMemo.memo1 || '', 
+            lastSaved: sharedMemo.updated_at,
+            hasChanges: false,
+            saving: false
+          },
+          { 
+            content: sharedMemo.memo2 || '', 
+            lastSaved: sharedMemo.updated_at,
+            hasChanges: false,
+            saving: false
+          },
+          { 
+            content: sharedMemo.memo3 || '', 
+            lastSaved: sharedMemo.updated_at,
+            hasChanges: false,
+            saving: false
           }
+        ]);
+        
+        // 메모 이름 설정
+        setMemoNames([
+          sharedMemo.memo_name_1 || '메모 1',
+          sharedMemo.memo_name_2 || '메모 2', 
+          sharedMemo.memo_name_3 || '메모 3'
+        ]);
 
-          // 새로 생성된 메모 데이터 조회
-          const { data: newMemo, error: fetchError } = await supabase
-            .from('user_memos')
-            .select('*')
-            .eq('user_id', userId)
-            .single();
-
-          if (fetchError) {
-            console.error('새 메모 조회 중 오류:', fetchError);
-            return;
-          }
-
-          setMemoList(prev => [
-            { content: newMemo.memo1 || '', lastSaved: newMemo.updated_at },
-            { content: newMemo.memo2 || '', lastSaved: newMemo.updated_at },
-            { content: newMemo.memo3 || '', lastSaved: newMemo.updated_at }
-          ]);
-        } else {
-          // 임시 저장된 내용 확인 후 복구
-          const tempMemo1 = localStorage.getItem(`temp_memo_${userId}_0`);
-          const tempMemo2 = localStorage.getItem(`temp_memo_${userId}_1`);
-          const tempMemo3 = localStorage.getItem(`temp_memo_${userId}_2`);
-
-          setMemoList(prev => [
-            { 
-              content: tempMemo1 || existingMemo.memo1 || '', 
-              lastSaved: existingMemo.updated_at,
-              hasChanges: !!tempMemo1,
-              saving: false
-            },
-            { 
-              content: tempMemo2 || existingMemo.memo2 || '', 
-              lastSaved: existingMemo.updated_at,
-              hasChanges: !!tempMemo2,
-              saving: false
-            },
-            { 
-              content: tempMemo3 || existingMemo.memo3 || '', 
-              lastSaved: existingMemo.updated_at,
-              hasChanges: !!tempMemo3,
-              saving: false
-            }
-          ]);
-          
-          // 데이터베이스에서 메모 이름 불러오기
-          try {
-            if (existingMemo?.memo_name_1 || existingMemo?.memo_name_2 || existingMemo?.memo_name_3) {
-              // 데이터베이스에 메모 이름이 있으면 사용
-              setMemoNames([
-                existingMemo.memo_name_1 || '메모 1',
-                existingMemo.memo_name_2 || '메모 2', 
-                existingMemo.memo_name_3 || '메모 3'
-              ]);
-            } else {
-              // 데이터베이스에 없으면 로컬 스토리지에서 불러오기
-              const savedNames = localStorage.getItem(`memo_names_${userId}`);
-              if (savedNames) {
-                const loadedNames = JSON.parse(savedNames);
-                if (Array.isArray(loadedNames) && loadedNames.length === 3) {
-                  setMemoNames(loadedNames);
-                  // 로컬 스토리지에만 있던 데이터를 데이터베이스에 저장
-                  await supabase
-                    .from('user_memos')
-                    .update({
-                      memo_name_1: loadedNames[0],
-                      memo_name_2: loadedNames[1],
-                      memo_name_3: loadedNames[2]
-                    })
-                    .eq('user_id', userId);
-                }
-              }
-            }
-          } catch (e) {
-            console.error('메모 이름 로딩 오류:', e);
-          }
-        }
       } catch (err) {
-        console.error('메모 불러오기 오류:', err);
+        console.error('공유 메모 불러오기 오류:', err);
         setError(err.message);
       }
     };
 
-    fetchMemos();
+    fetchSharedMemos();
 
-    // 실시간 업데이트를 위한 구독 설정
+    // 실시간 업데이트를 위한 구독 설정 (모든 사용자가 같은 메모를 실시간 공유)
     const channel = supabase
-      .channel('user_memos_changes')
+      .channel('shared_memos_changes')
       .on('postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'user_memos',
-          filter: `user_id=eq.${user?.id}`
+          table: 'shared_memos'
         },
         payload => {
           if (payload.new) {
-            setMemoList(prev => prev.map((m, i) => 
-              i === 0 ? { ...m, content: payload.new.memo1 || '', lastSaved: payload.new.updated_at } : 
-              i === 1 ? { ...m, content: payload.new.memo2 || '', lastSaved: payload.new.updated_at } : 
-              i === 2 ? { ...m, content: payload.new.memo3 || '', lastSaved: payload.new.updated_at } : m
-            ));
+            // 다른 사용자가 수정한 내용을 실시간으로 반영
+            setMemoList(prev => [
+              { ...prev[0], content: payload.new.memo1 || '', lastSaved: payload.new.updated_at, hasChanges: false },
+              { ...prev[1], content: payload.new.memo2 || '', lastSaved: payload.new.updated_at, hasChanges: false },
+              { ...prev[2], content: payload.new.memo3 || '', lastSaved: payload.new.updated_at, hasChanges: false }
+            ]);
             
+            // 메모 이름도 업데이트
+            setMemoNames([
+              payload.new.memo_name_1 || '메모 1',
+              payload.new.memo_name_2 || '메모 2',
+              payload.new.memo_name_3 || '메모 3'
+            ]);
           }
         }
       )
@@ -259,12 +222,9 @@ function Dashboard() {
       i === idx ? { ...m, content: value, hasChanges: true } : m
     ));
 
-    // 로컬 스토리지에 임시 저장
-    const userId = user?.id;
-    if (userId) {
-      const tempKey = `temp_memo_${userId}_${idx}`;
-      localStorage.setItem(tempKey, value);
-    }
+    // 로컬 스토리지에 임시 저장 (공유 메모용)
+    const tempKey = `temp_shared_memo_${idx}`;
+    localStorage.setItem(tempKey, value);
 
     // 기존 자동 저장 타이머 해제
     if (autoSaveTimers[idx]) {
@@ -279,7 +239,7 @@ function Dashboard() {
     setAutoSaveTimers(prev => prev.map((timer, i) => i === idx ? newTimer : timer));
   };
 
-  // 자동 저장 함수
+  // 자동 저장 함수 (공유 메모)
   const handleAutoSave = async (idx) => {
     try {
       // 저장 중 상태 설정
@@ -287,24 +247,37 @@ function Dashboard() {
         i === idx ? { ...m, saving: true } : m
       ));
 
-      const { data: { session } } = await supabase.auth.getSession();
-      const userId = user?.id || session?.user?.id;
-      if (!userId) return;
-
       const now = new Date().toISOString();
+      
+      // 공유 메모 테이블에 저장 (user_id 없이)
       const upsertData = {
-        user_id: userId,
-        updated_at: now,
         memo1: memoList[0]?.content || '',
         memo2: memoList[1]?.content || '',
         memo3: memoList[2]?.content || ''
       };
 
-      const { error } = await supabase
-        .from('user_memos')
-        .upsert(upsertData, { onConflict: 'user_id' });
+      // 기존 공유 메모 업데이트 (단 하나의 레코드만 존재)
+      const { data: existingMemo } = await supabase
+        .from('shared_memos')
+        .select('id')
+        .single();
 
-      if (error) throw error;
+      if (existingMemo) {
+        // 기존 레코드 업데이트
+        const { error } = await supabase
+          .from('shared_memos')
+          .update(upsertData)
+          .eq('id', existingMemo.id);
+
+        if (error) throw error;
+      } else {
+        // 레코드가 없으면 새로 생성
+        const { error } = await supabase
+          .from('shared_memos')
+          .insert(upsertData);
+
+        if (error) throw error;
+      }
 
       // 저장 성공 상태 업데이트
       setMemoList(prev => prev.map((m, i) => 
@@ -317,7 +290,7 @@ function Dashboard() {
       ));
 
       // 임시 저장 데이터 제거
-      const tempKey = `temp_memo_${userId}_${idx}`;
+      const tempKey = `temp_shared_memo_${idx}`;
       localStorage.removeItem(tempKey);
 
     } catch (error) {
@@ -421,33 +394,30 @@ function Dashboard() {
     await saveMemoNames();
   };
 
-  // 메모 이름 저장 (데이터베이스와 로컬 스토리지 모두)
+  // 메모 이름 저장 (공유 메모)
   const saveMemoNames = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const userId = user?.id || session?.user?.id;
-      
-      if (userId) {
-        // 데이터베이스에 저장
+      // 공유 메모의 이름 저장
+      const { data: existingMemo } = await supabase
+        .from('shared_memos')
+        .select('id')
+        .single();
+
+      if (existingMemo) {
         const { error } = await supabase
-          .from('user_memos')
-          .upsert({
-            user_id: userId,
+          .from('shared_memos')
+          .update({
             memo_name_1: memoNames[0],
             memo_name_2: memoNames[1], 
-            memo_name_3: memoNames[2],
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'user_id' });
+            memo_name_3: memoNames[2]
+          })
+          .eq('id', existingMemo.id);
 
         if (error) {
-          console.error('메모 이름 DB 저장 오류:', error);
-          // DB 저장 실패 시에도 로컬 스토리지에는 저장
+          console.error('공유 메모 이름 저장 오류:', error);
+        } else {
+          console.log('공유 메모 이름이 저장되었습니다:', memoNames);
         }
-
-        // 로컬 스토리지에 백업 저장
-        localStorage.setItem(`memo_names_${userId}`, JSON.stringify(memoNames));
-        
-        console.log('메모 이름이 저장되었습니다:', memoNames);
       }
     } catch (err) {
       console.error('메모 이름 저장 오류:', err);
