@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Typography,
   Paper,
@@ -56,12 +56,35 @@ function Dashboard() {
   const navigate = useNavigate();
   const { user, loading: authLoading, setUser } = useAuth();
   const [selectedBrand, setSelectedBrand] = useState('ALL');
-  const [memoList, setMemoList] = useState([
+  
+  // 메모 타입 (개인/공유)
+  const [memoType, setMemoType] = useState('personal');
+  
+  // 개인 메모
+  const [personalMemoList, setPersonalMemoList] = useState([
     { content: '', lastSaved: null, hasChanges: false, saving: false },
     { content: '', lastSaved: null, hasChanges: false, saving: false },
     { content: '', lastSaved: null, hasChanges: false, saving: false }
   ]);
-  const [memoNames, setMemoNames] = useState(['메모 1', '메모 2', '메모 3']);
+  const [personalMemoNames, setPersonalMemoNames] = useState(['개인 메모 1', '개인 메모 2', '개인 메모 3']);
+  
+  // 공유 메모
+  const [sharedMemoList, setSharedMemoList] = useState([
+    { content: '', lastSaved: null, hasChanges: false, saving: false },
+    { content: '', lastSaved: null, hasChanges: false, saving: false },
+    { content: '', lastSaved: null, hasChanges: false, saving: false }
+  ]);
+  const [sharedMemoNames, setSharedMemoNames] = useState(['공유 메모 1', '공유 메모 2', '공유 메모 3']);
+  
+  // 현재 활성화된 메모 (useMemo로 최적화)
+  const memoList = useMemo(() => {
+    return memoType === 'personal' ? personalMemoList : sharedMemoList;
+  }, [memoType, personalMemoList, sharedMemoList]);
+  
+  const memoNames = useMemo(() => {
+    return memoType === 'personal' ? personalMemoNames : sharedMemoNames;
+  }, [memoType, personalMemoNames, sharedMemoNames]);
+  
   const [editingMemoName, setEditingMemoName] = useState(null);
   const [selectedMemoTab, setSelectedMemoTab] = useState(0);
   const [autoSaveTimers, setAutoSaveTimers] = useState([null, null, null]);
@@ -99,9 +122,9 @@ function Dashboard() {
     checkSession();
   }, [authLoading]);
 
-  // 공유 메모 불러오기 (전체 사용자 공유)
+  // 개인 메모 불러오기
   useEffect(() => {
-    const fetchSharedMemos = async () => {
+    const fetchPersonalMemos = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         const userId = user?.id || session?.user?.id;
@@ -111,76 +134,125 @@ function Dashboard() {
           return;
         }
 
-        // 공유 메모 조회 (user_id 필터 없음 - 모든 사용자가 같은 메모 공유)
-        const { data: sharedMemo, error: checkError } = await supabase
-          .from('shared_memos')
+        const { data: userMemo, error } = await supabase
+          .from('user_memos')
           .select('*')
-          .single();
+          .eq('user_id', userId)
+          .maybeSingle();
 
-        if (checkError) {
-          // 공유 메모가 없으면 새로 생성
-          if (checkError.code === 'PGRST116') {
-            const { data: newMemo, error: insertError } = await supabase
-              .from('shared_memos')
-              .insert([{ memo1: '', memo2: '', memo3: '' }])
-              .select()
-              .single();
-
-            if (insertError) {
-              console.error('공유 메모 생성 중 오류:', insertError);
-              return;
-            }
-
-            setMemoList([
-              { content: '', lastSaved: newMemo.updated_at, hasChanges: false, saving: false },
-              { content: '', lastSaved: newMemo.updated_at, hasChanges: false, saving: false },
-              { content: '', lastSaved: newMemo.updated_at, hasChanges: false, saving: false }
-            ]);
-            setMemoNames(['메모 1', '메모 2', '메모 3']);
-          } else {
-            console.error('공유 메모 조회 중 오류:', checkError);
-          }
+        if (error && error.code !== 'PGRST116') {
+          console.error('개인 메모 조회 오류:', error);
           return;
         }
 
-        // 공유 메모 데이터 설정
-        setMemoList([
-          { 
-            content: sharedMemo.memo1 || '', 
-            lastSaved: sharedMemo.updated_at,
-            hasChanges: false,
-            saving: false
-          },
-          { 
-            content: sharedMemo.memo2 || '', 
-            lastSaved: sharedMemo.updated_at,
-            hasChanges: false,
-            saving: false
-          },
-          { 
-            content: sharedMemo.memo3 || '', 
-            lastSaved: sharedMemo.updated_at,
-            hasChanges: false,
-            saving: false
-          }
-        ]);
-        
-        // 메모 이름 설정
-        setMemoNames([
-          sharedMemo.memo_name_1 || '메모 1',
-          sharedMemo.memo_name_2 || '메모 2', 
-          sharedMemo.memo_name_3 || '메모 3'
-        ]);
+        if (userMemo) {
+          setPersonalMemoList([
+            { content: userMemo.memo1 || '', lastSaved: userMemo.updated_at, hasChanges: false, saving: false },
+            { content: userMemo.memo2 || '', lastSaved: userMemo.updated_at, hasChanges: false, saving: false },
+            { content: userMemo.memo3 || '', lastSaved: userMemo.updated_at, hasChanges: false, saving: false }
+          ]);
+          setPersonalMemoNames([
+            userMemo.memo_name_1 || '개인 메모 1',
+            userMemo.memo_name_2 || '개인 메모 2', 
+            userMemo.memo_name_3 || '개인 메모 3'
+          ]);
+        }
+      } catch (err) {
+        console.error('개인 메모 불러오기 오류:', err);
+      }
+    };
 
+    fetchPersonalMemos();
+
+    const userId = user?.id;
+    if (userId) {
+      const channel = supabase
+        .channel('user_memos_changes')
+        .on('postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'user_memos',
+            filter: `user_id=eq.${userId}`
+          },
+          payload => {
+            if (payload.new) {
+              setPersonalMemoList(prev => [
+                { ...prev[0], content: payload.new.memo1 || '', lastSaved: payload.new.updated_at, hasChanges: false },
+                { ...prev[1], content: payload.new.memo2 || '', lastSaved: payload.new.updated_at, hasChanges: false },
+                { ...prev[2], content: payload.new.memo3 || '', lastSaved: payload.new.updated_at, hasChanges: false }
+              ]);
+              setPersonalMemoNames([
+                payload.new.memo_name_1 || '개인 메모 1',
+                payload.new.memo_name_2 || '개인 메모 2',
+                payload.new.memo_name_3 || '개인 메모 3'
+              ]);
+            }
+          }
+        )
+        .subscribe();
+
+      return () => channel.unsubscribe();
+    }
+  }, [user]);
+
+  // 공유 메모 불러오기
+  useEffect(() => {
+    const fetchSharedMemos = async () => {
+      try {
+        console.log('공유 메모 불러오기 시작...');
+        
+        const { data: sharedMemo, error } = await supabase
+          .from('shared_memos')
+          .select('*')
+          .maybeSingle();
+
+        if (error && error.code !== 'PGRST116') {
+          console.error('공유 메모 조회 오류:', error);
+          return;
+        }
+
+        if (sharedMemo) {
+          console.log('공유 메모 데이터:', sharedMemo);
+          setSharedMemoList([
+            { content: sharedMemo.memo1 || '', lastSaved: sharedMemo.updated_at, hasChanges: false, saving: false },
+            { content: sharedMemo.memo2 || '', lastSaved: sharedMemo.updated_at, hasChanges: false, saving: false },
+            { content: sharedMemo.memo3 || '', lastSaved: sharedMemo.updated_at, hasChanges: false, saving: false }
+          ]);
+          setSharedMemoNames([
+            sharedMemo.memo_name_1 || '공유 메모 1',
+            sharedMemo.memo_name_2 || '공유 메모 2', 
+            sharedMemo.memo_name_3 || '공유 메모 3'
+          ]);
+        } else {
+          // 공유 메모가 없으면 초기 레코드 생성
+          console.log('공유 메모가 없어서 초기 레코드 생성 중...');
+          const { data: newMemo, error: insertError } = await supabase
+            .from('shared_memos')
+            .insert([{
+              memo1: '',
+              memo2: '',
+              memo3: '',
+              memo_name_1: '공유 메모 1',
+              memo_name_2: '공유 메모 2',
+              memo_name_3: '공유 메모 3'
+            }])
+            .select()
+            .single();
+
+          if (insertError) {
+            console.error('공유 메모 초기 레코드 생성 오류:', insertError);
+          } else {
+            console.log('공유 메모 초기 레코드 생성 완료');
+          }
+        }
       } catch (err) {
         console.error('공유 메모 불러오기 오류:', err);
-        setError(err.message);
       }
     };
 
     fetchSharedMemos();
 
-    // 실시간 업데이트를 위한 구독 설정 (모든 사용자가 같은 메모를 실시간 공유)
     const channel = supabase
       .channel('shared_memos_changes')
       .on('postgres_changes',
@@ -191,39 +263,41 @@ function Dashboard() {
         },
         payload => {
           if (payload.new) {
-            // 다른 사용자가 수정한 내용을 실시간으로 반영
-            setMemoList(prev => [
+            setSharedMemoList(prev => [
               { ...prev[0], content: payload.new.memo1 || '', lastSaved: payload.new.updated_at, hasChanges: false },
               { ...prev[1], content: payload.new.memo2 || '', lastSaved: payload.new.updated_at, hasChanges: false },
               { ...prev[2], content: payload.new.memo3 || '', lastSaved: payload.new.updated_at, hasChanges: false }
             ]);
-            
-            // 메모 이름도 업데이트
-            setMemoNames([
-              payload.new.memo_name_1 || '메모 1',
-              payload.new.memo_name_2 || '메모 2',
-              payload.new.memo_name_3 || '메모 3'
+            setSharedMemoNames([
+              payload.new.memo_name_1 || '공유 메모 1',
+              payload.new.memo_name_2 || '공유 메모 2',
+              payload.new.memo_name_3 || '공유 메모 3'
             ]);
           }
         }
       )
       .subscribe();
 
-    return () => {
-      channel.unsubscribe();
-    };
+    return () => channel.unsubscribe();
   }, [user]);
+
 
   
   // 메모 내용 변경
   const handleMemoContentChange = (idx, value) => {
-    // 메모 내용 업데이트 및 변경사항 표시
-    setMemoList(prev => prev.map((m, i) => 
-      i === idx ? { ...m, content: value, hasChanges: true } : m
-    ));
+    // 타입에 따라 다른 state 업데이트
+    if (memoType === 'personal') {
+      setPersonalMemoList(prev => prev.map((m, i) => 
+        i === idx ? { ...m, content: value, hasChanges: true } : m
+      ));
+    } else {
+      setSharedMemoList(prev => prev.map((m, i) => 
+        i === idx ? { ...m, content: value, hasChanges: true } : m
+      ));
+    }
 
-    // 로컬 스토리지에 임시 저장 (공유 메모용)
-    const tempKey = `temp_shared_memo_${idx}`;
+    // 로컬 스토리지에 임시 저장
+    const tempKey = `temp_${memoType}_memo_${idx}`;
     localStorage.setItem(tempKey, value);
 
     // 기존 자동 저장 타이머 해제
@@ -239,66 +313,100 @@ function Dashboard() {
     setAutoSaveTimers(prev => prev.map((timer, i) => i === idx ? newTimer : timer));
   };
 
-  // 자동 저장 함수 (공유 메모)
+  // 자동 저장 함수
   const handleAutoSave = async (idx) => {
+    if (!user?.id) return;
+    
     try {
       // 저장 중 상태 설정
-      setMemoList(prev => prev.map((m, i) => 
-        i === idx ? { ...m, saving: true } : m
-      ));
+      if (memoType === 'personal') {
+        setPersonalMemoList(prev => prev.map((m, i) => 
+          i === idx ? { ...m, saving: true } : m
+        ));
+      } else {
+        setSharedMemoList(prev => prev.map((m, i) => 
+          i === idx ? { ...m, saving: true } : m
+        ));
+      }
 
       const now = new Date().toISOString();
       
-      // 공유 메모 테이블에 저장 (user_id 없이)
-      const upsertData = {
-        memo1: memoList[0]?.content || '',
-        memo2: memoList[1]?.content || '',
-        memo3: memoList[2]?.content || ''
-      };
-
-      // 기존 공유 메모 업데이트 (단 하나의 레코드만 존재)
-      const { data: existingMemo } = await supabase
-        .from('shared_memos')
-        .select('id')
-        .single();
-
-      if (existingMemo) {
-        // 기존 레코드 업데이트
+      // 로컬 스토리지에서 최신 값 가져오기
+      const memo1Content = localStorage.getItem(`temp_${memoType}_memo_0`) || memoList[0]?.content || '';
+      const memo2Content = localStorage.getItem(`temp_${memoType}_memo_1`) || memoList[1]?.content || '';
+      const memo3Content = localStorage.getItem(`temp_${memoType}_memo_2`) || memoList[2]?.content || '';
+      
+      if (memoType === 'personal') {
+        // 개인 메모 저장
         const { error } = await supabase
-          .from('shared_memos')
-          .update(upsertData)
-          .eq('id', existingMemo.id);
+          .from('user_memos')
+          .upsert({
+            user_id: user.id,
+            memo1: memo1Content,
+            memo2: memo2Content,
+            memo3: memo3Content
+          }, {
+            onConflict: 'user_id'
+          });
 
         if (error) throw error;
+        
+        setPersonalMemoList(prev => prev.map((m, i) => 
+          i === idx ? { ...m, lastSaved: now, hasChanges: false, saving: false } : m
+        ));
       } else {
-        // 레코드가 없으면 새로 생성
-        const { error } = await supabase
+        // 공유 메모 저장
+        const { data: existingMemo } = await supabase
           .from('shared_memos')
-          .insert(upsertData);
+          .select('id')
+          .maybeSingle();
 
-        if (error) throw error;
+        if (existingMemo) {
+          const { error } = await supabase
+            .from('shared_memos')
+            .update({
+              memo1: memo1Content,
+              memo2: memo2Content,
+              memo3: memo3Content
+            })
+            .eq('id', existingMemo.id);
+
+          if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from('shared_memos')
+            .insert({
+              memo1: memo1Content,
+              memo2: memo2Content,
+              memo3: memo3Content
+            });
+
+          if (error) throw error;
+        }
+        
+        setSharedMemoList(prev => prev.map((m, i) => 
+          i === idx ? { ...m, lastSaved: now, hasChanges: false, saving: false } : m
+        ));
       }
 
-      // 저장 성공 상태 업데이트
-      setMemoList(prev => prev.map((m, i) => 
-        i === idx ? { 
-          ...m, 
-          lastSaved: now, 
-          hasChanges: false, 
-          saving: false 
-        } : m
-      ));
-
       // 임시 저장 데이터 제거
-      const tempKey = `temp_shared_memo_${idx}`;
-      localStorage.removeItem(tempKey);
+      localStorage.removeItem(`temp_${memoType}_memo_0`);
+      localStorage.removeItem(`temp_${memoType}_memo_1`);
+      localStorage.removeItem(`temp_${memoType}_memo_2`);
+
+      console.log(`${memoType} 메모 저장 완료`);
 
     } catch (error) {
       console.error('자동 저장 오류:', error);
-      // 저장 실패 시 saving 상태 해제
-      setMemoList(prev => prev.map((m, i) => 
-        i === idx ? { ...m, saving: false } : m
-      ));
+      if (memoType === 'personal') {
+        setPersonalMemoList(prev => prev.map((m, i) => 
+          i === idx ? { ...m, saving: false } : m
+        ));
+      } else {
+        setSharedMemoList(prev => prev.map((m, i) => 
+          i === idx ? { ...m, saving: false } : m
+        ));
+      }
     }
   };
 
@@ -364,14 +472,22 @@ function Dashboard() {
   // 새 메모 추가
   const handleAddMemo = () => {
     if (memoList.length >= 5) return; // 최대 5개 제한
-    setMemoList(prev => [...prev, { content: '', lastSaved: null }]);
+    if (memoType === 'personal') {
+      setPersonalMemoList(prev => [...prev, { content: '', lastSaved: null, hasChanges: false, saving: false }]);
+    } else {
+      setSharedMemoList(prev => [...prev, { content: '', lastSaved: null, hasChanges: false, saving: false }]);
+    }
     setSelectedMemoTab(memoList.length);
   };
 
   // 메모 삭제
   const handleDeleteMemo = (idx) => {
     if (memoList.length <= 2) return; // 최소 2개 보장
-    setMemoList(prev => prev.filter((_, i) => i !== idx));
+    if (memoType === 'personal') {
+      setPersonalMemoList(prev => prev.filter((_, i) => i !== idx));
+    } else {
+      setSharedMemoList(prev => prev.filter((_, i) => i !== idx));
+    }
     setSelectedMemoTab(0);
   };
 
@@ -385,7 +501,11 @@ function Dashboard() {
 
   // 메모 이름 변경
   const handleMemoNameChange = (index, newName) => {
-    setMemoNames(prev => prev.map((name, i) => i === index ? newName : name));
+    if (memoType === 'personal') {
+      setPersonalMemoNames(prev => prev.map((name, i) => i === index ? newName : name));
+    } else {
+      setSharedMemoNames(prev => prev.map((name, i) => i === index ? newName : name));
+    }
   };
 
   // 메모 이름 편집 완료
@@ -394,29 +514,47 @@ function Dashboard() {
     await saveMemoNames();
   };
 
-  // 메모 이름 저장 (공유 메모)
+  // 메모 이름 저장
   const saveMemoNames = async () => {
+    if (!user?.id) return;
+    
     try {
-      // 공유 메모의 이름 저장
-      const { data: existingMemo } = await supabase
-        .from('shared_memos')
-        .select('id')
-        .single();
-
-      if (existingMemo) {
+      if (memoType === 'personal') {
+        // 개인 메모 이름 저장
         const { error } = await supabase
-          .from('shared_memos')
-          .update({
-            memo_name_1: memoNames[0],
-            memo_name_2: memoNames[1], 
-            memo_name_3: memoNames[2]
-          })
-          .eq('id', existingMemo.id);
+          .from('user_memos')
+          .upsert({
+            user_id: user.id,
+            memo_name_1: personalMemoNames[0],
+            memo_name_2: personalMemoNames[1], 
+            memo_name_3: personalMemoNames[2]
+          }, {
+            onConflict: 'user_id'
+          });
 
         if (error) {
-          console.error('공유 메모 이름 저장 오류:', error);
-        } else {
-          console.log('공유 메모 이름이 저장되었습니다:', memoNames);
+          console.error('개인 메모 이름 저장 오류:', error);
+        }
+      } else {
+        // 공유 메모 이름 저장
+        const { data: existingMemo } = await supabase
+          .from('shared_memos')
+          .select('id')
+          .maybeSingle();
+
+        if (existingMemo) {
+          const { error } = await supabase
+            .from('shared_memos')
+            .update({
+              memo_name_1: sharedMemoNames[0],
+              memo_name_2: sharedMemoNames[1], 
+              memo_name_3: sharedMemoNames[2]
+            })
+            .eq('id', existingMemo.id);
+
+          if (error) {
+            console.error('공유 메모 이름 저장 오류:', error);
+          }
         }
       }
     } catch (err) {
@@ -438,6 +576,10 @@ function Dashboard() {
       setLoading(true);
       setError(null);
 
+      // Supabase 연결 테스트
+      console.log('Supabase URL:', process.env.REACT_APP_SUPABASE_URL);
+      console.log('Supabase 연결 시작...');
+
       // 1. 서비스 데이터 가져오기
       const { data: services, error: servicesError } = await supabase
         .from('services')
@@ -446,8 +588,16 @@ function Dashboard() {
 
       if (servicesError) {
         console.error('서비스 데이터 조회 오류:', servicesError);
+        console.error('오류 상세:', {
+          message: servicesError.message,
+          details: servicesError.details,
+          hint: servicesError.hint,
+          code: servicesError.code
+        });
         throw new Error('서비스 데이터를 불러오는데 실패했습니다.');
       }
+
+      console.log('서비스 데이터 조회 성공:', services?.length, '건');
 
       // 2. 출고 데이터 가져오기
       let shipments = [];
@@ -610,6 +760,35 @@ function Dashboard() {
       </Box>
 
 
+      {/* 메모 타입 선택 */}
+      <Box sx={{ mb: 2 }}>
+        <Tabs 
+          value={memoType} 
+          onChange={(e, newValue) => setMemoType(newValue)}
+          sx={{
+            minHeight: '40px',
+            '& .MuiTab-root': {
+              minHeight: '40px',
+              py: 1,
+              fontWeight: 600
+            }
+          }}
+        >
+          <Tab 
+            label="개인 메모 (나만 보기)" 
+            value="personal"
+            icon={<Chip label="개인" size="small" color="primary" sx={{ ml: 1 }} />}
+            iconPosition="end"
+          />
+          <Tab 
+            label="공유 메모 (전체 공유)" 
+            value="shared"
+            icon={<Chip label="공유" size="small" color="success" sx={{ ml: 1 }} />}
+            iconPosition="end"
+          />
+        </Tabs>
+      </Box>
+
       {/* 메모 섹션 */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
         {/* 메모 1과 메모 3 탭 */}
@@ -708,6 +887,7 @@ function Dashboard() {
                   }
                 }}>
                   <ReactQuill
+                    key={`${memoType}-memo-0`}
                     ref={quillRefs[0]}
                     theme="snow"
                     value={memoList[0]?.content || ''}
@@ -815,6 +995,7 @@ function Dashboard() {
                   }
                 }}>
                   <ReactQuill
+                    key={`${memoType}-memo-2`}
                     ref={quillRefs[2]}
                     theme="snow"
                     value={memoList[2]?.content || ''}
@@ -923,6 +1104,7 @@ function Dashboard() {
               }
             }}>
               <ReactQuill
+                key={`${memoType}-memo-1`}
                 ref={quillRefs[1]}
                 theme="snow"
                 value={memoList[1]?.content || ''}
