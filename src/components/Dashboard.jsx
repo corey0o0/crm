@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { logger } from '../utils/logger';
 import {
   Typography,
   Paper,
   Grid,
-  Card,
-  CardContent,
   Box,
-  Divider,
   List,
   ListItem,
   ListItemText,
@@ -97,6 +95,7 @@ function Dashboard() {
   const [textSelection, setTextSelection] = useState({ start: 0, end: 0, memoIndex: -1 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [telegramResult, setTelegramResult] = useState({ open: false, message: '', success: true });
 
   // 초기 사용자 세션 확인
@@ -141,7 +140,7 @@ function Dashboard() {
           .maybeSingle();
 
         if (error && error.code !== 'PGRST116') {
-          console.error('개인 메모 조회 오류:', error);
+          logger.error('개인 메모 조회 오류:', error);
           return;
         }
 
@@ -158,7 +157,7 @@ function Dashboard() {
           ]);
         }
       } catch (err) {
-        console.error('개인 메모 불러오기 오류:', err);
+        logger.error('개인 메모 불러오기 오류:', err);
       }
     };
 
@@ -200,7 +199,7 @@ function Dashboard() {
   useEffect(() => {
     const fetchSharedMemos = async () => {
       try {
-        console.log('공유 메모 불러오기 시작...');
+        logger.debug('공유 메모 불러오기 시작...');
         
         const { data: sharedMemo, error } = await supabase
           .from('shared_memos')
@@ -208,12 +207,12 @@ function Dashboard() {
           .maybeSingle();
 
         if (error && error.code !== 'PGRST116') {
-          console.error('공유 메모 조회 오류:', error);
+          logger.error('공유 메모 조회 오류:', error);
           return;
         }
 
         if (sharedMemo) {
-          console.log('공유 메모 데이터:', sharedMemo);
+          logger.debug('공유 메모 데이터:', sharedMemo);
           setSharedMemoList([
             { content: sharedMemo.memo1 || '', lastSaved: sharedMemo.updated_at, hasChanges: false, saving: false },
             { content: sharedMemo.memo2 || '', lastSaved: sharedMemo.updated_at, hasChanges: false, saving: false },
@@ -226,7 +225,7 @@ function Dashboard() {
           ]);
         } else {
           // 공유 메모가 없으면 초기 레코드 생성
-          console.log('공유 메모가 없어서 초기 레코드 생성 중...');
+          logger.info('공유 메모가 없어서 초기 레코드 생성 중...');
           const { data: newMemo, error: insertError } = await supabase
             .from('shared_memos')
             .insert([{
@@ -241,13 +240,13 @@ function Dashboard() {
             .single();
 
           if (insertError) {
-            console.error('공유 메모 초기 레코드 생성 오류:', insertError);
+            logger.error('공유 메모 초기 레코드 생성 오류:', insertError);
           } else {
-            console.log('공유 메모 초기 레코드 생성 완료');
+            logger.info('공유 메모 초기 레코드 생성 완료');
           }
         }
       } catch (err) {
-        console.error('공유 메모 불러오기 오류:', err);
+        logger.error('공유 메모 불러오기 오류:', err);
       }
     };
 
@@ -394,10 +393,10 @@ function Dashboard() {
       localStorage.removeItem(`temp_${memoType}_memo_1`);
       localStorage.removeItem(`temp_${memoType}_memo_2`);
 
-      console.log(`${memoType} 메모 저장 완료`);
+      logger.debug(`${memoType} 메모 저장 완료`);
 
     } catch (error) {
-      console.error('자동 저장 오류:', error);
+      logger.error('자동 저장 오류:', error);
       if (memoType === 'personal') {
         setPersonalMemoList(prev => prev.map((m, i) => 
           i === idx ? { ...m, saving: false } : m
@@ -533,7 +532,7 @@ function Dashboard() {
           });
 
         if (error) {
-          console.error('개인 메모 이름 저장 오류:', error);
+          logger.error('개인 메모 이름 저장 오류:', error);
         }
       } else {
         // 공유 메모 이름 저장
@@ -553,12 +552,12 @@ function Dashboard() {
             .eq('id', existingMemo.id);
 
           if (error) {
-            console.error('공유 메모 이름 저장 오류:', error);
+            logger.error('공유 메모 이름 저장 오류:', error);
           }
         }
       }
     } catch (err) {
-      console.error('메모 이름 저장 오류:', err);
+      logger.error('메모 이름 저장 오류:', err);
     }
   };
 
@@ -575,10 +574,17 @@ function Dashboard() {
     try {
       setLoading(true);
       setError(null);
+      
+      // 타임아웃 설정 (30초)
+      const timeoutId = setTimeout(() => {
+        logger.warn('데이터 로딩 타임아웃 (30초)');
+        setError('데이터 로딩 시간이 초과되었습니다. 페이지를 새로고침해주세요.');
+        setLoading(false);
+      }, 30000);
 
       // Supabase 연결 테스트
-      console.log('Supabase URL:', process.env.REACT_APP_SUPABASE_URL);
-      console.log('Supabase 연결 시작...');
+      logger.debug('Supabase URL:', process.env.REACT_APP_SUPABASE_URL);
+      logger.debug('Supabase 연결 시작...');
 
       // 1. 서비스 데이터 가져오기
       const { data: services, error: servicesError } = await supabase
@@ -587,8 +593,8 @@ function Dashboard() {
         .order('reception_date', { ascending: false });
 
       if (servicesError) {
-        console.error('서비스 데이터 조회 오류:', servicesError);
-        console.error('오류 상세:', {
+        logger.error('서비스 데이터 조회 오류:', servicesError);
+        logger.error('오류 상세:', {
           message: servicesError.message,
           details: servicesError.details,
           hint: servicesError.hint,
@@ -597,7 +603,7 @@ function Dashboard() {
         throw new Error('서비스 데이터를 불러오는데 실패했습니다.');
       }
 
-      console.log('서비스 데이터 조회 성공:', services?.length, '건');
+      logger.info('서비스 데이터 조회 성공:', services?.length, '건');
 
       // 2. 출고 데이터 가져오기
       let shipments = [];
@@ -664,18 +670,33 @@ function Dashboard() {
 
 
       // 삭제된 현황 섹션들과 관련된 데이터 처리 완료
+      
+      // 타임아웃 클리어
+      clearTimeout(timeoutId);
+      setIsDataLoaded(true);
+      logger.info('대시보드 데이터 로딩 완료');
 
     } catch (err) {
-      console.error('대시보드 데이터 로딩 오류:', err);
+      logger.error('대시보드 데이터 로딩 오류:', err);
       setError(err.message || '데이터를 불러오는 중 오류가 발생했습니다.');
+      
+      // 에러 발생 시 기본 상태 유지
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchDashboardData();
-  }, []);
+    // 데이터가 이미 로드되었으면 다시 로드하지 않음
+    if (!isDataLoaded) {
+      fetchDashboardData();
+    }
+    
+    // 컴포넌트 언마운트 시 정리
+    return () => {
+      // 타임아웃 정리 (필요시)
+    };
+  }, [isDataLoaded]);
 
 
   const handleBrandChange = (event, newValue) => {
@@ -708,23 +729,67 @@ function Dashboard() {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '70vh' }}>
-        <CircularProgress />
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: 'column',
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '70vh',
+        gap: 2
+      }}>
+        <CircularProgress size={60} />
+        <Typography variant="h6" color="text.secondary">
+          대시보드 데이터를 불러오는 중...
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          잠시만 기다려주세요
+        </Typography>
       </Box>
     );
   }
 
   if (error) {
     return (
-      <Box sx={{ mt: 4 }}>
-        <Alert severity="error">{error}</Alert>
-        <Button 
-          startIcon={<RefreshIcon />} 
-          onClick={fetchDashboardData}
-          sx={{ mt: 2 }}
-        >
-          다시 시도
-        </Button>
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: 'column',
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '70vh',
+        gap: 3,
+        p: 4
+      }}>
+        <Alert severity="error" sx={{ width: '100%', maxWidth: 600 }}>
+          <Typography variant="h6" gutterBottom>
+            데이터 로딩 실패
+          </Typography>
+          <Typography variant="body2">
+            {error}
+          </Typography>
+        </Alert>
+        
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <Button 
+            variant="contained"
+            startIcon={<RefreshIcon />} 
+            onClick={fetchDashboardData}
+            size="large"
+          >
+            다시 시도
+          </Button>
+          
+          <Button 
+            variant="outlined"
+            onClick={() => window.location.reload()}
+            size="large"
+          >
+            페이지 새로고침
+          </Button>
+        </Box>
+        
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 2 }}>
+          문제가 계속되면 관리자에게 문의해주세요.
+        </Typography>
       </Box>
     );
   }

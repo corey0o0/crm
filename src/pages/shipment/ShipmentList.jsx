@@ -223,6 +223,7 @@ function ShipmentList() {
 
   // 첫 페이지만 빠르게 로딩하는 함수
   const fetchFirstPage = async (retryAttempt = 0) => {
+    let timeoutId;
     try {
       setLoading(true);
       setNetworkError(false);
@@ -236,6 +237,13 @@ function ShipmentList() {
       }
       
       console.log('fetchFirstPage called with selectedBrand:', selectedBrand, 'retry:', retryAttempt);
+      
+      // 타임아웃 설정 (30초)
+      timeoutId = setTimeout(() => {
+        console.warn('출고 데이터 로딩 타임아웃 (30초)');
+        setLoading(false);
+        setNetworkError(true);
+      }, 30000);
       
       const FIRST_PAGE_SIZE = 50;
       
@@ -318,6 +326,9 @@ function ShipmentList() {
         setLoading(false); // 첫 페이지 로딩 완료
         setLoadedChunks(1); // 첫 번째 청크 로드 완료
         
+        // 타임아웃 클리어
+        clearTimeout(timeoutId);
+        
         // 판매처 목록 업데이트
         const uniqueSellers = new Set(['전체']);
         sortedData.forEach(shipment => {
@@ -345,6 +356,9 @@ function ShipmentList() {
     } catch (err) {
       console.error('Error fetching first page:', err);
       setNetworkError(true);
+      
+      // 타임아웃 클리어
+      clearTimeout(timeoutId);
       
       // 네트워크 오류 시 재시도 로직
       if (retryAttempt < 3) {
@@ -1414,6 +1428,45 @@ function ShipmentList() {
         </Box>
 
         {renderSkeletonTable()}
+        
+        {/* 로딩 오버레이 */}
+        <Box sx={{ 
+          position: 'fixed', 
+          top: 0, 
+          left: 0, 
+          right: 0, 
+          bottom: 0, 
+          backgroundColor: 'rgba(0, 0, 0, 0.5)', 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          zIndex: 9999 
+        }}>
+          <Box sx={{ 
+            backgroundColor: 'white', 
+            p: 4, 
+            borderRadius: 2, 
+            textAlign: 'center',
+            maxWidth: 400 
+          }}>
+            <CircularProgress size={60} sx={{ mb: 2 }} />
+            <Typography variant="h6" gutterBottom>
+              출고 데이터를 불러오는 중...
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              잠시만 기다려주세요
+            </Typography>
+            {networkError && (
+              <Button 
+                variant="contained" 
+                onClick={() => fetchFirstPage()}
+                sx={{ mt: 1 }}
+              >
+                다시 시도
+              </Button>
+            )}
+          </Box>
+        </Box>
       </Box>
     );
   }

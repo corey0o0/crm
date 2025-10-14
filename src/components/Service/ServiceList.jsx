@@ -277,6 +277,7 @@ function ServiceList() {
 
   // 첫 페이지만 빠르게 로딩하는 함수
   const fetchFirstPage = async (retryAttempt = 0) => {
+    let timeoutId;
     try {
       setLoading(true);
       setNetworkError(false);
@@ -289,6 +290,13 @@ function ServiceList() {
       }
       
       console.log('fetchFirstPage called with selectedBrand:', selectedBrand, 'retry:', retryAttempt);
+      
+      // 타임아웃 설정 (30초)
+      timeoutId = setTimeout(() => {
+        console.warn('A/S 데이터 로딩 타임아웃 (30초)');
+        setLoading(false);
+        setNetworkError(true);
+      }, 30000);
       
       // 첫 페이지 크기 (빠른 로딩을 위해 작게)
       const FIRST_PAGE_SIZE = 50;
@@ -353,6 +361,9 @@ function ServiceList() {
         setLoading(false); // 첫 페이지 로딩 완료
         setLoadedChunks(1); // 첫 번째 청크 로드 완료
         
+        // 타임아웃 클리어
+        clearTimeout(timeoutId);
+        
         // 하이라이트 ID 체크 (첫 페이지에서)
         const savedIdFromCookie = getCookie('highlightServiceId');
         const savedIdFromStorage = localStorage.getItem('highlightServiceId');
@@ -387,6 +398,9 @@ function ServiceList() {
     } catch (err) {
       console.error('Error fetching first page:', err);
       setNetworkError(true);
+      
+      // 타임아웃 클리어
+      clearTimeout(timeoutId);
       
       // 네트워크 오류 시 재시도 로직
       if (retryAttempt < 3) {
@@ -2356,6 +2370,18 @@ function ServiceList() {
             <Typography variant="h6" sx={{ mt: 2 }}>
               {searchLoading ? 'A/S 데이터를 검색하는 중...' : 'A/S 데이터를 불러오는 중...'}
             </Typography>
+            <Typography variant="body2" color="rgba(255, 255, 255, 0.7)" sx={{ mt: 1 }}>
+              잠시만 기다려주세요
+            </Typography>
+            {networkError && (
+              <Button 
+                variant="contained" 
+                onClick={() => fetchServices()}
+                sx={{ mt: 2 }}
+              >
+                다시 시도
+              </Button>
+            )}
             
             {progressiveLoading && loadProgress > 0 && (
               <Box sx={{ mt: 2, mb: 1 }}>
