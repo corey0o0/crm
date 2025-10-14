@@ -168,7 +168,33 @@ function ShipmentList() {
     setJSONCookie('shipment_dateFilter', dateFilter);
   }, [dateFilter]);
 
+  // 컴포넌트 마운트 시 상태 초기화
   useEffect(() => {
+    // 모든 상태를 초기값으로 리셋
+    setLoading(false);
+    setNetworkError(false);
+    setFirstPageLoaded(false);
+    setLoadedChunks(0);
+    setHasMoreData(true);
+    setHasActiveSearch(false);
+    setShipments([]);
+    setSellers(['전체']);
+    setTotalExpected(0);
+    setRetryCount(0);
+    
+    // 초기 데이터 로딩
+    fetchShipments();
+  }, []);
+
+  useEffect(() => {
+    // 필터 변경 시 상태 초기화 후 데이터 로딩
+    setLoading(true);
+    setNetworkError(false);
+    setFirstPageLoaded(false);
+    setLoadedChunks(0);
+    setHasMoreData(true);
+    setHasActiveSearch(false);
+    
     fetchShipments();
   }, [selectedBrand, dateFilter, statusFilter, sellerFilter]);
 
@@ -225,6 +251,7 @@ function ShipmentList() {
   const fetchFirstPage = async (retryAttempt = 0) => {
     let timeoutId;
     try {
+      // 상태 초기화
       setLoading(true);
       setNetworkError(false);
       setFirstPageLoaded(false);
@@ -232,8 +259,10 @@ function ShipmentList() {
       setHasMoreData(true);
       setHasActiveSearch(false);
       
+      // 첫 번째 시도에서만 데이터 초기화
       if (retryAttempt === 0) {
-        setShipments([]); // 첫 번째 시도에서만 초기화
+        setShipments([]);
+        setSellers(['전체']);
       }
       
       console.log('fetchFirstPage called with selectedBrand:', selectedBrand, 'retry:', retryAttempt);

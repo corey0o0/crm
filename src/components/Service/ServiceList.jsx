@@ -270,8 +270,33 @@ function ServiceList() {
     '처리 완료'
   ];
 
+  // 컴포넌트 마운트 시 상태 초기화
+  useEffect(() => {
+    // 모든 상태를 초기값으로 리셋
+    setLoading(false);
+    setNetworkError(false);
+    setFirstPageLoaded(false);
+    setLoadedChunks(0);
+    setHasMoreData(true);
+    setHasActiveSearch(false);
+    setServices([]);
+    setTotalExpected(0);
+    setRetryCount(0);
+    
+    // 초기 데이터 로딩
+    fetchServices();
+  }, []);
+
   useEffect(() => {
     console.log('selectedBrand changed to:', selectedBrand);
+    // 브랜드 변경 시 상태 초기화 후 데이터 로딩
+    setLoading(true);
+    setNetworkError(false);
+    setFirstPageLoaded(false);
+    setLoadedChunks(0);
+    setHasMoreData(true);
+    setHasActiveSearch(false);
+    
     fetchServices();
   }, [selectedBrand]);
 

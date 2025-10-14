@@ -5,38 +5,20 @@ import {
   Paper,
   Grid,
   Box,
-  List,
-  ListItem,
-  ListItemText,
-  Chip,
   CircularProgress,
   Alert,
   Button,
-  Stack,
-  LinearProgress,
   Tabs,
   Tab,
   TextField,
-  Container,
   IconButton,
-  ButtonGroup,
-  Select,
-  MenuItem,
-  FormControl,
+  Container,
+  Chip,
+  Tooltip,
 } from '@mui/material';
 import {
-  Build as BuildIcon,
-  Person as PersonIcon,
-  Timeline as TimelineIcon,
-  Speed as SpeedIcon,
   Refresh as RefreshIcon,
-  LocalShipping as LocalShippingIcon,
-  Close as CloseIcon,
-  FormatBold as FormatBoldIcon,
-  Highlight as HighlightIcon,
-  FormatSize as FormatSizeIcon
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import dayjs from 'dayjs';
@@ -45,14 +27,12 @@ import ServiceCalendar from './ServiceCalendar';
 import { sendTelegramNotification } from '../lib/telegram';
 import Snackbar from '@mui/material/Snackbar';
 import MuiAlert from '@mui/material/Alert';
-import Tooltip from '@mui/material/Tooltip';
 import SendIcon from '@mui/icons-material/Send';
-import ReactQuill, { Quill } from 'react-quill';
+import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 
 function Dashboard() {
-  const navigate = useNavigate();
-  const { user, loading: authLoading, setUser } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [selectedBrand, setSelectedBrand] = useState('ALL');
   
   // 메모 타입 (개인/공유)
@@ -91,8 +71,13 @@ function Dashboard() {
     { bold: false, highlight: false, fontSize: 'medium' },
     { bold: false, highlight: false, fontSize: 'medium' }
   ]);
-  const [selectedText, setSelectedText] = useState('');
-  const [textSelection, setTextSelection] = useState({ start: 0, end: 0, memoIndex: -1 });
+  
+  // Quill 에디터 참조를 위한 ref 배열
+  const quillRefs = [
+    React.createRef(),
+    React.createRef(), 
+    React.createRef()
+  ];
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
@@ -105,7 +90,7 @@ function Dashboard() {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session && !authLoading) {
           // 세션이 없는 경우 자동 로그인 시도
-          const { data: { user: signInUser }, error: signInError } = await supabase.auth.signInWithPassword({
+          const { error: signInError } = await supabase.auth.signInWithPassword({
             email: localStorage.getItem('userEmail'),
             password: localStorage.getItem('userPassword')
           });
@@ -226,7 +211,7 @@ function Dashboard() {
         } else {
           // 공유 메모가 없으면 초기 레코드 생성
           logger.info('공유 메모가 없어서 초기 레코드 생성 중...');
-          const { data: newMemo, error: insertError } = await supabase
+          const { error: insertError } = await supabase
             .from('shared_memos')
             .insert([{
               memo1: '',
@@ -437,12 +422,6 @@ function Dashboard() {
   };
 
 
-  // 폰트 사이즈 변경
-  const handleFontSize = (memoIndex, fontSize) => {
-    const newFormats = [...memoFormats];
-    newFormats[memoIndex] = { ...newFormats[memoIndex], fontSize };
-    setMemoFormats(newFormats);
-  };
 
   // Quill 에디터 설정
   const quillModules = {
@@ -461,34 +440,7 @@ function Dashboard() {
   ];
 
 
-  // Quill 에디터 참조를 위한 ref 배열
-  const [quillRefs, setQuillRefs] = useState([
-    React.createRef(),
-    React.createRef(), 
-    React.createRef()
-  ]);
 
-  // 새 메모 추가
-  const handleAddMemo = () => {
-    if (memoList.length >= 5) return; // 최대 5개 제한
-    if (memoType === 'personal') {
-      setPersonalMemoList(prev => [...prev, { content: '', lastSaved: null, hasChanges: false, saving: false }]);
-    } else {
-      setSharedMemoList(prev => [...prev, { content: '', lastSaved: null, hasChanges: false, saving: false }]);
-    }
-    setSelectedMemoTab(memoList.length);
-  };
-
-  // 메모 삭제
-  const handleDeleteMemo = (idx) => {
-    if (memoList.length <= 2) return; // 최소 2개 보장
-    if (memoType === 'personal') {
-      setPersonalMemoList(prev => prev.filter((_, i) => i !== idx));
-    } else {
-      setSharedMemoList(prev => prev.filter((_, i) => i !== idx));
-    }
-    setSelectedMemoTab(0);
-  };
 
   // 메모 탭 변경
   const handleMemoTabChange = (event, newValue) => setSelectedMemoTab(newValue);
@@ -561,13 +513,6 @@ function Dashboard() {
     }
   };
 
-  // 상태별 색상 정의
-  const statusColors = {
-    '접수': '#3182f6',
-    '처리중': '#ffa927',
-    '부분완료': '#4e5968',
-    '완료': '#00c773'
-  };
 
   // 데이터 가져오기
   const fetchDashboardData = async () => {
@@ -586,11 +531,39 @@ function Dashboard() {
       logger.debug('Supabase URL:', process.env.REACT_APP_SUPABASE_URL);
       logger.debug('Supabase 연결 시작...');
 
-      // 1. 서비스 데이터 가져오기
-      const { data: services, error: servicesError } = await supabase
-        .from('services')
-        .select('*')
-        .order('reception_date', { ascending: false });
+      // 1. 서비스 데이터 가져오기 (재시도 로직 포함)
+      let services = [];
+      let servicesError = null;
+      
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          logger.debug(`서비스 데이터 조회 시도 ${attempt}/3`);
+          const result = await supabase
+            .from('services')
+            .select('*')
+            .order('reception_date', { ascending: false });
+          
+          services = result.data;
+          servicesError = result.error;
+          
+          if (!servicesError) {
+            logger.info('서비스 데이터 조회 성공:', services?.length, '건');
+            break;
+          }
+          
+          if (attempt < 3) {
+            logger.warn(`서비스 데이터 조회 실패 (시도 ${attempt}/3), 재시도 중...`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+          }
+        } catch (fetchError) {
+          logger.error(`서비스 데이터 조회 네트워크 오류 (시도 ${attempt}/3):`, fetchError);
+          if (attempt < 3) {
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+          } else {
+            throw new Error('네트워크 연결에 문제가 있습니다. 잠시 후 다시 시도해주세요.');
+          }
+        }
+      }
 
       if (servicesError) {
         logger.error('서비스 데이터 조회 오류:', servicesError);
@@ -605,32 +578,49 @@ function Dashboard() {
 
       logger.info('서비스 데이터 조회 성공:', services?.length, '건');
 
-      // 2. 출고 데이터 가져오기
+      // 2. 출고 데이터 가져오기 (재시도 로직 포함)
       let shipments = [];
-      try {
-        const { data: shipmentsData, error: shipmentsError } = await supabase
-          .from('shipments')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (shipmentsError) {
-          console.error('출고 데이터 조회 오류:', shipmentsError);
-          throw new Error(`출고 데이터를 불러오는데 실패했습니다: ${shipmentsError.message}`);
+      let shipmentsError = null;
+      
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          logger.debug(`출고 데이터 조회 시도 ${attempt}/3`);
+          const result = await supabase
+            .from('shipments')
+            .select('*')
+            .order('created_at', { ascending: false });
+          
+          shipments = result.data || [];
+          shipmentsError = result.error;
+          
+          if (!shipmentsError) {
+            logger.info('출고 데이터 조회 성공:', shipments?.length, '건');
+            break;
+          }
+          
+          if (attempt < 3) {
+            logger.warn(`출고 데이터 조회 실패 (시도 ${attempt}/3), 재시도 중...`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+          }
+        } catch (fetchError) {
+          logger.error(`출고 데이터 조회 네트워크 오류 (시도 ${attempt}/3):`, fetchError);
+          if (attempt < 3) {
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+          } else {
+            logger.warn('출고 데이터 조회 실패, 빈 배열로 설정');
+            shipments = [];
+            break;
+          }
         }
+      }
 
-        if (!shipmentsData) {
-          console.warn('출고 데이터가 없습니다.');
-          shipments = [];
-        } else {
-          shipments = shipmentsData;
-        }
-      } catch (shipmentError) {
-        console.error('출고 데이터 처리 중 오류:', shipmentError);
-        throw new Error('출고 데이터 처리 중 오류가 발생했습니다.');
+      if (shipmentsError) {
+        logger.error('출고 데이터 조회 오류:', shipmentsError);
+        shipments = []; // 오류 시 빈 배열로 설정
       }
 
       // 3. 최근 서비스 데이터 가져오기
-      const { data: recentServices, error: recentServicesError } = await supabase
+      const { error: recentServicesError } = await supabase
         .from('services')
         .select(`
           id,
@@ -648,25 +638,6 @@ function Dashboard() {
       }
 
 
-      // 안전한 데이터 처리를 위한 기본값 설정
-      const safeServices = services || [];
-      const safeShipments = shipments || [];
-      const safeRecentServices = recentServices || [];
-
-      // 고객 수 계산
-      const uniqueCustomers = [...new Set(safeServices.map(service => service.customer_phone))];
-      const totalCustomers = uniqueCustomers.length;
-
-      // 날짜 기준 설정
-      const now = new Date();
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      // 이번 달 서비스 데이터 필터링
-      const monthlyServices = safeServices.filter(service => 
-        new Date(service.reception_date) >= startOfMonth
-      );
 
 
       // 삭제된 현황 섹션들과 관련된 데이터 처리 완료
@@ -678,7 +649,15 @@ function Dashboard() {
 
     } catch (err) {
       logger.error('대시보드 데이터 로딩 오류:', err);
-      setError(err.message || '데이터를 불러오는 중 오류가 발생했습니다.');
+      
+      // 네트워크 오류인지 확인
+      if (err.message.includes('Failed to fetch') || err.message.includes('ERR_QUIC_PROTOCOL_ERROR')) {
+        setError('네트워크 연결에 문제가 있습니다. 인터넷 연결을 확인하고 다시 시도해주세요.');
+      } else if (err.message.includes('timeout')) {
+        setError('데이터 로딩 시간이 초과되었습니다. 페이지를 새로고침해주세요.');
+      } else {
+        setError(err.message || '데이터를 불러오는 중 오류가 발생했습니다.');
+      }
       
       // 에러 발생 시 기본 상태 유지
     } finally {
@@ -699,9 +678,6 @@ function Dashboard() {
   }, [isDataLoaded]);
 
 
-  const handleBrandChange = (event, newValue) => {
-    setSelectedBrand(newValue);
-  };
 
 
 
@@ -785,6 +761,27 @@ function Dashboard() {
           >
             페이지 새로고침
           </Button>
+          
+          {error.includes('네트워크') && (
+            <Button 
+              variant="outlined"
+              onClick={() => {
+                // 네트워크 연결 테스트
+                fetch('https://fextlagqverlrajlmkon.supabase.co/rest/v1/', { 
+                  method: 'HEAD',
+                  mode: 'no-cors'
+                }).then(() => {
+                  alert('네트워크 연결이 정상입니다. 다시 시도해주세요.');
+                }).catch(() => {
+                  alert('네트워크 연결에 문제가 있습니다. 인터넷 연결을 확인해주세요.');
+                });
+              }}
+              size="large"
+              color="warning"
+            >
+              연결 확인
+            </Button>
+          )}
         </Box>
         
         <Typography variant="caption" color="text.secondary" sx={{ mt: 2 }}>
