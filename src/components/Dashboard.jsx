@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { logger } from '../utils/logger';
 import {
   Typography,
@@ -515,7 +515,7 @@ function Dashboard() {
 
 
   // 데이터 가져오기
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -663,7 +663,7 @@ function Dashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     // 데이터가 이미 로드되었으면 다시 로드하지 않음
@@ -675,7 +675,7 @@ function Dashboard() {
     return () => {
       // 타임아웃 정리 (필요시)
     };
-  }, [isDataLoaded]);
+  }, [isDataLoaded, fetchDashboardData]);
 
 
 
