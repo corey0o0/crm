@@ -271,6 +271,7 @@ function ServiceList() {
   ];
 
   // 컴포넌트 마운트 시 상태 초기화
+  // 컴포넌트 마운트 시 초기화 및 데이터 로딩
   useEffect(() => {
     // 모든 상태를 초기값으로 리셋
     setLoading(false);
@@ -287,17 +288,20 @@ function ServiceList() {
     fetchServices();
   }, []);
 
+  // 브랜드 변경 시에만 데이터 다시 로딩
   useEffect(() => {
-    console.log('selectedBrand changed to:', selectedBrand);
-    // 브랜드 변경 시 상태 초기화 후 데이터 로딩
-    setLoading(true);
-    setNetworkError(false);
-    setFirstPageLoaded(false);
-    setLoadedChunks(0);
-    setHasMoreData(true);
-    setHasActiveSearch(false);
-    
-    fetchServices();
+    if (selectedBrand) { // selectedBrand가 존재할 때만 실행
+      console.log('selectedBrand changed to:', selectedBrand);
+      // 브랜드 변경 시 상태 초기화 후 데이터 로딩
+      setLoading(true);
+      setNetworkError(false);
+      setFirstPageLoaded(false);
+      setLoadedChunks(0);
+      setHasMoreData(true);
+      setHasActiveSearch(false);
+      
+      fetchServices();
+    }
   }, [selectedBrand]);
 
   // 첫 페이지만 빠르게 로딩하는 함수

@@ -168,34 +168,43 @@ function ShipmentList() {
     setJSONCookie('shipment_dateFilter', dateFilter);
   }, [dateFilter]);
 
-  // 컴포넌트 마운트 시 상태 초기화
+  // 컴포넌트 마운트 시 상태 초기화 및 데이터 로딩
   useEffect(() => {
-    // 모든 상태를 초기값으로 리셋
-    setLoading(false);
-    setNetworkError(false);
-    setFirstPageLoaded(false);
-    setLoadedChunks(0);
-    setHasMoreData(true);
-    setHasActiveSearch(false);
-    setShipments([]);
-    setSellers(['전체']);
-    setTotalExpected(0);
-    setRetryCount(0);
+    const initializeData = async () => {
+      // 모든 상태를 초기값으로 리셋
+      setLoading(false);
+      setNetworkError(false);
+      setFirstPageLoaded(false);
+      setLoadedChunks(0);
+      setHasMoreData(true);
+      setHasActiveSearch(false);
+      setShipments([]);
+      setSellers(['전체']);
+      setTotalExpected(0);
+      setRetryCount(0);
+      
+      // 상태 초기화 완료 후 데이터 로딩
+      await new Promise(resolve => setTimeout(resolve, 100)); // 상태 업데이트 대기
+      fetchShipments();
+    };
     
-    // 초기 데이터 로딩
-    fetchShipments();
+    initializeData();
   }, []);
 
+  // 필터 변경 시에만 데이터 다시 로딩 (마운트 시 제외)
   useEffect(() => {
-    // 필터 변경 시 상태 초기화 후 데이터 로딩
-    setLoading(true);
-    setNetworkError(false);
-    setFirstPageLoaded(false);
-    setLoadedChunks(0);
-    setHasMoreData(true);
-    setHasActiveSearch(false);
-    
-    fetchShipments();
+    const hasFilters = selectedBrand || dateFilter || statusFilter || sellerFilter;
+    if (hasFilters) { // 필터가 설정된 경우에만 실행
+      // 필터 변경 시 상태 초기화 후 데이터 로딩
+      setLoading(true);
+      setNetworkError(false);
+      setFirstPageLoaded(false);
+      setLoadedChunks(0);
+      setHasMoreData(true);
+      setHasActiveSearch(false);
+      
+      fetchShipments();
+    }
   }, [selectedBrand, dateFilter, statusFilter, sellerFilter]);
 
   // 네트워크 상태 감지
