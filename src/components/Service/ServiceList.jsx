@@ -270,23 +270,7 @@ function ServiceList() {
     '처리 완료'
   ];
 
-  // 컴포넌트 마운트 시 상태 초기화
-  // 컴포넌트 마운트 시 초기화 및 데이터 로딩
-  useEffect(() => {
-    // 모든 상태를 초기값으로 리셋
-    setLoading(false);
-    setNetworkError(false);
-    setFirstPageLoaded(false);
-    setLoadedChunks(0);
-    setHasMoreData(true);
-    setHasActiveSearch(false);
-    setServices([]);
-    setTotalExpected(0);
-    setRetryCount(0);
-    
-    // 초기 데이터 로딩
-    fetchServices();
-  }, []);
+  // 초기 로딩은 selectedBrand 의존 이펙트에서만 수행하여 중복 호출 방지
 
   // 브랜드 변경 시에만 데이터 다시 로딩
   useEffect(() => {
@@ -307,6 +291,7 @@ function ServiceList() {
   // 첫 페이지만 빠르게 로딩하는 함수
   const fetchFirstPage = async (retryAttempt = 0) => {
     let timeoutId;
+    const controller = new AbortController();
     try {
       setLoading(true);
       setNetworkError(false);
@@ -323,6 +308,8 @@ function ServiceList() {
       // 타임아웃 설정 (30초)
       timeoutId = setTimeout(() => {
         console.warn('A/S 데이터 로딩 타임아웃 (30초)');
+        // 오래 걸리는 네트워크 요청 강제 중단
+        try { controller.abort(); } catch (_) {}
         setLoading(false);
         setNetworkError(true);
       }, 30000);
@@ -335,7 +322,8 @@ function ServiceList() {
         supabase
         .from('services')
         .select('id', { count: 'exact', head: true })
-          .eq('brand', selectedBrand),
+          .eq('brand', selectedBrand)
+          .abortSignal(controller.signal),
         supabase
           .from('services')
           .select(`
@@ -354,6 +342,7 @@ function ServiceList() {
           .eq('brand', selectedBrand)
           .order('reception_date', { ascending: false })
           .range(0, FIRST_PAGE_SIZE - 1)
+          .abortSignal(controller.signal)
       ]);
       
       if (countResult.error) {
@@ -428,6 +417,8 @@ function ServiceList() {
       console.error('Error fetching first page:', err);
       setNetworkError(true);
       
+      // 타임아웃 클리어
+      clearTimeout(timeoutId);
       // 타임아웃 클리어
       clearTimeout(timeoutId);
       
