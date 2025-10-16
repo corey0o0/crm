@@ -33,4 +33,22 @@ module.exports = function(app) {
       logLevel: 'debug',
     })
   );
+
+  // Supabase REST 프록시 (dev 전용): 브라우저에서 HTTP/3(QUIC) 회피 → dev 서버를 통한 HTTP/1.1 경유
+  const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
+  if (supabaseUrl) {
+    app.use(
+      '/__sb',
+      createProxyMiddleware({
+        target: supabaseUrl,
+        changeOrigin: true,
+        pathRewrite: {
+          '^/__sb': ''
+        },
+        logLevel: 'silent'
+      })
+    );
+  } else {
+    console.warn('REACT_APP_SUPABASE_URL 미설정: Supabase 프록시 비활성화');
+  }
 }; 

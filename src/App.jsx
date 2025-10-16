@@ -162,8 +162,16 @@ function App() {
               </PermissionRoute>
             } />
             
-            <Route path="receipts" element={<ReceiptScanner />} />
-            <Route path="google-drive-test" element={<GoogleDriveTest />} />
+            <Route path="receipts" element={
+              <PermissionRoute requiredPermission="receipts">
+                <ReceiptScanner />
+              </PermissionRoute>
+            } />
+            <Route path="google-drive-test" element={
+              <PermissionRoute requiredPermission="google_drive_test">
+                <GoogleDriveTest />
+              </PermissionRoute>
+            } />
             <Route path="service" element={
               <PermissionRoute requiredPermission="services">
                 <ServiceList />
@@ -199,7 +207,11 @@ function App() {
                 <ServiceStats />
               </PermissionRoute>
             } />
-            <Route path="brand-settings" element={<BrandSettings />} />
+            <Route path="brand-settings" element={
+              <PermissionRoute requiredPermission="brand_settings">
+                <BrandSettings />
+              </PermissionRoute>
+            } />
             <Route path="inventory-logs" element={
               <PermissionRoute requiredPermission="inventory_management">
                 <InventoryLogs />

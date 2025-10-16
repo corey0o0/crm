@@ -173,25 +173,13 @@ function InventoryManagement() {
     // API 호출을 병렬로 실행하여 초기 로딩 속도 개선
     const loadInitialData = async () => {
       try {
-        setLoading(true);
-        
-        // 각 API 호출에 개별 타임아웃 설정
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('데이터 로딩 타임아웃')), 30000)
-        );
-        
-        const dataPromise = Promise.all([
+        await Promise.all([
           fetchProducts(),
           fetchWarehouses(),
           fetchDealers()
         ]);
-        
-        await Promise.race([dataPromise, timeoutPromise]);
       } catch (error) {
         console.error('초기 데이터 로딩 실패:', error);
-        // 개별 API 실패 시에도 다른 API는 계속 실행되도록 처리
-      } finally {
-        setLoading(false);
       }
     };
     

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Box, 
   Typography, 
@@ -141,6 +141,9 @@ function ShipmentList() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // 무한로딩 방지용 감시 타이머
+  const loadingWatchdogRef = useRef(null);
+
   useEffect(() => {
     setCookie('shipment_selectedBrand', selectedBrand);
   }, [selectedBrand]);
@@ -168,44 +171,24 @@ function ShipmentList() {
     setJSONCookie('shipment_dateFilter', dateFilter);
   }, [dateFilter]);
 
-  // 컴포넌트 마운트 시 상태 초기화 및 데이터 로딩
   useEffect(() => {
-    const initializeData = async () => {
-      // 모든 상태를 초기값으로 리셋
-      setLoading(false);
-      setNetworkError(false);
-      setFirstPageLoaded(false);
-      setLoadedChunks(0);
-      setHasMoreData(true);
-      setHasActiveSearch(false);
-      setShipments([]);
-      setSellers(['전체']);
-      setTotalExpected(0);
-      setRetryCount(0);
-      
-      // 상태 초기화 완료 후 데이터 로딩
-      await new Promise(resolve => setTimeout(resolve, 100)); // 상태 업데이트 대기
-      fetchShipments();
-    };
-    
-    initializeData();
-  }, []);
-
-  // 필터 변경 시에만 데이터 다시 로딩 (마운트 시 제외)
-  useEffect(() => {
-    const hasFilters = selectedBrand || dateFilter || statusFilter || sellerFilter;
-    if (hasFilters) { // 필터가 설정된 경우에만 실행
-      // 필터 변경 시 상태 초기화 후 데이터 로딩
-      setLoading(true);
-      setNetworkError(false);
-      setFirstPageLoaded(false);
-      setLoadedChunks(0);
-      setHasMoreData(true);
-      setHasActiveSearch(false);
-      
-      fetchShipments();
-    }
+    fetchShipments();
   }, [selectedBrand, dateFilter, statusFilter, sellerFilter]);
+
+  // 라우트 재진입/포커스/가시성 복귀 시 자동 재요청
+  useEffect(() => {
+    const onFocus = () => { if (!loading) fetchShipments(); };
+    const onVisibility = () => { if (document.visibilityState === 'visible' && !loading) fetchShipments(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+    // 최초 진입 시에도 보강 호출
+    fetchShipments();
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+    // eslint-disable-next-line
+  }, [location.key]);
 
   // 네트워크 상태 감지
   useEffect(() => {
@@ -258,33 +241,35 @@ function ShipmentList() {
 
   // 첫 페이지만 빠르게 로딩하는 함수
   const fetchFirstPage = async (retryAttempt = 0) => {
-    let timeoutId;
     try {
-      // 상태 초기화
       setLoading(true);
       setNetworkError(false);
       setFirstPageLoaded(false);
       setLoadedChunks(0);
       setHasMoreData(true);
       setHasActiveSearch(false);
+
+      // 감시 타이머 시작(15초)
+      if (loadingWatchdogRef.current) clearTimeout(loadingWatchdogRef.current);
+      loadingWatchdogRef.current = setTimeout(() => {
+        setSnackbar({ open: true, severity: 'error', message: '요청이 예상보다 오래 걸립니다. 네트워크 상태를 확인한 후 다시 시도하세요.' });
+        setLoading(false);
+      }, 15000);
       
-      // 첫 번째 시도에서만 데이터 초기화
       if (retryAttempt === 0) {
-        setShipments([]);
-        setSellers(['전체']);
+        setShipments([]); // 첫 번째 시도에서만 초기화
       }
       
       console.log('fetchFirstPage called with selectedBrand:', selectedBrand, 'retry:', retryAttempt);
       
-      // 타임아웃 설정 (30초)
-      timeoutId = setTimeout(() => {
-        console.warn('출고 데이터 로딩 타임아웃 (30초)');
-        setLoading(false);
-        setNetworkError(true);
-      }, 30000);
-      
       const FIRST_PAGE_SIZE = 50;
       
+      // 세션 확인/갱신 (유휴 후 진입 이슈 방지)
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) await supabase.auth.refreshSession();
+      } catch {}
+
       // 기본 쿼리 구성 - 각각 별도로 생성
       let countQuery = supabase
         .from('shipments')
@@ -318,13 +303,17 @@ function ShipmentList() {
         }
       }
 
-      // 총 데이터 개수와 첫 페이지 데이터를 동시에 가져오기
+      // 총 데이터 개수와 첫 페이지 데이터를 동시에 가져오기 (Abort + timeout 적용)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+
       const [countResult, firstPageResult] = await Promise.all([
-        countQuery,
+        countQuery.abortSignal(controller.signal),
         dataQuery
           .order('order_date', { ascending: false })
           .range(0, FIRST_PAGE_SIZE - 1)
-      ]);
+          .abortSignal(controller.signal)
+      ]).finally(() => clearTimeout(timeoutId));
       
       if (countResult.error) {
         console.error('Error counting shipments:', countResult.error);
@@ -364,9 +353,6 @@ function ShipmentList() {
         setLoading(false); // 첫 페이지 로딩 완료
         setLoadedChunks(1); // 첫 번째 청크 로드 완료
         
-        // 타임아웃 클리어
-        clearTimeout(timeoutId);
-        
         // 판매처 목록 업데이트
         const uniqueSellers = new Set(['전체']);
         sortedData.forEach(shipment => {
@@ -390,13 +376,23 @@ function ShipmentList() {
       
       // 재시도 카운트 초기화
       setRetryCount(0);
+      if (loadingWatchdogRef.current) {
+        clearTimeout(loadingWatchdogRef.current);
+        loadingWatchdogRef.current = null;
+      }
       
     } catch (err) {
       console.error('Error fetching first page:', err);
       setNetworkError(true);
-      
-      // 타임아웃 클리어
-      clearTimeout(timeoutId);
+      if (loadingWatchdogRef.current) {
+        clearTimeout(loadingWatchdogRef.current);
+        loadingWatchdogRef.current = null;
+      }
+      if (err?.name === 'AbortError') {
+        setSnackbar({ open: true, severity: 'error', message: '요청이 시간 초과로 취소되었습니다. 다시 시도해주세요.' });
+        setLoading(false);
+        return;
+      }
       
       // 네트워크 오류 시 재시도 로직
       if (retryAttempt < 3) {
@@ -452,9 +448,15 @@ function ShipmentList() {
         }
       }
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+
       const { data: shipmentsData, error: shipmentsError } = await dataQuery
         .order('order_date', { ascending: false })
-        .range(startOffset, endOffset);
+        .range(startOffset, endOffset)
+        .abortSignal(controller.signal);
+
+      clearTimeout(timeoutId);
 
       if (shipmentsError) {
         console.error('Error fetching next chunk:', shipmentsError);
@@ -505,6 +507,9 @@ function ShipmentList() {
       
     } catch (err) {
       console.error('Error loading next chunk:', err);
+      if (err?.name === 'AbortError') {
+        return;
+      }
     } finally {
       setIsLoadingNextChunk(false);
     }
@@ -1466,45 +1471,6 @@ function ShipmentList() {
         </Box>
 
         {renderSkeletonTable()}
-        
-        {/* 로딩 오버레이 */}
-        <Box sx={{ 
-          position: 'fixed', 
-          top: 0, 
-          left: 0, 
-          right: 0, 
-          bottom: 0, 
-          backgroundColor: 'rgba(0, 0, 0, 0.5)', 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center', 
-          zIndex: 9999 
-        }}>
-          <Box sx={{ 
-            backgroundColor: 'white', 
-            p: 4, 
-            borderRadius: 2, 
-            textAlign: 'center',
-            maxWidth: 400 
-          }}>
-            <CircularProgress size={60} sx={{ mb: 2 }} />
-            <Typography variant="h6" gutterBottom>
-              출고 데이터를 불러오는 중...
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              잠시만 기다려주세요
-            </Typography>
-            {networkError && (
-              <Button 
-                variant="contained" 
-                onClick={() => fetchFirstPage()}
-                sx={{ mt: 1 }}
-              >
-                다시 시도
-              </Button>
-            )}
-          </Box>
-        </Box>
       </Box>
     );
   }

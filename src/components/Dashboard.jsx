@@ -1,24 +1,44 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { logger } from '../utils/logger';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Typography,
   Paper,
   Grid,
+  Card,
+  CardContent,
   Box,
+  Divider,
+  List,
+  ListItem,
+  ListItemText,
+  Chip,
   CircularProgress,
   Alert,
   Button,
+  Stack,
+  LinearProgress,
   Tabs,
   Tab,
   TextField,
-  IconButton,
   Container,
-  Chip,
-  Tooltip,
+  IconButton,
+  ButtonGroup,
+  Select,
+  MenuItem,
+  FormControl,
 } from '@mui/material';
 import {
+  Build as BuildIcon,
+  Person as PersonIcon,
+  Timeline as TimelineIcon,
+  Speed as SpeedIcon,
   Refresh as RefreshIcon,
+  LocalShipping as LocalShippingIcon,
+  Close as CloseIcon,
+  FormatBold as FormatBoldIcon,
+  Highlight as HighlightIcon,
+  FormatSize as FormatSizeIcon
 } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import dayjs from 'dayjs';
@@ -27,12 +47,14 @@ import ServiceCalendar from './ServiceCalendar';
 import { sendTelegramNotification } from '../lib/telegram';
 import Snackbar from '@mui/material/Snackbar';
 import MuiAlert from '@mui/material/Alert';
+import Tooltip from '@mui/material/Tooltip';
 import SendIcon from '@mui/icons-material/Send';
-import ReactQuill from 'react-quill';
+import ReactQuill, { Quill } from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 
 function Dashboard() {
-  const { user, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
+  const { user, loading: authLoading, setUser } = useAuth();
   const [selectedBrand, setSelectedBrand] = useState('ALL');
   
   // 메모 타입 (개인/공유)
@@ -71,16 +93,10 @@ function Dashboard() {
     { bold: false, highlight: false, fontSize: 'medium' },
     { bold: false, highlight: false, fontSize: 'medium' }
   ]);
-  
-  // Quill 에디터 참조를 위한 ref 배열
-  const quillRefs = [
-    React.createRef(),
-    React.createRef(), 
-    React.createRef()
-  ];
+  const [selectedText, setSelectedText] = useState('');
+  const [textSelection, setTextSelection] = useState({ start: 0, end: 0, memoIndex: -1 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [telegramResult, setTelegramResult] = useState({ open: false, message: '', success: true });
 
   // 초기 사용자 세션 확인
@@ -90,7 +106,7 @@ function Dashboard() {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session && !authLoading) {
           // 세션이 없는 경우 자동 로그인 시도
-          const { error: signInError } = await supabase.auth.signInWithPassword({
+          const { data: { user: signInUser }, error: signInError } = await supabase.auth.signInWithPassword({
             email: localStorage.getItem('userEmail'),
             password: localStorage.getItem('userPassword')
           });
@@ -125,7 +141,7 @@ function Dashboard() {
           .maybeSingle();
 
         if (error && error.code !== 'PGRST116') {
-          logger.error('개인 메모 조회 오류:', error);
+          console.error('개인 메모 조회 오류:', error);
           return;
         }
 
@@ -142,7 +158,7 @@ function Dashboard() {
           ]);
         }
       } catch (err) {
-        logger.error('개인 메모 불러오기 오류:', err);
+        console.error('개인 메모 불러오기 오류:', err);
       }
     };
 
@@ -184,7 +200,7 @@ function Dashboard() {
   useEffect(() => {
     const fetchSharedMemos = async () => {
       try {
-        logger.debug('공유 메모 불러오기 시작...');
+        console.log('공유 메모 불러오기 시작...');
         
         const { data: sharedMemo, error } = await supabase
           .from('shared_memos')
@@ -192,12 +208,12 @@ function Dashboard() {
           .maybeSingle();
 
         if (error && error.code !== 'PGRST116') {
-          logger.error('공유 메모 조회 오류:', error);
+          console.error('공유 메모 조회 오류:', error);
           return;
         }
 
         if (sharedMemo) {
-          logger.debug('공유 메모 데이터:', sharedMemo);
+          console.log('공유 메모 데이터:', sharedMemo);
           setSharedMemoList([
             { content: sharedMemo.memo1 || '', lastSaved: sharedMemo.updated_at, hasChanges: false, saving: false },
             { content: sharedMemo.memo2 || '', lastSaved: sharedMemo.updated_at, hasChanges: false, saving: false },
@@ -210,8 +226,8 @@ function Dashboard() {
           ]);
         } else {
           // 공유 메모가 없으면 초기 레코드 생성
-          logger.info('공유 메모가 없어서 초기 레코드 생성 중...');
-          const { error: insertError } = await supabase
+          console.log('공유 메모가 없어서 초기 레코드 생성 중...');
+          const { data: newMemo, error: insertError } = await supabase
             .from('shared_memos')
             .insert([{
               memo1: '',
@@ -225,13 +241,13 @@ function Dashboard() {
             .single();
 
           if (insertError) {
-            logger.error('공유 메모 초기 레코드 생성 오류:', insertError);
+            console.error('공유 메모 초기 레코드 생성 오류:', insertError);
           } else {
-            logger.info('공유 메모 초기 레코드 생성 완료');
+            console.log('공유 메모 초기 레코드 생성 완료');
           }
         }
       } catch (err) {
-        logger.error('공유 메모 불러오기 오류:', err);
+        console.error('공유 메모 불러오기 오류:', err);
       }
     };
 
@@ -378,10 +394,10 @@ function Dashboard() {
       localStorage.removeItem(`temp_${memoType}_memo_1`);
       localStorage.removeItem(`temp_${memoType}_memo_2`);
 
-      logger.debug(`${memoType} 메모 저장 완료`);
+      console.log(`${memoType} 메모 저장 완료`);
 
     } catch (error) {
-      logger.error('자동 저장 오류:', error);
+      console.error('자동 저장 오류:', error);
       if (memoType === 'personal') {
         setPersonalMemoList(prev => prev.map((m, i) => 
           i === idx ? { ...m, saving: false } : m
@@ -422,6 +438,12 @@ function Dashboard() {
   };
 
 
+  // 폰트 사이즈 변경
+  const handleFontSize = (memoIndex, fontSize) => {
+    const newFormats = [...memoFormats];
+    newFormats[memoIndex] = { ...newFormats[memoIndex], fontSize };
+    setMemoFormats(newFormats);
+  };
 
   // Quill 에디터 설정
   const quillModules = {
@@ -440,7 +462,34 @@ function Dashboard() {
   ];
 
 
+  // Quill 에디터 참조를 위한 ref 배열
+  const [quillRefs, setQuillRefs] = useState([
+    React.createRef(),
+    React.createRef(), 
+    React.createRef()
+  ]);
 
+  // 새 메모 추가
+  const handleAddMemo = () => {
+    if (memoList.length >= 5) return; // 최대 5개 제한
+    if (memoType === 'personal') {
+      setPersonalMemoList(prev => [...prev, { content: '', lastSaved: null, hasChanges: false, saving: false }]);
+    } else {
+      setSharedMemoList(prev => [...prev, { content: '', lastSaved: null, hasChanges: false, saving: false }]);
+    }
+    setSelectedMemoTab(memoList.length);
+  };
+
+  // 메모 삭제
+  const handleDeleteMemo = (idx) => {
+    if (memoList.length <= 2) return; // 최소 2개 보장
+    if (memoType === 'personal') {
+      setPersonalMemoList(prev => prev.filter((_, i) => i !== idx));
+    } else {
+      setSharedMemoList(prev => prev.filter((_, i) => i !== idx));
+    }
+    setSelectedMemoTab(0);
+  };
 
   // 메모 탭 변경
   const handleMemoTabChange = (event, newValue) => setSelectedMemoTab(newValue);
@@ -484,7 +533,7 @@ function Dashboard() {
           });
 
         if (error) {
-          logger.error('개인 메모 이름 저장 오류:', error);
+          console.error('개인 메모 이름 저장 오류:', error);
         }
       } else {
         // 공유 메모 이름 저장
@@ -504,70 +553,53 @@ function Dashboard() {
             .eq('id', existingMemo.id);
 
           if (error) {
-            logger.error('공유 메모 이름 저장 오류:', error);
+            console.error('공유 메모 이름 저장 오류:', error);
           }
         }
       }
     } catch (err) {
-      logger.error('메모 이름 저장 오류:', err);
+      console.error('메모 이름 저장 오류:', err);
     }
   };
 
+  // 상태별 색상 정의
+  const statusColors = {
+    '접수': '#3182f6',
+    '처리중': '#ffa927',
+    '부분완료': '#4e5968',
+    '완료': '#00c773'
+  };
 
   // 데이터 가져오기
-  const fetchDashboardData = useCallback(async () => {
+  const fetchDashboardData = async () => {
     try {
       setLoading(true);
       setError(null);
-      
-      // 타임아웃 설정 (30초)
-      const timeoutId = setTimeout(() => {
-        logger.warn('데이터 로딩 타임아웃 (30초)');
-        setError('데이터 로딩 시간이 초과되었습니다. 페이지를 새로고침해주세요.');
-        setLoading(false);
-      }, 30000);
 
       // Supabase 연결 테스트
-      logger.debug('Supabase URL:', process.env.REACT_APP_SUPABASE_URL);
-      logger.debug('Supabase 연결 시작...');
+      console.log('Supabase URL:', process.env.REACT_APP_SUPABASE_URL);
+      console.log('Supabase 연결 시작...');
 
-      // 1. 서비스 데이터 가져오기 (재시도 로직 포함)
-      let services = [];
-      let servicesError = null;
-      
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        try {
-          logger.debug(`서비스 데이터 조회 시도 ${attempt}/3`);
-          const result = await supabase
-            .from('services')
-            .select('*')
-            .order('reception_date', { ascending: false });
-          
-          services = result.data;
-          servicesError = result.error;
-          
-          if (!servicesError) {
-            logger.info('서비스 데이터 조회 성공:', services?.length, '건');
-            break;
-          }
-          
-          if (attempt < 3) {
-            logger.warn(`서비스 데이터 조회 실패 (시도 ${attempt}/3), 재시도 중...`);
-            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
-          }
-        } catch (fetchError) {
-          logger.error(`서비스 데이터 조회 네트워크 오류 (시도 ${attempt}/3):`, fetchError);
-          if (attempt < 3) {
-            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
-          } else {
-            throw new Error('네트워크 연결에 문제가 있습니다. 잠시 후 다시 시도해주세요.');
-          }
-        }
-      }
+      // 0) 세션 확인/갱신 (유휴 후 진입 시 네트워크 오류 예방)
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) await supabase.auth.refreshSession();
+      } catch {}
+
+      // Abort + timeout (12s) 공통 컨트롤러
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+      // 1. 서비스 데이터 가져오기
+      const { data: services, error: servicesError } = await supabase
+        .from('services')
+        .select('*')
+        .order('reception_date', { ascending: false })
+        .abortSignal(controller.signal);
 
       if (servicesError) {
-        logger.error('서비스 데이터 조회 오류:', servicesError);
-        logger.error('오류 상세:', {
+        console.error('서비스 데이터 조회 오류:', servicesError);
+        console.error('오류 상세:', {
           message: servicesError.message,
           details: servicesError.details,
           hint: servicesError.hint,
@@ -576,51 +608,35 @@ function Dashboard() {
         throw new Error('서비스 데이터를 불러오는데 실패했습니다.');
       }
 
-      logger.info('서비스 데이터 조회 성공:', services?.length, '건');
+      console.log('서비스 데이터 조회 성공:', services?.length, '건');
 
-      // 2. 출고 데이터 가져오기 (재시도 로직 포함)
+      // 2. 출고 데이터 가져오기
       let shipments = [];
-      let shipmentsError = null;
-      
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        try {
-          logger.debug(`출고 데이터 조회 시도 ${attempt}/3`);
-          const result = await supabase
-            .from('shipments')
-            .select('*')
-            .order('created_at', { ascending: false });
-          
-          shipments = result.data || [];
-          shipmentsError = result.error;
-          
-          if (!shipmentsError) {
-            logger.info('출고 데이터 조회 성공:', shipments?.length, '건');
-            break;
-          }
-          
-          if (attempt < 3) {
-            logger.warn(`출고 데이터 조회 실패 (시도 ${attempt}/3), 재시도 중...`);
-            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
-          }
-        } catch (fetchError) {
-          logger.error(`출고 데이터 조회 네트워크 오류 (시도 ${attempt}/3):`, fetchError);
-          if (attempt < 3) {
-            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
-          } else {
-            logger.warn('출고 데이터 조회 실패, 빈 배열로 설정');
-            shipments = [];
-            break;
-          }
-        }
-      }
+      try {
+        const { data: shipmentsData, error: shipmentsError } = await supabase
+          .from('shipments')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .abortSignal(controller.signal);
 
-      if (shipmentsError) {
-        logger.error('출고 데이터 조회 오류:', shipmentsError);
-        shipments = []; // 오류 시 빈 배열로 설정
+        if (shipmentsError) {
+          console.error('출고 데이터 조회 오류:', shipmentsError);
+          throw new Error(`출고 데이터를 불러오는데 실패했습니다: ${shipmentsError.message}`);
+        }
+
+        if (!shipmentsData) {
+          console.warn('출고 데이터가 없습니다.');
+          shipments = [];
+        } else {
+          shipments = shipmentsData;
+        }
+      } catch (shipmentError) {
+        console.error('출고 데이터 처리 중 오류:', shipmentError);
+        throw new Error('출고 데이터 처리 중 오류가 발생했습니다.');
       }
 
       // 3. 최근 서비스 데이터 가져오기
-      const { error: recentServicesError } = await supabase
+      const { data: recentServices, error: recentServicesError } = await supabase
         .from('services')
         .select(`
           id,
@@ -630,54 +646,71 @@ function Dashboard() {
           reception_date,
           brand
         `)
-        .order('reception_date', { ascending: false });
+        .order('reception_date', { ascending: false })
+        .abortSignal(controller.signal);
 
       if (recentServicesError) {
         console.error('최근 서비스 데이터 조회 오류:', recentServicesError);
         throw new Error('최근 서비스 데이터를 불러오는데 실패했습니다.');
       }
 
+      // 타임아웃 해제
+      clearTimeout(timeoutId);
 
+
+      // 안전한 데이터 처리를 위한 기본값 설정
+      const safeServices = services || [];
+      const safeShipments = shipments || [];
+      const safeRecentServices = recentServices || [];
+
+      // 고객 수 계산
+      const uniqueCustomers = [...new Set(safeServices.map(service => service.customer_phone))];
+      const totalCustomers = uniqueCustomers.length;
+
+      // 날짜 기준 설정
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      // 이번 달 서비스 데이터 필터링
+      const monthlyServices = safeServices.filter(service => 
+        new Date(service.reception_date) >= startOfMonth
+      );
 
 
       // 삭제된 현황 섹션들과 관련된 데이터 처리 완료
-      
-      // 타임아웃 클리어
-      clearTimeout(timeoutId);
-      setIsDataLoaded(true);
-      logger.info('대시보드 데이터 로딩 완료');
 
     } catch (err) {
-      logger.error('대시보드 데이터 로딩 오류:', err);
-      
-      // 네트워크 오류인지 확인
-      if (err.message.includes('Failed to fetch') || err.message.includes('ERR_QUIC_PROTOCOL_ERROR')) {
-        setError('네트워크 연결에 문제가 있습니다. 인터넷 연결을 확인하고 다시 시도해주세요.');
-      } else if (err.message.includes('timeout')) {
-        setError('데이터 로딩 시간이 초과되었습니다. 페이지를 새로고침해주세요.');
+      console.error('대시보드 데이터 로딩 오류:', err);
+      if (err?.name === 'AbortError') {
+        setError('요청이 시간 초과로 취소되었습니다. 다시 시도해주세요.');
       } else {
         setError(err.message || '데이터를 불러오는 중 오류가 발생했습니다.');
       }
-      
-      // 에러 발생 시 기본 상태 유지
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
   useEffect(() => {
-    // 데이터가 이미 로드되었으면 다시 로드하지 않음
-    if (!isDataLoaded) {
-      fetchDashboardData();
-    }
-    
-    // 컴포넌트 언마운트 시 정리
+    fetchDashboardData();
+
+    // 포커스/가시성 복귀 시 재요청
+    const onFocus = () => { if (!loading) fetchDashboardData(); };
+    const onVisibility = () => { if (document.visibilityState === 'visible' && !loading) fetchDashboardData(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
     return () => {
-      // 타임아웃 정리 (필요시)
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [isDataLoaded, fetchDashboardData]);
+  }, []);
 
 
+  const handleBrandChange = (event, newValue) => {
+    setSelectedBrand(newValue);
+  };
 
 
 
@@ -705,88 +738,23 @@ function Dashboard() {
 
   if (loading) {
     return (
-      <Box sx={{ 
-        display: 'flex', 
-        flexDirection: 'column',
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '70vh',
-        gap: 2
-      }}>
-        <CircularProgress size={60} />
-        <Typography variant="h6" color="text.secondary">
-          대시보드 데이터를 불러오는 중...
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          잠시만 기다려주세요
-        </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '70vh' }}>
+        <CircularProgress />
       </Box>
     );
   }
 
   if (error) {
     return (
-      <Box sx={{ 
-        display: 'flex', 
-        flexDirection: 'column',
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '70vh',
-        gap: 3,
-        p: 4
-      }}>
-        <Alert severity="error" sx={{ width: '100%', maxWidth: 600 }}>
-          <Typography variant="h6" gutterBottom>
-            데이터 로딩 실패
-          </Typography>
-          <Typography variant="body2">
-            {error}
-          </Typography>
-        </Alert>
-        
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center' }}>
-          <Button 
-            variant="contained"
-            startIcon={<RefreshIcon />} 
-            onClick={fetchDashboardData}
-            size="large"
-          >
-            다시 시도
-          </Button>
-          
-          <Button 
-            variant="outlined"
-            onClick={() => window.location.reload()}
-            size="large"
-          >
-            페이지 새로고침
-          </Button>
-          
-          {error.includes('네트워크') && (
-            <Button 
-              variant="outlined"
-              onClick={() => {
-                // 네트워크 연결 테스트
-                fetch('https://fextlagqverlrajlmkon.supabase.co/rest/v1/', { 
-                  method: 'HEAD',
-                  mode: 'no-cors'
-                }).then(() => {
-                  alert('네트워크 연결이 정상입니다. 다시 시도해주세요.');
-                }).catch(() => {
-                  alert('네트워크 연결에 문제가 있습니다. 인터넷 연결을 확인해주세요.');
-                });
-              }}
-              size="large"
-              color="warning"
-            >
-              연결 확인
-            </Button>
-          )}
-        </Box>
-        
-        <Typography variant="caption" color="text.secondary" sx={{ mt: 2 }}>
-          문제가 계속되면 관리자에게 문의해주세요.
-        </Typography>
+      <Box sx={{ mt: 4 }}>
+        <Alert severity="error">{error}</Alert>
+        <Button 
+          startIcon={<RefreshIcon />} 
+          onClick={fetchDashboardData}
+          sx={{ mt: 2 }}
+        >
+          다시 시도
+        </Button>
       </Box>
     );
   }

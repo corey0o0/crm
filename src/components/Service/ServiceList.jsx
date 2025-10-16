@@ -63,7 +63,7 @@ import {
   RestartAlt as RestartAltIcon,
   Build as BuildIcon,
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { serviceApi } from '../../api/services';
 import { supabase } from '../../lib/supabaseClient';
@@ -120,6 +120,7 @@ function extractDate(dateStr) {
 }
 
 function ServiceList() {
+  const location = useLocation();
   const validateBrand = (value) => (value === 'XRB' || value === 'NB' ? value : 'XRB');
   const [selectedBrand, setSelectedBrand] = useState(() => {
     // URL 파라미터나 로컬스토리지에서 브랜드 정보를 가져오려고 시도
@@ -270,34 +271,54 @@ function ServiceList() {
     '처리 완료'
   ];
 
-  // 초기 로딩은 selectedBrand 의존 이펙트에서만 수행하여 중복 호출 방지
+  // 무한 로딩 방지를 위한 감시 타이머
+  const loadingWatchdogRef = useRef(null);
 
-  // 브랜드 변경 시에만 데이터 다시 로딩
   useEffect(() => {
-    if (selectedBrand) { // selectedBrand가 존재할 때만 실행
-      console.log('selectedBrand changed to:', selectedBrand);
-      // 브랜드 변경 시 상태 초기화 후 데이터 로딩
-      setLoading(true);
-      setNetworkError(false);
-      setFirstPageLoaded(false);
-      setLoadedChunks(0);
-      setHasMoreData(true);
-      setHasActiveSearch(false);
-      
-      fetchServices();
-    }
+    console.log('selectedBrand changed to:', selectedBrand);
+    fetchServices();
   }, [selectedBrand]);
+
+  // 라우트 재진입(키 변경), 포커스/가시성 복귀 시 재호출
+  useEffect(() => {
+    const onFocus = () => {
+      if (!loading) {
+        fetchServices();
+      }
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible' && !loading) {
+        fetchServices();
+      }
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+    // 라우트 키 변경 시에도 재요청
+    fetchServices();
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+    // eslint-disable-next-line
+  }, [location.key]);
 
   // 첫 페이지만 빠르게 로딩하는 함수
   const fetchFirstPage = async (retryAttempt = 0) => {
-    let timeoutId;
-    const controller = new AbortController();
     try {
       setLoading(true);
       setNetworkError(false);
       setFirstPageLoaded(false);
       setLoadedChunks(0);
       setHasMoreData(true);
+
+      // 기존 감시 타이머 제거 후 새 타이머 시작 (15초)
+      if (loadingWatchdogRef.current) {
+        clearTimeout(loadingWatchdogRef.current);
+      }
+      loadingWatchdogRef.current = setTimeout(() => {
+        setError('요청이 예상보다 오래 걸립니다. 네트워크 상태를 확인한 후 다시 시도하세요.');
+        setLoading(false);
+      }, 15000);
       
       if (retryAttempt === 0) {
         setServices([]); // 첫 번째 시도에서만 초기화
@@ -305,23 +326,25 @@ function ServiceList() {
       
       console.log('fetchFirstPage called with selectedBrand:', selectedBrand, 'retry:', retryAttempt);
       
-      // 타임아웃 설정 (30초)
-      timeoutId = setTimeout(() => {
-        console.warn('A/S 데이터 로딩 타임아웃 (30초)');
-        // 오래 걸리는 네트워크 요청 강제 중단
-        try { controller.abort(); } catch (_) {}
-        setLoading(false);
-        setNetworkError(true);
-      }, 30000);
-      
       // 첫 페이지 크기 (빠른 로딩을 위해 작게)
       const FIRST_PAGE_SIZE = 50;
       
-      // 총 데이터 개수와 첫 페이지 데이터를 동시에 가져오기
+      // 세션 확인/갱신 (유휴 후 진입 시 세션 이슈 방지)
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          await supabase.auth.refreshSession();
+        }
+      } catch {}
+
+      // 총 데이터 개수와 첫 페이지 데이터를 동시에 가져오기 (Abort + timeout 적용)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+
       const [countResult, firstPageResult] = await Promise.all([
         supabase
-        .from('services')
-        .select('id', { count: 'exact', head: true })
+          .from('services')
+          .select('id', { count: 'exact', head: true })
           .eq('brand', selectedBrand)
           .abortSignal(controller.signal),
         supabase
@@ -343,7 +366,7 @@ function ServiceList() {
           .order('reception_date', { ascending: false })
           .range(0, FIRST_PAGE_SIZE - 1)
           .abortSignal(controller.signal)
-      ]);
+      ]).finally(() => clearTimeout(timeoutId));
       
       if (countResult.error) {
         console.error('Error counting services:', countResult.error);
@@ -379,9 +402,6 @@ function ServiceList() {
         setLoading(false); // 첫 페이지 로딩 완료
         setLoadedChunks(1); // 첫 번째 청크 로드 완료
         
-        // 타임아웃 클리어
-        clearTimeout(timeoutId);
-        
         // 하이라이트 ID 체크 (첫 페이지에서)
         const savedIdFromCookie = getCookie('highlightServiceId');
         const savedIdFromStorage = localStorage.getItem('highlightServiceId');
@@ -412,15 +432,26 @@ function ServiceList() {
       
       // 재시도 카운트 초기화
       setRetryCount(0);
+      // 감시 타이머 해제
+      if (loadingWatchdogRef.current) {
+        clearTimeout(loadingWatchdogRef.current);
+        loadingWatchdogRef.current = null;
+      }
       
     } catch (err) {
       console.error('Error fetching first page:', err);
       setNetworkError(true);
-      
-      // 타임아웃 클리어
-      clearTimeout(timeoutId);
-      // 타임아웃 클리어
-      clearTimeout(timeoutId);
+      if (err?.name === 'AbortError') {
+        setError('요청이 시간 초과로 취소되었습니다. 다시 시도해주세요.');
+        setLoading(false);
+        return;
+      }
+      // Failed to fetch 계열 자동 1회 재시도 (세션 동기화 후)
+      const msg = String(err?.message || '');
+      if (retryAttempt === 0 && (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('fetch'))){
+        try { await supabase.auth.refreshSession(); } catch {}
+        return fetchFirstPage(1);
+      }
       
       // 네트워크 오류 시 재시도 로직
       if (retryAttempt < 3) {
@@ -450,6 +481,9 @@ function ServiceList() {
       
       console.log(`Loading next chunk: ${startOffset}-${endOffset}`);
       
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+
       const { data: servicesData, error: servicesError } = await supabase
         .from('services')
         .select(`
@@ -467,7 +501,10 @@ function ServiceList() {
         `)
         .eq('brand', selectedBrand)
         .order('reception_date', { ascending: false })
-        .range(startOffset, endOffset);
+        .range(startOffset, endOffset)
+        .abortSignal(controller.signal);
+
+      clearTimeout(timeoutId);
 
         if (servicesError) {
         console.error('Error fetching next chunk:', servicesError);
@@ -2390,18 +2427,6 @@ function ServiceList() {
             <Typography variant="h6" sx={{ mt: 2 }}>
               {searchLoading ? 'A/S 데이터를 검색하는 중...' : 'A/S 데이터를 불러오는 중...'}
             </Typography>
-            <Typography variant="body2" color="rgba(255, 255, 255, 0.7)" sx={{ mt: 1 }}>
-              잠시만 기다려주세요
-            </Typography>
-            {networkError && (
-              <Button 
-                variant="contained" 
-                onClick={() => fetchServices()}
-                sx={{ mt: 2 }}
-              >
-                다시 시도
-              </Button>
-            )}
             
             {progressiveLoading && loadProgress > 0 && (
               <Box sx={{ mt: 2, mb: 1 }}>
