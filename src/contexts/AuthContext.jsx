@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { getUserPermissions } from '../api/roleApi';
 
@@ -13,13 +13,27 @@ export const AuthProvider = ({ children }) => {
   const [userPermissions, setUserPermissions] = useState([]);
   const [userRoles, setUserRoles] = useState([]);
 
-  // 사용자 권한 로드 함수
+  // 중복 호출 방지용 ref
+  const loadingPermissionsRef = useRef(false);
+  const lastSessionRefreshRef = useRef(0);
+
+  // 사용자 권한 로드 함수 (중복 호출 방지)
   const loadUserPermissions = async (userId) => {
     if (!userId) {
       setUserPermissions([]);
       setUserRoles([]);
       return;
     }
+
+    // 이미 로딩 중이면 스킵
+    if (loadingPermissionsRef.current) {
+      console.log('[AuthContext] 권한 로딩 중복 호출 방지');
+      return;
+    }
+
+    loadingPermissionsRef.current = true;
+    const timestamp = new Date().toISOString();
+    console.log(`[AuthContext ${timestamp}] 권한 로드 시작 (userId: ${userId})`);
 
     try {
       const { data: permissions } = await getUserPermissions(userId);
@@ -38,10 +52,13 @@ export const AuthProvider = ({ children }) => {
         .eq('user_id', userId);
       
       setUserRoles(rolesData?.map(r => r.roles) || []);
+      console.log(`[AuthContext ${timestamp}] 권한 로드 완료`);
     } catch (error) {
-      console.error('권한 로드 오류:', error);
+      console.error(`[AuthContext ${timestamp}] 권한 로드 오류:`, error);
       setUserPermissions([]);
       setUserRoles([]);
+    } finally {
+      loadingPermissionsRef.current = false;
     }
   };
 
@@ -57,8 +74,21 @@ export const AuthProvider = ({ children }) => {
     return userRoles.some(role => role.name === roleName);
   };
 
-  // 포커스/가시성 복귀 시 세션 새로고침 및 권한 재로딩
+  // 포커스/가시성 복귀 시 세션 새로고침 및 권한 재로딩 (쓰로틀링 적용)
   const refreshSessionAndPermissions = async () => {
+    const now = Date.now();
+    const timeSinceLastRefresh = now - lastSessionRefreshRef.current;
+    
+    // 10초 이내 재호출 방지
+    if (timeSinceLastRefresh < 10000) {
+      console.log('[AuthContext] 세션 새로고침 쓰로틀링 (10초 이내 재호출)');
+      return;
+    }
+
+    lastSessionRefreshRef.current = now;
+    const timestamp = new Date().toISOString();
+    console.log(`[AuthContext ${timestamp}] 세션 새로고침 시작`);
+
     try {
       const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
@@ -70,14 +100,25 @@ export const AuthProvider = ({ children }) => {
       if (currentUser) {
         await loadUserPermissions(currentUser.id);
       }
+      console.log(`[AuthContext ${timestamp}] 세션 새로고침 완료`);
     } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error('세션 새로고침 실패:', e);
+      console.error(`[AuthContext ${timestamp}] 세션 새로고침 실패:`, e);
     }
   };
 
-  // 외부에서 호출 가능한 세션 보강 함수
+  // 외부에서 호출 가능한 세션 보강 함수 (쓰로틀링 적용)
   const ensureSessionFresh = async () => {
+    const now = Date.now();
+    const timeSinceLastRefresh = now - lastSessionRefreshRef.current;
+    
+    // 10초 이내 재호출 방지
+    if (timeSinceLastRefresh < 10000) {
+      console.log('[AuthContext] ensureSessionFresh 쓰로틀링 (10초 이내 재호출)');
+      return;
+    }
+
+    lastSessionRefreshRef.current = now;
+
     try {
       const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
@@ -159,7 +200,7 @@ export const AuthProvider = ({ children }) => {
     initSession();
   }, []);
 
-  // 2분 주기 하트비트로 idle 연결 안정화 (가시성 hidden 시 중단)
+  // 3분 주기 하트비트로 idle 연결 안정화 (가시성 hidden 시 중단)
   useEffect(() => {
     let intervalId;
     const startHeartbeat = () => {
@@ -167,6 +208,8 @@ export const AuthProvider = ({ children }) => {
       intervalId = setInterval(async () => {
         try {
           if (document.visibilityState !== 'visible') return;
+          const timestamp = new Date().toISOString();
+          console.log(`[AuthContext ${timestamp}] 하트비트 핑 전송`);
           // 초경량 head 카운트 쿼리
           await supabase
             .from('roles')
@@ -174,7 +217,7 @@ export const AuthProvider = ({ children }) => {
         } catch (_) {
           // 무시 (하트비트 실패는 치명적이지 않음)
         }
-      }, 120000); // 2분
+      }, 180000); // 3분 (2분 → 3분으로 조정)
     };
     const stopHeartbeat = () => {
       if (intervalId) {

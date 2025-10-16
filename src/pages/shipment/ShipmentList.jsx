@@ -263,12 +263,6 @@ function ShipmentList() {
       console.log('fetchFirstPage called with selectedBrand:', selectedBrand, 'retry:', retryAttempt);
       
       const FIRST_PAGE_SIZE = 50;
-      
-      // 세션 확인/갱신 (유휴 후 진입 이슈 방지)
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) await supabase.auth.refreshSession();
-      } catch {}
 
       // 기본 쿼리 구성 - 각각 별도로 생성
       let countQuery = supabase
@@ -382,7 +376,7 @@ function ShipmentList() {
       }
       
     } catch (err) {
-      console.error('Error fetching first page:', err);
+      console.error('[ShipmentList] Error fetching first page:', err);
       setNetworkError(true);
       if (loadingWatchdogRef.current) {
         clearTimeout(loadingWatchdogRef.current);
@@ -394,25 +388,20 @@ function ShipmentList() {
         return;
       }
       
-      // 네트워크 오류 시 재시도 로직
-      if (retryAttempt < 3) {
-        const nextRetry = retryAttempt + 1;
-        setRetryCount(nextRetry);
-        console.log(`Retrying fetchFirstPage... attempt ${nextRetry}`);
-        
-        // 지수 백오프로 재시도 간격 증가
-        const retryDelay = Math.pow(2, retryAttempt) * 1000;
-        setTimeout(() => {
-          fetchFirstPage(nextRetry);
-        }, retryDelay);
-      } else {
-        setSnackbar({
-          open: true,
-          message: `네트워크 오류로 데이터를 불러올 수 없습니다: ${err.message}`,
-          severity: 'error'
-        });
-        setLoading(false);
+      // Failed to fetch 계열 자동 1회 재시도
+      const msg = String(err?.message || '');
+      if (retryAttempt === 0 && (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('fetch'))){
+        console.log('[ShipmentList] Network error detected, retrying once...');
+        return fetchFirstPage(1);
       }
+      
+      // 네트워크 오류가 계속되면 명확한 안내
+      setSnackbar({
+        open: true,
+        message: '네트워크 연결 문제가 발생했습니다. 브라우저 연결이 유휴 상태였다면 페이지를 새로고침해주세요.',
+        severity: 'error'
+      });
+      setLoading(false);
     }
   };
 

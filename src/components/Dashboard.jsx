@@ -580,12 +580,6 @@ function Dashboard() {
       console.log('Supabase URL:', process.env.REACT_APP_SUPABASE_URL);
       console.log('Supabase 연결 시작...');
 
-      // 0) 세션 확인/갱신 (유휴 후 진입 시 네트워크 오류 예방)
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) await supabase.auth.refreshSession();
-      } catch {}
-
       // Abort + timeout (12s) 공통 컨트롤러
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 12000);
@@ -682,11 +676,16 @@ function Dashboard() {
       // 삭제된 현황 섹션들과 관련된 데이터 처리 완료
 
     } catch (err) {
-      console.error('대시보드 데이터 로딩 오류:', err);
+      console.error('[Dashboard] 데이터 로딩 오류:', err);
       if (err?.name === 'AbortError') {
         setError('요청이 시간 초과로 취소되었습니다. 다시 시도해주세요.');
       } else {
-        setError(err.message || '데이터를 불러오는 중 오류가 발생했습니다.');
+        const msg = String(err?.message || '');
+        if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+          setError('네트워크 연결 문제가 발생했습니다. 브라우저 연결이 유휴 상태였다면 페이지를 새로고침해주세요.');
+        } else {
+          setError(err.message || '데이터를 불러오는 중 오류가 발생했습니다.');
+        }
       }
     } finally {
       setLoading(false);

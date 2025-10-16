@@ -311,32 +311,24 @@ function ServiceList() {
       setLoadedChunks(0);
       setHasMoreData(true);
 
-      // 기존 감시 타이머 제거 후 새 타이머 시작 (15초)
+      // 기존 감시 타이머 제거 후 새 타이머 시작 (20초로 여유 확보)
       if (loadingWatchdogRef.current) {
         clearTimeout(loadingWatchdogRef.current);
       }
       loadingWatchdogRef.current = setTimeout(() => {
         setError('요청이 예상보다 오래 걸립니다. 네트워크 상태를 확인한 후 다시 시도하세요.');
         setLoading(false);
-      }, 15000);
+      }, 20000);
       
       if (retryAttempt === 0) {
         setServices([]); // 첫 번째 시도에서만 초기화
       }
       
-      console.log('fetchFirstPage called with selectedBrand:', selectedBrand, 'retry:', retryAttempt);
+      console.log('[ServiceList] fetchFirstPage called with selectedBrand:', selectedBrand, 'retry:', retryAttempt);
       
       // 첫 페이지 크기 (빠른 로딩을 위해 작게)
       const FIRST_PAGE_SIZE = 50;
       
-      // 세션 확인/갱신 (유휴 후 진입 시 세션 이슈 방지)
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
-          await supabase.auth.refreshSession();
-        }
-      } catch {}
-
       // 총 데이터 개수와 첫 페이지 데이터를 동시에 가져오기 (Abort + timeout 적용)
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 12000);
@@ -439,34 +431,35 @@ function ServiceList() {
       }
       
     } catch (err) {
-      console.error('Error fetching first page:', err);
+      console.error('[ServiceList] Error fetching first page:', err);
       setNetworkError(true);
       if (err?.name === 'AbortError') {
         setError('요청이 시간 초과로 취소되었습니다. 다시 시도해주세요.');
         setLoading(false);
         return;
       }
-      // Failed to fetch 계열 자동 1회 재시도 (세션 동기화 후)
+      // Failed to fetch 계열 자동 1회 재시도 (AuthContext가 이미 session 관리함)
       const msg = String(err?.message || '');
       if (retryAttempt === 0 && (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('fetch'))){
-        try { await supabase.auth.refreshSession(); } catch {}
+        console.log('[ServiceList] Network error detected, retrying once...');
         return fetchFirstPage(1);
       }
       
-      // 네트워크 오류 시 재시도 로직
-      if (retryAttempt < 3) {
-        const nextRetry = retryAttempt + 1;
-        setRetryCount(nextRetry);
-        console.log(`Retrying fetchFirstPage... attempt ${nextRetry}`);
-        
-        // 지수 백오프로 재시도 간격 증가
-        const retryDelay = Math.pow(2, retryAttempt) * 1000;
-        setTimeout(() => {
-          fetchFirstPage(nextRetry);
-        }, retryDelay);
-      } else {
-        setError(`네트워크 오류로 데이터를 불러올 수 없습니다: ${err.message}`);
-        setLoading(false);
+      // 네트워크 오류가 계속되면 페이지 새로고침 권장
+      setError(
+        <div>
+          <div style={{ marginBottom: '8px' }}>네트워크 연결 문제가 발생했습니다.</div>
+          <div style={{ fontSize: '14px', color: '#666' }}>
+            브라우저 연결이 유휴 상태였다면 페이지를 새로고침해주세요.
+          </div>
+        </div>
+      );
+      setLoading(false);
+      
+      // 5초 후 자동으로 재시도 버튼 표시하지 않고 즉시 표시
+      if (loadingWatchdogRef.current) {
+        clearTimeout(loadingWatchdogRef.current);
+        loadingWatchdogRef.current = null;
       }
     }
   };
