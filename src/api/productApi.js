@@ -1,4 +1,5 @@
-import { supabase } from '../lib/supabaseClient'
+import { supabase } from '../lib/supabaseClient';
+import { fetchFromSupabase } from '../utils/restApiUtils';
 
 // 옵션 C: 실제 운영 테이블/뷰(`parts`)을 읽기 전용 소스로 사용합니다.
 // 브랜드 필터가 필요한 경우 .env 또는 public/env.js에 REACT_APP_PARTS_BRAND 를 설정하세요.
@@ -49,24 +50,24 @@ const tempNearbikeProducts = [
 ];
 
 export const productApi = {
-  // 모든 상품 조회 (옵션 C: parts 테이블 기반, 읽기 전용)
+  // 모든 상품 조회 (옵션 C: parts 테이블 기반, 읽기 전용) - REST API 버전
   getAll: async () => {
     try {
-      let query = supabase
-        .from(PARTS_TABLE)
-        .select('id, code, barcode, name, price, brand, note');
-
-      if (PARTS_BRAND) {
-        query = query.eq('brand', PARTS_BRAND);
-      }
-
-      const { data, error } = await query.order('name', { ascending: true });
+      console.log('[ProductAPI] Fetching products via REST API...');
       
-      if (error) {
-        console.error('Supabase parts 조회 오류:', error);
-        console.log('오류 상세:', error.message);
-        return [];
+      // 필터 구성
+      let filter = '';
+      if (PARTS_BRAND) {
+        filter = `brand=eq.${encodeURIComponent(PARTS_BRAND)}`;
       }
+
+      const data = await fetchFromSupabase(PARTS_TABLE, {
+        select: 'id,code,barcode,name,price,brand,note',
+        filter: filter,
+        order: 'name.asc'
+      });
+      
+      console.log('[ProductAPI] Products data received:', data?.length || 0, 'items');
       
       if (data && data.length > 0) {
         console.log(`Supabase parts에서 ${data.length}개의 실제 파츠를 가져왔습니다.${PARTS_BRAND ? ` (brand=${PARTS_BRAND})` : ''}`);

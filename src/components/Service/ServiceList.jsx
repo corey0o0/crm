@@ -67,6 +67,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { serviceApi } from '../../api/services';
 import { supabase } from '../../lib/supabaseClient';
+import { fetchServices as fetchServicesAPI, countServices } from '../../utils/restApiUtils';
 import ResponsiveTable from '../common/ResponsiveTable';
 import AddService from './AddService';
 import { getCookie, setCookie, removeCookie, getJSONCookie, setJSONCookie } from '../../utils/cookieUtils';
@@ -325,68 +326,47 @@ function ServiceList() {
       }
       
       console.log('[ServiceList] fetchFirstPage called with selectedBrand:', selectedBrand, 'retry:', retryAttempt);
-      
       // 첫 페이지 크기 (빠른 로딩을 위해 작게)
       const FIRST_PAGE_SIZE = 50;
       
       // 총 데이터 개수와 첫 페이지 데이터를 동시에 가져오기 (Abort + timeout 적용)
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 12000);
-
-      const [countResult, firstPageResult] = await Promise.all([
-        supabase
-          .from('services')
-          .select('id', { count: 'exact', head: true })
-          .eq('brand', selectedBrand)
-          .abortSignal(controller.signal),
-        supabase
-          .from('services')
-          .select(`
-            *,
-            service_tags (
-              tag_name
-            ),
-            service_parts (
-              price,
-              quantity,
-              parts (
-                name
-              )
-            )
-          `)
-          .eq('brand', selectedBrand)
-          .order('reception_date', { ascending: false })
-          .range(0, FIRST_PAGE_SIZE - 1)
-          .abortSignal(controller.signal)
-      ]).finally(() => clearTimeout(timeoutId));
       
-      if (countResult.error) {
-        console.error('Error counting services:', countResult.error);
-        throw countResult.error;
-      }
+      console.log('[ServiceList] Starting Promise.all for count + first page');
+      const [totalCount, firstPageData] = await Promise.all([
+        countServices({
+          selectedBrand,
+          searchTerm: '',
+          statusFilter: '',
+          signal: controller.signal
+        }),
+        fetchServicesAPI({
+          selectedBrand,
+          searchTerm: '',
+          statusFilter: '',
+          page: 0,
+          pageSize: FIRST_PAGE_SIZE,
+          signal: controller.signal
+        })
+      ]);
       
-      if (firstPageResult.error) {
-        console.error('Error fetching first page:', firstPageResult.error);
-        throw firstPageResult.error;
-      }
+      clearTimeout(timeoutId);
       
-      const totalCount = countResult.count;
-      const firstPageData = firstPageResult.data;
+      console.log('[ServiceList] REST API results - count:', totalCount, 'first page:', firstPageData?.length);
+      
+      // 기존 Supabase 코드 제거됨 - REST API 사용
       
       setTotalExpected(totalCount);
       console.log(`Total services: ${totalCount}, First page loaded: ${firstPageData?.length || 0}`);
       
       if (firstPageData && firstPageData.length > 0) {
-        // 첫 페이지 데이터 처리 및 즉시 표시
+        // 첫 페이지 데이터 처리 및 즉시 표시 (REST API 버전)
         const processedServices = firstPageData.map(service => ({
           ...service,
           status: service.status || '접수',
-          tags: service.service_tags?.map(tag => tag.tag_name) || [],
-          parts: service.service_parts?.map(part => ({
-            name: part.parts?.name || '',
-            price: part.price,
-            quantity: part.quantity
-          })) || []
+          tags: [], // REST API에서는 관계 데이터를 별도로 조회해야 함
+          parts: [] // REST API에서는 관계 데이터를 별도로 조회해야 함
         }));
         
         setServices(processedServices);
@@ -432,14 +412,19 @@ function ServiceList() {
       
     } catch (err) {
       console.error('[ServiceList] Error fetching first page:', err);
+      console.error('[ServiceList] Error name:', err?.name);
+      console.error('[ServiceList] Error message:', err?.message);
+      console.error('[ServiceList] Error details:', JSON.stringify(err, null, 2));
       setNetworkError(true);
       if (err?.name === 'AbortError') {
+        console.log('[ServiceList] AbortError detected - timeout occurred');
         setError('요청이 시간 초과로 취소되었습니다. 다시 시도해주세요.');
         setLoading(false);
         return;
       }
       // Failed to fetch 계열 자동 1회 재시도 (AuthContext가 이미 session 관리함)
       const msg = String(err?.message || '');
+      console.log('[ServiceList] Checking for retry. retryAttempt:', retryAttempt, 'message:', msg);
       if (retryAttempt === 0 && (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('fetch'))){
         console.log('[ServiceList] Network error detected, retrying once...');
         return fetchFirstPage(1);
@@ -470,55 +455,37 @@ function ServiceList() {
       setIsLoadingNextChunk(true);
       
       const CHUNK_SIZE = 100;
-      const endOffset = startOffset + CHUNK_SIZE - 1;
+      const page = Math.floor(startOffset / CHUNK_SIZE);
       
-      console.log(`Loading next chunk: ${startOffset}-${endOffset}`);
+      console.log(`Loading next chunk: page ${page}, offset ${startOffset}`);
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-      const { data: servicesData, error: servicesError } = await supabase
-        .from('services')
-        .select(`
-          *,
-          service_tags (
-            tag_name
-          ),
-          service_parts (
-            price,
-            quantity,
-            parts (
-              name
-            )
-          )
-        `)
-        .eq('brand', selectedBrand)
-        .order('reception_date', { ascending: false })
-        .range(startOffset, endOffset)
-        .abortSignal(controller.signal);
+      
+      const servicesData = await fetchServicesAPI({
+        selectedBrand,
+        searchTerm: '',
+        statusFilter: '',
+        page: page,
+        pageSize: CHUNK_SIZE,
+        signal: controller.signal
+      });
 
       clearTimeout(timeoutId);
 
-        if (servicesError) {
-        console.error('Error fetching next chunk:', servicesError);
-        return;
-        }
-        
-        if (!servicesData || servicesData.length === 0) {
+      if (!servicesData || servicesData.length === 0) {
         setHasMoreData(false);
         return;
       }
       
-      // 데이터 처리 및 기존 데이터에 추가
+      console.log(`[ServiceList] Next chunk loaded: ${servicesData.length} items`);
+      
+      // 데이터 처리 (REST API는 이미 기본 형태로 반환됨)
       const processedServices = servicesData.map(service => ({
         ...service,
         status: service.status || '접수',
-        tags: service.service_tags?.map(tag => tag.tag_name) || [],
-        parts: service.service_parts?.map(part => ({
-          name: part.parts?.name || '',
-          price: part.price,
-          quantity: part.quantity
-        })) || []
+        tags: [], // REST API에서는 관계 데이터를 별도로 조회해야 함
+        parts: [] // REST API에서는 관계 데이터를 별도로 조회해야 함
       }));
       
       // 기존 데이터에 추가

@@ -59,6 +59,8 @@ import { warehouseApi } from '../../api/warehouseApi';
 import { dealerApi } from '../../api/dealerApi';
 import { transactionApi } from '../../api/transactionApi';
 import { inventoryApi } from '../../api/inventoryApi';
+import { supabase } from '../../lib/supabaseClient';
+import { fetchFromSupabase } from '../../utils/restApiUtils';
 
 function InventoryManagement() {
   const [activeTab, setActiveTab] = useState(0);
@@ -206,6 +208,7 @@ function InventoryManagement() {
   const fetchProducts = async () => {
     try {
       setLoading(true);
+      
       const productsData = await productApi.getAll();
       setProducts(productsData);
       console.log(`실제 니어바이크 파츠관리에서 ${productsData.length}개의 상품을 가져왔습니다.`);

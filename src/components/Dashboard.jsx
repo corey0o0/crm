@@ -41,6 +41,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
+import { fetchFromSupabase } from '../utils/restApiUtils';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ko';
 import ServiceCalendar from './ServiceCalendar';
@@ -58,7 +59,7 @@ function Dashboard() {
   const [selectedBrand, setSelectedBrand] = useState('ALL');
   
   // 메모 타입 (개인/공유)
-  const [memoType, setMemoType] = useState('personal');
+  const [memoType, setMemoType] = useState('shared');
   
   // 개인 메모
   const [personalMemoList, setPersonalMemoList] = useState([
@@ -99,23 +100,13 @@ function Dashboard() {
   const [error, setError] = useState(null);
   const [telegramResult, setTelegramResult] = useState({ open: false, message: '', success: true });
 
-  // 초기 사용자 세션 확인
+  // 초기 사용자 세션 확인 (자동 재로그인 제거)
   useEffect(() => {
     const checkSession = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session && !authLoading) {
-          // 세션이 없는 경우 자동 로그인 시도
-          const { data: { user: signInUser }, error: signInError } = await supabase.auth.signInWithPassword({
-            email: localStorage.getItem('userEmail'),
-            password: localStorage.getItem('userPassword')
-          });
-
-          if (signInError) throw signInError;
-        }
+        await supabase.auth.getSession();
       } catch (err) {
         console.error('세션 확인 중 오류:', err);
-        setError(err.message);
       }
     };
 
@@ -165,7 +156,8 @@ function Dashboard() {
     fetchPersonalMemos();
 
     const userId = user?.id;
-    if (userId) {
+    // 개발 환경에서는 Realtime 비활성화 (프록시 WebSocket 충돌 방지)
+    if (userId && process.env.NODE_ENV !== 'development') {
       const channel = supabase
         .channel('user_memos_changes')
         .on('postgres_changes',
@@ -200,20 +192,40 @@ function Dashboard() {
   useEffect(() => {
     const fetchSharedMemos = async () => {
       try {
-        console.log('공유 메모 불러오기 시작...');
+        console.log('[Dashboard] 공유 메모 불러오기 시작...');
         
-        const { data: sharedMemo, error } = await supabase
-          .from('shared_memos')
-          .select('*')
-          .maybeSingle();
-
-        if (error && error.code !== 'PGRST116') {
-          console.error('공유 메모 조회 오류:', error);
-          return;
+        // REST API로 공유 메모 조회 (사용자 액세스 토큰 사용: RLS 통과)
+        console.log('[Dashboard] shared_memos 테이블 조회 중...');
+        const { data: { session: sharedMemoSession } } = await supabase.auth.getSession();
+        const accessTokenForShared = sharedMemoSession?.access_token;
+        if (!accessTokenForShared) {
+          console.log('[Dashboard] 액세스 토큰 없음 - 공유 메모 로딩을 지연합니다.');
+          return; // 세션 준비 전에는 상태를 건드리지 않음
         }
+        const supabaseUrlForShared = process.env.REACT_APP_SUPABASE_URL;
+        const supabaseKeyForShared = process.env.REACT_APP_SUPABASE_ANON_KEY;
+        
+        const sharedFetchUrl = `${supabaseUrlForShared}/rest/v1/shared_memos?select=*&limit=1`;
+        const sharedFetchResp = await fetch(sharedFetchUrl, {
+          method: 'GET',
+          headers: {
+            'apikey': supabaseKeyForShared,
+            'Authorization': `Bearer ${accessTokenForShared || supabaseKeyForShared}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation'
+          }
+        });
+        
+        if (!sharedFetchResp.ok) {
+          const errText = await sharedFetchResp.text();
+          throw new Error(`shared_memos 조회 실패: ${sharedFetchResp.status} ${errText}`);
+        }
+        const sharedMemos = await sharedFetchResp.json();
+        console.log('[Dashboard] shared_memos 조회 결과:', sharedMemos);
+        const sharedMemo = sharedMemos && sharedMemos.length > 0 ? sharedMemos[0] : null;
 
         if (sharedMemo) {
-          console.log('공유 메모 데이터:', sharedMemo);
+          console.log('[Dashboard] 공유 메모 데이터 발견:', sharedMemo);
           setSharedMemoList([
             { content: sharedMemo.memo1 || '', lastSaved: sharedMemo.updated_at, hasChanges: false, saving: false },
             { content: sharedMemo.memo2 || '', lastSaved: sharedMemo.updated_at, hasChanges: false, saving: false },
@@ -224,61 +236,102 @@ function Dashboard() {
             sharedMemo.memo_name_2 || '공유 메모 2', 
             sharedMemo.memo_name_3 || '공유 메모 3'
           ]);
+          console.log('[Dashboard] 공유 메모 상태 설정 완료');
         } else {
           // 공유 메모가 없으면 초기 레코드 생성
-          console.log('공유 메모가 없어서 초기 레코드 생성 중...');
-          const { data: newMemo, error: insertError } = await supabase
-            .from('shared_memos')
-            .insert([{
-              memo1: '',
-              memo2: '',
-              memo3: '',
-              memo_name_1: '공유 메모 1',
-              memo_name_2: '공유 메모 2',
-              memo_name_3: '공유 메모 3'
-            }])
-            .select()
-            .single();
+          console.log('[Dashboard] 공유 메모가 없어서 초기 레코드 생성 중...');
+          
+          try {
+            // REST API로 초기 레코드 생성 (사용자 액세스 토큰 사용: RLS 통과)
+            const { data: { session } } = await supabase.auth.getSession();
+            const accessToken = session?.access_token;
+            const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
+            const supabaseKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
+            
+            console.log('[Dashboard] POST 요청 시작:', `${supabaseUrl}/rest/v1/shared_memos`);
+            const response = await fetch(`${supabaseUrl}/rest/v1/shared_memos`, {
+              method: 'POST',
+              headers: {
+                'apikey': supabaseKey,
+                'Authorization': `Bearer ${accessToken || supabaseKey}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=representation'
+              },
+              body: JSON.stringify({
+                memo1: '',
+                memo2: '',
+                memo3: '',
+                memo_name_1: '공유 메모 1',
+                memo_name_2: '공유 메모 2',
+                memo_name_3: '공유 메모 3'
+              })
+            });
 
-          if (insertError) {
-            console.error('공유 메모 초기 레코드 생성 오류:', insertError);
-          } else {
-            console.log('공유 메모 초기 레코드 생성 완료');
+            console.log('[Dashboard] POST 응답 상태:', response.status);
+            
+            if (response.ok) {
+              const newMemo = await response.json();
+              console.log('[Dashboard] 공유 메모 초기 레코드 생성 완료:', newMemo);
+              
+              // 생성된 메모로 상태 설정
+              setSharedMemoList([
+                { content: '', lastSaved: newMemo[0]?.updated_at, hasChanges: false, saving: false },
+                { content: '', lastSaved: newMemo[0]?.updated_at, hasChanges: false, saving: false },
+                { content: '', lastSaved: newMemo[0]?.updated_at, hasChanges: false, saving: false }
+              ]);
+              setSharedMemoNames(['공유 메모 1', '공유 메모 2', '공유 메모 3']);
+            } else {
+              const errorText = await response.text();
+              console.error('[Dashboard] 공유 메모 초기 레코드 생성 실패:', response.status, errorText);
+              // 실패 시 기존 상태 유지 (초기화하지 않음)
+            }
+          } catch (createError) {
+            console.error('[Dashboard] 공유 메모 생성 중 오류:', createError);
+            // 실패 시 기존 상태 유지 (초기화하지 않음)
           }
         }
       } catch (err) {
-        console.error('공유 메모 불러오기 오류:', err);
+        console.error('[Dashboard] 공유 메모 불러오기 오류:', err);
+        console.error('[Dashboard] 오류 상세:', {
+          message: err.message,
+          stack: err.stack,
+          name: err.name
+        });
+        // 실패 시 기존 상태 유지 (초기화하지 않음)
       }
     };
 
     fetchSharedMemos();
 
-    const channel = supabase
-      .channel('shared_memos_changes')
-      .on('postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'shared_memos'
-        },
-        payload => {
-          if (payload.new) {
-            setSharedMemoList(prev => [
-              { ...prev[0], content: payload.new.memo1 || '', lastSaved: payload.new.updated_at, hasChanges: false },
-              { ...prev[1], content: payload.new.memo2 || '', lastSaved: payload.new.updated_at, hasChanges: false },
-              { ...prev[2], content: payload.new.memo3 || '', lastSaved: payload.new.updated_at, hasChanges: false }
-            ]);
-            setSharedMemoNames([
-              payload.new.memo_name_1 || '공유 메모 1',
-              payload.new.memo_name_2 || '공유 메모 2',
-              payload.new.memo_name_3 || '공유 메모 3'
-            ]);
+    // 개발 환경에서는 Realtime 비활성화 (프록시 WebSocket 충돌 방지)
+    if (process.env.NODE_ENV !== 'development') {
+      const channel = supabase
+        .channel('shared_memos_changes')
+        .on('postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'shared_memos'
+          },
+          payload => {
+            if (payload.new) {
+              setSharedMemoList(prev => [
+                { ...prev[0], content: payload.new.memo1 || '', lastSaved: payload.new.updated_at, hasChanges: false },
+                { ...prev[1], content: payload.new.memo2 || '', lastSaved: payload.new.updated_at, hasChanges: false },
+                { ...prev[2], content: payload.new.memo3 || '', lastSaved: payload.new.updated_at, hasChanges: false }
+              ]);
+              setSharedMemoNames([
+                payload.new.memo_name_1 || '공유 메모 1',
+                payload.new.memo_name_2 || '공유 메모 2',
+                payload.new.memo_name_3 || '공유 메모 3'
+              ]);
+            }
           }
-        }
-      )
-      .subscribe();
+        )
+        .subscribe();
 
-    return () => channel.unsubscribe();
+      return () => channel.unsubscribe();
+    }
   }, [user]);
 
 
@@ -572,7 +625,9 @@ function Dashboard() {
 
   // 데이터 가져오기
   const fetchDashboardData = async () => {
+    console.log('[Dashboard] fetchDashboardData called');
     try {
+      console.log('[Dashboard] Setting loading state...');
       setLoading(true);
       setError(null);
 
@@ -580,16 +635,45 @@ function Dashboard() {
       console.log('Supabase URL:', process.env.REACT_APP_SUPABASE_URL);
       console.log('Supabase 연결 시작...');
 
+      console.log('[Dashboard] Creating AbortController...');
       // Abort + timeout (12s) 공통 컨트롤러
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 12000);
+      const timeoutId = setTimeout(() => {
+        console.log('[Dashboard] Timeout triggered, aborting...');
+        controller.abort();
+      }, 12000);
 
-      // 1. 서비스 데이터 가져오기
-      const { data: services, error: servicesError } = await supabase
-        .from('services')
-        .select('*')
-        .order('reception_date', { ascending: false })
-        .abortSignal(controller.signal);
+      console.log('[Dashboard] Using global Supabase client');
+      
+      console.log('[Dashboard] Starting services fetch...');
+      
+      // Supabase JS SDK 우회 - 직접 REST API 호출
+      const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
+      const supabaseKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
+      
+      console.log('[Dashboard] Making direct REST API call...');
+      const response = await fetch(`${supabaseUrl}/rest/v1/services?select=*&order=reception_date.desc&limit=10`, {
+        method: 'GET',
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        signal: controller.signal
+      });
+      
+      console.log('[Dashboard] REST API response status:', response.status);
+      
+      if (!response.ok) {
+        throw new Error(`REST API error: ${response.status} ${response.statusText}`);
+      }
+      
+      const services = await response.json();
+      console.log('[Dashboard] Services data received:', services?.length || 0, 'items');
+      const servicesError = null;
+      
+      console.log('[Dashboard] Services fetch completed');
 
       if (servicesError) {
         console.error('서비스 데이터 조회 오류:', servicesError);
@@ -604,44 +688,48 @@ function Dashboard() {
 
       console.log('서비스 데이터 조회 성공:', services?.length, '건');
 
-      // 2. 출고 데이터 가져오기
-      let shipments = [];
-      try {
-        const { data: shipmentsData, error: shipmentsError } = await supabase
-          .from('shipments')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .abortSignal(controller.signal);
-
-        if (shipmentsError) {
-          console.error('출고 데이터 조회 오류:', shipmentsError);
-          throw new Error(`출고 데이터를 불러오는데 실패했습니다: ${shipmentsError.message}`);
-        }
-
-        if (!shipmentsData) {
-          console.warn('출고 데이터가 없습니다.');
-          shipments = [];
-        } else {
-          shipments = shipmentsData;
-        }
-      } catch (shipmentError) {
-        console.error('출고 데이터 처리 중 오류:', shipmentError);
-        throw new Error('출고 데이터 처리 중 오류가 발생했습니다.');
+      // 2. 출고 데이터 가져오기 (직접 REST API)
+      console.log('[Dashboard] Making shipments REST API call...');
+      const shipmentsResponse = await fetch(`${supabaseUrl}/rest/v1/shipments?select=*&order=created_at.desc`, {
+        method: 'GET',
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json'
+        },
+        signal: controller.signal
+      });
+      
+      console.log('[Dashboard] Shipments REST API response status:', shipmentsResponse.status);
+      
+      if (!shipmentsResponse.ok) {
+        throw new Error(`Shipments REST API error: ${shipmentsResponse.status}`);
       }
+      
+      const shipments = await shipmentsResponse.json();
+      console.log('[Dashboard] Shipments data received:', shipments?.length || 0, 'items');
 
-      // 3. 최근 서비스 데이터 가져오기
-      const { data: recentServices, error: recentServicesError } = await supabase
-        .from('services')
-        .select(`
-          id,
-          customer_name,
-          product_name,
-          status,
-          reception_date,
-          brand
-        `)
-        .order('reception_date', { ascending: false })
-        .abortSignal(controller.signal);
+      // 3. 최근 서비스 데이터 가져오기 (직접 REST API)
+      console.log('[Dashboard] Making recent services REST API call...');
+      const recentServicesResponse = await fetch(`${supabaseUrl}/rest/v1/services?select=id,customer_name,product_name,status,reception_date,brand&order=reception_date.desc`, {
+        method: 'GET',
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json'
+        },
+        signal: controller.signal
+      });
+      
+      console.log('[Dashboard] Recent services REST API response status:', recentServicesResponse.status);
+      
+      if (!recentServicesResponse.ok) {
+        throw new Error(`Recent services REST API error: ${recentServicesResponse.status}`);
+      }
+      
+      const recentServices = await recentServicesResponse.json();
+      console.log('[Dashboard] Recent services data received:', recentServices?.length || 0, 'items');
+      const recentServicesError = null;
 
       if (recentServicesError) {
         console.error('최근 서비스 데이터 조회 오류:', recentServicesError);
@@ -804,15 +892,15 @@ function Dashboard() {
           }}
         >
           <Tab 
-            label="개인 메모 (나만 보기)" 
-            value="personal"
-            icon={<Chip label="개인" size="small" color="primary" sx={{ ml: 1 }} />}
-            iconPosition="end"
-          />
-          <Tab 
             label="공유 메모 (전체 공유)" 
             value="shared"
             icon={<Chip label="공유" size="small" color="success" sx={{ ml: 1 }} />}
+            iconPosition="end"
+          />
+          <Tab 
+            label="개인 메모 (나만 보기)" 
+            value="personal"
+            icon={<Chip label="개인" size="small" color="primary" sx={{ ml: 1 }} />}
             iconPosition="end"
           />
         </Tabs>

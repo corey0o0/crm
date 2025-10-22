@@ -154,6 +154,18 @@ export const AuthProvider = ({ children }) => {
 
         // 세션 변경/토큰 이벤트 감지
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+          console.log(`[AuthContext] Auth event: ${event}`);
+          
+          // SIGNED_OUT 이벤트는 여러 번 발생할 수 있으므로 명시적 처리
+          if (event === 'SIGNED_OUT') {
+            setSession(null);
+            setUser(null);
+            setUserPermissions([]);
+            setUserRoles([]);
+            setLoading(false);
+            return;
+          }
+          
           setSession(session);
           const currentUser = session?.user || null;
           setUser(currentUser);
@@ -200,7 +212,7 @@ export const AuthProvider = ({ children }) => {
     initSession();
   }, []);
 
-  // 3분 주기 하트비트로 idle 연결 안정화 (가시성 hidden 시 중단)
+  // 2분 주기 하트비트로 idle 연결 안정화 (가시성 hidden 시 중단)
   useEffect(() => {
     let intervalId;
     const startHeartbeat = () => {
@@ -217,7 +229,7 @@ export const AuthProvider = ({ children }) => {
         } catch (_) {
           // 무시 (하트비트 실패는 치명적이지 않음)
         }
-      }, 180000); // 3분 (2분 → 3분으로 조정)
+      }, 120000); // 2분
     };
     const stopHeartbeat = () => {
       if (intervalId) {
@@ -252,11 +264,29 @@ export const AuthProvider = ({ children }) => {
 
   const signOut = async () => {
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      console.log('[AuthContext] 로그아웃 시작');
+      
+      // 로컬 상태 먼저 클리어
       setUser(null);
+      setSession(null);
+      setUserPermissions([]);
+      setUserRoles([]);
+      
+      // Supabase 로그아웃 시도 (403 오류 무시)
+      const { error } = await supabase.auth.signOut({ scope: 'local' });
+      if (error) {
+        // 403 오류는 이미 로그아웃된 상태이므로 무시
+        if (error.status === 403 || error.message?.includes('403')) {
+          console.log('[AuthContext] 이미 로그아웃된 세션 (403 무시)');
+        } else {
+          console.error('[AuthContext] 로그아웃 오류:', error);
+        }
+      }
+      
+      console.log('[AuthContext] 로그아웃 완료');
     } catch (error) {
-      console.error('로그아웃 오류:', error);
+      console.error('[AuthContext] 로그아웃 예외:', error);
+      // 오류가 발생해도 로컬 상태는 이미 클리어되었으므로 계속 진행
     }
   };
 

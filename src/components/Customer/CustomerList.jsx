@@ -49,6 +49,7 @@ import {
   LocalShipping as LocalShippingIcon
 } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
+import { fetchFromSupabase } from '../../utils/restApiUtils';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { downloadExcel } from '../../utils/excelUtils';
 
@@ -88,38 +89,32 @@ function CustomerList({ refreshTrigger, onRefresh }) {
     try {
       setLoading(true);
       
-      // 1. 고객 정보 조회
-      const { data: customersData, error: customersError } = await supabase
-        .from('customers')
-        .select('*')
-        .order('updated_at', { ascending: false });
+      // 1. 고객 정보 조회 (REST API)
+      console.log('[CustomerList] Fetching customers via REST API...');
+      const customersData = await fetchFromSupabase('customers', {
+        select: '*',
+        order: 'updated_at.desc'
+      });
+      
+      console.log('[CustomerList] Customers data received:', customersData?.length || 0, 'items');
 
-      if (customersError) throw customersError;
+      // 2. A/S 서비스 데이터 조회 (REST API)
+      console.log('[CustomerList] Fetching services via REST API...');
+      const servicesData = await fetchFromSupabase('services', {
+        select: 'customer_phone,customer_name,reception_date,brand,product_name',
+        order: 'reception_date.desc'
+      });
+      
+      console.log('[CustomerList] Services data received:', servicesData?.length || 0, 'items');
 
-      // 2. A/S 서비스 데이터와 태그 정보 조회
-      const { data: servicesData, error: servicesError } = await supabase
-        .from('services')
-        .select(`
-          customer_phone,
-          customer_name,
-          reception_date,
-          brand,
-          product_name,
-          service_tags (
-            tag_name
-          )
-        `)
-        .order('reception_date', { ascending: false });
-
-      if (servicesError) throw servicesError;
-
-      // 3. 출고 데이터 조회 (전체 출고 데이터 조회)
-      const { data: shipmentsData, error: shipmentsError } = await supabase
-        .from('shipments')
-        .select('*, shipment_parts(*)')
-        .order('shipment_date', { ascending: false });
-
-      if (shipmentsError) throw shipmentsError;
+      // 3. 출고 데이터 조회 (REST API)
+      console.log('[CustomerList] Fetching shipments via REST API...');
+      const shipmentsData = await fetchFromSupabase('shipments', {
+        select: '*',
+        order: 'shipment_date.desc'
+      });
+      
+      console.log('[CustomerList] Shipments data received:', shipmentsData?.length || 0, 'items');
 
       console.log('Services data:', servicesData); // 서비스 데이터 구조 확인
       console.log('Shipments data:', shipmentsData); // 출고 데이터 구조 확인
@@ -181,7 +176,7 @@ function CustomerList({ refreshTrigger, onRefresh }) {
         
         if (!customer.lastServiceDate || service.reception_date > customer.lastServiceDate) {
           customer.lastServiceDate = service.reception_date;
-          customer.recentTag = service.service_tags?.[0]?.tag_name || null;
+          customer.recentTag = null; // REST API에서는 관계 데이터를 별도로 조회해야 함
           customer.recentModelName = productName;
         }
       });
@@ -256,33 +251,29 @@ function CustomerList({ refreshTrigger, onRefresh }) {
 
   const fetchServiceHistory = async (phone) => {
     try {
-      // A/S 이력 조회
-      const { data: servicesData, error: servicesError } = await supabase
-        .from('services')
-        .select(`
-          *,
-          service_tags (
-            tag_name
-          )
-        `)
-        .eq('customer_phone', phone)
-        .order('reception_date', { ascending: false });
+      // A/S 이력 조회 (REST API)
+      console.log('[CustomerList] Fetching service history via REST API for phone:', phone);
+      const servicesData = await fetchFromSupabase('services', {
+        select: '*',
+        filter: `customer_phone=eq.${encodeURIComponent(phone)}`,
+        order: 'reception_date.desc'
+      });
 
-      if (servicesError) throw servicesError;
-
-      // 출고 이력 조회 (테이블명 및 컬럼명 수정)
-      const { data: shipmentsData, error: shipmentsError } = await supabase
-        .from('shipments')
-        .select('*')
-        .eq('customer_phone', phone)
-        .order('shipment_date', { ascending: false });
-
-      if (shipmentsError) throw shipmentsError;
+      // 출고 이력 조회 (REST API)
+      console.log('[CustomerList] Fetching shipment history via REST API for phone:', phone);
+      const shipmentsData = await fetchFromSupabase('shipments', {
+        select: '*',
+        filter: `customer_phone=eq.${encodeURIComponent(phone)}`,
+        order: 'shipment_date.desc'
+      });
+      
+      console.log('[CustomerList] Service history:', servicesData?.length || 0, 'items');
+      console.log('[CustomerList] Shipment history:', shipmentsData?.length || 0, 'items');
 
       // 태그 데이터 처리
       const servicesWithTags = servicesData.map(service => ({
         ...service,
-        tags: service.service_tags?.map(t => t.tag_name) || []
+        tags: [] // REST API에서는 관계 데이터를 별도로 조회해야 함
       }));
 
       setServiceHistory(servicesWithTags);

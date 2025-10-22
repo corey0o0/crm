@@ -7,38 +7,19 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Supabase URL과 Anon Key가 설정되지 않았습니다.')
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true
-  },
-  global: {
-    headers: {
-      'x-application-name': 'crm-app'
-    }
-  },
-  realtime: {
-    timeout: 60000
-  },
-  db: {
-    schema: 'public'
-  },
-  storage: {
-    retryInterval: 5000,
-    maxRetryCount: 3
-  }
-})
+console.log('[Supabase Client] Using URL:', supabaseUrl);
+console.log('[Supabase Client] Environment:', process.env.NODE_ENV);
 
-// 연결 상태 확인 (개발 환경에서만 실행)
-if (process.env.NODE_ENV === 'development') {
-  supabase
-    .from('services')
-    .select('count', { count: 'exact' })
-    .then(() => {
-      // 연결 성공 - 로그 없음
-    })
-    .catch(() => {
-      console.error('Database connection failed')
-    })
-} 
+// 매번 새로운 클라이언트 인스턴스 생성
+export const createSupabaseClient = () => {
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true
+    }
+  });
+};
+
+// 기본 클라이언트 (하위 호환성)
+export const supabase = createSupabaseClient(); 

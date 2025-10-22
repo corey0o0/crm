@@ -1,0 +1,301 @@
+/**
+ * Supabase REST API 직접 호출 유틸리티
+ * Supabase JS SDK의 idle 연결 문제를 우회하기 위한 함수들
+ */
+
+const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
+const supabaseKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Supabase URL과 Anon Key가 설정되지 않았습니다.');
+}
+
+/**
+ * 기본 REST API 호출 함수
+ * @param {string} table - 테이블 이름
+ * @param {Object} options - 쿼리 옵션
+ * @param {string} options.select - 선택할 컬럼들
+ * @param {string} options.filter - 필터 조건
+ * @param {string} options.order - 정렬 조건
+ * @param {number} options.limit - 제한 개수
+ * @param {AbortSignal} options.signal - AbortController signal
+ * @returns {Promise<Array>} 조회 결과
+ */
+export const fetchFromSupabase = async (table, options = {}) => {
+  const {
+    select = '*',
+    filter = '',
+    order = '',
+    limit = null,
+    offset = 0,
+    signal = null
+  } = options;
+
+  // URL 구성
+  let url = `${supabaseUrl}/rest/v1/${table}?select=${encodeURIComponent(select)}`;
+  
+  if (filter) {
+    url += `&${filter}`;
+  }
+  
+  if (order) {
+    url += `&order=${encodeURIComponent(order)}`;
+  }
+  
+  if (limit) {
+    url += `&limit=${limit}`;
+  }
+  if (offset && Number.isFinite(offset) && offset > 0) {
+    url += `&offset=${offset}`;
+  }
+
+  console.log(`[REST API] Fetching from ${table}:`, url.substring(0, 150) + '...');
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'apikey': supabaseKey,
+      'Authorization': `Bearer ${supabaseKey}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation'
+    },
+    signal
+  });
+
+  console.log(`[REST API] ${table} response status:`, response.status);
+
+  if (!response.ok) {
+    throw new Error(`REST API error for ${table}: ${response.status} ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  console.log(`[REST API] ${table} data received:`, data?.length || 0, 'items');
+  
+  return data;
+};
+
+/**
+ * 카운트 조회 함수
+ * @param {string} table - 테이블 이름
+ * @param {string} filter - 필터 조건
+ * @param {AbortSignal} signal - AbortController signal
+ * @returns {Promise<number>} 총 개수
+ */
+export const countFromSupabase = async (table, filter = '', signal = null) => {
+  let url = `${supabaseUrl}/rest/v1/${table}?select=count`;
+  
+  if (filter) {
+    url += `&${filter}`;
+  }
+
+  console.log(`[REST API] Counting from ${table}:`, url.substring(0, 150) + '...');
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'apikey': supabaseKey,
+      'Authorization': `Bearer ${supabaseKey}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'count=exact'
+    },
+    signal
+  });
+
+  console.log(`[REST API] ${table} count response status:`, response.status);
+
+  if (!response.ok) {
+    throw new Error(`REST API count error for ${table}: ${response.status} ${response.statusText}`);
+  }
+
+  // Content-Range 헤더에서 총 개수 추출
+  const contentRange = response.headers.get('Content-Range');
+  if (contentRange) {
+    const match = contentRange.match(/\/(\d+)$/);
+    if (match) {
+      const count = parseInt(match[1], 10);
+      console.log(`[REST API] ${table} total count:`, count);
+      return count;
+    }
+  }
+
+  // 헤더가 없으면 응답 데이터에서 추출
+  const data = await response.json();
+  const count = data?.[0]?.count || 0;
+  console.log(`[REST API] ${table} count from data:`, count);
+  
+  return count;
+};
+
+/**
+ * 서비스 데이터 조회 (브랜드 필터링 포함)
+ */
+export const fetchServices = async (options = {}) => {
+  const {
+    selectedBrand = '',
+    searchTerm = '',
+    statusFilter = '',
+    page = 0,
+    pageSize = 50,
+    signal = null
+  } = options;
+
+  // 필터 조건 구성
+  let filter = '';
+  const filters = [];
+
+  if (selectedBrand && selectedBrand !== 'ALL') {
+    filters.push(`brand=eq.${encodeURIComponent(selectedBrand)}`);
+  }
+
+  if (searchTerm) {
+    filters.push(`or=(customer_name.ilike.*${encodeURIComponent(searchTerm)}*,product_name.ilike.*${encodeURIComponent(searchTerm)}*,phone.ilike.*${encodeURIComponent(searchTerm)}*)`);
+  }
+
+  if (statusFilter) {
+    filters.push(`status=eq.${encodeURIComponent(statusFilter)}`);
+  }
+
+  if (filters.length > 0) {
+    filter = filters.join('&');
+  }
+
+  // 페이지네이션
+  const offset = page * pageSize;
+  let url = `${supabaseUrl}/rest/v1/services?select=*&order=reception_date.desc&limit=${pageSize}&offset=${offset}`;
+  
+  if (filter) {
+    url += `&${filter}`;
+  }
+
+  return fetchFromSupabase('services', {
+    select: '*',
+    filter: filter,
+    order: 'reception_date.desc',
+    limit: pageSize,
+    signal
+  });
+};
+
+/**
+ * 서비스 데이터 카운트 (브랜드 필터링 포함)
+ */
+export const countServices = async (options = {}) => {
+  const {
+    selectedBrand = '',
+    searchTerm = '',
+    statusFilter = '',
+    signal = null
+  } = options;
+
+  // 필터 조건 구성 (fetchServices와 동일)
+  let filter = '';
+  const filters = [];
+
+  if (selectedBrand && selectedBrand !== 'ALL') {
+    filters.push(`brand=eq.${encodeURIComponent(selectedBrand)}`);
+  }
+
+  if (searchTerm) {
+    filters.push(`or=(customer_name.ilike.*${encodeURIComponent(searchTerm)}*,product_name.ilike.*${encodeURIComponent(searchTerm)}*,phone.ilike.*${encodeURIComponent(searchTerm)}*)`);
+  }
+
+  if (statusFilter) {
+    filters.push(`status=eq.${encodeURIComponent(statusFilter)}`);
+  }
+
+  if (filters.length > 0) {
+    filter = filters.join('&');
+  }
+
+  return countFromSupabase('services', filter, signal);
+};
+
+/**
+ * 출고 데이터 조회 (브랜드 및 날짜 필터링 포함)
+ */
+export const fetchShipments = async (options = {}) => {
+  const {
+    selectedBrand = '',
+    dateFilter = {},
+    page = 0,
+    pageSize = 50,
+    signal = null
+  } = options;
+
+  // 필터 조건 구성
+  let filter = '';
+  const filters = [];
+
+  if (selectedBrand && selectedBrand !== 'ALL') {
+    filters.push(`brand=eq.${encodeURIComponent(selectedBrand)}`);
+  }
+
+  // 날짜 필터 적용
+  if (dateFilter.startDate && dateFilter.endDate) {
+    const startDate = dateFilter.startDate;
+    const endDate = dateFilter.endDate;
+    
+    if (dateFilter.type === 'order_date') {
+      filters.push(`order_date=gte.${startDate}`);
+      filters.push(`order_date=lte.${endDate}`);
+    } else if (dateFilter.type === 'completion_date') {
+      filters.push(`shipment_date=gte.${startDate}`);
+      filters.push(`shipment_date=lte.${endDate}`);
+    }
+  }
+
+  if (filters.length > 0) {
+    filter = filters.join('&');
+  }
+
+  // 페이지네이션
+  const offset = page * pageSize;
+  
+  return fetchFromSupabase('shipments', {
+    select: '*',
+    filter: filter,
+    order: 'created_at.desc',
+    limit: pageSize,
+    offset,
+    signal
+  });
+};
+
+/**
+ * 출고 데이터 카운트 (브랜드 및 날짜 필터링 포함)
+ */
+export const countShipments = async (options = {}) => {
+  const {
+    selectedBrand = '',
+    dateFilter = {},
+    signal = null
+  } = options;
+
+  // 필터 조건 구성 (fetchShipments와 동일)
+  let filter = '';
+  const filters = [];
+
+  if (selectedBrand && selectedBrand !== 'ALL') {
+    filters.push(`brand=eq.${encodeURIComponent(selectedBrand)}`);
+  }
+
+  // 날짜 필터 적용
+  if (dateFilter.startDate && dateFilter.endDate) {
+    const startDate = dateFilter.startDate;
+    const endDate = dateFilter.endDate;
+    
+    if (dateFilter.type === 'order_date') {
+      filters.push(`order_date=gte.${startDate}`);
+      filters.push(`order_date=lte.${endDate}`);
+    } else if (dateFilter.type === 'completion_date') {
+      filters.push(`shipment_date=gte.${startDate}`);
+      filters.push(`shipment_date=lte.${endDate}`);
+    }
+  }
+
+  if (filters.length > 0) {
+    filter = filters.join('&');
+  }
+
+  return countFromSupabase('shipments', filter, signal);
+};

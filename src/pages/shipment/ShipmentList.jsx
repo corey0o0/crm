@@ -50,6 +50,7 @@ import {
   DateRange as DateRangeIcon
 } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
+import { fetchShipments as fetchShipmentsAPI, countShipments } from '../../utils/restApiUtils';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { format, parseISO, isValid } from 'date-fns';
 import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
@@ -264,69 +265,45 @@ function ShipmentList() {
       
       const FIRST_PAGE_SIZE = 50;
 
-      // 기본 쿼리 구성 - 각각 별도로 생성
-      let countQuery = supabase
-        .from('shipments')
-        .select('id', { count: 'exact', head: true })
-        .eq('brand', selectedBrand);
-
-      let dataQuery = supabase
-        .from('shipments')
-        .select('*, shipment_parts(*)')
-        .eq('brand', selectedBrand);
-
-      // 날짜 필터 적용 (공통)
+      // REST API로 변경 - 날짜 필터 준비
+      let processedDateFilter = {};
       if (dateFilter.startDate && dateFilter.endDate) {
-        const startDate = format(new Date(dateFilter.startDate), 'yyyy-MM-dd 00:00:00');
-        const endDate = format(new Date(dateFilter.endDate), 'yyyy-MM-dd 23:59:59');
-        
-        if (dateFilter.type === 'order_date') {
-          countQuery = countQuery
-            .gte('order_date', startDate)
-            .lte('order_date', endDate);
-          dataQuery = dataQuery
-            .gte('order_date', startDate)
-            .lte('order_date', endDate);
-        } else if (dateFilter.type === 'completion_date') {
-          countQuery = countQuery
-            .gte('shipment_date', startDate)
-            .lte('shipment_date', endDate);
-          dataQuery = dataQuery
-            .gte('shipment_date', startDate)
-            .lte('shipment_date', endDate);
-        }
+        processedDateFilter = {
+          startDate: format(new Date(dateFilter.startDate), 'yyyy-MM-dd 00:00:00'),
+          endDate: format(new Date(dateFilter.endDate), 'yyyy-MM-dd 23:59:59'),
+          type: dateFilter.type
+        };
       }
 
       // 총 데이터 개수와 첫 페이지 데이터를 동시에 가져오기 (Abort + timeout 적용)
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 12000);
 
-      const [countResult, firstPageResult] = await Promise.all([
-        countQuery.abortSignal(controller.signal),
-        dataQuery
-          .order('order_date', { ascending: false })
-          .range(0, FIRST_PAGE_SIZE - 1)
-          .abortSignal(controller.signal)
-      ]).finally(() => clearTimeout(timeoutId));
+      console.log('[ShipmentList] Starting Promise.all for count + first page');
+      const [totalCount, firstPageData] = await Promise.all([
+        countShipments({
+          selectedBrand,
+          dateFilter: processedDateFilter,
+          signal: controller.signal
+        }),
+        fetchShipmentsAPI({
+          selectedBrand,
+          dateFilter: processedDateFilter,
+          page: 0,
+          pageSize: FIRST_PAGE_SIZE,
+          signal: controller.signal
+        })
+      ]);
       
-      if (countResult.error) {
-        console.error('Error counting shipments:', countResult.error);
-        throw countResult.error;
-      }
+      clearTimeout(timeoutId);
       
-      if (firstPageResult.error) {
-        console.error('Error fetching first page:', firstPageResult.error);
-        throw firstPageResult.error;
-      }
-      
-      const totalCount = countResult.count;
-      const firstPageData = firstPageResult.data;
+      console.log('[ShipmentList] REST API results - count:', totalCount, 'first page:', firstPageData?.length);
       
       setTotalExpected(totalCount);
       console.log(`Total shipments: ${totalCount}, First page loaded: ${firstPageData?.length || 0}`);
       
       if (firstPageData && firstPageData.length > 0) {
-        // 날짜 기준으로 정렬
+        // 날짜 기준으로 정렬 (REST API 버전)
         const sortedData = [...firstPageData].sort((a, b) => {
           let dateA, dateB;
           if (dateFilter.type === 'order_date') {
@@ -411,51 +388,39 @@ function ShipmentList() {
       setIsLoadingNextChunk(true);
       
       const CHUNK_SIZE = 100;
-      const endOffset = startOffset + CHUNK_SIZE - 1;
+      const page = Math.floor(startOffset / CHUNK_SIZE);
       
-      console.log(`Loading next chunk: ${startOffset}-${endOffset}`);
+      console.log(`[ShipmentList] Loading next chunk: page ${page}, offset ${startOffset}`);
       
-      // 기본 쿼리 구성
-      let dataQuery = supabase
-        .from('shipments')
-        .select('*, shipment_parts(*)')
-        .eq('brand', selectedBrand);
-
-      // 날짜 필터 적용 (공통)
+      // REST API로 변경 - 날짜 필터 준비
+      let processedDateFilter = {};
       if (dateFilter.startDate && dateFilter.endDate) {
-        const startDate = format(new Date(dateFilter.startDate), 'yyyy-MM-dd 00:00:00');
-        const endDate = format(new Date(dateFilter.endDate), 'yyyy-MM-dd 23:59:59');
-        
-        if (dateFilter.type === 'order_date') {
-          dataQuery = dataQuery
-            .gte('order_date', startDate)
-            .lte('order_date', endDate);
-        } else if (dateFilter.type === 'completion_date') {
-          dataQuery = dataQuery
-            .gte('shipment_date', startDate)
-            .lte('shipment_date', endDate);
-        }
+        processedDateFilter = {
+          startDate: format(new Date(dateFilter.startDate), 'yyyy-MM-dd 00:00:00'),
+          endDate: format(new Date(dateFilter.endDate), 'yyyy-MM-dd 23:59:59'),
+          type: dateFilter.type
+        };
       }
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-      const { data: shipmentsData, error: shipmentsError } = await dataQuery
-        .order('order_date', { ascending: false })
-        .range(startOffset, endOffset)
-        .abortSignal(controller.signal);
+      const shipmentsData = await fetchShipmentsAPI({
+        selectedBrand,
+        dateFilter: processedDateFilter,
+        page: page,
+        pageSize: CHUNK_SIZE,
+        signal: controller.signal
+      });
 
       clearTimeout(timeoutId);
 
-      if (shipmentsError) {
-        console.error('Error fetching next chunk:', shipmentsError);
-        return;
-      }
-      
       if (!shipmentsData || shipmentsData.length === 0) {
         setHasMoreData(false);
         return;
       }
+      
+      console.log(`[ShipmentList] Next chunk loaded: ${shipmentsData.length} items`);
       
       // 날짜 기준으로 정렬
       const sortedData = [...shipmentsData].sort((a, b) => {
@@ -473,8 +438,14 @@ function ShipmentList() {
         return dateB - dateA;
       });
       
-      // 기존 데이터에 추가
-      setShipments(prev => [...prev, ...sortedData]);
+      // 기존 데이터에 추가 (id 기준 중복 제거)
+      setShipments(prev => {
+        const byId = new Map(prev.map(item => [item.id, item]));
+        for (const item of sortedData) {
+          byId.set(item.id, item);
+        }
+        return Array.from(byId.values());
+      });
       setLoadedChunks(prev => prev + 1);
       
       // 판매처 목록 업데이트
@@ -491,6 +462,8 @@ function ShipmentList() {
       if (shipmentsData.length < CHUNK_SIZE) {
         setHasMoreData(false);
       }
+      
+      console.log(`[ShipmentList] Chunk loaded: ${shipmentsData.length} items. Total chunks: ${loadedChunks + 1}`);
       
       console.log(`Chunk loaded: ${shipmentsData.length} items. Total chunks: ${loadedChunks + 1}`);
       

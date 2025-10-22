@@ -34,6 +34,8 @@ import {
 } from '@mui/icons-material';
 import { getCookie, setCookie, removeCookie, getJSONCookie, setJSONCookie } from '../../utils/cookieUtils';
 import { productApi } from '../../api/productApi';
+import { supabase } from '../../lib/supabaseClient';
+import { fetchFromSupabase } from '../../utils/restApiUtils';
 
 function ProductList() {
   const [products, setProducts] = useState([]);
