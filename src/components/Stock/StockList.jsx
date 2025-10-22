@@ -14,6 +14,7 @@ import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { sendTelegramNotification } from '../../lib/telegram';
 import TablePagination from '@mui/material/TablePagination';
 import { useNavigate } from 'react-router-dom';
+import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
 
 // 메모이제이션된 옵션 상수
 const BRAND_OPTIONS = ['전체', 'XRB', 'NB'];
@@ -110,26 +111,54 @@ function StockList() {
   }, [brand]);
 
   const fetchParts = async () => {
-    setLoading(true);
-    let query = supabase.from('parts').select('*');
-    if (brand !== '전체') query = query.eq('brand', brand);
-    const { data, error } = await query;
-    if (error) {
-      setSnackbar({ open: true, message: '재고 목록을 불러오지 못했습니다.', severity: 'error' });
+    try {
+      // 오프라인 상태 체크
+      if (isOffline()) {
+        console.log('[StockList] 오프라인 상태 - 재고 데이터 로딩 건너뛰기');
+        setSnackbar({ open: true, message: '오프라인 상태입니다. 인터넷 연결을 확인해주세요.', severity: 'error' });
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      
+      // 안전한 재시도 로직 적용
+      const { data, error } = await safeRetry(async () => {
+        let query = supabase.from('parts').select('*');
+        if (brand !== '전체') query = query.eq('brand', brand);
+        return await query;
+      }, {
+        maxRetries: 3,
+        maxTime: 30000,
+        baseDelay: 1000
+      });
+      
+      if (error) {
+        // 스마트 오류 처리
+        const errorMessage = getErrorMessage(error);
+        setSnackbar({ open: true, message: `재고 목록을 불러오지 못했습니다: ${errorMessage}`, severity: 'error' });
+        setParts([]);
+        setOriginalStocks({});
+      } else {
+        setParts(data || []);
+        // 원본 재고 값 저장
+        const originalStockData = {};
+        (data || []).forEach(part => {
+          originalStockData[part.id] = part.stock;
+        });
+        setOriginalStocks(originalStockData);
+        // 변경된 항목 초기화
+        setChangedItems(new Set());
+      }
+    } catch (err) {
+      console.error('Error fetching parts:', err);
+      const errorMessage = getErrorMessage(err);
+      setSnackbar({ open: true, message: `재고 목록을 불러오지 못했습니다: ${errorMessage}`, severity: 'error' });
       setParts([]);
       setOriginalStocks({});
-    } else {
-      setParts(data || []);
-      // 원본 재고 값 저장
-      const originalStockData = {};
-      (data || []).forEach(part => {
-        originalStockData[part.id] = part.stock;
-      });
-      setOriginalStocks(originalStockData);
-      // 변경된 항목 초기화
-      setChangedItems(new Set());
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleStockChange = (id, value) => {

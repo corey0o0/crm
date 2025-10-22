@@ -50,6 +50,7 @@ import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { supabase } from '../../lib/supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import { sendTelegramNotification } from '../../lib/telegram';
+import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
 
 // 입력 폼 컴포넌트 분리
 const PartsFormDialog = memo(({ 
@@ -393,17 +394,34 @@ function PartsManagement() {
 
   const fetchParts = async () => {
     try {
-      const { data, error } = await supabase
-        .from('parts')
-        .select('*')
-        .order('brand')
-        .order('name');
+      // 오프라인 상태 체크
+      if (isOffline()) {
+        console.log('[PartsManagement] 오프라인 상태 - 부품 데이터 로딩 건너뛰기');
+        showSnackbar('오프라인 상태입니다. 인터넷 연결을 확인해주세요.', 'error');
+        return;
+      }
+
+      // 안전한 재시도 로직 적용
+      const { data, error } = await safeRetry(async () => {
+        return await supabase
+          .from('parts')
+          .select('*')
+          .order('brand')
+          .order('name');
+      }, {
+        maxRetries: 3,
+        maxTime: 30000,
+        baseDelay: 1000
+      });
       
       if (error) throw error;
       setParts(data || []);
     } catch (err) {
       console.error('Error fetching parts:', err);
-      showSnackbar('부품 목록을 불러오는데 실패했습니다.', 'error');
+      
+      // 스마트 오류 처리
+      const errorMessage = getErrorMessage(err);
+      showSnackbar(`부품 목록을 불러오는데 실패했습니다: ${errorMessage}`, 'error');
     }
   };
 

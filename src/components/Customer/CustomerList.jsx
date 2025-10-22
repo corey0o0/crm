@@ -52,6 +52,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { fetchFromSupabase } from '../../utils/restApiUtils';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { downloadExcel } from '../../utils/excelUtils';
+import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
 
 function CustomerList({ refreshTrigger, onRefresh }) {
   const [customers, setCustomers] = useState([]);
@@ -87,31 +88,50 @@ function CustomerList({ refreshTrigger, onRefresh }) {
 
   const fetchCustomers = async () => {
     try {
+      // 오프라인 상태 체크
+      if (isOffline()) {
+        console.log('[CustomerList] 오프라인 상태 - 데이터 로딩 건너뛰기');
+        setError('오프라인 상태입니다. 인터넷 연결을 확인해주세요.');
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       
-      // 1. 고객 정보 조회 (REST API)
-      console.log('[CustomerList] Fetching customers via REST API...');
-      const customersData = await fetchFromSupabase('customers', {
-        select: '*',
-        order: 'updated_at.desc'
-      });
-      
-      console.log('[CustomerList] Customers data received:', customersData?.length || 0, 'items');
+      // 안전한 재시도 로직 적용
+      const [customersData, servicesData, shipmentsData] = await safeRetry(async () => {
+        // 1. 고객 정보 조회 (REST API)
+        console.log('[CustomerList] Fetching customers via REST API...');
+        const customers = await fetchFromSupabase('customers', {
+          select: '*',
+          order: 'updated_at.desc'
+        });
+        
+        console.log('[CustomerList] Customers data received:', customers?.length || 0, 'items');
 
-      // 2. A/S 서비스 데이터 조회 (REST API)
-      console.log('[CustomerList] Fetching services via REST API...');
-      const servicesData = await fetchFromSupabase('services', {
-        select: 'customer_phone,customer_name,reception_date,brand,product_name',
-        order: 'reception_date.desc'
-      });
-      
-      console.log('[CustomerList] Services data received:', servicesData?.length || 0, 'items');
+        // 2. A/S 서비스 데이터 조회 (REST API)
+        console.log('[CustomerList] Fetching services via REST API...');
+        const services = await fetchFromSupabase('services', {
+          select: 'customer_phone,customer_name,reception_date,brand,product_name',
+          order: 'reception_date.desc'
+        });
+        
+        console.log('[CustomerList] Services data received:', services?.length || 0, 'items');
 
-      // 3. 출고 데이터 조회 (REST API)
-      console.log('[CustomerList] Fetching shipments via REST API...');
-      const shipmentsData = await fetchFromSupabase('shipments', {
-        select: '*',
-        order: 'shipment_date.desc'
+        // 3. 출고 데이터 조회 (REST API)
+        console.log('[CustomerList] Fetching shipments via REST API...');
+        const shipments = await fetchFromSupabase('shipments', {
+          select: '*',
+          order: 'shipment_date.desc'
+        });
+        
+        console.log('[CustomerList] Shipments data received:', shipments?.length || 0, 'items');
+        
+        return [customers, services, shipments];
+      }, {
+        maxRetries: 3,
+        maxTime: 30000,
+        baseDelay: 1000
       });
       
       console.log('[CustomerList] Shipments data received:', shipmentsData?.length || 0, 'items');
@@ -243,7 +263,10 @@ function CustomerList({ refreshTrigger, onRefresh }) {
       setFilteredCustomers(customersArray);
     } catch (err) {
       console.error('Error fetching customers:', err);
-      setError(err.message);
+      
+      // 스마트 오류 처리
+      const errorMessage = getErrorMessage(err);
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -600,8 +623,8 @@ function CustomerList({ refreshTrigger, onRefresh }) {
                     }
                   }}
                 >
-                  <TableCell>{customer.name}</TableCell>
-                  <TableCell>{customer.phone}</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>{customer.name}</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>{customer.phone}</TableCell>
                   <TableCell>
                     <Stack direction="column" spacing={0.5}>
                       <Typography variant="body2">

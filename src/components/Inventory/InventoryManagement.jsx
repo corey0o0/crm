@@ -61,6 +61,7 @@ import { transactionApi } from '../../api/transactionApi';
 import { inventoryApi } from '../../api/inventoryApi';
 import { supabase } from '../../lib/supabaseClient';
 import { fetchFromSupabase } from '../../utils/restApiUtils';
+import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
 
 function InventoryManagement() {
   const [activeTab, setActiveTab] = useState(0);
@@ -207,14 +208,33 @@ function InventoryManagement() {
   // 상품 데이터 가져오기 (파츠관리와 연동)
   const fetchProducts = async () => {
     try {
+      // 오프라인 상태 체크
+      if (isOffline()) {
+        console.log('[InventoryManagement] 오프라인 상태 - 상품 데이터 로딩 건너뛰기');
+        showSnackbar('오프라인 상태입니다. 인터넷 연결을 확인해주세요.', 'error');
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       
-      const productsData = await productApi.getAll();
+      // 안전한 재시도 로직 적용
+      const productsData = await safeRetry(async () => {
+        return await productApi.getAll();
+      }, {
+        maxRetries: 3,
+        maxTime: 30000,
+        baseDelay: 1000
+      });
+      
       setProducts(productsData);
       console.log(`실제 니어바이크 파츠관리에서 ${productsData.length}개의 상품을 가져왔습니다.`);
     } catch (error) {
       console.error('상품 데이터 로딩 실패:', error);
-      showSnackbar('파츠관리에서 상품 데이터를 불러오는데 실패했습니다.', 'error');
+      
+      // 스마트 오류 처리
+      const errorMessage = getErrorMessage(error);
+      showSnackbar(`파츠관리에서 상품 데이터를 불러오는데 실패했습니다: ${errorMessage}`, 'error');
     } finally {
       setLoading(false);
     }

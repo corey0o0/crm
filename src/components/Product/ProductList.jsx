@@ -36,6 +36,7 @@ import { getCookie, setCookie, removeCookie, getJSONCookie, setJSONCookie } from
 import { productApi } from '../../api/productApi';
 import { supabase } from '../../lib/supabaseClient';
 import { fetchFromSupabase } from '../../utils/restApiUtils';
+import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
 
 function ProductList() {
   const [products, setProducts] = useState([]);
@@ -111,12 +112,33 @@ function ProductList() {
   }, []);
 
   const fetchProducts = async () => {
-    setLoading(true);
     try {
-      const data = await productApi.getAll();
+      // 오프라인 상태 체크
+      if (isOffline()) {
+        console.log('[ProductList] 오프라인 상태 - 제품 데이터 로딩 건너뛰기');
+        showSnackbar('오프라인 상태입니다. 인터넷 연결을 확인해주세요.', 'error');
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      
+      // 안전한 재시도 로직 적용
+      const data = await safeRetry(async () => {
+        return await productApi.getAll();
+      }, {
+        maxRetries: 3,
+        maxTime: 30000,
+        baseDelay: 1000
+      });
+      
       setProducts(data);
     } catch (error) {
-      showSnackbar('제품 목록을 불러오는데 실패했습니다.', 'error');
+      console.error('Error fetching products:', error);
+      
+      // 스마트 오류 처리
+      const errorMessage = getErrorMessage(error);
+      showSnackbar(`제품 목록을 불러오는데 실패했습니다: ${errorMessage}`, 'error');
     } finally {
       setLoading(false);
     }

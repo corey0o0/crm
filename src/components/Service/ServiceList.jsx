@@ -67,6 +67,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { serviceApi } from '../../api/services';
 import { supabase } from '../../lib/supabaseClient';
+import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
 import { fetchServices as fetchServicesAPI, countServices } from '../../utils/restApiUtils';
 import ResponsiveTable from '../common/ResponsiveTable';
 import AddService from './AddService';
@@ -306,6 +307,14 @@ function ServiceList() {
   // 첫 페이지만 빠르게 로딩하는 함수
   const fetchFirstPage = async (retryAttempt = 0) => {
     try {
+      // 오프라인 상태 체크
+      if (isOffline()) {
+        console.log('[ServiceList] 오프라인 상태 - 데이터 로딩 건너뛰기');
+        setError('오프라인 상태입니다. 인터넷 연결을 확인해주세요.');
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setNetworkError(false);
       setFirstPageLoaded(false);
@@ -329,29 +338,37 @@ function ServiceList() {
       // 첫 페이지 크기 (빠른 로딩을 위해 작게)
       const FIRST_PAGE_SIZE = 50;
       
-      // 총 데이터 개수와 첫 페이지 데이터를 동시에 가져오기 (Abort + timeout 적용)
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 12000);
-      
-      console.log('[ServiceList] Starting Promise.all for count + first page');
-      const [totalCount, firstPageData] = await Promise.all([
-        countServices({
-          selectedBrand,
-          searchTerm: '',
-          statusFilter: '',
-          signal: controller.signal
-        }),
-        fetchServicesAPI({
-          selectedBrand,
-          searchTerm: '',
-          statusFilter: '',
-          page: 0,
-          pageSize: FIRST_PAGE_SIZE,
-          signal: controller.signal
-        })
-      ]);
-      
-      clearTimeout(timeoutId);
+      // 안전한 재시도 로직 적용
+      const [totalCount, firstPageData] = await safeRetry(async () => {
+        // 총 데이터 개수와 첫 페이지 데이터를 동시에 가져오기 (Abort + timeout 적용)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
+        
+        console.log('[ServiceList] Starting Promise.all for count + first page');
+        const result = await Promise.all([
+          countServices({
+            selectedBrand,
+            searchTerm: '',
+            statusFilter: '',
+            signal: controller.signal
+          }),
+          fetchServicesAPI({
+            selectedBrand,
+            searchTerm: '',
+            statusFilter: '',
+            page: 0,
+            pageSize: FIRST_PAGE_SIZE,
+            signal: controller.signal
+          })
+        ]);
+        
+        clearTimeout(timeoutId);
+        return result;
+      }, {
+        maxRetries: 3,
+        maxTime: 30000,
+        baseDelay: 1000
+      });
       
       console.log('[ServiceList] REST API results - count:', totalCount, 'first page:', firstPageData?.length);
       
@@ -416,26 +433,21 @@ function ServiceList() {
       console.error('[ServiceList] Error message:', err?.message);
       console.error('[ServiceList] Error details:', JSON.stringify(err, null, 2));
       setNetworkError(true);
-      if (err?.name === 'AbortError') {
-        console.log('[ServiceList] AbortError detected - timeout occurred');
-        setError('요청이 시간 초과로 취소되었습니다. 다시 시도해주세요.');
-        setLoading(false);
+      
+      // 스마트 오류 처리
+      if (shouldRetry(err, retryAttempt) && retryAttempt < 2) {
+        console.log(`[ServiceList] 재시도 ${retryAttempt + 1}/2`);
+        setTimeout(() => fetchFirstPage(retryAttempt + 1), 2000);
         return;
       }
-      // Failed to fetch 계열 자동 1회 재시도 (AuthContext가 이미 session 관리함)
-      const msg = String(err?.message || '');
-      console.log('[ServiceList] Checking for retry. retryAttempt:', retryAttempt, 'message:', msg);
-      if (retryAttempt === 0 && (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('fetch'))){
-        console.log('[ServiceList] Network error detected, retrying once...');
-        return fetchFirstPage(1);
-      }
       
-      // 네트워크 오류가 계속되면 페이지 새로고침 권장
+      // 사용자 친화적 오류 메시지
+      const errorMessage = getErrorMessage(err);
       setError(
         <div>
-          <div style={{ marginBottom: '8px' }}>네트워크 연결 문제가 발생했습니다.</div>
+          <div style={{ marginBottom: '8px' }}>{errorMessage}</div>
           <div style={{ fontSize: '14px', color: '#666' }}>
-            브라우저 연결이 유휴 상태였다면 페이지를 새로고침해주세요.
+            문제가 지속되면 페이지를 새로고침해주세요.
           </div>
         </div>
       );

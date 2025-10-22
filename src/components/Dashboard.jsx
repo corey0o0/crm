@@ -42,6 +42,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchFromSupabase } from '../utils/restApiUtils';
+import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../utils/networkUtils';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ko';
 import ServiceCalendar from './ServiceCalendar';
@@ -191,62 +192,64 @@ function Dashboard() {
   // 공유 메모 불러오기
   useEffect(() => {
     let retryTimer = null;
-    const fetchSharedMemos = async () => {
+    const fetchSharedMemos = async (retryCount = 0) => {
       try {
         console.log('[Dashboard] 공유 메모 불러오기 시작...');
         
-        // REST API로 공유 메모 조회 (사용자 액세스 토큰 사용: RLS 통과)
-        console.log('[Dashboard] shared_memos 테이블 조회 중...');
-        const { data: { session: sharedMemoSession } } = await supabase.auth.getSession();
-        const accessTokenForShared = sharedMemoSession?.access_token;
-        if (!accessTokenForShared) {
-          console.log('[Dashboard] 액세스 토큰 없음 - 공유 메모 로딩을 지연합니다. 1초 후 재시도');
-          if (!retryTimer) {
-            retryTimer = setTimeout(() => {
-              fetchSharedMemos();
-            }, 1000);
-          }
-          return; // 세션 준비 전에는 상태를 건드리지 않음
+        // 오프라인 상태 체크
+        if (isOffline()) {
+          console.log('[Dashboard] 오프라인 상태 - 공유 메모 로딩 건너뛰기');
+          return;
         }
+        
+        // REST API로 공유 메모 조회 (익명 키 사용으로 세션 조회 우회)
+        console.log('[Dashboard] shared_memos 테이블 조회 중...');
+        console.log('[Dashboard] 익명 키로 공유 메모 조회 시작...');
+        
         const supabaseUrlForShared = process.env.REACT_APP_SUPABASE_URL;
         const supabaseKeyForShared = process.env.REACT_APP_SUPABASE_ANON_KEY;
-        
         const sharedFetchUrl = `${supabaseUrlForShared}/rest/v1/shared_memos?select=*&limit=1`;
-        // Abort + timeout 12s
-        const getController = new AbortController();
-        const getTimeout = setTimeout(() => getController.abort(), 12000);
+        
+        // 안전한 재시도 로직 적용
+        console.log('[Dashboard] safeRetry 시작...');
+        const sharedMemos = await safeRetry(async () => {
+          console.log('[Dashboard] safeRetry 내부 함수 실행 시작');
+          const getController = new AbortController();
+          const getTimeout = setTimeout(() => {
+            console.log('[Dashboard] 타임아웃 발생, 요청 중단');
+            getController.abort();
+          }, 12000);
 
-        let sharedFetchResp = await fetch(sharedFetchUrl, {
-          method: 'GET',
-          headers: {
-            'apikey': supabaseKeyForShared,
-            'Authorization': `Bearer ${accessTokenForShared || supabaseKeyForShared}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=representation'
-          },
-          signal: getController.signal
+          try {
+            console.log('[Dashboard] fetch 요청 시작:', sharedFetchUrl);
+            let sharedFetchResp = await fetch(sharedFetchUrl, {
+              method: 'GET',
+              headers: {
+                'apikey': supabaseKeyForShared,
+                'Authorization': `Bearer ${supabaseKeyForShared}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=representation'
+              },
+              signal: getController.signal
+            });
+            console.log('[Dashboard] fetch 응답 받음, 상태:', sharedFetchResp.status);
+            
+            clearTimeout(getTimeout);
+
+            if (!sharedFetchResp.ok) {
+              const errText = await sharedFetchResp.text();
+              throw new Error(`shared_memos 조회 실패: ${sharedFetchResp.status} ${errText}`);
+            }
+            
+            return await sharedFetchResp.json();
+          } finally {
+            clearTimeout(getTimeout);
+          }
+        }, {
+          maxRetries: 3,
+          maxTime: 30000,
+          baseDelay: 1000
         });
-        if (sharedFetchResp.status === 401) {
-          // 토큰 만료 가능성 - 한 번만 갱신 후 재시도
-          try { await supabase.auth.refreshSession(); } catch {}
-          sharedFetchResp = await fetch(sharedFetchUrl, {
-            method: 'GET',
-            headers: {
-              'apikey': supabaseKeyForShared,
-              'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || supabaseKeyForShared}`,
-              'Content-Type': 'application/json',
-              'Prefer': 'return=representation'
-            },
-            signal: getController.signal
-          });
-        }
-        clearTimeout(getTimeout);
-
-        if (!sharedFetchResp.ok) {
-          const errText = await sharedFetchResp.text();
-          throw new Error(`shared_memos 조회 실패: ${sharedFetchResp.status} ${errText}`);
-        }
-        const sharedMemos = await sharedFetchResp.json();
         console.log('[Dashboard] shared_memos 조회 결과:', sharedMemos);
         const sharedMemo = sharedMemos && sharedMemos.length > 0 ? sharedMemos[0] : null;
 
@@ -281,7 +284,7 @@ function Dashboard() {
               method: 'POST',
               headers: {
                 'apikey': supabaseKey,
-                'Authorization': `Bearer ${accessToken || supabaseKey}`,
+                'Authorization': `Bearer ${supabaseKey}`,
                 'Content-Type': 'application/json',
                 'Prefer': 'return=representation'
               },
@@ -295,27 +298,6 @@ function Dashboard() {
               }),
               signal: postController.signal
             });
-            if (response.status === 401) {
-              try { await supabase.auth.refreshSession(); } catch {}
-              response = await fetch(`${supabaseUrl}/rest/v1/shared_memos`, {
-                method: 'POST',
-                headers: {
-                  'apikey': supabaseKey,
-                  'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || supabaseKey}`,
-                  'Content-Type': 'application/json',
-                  'Prefer': 'return=representation'
-                },
-                body: JSON.stringify({
-                  memo1: '',
-                  memo2: '',
-                  memo3: '',
-                  memo_name_1: '공유 메모 1',
-                  memo_name_2: '공유 메모 2',
-                  memo_name_3: '공유 메모 3'
-                }),
-                signal: postController.signal
-              });
-            }
 
             clearTimeout(postTimeout);
 
@@ -349,7 +331,17 @@ function Dashboard() {
           stack: err.stack,
           name: err.name
         });
-        // 실패 시 기존 상태 유지 (초기화하지 않음)
+        
+        // 재시도 가능한 오류인지 확인
+        if (shouldRetry(err, retryCount) && retryCount < 2) {
+          console.log(`[Dashboard] 공유 메모 재시도 ${retryCount + 1}/2`);
+          setTimeout(() => fetchSharedMemos(retryCount + 1), 2000);
+        } else {
+          // 사용자에게 친화적인 오류 메시지 표시
+          const errorMessage = getErrorMessage(err);
+          console.log('[Dashboard] 최종 오류:', errorMessage);
+          // 실패 시 기존 상태 유지 (초기화하지 않음)
+        }
       }
     };
 
