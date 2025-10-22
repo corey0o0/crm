@@ -190,6 +190,7 @@ function Dashboard() {
 
   // 공유 메모 불러오기
   useEffect(() => {
+    let retryTimer = null;
     const fetchSharedMemos = async () => {
       try {
         console.log('[Dashboard] 공유 메모 불러오기 시작...');
@@ -199,7 +200,12 @@ function Dashboard() {
         const { data: { session: sharedMemoSession } } = await supabase.auth.getSession();
         const accessTokenForShared = sharedMemoSession?.access_token;
         if (!accessTokenForShared) {
-          console.log('[Dashboard] 액세스 토큰 없음 - 공유 메모 로딩을 지연합니다.');
+          console.log('[Dashboard] 액세스 토큰 없음 - 공유 메모 로딩을 지연합니다. 1초 후 재시도');
+          if (!retryTimer) {
+            retryTimer = setTimeout(() => {
+              fetchSharedMemos();
+            }, 1000);
+          }
           return; // 세션 준비 전에는 상태를 건드리지 않음
         }
         const supabaseUrlForShared = process.env.REACT_APP_SUPABASE_URL;
@@ -303,6 +309,19 @@ function Dashboard() {
 
     fetchSharedMemos();
 
+    // 포커스/가시성 복귀 시 재시도
+    const onFocus = () => { fetchSharedMemos(); };
+    const onVisibility = () => { if (document.visibilityState === 'visible') fetchSharedMemos(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+
+    // 토큰 갱신/로그인 시 재시도
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') {
+        fetchSharedMemos();
+      }
+    });
+
     // 개발 환경에서는 Realtime 비활성화 (프록시 WebSocket 충돌 방지)
     if (process.env.NODE_ENV !== 'development') {
       const channel = supabase
@@ -332,6 +351,12 @@ function Dashboard() {
 
       return () => channel.unsubscribe();
     }
+    return () => {
+      if (retryTimer) clearTimeout(retryTimer);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+      if (subscription) subscription.unsubscribe();
+    };
   }, [user]);
 
 
