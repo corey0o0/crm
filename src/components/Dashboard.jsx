@@ -212,16 +212,36 @@ function Dashboard() {
         const supabaseKeyForShared = process.env.REACT_APP_SUPABASE_ANON_KEY;
         
         const sharedFetchUrl = `${supabaseUrlForShared}/rest/v1/shared_memos?select=*&limit=1`;
-        const sharedFetchResp = await fetch(sharedFetchUrl, {
+        // Abort + timeout 12s
+        const getController = new AbortController();
+        const getTimeout = setTimeout(() => getController.abort(), 12000);
+
+        let sharedFetchResp = await fetch(sharedFetchUrl, {
           method: 'GET',
           headers: {
             'apikey': supabaseKeyForShared,
             'Authorization': `Bearer ${accessTokenForShared || supabaseKeyForShared}`,
             'Content-Type': 'application/json',
             'Prefer': 'return=representation'
-          }
+          },
+          signal: getController.signal
         });
-        
+        if (sharedFetchResp.status === 401) {
+          // 토큰 만료 가능성 - 한 번만 갱신 후 재시도
+          try { await supabase.auth.refreshSession(); } catch {}
+          sharedFetchResp = await fetch(sharedFetchUrl, {
+            method: 'GET',
+            headers: {
+              'apikey': supabaseKeyForShared,
+              'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || supabaseKeyForShared}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=representation'
+            },
+            signal: getController.signal
+          });
+        }
+        clearTimeout(getTimeout);
+
         if (!sharedFetchResp.ok) {
           const errText = await sharedFetchResp.text();
           throw new Error(`shared_memos 조회 실패: ${sharedFetchResp.status} ${errText}`);
@@ -255,7 +275,9 @@ function Dashboard() {
             const supabaseKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
             
             console.log('[Dashboard] POST 요청 시작:', `${supabaseUrl}/rest/v1/shared_memos`);
-            const response = await fetch(`${supabaseUrl}/rest/v1/shared_memos`, {
+            const postController = new AbortController();
+            const postTimeout = setTimeout(() => postController.abort(), 12000);
+            let response = await fetch(`${supabaseUrl}/rest/v1/shared_memos`, {
               method: 'POST',
               headers: {
                 'apikey': supabaseKey,
@@ -270,8 +292,32 @@ function Dashboard() {
                 memo_name_1: '공유 메모 1',
                 memo_name_2: '공유 메모 2',
                 memo_name_3: '공유 메모 3'
-              })
+              }),
+              signal: postController.signal
             });
+            if (response.status === 401) {
+              try { await supabase.auth.refreshSession(); } catch {}
+              response = await fetch(`${supabaseUrl}/rest/v1/shared_memos`, {
+                method: 'POST',
+                headers: {
+                  'apikey': supabaseKey,
+                  'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || supabaseKey}`,
+                  'Content-Type': 'application/json',
+                  'Prefer': 'return=representation'
+                },
+                body: JSON.stringify({
+                  memo1: '',
+                  memo2: '',
+                  memo3: '',
+                  memo_name_1: '공유 메모 1',
+                  memo_name_2: '공유 메모 2',
+                  memo_name_3: '공유 메모 3'
+                }),
+                signal: postController.signal
+              });
+            }
+
+            clearTimeout(postTimeout);
 
             console.log('[Dashboard] POST 응답 상태:', response.status);
             
