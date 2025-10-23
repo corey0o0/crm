@@ -140,6 +140,9 @@ function ServiceDetail() {
   
   // 로딩 상태 추적을 위한 ref
   const isLoadingRef = React.useRef(false);
+  
+  // 강제 리렌더링을 위한 key 상태
+  const [componentKey, setComponentKey] = useState(0);
 
   // 변경사항 감지 함수
   const checkForChanges = useCallback(() => {
@@ -235,20 +238,51 @@ function ServiceDetail() {
 
   const fetchServiceDetail = React.useCallback(async (retryCount = 0) => {
     try {
-      // 이미 로딩 중이면 중복 요청 방지
+      console.log(`[ServiceDetail] fetchServiceDetail 호출됨 - retryCount: ${retryCount}, isLoadingRef: ${isLoadingRef.current}`);
+      
+      // 이미 로딩 중이면 중복 요청 방지 (재시도가 아닌 경우에만)
       if (isLoadingRef.current && retryCount === 0) {
         console.log('[ServiceDetail] 이미 로딩 중이므로 요청을 건너뜁니다.');
         return;
       }
       
+      // 상태 초기화
       isLoadingRef.current = true;
       setLoading(true);
       setError(null);
+      
+      console.log('[ServiceDetail] 상태 초기화 완료, 데이터 로딩 시작');
       
       // ID 유효성 검사 추가
       if (!id) {
         console.error('[ServiceDetail] ID가 없습니다.');
         throw new Error('A/S ID가 없습니다.');
+      }
+      
+      // 세션 상태 확인 및 갱신
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) {
+        console.error('[ServiceDetail] 세션 확인 오류:', sessionError);
+        throw new Error('세션 확인 중 오류가 발생했습니다.');
+      }
+      
+      if (!session) {
+        console.warn('[ServiceDetail] 세션이 없습니다. 로그인이 필요합니다.');
+        throw new Error('로그인이 필요합니다.');
+      }
+      
+      // 세션이 만료되었는지 확인
+      const now = new Date();
+      const expiresAt = new Date(session.expires_at * 1000);
+      if (now >= expiresAt) {
+        console.warn('[ServiceDetail] 세션이 만료되었습니다. 갱신을 시도합니다.');
+        
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError || !refreshData.session) {
+          console.error('[ServiceDetail] 세션 갱신 실패:', refreshError);
+          throw new Error('세션이 만료되었습니다. 다시 로그인해주세요.');
+        }
+        console.log('[ServiceDetail] 세션이 성공적으로 갱신되었습니다.');
       }
       
       console.log(`[ServiceDetail] 데이터 로딩 시작 - 시도 ${retryCount + 1}/3, ID: ${id}`);
@@ -292,9 +326,29 @@ function ServiceDetail() {
           serviceError.message.includes('timeout') ||
           serviceError.message.includes('fetch') ||
           serviceError.message.includes('Failed to fetch') ||
-          serviceError.message.includes('요청 시간이 초과되었습니다')
+          serviceError.message.includes('요청 시간이 초과되었습니다') ||
+          serviceError.message.includes('JWT') ||
+          serviceError.message.includes('auth') ||
+          serviceError.message.includes('401')
         )) {
           console.log(`[ServiceDetail] 재시도 중... (${retryCount + 1}/2)`);
+          
+          // 인증 관련 오류인 경우 세션 갱신 시도
+          if (serviceError.message.includes('JWT') || serviceError.message.includes('auth') || serviceError.message.includes('401')) {
+            try {
+              console.log('[ServiceDetail] 인증 오류로 인한 세션 갱신 시도');
+              const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+              if (refreshError || !refreshData.session) {
+                console.error('[ServiceDetail] 세션 갱신 실패:', refreshError);
+                throw new Error('세션이 만료되었습니다. 다시 로그인해주세요.');
+              }
+              console.log('[ServiceDetail] 세션이 성공적으로 갱신되었습니다.');
+            } catch (refreshErr) {
+              console.error('[ServiceDetail] 세션 갱신 중 오류:', refreshErr);
+              throw new Error('세션이 만료되었습니다. 다시 로그인해주세요.');
+            }
+          }
+          
           setTimeout(() => {
             fetchServiceDetail(retryCount + 1);
           }, 1000 * (retryCount + 1)); // 1초, 2초 지연
@@ -449,8 +503,12 @@ function ServiceDetail() {
       
       let errorMessage = '데이터를 불러오는 중 오류가 발생했습니다.';
       
-      if (err.message.includes('JWT') || err.message.includes('auth')) {
+      if (err.message.includes('JWT') || err.message.includes('auth') || err.message.includes('401') || err.message.includes('Unauthorized')) {
         errorMessage = '인증이 만료되었습니다. 다시 로그인해주세요.';
+        // 인증 오류 시 자동으로 로그인 페이지로 리다이렉트
+        setTimeout(() => {
+          navigate('/login');
+        }, 2000);
       } else if (err.message.includes('network') || err.message.includes('fetch') || err.message.includes('Failed to fetch')) {
         errorMessage = '네트워크 연결을 확인해주세요.';
       } else if (err.message.includes('요청 시간이 초과되었습니다')) {
@@ -1730,8 +1788,10 @@ function ServiceDetail() {
           <Button
             variant="contained"
             onClick={() => {
-              setError(null);
-              fetchServiceDetail();
+              console.log('[ServiceDetail] 재시도 버튼 클릭됨 - 페이지 새로고침');
+              
+              // 현재 URL로 페이지 새로고침 (가장 확실한 방법)
+              window.location.reload();
             }}
             sx={{
               bgcolor: '#3182f6',
@@ -1740,6 +1800,18 @@ function ServiceDetail() {
           >
             다시 시도
           </Button>
+          {error.includes('인증') || error.includes('로그인') ? (
+            <Button
+              variant="contained"
+              onClick={() => navigate('/login')}
+              sx={{
+                bgcolor: '#dc3545',
+                '&:hover': { bgcolor: '#c82333' }
+              }}
+            >
+              로그인하기
+            </Button>
+          ) : null}
           <Button
             variant="outlined"
             onClick={() => navigate('/services')}
@@ -2104,7 +2176,7 @@ function ServiceDetail() {
   );
 
   return (
-    <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
+    <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko} key={componentKey}>
       <Box component="form" onSubmit={handleSubmit} sx={{ mt: 3, mx: 'auto', width: '95%', maxWidth: 1400 }}>
         <Box sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
           <Button
