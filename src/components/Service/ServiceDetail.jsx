@@ -1575,10 +1575,14 @@ function ServiceDetail() {
   const handleBack = () => {
     if (hasUnsavedChanges) {
       if (window.confirm('저장하지 않은 변경사항이 있습니다. 정말 나가시겠습니까?')) {
-        navigate('/services');
+        // 페이지 상태 복원을 위한 플래그 설정
+        sessionStorage.setItem('restorePageState', 'true');
+        navigate('/services', { replace: false });
       }
     } else {
-      navigate('/services');
+      // 페이지 상태 복원을 위한 플래그 설정
+      sessionStorage.setItem('restorePageState', 'true');
+      navigate('/services', { replace: false });
     }
   };
 

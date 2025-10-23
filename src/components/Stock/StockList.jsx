@@ -1636,6 +1636,7 @@ function StockList() {
           </Box>
         </DialogContent>
       </Dialog>
+
     </Box>
   );
 }

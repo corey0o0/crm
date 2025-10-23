@@ -4331,6 +4331,7 @@ function InventoryManagement() {
         onScan={handleBarcodeScan}
         onError={handleBarcodeScanError}
       />
+
     </Box>
   );
 }

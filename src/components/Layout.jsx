@@ -28,6 +28,10 @@ import {
   Menu as MenuIcon,
   ChevronLeft as ChevronLeftIcon,
   Dashboard as DashboardIcon,
+  Wifi as WifiIcon,
+  WifiOff as WifiOffIcon,
+  Sync as SyncIcon,
+  SyncProblem as SyncProblemIcon,
   People as PeopleIcon,
   Build as BuildIcon,
   BarChart as BarChartIcon,
@@ -53,6 +57,7 @@ import { useAuth } from '../contexts/AuthContext';
 import ServiceCalendar from './ServiceCalendar';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ko';
+import { getSyncStatus } from '../utils/syncUtils';
 
 // 드로어 너비 설정
 const drawerWidth = 240;
@@ -119,6 +124,8 @@ function Layout() {
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState(dayjs());
   const [dailyServices, setDailyServices] = useState([]);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [syncStatus, setSyncStatus] = useState({});
   const { hasPermission } = useAuth();
 
   useEffect(() => {
@@ -127,6 +134,30 @@ function Layout() {
     }, 1000);
 
     return () => clearInterval(timer);
+  }, []);
+
+  // 연결 상태 모니터링
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // 동기화 상태 모니터링
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const status = getSyncStatus();
+      setSyncStatus(status);
+    }, 2000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   const formatDateTime = (date) => {
@@ -312,6 +343,16 @@ function Layout() {
               </Typography>
             </Box>
           </Box>
+          
+          {/* 연결 상태 아이콘 */}
+          <Box sx={{ ml: 1, display: 'flex', alignItems: 'center' }}>
+            {isOnline ? (
+              <WifiIcon sx={{ fontSize: '1.2rem', color: 'inherit' }} />
+            ) : (
+              <WifiOffIcon sx={{ fontSize: '1.2rem', color: 'inherit' }} />
+            )}
+          </Box>
+          
           <Button
             color="inherit"
             startIcon={<MessageIcon />}

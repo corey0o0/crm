@@ -44,6 +44,7 @@ import {
   removeUserRole
 } from '../../api/roleApi';
 import { supabase } from '../../lib/supabaseClient';
+import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
 
 // 사용 가능한 모든 메뉴 권한 목록
 const AVAILABLE_PERMISSIONS = [
@@ -621,6 +622,7 @@ function RoleManagement() {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
     </Box>
   );
 }

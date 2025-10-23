@@ -532,6 +532,14 @@ function ServiceList() {
     
     setPage(validPage);
     
+    // 페이지 변경 즉시 저장
+    const pageState = {
+      page: validPage,
+      rowsPerPage
+    };
+    localStorage.setItem(PAGE_KEY, JSON.stringify(pageState));
+    console.log('[ServiceList] 페이지 변경 즉시 저장:', pageState);
+    
     // 3페이지마다 새 청크 로딩 체크
     const itemsNeeded = (validPage + 1) * rowsPerPage;
     const currentItemsLoaded = services.length;
@@ -600,6 +608,18 @@ function ServiceList() {
         fetchServices();
         return;
       }
+
+      // 기종 검색 필터링
+      if (searchParams.modelSearchTerm && searchParams.modelSearchTerm.length >= 2) {
+        console.log('Applying model search filter for term:', searchParams.modelSearchTerm);
+        query = query.ilike('product_name', `%${searchParams.modelSearchTerm}%`);
+      }
+
+      // 처리내역 검색 필터링
+      if (searchParams.solutionSearchTerm && searchParams.solutionSearchTerm.length >= 2) {
+        console.log('Applying solution search filter for term:', searchParams.solutionSearchTerm);
+        query = query.ilike('solution', `%${searchParams.solutionSearchTerm}%`);
+      }
       
       // 상태 필터링
       if (searchParams.selectedStatuses && searchParams.selectedStatuses.length > 0) {
@@ -663,6 +683,16 @@ function ServiceList() {
           // 문자열인 경우: 기본 검색만
           countQuery = countQuery.or(basicSearch);
         }
+      }
+
+      // 기종 검색 필터링 (카운트 쿼리)
+      if (searchParams.modelSearchTerm && searchParams.modelSearchTerm.length >= 2) {
+        countQuery = countQuery.ilike('product_name', `%${searchParams.modelSearchTerm}%`);
+      }
+
+      // 처리내역 검색 필터링 (카운트 쿼리)
+      if (searchParams.solutionSearchTerm && searchParams.solutionSearchTerm.length >= 2) {
+        countQuery = countQuery.ilike('solution', `%${searchParams.solutionSearchTerm}%`);
       }
 
       if (searchParams.selectedStatuses && searchParams.selectedStatuses.length > 0) {
@@ -1354,8 +1384,17 @@ function ServiceList() {
 
   // 페이지당 행 수 변경 핸들러
   const handleChangeRowsPerPage = (event) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
+    const newRowsPerPage = parseInt(event.target.value, 10);
+    setRowsPerPage(newRowsPerPage);
     setPage(0);
+    
+    // 행 수 변경 즉시 저장
+    const pageState = {
+      page: 0,
+      rowsPerPage: newRowsPerPage
+    };
+    localStorage.setItem(PAGE_KEY, JSON.stringify(pageState));
+    console.log('[ServiceList] 행 수 변경 즉시 저장:', pageState);
   };
 
 
@@ -2077,7 +2116,7 @@ function ServiceList() {
     }
 
     // 검색어가 없거나 다른 필터도 없으면 전체 데이터 로딩으로 돌아가기
-    if (!term && selectedStatuses.length === 0 && selectedTags.length === 0 && !dateFilter.startDate && !dateFilter.endDate) {
+    if (!term && selectedStatuses.length === 0 && selectedTags.length === 0 && !dateFilter.startDate && !dateFilter.endDate && !modelSearchTerm.trim() && !solutionSearchTerm.trim()) {
       fetchServices();
       return;
     }
@@ -2088,7 +2127,9 @@ function ServiceList() {
       selectedStatuses: selectedStatuses.length > 0 ? selectedStatuses : null,
       selectedTags: selectedTags.length > 0 ? selectedTags : null,
       dateFilter: (dateFilter.startDate || dateFilter.endDate) ? dateFilter : null,
-      searchMode
+      searchMode,
+      modelSearchTerm: modelSearchTerm.trim(),
+      solutionSearchTerm: solutionSearchTerm.trim()
     };
     
     performServerSearch(searchParams);
@@ -2128,9 +2169,14 @@ function ServiceList() {
     setSelectedStatuses([]);
     setSelectedTags([]);
     setSearchMode('AND');
+    
+    // 기종, 처리내역 검색어 초기화
+    setModelSearchTerm('');
+    setSolutionSearchTerm('');
 
-    // 필터 저장값 삭제
+    // 필터 및 페이지 저장값 삭제
     localStorage.removeItem(FILTER_KEY);
+    localStorage.removeItem(PAGE_KEY);
     
     // 페이지 초기화
     setPage(0);
@@ -2149,6 +2195,7 @@ function ServiceList() {
 
   // 1. 필터 상태 저장/불러오기 함수 추가
   const FILTER_KEY = 'serviceListFilters';
+  const PAGE_KEY = 'serviceListPage';
 
   const saveFilterState = () => {
     const filterState = {
@@ -2159,7 +2206,9 @@ function ServiceList() {
       searchTerm,
       selectedStatuses,
       selectedTags,
-      searchMode
+      searchMode,
+      modelSearchTerm,
+      solutionSearchTerm
     };
     localStorage.setItem(FILTER_KEY, JSON.stringify(filterState));
     setSnackbar({
@@ -2167,6 +2216,49 @@ function ServiceList() {
       message: '필터가 저장되었습니다.',
       severity: 'success'
     });
+  };
+
+  // 페이지 상태 저장 함수
+  const savePageState = () => {
+    const pageState = {
+      page,
+      rowsPerPage
+    };
+    localStorage.setItem(PAGE_KEY, JSON.stringify(pageState));
+    console.log('[ServiceList] 페이지 상태 저장:', pageState);
+  };
+
+  // 페이지 상태 불러오기 함수
+  const loadPageState = () => {
+    const saved = localStorage.getItem(PAGE_KEY);
+    console.log('[ServiceList] 저장된 페이지 상태:', saved);
+    if (saved) {
+      try {
+        const pageState = JSON.parse(saved);
+        console.log('[ServiceList] 페이지 상태 복원:', pageState);
+        const savedPage = pageState.page || 0;
+        const savedRowsPerPage = pageState.rowsPerPage || 20;
+        
+        // 페이지 상태 복원
+        setPage(savedPage);
+        setRowsPerPage(savedRowsPerPage);
+        
+        console.log(`[ServiceList] 페이지 ${savedPage + 1}로 복원됨 (행 수: ${savedRowsPerPage})`);
+        
+        // 복원 후 추가 확인
+        setTimeout(() => {
+          console.log(`[ServiceList] 복원 확인 - 현재 페이지: ${page + 1}, 목표 페이지: ${savedPage + 1}`);
+          if (page !== savedPage) {
+            console.log('[ServiceList] 페이지 복원 실패 - 재시도');
+            setPage(savedPage);
+          }
+        }, 100);
+      } catch (err) {
+        console.error('페이지 상태 불러오기 실패:', err);
+      }
+    } else {
+      console.log('[ServiceList] 저장된 페이지 상태가 없음');
+    }
   };
 
   const loadFilterState = () => {
@@ -2189,6 +2281,8 @@ function ServiceList() {
       setSelectedStatuses(filterState.selectedStatuses || []);
       setSelectedTags(filterState.selectedTags || []);
       setSearchMode(filterState.searchMode || 'AND');
+      setModelSearchTerm(filterState.modelSearchTerm || '');
+      setSolutionSearchTerm(filterState.solutionSearchTerm || '');
       setSnackbar({
         open: true,
         message: '필터가 불러와졌습니다.',
@@ -2213,6 +2307,8 @@ function ServiceList() {
   const [searchMode, setSearchMode] = useState('AND'); // AND/OR 검색 모드
   const [selectedStatuses, setSelectedStatuses] = useState([]); // 다중 상태
   const [selectedTags, setSelectedTags] = useState([]); // 다중 태그
+  const [modelSearchTerm, setModelSearchTerm] = useState(''); // 기종 검색어
+  const [solutionSearchTerm, setSolutionSearchTerm] = useState(''); // 처리내역 검색어
   const [progressiveLoading, setProgressiveLoading] = useState(false); // 점진적 로딩 상태
   const [loadProgress, setLoadProgress] = useState(0); // 로딩 진행률
   const [retryCount, setRetryCount] = useState(0); // 재시도 횟수
@@ -2306,17 +2402,114 @@ function ServiceList() {
     };
   }, [services.length]);
 
-  // 컴포넌트 마운트 시 자동으로 필터 불러오기
+  // 컴포넌트 마운트 시 자동으로 필터 및 페이지 상태 불러오기
   useEffect(() => {
     loadFilterState();
+    loadPageState();
     // eslint-disable-next-line
+  }, []);
+
+  // 데이터가 로드된 후 페이지 상태 재확인
+  useEffect(() => {
+    if (services.length > 0 && !loading) {
+      console.log('[ServiceList] 데이터 로드 후 페이지 상태 재확인');
+      
+      // ServiceDetail에서 돌아왔는지 확인
+      const shouldRestorePage = sessionStorage.getItem('restorePageState');
+      if (shouldRestorePage === 'true') {
+        console.log('[ServiceList] 데이터 로드 후 ServiceDetail 복원 플래그 감지');
+        sessionStorage.removeItem('restorePageState');
+        
+        // 페이지 상태 강제 복원
+        const saved = localStorage.getItem(PAGE_KEY);
+        if (saved) {
+          try {
+            const pageState = JSON.parse(saved);
+            console.log('[ServiceList] 데이터 로드 후 강제 페이지 상태 복원:', pageState);
+            setPage(pageState.page || 0);
+            setRowsPerPage(pageState.rowsPerPage || 20);
+          } catch (err) {
+            console.error('데이터 로드 후 강제 페이지 상태 복원 실패:', err);
+          }
+        }
+      } else {
+        // 일반적인 페이지 상태 복원
+        loadPageState();
+      }
+    }
+  }, [services.length, loading]);
+
+  // ServiceDetail에서 돌아왔을 때 페이지 상태 강제 복원
+  useEffect(() => {
+    const shouldRestorePage = sessionStorage.getItem('restorePageState');
+    if (shouldRestorePage === 'true') {
+      console.log('[ServiceList] ServiceDetail에서 돌아옴 - 페이지 상태 강제 복원');
+      sessionStorage.removeItem('restorePageState');
+      
+      // 여러 시점에서 페이지 상태 복원 시도
+      const restorePageState = () => {
+        const saved = localStorage.getItem(PAGE_KEY);
+        if (saved) {
+          try {
+            const pageState = JSON.parse(saved);
+            console.log('[ServiceList] 강제 페이지 상태 복원:', pageState);
+            setPage(pageState.page || 0);
+            setRowsPerPage(pageState.rowsPerPage || 20);
+          } catch (err) {
+            console.error('강제 페이지 상태 복원 실패:', err);
+          }
+        }
+      };
+      
+      // 즉시 복원
+      restorePageState();
+      
+      // 데이터 로드 후 재복원
+      setTimeout(() => {
+        restorePageState();
+      }, 500);
+      
+      // 추가 지연 후 재복원
+      setTimeout(() => {
+        restorePageState();
+      }, 1000);
+    }
   }, []);
 
   // 필터 상태가 바뀔 때마다 자동 저장
   useEffect(() => {
     saveFilterState();
     // eslint-disable-next-line
-  }, [selectedBrand, statusFilter, dateFilter, inputValue, searchTerm, selectedStatuses, selectedTags, searchMode]);
+  }, [selectedBrand, statusFilter, dateFilter, inputValue, searchTerm, selectedStatuses, selectedTags, searchMode, modelSearchTerm, solutionSearchTerm]);
+
+  // 페이지 상태가 바뀔 때마다 자동 저장
+  useEffect(() => {
+    savePageState();
+    // eslint-disable-next-line
+  }, [page, rowsPerPage]);
+
+  // 페이지 상태 복원 후 추가 확인
+  useEffect(() => {
+    const shouldRestorePage = sessionStorage.getItem('restorePageState');
+    if (shouldRestorePage === 'true' && services.length > 0) {
+      console.log('[ServiceList] 페이지 상태 복원 후 추가 확인');
+      
+      // 추가 지연 후 페이지 상태 재확인
+      setTimeout(() => {
+        const saved = localStorage.getItem(PAGE_KEY);
+        if (saved) {
+          try {
+            const pageState = JSON.parse(saved);
+            console.log('[ServiceList] 추가 확인 - 페이지 상태 복원:', pageState);
+            setPage(pageState.page || 0);
+            setRowsPerPage(pageState.rowsPerPage || 20);
+          } catch (err) {
+            console.error('추가 확인 페이지 상태 복원 실패:', err);
+          }
+        }
+      }, 200);
+    }
+  }, [services.length]);
 
   // 스켈레톤 로딩 컴포넌트
   const renderSkeletonTable = () => (
@@ -2620,6 +2813,7 @@ function ServiceList() {
         </Stack>
       </Box>
 
+      {/* 단어 검색 필터 섹션 */}
       <Box sx={{ mb: 2 }}>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
           <TextField
@@ -2651,6 +2845,54 @@ function ServiceList() {
                     onClick={handleClearSearch}
                     size="small"
                     aria-label="검색어 초기화"
+                    sx={{ color: 'gray' }}
+                  >
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ) : null
+            }}
+          />
+          <TextField
+            variant="outlined"
+            placeholder="기종으로 검색"
+            value={modelSearchTerm}
+            onChange={(e) => setModelSearchTerm(e.target.value)}
+            sx={{ flex: 1, minWidth: 150, maxWidth: 200 }}
+            size="small"
+            label="기종 검색"
+            InputProps={{
+              endAdornment: modelSearchTerm ? (
+                <InputAdornment position="end">
+                  <IconButton
+                    edge="end"
+                    onClick={() => setModelSearchTerm('')}
+                    size="small"
+                    aria-label="기종 검색어 초기화"
+                    sx={{ color: 'gray' }}
+                  >
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ) : null
+            }}
+          />
+          <TextField
+            variant="outlined"
+            placeholder="처리내역으로 검색"
+            value={solutionSearchTerm}
+            onChange={(e) => setSolutionSearchTerm(e.target.value)}
+            sx={{ flex: 1, minWidth: 150, maxWidth: 200 }}
+            size="small"
+            label="처리내역 검색"
+            InputProps={{
+              endAdornment: solutionSearchTerm ? (
+                <InputAdornment position="end">
+                  <IconButton
+                    edge="end"
+                    onClick={() => setSolutionSearchTerm('')}
+                    size="small"
+                    aria-label="처리내역 검색어 초기화"
                     sx={{ color: 'gray' }}
                   >
                     <CloseIcon fontSize="small" />
@@ -2715,6 +2957,12 @@ function ServiceList() {
               })
             }
           />
+        </Stack>
+      </Box>
+
+      {/* 날짜 검색 필터 섹션 */}
+      <Box sx={{ mb: 2 }}>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
           <TextField
             select
             value={dateFilter.type}
@@ -2780,33 +3028,37 @@ function ServiceList() {
             <Button onClick={() => handleQuickDate('thisMonth')}>이번달</Button>
             <Button onClick={() => handleQuickDate('lastMonth')}>지난달</Button>
           </ButtonGroup>
-          <Stack direction="row" spacing={1}>
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={executeSearch}
-              disabled={searchLoading}
-              sx={{ minWidth: 70, height: 40 }}
-              startIcon={searchLoading ? <CircularProgress size={16} color="inherit" /> : null}
-            >
-              {searchLoading ? '검색 중' : '검색'}
-            </Button>
-            <Button
-              variant="outlined"
-              color="secondary"
-              onClick={handleResetAll}
-              sx={{ minWidth: 70, height: 40 }}
-              startIcon={<RestartAltIcon fontSize="small" />}
-            >
-              초기화
-            </Button>
-            <Button variant="outlined" onClick={saveFilterState} sx={{ minWidth: 70, height: 40 }}>
-              필터 저장
-            </Button>
-            <Button variant="outlined" onClick={loadFilterState} sx={{ minWidth: 70, height: 40 }}>
-              필터 불러오기
-            </Button>
-          </Stack>
+        </Stack>
+      </Box>
+
+      {/* 검색 실행 버튼들 */}
+      <Box sx={{ mb: 2 }}>
+        <Stack direction="row" spacing={1} justifyContent="center">
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={executeSearch}
+            disabled={searchLoading}
+            sx={{ minWidth: 100, height: 40 }}
+            startIcon={searchLoading ? <CircularProgress size={16} color="inherit" /> : null}
+          >
+            {searchLoading ? '검색 중' : '검색 실행'}
+          </Button>
+          <Button
+            variant="outlined"
+            color="secondary"
+            onClick={handleResetAll}
+            sx={{ minWidth: 100, height: 40 }}
+            startIcon={<RestartAltIcon fontSize="small" />}
+          >
+            전체 초기화
+          </Button>
+          <Button variant="outlined" onClick={saveFilterState} sx={{ minWidth: 100, height: 40 }}>
+            필터 저장
+          </Button>
+          <Button variant="outlined" onClick={loadFilterState} sx={{ minWidth: 100, height: 40 }}>
+            필터 불러오기
+          </Button>
         </Stack>
       </Box>
 
@@ -3379,6 +3631,7 @@ function ServiceList() {
           <LinearProgress />
         </Box>
       )}
+
     </Box>
   );
 }

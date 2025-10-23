@@ -43,6 +43,8 @@ import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchFromSupabase } from '../utils/restApiUtils';
 import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../utils/networkUtils';
+import { setCache, getCache, isCacheValid } from '../utils/cacheUtils';
+import { smartLoad, setupConnectionMonitoring, syncPendingChanges, trackOfflineChange } from '../utils/syncUtils';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ko';
 import ServiceCalendar from './ServiceCalendar';
@@ -189,6 +191,27 @@ function Dashboard() {
     }
   }, [user]);
 
+  // 연결 상태 모니터링 설정
+  useEffect(() => {
+    const cleanup = setupConnectionMonitoring(
+      // 온라인 복구 시
+      () => {
+        console.log('[Dashboard] 온라인 복구 - 대기 중인 변경사항 동기화');
+        // 대기 중인 변경사항이 있다면 동기화
+        syncPendingChanges(async (key, data, operation) => {
+          console.log(`[Dashboard] 동기화: ${key} (${operation})`);
+          // 여기에 실제 동기화 로직 구현
+        });
+      },
+      // 오프라인 전환 시
+      () => {
+        console.log('[Dashboard] 오프라인 전환 - 로컬 모드로 전환');
+      }
+    );
+    
+    return cleanup;
+  }, []);
+
   // 공유 메모 불러오기
   useEffect(() => {
     let retryTimer = null;
@@ -196,59 +219,37 @@ function Dashboard() {
       try {
         console.log('[Dashboard] 공유 메모 불러오기 시작...');
         
-        // 오프라인 상태 체크
-        if (isOffline()) {
-          console.log('[Dashboard] 오프라인 상태 - 공유 메모 로딩 건너뛰기');
-          return;
-        }
-        
-        // REST API로 공유 메모 조회 (익명 키 사용으로 세션 조회 우회)
-        console.log('[Dashboard] shared_memos 테이블 조회 중...');
-        console.log('[Dashboard] 익명 키로 공유 메모 조회 시작...');
-        
-        const supabaseUrlForShared = process.env.REACT_APP_SUPABASE_URL;
-        const supabaseKeyForShared = process.env.REACT_APP_SUPABASE_ANON_KEY;
-        const sharedFetchUrl = `${supabaseUrlForShared}/rest/v1/shared_memos?select=*&limit=1`;
-        
-        // 안전한 재시도 로직 적용
-        console.log('[Dashboard] safeRetry 시작...');
-        const sharedMemos = await safeRetry(async () => {
-          console.log('[Dashboard] safeRetry 내부 함수 실행 시작');
-          const getController = new AbortController();
-          const getTimeout = setTimeout(() => {
-            console.log('[Dashboard] 타임아웃 발생, 요청 중단');
-            getController.abort();
-          }, 12000);
-
-          try {
-            console.log('[Dashboard] fetch 요청 시작:', sharedFetchUrl);
-            let sharedFetchResp = await fetch(sharedFetchUrl, {
-              method: 'GET',
-              headers: {
-                'apikey': supabaseKeyForShared,
-                'Authorization': `Bearer ${supabaseKeyForShared}`,
-                'Content-Type': 'application/json',
-                'Prefer': 'return=representation'
-              },
-              signal: getController.signal
-            });
-            console.log('[Dashboard] fetch 응답 받음, 상태:', sharedFetchResp.status);
-            
-            clearTimeout(getTimeout);
-
-            if (!sharedFetchResp.ok) {
-              const errText = await sharedFetchResp.text();
-              throw new Error(`shared_memos 조회 실패: ${sharedFetchResp.status} ${errText}`);
+        // 스마트 데이터 로딩 (캐시 우선, 네트워크 백업)
+        const sharedMemos = await smartLoad('shared_memos', async () => {
+          // 네트워크에서 데이터 가져오기
+          const supabaseUrlForShared = process.env.REACT_APP_SUPABASE_URL;
+          const supabaseKeyForShared = process.env.REACT_APP_SUPABASE_ANON_KEY;
+          const sharedFetchUrl = `${supabaseUrlForShared}/rest/v1/shared_memos?select=*&limit=1`;
+          
+          const response = await fetch(sharedFetchUrl, {
+            method: 'GET',
+            headers: {
+              'apikey': supabaseKeyForShared,
+              'Authorization': `Bearer ${supabaseKeyForShared}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=representation'
             }
-            
-            return await sharedFetchResp.json();
-          } finally {
-            clearTimeout(getTimeout);
+          });
+          
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
           }
+          
+          return await response.json();
         }, {
-          maxRetries: 3,
-          maxTime: 30000,
-          baseDelay: 1000
+          ttl: 2 * 60 * 1000, // 2분 TTL
+          fallbackToCache: true,
+          onCacheHit: (data) => {
+            console.log('[Dashboard] 캐시에서 공유 메모 로딩');
+          },
+          onNetworkSuccess: (data) => {
+            console.log('[Dashboard] 네트워크에서 공유 메모 로딩');
+          }
         });
         console.log('[Dashboard] shared_memos 조회 결과:', sharedMemos);
         const sharedMemo = sharedMemos && sharedMemos.length > 0 ? sharedMemos[0] : null;
@@ -472,6 +473,24 @@ function Dashboard() {
         ));
       } else {
         // 공유 메모 저장
+        const memoData = {
+          memo1: memo1Content,
+          memo2: memo2Content,
+          memo3: memo3Content
+        };
+
+        // 오프라인 상태 체크 및 추적
+        if (isOffline()) {
+          console.log('[Dashboard] 오프라인 상태 - 공유 메모 변경사항 추적');
+          trackOfflineChange('shared_memo', memoData, 'update');
+          
+          // 로컬 상태만 업데이트
+          setSharedMemoList(prev => prev.map((m, i) => 
+            i === idx ? { ...m, lastSaved: now, hasChanges: false, saving: false } : m
+          ));
+          return;
+        }
+
         const { data: existingMemo } = await supabase
           .from('shared_memos')
           .select('id')
@@ -480,22 +499,14 @@ function Dashboard() {
         if (existingMemo) {
           const { error } = await supabase
             .from('shared_memos')
-            .update({
-              memo1: memo1Content,
-              memo2: memo2Content,
-              memo3: memo3Content
-            })
+            .update(memoData)
             .eq('id', existingMemo.id);
 
           if (error) throw error;
         } else {
           const { error } = await supabase
             .from('shared_memos')
-            .insert({
-              memo1: memo1Content,
-              memo2: memo2Content,
-              memo3: memo3Content
-            });
+            .insert(memoData);
 
           if (error) throw error;
         }
@@ -1309,7 +1320,6 @@ function Dashboard() {
       <Box sx={{ mb: 4 }}>
         <ServiceCalendar />
       </Box>
-
 
     </Box>
     

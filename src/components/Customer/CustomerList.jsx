@@ -994,6 +994,7 @@ function CustomerList({ refreshTrigger, onRefresh }) {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
     </Box>
   );
 }

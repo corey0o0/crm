@@ -45,6 +45,7 @@ import StorefrontIcon from '@mui/icons-material/Storefront';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { downloadExcel } from '../../utils/excelUtils';
 import DownloadIcon from '@mui/icons-material/Download';
+import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
 
 function SalesStats() {
   const [loading, setLoading] = useState(true);
@@ -2503,6 +2504,7 @@ function SalesStats() {
           </Box>
         </Paper>
       </Box>
+
     </LocalizationProvider>
   );
 }
