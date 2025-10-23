@@ -73,6 +73,7 @@ import ResponsiveTable from '../common/ResponsiveTable';
 import AddService from './AddService';
 import { getCookie, setCookie, removeCookie, getJSONCookie, setJSONCookie } from '../../utils/cookieUtils';
 import { formatKoreanDateTime } from '../../utils/dateUtils';
+import { format } from 'date-fns';
 import { sendTelegramNotification } from '../../lib/telegram'; // 텔레그램 유틸리티 함수 import
 
 // KST 변환 함수 추가
@@ -307,6 +308,8 @@ function ServiceList() {
   // 첫 페이지만 빠르게 로딩하는 함수
   const fetchFirstPage = async (retryAttempt = 0) => {
     try {
+      console.log(`[ServiceList] fetchFirstPage 시작 - retryAttempt: ${retryAttempt}, selectedBrand: ${selectedBrand}`);
+      
       // 오프라인 상태 체크
       if (isOffline()) {
         console.log('[ServiceList] 오프라인 상태 - 데이터 로딩 건너뛰기');
@@ -315,11 +318,15 @@ function ServiceList() {
         return;
       }
 
+      // 로딩 상태 초기화
       setLoading(true);
       setNetworkError(false);
       setFirstPageLoaded(false);
       setLoadedChunks(0);
       setHasMoreData(true);
+      setError(null);
+      
+      console.log('[ServiceList] 로딩 상태 초기화 완료');
 
       // 기존 감시 타이머 제거 후 새 타이머 시작 (20초로 여유 확보)
       if (loadingWatchdogRef.current) {
@@ -391,6 +398,8 @@ function ServiceList() {
         setLoading(false); // 첫 페이지 로딩 완료
         setLoadedChunks(1); // 첫 번째 청크 로드 완료
         
+        console.log('[ServiceList] 첫 페이지 로딩 완료 - 서비스 수:', processedServices.length);
+        
         // 하이라이트 ID 체크 (첫 페이지에서)
         const savedIdFromCookie = getCookie('highlightServiceId');
         const savedIdFromStorage = localStorage.getItem('highlightServiceId');
@@ -414,6 +423,7 @@ function ServiceList() {
           setHasMoreData(false);
         }
       } else {
+        console.log('[ServiceList] 데이터가 없음 - 로딩 완료');
         setFirstPageLoaded(true);
         setLoading(false);
         setHasMoreData(false);
@@ -432,6 +442,9 @@ function ServiceList() {
       console.error('[ServiceList] Error name:', err?.name);
       console.error('[ServiceList] Error message:', err?.message);
       console.error('[ServiceList] Error details:', JSON.stringify(err, null, 2));
+      
+      // 로딩 상태 확실히 해제
+      setLoading(false);
       setNetworkError(true);
       
       // 스마트 오류 처리
@@ -451,9 +464,10 @@ function ServiceList() {
           </div>
         </div>
       );
-      setLoading(false);
       
-      // 5초 후 자동으로 재시도 버튼 표시하지 않고 즉시 표시
+      console.log('[ServiceList] 오류로 인한 로딩 완료');
+      
+      // 감시 타이머 해제
       if (loadingWatchdogRef.current) {
         clearTimeout(loadingWatchdogRef.current);
         loadingWatchdogRef.current = null;
@@ -2043,10 +2057,24 @@ function ServiceList() {
     </Card>
   );
 
-  // 엑셀 다운로드 함수 추가
+  // 엑셀 다운로드 함수 추가 (필터 적용된 데이터 사용)
   const handleDownloadExcel = async () => {
     try {
-      // 현재 선택된 브랜드의 서비스 데이터 가져오기 (태그, 부품 정보 포함)
+      // 필터가 적용된 현재 표시 중인 서비스 데이터 사용
+      const servicesToExport = filteredServices;
+      
+      if (servicesToExport.length === 0) {
+        setSnackbar({
+          open: true,
+          message: '다운로드할 데이터가 없습니다.',
+          severity: 'warning'
+        });
+        return;
+      }
+
+      // 서비스 ID 목록으로 상세 데이터 조회
+      const serviceIds = servicesToExport.map(service => service.id);
+      
       const { data, error } = await supabase
         .from('services')
         .select(`
@@ -2066,7 +2094,7 @@ function ServiceList() {
             )
           )
         `)
-        .eq('brand', selectedBrand)
+        .in('id', serviceIds)
         .order('reception_date', { ascending: false });
 
       if (error) throw error;
@@ -2150,9 +2178,25 @@ function ServiceList() {
         { label: '작성자', key: '작성자' }
       ];
 
-      // 파일 다운로드 (브랜드명 포함)
+      // 파일 다운로드 (브랜드명 및 필터 정보 포함)
       const brandName = selectedBrand === 'XRB' ? 'X-RIDER' : 'NEARBIKE';
-      downloadExcel(exportData, headers, `AS목록_${brandName}_${new Date().toLocaleDateString()}.xlsx`);
+      
+      // 필터 정보를 파일명에 포함
+      let filterInfo = '';
+      if (searchTerm) {
+        filterInfo += `_검색_${searchTerm}`;
+      }
+      if (statusFilter && statusFilter !== 'all') {
+        filterInfo += `_상태_${statusFilter}`;
+      }
+      if (dateFilter.startDate || dateFilter.endDate) {
+        const startDate = dateFilter.startDate ? format(new Date(dateFilter.startDate), 'yyyy-MM-dd') : '';
+        const endDate = dateFilter.endDate ? format(new Date(dateFilter.endDate), 'yyyy-MM-dd') : '';
+        filterInfo += `_기간_${startDate}_${endDate}`;
+      }
+      
+      const fileName = `AS목록_${brandName}${filterInfo}_${exportData.length}건_${new Date().toLocaleDateString()}.xlsx`;
+      downloadExcel(exportData, headers, fileName);
 
     } catch (error) {
       console.error('Error downloading excel:', error);
@@ -2831,6 +2875,9 @@ function ServiceList() {
             <CircularProgress color="inherit" size={60} />
             <Typography variant="h6" sx={{ mt: 2 }}>
               {searchLoading ? 'A/S 데이터를 검색하는 중...' : 'A/S 데이터를 불러오는 중...'}
+            </Typography>
+            <Typography variant="body2" sx={{ mt: 1, opacity: 0.8 }}>
+              {selectedBrand === 'XRB' ? 'X-RIDER' : 'NEARBIKE'} 브랜드 데이터 로딩 중
             </Typography>
             
             {progressiveLoading && loadProgress > 0 && (

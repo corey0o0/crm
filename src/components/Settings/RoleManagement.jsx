@@ -58,6 +58,7 @@ const AVAILABLE_PERMISSIONS = [
   { key: 'sales_stats', label: '매출 통계' },
   { key: 'board', label: '게시판' },
   { key: 'role_settings', label: '권한 설정' },
+  { key: 'backup_management', label: '데이터 백업/복원' },
   { key: 'receipts', label: '영수증 스캐너' },
   { key: 'google_drive_test', label: 'Google Drive 테스트' },
   { key: 'brand_settings', label: '브랜드 설정' }

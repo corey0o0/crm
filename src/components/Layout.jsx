@@ -48,6 +48,7 @@ import {
   History as HistoryIcon,
   Warehouse as WarehouseIcon,
   MenuBook as MenuBookIcon,
+  Backup as BackupIcon,
   CalendarToday as CalendarTodayIcon,
   Close as CloseIcon
 } from '@mui/icons-material';
@@ -242,7 +243,8 @@ function Layout() {
     { text: '게시판', icon: <MenuBookIcon />, path: '/board', key: 'board' },
     
     // ⚙️ 설정
-    { text: '권한 설정', icon: <SettingsIcon />, path: '/role-settings', key: 'role_settings' }
+    { text: '권한 설정', icon: <SettingsIcon />, path: '/role-settings', key: 'role_settings' },
+    { text: '데이터 백업/복원', icon: <BackupIcon />, path: '/backup', key: 'backup_management' }
   ];
 
   // 권한에 따라 메뉴 필터링

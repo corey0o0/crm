@@ -29,6 +29,7 @@ import BrandSettings from './components/Settings/BrandSettings';
 import InventoryLogs from './components/Inventory/InventoryLogs';
 import InventoryManagement from './components/Inventory/InventoryManagement';
 import RoleManagement from './components/Settings/RoleManagement';
+import BackupManager from './components/Backup/BackupManager';
 import PermissionRoute from './components/Auth/PermissionRoute';
 // import XRiderManual from './components/Manual/XRiderManual';
 // import NewManual from './components/Manual/NewManual';
@@ -227,6 +228,13 @@ function App() {
             <Route path="role-settings" element={
               <PermissionRoute requiredPermission="role_settings">
                 <RoleManagement />
+              </PermissionRoute>
+            } />
+            
+            {/* 데이터 백업/복원 */}
+            <Route path="backup" element={
+              <PermissionRoute requiredPermission="backup_management">
+                <BackupManager />
               </PermissionRoute>
             } />
             

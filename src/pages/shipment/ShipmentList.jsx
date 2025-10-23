@@ -718,7 +718,19 @@ function ShipmentList() {
 
   const handleExcelDownload = () => {
     try {
-      const exportData = shipments.map(shipment => ({
+      // 필터가 적용된 현재 표시 중인 출고 데이터 사용
+      const shipmentsToExport = filteredShipments;
+      
+      if (shipmentsToExport.length === 0) {
+        setSnackbar({
+          open: true,
+          message: '다운로드할 데이터가 없습니다.',
+          severity: 'warning'
+        });
+        return;
+      }
+
+      const exportData = shipmentsToExport.map(shipment => ({
         '고객명': shipment.customer_name,
         '연락처': shipment.customer_phone,
         '주소': shipment.customer_address,
@@ -750,7 +762,26 @@ function ShipmentList() {
       ];
 
       const brandName = selectedBrand === 'XRB' ? 'X-RIDER' : 'NEARBIKE';
-      downloadExcel(exportData, headers, `출고목록_${brandName}_${new Date().toLocaleDateString()}.xlsx`);
+      
+      // 필터 정보를 파일명에 포함
+      let filterInfo = '';
+      if (searchTerm) {
+        filterInfo += `_검색_${searchTerm}`;
+      }
+      if (statusFilter && statusFilter !== 'all') {
+        filterInfo += `_상태_${statusFilter}`;
+      }
+      if (sellerFilter && sellerFilter !== 'all') {
+        filterInfo += `_판매처_${sellerFilter}`;
+      }
+      if (dateFilter.startDate || dateFilter.endDate) {
+        const startDate = dateFilter.startDate ? format(new Date(dateFilter.startDate), 'yyyy-MM-dd') : '';
+        const endDate = dateFilter.endDate ? format(new Date(dateFilter.endDate), 'yyyy-MM-dd') : '';
+        filterInfo += `_기간_${startDate}_${endDate}`;
+      }
+      
+      const fileName = `출고목록_${brandName}${filterInfo}_${exportData.length}건_${new Date().toLocaleDateString()}.xlsx`;
+      downloadExcel(exportData, headers, fileName);
 
       setSnackbar({
         open: true,

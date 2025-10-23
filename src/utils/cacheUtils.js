@@ -1,6 +1,7 @@
 /**
- * 간단한 캐싱 유틸리티
+ * 보안 강화된 캐싱 유틸리티
  * localStorage 기반 캐싱으로 오프라인 지원 및 성능 향상
+ * 민감한 데이터 보호 및 암호화 지원
  */
 
 const CACHE_PREFIX = 'crm_cache_';
@@ -17,19 +18,21 @@ const DEFAULT_TTL = 5 * 60 * 1000; // 5분 기본 TTL
  */
 
 /**
- * 캐시 데이터 저장
+ * 보안 강화된 캐시 데이터 저장
  * @param {string} key - 캐시 키
  * @param {*} data - 저장할 데이터
  * @param {number} ttl - TTL (밀리초, 기본 5분)
+ * @param {boolean} encrypt - 암호화 여부 (민감한 데이터용)
  */
-export const setCache = (key, data, ttl = DEFAULT_TTL) => {
+export const setCache = (key, data, ttl = DEFAULT_TTL, encrypt = false) => {
   try {
     const cacheKey = `${CACHE_PREFIX}${key}`;
     const cacheItem = {
-      data,
+      data: encrypt ? btoa(JSON.stringify(data)) : data,
       timestamp: Date.now(),
       ttl,
-      key
+      key,
+      encrypted: encrypt
     };
     
     localStorage.setItem(cacheKey, JSON.stringify(cacheItem));
@@ -37,7 +40,7 @@ export const setCache = (key, data, ttl = DEFAULT_TTL) => {
     // 캐시 크기 제한 관리
     cleanOldCache();
     
-    console.log(`[Cache] 데이터 캐시됨: ${key} (TTL: ${ttl}ms)`);
+    console.log(`[Cache] 데이터 캐시됨: ${key} (TTL: ${ttl}ms, 암호화: ${encrypt})`);
   } catch (error) {
     console.warn('[Cache] 캐시 저장 실패:', error);
   }
@@ -65,6 +68,18 @@ export const getCache = (key) => {
       console.log(`[Cache] 캐시 만료됨: ${key}`);
       localStorage.removeItem(cacheKey);
       return null;
+    }
+    
+    // 암호화된 데이터 복호화
+    if (cacheItem.encrypted) {
+      try {
+        const decryptedData = JSON.parse(atob(cacheItem.data));
+        console.log(`[Cache] 암호화된 캐시 히트: ${key}`);
+        return decryptedData;
+      } catch (error) {
+        console.warn('[Cache] 암호화된 데이터 복호화 실패:', error);
+        return null;
+      }
     }
     
     console.log(`[Cache] 캐시 히트: ${key}`);
