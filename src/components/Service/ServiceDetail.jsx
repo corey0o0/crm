@@ -137,6 +137,9 @@ function ServiceDetail() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [initialData, setInitialData] = useState(null);
   const [isFormSubmitted, setIsFormSubmitted] = useState(false);
+  
+  // 로딩 상태 추적을 위한 ref
+  const isLoadingRef = React.useRef(false);
 
   // 변경사항 감지 함수
   const checkForChanges = useCallback(() => {
@@ -230,10 +233,32 @@ function ServiceDetail() {
     if (h !== 20) RECEPTION_TIME_OPTIONS.push(`${String(h).padStart(2, '0')}:30`);
   }
 
-  const fetchServiceDetail = React.useCallback(async () => {
+  const fetchServiceDetail = React.useCallback(async (retryCount = 0) => {
     try {
+      // 이미 로딩 중이면 중복 요청 방지
+      if (isLoadingRef.current && retryCount === 0) {
+        console.log('[ServiceDetail] 이미 로딩 중이므로 요청을 건너뜁니다.');
+        return;
+      }
+      
+      isLoadingRef.current = true;
       setLoading(true);
-      const { data: serviceData, error: serviceError } = await supabase
+      setError(null);
+      
+      // ID 유효성 검사 추가
+      if (!id) {
+        console.error('[ServiceDetail] ID가 없습니다.');
+        throw new Error('A/S ID가 없습니다.');
+      }
+      
+      console.log(`[ServiceDetail] 데이터 로딩 시작 - 시도 ${retryCount + 1}/3, ID: ${id}`);
+      
+      // 타임아웃 설정 (60초)
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('요청 시간이 초과되었습니다.')), 60000);
+      });
+      
+      const dataPromise = supabase
         .from('services')
         .select(`
           *,
@@ -251,7 +276,39 @@ function ServiceDetail() {
         .eq('id', id)
         .single();
 
-      if (serviceError) throw serviceError;
+      // 타임아웃과 데이터 요청을 경쟁시킴
+      const { data: serviceData, error: serviceError } = await Promise.race([
+        dataPromise,
+        timeoutPromise
+      ]);
+
+      if (serviceError) {
+        console.error(`[ServiceDetail] 데이터 로딩 오류 (시도 ${retryCount + 1}):`, serviceError);
+        
+        // 재시도 로직 개선
+        if (retryCount < 2 && (
+          serviceError.code === 'PGRST116' || 
+          serviceError.message.includes('network') || 
+          serviceError.message.includes('timeout') ||
+          serviceError.message.includes('fetch') ||
+          serviceError.message.includes('Failed to fetch') ||
+          serviceError.message.includes('요청 시간이 초과되었습니다')
+        )) {
+          console.log(`[ServiceDetail] 재시도 중... (${retryCount + 1}/2)`);
+          setTimeout(() => {
+            fetchServiceDetail(retryCount + 1);
+          }, 1000 * (retryCount + 1)); // 1초, 2초 지연
+          return;
+        }
+        
+        throw serviceError;
+      }
+
+      if (!serviceData) {
+        throw new Error('서비스 데이터를 찾을 수 없습니다.');
+      }
+
+      console.log('[ServiceDetail] 데이터 로딩 성공:', serviceData);
 
       let receptionDate = null;
       let receptionTime = '10:30'; // 기본값
@@ -388,16 +445,52 @@ function ServiceDetail() {
         });
       }
     } catch (err) {
-      console.error('Error fetching service detail:', err);
-      setError(err.message);
+      console.error('[ServiceDetail] 데이터 로딩 최종 실패:', err);
+      
+      let errorMessage = '데이터를 불러오는 중 오류가 발생했습니다.';
+      
+      if (err.message.includes('JWT') || err.message.includes('auth')) {
+        errorMessage = '인증이 만료되었습니다. 다시 로그인해주세요.';
+      } else if (err.message.includes('network') || err.message.includes('fetch') || err.message.includes('Failed to fetch')) {
+        errorMessage = '네트워크 연결을 확인해주세요.';
+      } else if (err.message.includes('요청 시간이 초과되었습니다')) {
+        errorMessage = '서버 응답이 지연되고 있습니다. 잠시 후 다시 시도해주세요.';
+      } else if (err.message.includes('PGRST116') || err.code === 'PGRST116') {
+        errorMessage = '해당 A/S 정보를 찾을 수 없습니다.';
+      } else if (err.message.includes('A/S ID가 없습니다')) {
+        errorMessage = 'A/S ID가 없습니다.';
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
     } finally {
+      isLoadingRef.current = false;
       setLoading(false);
     }
   }, [id]);
 
+  // ID 변경 시 데이터 로딩 (디바운싱 적용)
   useEffect(() => {
-    fetchServiceDetail();
-  }, [fetchServiceDetail]);
+    if (!id) {
+      console.warn('[ServiceDetail] ID가 없어서 데이터 로딩을 건너뜁니다.');
+      setError('A/S ID가 없습니다.');
+      setLoading(false);
+      return;
+    }
+
+    console.log('[ServiceDetail] ID 변경 감지, 데이터 재로딩:', id);
+    
+    // 디바운싱을 위한 타이머
+    const timeoutId = setTimeout(() => {
+      setError(null);
+      fetchServiceDetail();
+    }, 100); // 100ms 디바운싱
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [id, fetchServiceDetail]);
 
   useEffect(() => {
     if (formData?.receipt_link) {
@@ -1608,16 +1701,61 @@ function ServiceDetail() {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-        <CircularProgress />
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: 'column',
+        justifyContent: 'center', 
+        alignItems: 'center',
+        mt: 4,
+        gap: 2
+      }}>
+        <CircularProgress size={40} />
+        <Typography variant="body2" color="text.secondary">
+          A/S 정보를 불러오는 중...
+        </Typography>
       </Box>
     );
   }
 
   if (error) {
     return (
-      <Box sx={{ mt: 4, color: 'error.main' }}>
-        에러가 발생했습니다: {error}
+      <Box sx={{ mt: 4, p: 3, textAlign: 'center' }}>
+        <Typography variant="h6" color="error" sx={{ mb: 2 }}>
+          데이터 로딩 실패
+        </Typography>
+        <Typography color="text.secondary" sx={{ mb: 3 }}>
+          {error}
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <Button
+            variant="contained"
+            onClick={() => {
+              setError(null);
+              fetchServiceDetail();
+            }}
+            sx={{
+              bgcolor: '#3182f6',
+              '&:hover': { bgcolor: '#1b64da' }
+            }}
+          >
+            다시 시도
+          </Button>
+          <Button
+            variant="outlined"
+            onClick={() => navigate('/services')}
+            sx={{ 
+              borderColor: '#3182f6',
+              color: '#3182f6',
+              '&:hover': { 
+                borderColor: '#1b64da',
+                color: '#1b64da',
+                bgcolor: 'rgba(49, 130, 246, 0.04)'
+              }
+            }}
+          >
+            목록으로 돌아가기
+          </Button>
+        </Box>
       </Box>
     );
   }

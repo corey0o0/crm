@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { 
   Table, 
   TableBody, 
@@ -637,20 +637,31 @@ function ServiceList() {
         }
       }
 
-      // 태그 필터링 (서비스 태그 테이블 조회 후 해당 서비스 ID로 필터)
+      // 태그 단어 검색 (태그 이름에 포함된 단어로 검색)
       if (searchParams.selectedTags && searchParams.selectedTags.length > 0) {
+        console.log('태그 단어 검색 시작:', searchParams.selectedTags);
+        
+        // 각 태그 단어에 대해 OR 조건으로 검색
+        const tagConditions = searchParams.selectedTags.map(tag => `tag_name.ilike.%${tag}%`).join(',');
+        
         const { data: tagRows, error: tagQueryError } = await supabase
           .from('service_tags')
           .select('service_id, tag_name')
-          .in('tag_name', searchParams.selectedTags);
+          .or(tagConditions);
+          
         if (tagQueryError) {
-          console.error('Error fetching services by tags:', tagQueryError);
+          console.error('Error fetching services by tag words:', tagQueryError);
           throw tagQueryError;
         }
+        
+        console.log('태그 단어 검색 결과:', tagRows);
+        
         const idSet = new Set((tagRows || []).map(r => r.service_id));
         tagMatchedServiceIds = Array.from(idSet);
+        
         // 태그에 매칭되는 서비스가 하나도 없으면 바로 종료 (0건)
         if (tagMatchedServiceIds.length === 0) {
+          console.log('태그 단어 검색 결과 없음');
           setTotalExpected(0);
           setServices([]);
           setFirstPageLoaded(true);
@@ -658,6 +669,8 @@ function ServiceList() {
           setSearchLoading(false);
           return;
         }
+        
+        console.log('태그 단어 검색으로 찾은 서비스 ID들:', tagMatchedServiceIds);
         query = query.in('id', tagMatchedServiceIds);
       }
       
@@ -1336,14 +1349,24 @@ function ServiceList() {
       return;
     }
     
-    // 하이라이트 ID 설정
-    if (service.id) {
+    try {
+      // 하이라이트 ID 설정
       setCookie('highlightServiceId', String(service.id));
       localStorage.setItem('highlightServiceId', String(service.id));
       debugLog('Setting highlightServiceId before navigation:', service.id);
+      
+      // 네비게이션 전에 로딩 상태 표시
+      setLoading(true);
+      navigate(`/services/${service.id}`);
+    } catch (error) {
+      console.error('Navigation error:', error);
+      setSnackbar({
+        open: true,
+        message: '페이지 이동 중 오류가 발생했습니다.',
+        severity: 'error'
+      });
+      setLoading(false);
     }
-    
-    navigate(`/services/${service.id}`);
   };
 
   const handleSort = (property) => {
@@ -2023,35 +2046,85 @@ function ServiceList() {
   // 엑셀 다운로드 함수 추가
   const handleDownloadExcel = async () => {
     try {
-      // 현재 선택된 브랜드의 서비스 데이터 가져오기
+      // 현재 선택된 브랜드의 서비스 데이터 가져오기 (태그, 부품 정보 포함)
       const { data, error } = await supabase
         .from('services')
-        .select('*')
+        .select(`
+          *,
+          service_tags (
+            tag_name
+          ),
+          service_parts (
+            id,
+            part_id,
+            quantity,
+            price,
+            usage,
+            parts (
+              name,
+              code
+            )
+          )
+        `)
         .eq('brand', selectedBrand)
         .order('reception_date', { ascending: false });
 
       if (error) throw error;
 
       // 데이터 가공
-      const exportData = data.map(service => ({
-        접수일자: service.reception_date || '',
-        접수방법: service.reception_type || '',
-        입고일: service.repair_date || '',
-        출고일: service.completion_date || '',
-        배송방법: service.delivery_method || '',
-        고객명: service.customer_name || '',
-        연락처: service.customer_phone || '',
-        주소: service.customer_address || '',
-        제품: service.product_name || '',
-        주행거리: service.mileage || '',
-        증상: service.symptom || '',
-        처리내역: service.solution || '',
-        상태: service.status || '',
-        메모: service.note || '',
-        JPG: service.receipt_link || '',
-        구매처: service.seller || '',
-        작성자: service.writer || '관리자'
-      }));
+      const exportData = data.map(service => {
+        // 태그 정보 처리
+        const tags = service.service_tags?.map(tag => tag.tag_name).join(', ') || '';
+        
+        // 사용 부품 정보 처리
+        const parts = service.service_parts?.map(part => {
+          const partName = part.parts?.name || '알 수 없는 부품';
+          const quantity = part.quantity || 1;
+          const usage = part.usage || 'A/S';
+          return `${partName}(${quantity}개, ${usage})`;
+        }).join(', ') || '';
+        
+        // 처리진행상황 계산
+        let progressStatus = '';
+        if (service.status === '접수') {
+          progressStatus = '접수 완료';
+        } else if (service.status === '처리중') {
+          if (service.repair_date) {
+            progressStatus = '수리 진행중';
+          } else {
+            progressStatus = '접수 완료';
+          }
+        } else if (service.status === '완료') {
+          if (service.completion_date) {
+            progressStatus = '완료';
+          } else {
+            progressStatus = '수리 완료';
+          }
+        }
+
+        return {
+          접수일자: service.reception_date || '',
+          접수방법: service.reception_type || '',
+          입고일: service.repair_date || '',
+          출고일: service.completion_date || '',
+          배송방법: service.delivery_method || '',
+          고객명: service.customer_name || '',
+          연락처: service.customer_phone || '',
+          주소: service.customer_address || '',
+          제품: service.product_name || '',
+          주행거리: service.mileage || '',
+          증상: service.symptom || '',
+          처리내역: service.solution || '',
+          상태: service.status || '',
+          처리진행상황: progressStatus,
+          태그: tags,
+          사용부품: parts,
+          메모: service.note || '',
+          JPG: service.receipt_link || '',
+          구매처: service.seller || '',
+          작성자: service.writer || '관리자'
+        };
+      });
 
       // 헤더 정의
       const headers = [
@@ -2068,6 +2141,9 @@ function ServiceList() {
         { label: '증상', key: '증상' },
         { label: '처리내역', key: '처리내역' },
         { label: '상태', key: '상태' },
+        { label: '처리진행상황', key: '처리진행상황' },
+        { label: '태그', key: '태그' },
+        { label: '사용부품', key: '사용부품' },
         { label: '메모', key: '메모' },
         { label: 'JPG', key: 'JPG' },
         { label: '구매처', key: '구매처' },
@@ -2093,47 +2169,6 @@ function ServiceList() {
     setInputValue(event.target.value);
   };
 
-  // 검색 실행 함수 (서버 사이드 검색)
-  const executeSearch = () => {
-    const term = inputValue.toLowerCase().trim();
-    setSearchTerm(term);
-    
-    // 검색어 로컬스토리지에 저장
-    if (term) {
-      localStorage.setItem('serviceSearchTerm', term);
-    } else {
-      localStorage.removeItem('serviceSearchTerm');
-    }
-    
-    // 검색어가 1글자면 경고 메시지 표시하고 검색하지 않음
-    if (term && term.length === 1) {
-      setSnackbar({
-        open: true,
-        message: '검색어는 최소 2글자 이상 입력해주세요.',
-        severity: 'warning'
-      });
-      return;
-    }
-
-    // 검색어가 없거나 다른 필터도 없으면 전체 데이터 로딩으로 돌아가기
-    if (!term && selectedStatuses.length === 0 && selectedTags.length === 0 && !dateFilter.startDate && !dateFilter.endDate && !modelSearchTerm.trim() && !solutionSearchTerm.trim()) {
-      fetchServices();
-      return;
-    }
-    
-    // 서버 사이드 검색 실행
-    const searchParams = {
-      searchTerm: term,
-      selectedStatuses: selectedStatuses.length > 0 ? selectedStatuses : null,
-      selectedTags: selectedTags.length > 0 ? selectedTags : null,
-      dateFilter: (dateFilter.startDate || dateFilter.endDate) ? dateFilter : null,
-      searchMode,
-      modelSearchTerm: modelSearchTerm.trim(),
-      solutionSearchTerm: solutionSearchTerm.trim()
-    };
-    
-    performServerSearch(searchParams);
-  };
 
   //1. 초기화 함수 추가
   const handleClearSearch = () => {
@@ -2312,6 +2347,50 @@ function ServiceList() {
   const [progressiveLoading, setProgressiveLoading] = useState(false); // 점진적 로딩 상태
   const [loadProgress, setLoadProgress] = useState(0); // 로딩 진행률
   const [retryCount, setRetryCount] = useState(0); // 재시도 횟수
+
+  // 검색 실행 함수 (서버 사이드 검색)
+  const executeSearch = useCallback(() => {
+    const term = inputValue.toLowerCase().trim();
+    setSearchTerm(term);
+    
+    // 검색어 로컬스토리지에 저장
+    if (term) {
+      localStorage.setItem('serviceSearchTerm', term);
+    } else {
+      localStorage.removeItem('serviceSearchTerm');
+    }
+    
+    // 검색어가 1글자면 경고 메시지 표시하고 검색하지 않음
+    if (term && term.length === 1) {
+      setSnackbar({
+        open: true,
+        message: '검색어는 최소 2글자 이상 입력해주세요.',
+        severity: 'warning'
+      });
+      return;
+    }
+
+    // 검색어가 없거나 다른 필터도 없으면 전체 데이터 로딩으로 돌아가기
+    if (!term && selectedStatuses.length === 0 && selectedTags.length === 0 && !dateFilter.startDate && !dateFilter.endDate && !modelSearchTerm.trim() && !solutionSearchTerm.trim()) {
+      fetchServices();
+      return;
+    }
+    
+    // 서버 사이드 검색 실행
+    const searchParams = {
+      searchTerm: term,
+      selectedStatuses: selectedStatuses.length > 0 ? selectedStatuses : null,
+      selectedTags: selectedTags.length > 0 ? selectedTags : null,
+      dateFilter: (dateFilter.startDate || dateFilter.endDate) ? dateFilter : null,
+      searchMode,
+      modelSearchTerm: modelSearchTerm.trim(),
+      solutionSearchTerm: solutionSearchTerm.trim()
+    };
+    
+    console.log('[ServiceList] 검색 실행 시 태그 상태:', { selectedTags, searchParams: searchParams.selectedTags });
+    
+    performServerSearch(searchParams);
+  }, [inputValue, selectedStatuses, selectedTags, dateFilter, searchMode, modelSearchTerm, solutionSearchTerm, fetchServices, performServerSearch]);
   const [networkError, setNetworkError] = useState(false); // 네트워크 오류 상태
   const [isOnline, setIsOnline] = useState(navigator.onLine); // 온라인 상태
   const [backgroundLoading, setBackgroundLoading] = useState(false); // 백그라운드 로딩 상태
@@ -2324,13 +2403,55 @@ function ServiceList() {
   const [hasMoreData, setHasMoreData] = useState(true); // 더 로드할 데이터가 있는지
   
   const statusOptions = ['접수', '처리중', '부분완료', '완료'];
-  const tagOptions = Array.from(new Set(services.flatMap(s => s.tags || [])));
+  
+  // 태그 옵션을 더 안정적으로 생성 (단어 검색용)
+  const tagOptions = useMemo(() => {
+    if (!services || services.length === 0) {
+      return [];
+    }
+    
+    const allTags = services.flatMap(s => {
+      if (s.tags && Array.isArray(s.tags)) {
+        return s.tags;
+      }
+      return [];
+    });
+    
+    // 태그에서 단어 추출 (예: "#유성기어" -> "유성", "기어")
+    const tagWords = allTags.flatMap(tag => {
+      if (!tag || tag.trim() === '') return [];
+      
+      // # 제거하고 단어 추출
+      const cleanTag = tag.replace(/^#/, '').trim();
+      if (!cleanTag) return [];
+      
+      // 한글, 영문, 숫자로 구성된 단어들 추출
+      const words = cleanTag.match(/[가-힣a-zA-Z0-9]+/g) || [];
+      return words.filter(word => word.length >= 2); // 2글자 이상만
+    });
+    
+    const uniqueWords = Array.from(new Set(tagWords)).filter(word => word && word.trim() !== '');
+    console.log('[ServiceList] 태그 단어 옵션 생성:', uniqueWords);
+    console.log('[ServiceList] 서비스 데이터 샘플:', services.slice(0, 2));
+    return uniqueWords;
+  }, [services]);
 
   const handleSearchModeChange = (e, value) => {
     if (value) setSearchMode(value);
   };
   const handleStatusChange = (e, value) => setSelectedStatuses(value);
-  const handleTagChange = (e, value) => setSelectedTags(value);
+  const handleTagChange = (e, value, reason) => {
+    console.log('[ServiceList] 태그 변경:', { 이전값: selectedTags, 새값: value, reason });
+    
+    // freeSolo 모드에서 입력된 값 처리
+    if (reason === 'input' && value) {
+      // 입력된 값이 문자열인 경우 배열로 변환
+      const newValue = Array.isArray(value) ? value : [value];
+      setSelectedTags(newValue);
+    } else {
+      setSelectedTags(value);
+    }
+  };
   const handleQuickDate = (type) => {
     const today = new Date();
     let start, end;
@@ -2420,11 +2541,48 @@ function ServiceList() {
         console.log('[ServiceList] 데이터 로드 후 ServiceDetail 복원 플래그 감지');
         sessionStorage.removeItem('restorePageState');
         
-        // 페이지 상태 강제 복원
-        const saved = localStorage.getItem(PAGE_KEY);
-        if (saved) {
+        // 필터 상태 강제 복원
+        const filterSaved = localStorage.getItem(FILTER_KEY);
+        if (filterSaved) {
           try {
-            const pageState = JSON.parse(saved);
+            const filterState = JSON.parse(filterSaved);
+            console.log('[ServiceList] 데이터 로드 후 강제 필터 상태 복원:', filterState);
+            
+            setSelectedBrand(filterState.selectedBrand || 'XRB');
+            setStatusFilter(filterState.statusFilter || 'all');
+            setDateFilter(filterState.dateFilter || { type: 'reception_date', startDate: '', endDate: '' });
+            setInputValue(filterState.inputValue || '');
+            setSearchTerm(filterState.searchTerm || '');
+            setSelectedStatuses(filterState.selectedStatuses || []);
+            setSelectedTags(filterState.selectedTags || []);
+            setSearchMode(filterState.searchMode || 'AND');
+            setModelSearchTerm(filterState.modelSearchTerm || '');
+            setSolutionSearchTerm(filterState.solutionSearchTerm || '');
+            
+            // 필터 복원 후 자동 검색 실행
+            setTimeout(() => {
+              console.log('[ServiceList] 데이터 로드 후 필터 복원 완료 - 자동 검색 실행');
+              executeSearch();
+            }, 200);
+            
+            // 추가 검색 실행 보장 (필터가 복원되었지만 검색이 실행되지 않은 경우)
+            setTimeout(() => {
+              console.log('[ServiceList] 데이터 로드 후 추가 검색 실행 보장');
+              if (inputValue || selectedStatuses.length > 0 || selectedTags.length > 0 || modelSearchTerm || solutionSearchTerm || dateFilter.startDate || dateFilter.endDate) {
+                console.log('[ServiceList] 데이터 로드 후 활성 필터 감지 - 강제 검색 실행');
+                executeSearch();
+              }
+            }, 600);
+          } catch (err) {
+            console.error('데이터 로드 후 강제 필터 상태 복원 실패:', err);
+          }
+        }
+        
+        // 페이지 상태 강제 복원
+        const pageSaved = localStorage.getItem(PAGE_KEY);
+        if (pageSaved) {
+          try {
+            const pageState = JSON.parse(pageSaved);
             console.log('[ServiceList] 데이터 로드 후 강제 페이지 상태 복원:', pageState);
             setPage(pageState.page || 0);
             setRowsPerPage(pageState.rowsPerPage || 20);
@@ -2439,19 +2597,45 @@ function ServiceList() {
     }
   }, [services.length, loading]);
 
-  // ServiceDetail에서 돌아왔을 때 페이지 상태 강제 복원
+  // ServiceDetail에서 돌아왔을 때 필터 및 페이지 상태 강제 복원
   useEffect(() => {
     const shouldRestorePage = sessionStorage.getItem('restorePageState');
     if (shouldRestorePage === 'true') {
-      console.log('[ServiceList] ServiceDetail에서 돌아옴 - 페이지 상태 강제 복원');
+      console.log('[ServiceList] ServiceDetail에서 돌아옴 - 필터 및 페이지 상태 강제 복원');
       sessionStorage.removeItem('restorePageState');
       
-      // 여러 시점에서 페이지 상태 복원 시도
-      const restorePageState = () => {
-        const saved = localStorage.getItem(PAGE_KEY);
-        if (saved) {
+      // 필터 상태 복원
+      const restoreFilterState = () => {
+        const filterSaved = localStorage.getItem(FILTER_KEY);
+        if (filterSaved) {
           try {
-            const pageState = JSON.parse(saved);
+            const filterState = JSON.parse(filterSaved);
+            console.log('[ServiceList] 강제 필터 상태 복원:', filterState);
+            
+            setSelectedBrand(filterState.selectedBrand || 'XRB');
+            setStatusFilter(filterState.statusFilter || 'all');
+            setDateFilter(filterState.dateFilter || { type: 'reception_date', startDate: '', endDate: '' });
+            setInputValue(filterState.inputValue || '');
+            setSearchTerm(filterState.searchTerm || '');
+            setSelectedStatuses(filterState.selectedStatuses || []);
+            setSelectedTags(filterState.selectedTags || []);
+            setSearchMode(filterState.searchMode || 'AND');
+            setModelSearchTerm(filterState.modelSearchTerm || '');
+            setSolutionSearchTerm(filterState.solutionSearchTerm || '');
+            
+            console.log('[ServiceList] 필터 상태 복원 완료');
+          } catch (err) {
+            console.error('강제 필터 상태 복원 실패:', err);
+          }
+        }
+      };
+      
+      // 페이지 상태 복원
+      const restorePageState = () => {
+        const pageSaved = localStorage.getItem(PAGE_KEY);
+        if (pageSaved) {
+          try {
+            const pageState = JSON.parse(pageSaved);
             console.log('[ServiceList] 강제 페이지 상태 복원:', pageState);
             setPage(pageState.page || 0);
             setRowsPerPage(pageState.rowsPerPage || 20);
@@ -2462,7 +2646,23 @@ function ServiceList() {
       };
       
       // 즉시 복원
+      restoreFilterState();
       restorePageState();
+      
+      // 필터 복원 후 자동 검색 실행
+      setTimeout(() => {
+        console.log('[ServiceList] 필터 복원 후 자동 검색 실행');
+        executeSearch();
+      }, 300);
+      
+      // 추가 검색 실행 보장 (필터가 복원되었지만 검색이 실행되지 않은 경우)
+      setTimeout(() => {
+        console.log('[ServiceList] 필터 복원 후 추가 검색 실행 보장');
+        if (inputValue || selectedStatuses.length > 0 || selectedTags.length > 0 || modelSearchTerm || solutionSearchTerm || dateFilter.startDate || dateFilter.endDate) {
+          console.log('[ServiceList] 활성 필터 감지 - 강제 검색 실행');
+          executeSearch();
+        }
+      }, 800);
       
       // 데이터 로드 후 재복원
       setTimeout(() => {
@@ -2481,6 +2681,46 @@ function ServiceList() {
     saveFilterState();
     // eslint-disable-next-line
   }, [selectedBrand, statusFilter, dateFilter, inputValue, searchTerm, selectedStatuses, selectedTags, searchMode, modelSearchTerm, solutionSearchTerm]);
+
+  // ServiceDetail에서 돌아온 경우 필터 상태 변경 시 자동 검색 실행
+  useEffect(() => {
+    const shouldRestorePage = sessionStorage.getItem('restorePageState');
+    if (shouldRestorePage === 'true') {
+      // 필터가 복원된 후 자동 검색 실행
+      if (inputValue || selectedStatuses.length > 0 || selectedTags.length > 0 || modelSearchTerm || solutionSearchTerm || dateFilter.startDate || dateFilter.endDate) {
+        console.log('[ServiceList] 필터 상태 변경 감지 - 자동 검색 실행');
+        setTimeout(() => {
+          executeSearch();
+        }, 100);
+      }
+    }
+  }, [inputValue, selectedStatuses, selectedTags, modelSearchTerm, solutionSearchTerm, dateFilter, executeSearch]);
+
+  // 필터 복원 후 강제 자동 검색 실행 (ServiceDetail에서 돌아온 경우)
+  useEffect(() => {
+    const shouldRestorePage = sessionStorage.getItem('restorePageState');
+    if (shouldRestorePage === 'true') {
+      console.log('[ServiceList] ServiceDetail 복원 감지 - 강제 자동 검색 실행');
+      
+      // 즉시 검색 실행
+      setTimeout(() => {
+        console.log('[ServiceList] 즉시 자동 검색 실행');
+        executeSearch();
+      }, 50);
+      
+      // 추가 검색 실행 보장
+      setTimeout(() => {
+        console.log('[ServiceList] 추가 자동 검색 실행 보장');
+        executeSearch();
+      }, 500);
+      
+      // 최종 검색 실행 보장
+      setTimeout(() => {
+        console.log('[ServiceList] 최종 자동 검색 실행 보장');
+        executeSearch();
+      }, 1000);
+    }
+  }, [executeSearch]);
 
   // 페이지 상태가 바뀔 때마다 자동 저장
   useEffect(() => {
@@ -2936,13 +3176,22 @@ function ServiceList() {
           />
           <Autocomplete
             multiple
+            freeSolo
             options={tagOptions}
             value={selectedTags}
             onChange={handleTagChange}
             disableCloseOnSelect
             size="small"
             sx={{ minWidth: 140, maxWidth: 180 }}
-            renderInput={(params) => <TextField {...params} label="태그" size="small" />}
+            noOptionsText={tagOptions.length === 0 ? "태그 단어가 없습니다" : "태그 단어를 선택하거나 입력하세요"}
+            renderInput={(params) => (
+              <TextField 
+                {...params} 
+                label="태그 단어" 
+                size="small"
+                placeholder="태그 단어 입력"
+              />
+            )}
             renderTags={(value, getTagProps) =>
               value.map((option, index) => {
                 const { key, ...tagProps } = getTagProps({ index });
@@ -3028,18 +3277,12 @@ function ServiceList() {
             <Button onClick={() => handleQuickDate('thisMonth')}>이번달</Button>
             <Button onClick={() => handleQuickDate('lastMonth')}>지난달</Button>
           </ButtonGroup>
-        </Stack>
-      </Box>
-
-      {/* 검색 실행 버튼들 */}
-      <Box sx={{ mb: 2 }}>
-        <Stack direction="row" spacing={1} justifyContent="center">
           <Button
             variant="contained"
             color="primary"
             onClick={executeSearch}
             disabled={searchLoading}
-            sx={{ minWidth: 100, height: 40 }}
+            sx={{ minWidth: 100, height: 40, ml: 2 }}
             startIcon={searchLoading ? <CircularProgress size={16} color="inherit" /> : null}
           >
             {searchLoading ? '검색 중' : '검색 실행'}
@@ -3053,10 +3296,10 @@ function ServiceList() {
           >
             전체 초기화
           </Button>
-          <Button variant="outlined" onClick={saveFilterState} sx={{ minWidth: 100, height: 40 }}>
+          <Button variant="outlined" onClick={saveFilterState} sx={{ minWidth: 80, height: 40 }}>
             필터 저장
           </Button>
-          <Button variant="outlined" onClick={loadFilterState} sx={{ minWidth: 100, height: 40 }}>
+          <Button variant="outlined" onClick={loadFilterState} sx={{ minWidth: 80, height: 40 }}>
             필터 불러오기
           </Button>
         </Stack>

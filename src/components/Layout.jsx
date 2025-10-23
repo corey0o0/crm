@@ -22,7 +22,9 @@ import {
   DialogActions,
   Grid,
   Paper,
-  Chip
+  Chip,
+  Tooltip,
+  CircularProgress
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -346,11 +348,69 @@ function Layout() {
           
           {/* 연결 상태 아이콘 */}
           <Box sx={{ ml: 1, display: 'flex', alignItems: 'center' }}>
-            {isOnline ? (
-              <WifiIcon sx={{ fontSize: '1.2rem', color: 'inherit' }} />
-            ) : (
-              <WifiOffIcon sx={{ fontSize: '1.2rem', color: 'inherit' }} />
-            )}
+            <Tooltip
+              title={
+                <Box sx={{ p: 1 }}>
+                  <Typography variant="h6" sx={{ color: 'white', mb: 1, fontWeight: 'bold' }}>
+                    연결 상태
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    {isOnline ? (
+                      <WifiIcon sx={{ color: 'success.main', mr: 1 }} />
+                    ) : (
+                      <WifiOffIcon sx={{ color: 'error.main', mr: 1 }} />
+                    )}
+                    <Typography variant="body2" sx={{ color: 'white' }}>
+                      {isOnline ? '온라인' : '오프라인'}
+                    </Typography>
+                  </Box>
+                  {syncStatus.pendingChangesCount > 0 && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <SyncProblemIcon sx={{ color: 'warning.main', mr: 1 }} />
+                      <Typography variant="body2" sx={{ color: 'white' }}>
+                        대기 중인 변경: {syncStatus.pendingChangesCount}개
+                      </Typography>
+                    </Box>
+                  )}
+                  <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                    마지막 동기화: {syncStatus.lastSync}
+                  </Typography>
+                </Box>
+              }
+              arrow
+              placement="bottom"
+              componentsProps={{
+                tooltip: {
+                  sx: {
+                    bgcolor: 'rgba(0, 0, 0, 0.9)',
+                    '& .MuiTooltip-arrow': {
+                      color: 'rgba(0, 0, 0, 0.9)',
+                    },
+                  },
+                },
+              }}
+            >
+              <IconButton
+                sx={{
+                  color: isOnline ? 'success.main' : 'error.main',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  },
+                }}
+              >
+                {isOnline ? (
+                  <WifiIcon sx={{ 
+                    fontSize: '1.2rem',
+                    filter: 'drop-shadow(0 0 2px rgba(76, 175, 80, 0.3))'
+                  }} />
+                ) : (
+                  <WifiOffIcon sx={{ 
+                    fontSize: '1.2rem',
+                    filter: 'drop-shadow(0 0 2px rgba(244, 67, 54, 0.3))'
+                  }} />
+                )}
+              </IconButton>
+            </Tooltip>
           </Box>
           
           <Button
