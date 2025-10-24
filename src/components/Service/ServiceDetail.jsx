@@ -271,56 +271,8 @@ function ServiceDetail() {
         throw new Error('A/S ID가 없습니다.');
       }
       
-      // 세션 상태 확인 및 갱신 (타임아웃 적용)
-      console.log('[ServiceDetail] 세션 상태 확인 시작');
-      
-      const sessionPromise = supabase.auth.getSession();
-      const sessionTimeout = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('세션 확인 시간 초과')), 5000);
-      });
-      
-      const { data: { session }, error: sessionError } = await Promise.race([
-        sessionPromise,
-        sessionTimeout
-      ]);
-      
-      if (sessionError) {
-        console.error('[ServiceDetail] 세션 확인 오류:', sessionError);
-        throw new Error('세션 확인 중 오류가 발생했습니다.');
-      }
-      
-      if (!session) {
-        console.warn('[ServiceDetail] 세션이 없습니다. 로그인이 필요합니다.');
-        throw new Error('로그인이 필요합니다.');
-      }
-      
-      console.log('[ServiceDetail] 세션 확인 완료, 만료 시간:', new Date(session.expires_at * 1000));
-      
-      // 세션이 만료되었는지 확인 (여유 시간 5분 추가)
-      const now = new Date();
-      const expiresAt = new Date((session.expires_at - 300) * 1000); // 5분 여유
-      
-      if (now >= expiresAt) {
-        console.warn('[ServiceDetail] 세션이 만료되었습니다. 갱신을 시도합니다.');
-        
-        const refreshPromise = supabase.auth.refreshSession();
-        const refreshTimeout = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('세션 갱신 시간 초과')), 10000);
-        });
-        
-        const { data: refreshData, error: refreshError } = await Promise.race([
-          refreshPromise,
-          refreshTimeout
-        ]);
-        
-        if (refreshError || !refreshData.session) {
-          console.error('[ServiceDetail] 세션 갱신 실패:', refreshError);
-          throw new Error('세션이 만료되었습니다. 다시 로그인해주세요.');
-        }
-        console.log('[ServiceDetail] 세션이 성공적으로 갱신되었습니다.');
-      } else {
-        console.log('[ServiceDetail] 세션이 유효합니다.');
-      }
+      // 세션 확인 제거 - RLS 정책이 허용하므로 바로 데이터 로딩 진행
+      console.log('[ServiceDetail] 세션 확인 생략 - 바로 데이터 로딩 시작');
       
       console.log(`[ServiceDetail] 데이터 로딩 시작 - 시도 ${retryCount + 1}/3, ID: ${id}`);
       
@@ -377,30 +329,8 @@ function ServiceDetail() {
           console.log(`[ServiceDetail] 재시도 중... (${retryCount + 1}/2)`);
           
           // 인증 관련 오류인 경우 세션 갱신 시도
-          if (serviceError.message.includes('JWT') || serviceError.message.includes('auth') || serviceError.message.includes('401')) {
-            try {
-              console.log('[ServiceDetail] 인증 오류로 인한 세션 갱신 시도');
-              
-              const refreshPromise = supabase.auth.refreshSession();
-              const refreshTimeout = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error('세션 갱신 시간 초과')), 8000);
-              });
-              
-              const { data: refreshData, error: refreshError } = await Promise.race([
-                refreshPromise,
-                refreshTimeout
-              ]);
-              
-              if (refreshError || !refreshData.session) {
-                console.error('[ServiceDetail] 세션 갱신 실패:', refreshError);
-                throw new Error('세션이 만료되었습니다. 다시 로그인해주세요.');
-              }
-              console.log('[ServiceDetail] 세션이 성공적으로 갱신되었습니다.');
-            } catch (refreshErr) {
-              console.error('[ServiceDetail] 세션 갱신 중 오류:', refreshErr);
-              throw new Error('세션이 만료되었습니다. 다시 로그인해주세요.');
-            }
-          }
+                // 세션 갱신 제거 - RLS 정책이 허용하므로 바로 재시도
+                console.log('[ServiceDetail] 인증 오류 감지 - 바로 재시도 진행');
           
           setTimeout(() => {
             fetchServiceDetail(retryCount + 1);
@@ -564,11 +494,8 @@ function ServiceDetail() {
       let errorMessage = '데이터를 불러오는 중 오류가 발생했습니다.';
       
       if (err.message.includes('JWT') || err.message.includes('auth') || err.message.includes('401') || err.message.includes('Unauthorized')) {
-        errorMessage = '인증이 만료되었습니다. 다시 로그인해주세요.';
-        // 인증 오류 시 자동으로 로그인 페이지로 리다이렉트
-        setTimeout(() => {
-          navigate('/login');
-        }, 2000);
+        errorMessage = '데이터 로딩 중 오류가 발생했습니다. 다시 시도해주세요.';
+        // 자동 리다이렉트 제거
       } else if (err.message.includes('network') || err.message.includes('fetch') || err.message.includes('Failed to fetch')) {
         errorMessage = '네트워크 연결을 확인해주세요.';
       } else if (err.message.includes('요청 시간이 초과되었습니다')) {

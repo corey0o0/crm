@@ -570,41 +570,8 @@ function ServiceList() {
     try {
       console.log(`[ServiceList] 검색 시작 - 세션 확인 (재시도: ${retryCount})`);
       
-      // 세션 상태 확인 (단순화된 버전)
-      console.log('[ServiceList] 세션 확인 시작');
-      
-      try {
-        // 세션 확인 (타임아웃 없이)
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError) {
-          console.error('[ServiceList] 세션 확인 오류:', sessionError);
-          // 세션 오류가 있어도 계속 진행 (RLS 정책이 허용할 수 있음)
-          console.log('[ServiceList] 세션 오류가 있었지만 계속 진행합니다.');
-        } else if (session) {
-          console.log('[ServiceList] 세션 확인 완료, 만료 시간:', new Date(session.expires_at * 1000));
-          
-          // 세션이 곧 만료될 경우 갱신 시도 (선택적)
-          const now = new Date();
-          const expiresAt = new Date((session.expires_at - 300) * 1000); // 5분 여유
-          
-          if (now >= expiresAt) {
-            console.log('[ServiceList] 세션이 곧 만료됩니다. 갱신을 시도합니다.');
-            try {
-              await supabase.auth.refreshSession();
-              console.log('[ServiceList] 세션 갱신 완료');
-            } catch (refreshErr) {
-              console.log('[ServiceList] 세션 갱신 실패했지만 계속 진행:', refreshErr.message);
-            }
-          }
-        } else {
-          console.log('[ServiceList] 세션이 없지만 계속 진행합니다.');
-        }
-      } catch (sessionErr) {
-        console.error('[ServiceList] 세션 처리 중 오류:', sessionErr);
-        // 세션 오류가 있어도 계속 진행
-        console.log('[ServiceList] 세션 오류가 있었지만 계속 진행합니다.');
-      }
+      // 세션 확인 제거 - RLS 정책이 허용하므로 바로 검색 진행
+      console.log('[ServiceList] 검색 시작 - 세션 확인 생략');
       
       setSearchLoading(true);
       setServices([]); // 검색 시 기존 데이터 초기화
@@ -638,8 +605,8 @@ function ServiceList() {
       // 검색어 필터링 (최소 2글자 이상일 때만)
       if (searchParams.searchTerm && searchParams.searchTerm.length >= 2) {
         console.log('Applying search filter for term:', searchParams.searchTerm);
-        // 기본 필드 검색 (고객명, 연락처, 제품명, 증상)
-        const basicSearch = `customer_name.ilike.%${searchParams.searchTerm}%,customer_phone.ilike.%${searchParams.searchTerm}%,product_name.ilike.%${searchParams.searchTerm}%,symptom.ilike.%${searchParams.searchTerm}%`;
+        // 기본 필드 검색 (고객명, 연락처만 - 성능 최적화)
+        const basicSearch = `customer_name.ilike.%${searchParams.searchTerm}%,customer_phone.ilike.%${searchParams.searchTerm}%`;
         
         // A/S ID 검색 - 숫자인지 확인
         const isNumeric = /^\d+$/.test(searchParams.searchTerm);
@@ -738,7 +705,7 @@ function ServiceList() {
 
       // 카운트 쿼리에도 필터 적용
       if (searchParams.searchTerm && searchParams.searchTerm.length >= 2) {
-        const basicSearch = `customer_name.ilike.%${searchParams.searchTerm}%,customer_phone.ilike.%${searchParams.searchTerm}%,product_name.ilike.%${searchParams.searchTerm}%,symptom.ilike.%${searchParams.searchTerm}%`;
+        const basicSearch = `customer_name.ilike.%${searchParams.searchTerm}%,customer_phone.ilike.%${searchParams.searchTerm}%`;
         const isNumeric = /^\d+$/.test(searchParams.searchTerm);
         
         if (isNumeric) {
@@ -787,7 +754,7 @@ function ServiceList() {
       console.log('[ServiceList] 검색 쿼리 실행 시작');
       
       const searchTimeout = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('검색 요청 시간이 초과되었습니다.')), 30000);
+        setTimeout(() => reject(new Error('검색 요청 시간이 초과되었습니다.')), 60000); // 60초로 연장
       });
       
       const searchPromise = Promise.all([
@@ -850,19 +817,20 @@ function ServiceList() {
     } catch (err) {
       console.error('[ServiceList] 검색 오류:', err);
       
-      // 네트워크 오류나 일반적인 오류인 경우에만 재시도
-      if (retryCount < 1 && (
+      // 네트워크 오류나 타임아웃 오류인 경우에만 재시도
+      if (retryCount < 2 && (
         err.message.includes('network') || 
         err.message.includes('fetch') || 
         err.message.includes('Failed to fetch') ||
         err.message.includes('timeout') ||
-        err.message.includes('요청 시간이 초과')
+        err.message.includes('요청 시간이 초과') ||
+        err.message.includes('검색 요청 시간이 초과')
       )) {
-        console.log(`[ServiceList] 네트워크 오류로 인한 재시도 (${retryCount + 1}/1)`);
+        console.log(`[ServiceList] 네트워크/타임아웃 오류로 인한 재시도 (${retryCount + 1}/2)`);
         
         setTimeout(() => {
           performServerSearch(searchParams, retryCount + 1);
-        }, 2000); // 2초 지연
+        }, 3000 * (retryCount + 1)); // 3초, 6초 지연
         return;
       }
       
@@ -2464,6 +2432,7 @@ function ServiceList() {
 
   // 검색 실행 함수 (서버 사이드 검색)
   const executeSearch = useCallback(() => {
+    console.log('[ServiceList] executeSearch 호출됨');
     const term = inputValue.toLowerCase().trim();
     setSearchTerm(term);
     
@@ -3398,7 +3367,10 @@ function ServiceList() {
           <Button
             variant="contained"
             color="primary"
-            onClick={executeSearch}
+            onClick={() => {
+              console.log('[ServiceList] 검색 버튼 클릭됨');
+              executeSearch();
+            }}
             disabled={searchLoading}
             sx={{ minWidth: 100, height: 40, ml: 2 }}
             startIcon={searchLoading ? <CircularProgress size={16} color="inherit" /> : null}
