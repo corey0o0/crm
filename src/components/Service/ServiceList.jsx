@@ -568,12 +568,95 @@ function ServiceList() {
   // 서버 사이드 검색 함수
   const performServerSearch = async (searchParams = {}) => {
     try {
+      console.log('[ServiceList] 검색 시작 - 세션 확인');
+      
+      // 세션 상태 확인 및 갱신 (타임아웃 적용)
+      console.log('[ServiceList] 세션 확인 시작');
+      
+      try {
+        const sessionPromise = supabase.auth.getSession();
+        const sessionTimeout = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('세션 확인 시간 초과')), 10000); // 10초로 증가
+        });
+        
+        const { data: { session }, error: sessionError } = await Promise.race([
+          sessionPromise,
+          sessionTimeout
+        ]);
+        
+        console.log('[ServiceList] 세션 확인 완료:', !!session);
+        
+        if (sessionError) {
+          console.error('[ServiceList] 세션 확인 오류:', sessionError);
+          throw new Error('세션 확인 중 오류가 발생했습니다.');
+        }
+        
+        if (!session) {
+          console.warn('[ServiceList] 세션이 없습니다. 로그인 페이지로 리다이렉트합니다.');
+          // 로그인 페이지로 리다이렉트
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 2000);
+          throw new Error('로그인이 필요합니다. 잠시 후 로그인 페이지로 이동합니다.');
+        }
+      
+        console.log('[ServiceList] 세션 확인 완료, 만료 시간:', new Date(session.expires_at * 1000));
+        
+        // 세션이 만료되었는지 확인 (여유 시간 5분 추가)
+        const now = new Date();
+        const expiresAt = new Date((session.expires_at - 300) * 1000); // 5분 여유
+        
+        if (now >= expiresAt) {
+          console.warn('[ServiceList] 세션이 만료되었습니다. 갱신을 시도합니다.');
+          
+          try {
+            const refreshPromise = supabase.auth.refreshSession();
+            const refreshTimeout = new Promise((_, reject) => {
+              setTimeout(() => reject(new Error('세션 갱신 시간 초과')), 10000);
+            });
+            
+            const { data: refreshData, error: refreshError } = await Promise.race([
+              refreshPromise,
+              refreshTimeout
+            ]);
+            
+            if (refreshError || !refreshData.session) {
+              console.error('[ServiceList] 세션 갱신 실패:', refreshError);
+              console.warn('[ServiceList] 세션 갱신 실패로 로그인 페이지로 리다이렉트합니다.');
+              // 로그인 페이지로 리다이렉트
+              setTimeout(() => {
+                window.location.href = '/login';
+              }, 2000);
+              throw new Error('세션이 만료되었습니다. 잠시 후 로그인 페이지로 이동합니다.');
+            }
+            console.log('[ServiceList] 세션이 성공적으로 갱신되었습니다.');
+          } catch (refreshErr) {
+            console.error('[ServiceList] 세션 갱신 중 오류:', refreshErr);
+            console.warn('[ServiceList] 세션 갱신 오류로 로그인 페이지로 리다이렉트합니다.');
+            // 로그인 페이지로 리다이렉트
+            setTimeout(() => {
+              window.location.href = '/login';
+            }, 2000);
+            throw new Error('세션이 만료되었습니다. 잠시 후 로그인 페이지로 이동합니다.');
+          }
+        } else {
+          console.log('[ServiceList] 세션이 유효합니다.');
+        }
+      } catch (sessionErr) {
+        console.error('[ServiceList] 세션 처리 중 오류:', sessionErr);
+        // 세션 오류 시 로그인 페이지로 리다이렉트
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 2000);
+        throw new Error('세션 처리 중 오류가 발생했습니다. 잠시 후 로그인 페이지로 이동합니다.');
+      }
+      
       setSearchLoading(true);
       setServices([]); // 검색 시 기존 데이터 초기화
       setFirstPageLoaded(false);
       setBackgroundLoading(false);
       
-      console.log('Performing server search with params:', searchParams);
+      console.log('[ServiceList] 검색 파라미터:', searchParams);
       
       // 검색 쿼리 구성
       let query = supabase
@@ -745,11 +828,24 @@ function ServiceList() {
         }
       }
 
-      // 총 검색 결과 수와 첫 페이지를 동시에 가져오기
-      const [countResult, firstPageResult] = await Promise.all([
+      // 총 검색 결과 수와 첫 페이지를 동시에 가져오기 (타임아웃 적용)
+      console.log('[ServiceList] 검색 쿼리 실행 시작');
+      
+      const searchTimeout = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('검색 요청 시간이 초과되었습니다.')), 30000);
+      });
+      
+      const searchPromise = Promise.all([
         countQuery,
         firstPageQuery
       ]);
+      
+      const [countResult, firstPageResult] = await Promise.race([
+        searchPromise,
+        searchTimeout
+      ]);
+      
+      console.log('[ServiceList] 검색 쿼리 실행 완료');
       
       if (countResult.error) {
         console.error('Error counting search results:', countResult.error);
@@ -765,7 +861,7 @@ function ServiceList() {
       const firstPageData = firstPageResult.data;
       
       setTotalExpected(totalCount);
-      console.log(`Search results: ${totalCount} total, ${firstPageData?.length || 0} loaded`);
+      console.log(`[ServiceList] 검색 결과: 총 ${totalCount}건, 로드된 ${firstPageData?.length || 0}건`);
       
       if (firstPageData && firstPageData.length > 0) {
         // 검색 결과 처리 및 표시
@@ -794,11 +890,13 @@ function ServiceList() {
       }
       
       setHasActiveSearch(true);
+      console.log('[ServiceList] 검색 완료');
       
     } catch (err) {
-      console.error('Error in server search:', err);
+      console.error('[ServiceList] 검색 오류:', err);
       setError(`검색 중 오류가 발생했습니다: ${err.message}`);
     } finally {
+      console.log('[ServiceList] 검색 로딩 상태 해제');
       setSearchLoading(false);
     }
   };
