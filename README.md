@@ -1,6 +1,35 @@
-# Getting Started with Create React App
+# CRM App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+
+## 구글 드라이브 연동 설정
+
+AS 디테일에서 파일 업로드 기능을 사용하려면 구글 드라이브 API 설정이 필요합니다.
+
+### 1. Google Cloud Console 설정
+
+1. [Google Cloud Console](https://console.cloud.google.com/) 접속
+2. 새 프로젝트 생성 또는 기존 프로젝트 선택
+3. "API 및 서비스" > "라이브러리"에서 "Google Drive API" 활성화
+4. "API 및 서비스" > "사용자 인증 정보"에서 OAuth 2.0 클라이언트 ID 생성
+5. 승인된 리디렉션 URI에 다음 추가:
+   - `http://localhost:3000/google-auth-callback.html` (개발용)
+   - `https://yourdomain.com/google-auth-callback.html` (프로덕션용)
+
+### 2. 환경변수 설정
+
+프로젝트 루트에 `.env` 파일을 생성하고 다음을 추가:
+
+```
+REACT_APP_GOOGLE_CLIENT_ID=your_google_client_id_here
+```
+
+### 3. 사용 방법
+
+1. AS 디테일 페이지에서 "첨부 파일" 섹션 확인
+2. "파일 추가" 버튼 클릭
+3. 구글 드라이브 인증 완료 (최초 1회)
+4. 파일 선택하여 자동 업로드
 
 ## Available Scripts
 

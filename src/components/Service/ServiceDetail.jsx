@@ -63,6 +63,12 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import { formatKoreanDateTime } from '../../utils/dateUtils';
 import { sendTelegramNotification } from '../../lib/telegram';
 import { processServiceCompletion } from '../../utils/inventoryUtils';
+import { 
+  uploadFileToGoogleDrive, 
+  findOrCreateFolder, 
+  shareGoogleDriveFile,
+  getGoogleDrivePreviewUrl 
+} from '../../utils/googleDriveUtils';
 
 // PDF worker 설정
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
@@ -107,6 +113,12 @@ function ServiceDetail() {
   ]);
   const [submitting, setSubmitting] = useState(false);
   const [openReceiptDialog, setOpenReceiptDialog] = useState(false);
+  
+  // 파일 업로드 관련 상태
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [googleAccessToken, setGoogleAccessToken] = useState(null);
+  
   const [confirmDialog, setConfirmDialog] = useState({
     open: false,
     title: '',
@@ -259,8 +271,19 @@ function ServiceDetail() {
         throw new Error('A/S ID가 없습니다.');
       }
       
-      // 세션 상태 확인 및 갱신
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      // 세션 상태 확인 및 갱신 (타임아웃 적용)
+      console.log('[ServiceDetail] 세션 상태 확인 시작');
+      
+      const sessionPromise = supabase.auth.getSession();
+      const sessionTimeout = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('세션 확인 시간 초과')), 5000);
+      });
+      
+      const { data: { session }, error: sessionError } = await Promise.race([
+        sessionPromise,
+        sessionTimeout
+      ]);
+      
       if (sessionError) {
         console.error('[ServiceDetail] 세션 확인 오류:', sessionError);
         throw new Error('세션 확인 중 오류가 발생했습니다.');
@@ -271,26 +294,42 @@ function ServiceDetail() {
         throw new Error('로그인이 필요합니다.');
       }
       
-      // 세션이 만료되었는지 확인
+      console.log('[ServiceDetail] 세션 확인 완료, 만료 시간:', new Date(session.expires_at * 1000));
+      
+      // 세션이 만료되었는지 확인 (여유 시간 5분 추가)
       const now = new Date();
-      const expiresAt = new Date(session.expires_at * 1000);
+      const expiresAt = new Date((session.expires_at - 300) * 1000); // 5분 여유
+      
       if (now >= expiresAt) {
         console.warn('[ServiceDetail] 세션이 만료되었습니다. 갱신을 시도합니다.');
         
-        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        const refreshPromise = supabase.auth.refreshSession();
+        const refreshTimeout = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('세션 갱신 시간 초과')), 10000);
+        });
+        
+        const { data: refreshData, error: refreshError } = await Promise.race([
+          refreshPromise,
+          refreshTimeout
+        ]);
+        
         if (refreshError || !refreshData.session) {
           console.error('[ServiceDetail] 세션 갱신 실패:', refreshError);
           throw new Error('세션이 만료되었습니다. 다시 로그인해주세요.');
         }
         console.log('[ServiceDetail] 세션이 성공적으로 갱신되었습니다.');
+      } else {
+        console.log('[ServiceDetail] 세션이 유효합니다.');
       }
       
       console.log(`[ServiceDetail] 데이터 로딩 시작 - 시도 ${retryCount + 1}/3, ID: ${id}`);
       
-      // 타임아웃 설정 (60초)
+      // 타임아웃 설정 (30초로 단축)
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('요청 시간이 초과되었습니다.')), 60000);
+        setTimeout(() => reject(new Error('요청 시간이 초과되었습니다.')), 30000);
       });
+      
+      console.log('[ServiceDetail] Supabase 쿼리 시작');
       
       const dataPromise = supabase
         .from('services')
@@ -310,11 +349,15 @@ function ServiceDetail() {
         .eq('id', id)
         .single();
 
+      console.log('[ServiceDetail] Promise.race 시작 (데이터 요청 vs 타임아웃)');
+      
       // 타임아웃과 데이터 요청을 경쟁시킴
       const { data: serviceData, error: serviceError } = await Promise.race([
         dataPromise,
         timeoutPromise
       ]);
+      
+      console.log('[ServiceDetail] Promise.race 완료 - 데이터:', !!serviceData, '에러:', !!serviceError);
 
       if (serviceError) {
         console.error(`[ServiceDetail] 데이터 로딩 오류 (시도 ${retryCount + 1}):`, serviceError);
@@ -337,7 +380,17 @@ function ServiceDetail() {
           if (serviceError.message.includes('JWT') || serviceError.message.includes('auth') || serviceError.message.includes('401')) {
             try {
               console.log('[ServiceDetail] 인증 오류로 인한 세션 갱신 시도');
-              const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+              
+              const refreshPromise = supabase.auth.refreshSession();
+              const refreshTimeout = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('세션 갱신 시간 초과')), 8000);
+              });
+              
+              const { data: refreshData, error: refreshError } = await Promise.race([
+                refreshPromise,
+                refreshTimeout
+              ]);
+              
               if (refreshError || !refreshData.session) {
                 console.error('[ServiceDetail] 세션 갱신 실패:', refreshError);
                 throw new Error('세션이 만료되었습니다. 다시 로그인해주세요.');
@@ -359,10 +412,17 @@ function ServiceDetail() {
       }
 
       if (!serviceData) {
+        console.error('[ServiceDetail] 서비스 데이터가 null입니다.');
         throw new Error('서비스 데이터를 찾을 수 없습니다.');
       }
 
-      console.log('[ServiceDetail] 데이터 로딩 성공:', serviceData);
+      console.log('[ServiceDetail] 데이터 로딩 성공:', {
+        id: serviceData.id,
+        customer_name: serviceData.customer_name,
+        status: serviceData.status,
+        service_parts_count: serviceData.service_parts?.length || 0,
+        service_tags_count: serviceData.service_tags?.length || 0
+      });
 
       let receptionDate = null;
       let receptionTime = '10:30'; // 기본값
@@ -1310,6 +1370,68 @@ function ServiceDetail() {
     }
   }, [formData.brand]);
 
+  // 구글 OAuth 콜백 처리
+  useEffect(() => {
+    const handleGoogleOAuthCallback = () => {
+      const urlParams = new URLSearchParams(window.location.hash.substring(1));
+      const accessToken = urlParams.get('access_token');
+      const error = urlParams.get('error');
+      
+      if (error) {
+        console.error('구글 OAuth 오류:', error);
+        setSnackbar({
+          open: true,
+          message: `구글 드라이브 인증 실패: ${error}`,
+          severity: 'error'
+        });
+        return;
+      }
+      
+      if (accessToken) {
+        localStorage.setItem('google_access_token', accessToken);
+        setGoogleAccessToken(accessToken);
+        
+        // URL에서 토큰 제거
+        window.history.replaceState({}, document.title, window.location.pathname);
+        
+        setSnackbar({
+          open: true,
+          message: '구글 드라이브 인증이 완료되었습니다.',
+          severity: 'success'
+        });
+      }
+    };
+
+    // 팝업 창에서 부모 창으로 메시지 전달 처리
+    const handleMessage = (event) => {
+      if (event.origin !== window.location.origin) return;
+      
+      if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
+        const { accessToken } = event.data;
+        localStorage.setItem('google_access_token', accessToken);
+        setGoogleAccessToken(accessToken);
+        setSnackbar({
+          open: true,
+          message: '구글 드라이브 인증이 완료되었습니다.',
+          severity: 'success'
+        });
+      } else if (event.data.type === 'GOOGLE_AUTH_ERROR') {
+        setSnackbar({
+          open: true,
+          message: `구글 드라이브 인증 실패: ${event.data.error}`,
+          severity: 'error'
+        });
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    handleGoogleOAuthCallback();
+    
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, []);
+
   const handleUsageChange = (index, newUsage) => {
     const updatedParts = [...selectedParts];
     updatedParts[index] = {
@@ -1430,6 +1552,186 @@ function ServiceDetail() {
     setCustomerSearchOpen(false);
     setCustomerInputValue('');
     setCustomerSearchResults([]);
+  };
+
+  // 구글 드라이브 액세스 토큰 가져오기
+  const getGoogleAccessToken = async () => {
+    try {
+      // 구글 OAuth 토큰을 localStorage에서 가져오거나 새로 요청
+      const token = localStorage.getItem('google_access_token');
+      if (token) {
+        // 토큰 유효성 검사
+        try {
+          const response = await fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (response.ok) {
+            setGoogleAccessToken(token);
+            return token;
+          } else {
+            // 토큰이 만료되었으면 제거
+            localStorage.removeItem('google_access_token');
+          }
+        } catch (tokenError) {
+          console.warn('토큰 유효성 검사 실패:', tokenError);
+          localStorage.removeItem('google_access_token');
+        }
+      }
+      
+      // 토큰이 없거나 만료되었으면 구글 OAuth 인증 요청
+      const clientId = process.env.REACT_APP_GOOGLE_CLIENT_ID;
+      if (!clientId) {
+        throw new Error('구글 클라이언트 ID가 설정되지 않았습니다. 환경변수 REACT_APP_GOOGLE_CLIENT_ID를 확인하세요.');
+      }
+      
+      const redirectUri = `${window.location.origin}/google-auth-callback.html`;
+      const authUrl = `https://accounts.google.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=https://www.googleapis.com/auth/drive.file&response_type=token&access_type=offline`;
+      
+      setSnackbar({
+        open: true,
+        message: '구글 드라이브 인증이 필요합니다. 새 창에서 인증을 완료해주세요.',
+        severity: 'info'
+      });
+      
+      // 팝업 창으로 인증
+      const popup = window.open(authUrl, 'google-auth', 'width=500,height=600,scrollbars=yes,resizable=yes');
+      
+      return new Promise((resolve, reject) => {
+        const checkClosed = setInterval(() => {
+          if (popup.closed) {
+            clearInterval(checkClosed);
+            const newToken = localStorage.getItem('google_access_token');
+            if (newToken) {
+              setGoogleAccessToken(newToken);
+              resolve(newToken);
+            } else {
+              reject(new Error('구글 드라이브 인증이 취소되었습니다.'));
+            }
+          }
+        }, 1000);
+      });
+      
+    } catch (error) {
+      console.error('구글 액세스 토큰 가져오기 실패:', error);
+      throw error;
+    }
+  };
+
+  // 파일 업로드 핸들러
+  const handleFileUpload = async (event) => {
+    const files = Array.from(event.target.files);
+    if (files.length === 0) return;
+
+    try {
+      setUploadingFiles(true);
+      
+      // 구글 액세스 토큰 확인
+      let accessToken = googleAccessToken;
+      if (!accessToken) {
+        accessToken = await getGoogleAccessToken();
+        if (!accessToken) {
+          throw new Error('구글 드라이브 인증이 필요합니다.');
+        }
+      }
+
+      // AS 서비스별 폴더 생성
+      const serviceFolderName = `AS_${formData.customer_name}_${formData.product_name}_${id}`;
+      const serviceFolder = await findOrCreateFolder(serviceFolderName, null, accessToken);
+
+      const uploadResults = [];
+      
+      for (const file of files) {
+        try {
+          // 파일 업로드
+          const uploadResult = await uploadFileToGoogleDrive(file, serviceFolder.id, accessToken);
+          
+          // 파일 공유 설정 (링크로 접근 가능하도록)
+          await shareGoogleDriveFile(uploadResult.id, accessToken, 'reader', 'anyone');
+          
+          uploadResults.push({
+            id: uploadResult.id,
+            name: uploadResult.name,
+            webViewLink: uploadResult.webViewLink,
+            webContentLink: uploadResult.webContentLink,
+            size: file.size,
+            type: file.type,
+            uploadDate: new Date().toISOString()
+          });
+          
+        } catch (fileError) {
+          console.error(`파일 ${file.name} 업로드 실패:`, fileError);
+          setSnackbar({
+            open: true,
+            message: `파일 ${file.name} 업로드 실패: ${fileError.message}`,
+            severity: 'error'
+          });
+        }
+      }
+
+      if (uploadResults.length > 0) {
+        setUploadedFiles(prev => [...prev, ...uploadResults]);
+        
+        // 서비스 데이터에 파일 링크 추가
+        const fileLinks = uploadResults.map(file => file.webViewLink).join(', ');
+        const updatedNote = formData.note ? `${formData.note}\n\n[첨부파일]\n${fileLinks}` : `[첨부파일]\n${fileLinks}`;
+        
+        setFormData(prev => ({
+          ...prev,
+          note: updatedNote
+        }));
+
+        setSnackbar({
+          open: true,
+          message: `${uploadResults.length}개 파일이 구글 드라이브에 업로드되었습니다.`,
+          severity: 'success'
+        });
+      }
+
+    } catch (error) {
+      console.error('파일 업로드 실패:', error);
+      setSnackbar({
+        open: true,
+        message: `파일 업로드 실패: ${error.message}`,
+        severity: 'error'
+      });
+    } finally {
+      setUploadingFiles(false);
+      // 파일 입력 초기화
+      event.target.value = '';
+    }
+  };
+
+  // 파일 삭제 핸들러
+  const handleFileDelete = async (fileId) => {
+    try {
+      if (!googleAccessToken) {
+        throw new Error('구글 드라이브 인증이 필요합니다.');
+      }
+
+      // 구글 드라이브에서 파일 삭제
+      const { deleteGoogleDriveFile } = await import('../../utils/googleDriveUtils');
+      await deleteGoogleDriveFile(fileId, googleAccessToken);
+      
+      // 로컬 상태에서 제거
+      setUploadedFiles(prev => prev.filter(file => file.id !== fileId));
+      
+      setSnackbar({
+        open: true,
+        message: '파일이 삭제되었습니다.',
+        severity: 'success'
+      });
+      
+    } catch (error) {
+      console.error('파일 삭제 실패:', error);
+      setSnackbar({
+        open: true,
+        message: `파일 삭제 실패: ${error.message}`,
+        severity: 'error'
+      });
+    }
   };
 
   // 프린트 출력 함수 추가
@@ -2602,22 +2904,26 @@ function ServiceDetail() {
                         />
                       )}
                       renderTags={(value, getTagProps) =>
-                        value.map((option, index) => (
-                          <Chip
-                            label={option}
-                            {...getTagProps({ index })}
-                            sx={{
-                              bgcolor: '#e8f3ff',
-                              color: '#3182f6',
-                              '& .MuiChip-deleteIcon': {
+                        value.map((option, index) => {
+                          const { key, ...tagProps } = getTagProps({ index });
+                          return (
+                            <Chip
+                              key={key}
+                              label={option}
+                              {...tagProps}
+                              sx={{
+                                bgcolor: '#e8f3ff',
                                 color: '#3182f6',
-                                '&:hover': {
-                                  color: '#1b64da'
+                                '& .MuiChip-deleteIcon': {
+                                  color: '#3182f6',
+                                  '&:hover': {
+                                    color: '#1b64da'
+                                  }
                                 }
-                              }
-                            }}
-                          />
-                        ))
+                              }}
+                            />
+                          );
+                        })
                       }
                     />
                     <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
@@ -2645,6 +2951,95 @@ function ServiceDetail() {
                 </Grid>
               </Box>
             </Grid>
+          </Grid>
+
+          {/* 파일 업로드 섹션 */}
+          <Grid item xs={12}>
+            <Box sx={{ mt: 4 }}>
+              <Typography variant="subtitle1" sx={sectionStyle}>
+                첨부 파일
+              </Typography>
+              <Box sx={{ mt: 2 }}>
+                {/* 파일 업로드 버튼 */}
+                <Box sx={{ mb: 2 }}>
+                  <input
+                    accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx"
+                    style={{ display: 'none' }}
+                    id="file-upload"
+                    multiple
+                    type="file"
+                    onChange={handleFileUpload}
+                    disabled={uploadingFiles}
+                  />
+                  <label htmlFor="file-upload">
+                    <Button
+                      variant="outlined"
+                      component="span"
+                      startIcon={uploadingFiles ? <CircularProgress size={20} /> : <AddIcon />}
+                      disabled={uploadingFiles}
+                      sx={{ mb: 2 }}
+                    >
+                      {uploadingFiles ? '업로드 중...' : '파일 추가 (사진/영상/문서)'}
+                    </Button>
+                  </label>
+                  <Typography variant="caption" color="text.secondary" sx={{ ml: 2 }}>
+                    구글 드라이브에 자동으로 업로드됩니다
+                  </Typography>
+                </Box>
+
+                {/* 업로드된 파일 목록 */}
+                {uploadedFiles.length > 0 && (
+                  <Box sx={{ mt: 2 }}>
+                    <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                      업로드된 파일 ({uploadedFiles.length}개)
+                    </Typography>
+                    <TableContainer component={Paper} sx={{ maxHeight: 300 }}>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>파일명</TableCell>
+                            <TableCell>크기</TableCell>
+                            <TableCell>업로드일</TableCell>
+                            <TableCell align="center">작업</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {uploadedFiles.map((file) => (
+                            <TableRow key={file.id}>
+                              <TableCell>
+                                <Link 
+                                  href={file.webViewLink} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  sx={{ textDecoration: 'none' }}
+                                >
+                                  {file.name}
+                                </Link>
+                              </TableCell>
+                              <TableCell>
+                                {(file.size / 1024 / 1024).toFixed(2)} MB
+                              </TableCell>
+                              <TableCell>
+                                {new Date(file.uploadDate).toLocaleDateString()}
+                              </TableCell>
+                              <TableCell align="center">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleFileDelete(file.id)}
+                                  color="error"
+                                >
+                                  <DeleteIcon />
+                                </IconButton>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Box>
+                )}
+              </Box>
+            </Box>
           </Grid>
 
           <Grid item xs={12}>
