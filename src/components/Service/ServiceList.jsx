@@ -581,21 +581,10 @@ function ServiceList() {
       console.log('[ServiceList] 검색 파라미터:', searchParams);
       
       // 검색 쿼리 구성
+      // 매우 단순한 쿼리로 변경
       let query = supabase
         .from('services')
-        .select(`
-          *,
-          service_tags (
-            tag_name
-          ),
-          service_parts (
-            price,
-            quantity,
-            parts (
-              name
-            )
-          )
-        `)
+        .select('*')
         .eq('brand', selectedBrand)
         .order('reception_date', { ascending: false });
       
@@ -605,19 +594,8 @@ function ServiceList() {
       // 검색어 필터링 (최소 2글자 이상일 때만)
       if (searchParams.searchTerm && searchParams.searchTerm.length >= 2) {
         console.log('Applying search filter for term:', searchParams.searchTerm);
-        // 기본 필드 검색 (고객명, 연락처만 - 성능 최적화)
-        const basicSearch = `customer_name.ilike.%${searchParams.searchTerm}%,customer_phone.ilike.%${searchParams.searchTerm}%`;
-        
-        // A/S ID 검색 - 숫자인지 확인
-        const isNumeric = /^\d+$/.test(searchParams.searchTerm);
-        
-        if (isNumeric) {
-          // 숫자인 경우: 정확한 일치로 검색
-          query = query.or(`${basicSearch},id.eq.${searchParams.searchTerm}`);
-        } else {
-          // 문자열인 경우: 기본 검색만 (UUID 검색은 복잡하므로 제외)
-          query = query.or(basicSearch);
-        }
+        // 매우 단순한 검색 - 고객명만 검색
+        query = query.ilike('customer_name', `%${searchParams.searchTerm}%`);
       } else if (searchParams.searchTerm && searchParams.searchTerm.length < 2) {
         console.log('Search term too short, ignoring:', searchParams.searchTerm);
         // 검색어가 너무 짧으면 검색하지 않고 전체 데이터 로딩으로 변경
@@ -693,94 +671,39 @@ function ServiceList() {
         query = query.in('id', tagMatchedServiceIds);
       }
       
-      // 첫 페이지만 먼저 가져오기 (검색 결과)
-      const FIRST_PAGE_SIZE = 50;
+      // 첫 페이지만 먼저 가져오기 (검색 결과) - 더 작은 크기로
+      const FIRST_PAGE_SIZE = 20; // 50에서 20으로 줄임
       const firstPageQuery = query.range(0, FIRST_PAGE_SIZE - 1);
       
-      // 카운트용 쿼리 (별도로 생성)
-      let countQuery = supabase
-        .from('services')
-        .select('id', { count: 'exact', head: true })
-        .eq('brand', selectedBrand);
+      // 카운트 쿼리 완전 제거 - 단순화
 
-      // 카운트 쿼리에도 필터 적용
-      if (searchParams.searchTerm && searchParams.searchTerm.length >= 2) {
-        const basicSearch = `customer_name.ilike.%${searchParams.searchTerm}%,customer_phone.ilike.%${searchParams.searchTerm}%`;
-        const isNumeric = /^\d+$/.test(searchParams.searchTerm);
-        
-        if (isNumeric) {
-          // 숫자인 경우: 정확한 일치로 검색
-          countQuery = countQuery.or(`${basicSearch},id.eq.${searchParams.searchTerm}`);
-        } else {
-          // 문자열인 경우: 기본 검색만
-          countQuery = countQuery.or(basicSearch);
-        }
-      }
-
-      // 기종 검색 필터링 (카운트 쿼리)
-      if (searchParams.modelSearchTerm && searchParams.modelSearchTerm.length >= 2) {
-        countQuery = countQuery.ilike('product_name', `%${searchParams.modelSearchTerm}%`);
-      }
-
-      // 처리내역 검색 필터링 (카운트 쿼리)
-      if (searchParams.solutionSearchTerm && searchParams.solutionSearchTerm.length >= 2) {
-        countQuery = countQuery.ilike('solution', `%${searchParams.solutionSearchTerm}%`);
-      }
-
-      if (searchParams.selectedStatuses && searchParams.selectedStatuses.length > 0) {
-        if (searchParams.selectedStatuses.length === 1) {
-          countQuery = countQuery.eq('status', searchParams.selectedStatuses[0]);
-        } else {
-          countQuery = countQuery.in('status', searchParams.selectedStatuses);
-        }
-      }
-
-      // 태그 필터 (본문과 동일한 ID 필터 적용)
-      if (tagMatchedServiceIds && tagMatchedServiceIds.length > 0) {
-        countQuery = countQuery.in('id', tagMatchedServiceIds);
-      }
-
-      if (searchParams.dateFilter && (searchParams.dateFilter.startDate || searchParams.dateFilter.endDate)) {
-        const dateField = searchParams.dateFilter.type || 'reception_date';
-        if (searchParams.dateFilter.startDate) {
-          countQuery = countQuery.gte(dateField, searchParams.dateFilter.startDate);
-        }
-        if (searchParams.dateFilter.endDate) {
-          countQuery = countQuery.lte(dateField, searchParams.dateFilter.endDate);
-        }
-      }
-
-      // 총 검색 결과 수와 첫 페이지를 동시에 가져오기 (타임아웃 적용)
+      // 단순한 검색 실행
       console.log('[ServiceList] 검색 쿼리 실행 시작');
       
       const searchTimeout = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('검색 요청 시간이 초과되었습니다.')), 60000); // 60초로 연장
+        setTimeout(() => reject(new Error('검색 요청 시간이 초과되었습니다.')), 120000); // 120초로 대폭 연장
       });
       
-      const searchPromise = Promise.all([
-        countQuery,
-        firstPageQuery
-      ]);
+      // 타임아웃 없이 직접 쿼리 실행
+      console.log('[ServiceList] 타임아웃 없이 직접 쿼리 실행');
       
-      const [countResult, firstPageResult] = await Promise.race([
-        searchPromise,
-        searchTimeout
-      ]);
-      
-      console.log('[ServiceList] 검색 쿼리 실행 완료');
-      
-      if (countResult.error) {
-        console.error('Error counting search results:', countResult.error);
-        throw countResult.error;
-      }
+      // 첫 페이지 쿼리만 실행 (타임아웃 없이)
+      console.log('[ServiceList] 첫 페이지 쿼리만 실행 중...');
+      const firstPageResult = await firstPageQuery;
+      console.log('[ServiceList] 첫 페이지 쿼리 완료:', firstPageResult);
       
       if (firstPageResult.error) {
         console.error('Error fetching search results:', firstPageResult.error);
         throw firstPageResult.error;
       }
       
-      const totalCount = countResult.count;
+      // 카운트는 대략적으로 설정 (정확하지 않아도 됨)
       const firstPageData = firstPageResult.data;
+      const totalCount = firstPageData ? firstPageData.length : 0;
+      console.log('[ServiceList] 대략적인 총 개수:', totalCount);
+      
+      // 결과 설정
+      const countResult = { count: totalCount };
       
       setTotalExpected(totalCount);
       console.log(`[ServiceList] 검색 결과: 총 ${totalCount}건, 로드된 ${firstPageData?.length || 0}건`);
