@@ -566,9 +566,9 @@ function ServiceList() {
   };
 
   // 서버 사이드 검색 함수
-  const performServerSearch = async (searchParams = {}) => {
+  const performServerSearch = async (searchParams = {}, retryCount = 0) => {
     try {
-      console.log('[ServiceList] 검색 시작 - 세션 확인');
+      console.log(`[ServiceList] 검색 시작 - 세션 확인 (재시도: ${retryCount})`);
       
       // 세션 상태 확인 및 갱신 (타임아웃 적용)
       console.log('[ServiceList] 세션 확인 시작');
@@ -592,63 +592,41 @@ function ServiceList() {
         }
         
         if (!session) {
-          console.warn('[ServiceList] 세션이 없습니다. 로그인 페이지로 리다이렉트합니다.');
-          // 로그인 페이지로 리다이렉트
-          setTimeout(() => {
-            window.location.href = '/login';
-          }, 2000);
-          throw new Error('로그인이 필요합니다. 잠시 후 로그인 페이지로 이동합니다.');
+          console.warn('[ServiceList] 세션이 없습니다. 재시도를 시도합니다.');
+          throw new Error('세션이 없습니다. 다시 시도해주세요.');
         }
       
         console.log('[ServiceList] 세션 확인 완료, 만료 시간:', new Date(session.expires_at * 1000));
         
-        // 세션이 만료되었는지 확인 (여유 시간 5분 추가)
+        // 세션 만료 확인을 단순화 (10분 여유)
         const now = new Date();
-        const expiresAt = new Date((session.expires_at - 300) * 1000); // 5분 여유
+        const expiresAt = new Date((session.expires_at - 600) * 1000); // 10분 여유
         
         if (now >= expiresAt) {
-          console.warn('[ServiceList] 세션이 만료되었습니다. 갱신을 시도합니다.');
+          console.warn('[ServiceList] 세션이 곧 만료됩니다. 갱신을 시도합니다.');
           
           try {
-            const refreshPromise = supabase.auth.refreshSession();
-            const refreshTimeout = new Promise((_, reject) => {
-              setTimeout(() => reject(new Error('세션 갱신 시간 초과')), 10000);
-            });
-            
-            const { data: refreshData, error: refreshError } = await Promise.race([
-              refreshPromise,
-              refreshTimeout
-            ]);
+            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
             
             if (refreshError || !refreshData.session) {
               console.error('[ServiceList] 세션 갱신 실패:', refreshError);
-              console.warn('[ServiceList] 세션 갱신 실패로 로그인 페이지로 리다이렉트합니다.');
-              // 로그인 페이지로 리다이렉트
-              setTimeout(() => {
-                window.location.href = '/login';
-              }, 2000);
-              throw new Error('세션이 만료되었습니다. 잠시 후 로그인 페이지로 이동합니다.');
+              // 갱신 실패해도 계속 진행 (세션이 아직 유효할 수 있음)
+              console.log('[ServiceList] 세션 갱신 실패했지만 계속 진행합니다.');
+            } else {
+              console.log('[ServiceList] 세션이 성공적으로 갱신되었습니다.');
             }
-            console.log('[ServiceList] 세션이 성공적으로 갱신되었습니다.');
           } catch (refreshErr) {
             console.error('[ServiceList] 세션 갱신 중 오류:', refreshErr);
-            console.warn('[ServiceList] 세션 갱신 오류로 로그인 페이지로 리다이렉트합니다.');
-            // 로그인 페이지로 리다이렉트
-            setTimeout(() => {
-              window.location.href = '/login';
-            }, 2000);
-            throw new Error('세션이 만료되었습니다. 잠시 후 로그인 페이지로 이동합니다.');
+            // 갱신 오류가 있어도 계속 진행
+            console.log('[ServiceList] 세션 갱신 오류가 있었지만 계속 진행합니다.');
           }
         } else {
           console.log('[ServiceList] 세션이 유효합니다.');
         }
       } catch (sessionErr) {
         console.error('[ServiceList] 세션 처리 중 오류:', sessionErr);
-        // 세션 오류 시 로그인 페이지로 리다이렉트
-        setTimeout(() => {
-          window.location.href = '/login';
-        }, 2000);
-        throw new Error('세션 처리 중 오류가 발생했습니다. 잠시 후 로그인 페이지로 이동합니다.');
+        console.warn('[ServiceList] 세션 처리 오류. 재시도를 시도합니다.');
+        throw new Error('세션 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
       }
       
       setSearchLoading(true);
@@ -894,6 +872,37 @@ function ServiceList() {
       
     } catch (err) {
       console.error('[ServiceList] 검색 오류:', err);
+      
+      // 세션 관련 오류인 경우 재시도
+      if (retryCount < 2 && (
+        err.message.includes('세션') || 
+        err.message.includes('로그인') ||
+        err.message.includes('세션 확인 시간 초과') ||
+        err.message.includes('세션 갱신 시간 초과')
+      )) {
+        console.log(`[ServiceList] 세션 오류로 인한 재시도 (${retryCount + 1}/2)`);
+        
+        // 세션 갱신 시도
+        try {
+          console.log('[ServiceList] 세션 갱신 시도');
+          const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+          
+          if (refreshError) {
+            console.error('[ServiceList] 세션 갱신 실패:', refreshError);
+            throw new Error('세션 갱신에 실패했습니다.');
+          }
+          
+          console.log('[ServiceList] 세션 갱신 성공, 재시도 진행');
+        } catch (refreshErr) {
+          console.error('[ServiceList] 세션 갱신 중 오류:', refreshErr);
+        }
+        
+        setTimeout(() => {
+          performServerSearch(searchParams, retryCount + 1);
+        }, 1000 * (retryCount + 1)); // 1초, 2초 지연으로 단축
+        return;
+      }
+      
       setError(`검색 중 오류가 발생했습니다: ${err.message}`);
     } finally {
       console.log('[ServiceList] 검색 로딩 상태 해제');
@@ -2531,7 +2540,7 @@ function ServiceList() {
     
     console.log('[ServiceList] 검색 실행 시 태그 상태:', { selectedTags, searchParams: searchParams.selectedTags });
     
-    performServerSearch(searchParams);
+    performServerSearch(searchParams, 0);
   }, [inputValue, selectedStatuses, selectedTags, dateFilter, searchMode, modelSearchTerm, solutionSearchTerm, fetchServices, performServerSearch]);
   const [networkError, setNetworkError] = useState(false); // 네트워크 오류 상태
   const [isOnline, setIsOnline] = useState(navigator.onLine); // 온라인 상태
@@ -2977,6 +2986,31 @@ function ServiceList() {
             <Typography variant="body2" sx={{ mt: 1, opacity: 0.8 }}>
               {selectedBrand === 'XRB' ? 'X-RIDER' : 'NEARBIKE'} 브랜드 데이터 로딩 중
             </Typography>
+            
+            {/* 디버깅 정보 표시 */}
+            <Box sx={{ mt: 2, p: 2, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 1 }}>
+              <Typography variant="caption" display="block">
+                로딩: {loading ? 'true' : 'false'}
+              </Typography>
+              <Typography variant="caption" display="block">
+                첫페이지로드: {firstPageLoaded ? 'true' : 'false'}
+              </Typography>
+              <Typography variant="caption" display="block">
+                서비스수: {services.length}
+              </Typography>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => {
+                  console.log('강제 로딩 해제');
+                  setLoading(false);
+                  setFirstPageLoaded(true);
+                }}
+                sx={{ mt: 1 }}
+              >
+                강제 로딩 해제
+              </Button>
+            </Box>
             
             {progressiveLoading && loadProgress > 0 && (
               <Box sx={{ mt: 2, mb: 1 }}>
