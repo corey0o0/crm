@@ -689,11 +689,7 @@ function ServiceList() {
       // 단순한 검색 실행
       console.log('[ServiceList] 검색 쿼리 실행 시작');
       
-      const searchTimeout = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('검색 요청 시간이 초과되었습니다.')), 120000); // 120초로 대폭 연장
-      });
-      
-      // 타임아웃 없이 직접 쿼리 실행
+      // 타임아웃 완전 제거 - 직접 쿼리 실행
       console.log('[ServiceList] 타임아웃 없이 직접 쿼리 실행');
       
       // 더 단순한 쿼리로 테스트
@@ -784,16 +780,13 @@ function ServiceList() {
     } catch (err) {
       console.error('[ServiceList] 검색 오류:', err);
       
-      // 네트워크 오류나 타임아웃 오류인 경우에만 재시도
+      // 네트워크 오류인 경우에만 재시도 (타임아웃 관련 조건 제거)
       if (retryCount < 2 && (
         err.message.includes('network') || 
         err.message.includes('fetch') || 
-        err.message.includes('Failed to fetch') ||
-        err.message.includes('timeout') ||
-        err.message.includes('요청 시간이 초과') ||
-        err.message.includes('검색 요청 시간이 초과')
+        err.message.includes('Failed to fetch')
       )) {
-        console.log(`[ServiceList] 네트워크/타임아웃 오류로 인한 재시도 (${retryCount + 1}/2)`);
+        console.log(`[ServiceList] 네트워크 오류로 인한 재시도 (${retryCount + 1}/2)`);
         
         setTimeout(() => {
           performServerSearch(searchParams, retryCount + 1);
