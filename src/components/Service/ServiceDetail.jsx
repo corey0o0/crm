@@ -295,9 +295,9 @@ function ServiceDetail() {
       // 단순 쿼리로 먼저 서비스 데이터만 가져오기
       console.log('[ServiceDetail] Supabase 쿼리 시작 (단순 쿼리)');
       
-      // Promise.race로 타임아웃 적용 (30초)
+      // 10초 타임아웃으로 단축 (글로벌 fetch 타임아웃과 동일)
       const queryTimeout = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('쿼리 시간 초과')), 30000);
+        setTimeout(() => reject(new Error('쿼리 시간 초과')), 10000);
       });
       
       const serviceQuery = supabase
@@ -310,6 +310,12 @@ function ServiceDetail() {
         serviceQuery,
         queryTimeout
       ]);
+      
+      console.log('[ServiceDetail] 쿼리 응답 수신:', { 
+        hasData: !!serviceData, 
+        hasError: !!serviceError,
+        errorMsg: serviceError?.message 
+      });
       
       console.log('[ServiceDetail] 기본 데이터 쿼리 완료 - 데이터:', !!serviceData, '에러:', !!serviceError);
       
@@ -345,23 +351,28 @@ function ServiceDetail() {
       if (serviceError) {
         console.error(`[ServiceDetail] 데이터 로딩 오류 (시도 ${retryCount + 1}):`, serviceError);
         
-        // 재시도 로직 개선
+        // 재시도 로직 개선 - 타임아웃은 즉시 재시도
+        const isTimeout = serviceError.message.includes('쿼리 시간 초과') || 
+                         serviceError.message.includes('timeout') ||
+                         serviceError.name === 'AbortError';
+        
         if (retryCount < 2 && (
+          isTimeout ||
           serviceError.code === 'PGRST116' || 
           serviceError.message.includes('network') || 
           serviceError.message.includes('fetch') ||
           serviceError.message.includes('Failed to fetch') ||
           serviceError.message.includes('JWT') ||
           serviceError.message.includes('auth') ||
-          serviceError.message.includes('401') ||
-          serviceError.message.includes('쿼리 시간 초과') ||
-          serviceError.message.includes('timeout')
+          serviceError.message.includes('401')
         )) {
-          console.log(`[ServiceDetail] 재시도 중... (${retryCount + 1}/2)`);
+          // 타임아웃은 즉시 재시도, 다른 오류는 지연 후 재시도
+          const retryDelay = isTimeout ? 0 : 1000 * (retryCount + 1);
+          console.log(`[ServiceDetail] ${isTimeout ? '타임아웃 -' : ''} 재시도 중... (${retryCount + 1}/2, ${retryDelay}ms 후)`);
           
           setTimeout(() => {
             fetchServiceDetail(retryCount + 1);
-          }, 1000 * (retryCount + 1)); // 1초, 2초 지연
+          }, retryDelay);
           return;
         }
         
