@@ -276,14 +276,10 @@ function ServiceDetail() {
       
       console.log(`[ServiceDetail] 데이터 로딩 시작 - 시도 ${retryCount + 1}/3, ID: ${id}`);
       
-      // 타임아웃 설정 (30초로 단축)
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('요청 시간이 초과되었습니다.')), 30000);
-      });
-      
+      // 타임아웃 설정 제거 - 직접 쿼리 실행
       console.log('[ServiceDetail] Supabase 쿼리 시작');
       
-      const dataPromise = supabase
+      const { data: serviceData, error: serviceError } = await supabase
         .from('services')
         .select(`
           *,
@@ -300,16 +296,8 @@ function ServiceDetail() {
         `)
         .eq('id', id)
         .single();
-
-      console.log('[ServiceDetail] Promise.race 시작 (데이터 요청 vs 타임아웃)');
       
-      // 타임아웃과 데이터 요청을 경쟁시킴
-      const { data: serviceData, error: serviceError } = await Promise.race([
-        dataPromise,
-        timeoutPromise
-      ]);
-      
-      console.log('[ServiceDetail] Promise.race 완료 - 데이터:', !!serviceData, '에러:', !!serviceError);
+      console.log('[ServiceDetail] 쿼리 완료 - 데이터:', !!serviceData, '에러:', !!serviceError);
 
       if (serviceError) {
         console.error(`[ServiceDetail] 데이터 로딩 오류 (시도 ${retryCount + 1}):`, serviceError);
@@ -318,10 +306,8 @@ function ServiceDetail() {
         if (retryCount < 2 && (
           serviceError.code === 'PGRST116' || 
           serviceError.message.includes('network') || 
-          serviceError.message.includes('timeout') ||
           serviceError.message.includes('fetch') ||
           serviceError.message.includes('Failed to fetch') ||
-          serviceError.message.includes('요청 시간이 초과되었습니다') ||
           serviceError.message.includes('JWT') ||
           serviceError.message.includes('auth') ||
           serviceError.message.includes('401')
@@ -498,8 +484,6 @@ function ServiceDetail() {
         // 자동 리다이렉트 제거
       } else if (err.message.includes('network') || err.message.includes('fetch') || err.message.includes('Failed to fetch')) {
         errorMessage = '네트워크 연결을 확인해주세요.';
-      } else if (err.message.includes('요청 시간이 초과되었습니다')) {
-        errorMessage = '서버 응답이 지연되고 있습니다. 잠시 후 다시 시도해주세요.';
       } else if (err.message.includes('PGRST116') || err.code === 'PGRST116') {
         errorMessage = '해당 A/S 정보를 찾을 수 없습니다.';
       } else if (err.message.includes('A/S ID가 없습니다')) {
