@@ -279,28 +279,17 @@ function ServiceList() {
 
   useEffect(() => {
     console.log('selectedBrand changed to:', selectedBrand);
+    // 초기 데이터 로딩 활성화 (검색은 비활성화)
     fetchServices();
+    console.log('[ServiceList] 브랜드 변경 감지 - 초기 데이터 로딩 활성화');
   }, [selectedBrand]);
 
-  // 라우트 재진입(키 변경), 포커스/가시성 복귀 시 재호출
+  // 라우트 재진입(키 변경), 포커스/가시성 복귀 시 재호출 비활성화
   useEffect(() => {
-    const onFocus = () => {
-      if (!loading) {
-        fetchServices();
-      }
-    };
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible' && !loading) {
-        fetchServices();
-      }
-    };
-    window.addEventListener('focus', onFocus);
-    document.addEventListener('visibilitychange', onVisibility);
-    // 라우트 키 변경 시에도 재요청
-    fetchServices();
+    console.log('[ServiceList] 포커스/가시성 변경 감지 - 자동 데이터 로딩 비활성화');
+    // 자동 데이터 로딩 비활성화
     return () => {
-      window.removeEventListener('focus', onFocus);
-      document.removeEventListener('visibilitychange', onVisibility);
+      // 이벤트 리스너 정리
     };
     // eslint-disable-next-line
   }, [location.key]);
@@ -706,16 +695,13 @@ function ServiceList() {
         
         console.log('[ServiceList] 브랜드 필터 적용 완료');
         
-        // 검색어 필터 적용
+        // 검색어 필터 적용 (가장 단순한 방식)
         if (searchParams.searchTerm && searchParams.searchTerm.length >= 2) {
           console.log('[ServiceList] 검색어 필터 적용 중:', searchParams.searchTerm);
-          const isNumeric = /^\d+$/.test(searchParams.searchTerm);
           
-          if (isNumeric) {
-            simpleQuery = simpleQuery.or(`id.eq.${searchParams.searchTerm},customer_phone.ilike.%${searchParams.searchTerm}%`);
-          } else {
-            simpleQuery = simpleQuery.or(`customer_name.ilike.%${searchParams.searchTerm}%,customer_phone.ilike.%${searchParams.searchTerm}%`);
-          }
+          // 일단 고객명 검색만 테스트
+          console.log('[ServiceList] 고객명 검색만 테스트:', searchParams.searchTerm);
+          simpleQuery = simpleQuery.ilike('customer_name', `%${searchParams.searchTerm}%`);
           console.log('[ServiceList] 검색어 필터 적용 완료');
         }
         
@@ -725,8 +711,23 @@ function ServiceList() {
           .limit(20);
         
         console.log('[ServiceList] 최종 쿼리 실행 중...');
-        firstPageResult = await simpleQuery;
-        console.log('[ServiceList] 쿼리 실행 완료:', firstPageResult);
+        console.log('[ServiceList] 쿼리 객체 상세:', {
+          table: 'services',
+          select: '*',
+          brand: selectedBrand,
+          searchTerm: searchParams.searchTerm,
+          isNumeric: /^\d+$/.test(searchParams.searchTerm)
+        });
+        
+        console.log('[ServiceList] 쿼리 실행 시작 - await 전');
+        
+        try {
+          firstPageResult = await simpleQuery;
+          console.log('[ServiceList] 쿼리 실행 완료:', firstPageResult);
+        } catch (queryExecutionError) {
+          console.error('[ServiceList] 쿼리 실행 중 오류:', queryExecutionError);
+          throw queryExecutionError;
+        }
       } catch (queryError) {
         console.error('[ServiceList] 쿼리 실행 오류:', queryError);
         throw queryError;
