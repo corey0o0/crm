@@ -789,6 +789,8 @@ function AddService() {
     let serviceId = null; // 등록된 서비스 ID를 저장할 변수
 
     try {
+      console.log('[AddService] 등록 시작');
+      
       let receptionDateTime = null;
       if (formData.reception_date && formData.reception_time) {
         receptionDateTime = `${formData.reception_date}T${formData.reception_time}:00+09:00`;
@@ -813,15 +815,46 @@ function AddService() {
         updated_at: new Date().toISOString()
       };
 
-      const { data: insertedService, error: insertError } = await supabase
+      console.log('[AddService] A/S 정보 등록 시작');
+      let insertedService;
+      const { data: insertData, error: insertError } = await supabase
         .from('services')
         .insert([serviceInsertData])
         .select()
         .single();
 
       if (insertError) {
-        console.error('Service insert error:', insertError);
-        throw new Error(`A/S 정보 등록 중 오류: ${insertError.message}`);
+        console.error('[AddService] Service insert error:', insertError);
+        
+        // JWT 또는 인증 오류 시 재시도
+        if (insertError.message?.includes('JWT') || 
+            insertError.message?.includes('auth') || 
+            insertError.code === '401' ||
+            insertError.message?.includes('Unauthorized')) {
+          console.log('[AddService] 인증 오류 감지 - 재시도');
+          
+          // 짧은 대기 후 재시도 (1회)
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          const { data: retryService, error: retryError } = await supabase
+            .from('services')
+            .insert([serviceInsertData])
+            .select()
+            .single();
+          
+          if (retryError) {
+            console.error('[AddService] 재시도 실패:', retryError);
+            throw new Error(`A/S 정보 등록 중 오류: ${retryError.message}`);
+          }
+          
+          console.log('[AddService] 재시도 성공');
+          insertedService = retryService;
+        } else {
+          throw new Error(`A/S 정보 등록 중 오류: ${insertError.message}`);
+        }
+      } else {
+        console.log('[AddService] A/S 정보 등록 성공:', insertData.id);
+        insertedService = insertData;
       }
       serviceId = insertedService.id;
 

@@ -584,15 +584,18 @@ function ServiceList() {
       if (searchParams.searchTerm && searchParams.searchTerm.length >= 2) {
         console.log('Applying search filter for term:', searchParams.searchTerm);
         
+        // 전화번호 검색을 위해 하이픈 제거
+        const cleanSearchTerm = searchParams.searchTerm.replace(/-/g, '');
+        
         // 고객명, 전화번호, A/S ID 검색
-        const isNumeric = /^\d+$/.test(searchParams.searchTerm);
+        const isNumeric = /^\d+$/.test(cleanSearchTerm);
         
         if (isNumeric) {
-          // 숫자인 경우: A/S ID 정확 검색 또는 전화번호 부분 검색
-          query = query.or(`id.eq.${searchParams.searchTerm},customer_phone.ilike.%${searchParams.searchTerm}%`);
+          // 숫자인 경우: A/S ID 정확 검색 또는 전화번호 부분 검색 (하이픈 제거하여 검색)
+          query = query.or(`id.eq.${cleanSearchTerm},customer_phone.ilike.%${cleanSearchTerm}%`);
         } else {
           // 문자열인 경우: 고객명과 전화번호 검색
-          query = query.or(`customer_name.ilike.%${searchParams.searchTerm}%,customer_phone.ilike.%${searchParams.searchTerm}%`);
+          query = query.or(`customer_name.ilike.%${searchParams.searchTerm}%,customer_phone.ilike.%${cleanSearchTerm}%`);
         }
       } else if (searchParams.searchTerm && searchParams.searchTerm.length < 2) {
         console.log('Search term too short, ignoring:', searchParams.searchTerm);
@@ -3065,7 +3068,7 @@ function ServiceList() {
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
           <TextField
             variant="outlined"
-            placeholder="고객명, 전화번호, A/S ID로 검색 (예: 이민채, 010-1234-5678, 4852)"
+            placeholder="고객명, 전화번호, A/S ID로 검색"
             value={inputValue}
             onChange={handleSearchInput}
             onKeyPress={(e) => {
