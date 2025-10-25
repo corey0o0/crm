@@ -36,11 +36,21 @@ export const AuthProvider = ({ children }) => {
     console.log(`[AuthContext ${timestamp}] 권한 로드 시작 (userId: ${userId})`);
 
     try {
-      const { data: permissions } = await getUserPermissions(userId);
-      setUserPermissions(permissions || []);
+      const { data: permissions, error: permError } = await getUserPermissions(userId);
+      
+      if (permError) {
+        console.error(`[AuthContext ${timestamp}] 권한 로드 오류:`, permError);
+        // 재시도 (1회)
+        console.log(`[AuthContext ${timestamp}] 권한 로드 재시도 중...`);
+        await new Promise(resolve => setTimeout(resolve, 1000)); // 1초 대기
+        const { data: retryPermissions } = await getUserPermissions(userId);
+        setUserPermissions(retryPermissions || []);
+      } else {
+        setUserPermissions(permissions || []);
+      }
 
       // 사용자 역할 정보도 함께 로드
-      const { data: rolesData } = await supabase
+      const { data: rolesData, error: rolesError } = await supabase
         .from('user_roles')
         .select(`
           roles (
@@ -51,10 +61,29 @@ export const AuthProvider = ({ children }) => {
         `)
         .eq('user_id', userId);
       
-      setUserRoles(rolesData?.map(r => r.roles) || []);
+      if (rolesError) {
+        console.error(`[AuthContext ${timestamp}] 역할 로드 오류:`, rolesError);
+        // 재시도 (1회)
+        console.log(`[AuthContext ${timestamp}] 역할 로드 재시도 중...`);
+        await new Promise(resolve => setTimeout(resolve, 1000)); // 1초 대기
+        const { data: retryRolesData } = await supabase
+          .from('user_roles')
+          .select(`
+            roles (
+              id,
+              name,
+              description
+            )
+          `)
+          .eq('user_id', userId);
+        setUserRoles(retryRolesData?.map(r => r.roles) || []);
+      } else {
+        setUserRoles(rolesData?.map(r => r.roles) || []);
+      }
+      
       console.log(`[AuthContext ${timestamp}] 권한 로드 완료`);
     } catch (error) {
-      console.error(`[AuthContext ${timestamp}] 권한 로드 오류:`, error);
+      console.error(`[AuthContext ${timestamp}] 권한 로드 최종 실패:`, error);
       setUserPermissions([]);
       setUserRoles([]);
     } finally {
@@ -79,9 +108,9 @@ export const AuthProvider = ({ children }) => {
     const now = Date.now();
     const timeSinceLastRefresh = now - lastSessionRefreshRef.current;
     
-    // 10초 이내 재호출 방지
-    if (timeSinceLastRefresh < 10000) {
-      console.log('[AuthContext] 세션 새로고침 쓰로틀링 (10초 이내 재호출)');
+    // 3초 이내 재호출 방지 (10초에서 단축)
+    if (timeSinceLastRefresh < 3000) {
+      console.log('[AuthContext] 세션 새로고침 쓰로틀링 (3초 이내 재호출)');
       return;
     }
 
@@ -192,9 +221,17 @@ export const AuthProvider = ({ children }) => {
           }
         });
 
-        // 포커스/가시성 복귀 시 세션/권한 동기화
-        const handleFocus = () => { refreshSessionAndPermissions(); };
-        const handleVisibility = () => { if (document.visibilityState === 'visible') refreshSessionAndPermissions(); };
+        // 포커스/가시성 복귀 시 즉시 세션/권한 동기화
+        const handleFocus = async () => { 
+          console.log('[AuthContext] 포커스 복귀 - 세션 갱신 시작');
+          await refreshSessionAndPermissions(); 
+        };
+        const handleVisibility = async () => { 
+          if (document.visibilityState === 'visible') {
+            console.log('[AuthContext] 가시성 복귀 - 세션 갱신 시작');
+            await refreshSessionAndPermissions(); 
+          }
+        };
         window.addEventListener('focus', handleFocus);
         document.addEventListener('visibilitychange', handleVisibility);
 
@@ -229,7 +266,7 @@ export const AuthProvider = ({ children }) => {
         } catch (_) {
           // 무시 (하트비트 실패는 치명적이지 않음)
         }
-      }, 120000); // 2분
+      }, 30000); // 30초로 단축
     };
     const stopHeartbeat = () => {
       if (intervalId) {
