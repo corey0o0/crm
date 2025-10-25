@@ -58,7 +58,9 @@ import {
   ZoomIn as ZoomInIcon,
   Preview as PreviewIcon,
   Print as PrintIcon,
-  CloudDone as CloudDoneIcon
+  CloudDone as CloudDoneIcon,
+  Save as SaveIcon,
+  Restore as RestoreIcon
 } from '@mui/icons-material';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -1990,6 +1992,57 @@ function ServiceDetail() {
     }
   };
 
+  // 수동 임시 저장 핸들러
+  const handleManualSave = () => {
+    try {
+      autoSave.save();
+      setSnackbar({
+        open: true,
+        message: '임시 데이터가 저장되었습니다.',
+        severity: 'success'
+      });
+    } catch (err) {
+      console.error('[ServiceDetail] 수동 저장 오류:', err);
+      setSnackbar({
+        open: true,
+        message: '임시 저장 중 오류가 발생했습니다.',
+        severity: 'error'
+      });
+    }
+  };
+
+  // 수동 임시 복구 핸들러
+  const handleManualRestore = () => {
+    try {
+      const saved = autoSave.restore();
+      if (saved && saved.formData) {
+        setFormData(saved.formData);
+        setSelectedParts(saved.selectedParts || []);
+        setTags(saved.tags || []);
+        setReceiptLink(saved.receiptLink || '');
+        
+        setSnackbar({
+          open: true,
+          message: `임시 데이터를 복구했습니다. (저장 시간: ${format(new Date(saved.timestamp), 'HH:mm:ss')})`,
+          severity: 'success'
+        });
+      } else {
+        setSnackbar({
+          open: true,
+          message: '복구할 임시 데이터가 없습니다.',
+          severity: 'info'
+        });
+      }
+    } catch (err) {
+      console.error('[ServiceDetail] 수동 복구 오류:', err);
+      setSnackbar({
+        open: true,
+        message: '임시 데이터 복구 중 오류가 발생했습니다.',
+        severity: 'error'
+      });
+    }
+  };
+
   if (loading) {
     return (
       <Box sx={{ 
@@ -3011,7 +3064,47 @@ function ServiceDetail() {
             gap: 2,
             borderTop: '1px solid #f2f2f2' 
           }}>
-            <Box />
+            {/* 왼쪽: 임시 저장/불러오기 버튼 (수정 모드일 때만 표시) */}
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+              {isEditing && (
+                <>
+                  <Button 
+                    onClick={handleManualRestore}
+                    startIcon={<RestoreIcon />}
+                    sx={{
+                      color: '#6b7280',
+                      fontSize: '0.85rem',
+                      fontWeight: 500,
+                      textTransform: 'none',
+                      '&:hover': {
+                        bgcolor: '#f9fafb',
+                        color: '#3182f6'
+                      }
+                    }}
+                  >
+                    임시 데이터 불러오기
+                  </Button>
+                  <Button 
+                    onClick={handleManualSave}
+                    startIcon={<SaveIcon />}
+                    sx={{
+                      color: '#6b7280',
+                      fontSize: '0.85rem',
+                      fontWeight: 500,
+                      textTransform: 'none',
+                      '&:hover': {
+                        bgcolor: '#f9fafb',
+                        color: '#3182f6'
+                      }
+                    }}
+                  >
+                    임시 데이터 저장하기
+                  </Button>
+                </>
+              )}
+            </Box>
+            
+            {/* 오른쪽: 기존 버튼들 */}
             <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
               <Button 
                 onClick={handleBack}
