@@ -6,6 +6,7 @@ import ReceiptScanner from '../Receipt/ReceiptScanner';
 import CustomerHistoryDialog from './CustomerHistoryDialog';
 import CustomerSearchModal from './CustomerSearchModal';
 import PartsSelectionDialog from './PartsSelectionDialog';
+import useAutoSave from '../../hooks/useAutoSave';
 import {
   Box,
   Button,
@@ -54,7 +55,8 @@ import {
   CloudUpload as CloudUploadIcon,
   Close as CloseIcon,
   OpenInNew as OpenInNewIcon,
-  Visibility as VisibilityIcon
+  Visibility as VisibilityIcon,
+  CloudDone as CloudDoneIcon
 } from '@mui/icons-material';
 import { API_CONFIG } from '../../config/api';
 import { downloadExcel } from '../../utils/excelUtils';
@@ -128,6 +130,23 @@ function AddService() {
   const [receiptLink, setReceiptLink] = useState('');
   const [receiptPreviewAnchor, setReceiptPreviewAnchor] = useState(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  
+  // 자동저장 관련 상태
+  const [showRestoreDialog, setShowRestoreDialog] = useState(false);
+  const [savedData, setSavedData] = useState(null);
+  
+  // 자동저장 Hook
+  const autoSave = useAutoSave(
+    {
+      formData,
+      selectedParts,
+      tags,
+      receiptLink
+    },
+    'addService_draft',
+    30000, // 30초
+    true // 활성화
+  );
   const [numPages, setNumPages] = useState(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -186,6 +205,16 @@ function AddService() {
     const hasChanges = JSON.stringify(currentData) !== JSON.stringify(initialData);
     setHasUnsavedChanges(hasChanges);
   }, [formData, selectedParts, tags, receiptLink, status, initialData, isFormSubmitted]);
+
+  // 페이지 로드 시 자동저장 데이터 복구 확인
+  useEffect(() => {
+    const saved = autoSave.restore();
+    if (saved && saved.formData) {
+      console.log('[AddService] 저장된 데이터 발견:', saved.timestamp);
+      setSavedData(saved);
+      setShowRestoreDialog(true);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 폼 데이터 변경 감지
   useEffect(() => {
@@ -931,6 +960,10 @@ function AddService() {
 
       // 변경사항 초기화
       setHasUnsavedChanges(false);
+      
+      // 자동저장 데이터 삭제
+      autoSave.clear();
+      console.log('[AddService] 등록 성공 - 자동저장 데이터 삭제');
 
       setTimeout(() => {
         navigate('/services');
@@ -1847,13 +1880,42 @@ function AddService() {
       </Box>
 
       <Paper sx={{ p: 4, borderRadius: 3, boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)', bgcolor: '#ffffff' }}>
-        <Typography variant="h5" gutterBottom sx={{ 
-          mb: 4, 
-          color: '#191f28',
-          fontWeight: 600 
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          mb: 4
         }}>
-          A/S 신규 등록
-        </Typography>
+          <Typography variant="h5" sx={{ 
+            color: '#191f28',
+            fontWeight: 600 
+          }}>
+            A/S 신규 등록
+          </Typography>
+          
+          {/* 자동저장 상태 표시 */}
+          {autoSave.lastSaved && (
+            <Chip
+              size="small"
+              icon={<CloudDoneIcon />}
+              label={`자동저장됨 ${format(autoSave.lastSaved, 'HH:mm:ss')}`}
+              color="success"
+              variant="outlined"
+              sx={{ fontSize: '0.75rem' }}
+            />
+          )}
+          
+          {autoSave.isSaving && (
+            <Chip
+              size="small"
+              icon={<CircularProgress size={16} />}
+              label="저장 중..."
+              color="primary"
+              variant="outlined"
+              sx={{ fontSize: '0.75rem' }}
+            />
+          )}
+        </Box>
 
         <form onSubmit={handleSubmit}>
           <Grid container spacing={4}>
@@ -2735,6 +2797,68 @@ function AddService() {
             }}
           >
             확인
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 자동저장 복구 다이얼로그 */}
+      <Dialog 
+        open={showRestoreDialog} 
+        onClose={() => setShowRestoreDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          💾 저장된 데이터가 있습니다
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            {savedData && savedData.timestamp && (
+              <>
+                <strong>{format(new Date(savedData.timestamp), 'yyyy-MM-dd HH:mm:ss')}</strong>에 
+                자동저장된 데이터를 복구하시겠습니까?
+              </>
+            )}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            복구하지 않으면 저장된 데이터가 삭제됩니다.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => {
+              autoSave.clear();
+              setShowRestoreDialog(false);
+              setSavedData(null);
+              console.log('[AddService] 자동저장 데이터 삭제됨');
+            }}
+            sx={{ color: '#666' }}
+          >
+            삭제
+          </Button>
+          <Button 
+            variant="contained"
+            onClick={() => {
+              if (savedData) {
+                setFormData(savedData.formData || formData);
+                setSelectedParts(savedData.selectedParts || []);
+                setTags(savedData.tags || []);
+                setReceiptLink(savedData.receiptLink || '');
+                console.log('[AddService] 자동저장 데이터 복구됨');
+                setSnackbar({
+                  open: true,
+                  message: '저장된 데이터를 복구했습니다.',
+                  severity: 'success'
+                });
+              }
+              setShowRestoreDialog(false);
+            }}
+            sx={{
+              bgcolor: '#3182f6',
+              '&:hover': { bgcolor: '#1b64da' }
+            }}
+          >
+            복구하기
           </Button>
         </DialogActions>
       </Dialog>

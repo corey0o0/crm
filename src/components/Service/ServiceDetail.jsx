@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
+import useAutoSave from '../../hooks/useAutoSave';
 import {
   Box,
   Paper,
@@ -56,11 +57,13 @@ import {
   Close as CloseIconMui,
   ZoomIn as ZoomInIcon,
   Preview as PreviewIcon,
-  Print as PrintIcon
+  Print as PrintIcon,
+  CloudDone as CloudDoneIcon
 } from '@mui/icons-material';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import { formatKoreanDateTime } from '../../utils/dateUtils';
+import { format } from 'date-fns';
 import { sendTelegramNotification } from '../../lib/telegram';
 import { processServiceCompletion } from '../../utils/inventoryUtils';
 import { 
@@ -155,6 +158,19 @@ function ServiceDetail() {
   
   // 강제 리렌더링을 위한 key 상태
   const [componentKey, setComponentKey] = useState(0);
+  
+  // 자동저장 Hook (수정 모드일 때만 활성화)
+  const autoSave = useAutoSave(
+    {
+      formData,
+      selectedParts,
+      tags,
+      receiptLink
+    },
+    `serviceDetail_${id}`,
+    30000, // 30초
+    isEditing // 수정 중일 때만 자동저장
+  );
 
   // 변경사항 감지 함수
   const checkForChanges = useCallback(() => {
@@ -769,6 +785,10 @@ function ServiceDetail() {
       // 변경사항 초기화
       setHasUnsavedChanges(false);
       setIsEditing(false);
+      
+      // 자동저장 데이터 삭제
+      autoSave.clear();
+      console.log('[ServiceDetail] 저장 성공 - 자동저장 데이터 삭제');
       
       localStorage.setItem('highlightServiceId', id);
 
@@ -2416,13 +2436,39 @@ function ServiceDetail() {
             }}>
               A/S 상세 정보
             </Typography>
-            <Box sx={{ textAlign: 'right' }}>
-              <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                A/S ID
-              </Typography>
-              <Typography variant="body2" sx={{ fontWeight: 'medium', fontFamily: 'monospace', fontSize: '0.875rem' }}>
-                {id}
-              </Typography>
+            
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              {/* 자동저장 상태 표시 (수정 모드일 때만) */}
+              {isEditing && autoSave.lastSaved && (
+                <Chip
+                  size="small"
+                  icon={<CloudDoneIcon />}
+                  label={`자동저장 ${format(autoSave.lastSaved, 'HH:mm:ss')}`}
+                  color="success"
+                  variant="outlined"
+                  sx={{ fontSize: '0.75rem' }}
+                />
+              )}
+              
+              {isEditing && autoSave.isSaving && (
+                <Chip
+                  size="small"
+                  icon={<CircularProgress size={16} />}
+                  label="저장 중..."
+                  color="primary"
+                  variant="outlined"
+                  sx={{ fontSize: '0.75rem' }}
+                />
+              )}
+              
+              <Box sx={{ textAlign: 'right' }}>
+                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                  A/S ID
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 'medium', fontFamily: 'monospace', fontSize: '0.875rem' }}>
+                  {id}
+                </Typography>
+              </Box>
             </Box>
           </Box>
 
