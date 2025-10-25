@@ -58,9 +58,7 @@ import {
   ZoomIn as ZoomInIcon,
   Preview as PreviewIcon,
   Print as PrintIcon,
-  CloudDone as CloudDoneIcon,
-  Save as SaveIcon,
-  Restore as RestoreIcon
+  CloudDone as CloudDoneIcon
 } from '@mui/icons-material';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -294,28 +292,55 @@ function ServiceDetail() {
       
       console.log(`[ServiceDetail] 데이터 로딩 시작 - 시도 ${retryCount + 1}/3, ID: ${id}`);
       
-      // 타임아웃 설정 제거 - 직접 쿼리 실행
-      console.log('[ServiceDetail] Supabase 쿼리 시작');
+      // 단순 쿼리로 먼저 서비스 데이터만 가져오기
+      console.log('[ServiceDetail] Supabase 쿼리 시작 (단순 쿼리)');
       
-      const { data: serviceData, error: serviceError } = await supabase
+      // Promise.race로 타임아웃 적용 (30초)
+      const queryTimeout = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('쿼리 시간 초과')), 30000);
+      });
+      
+      const serviceQuery = supabase
         .from('services')
-        .select(`
-          *,
-          service_parts (
-            id,
-            part_id,
-            quantity,
-            price,
-            usage
-          ),
-          service_tags (
-            tag_name
-          )
-        `)
+        .select('*')
         .eq('id', id)
         .single();
       
-      console.log('[ServiceDetail] 쿼리 완료 - 데이터:', !!serviceData, '에러:', !!serviceError);
+      const { data: serviceData, error: serviceError } = await Promise.race([
+        serviceQuery,
+        queryTimeout
+      ]);
+      
+      console.log('[ServiceDetail] 기본 데이터 쿼리 완료 - 데이터:', !!serviceData, '에러:', !!serviceError);
+      
+      // 기본 데이터 로딩 후 추가 데이터(parts, tags) 별도로 로딩
+      let serviceParts = [];
+      let serviceTags = [];
+      
+      if (serviceData && !serviceError) {
+        try {
+          // 부품 정보 로딩
+          const { data: partsData } = await supabase
+            .from('service_parts')
+            .select('id, part_id, quantity, price, usage')
+            .eq('service_id', id);
+          
+          serviceParts = partsData || [];
+          console.log('[ServiceDetail] 부품 데이터 로딩 완료:', serviceParts.length);
+          
+          // 태그 정보 로딩
+          const { data: tagsData } = await supabase
+            .from('service_tags')
+            .select('tag_name')
+            .eq('service_id', id);
+          
+          serviceTags = tagsData || [];
+          console.log('[ServiceDetail] 태그 데이터 로딩 완료:', serviceTags.length);
+        } catch (extraErr) {
+          console.warn('[ServiceDetail] 추가 데이터 로딩 오류 (무시):', extraErr);
+          // 추가 데이터 로딩 실패는 무시하고 진행
+        }
+      }
 
       if (serviceError) {
         console.error(`[ServiceDetail] 데이터 로딩 오류 (시도 ${retryCount + 1}):`, serviceError);
@@ -328,13 +353,11 @@ function ServiceDetail() {
           serviceError.message.includes('Failed to fetch') ||
           serviceError.message.includes('JWT') ||
           serviceError.message.includes('auth') ||
-          serviceError.message.includes('401')
+          serviceError.message.includes('401') ||
+          serviceError.message.includes('쿼리 시간 초과') ||
+          serviceError.message.includes('timeout')
         )) {
           console.log(`[ServiceDetail] 재시도 중... (${retryCount + 1}/2)`);
-          
-          // 인증 관련 오류인 경우 세션 갱신 시도
-                // 세션 갱신 제거 - RLS 정책이 허용하므로 바로 재시도
-                console.log('[ServiceDetail] 인증 오류 감지 - 바로 재시도 진행');
           
           setTimeout(() => {
             fetchServiceDetail(retryCount + 1);
@@ -349,13 +372,17 @@ function ServiceDetail() {
         console.error('[ServiceDetail] 서비스 데이터가 null입니다.');
         throw new Error('서비스 데이터를 찾을 수 없습니다.');
       }
+      
+      // 별도로 로딩한 parts, tags 데이터를 serviceData에 추가
+      serviceData.service_parts = serviceParts;
+      serviceData.service_tags = serviceTags;
 
       console.log('[ServiceDetail] 데이터 로딩 성공:', {
         id: serviceData.id,
         customer_name: serviceData.customer_name,
         status: serviceData.status,
-        service_parts_count: serviceData.service_parts?.length || 0,
-        service_tags_count: serviceData.service_tags?.length || 0
+        service_parts_count: serviceParts.length,
+        service_tags_count: serviceTags.length
       });
 
       let receptionDate = null;
@@ -1992,57 +2019,6 @@ function ServiceDetail() {
     }
   };
 
-  // 수동 임시 저장 핸들러
-  const handleManualSave = () => {
-    try {
-      autoSave.save();
-      setSnackbar({
-        open: true,
-        message: '임시 데이터가 저장되었습니다.',
-        severity: 'success'
-      });
-    } catch (err) {
-      console.error('[ServiceDetail] 수동 저장 오류:', err);
-      setSnackbar({
-        open: true,
-        message: '임시 저장 중 오류가 발생했습니다.',
-        severity: 'error'
-      });
-    }
-  };
-
-  // 수동 임시 복구 핸들러
-  const handleManualRestore = () => {
-    try {
-      const saved = autoSave.restore();
-      if (saved && saved.formData) {
-        setFormData(saved.formData);
-        setSelectedParts(saved.selectedParts || []);
-        setTags(saved.tags || []);
-        setReceiptLink(saved.receiptLink || '');
-        
-        setSnackbar({
-          open: true,
-          message: `임시 데이터를 복구했습니다. (저장 시간: ${format(new Date(saved.timestamp), 'HH:mm:ss')})`,
-          severity: 'success'
-        });
-      } else {
-        setSnackbar({
-          open: true,
-          message: '복구할 임시 데이터가 없습니다.',
-          severity: 'info'
-        });
-      }
-    } catch (err) {
-      console.error('[ServiceDetail] 수동 복구 오류:', err);
-      setSnackbar({
-        open: true,
-        message: '임시 데이터 복구 중 오류가 발생했습니다.',
-        severity: 'error'
-      });
-    }
-  };
-
   if (loading) {
     return (
       <Box sx={{ 
@@ -3064,47 +3040,7 @@ function ServiceDetail() {
             gap: 2,
             borderTop: '1px solid #f2f2f2' 
           }}>
-            {/* 왼쪽: 임시 저장/불러오기 버튼 (수정 모드일 때만 표시) */}
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-              {isEditing && (
-                <>
-                  <Button 
-                    onClick={handleManualRestore}
-                    startIcon={<RestoreIcon />}
-                    sx={{
-                      color: '#6b7280',
-                      fontSize: '0.85rem',
-                      fontWeight: 500,
-                      textTransform: 'none',
-                      '&:hover': {
-                        bgcolor: '#f9fafb',
-                        color: '#3182f6'
-                      }
-                    }}
-                  >
-                    임시 데이터 불러오기
-                  </Button>
-                  <Button 
-                    onClick={handleManualSave}
-                    startIcon={<SaveIcon />}
-                    sx={{
-                      color: '#6b7280',
-                      fontSize: '0.85rem',
-                      fontWeight: 500,
-                      textTransform: 'none',
-                      '&:hover': {
-                        bgcolor: '#f9fafb',
-                        color: '#3182f6'
-                      }
-                    }}
-                  >
-                    임시 데이터 저장하기
-                  </Button>
-                </>
-              )}
-            </Box>
-            
-            {/* 오른쪽: 기존 버튼들 */}
+            <Box />
             <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
               <Button 
                 onClick={handleBack}
