@@ -594,8 +594,17 @@ function ServiceList() {
       // 검색어 필터링 (최소 2글자 이상일 때만)
       if (searchParams.searchTerm && searchParams.searchTerm.length >= 2) {
         console.log('Applying search filter for term:', searchParams.searchTerm);
-        // 매우 단순한 검색 - 고객명만 검색
-        query = query.ilike('customer_name', `%${searchParams.searchTerm}%`);
+        
+        // 고객명, 전화번호, A/S ID 검색
+        const isNumeric = /^\d+$/.test(searchParams.searchTerm);
+        
+        if (isNumeric) {
+          // 숫자인 경우: A/S ID 정확 검색 또는 전화번호 부분 검색
+          query = query.or(`id.eq.${searchParams.searchTerm},customer_phone.ilike.%${searchParams.searchTerm}%`);
+        } else {
+          // 문자열인 경우: 고객명과 전화번호 검색
+          query = query.or(`customer_name.ilike.%${searchParams.searchTerm}%,customer_phone.ilike.%${searchParams.searchTerm}%`);
+        }
       } else if (searchParams.searchTerm && searchParams.searchTerm.length < 2) {
         console.log('Search term too short, ignoring:', searchParams.searchTerm);
         // 검색어가 너무 짧으면 검색하지 않고 전체 데이터 로딩으로 변경
@@ -687,10 +696,45 @@ function ServiceList() {
       // 타임아웃 없이 직접 쿼리 실행
       console.log('[ServiceList] 타임아웃 없이 직접 쿼리 실행');
       
-      // 첫 페이지 쿼리만 실행 (타임아웃 없이)
-      console.log('[ServiceList] 첫 페이지 쿼리만 실행 중...');
-      const firstPageResult = await firstPageQuery;
-      console.log('[ServiceList] 첫 페이지 쿼리 완료:', firstPageResult);
+      // 더 단순한 쿼리로 테스트
+      console.log('[ServiceList] 단순 쿼리로 테스트 시작');
+      
+      let firstPageResult;
+      try {
+        // 단계별 쿼리 구성
+        console.log('[ServiceList] 기본 쿼리 구성 중...');
+        let simpleQuery = supabase
+          .from('services')
+          .select('*')
+          .eq('brand', selectedBrand);
+        
+        console.log('[ServiceList] 브랜드 필터 적용 완료');
+        
+        // 검색어 필터 적용
+        if (searchParams.searchTerm && searchParams.searchTerm.length >= 2) {
+          console.log('[ServiceList] 검색어 필터 적용 중:', searchParams.searchTerm);
+          const isNumeric = /^\d+$/.test(searchParams.searchTerm);
+          
+          if (isNumeric) {
+            simpleQuery = simpleQuery.or(`id.eq.${searchParams.searchTerm},customer_phone.ilike.%${searchParams.searchTerm}%`);
+          } else {
+            simpleQuery = simpleQuery.or(`customer_name.ilike.%${searchParams.searchTerm}%,customer_phone.ilike.%${searchParams.searchTerm}%`);
+          }
+          console.log('[ServiceList] 검색어 필터 적용 완료');
+        }
+        
+        // 정렬 및 제한
+        simpleQuery = simpleQuery
+          .order('reception_date', { ascending: false })
+          .limit(20);
+        
+        console.log('[ServiceList] 최종 쿼리 실행 중...');
+        firstPageResult = await simpleQuery;
+        console.log('[ServiceList] 쿼리 실행 완료:', firstPageResult);
+      } catch (queryError) {
+        console.error('[ServiceList] 쿼리 실행 오류:', queryError);
+        throw queryError;
+      }
       
       if (firstPageResult.error) {
         console.error('Error fetching search results:', firstPageResult.error);
@@ -2565,20 +2609,11 @@ function ServiceList() {
             setModelSearchTerm(filterState.modelSearchTerm || '');
             setSolutionSearchTerm(filterState.solutionSearchTerm || '');
             
-            // 필터 복원 후 자동 검색 실행
-            setTimeout(() => {
-              console.log('[ServiceList] 데이터 로드 후 필터 복원 완료 - 자동 검색 실행');
-              executeSearch();
-            }, 200);
+            // 필터 복원 후 자동 검색 실행 비활성화 (페이지 로딩 시 불필요한 검색 방지)
+            console.log('[ServiceList] 데이터 로드 후 필터 복원 완료 - 자동 검색 비활성화');
             
-            // 추가 검색 실행 보장 (필터가 복원되었지만 검색이 실행되지 않은 경우)
-            setTimeout(() => {
-              console.log('[ServiceList] 데이터 로드 후 추가 검색 실행 보장');
-              if (inputValue || selectedStatuses.length > 0 || selectedTags.length > 0 || modelSearchTerm || solutionSearchTerm || dateFilter.startDate || dateFilter.endDate) {
-                console.log('[ServiceList] 데이터 로드 후 활성 필터 감지 - 강제 검색 실행');
-                executeSearch();
-              }
-            }, 600);
+            // 추가 검색 실행 보장 비활성화 (페이지 로딩 시 불필요한 검색 방지)
+            console.log('[ServiceList] 데이터 로드 후 추가 검색 실행 보장 비활성화');
           } catch (err) {
             console.error('데이터 로드 후 강제 필터 상태 복원 실패:', err);
           }
@@ -2655,20 +2690,11 @@ function ServiceList() {
       restoreFilterState();
       restorePageState();
       
-      // 필터 복원 후 자동 검색 실행
-      setTimeout(() => {
-        console.log('[ServiceList] 필터 복원 후 자동 검색 실행');
-        executeSearch();
-      }, 300);
+      // 필터 복원 후 자동 검색 실행 비활성화 (페이지 로딩 시 불필요한 검색 방지)
+      console.log('[ServiceList] 필터 복원 후 자동 검색 실행 비활성화');
       
-      // 추가 검색 실행 보장 (필터가 복원되었지만 검색이 실행되지 않은 경우)
-      setTimeout(() => {
-        console.log('[ServiceList] 필터 복원 후 추가 검색 실행 보장');
-        if (inputValue || selectedStatuses.length > 0 || selectedTags.length > 0 || modelSearchTerm || solutionSearchTerm || dateFilter.startDate || dateFilter.endDate) {
-          console.log('[ServiceList] 활성 필터 감지 - 강제 검색 실행');
-          executeSearch();
-        }
-      }, 800);
+      // 추가 검색 실행 보장 비활성화 (페이지 로딩 시 불필요한 검색 방지)
+      console.log('[ServiceList] 필터 복원 후 추가 검색 실행 보장 비활성화');
       
       // 데이터 로드 후 재복원
       setTimeout(() => {
@@ -2692,41 +2718,18 @@ function ServiceList() {
   useEffect(() => {
     const shouldRestorePage = sessionStorage.getItem('restorePageState');
     if (shouldRestorePage === 'true') {
-      // 필터가 복원된 후 자동 검색 실행
-      if (inputValue || selectedStatuses.length > 0 || selectedTags.length > 0 || modelSearchTerm || solutionSearchTerm || dateFilter.startDate || dateFilter.endDate) {
-        console.log('[ServiceList] 필터 상태 변경 감지 - 자동 검색 실행');
-        setTimeout(() => {
-          executeSearch();
-        }, 100);
-      }
+      // 필터가 복원된 후 자동 검색 실행 비활성화 (페이지 로딩 시 불필요한 검색 방지)
+      console.log('[ServiceList] 필터 상태 변경 감지 - 자동 검색 실행 비활성화');
     }
   }, [inputValue, selectedStatuses, selectedTags, modelSearchTerm, solutionSearchTerm, dateFilter, executeSearch]);
 
-  // 필터 복원 후 강제 자동 검색 실행 (ServiceDetail에서 돌아온 경우)
+  // 필터 복원 후 강제 자동 검색 실행 비활성화 (ServiceDetail에서 돌아온 경우)
   useEffect(() => {
     const shouldRestorePage = sessionStorage.getItem('restorePageState');
     if (shouldRestorePage === 'true') {
-      console.log('[ServiceList] ServiceDetail 복원 감지 - 강제 자동 검색 실행');
-      
-      // 즉시 검색 실행
-      setTimeout(() => {
-        console.log('[ServiceList] 즉시 자동 검색 실행');
-        executeSearch();
-      }, 50);
-      
-      // 추가 검색 실행 보장
-      setTimeout(() => {
-        console.log('[ServiceList] 추가 자동 검색 실행 보장');
-        executeSearch();
-      }, 500);
-      
-      // 최종 검색 실행 보장
-      setTimeout(() => {
-        console.log('[ServiceList] 최종 자동 검색 실행 보장');
-        executeSearch();
-      }, 1000);
+      console.log('[ServiceList] ServiceDetail 복원 감지 - 강제 자동 검색 실행 비활성화');
     }
-  }, [executeSearch]);
+  }, [executeSearch, inputValue]);
 
   // 페이지 상태가 바뀔 때마다 자동 저장
   useEffect(() => {
@@ -3068,7 +3071,7 @@ function ServiceList() {
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
           <TextField
             variant="outlined"
-            placeholder="고객명, 연락처, 제품명, A/S ID로 검색"
+            placeholder="고객명, 전화번호, A/S ID로 검색 (예: 이민채, 010-1234-5678, 4852)"
             value={inputValue}
             onChange={handleSearchInput}
             onKeyPress={(e) => {
