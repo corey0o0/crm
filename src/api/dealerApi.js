@@ -2,17 +2,45 @@ import { supabase } from '../lib/supabaseClient';
 
 export const dealerApi = {
   // 모든 대리점 조회
-  async getAll() {
+  async getAll(retryCount = 0) {
     try {
-      const { data, error } = await supabase
+      console.log(`[DealerAPI] Fetching all dealers (retry: ${retryCount})`);
+      
+      // 10초 타임아웃 설정
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('대리점 데이터 로딩 시간 초과')), 10000)
+      );
+
+      const queryPromise = supabase
         .from('dealers')
         .select('*')
         .order('created_at', { ascending: true });
       
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
+      
       if (error) throw error;
+      console.log(`[DealerAPI] Dealer data received:`, data?.length || 0, 'items');
       return data || [];
     } catch (error) {
-      console.error('대리점 조회 오류:', error);
+      console.error(`[DealerAPI] 대리점 조회 오류 (retry: ${retryCount}):`, error);
+      
+      // 타임아웃 또는 네트워크 오류 시 재시도
+      const isTimeout = error.message?.includes('시간 초과') || 
+                       error.message?.includes('timeout') ||
+                       error.name === 'AbortError';
+      
+      if (retryCount < 2 && (
+        isTimeout ||
+        error.message?.includes('network') ||
+        error.message?.includes('fetch') ||
+        error.message?.includes('Failed to fetch')
+      )) {
+        const delay = isTimeout ? 0 : 1000 * (retryCount + 1);
+        console.log(`[DealerAPI] ${isTimeout ? '타임아웃 -' : ''} 재시도 중... (${retryCount + 1}/2, ${delay}ms 후)`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return this.getAll(retryCount + 1);
+      }
+      
       throw error;
     }
   },

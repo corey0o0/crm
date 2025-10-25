@@ -51,9 +51,9 @@ const tempNearbikeProducts = [
 
 export const productApi = {
   // 모든 상품 조회 (옵션 C: parts 테이블 기반, 읽기 전용) - REST API 버전
-  getAll: async () => {
+  getAll: async (retryCount = 0) => {
     try {
-      console.log('[ProductAPI] Fetching products via REST API...');
+      console.log(`[ProductAPI] Fetching products via REST API... (retry: ${retryCount})`);
       
       // 필터 구성
       let filter = '';
@@ -61,11 +61,18 @@ export const productApi = {
         filter = `brand=eq.${encodeURIComponent(PARTS_BRAND)}`;
       }
 
-      const data = await fetchFromSupabase(PARTS_TABLE, {
+      // 10초 타임아웃 설정
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('제품 데이터 로딩 시간 초과')), 10000)
+      );
+
+      const dataPromise = fetchFromSupabase(PARTS_TABLE, {
         select: 'id,code,barcode,name,price,brand,note',
         filter: filter,
         order: 'name.asc'
       });
+
+      const data = await Promise.race([dataPromise, timeoutPromise]);
       
       console.log('[ProductAPI] Products data received:', data?.length || 0, 'items');
       
@@ -77,7 +84,25 @@ export const productApi = {
         return [];
       }
     } catch (error) {
-      console.error('Error fetching products:', error)
+      console.error(`[ProductAPI] Error fetching products (retry: ${retryCount}):`, error);
+      
+      // 타임아웃 또는 네트워크 오류 시 재시도
+      const isTimeout = error.message?.includes('시간 초과') || 
+                       error.message?.includes('timeout') ||
+                       error.name === 'AbortError';
+      
+      if (retryCount < 2 && (
+        isTimeout ||
+        error.message?.includes('network') ||
+        error.message?.includes('fetch') ||
+        error.message?.includes('Failed to fetch')
+      )) {
+        const delay = isTimeout ? 0 : 1000 * (retryCount + 1);
+        console.log(`[ProductAPI] ${isTimeout ? '타임아웃 -' : ''} 재시도 중... (${retryCount + 1}/2, ${delay}ms 후)`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return productApi.getAll(retryCount + 1);
+      }
+      
       return [];
     }
   },
@@ -89,8 +114,10 @@ export const productApi = {
   },
 
   // 상품 검색 (parts: name/code/note 검색)
-  search: async (searchTerm) => {
+  search: async (searchTerm, retryCount = 0) => {
     try {
+      console.log(`[ProductAPI] Searching products: "${searchTerm}" (retry: ${retryCount})`);
+      
       let filterExpr = `name.ilike.%${searchTerm}%,code.ilike.%${searchTerm}%,note.ilike.%${searchTerm}%`;
       let query = supabase
         .from(PARTS_TABLE)
@@ -101,16 +128,42 @@ export const productApi = {
         query = query.eq('brand', PARTS_BRAND);
       }
 
-      const { data, error } = await query.order('name', { ascending: true });
+      // 10초 타임아웃 설정
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('제품 검색 시간 초과')), 10000)
+      );
+
+      const { data, error } = await Promise.race([
+        query.order('name', { ascending: true }),
+        timeoutPromise
+      ]);
       
       if (error) {
         console.error('Supabase parts 검색 오류:', error);
-        return [];
+        throw error;
       }
       
       return (data || []).map(mapPartToProduct);
     } catch (error) {
-      console.error('Error searching products:', error)
+      console.error(`[ProductAPI] Error searching products (retry: ${retryCount}):`, error);
+      
+      // 타임아웃 또는 네트워크 오류 시 재시도
+      const isTimeout = error.message?.includes('시간 초과') || 
+                       error.message?.includes('timeout') ||
+                       error.name === 'AbortError';
+      
+      if (retryCount < 2 && (
+        isTimeout ||
+        error.message?.includes('network') ||
+        error.message?.includes('fetch') ||
+        error.message?.includes('Failed to fetch')
+      )) {
+        const delay = isTimeout ? 0 : 1000 * (retryCount + 1);
+        console.log(`[ProductAPI] ${isTimeout ? '타임아웃 -' : ''} 검색 재시도 중... (${retryCount + 1}/2, ${delay}ms 후)`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return productApi.search(searchTerm, retryCount + 1);
+      }
+      
       return [];
     }
   },

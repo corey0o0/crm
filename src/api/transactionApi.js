@@ -23,17 +23,45 @@ export const transactionApi = {
     };
   },
   // 모든 거래내역 조회
-  async getAll() {
+  async getAll(retryCount = 0) {
     try {
-      const { data, error } = await supabase
+      console.log(`[TransactionAPI] Fetching all transactions (retry: ${retryCount})`);
+      
+      // 10초 타임아웃 설정
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('거래내역 데이터 로딩 시간 초과')), 10000)
+      );
+
+      const queryPromise = supabase
         .from('transactions')
         .select('*')
         .order('created_at', { ascending: false });
       
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
+      
       if (error) throw error;
+      console.log(`[TransactionAPI] Transaction data received:`, data?.length || 0, 'items');
       return (data || []).map(this._mapRow);
     } catch (error) {
-      console.error('거래내역 조회 오류:', error);
+      console.error(`[TransactionAPI] 거래내역 조회 오류 (retry: ${retryCount}):`, error);
+      
+      // 타임아웃 또는 네트워크 오류 시 재시도
+      const isTimeout = error.message?.includes('시간 초과') || 
+                       error.message?.includes('timeout') ||
+                       error.name === 'AbortError';
+      
+      if (retryCount < 2 && (
+        isTimeout ||
+        error.message?.includes('network') ||
+        error.message?.includes('fetch') ||
+        error.message?.includes('Failed to fetch')
+      )) {
+        const delay = isTimeout ? 0 : 1000 * (retryCount + 1);
+        console.log(`[TransactionAPI] ${isTimeout ? '타임아웃 -' : ''} 재시도 중... (${retryCount + 1}/2, ${delay}ms 후)`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return this.getAll(retryCount + 1);
+      }
+      
       throw error;
     }
   },
@@ -167,19 +195,47 @@ export const transactionApi = {
   },
 
   // 날짜 범위로 거래내역 조회
-  async getByDateRange(startDate, endDate) {
+  async getByDateRange(startDate, endDate, retryCount = 0) {
     try {
-      const { data, error } = await supabase
+      console.log(`[TransactionAPI] Fetching transactions by date range (retry: ${retryCount})`);
+      
+      // 10초 타임아웃 설정
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('날짜 범위 거래내역 로딩 시간 초과')), 10000)
+      );
+
+      const queryPromise = supabase
         .from('transactions')
         .select('*')
         .gte('date', startDate)
         .lte('date', endDate)
         .order('created_at', { ascending: false });
       
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
+      
       if (error) throw error;
+      console.log(`[TransactionAPI] Date range transaction data received:`, data?.length || 0, 'items');
       return (data || []).map(this._mapRow);
     } catch (error) {
-      console.error('날짜 범위 거래내역 조회 오류:', error);
+      console.error(`[TransactionAPI] 날짜 범위 거래내역 조회 오류 (retry: ${retryCount}):`, error);
+      
+      // 타임아웃 또는 네트워크 오류 시 재시도
+      const isTimeout = error.message?.includes('시간 초과') || 
+                       error.message?.includes('timeout') ||
+                       error.name === 'AbortError';
+      
+      if (retryCount < 2 && (
+        isTimeout ||
+        error.message?.includes('network') ||
+        error.message?.includes('fetch') ||
+        error.message?.includes('Failed to fetch')
+      )) {
+        const delay = isTimeout ? 0 : 1000 * (retryCount + 1);
+        console.log(`[TransactionAPI] ${isTimeout ? '타임아웃 -' : ''} 재시도 중... (${retryCount + 1}/2, ${delay}ms 후)`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return this.getByDateRange(startDate, endDate, retryCount + 1);
+      }
+      
       throw error;
     }
   }

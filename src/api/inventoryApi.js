@@ -2,34 +2,89 @@ import { supabase } from '../lib/supabaseClient';
 
 export const inventoryApi = {
   // 모든 재고 조회
-  async getAll() {
+  async getAll(retryCount = 0) {
     try {
-      // 관계가 아직 설정되지 않았을 수 있으므로 단순 선택으로 제한
-      const { data, error } = await supabase
+      console.log(`[InventoryAPI] Fetching all inventory (retry: ${retryCount})`);
+      
+      // 10초 타임아웃 설정
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('재고 데이터 로딩 시간 초과')), 10000)
+      );
+
+      const queryPromise = supabase
         .from('inventory')
         .select('*');
       
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
+      
       if (error) throw error;
+      console.log(`[InventoryAPI] Inventory data received:`, data?.length || 0, 'items');
       return data || [];
     } catch (error) {
-      console.error('재고 조회 오류:', error);
+      console.error(`[InventoryAPI] 재고 조회 오류 (retry: ${retryCount}):`, error);
+      
+      // 타임아웃 또는 네트워크 오류 시 재시도
+      const isTimeout = error.message?.includes('시간 초과') || 
+                       error.message?.includes('timeout') ||
+                       error.name === 'AbortError';
+      
+      if (retryCount < 2 && (
+        isTimeout ||
+        error.message?.includes('network') ||
+        error.message?.includes('fetch') ||
+        error.message?.includes('Failed to fetch')
+      )) {
+        const delay = isTimeout ? 0 : 1000 * (retryCount + 1);
+        console.log(`[InventoryAPI] ${isTimeout ? '타임아웃 -' : ''} 재시도 중... (${retryCount + 1}/2, ${delay}ms 후)`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return this.getAll(retryCount + 1);
+      }
+      
       // 테이블이 없거나 스키마가 준비되지 않은 경우에도 앱이 동작하도록 빈 배열 반환
       return [];
     }
   },
 
   // 창고별 재고 조회
-  async getByWarehouse(warehouseId) {
+  async getByWarehouse(warehouseId, retryCount = 0) {
     try {
-      const { data, error } = await supabase
+      console.log(`[InventoryAPI] Fetching inventory for warehouse ${warehouseId} (retry: ${retryCount})`);
+      
+      // 10초 타임아웃 설정
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('창고별 재고 로딩 시간 초과')), 10000)
+      );
+
+      const queryPromise = supabase
         .from('inventory')
         .select('*')
         .eq('warehouse_id', warehouseId);
       
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
+      
       if (error) throw error;
+      console.log(`[InventoryAPI] Warehouse inventory data received:`, data?.length || 0, 'items');
       return data || [];
     } catch (error) {
-      console.error('창고별 재고 조회 오류:', error);
+      console.error(`[InventoryAPI] 창고별 재고 조회 오류 (retry: ${retryCount}):`, error);
+      
+      // 타임아웃 또는 네트워크 오류 시 재시도
+      const isTimeout = error.message?.includes('시간 초과') || 
+                       error.message?.includes('timeout') ||
+                       error.name === 'AbortError';
+      
+      if (retryCount < 2 && (
+        isTimeout ||
+        error.message?.includes('network') ||
+        error.message?.includes('fetch') ||
+        error.message?.includes('Failed to fetch')
+      )) {
+        const delay = isTimeout ? 0 : 1000 * (retryCount + 1);
+        console.log(`[InventoryAPI] ${isTimeout ? '타임아웃 -' : ''} 재시도 중... (${retryCount + 1}/2, ${delay}ms 후)`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return this.getByWarehouse(warehouseId, retryCount + 1);
+      }
+      
       return [];
     }
   },
