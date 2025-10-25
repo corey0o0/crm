@@ -25,30 +25,6 @@ function mapPartToProduct(part) {
   };
 }
 
-// 임시 니어바이크 상품 데이터
-const tempNearbikeProducts = [
-  { id: 'nb-frame-001', code: 'NB-FRAME-001', name: '니어바이크 프레임 모델 A', category: '프레임', price: 450000, cost_price: 320000, stock: 25, min_stock: 5, description: '고급 알루미늄 합금 프레임, 경량화 설계', supplier: '니어바이크', status: 'active' },
-  { id: 'nb-frame-002', code: 'NB-FRAME-002', name: '니어바이크 프레임 모델 B', category: '프레임', price: 520000, cost_price: 380000, stock: 18, min_stock: 3, description: '카본 파이버 프레임, 최고급 모델', supplier: '니어바이크', status: 'active' },
-  { id: 'nb-wheel-001', code: 'NB-WHEEL-001', name: '니어바이크 휠셋 표준형', category: '휠/타이어', price: 180000, cost_price: 125000, stock: 40, min_stock: 8, description: '26인치 표준 휠셋, 내구성 우수', supplier: '니어바이크', status: 'active' },
-  { id: 'nb-wheel-002', code: 'NB-WHEEL-002', name: '니어바이크 휠셋 고급형', category: '휠/타이어', price: 250000, cost_price: 180000, stock: 22, min_stock: 5, description: '29인치 고급 휠셋, 경량 설계', supplier: '니어바이크', status: 'active' },
-  { id: 'nb-brake-001', code: 'NB-BRAKE-001', name: '니어바이크 디스크 브레이크', category: '브레이크', price: 85000, cost_price: 58000, stock: 60, min_stock: 12, description: '유압 디스크 브레이크 시스템', supplier: '니어바이크', status: 'active' },
-  { id: 'nb-brake-002', code: 'NB-BRAKE-002', name: '니어바이크 V브레이크', category: '브레이크', price: 35000, cost_price: 22000, stock: 80, min_stock: 15, description: '경제형 V브레이크 시스템', supplier: '니어바이크', status: 'active' },
-  { id: 'nb-gear-001', code: 'NB-GEAR-001', name: '니어바이크 21단 변속기', category: '변속기', price: 120000, cost_price: 85000, stock: 35, min_stock: 7, description: '시마노 호환 21단 변속 시스템', supplier: '니어바이크', status: 'active' },
-  { id: 'nb-gear-002', code: 'NB-GEAR-002', name: '니어바이크 27단 변속기', category: '변속기', price: 180000, cost_price: 128000, stock: 28, min_stock: 5, description: '고급 27단 변속 시스템', supplier: '니어바이크', status: 'active' },
-  { id: 'nb-saddle-001', code: 'NB-SADDLE-001', name: '니어바이크 안장 컴포트', category: '안장/시트포스트', price: 45000, cost_price: 28000, stock: 100, min_stock: 20, description: '편안한 젤 패드 안장', supplier: '니어바이크', status: 'active' },
-  { id: 'nb-saddle-002', code: 'NB-SADDLE-002', name: '니어바이크 안장 스포츠', category: '안장/시트포스트', price: 65000, cost_price: 42000, stock: 75, min_stock: 15, description: '스포츠용 경량 안장', supplier: '니어바이크', status: 'active' },
-  { id: 'nb-handle-001', code: 'NB-HANDLE-001', name: '니어바이크 핸들바 표준', category: '핸들바/스템', price: 38000, cost_price: 24000, stock: 90, min_stock: 18, description: '알루미늄 핸들바, 표준형', supplier: '니어바이크', status: 'active' },
-  { id: 'nb-handle-002', code: 'NB-HANDLE-002', name: '니어바이크 핸들바 에어로', category: '핸들바/스템', price: 58000, cost_price: 38000, stock: 45, min_stock: 10, description: '에어로 다이나믹 핸들바', supplier: '니어바이크', status: 'active' },
-  { id: 'nb-pedal-001', code: 'NB-PEDAL-001', name: '니어바이크 페달 기본형', category: '페달', price: 25000, cost_price: 15000, stock: 120, min_stock: 25, description: '플라스틱 기본 페달', supplier: '니어바이크', status: 'active' },
-  { id: 'nb-pedal-002', code: 'NB-PEDAL-002', name: '니어바이크 페달 알루미늄', category: '페달', price: 45000, cost_price: 28000, stock: 85, min_stock: 18, description: '알루미늄 고급 페달', supplier: '니어바이크', status: 'active' },
-  { id: 'nb-chain-001', code: 'NB-CHAIN-001', name: '니어바이크 체인 표준', category: '체인/스프라켓', price: 18000, cost_price: 11000, stock: 150, min_stock: 30, description: 'KMC 호환 표준 체인', supplier: '니어바이크', status: 'active' },
-  { id: 'nb-light-001', code: 'NB-LIGHT-001', name: '니어바이크 LED 전조등', category: '조명/액세서리', price: 35000, cost_price: 22000, stock: 65, min_stock: 12, description: 'USB 충전식 LED 전조등', supplier: '니어바이크', status: 'active' },
-  { id: 'nb-light-002', code: 'NB-LIGHT-002', name: '니어바이크 LED 후미등', category: '조명/액세서리', price: 25000, cost_price: 15000, stock: 80, min_stock: 15, description: 'USB 충전식 LED 후미등', supplier: '니어바이크', status: 'active' },
-  { id: 'nb-helmet-001', code: 'NB-HELMET-001', name: '니어바이크 헬멧 기본형', category: '헬멧/보호장비', price: 55000, cost_price: 35000, stock: 45, min_stock: 10, description: '안전 인증 기본 헬멧', supplier: '니어바이크', status: 'active' },
-  { id: 'nb-helmet-002', code: 'NB-HELMET-002', name: '니어바이크 헬멧 고급형', category: '헬멧/보호장비', price: 85000, cost_price: 58000, stock: 32, min_stock: 8, description: '통풍 시스템 고급 헬멧', supplier: '니어바이크', status: 'active' },
-  { id: 'nb-tool-001', code: 'NB-TOOL-001', name: '니어바이크 멀티툴', category: '공구/정비용품', price: 28000, cost_price: 18000, stock: 95, min_stock: 20, description: '15가지 기능 멀티툴', supplier: '니어바이크', status: 'active' }
-];
-
 export const productApi = {
   // 모든 상품 조회 (옵션 C: parts 테이블 기반, 읽기 전용) - REST API 버전
   getAll: async (retryCount = 0) => {
