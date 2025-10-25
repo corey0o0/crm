@@ -6,6 +6,26 @@ import reportWebVitals from './reportWebVitals';
 import { StyledEngineProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 
+// 캐시 무효화 - 브라우저 새로고침 시 항상 최신 버전 로드
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(registrations => {
+    registrations.forEach(registration => {
+      registration.unregister();
+      console.log('[Cache] Service Worker unregistered');
+    });
+  });
+}
+
+// 캐시 스토리지 클리어
+if ('caches' in window) {
+  caches.keys().then(names => {
+    names.forEach(name => {
+      caches.delete(name);
+      console.log('[Cache] Cache storage cleared:', name);
+    });
+  });
+}
+
 // 개발 환경에서 ReactQuill의 findDOMNode 경고만 무시
 if (process.env.NODE_ENV === 'development') {
   const originalConsoleError = console.error;
