@@ -71,11 +71,48 @@ export const AuthProvider = ({ children }) => {
 
     const initAuth = async () => {
       try {
+        console.log('[Auth] 초기화 시작');
+        
         // 현재 세션 확인
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session }, error } = await supabase.auth.getSession();
         
         if (!mounted) return;
         
+        // 세션 오류 시 로그아웃 처리
+        if (error) {
+          console.error('[Auth] 세션 오류:', error);
+          await supabase.auth.signOut({ scope: 'local' });
+          setSession(null);
+          setUser(null);
+          setUserPermissions([]);
+          setUserRoles([]);
+          setLoading(false);
+          return;
+        }
+        
+        // 세션이 없으면 로컬 스토리지 클리어
+        if (!session) {
+          console.log('[Auth] 세션 없음 - 스토리지 클리어');
+          try {
+            // Supabase 관련 localStorage만 클리어 (다른 앱 데이터는 보존)
+            const keys = Object.keys(localStorage);
+            keys.forEach(key => {
+              if (key.startsWith('sb-') || key.includes('supabase')) {
+                localStorage.removeItem(key);
+              }
+            });
+          } catch (e) {
+            console.warn('[Auth] localStorage 클리어 실패:', e);
+          }
+          setSession(null);
+          setUser(null);
+          setUserPermissions([]);
+          setUserRoles([]);
+          setLoading(false);
+          return;
+        }
+        
+        console.log('[Auth] 유효한 세션 발견:', session.user.email);
         setSession(session);
         const currentUser = session?.user || null;
         setUser(currentUser);
@@ -89,6 +126,12 @@ export const AuthProvider = ({ children }) => {
       } catch (error) {
         console.error('[Auth] 초기화 오류:', error);
         if (mounted) {
+          // 오류 발생 시 강제 로그아웃
+          await supabase.auth.signOut({ scope: 'local' });
+          setSession(null);
+          setUser(null);
+          setUserPermissions([]);
+          setUserRoles([]);
           setLoading(false);
         }
       }
