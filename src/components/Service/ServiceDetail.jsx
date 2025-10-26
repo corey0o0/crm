@@ -303,21 +303,14 @@ function ServiceDetail() {
       let serviceError = null;
       
       try {
-        // 15초 타임아웃 (10초는 너무 짧음)
-        const queryTimeout = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('쿼리 시간 초과')), 15000);
-        });
+        // 글로벌 fetch 타임아웃(15초)에만 의존 - 로컬 타임아웃 제거
+        console.log('[ServiceDetail] 쿼리 실행 (글로벌 타임아웃 15초)');
         
-        const serviceQuery = supabase
+        const result = await supabase
           .from('services')
           .select('*')
           .eq('id', id)
           .single();
-        
-        const result = await Promise.race([
-          serviceQuery,
-          queryTimeout
-        ]);
         
         serviceData = result.data;
         serviceError = result.error;
@@ -327,10 +320,10 @@ function ServiceDetail() {
           hasError: !!serviceError,
           errorMsg: serviceError?.message 
         });
-      } catch (timeoutError) {
-        // Promise.race에서 reject된 경우 (타임아웃)
-        console.error('[ServiceDetail] 쿼리 타임아웃 발생:', timeoutError.message);
-        serviceError = timeoutError;
+      } catch (queryError) {
+        // 쿼리 실행 중 에러 (AbortError 등)
+        console.error('[ServiceDetail] 쿼리 실행 오류:', queryError.message);
+        serviceError = queryError;
       }
       
       console.log('[ServiceDetail] 기본 데이터 쿼리 완료 - 데이터:', !!serviceData, '에러:', !!serviceError);
@@ -367,24 +360,27 @@ function ServiceDetail() {
       if (serviceError) {
         console.error(`[ServiceDetail] 데이터 로딩 오류 (시도 ${retryCount + 1}):`, serviceError);
         
-        // 재시도 로직 개선 - 타임아웃은 즉시 재시도
-        const isTimeout = serviceError.message.includes('쿼리 시간 초과') || 
-                         serviceError.message.includes('timeout') ||
+        // 재시도 로직 개선
+        const isTimeout = serviceError.message?.includes('timeout') ||
+                         serviceError.message?.includes('aborted') ||
                          serviceError.name === 'AbortError';
         
-        if (retryCount < 2 && (
-          isTimeout ||
-          serviceError.code === 'PGRST116' || 
-          serviceError.message.includes('network') || 
-          serviceError.message.includes('fetch') ||
-          serviceError.message.includes('Failed to fetch') ||
-          serviceError.message.includes('JWT') ||
-          serviceError.message.includes('auth') ||
-          serviceError.message.includes('401')
-        )) {
-          // 타임아웃은 즉시 재시도, 다른 오류는 지연 후 재시도
-          const retryDelay = isTimeout ? 0 : 1000 * (retryCount + 1);
-          console.log(`[ServiceDetail] ${isTimeout ? '타임아웃 -' : ''} 재시도 중... (${retryCount + 1}/2, ${retryDelay}ms 후)`);
+        const isNetworkError = serviceError.message?.includes('network') || 
+                              serviceError.message?.includes('fetch') ||
+                              serviceError.message?.includes('Failed to fetch');
+        
+        const isAuthError = serviceError.message?.includes('JWT') ||
+                           serviceError.message?.includes('auth') ||
+                           serviceError.message?.includes('401') ||
+                           serviceError.code === 'PGRST116';
+        
+        // 재시도 가능한 에러: 타임아웃, 네트워크, 인증
+        if (retryCount < 2 && (isTimeout || isNetworkError || isAuthError)) {
+          // 타임아웃/네트워크는 1초 대기, 인증은 2초 대기
+          const retryDelay = isTimeout || isNetworkError ? 1000 : 2000;
+          console.log(`[ServiceDetail] 재시도 중... (${retryCount + 1}/2, ${retryDelay}ms 후) - 원인: ${
+            isTimeout ? '타임아웃' : isNetworkError ? '네트워크' : '인증'
+          }`);
           
           setTimeout(() => {
             fetchServiceDetail(retryCount + 1);
