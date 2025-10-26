@@ -384,10 +384,20 @@ function ServiceDetail() {
         )) {
           console.log(`[ServiceDetail] ${isTimeout ? '타임아웃 -' : ''} 재시도 준비 중... (${retryCount + 1}/2)`);
           
-          // 재시도 전 2초 대기 (연결 안정화 + Supabase 자동 재연결 시간 확보)
-          // refreshSession은 제거 - hang 위험이 있고 Supabase가 자동으로 처리함
+          // 2차 재시도 실패 시 페이지 새로고침으로 확실하게 해결
+          if (retryCount === 1 && isTimeout) {
+            console.log('[ServiceDetail] 2차 재시도 실패 - 페이지 새로고침으로 전환');
+            setError('연결 문제가 지속되고 있습니다. 페이지를 새로고침합니다...');
+            setTimeout(() => {
+              console.log('[ServiceDetail] 자동 페이지 새로고침 실행');
+              window.location.reload();
+            }, 1000);
+            return;
+          }
+          
+          // 재시도 전 2초 대기 (연결 안정화)
           const retryDelay = isTimeout ? 2000 : 1000 * (retryCount + 1);
-          console.log(`[ServiceDetail] ${retryDelay}ms 후 재시도 (Supabase 자동 재연결 대기)...`);
+          console.log(`[ServiceDetail] ${retryDelay}ms 후 재시도...`);
           
           setTimeout(() => {
             fetchServiceDetail(retryCount + 1);
