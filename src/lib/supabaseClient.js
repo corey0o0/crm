@@ -20,9 +20,9 @@ export const createSupabaseClient = () => {
     },
     global: {
       fetch: (url, options = {}) => {
-        // 모든 요청에 10초 타임아웃 적용
+        // 모든 요청에 15초 타임아웃 적용 (10초는 너무 짧음)
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
         
         return fetch(url, {
           ...options,
@@ -86,10 +86,10 @@ if (typeof window !== 'undefined') {
 /**
  * Supabase 쿼리를 타임아웃과 함께 실행하는 래퍼 함수
  * @param {Promise} queryPromise - Supabase 쿼리 프로미스
- * @param {number} timeout - 타임아웃 시간 (ms), 기본 10초
+ * @param {number} timeout - 타임아웃 시간 (ms), 기본 15초
  * @returns {Promise} 쿼리 결과 또는 타임아웃 에러
  */
-export const queryWithTimeout = async (queryPromise, timeout = 10000) => {
+export const queryWithTimeout = async (queryPromise, timeout = 15000) => {
   const timeoutPromise = new Promise((_, reject) => {
     setTimeout(() => reject(new Error('쿼리 시간 초과')), timeout);
   });

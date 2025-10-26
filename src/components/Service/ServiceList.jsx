@@ -66,7 +66,7 @@ import {
 import { useNavigate, useLocation } from 'react-router-dom';
 import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { serviceApi } from '../../api/services';
-import { supabase } from '../../lib/supabaseClient';
+import { supabase, ensureConnection } from '../../lib/supabaseClient';
 import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
 import { fetchServices as fetchServicesAPI, countServices } from '../../utils/restApiUtils';
 import ResponsiveTable from '../common/ResponsiveTable';
@@ -298,6 +298,13 @@ function ServiceList() {
   const fetchFirstPage = async (retryAttempt = 0) => {
     try {
       console.log(`[ServiceList] fetchFirstPage 시작 - retryAttempt: ${retryAttempt}, selectedBrand: ${selectedBrand}`);
+      
+      // 유휴 후 재연결 확인
+      console.log('[ServiceList] 연결 상태 확인 중...');
+      const connectionOk = await ensureConnection();
+      if (!connectionOk) {
+        console.warn('[ServiceList] 재연결 실패 - 계속 시도');
+      }
       
       // 오프라인 상태 체크
       if (isOffline()) {
@@ -557,10 +564,14 @@ function ServiceList() {
   // 서버 사이드 검색 함수
   const performServerSearch = async (searchParams = {}, retryCount = 0) => {
     try {
-      console.log(`[ServiceList] 검색 시작 - 세션 확인 (재시도: ${retryCount})`);
+      console.log(`[ServiceList] 검색 시작 (재시도: ${retryCount})`);
       
-      // 세션 확인 제거 - RLS 정책이 허용하므로 바로 검색 진행
-      console.log('[ServiceList] 검색 시작 - 세션 확인 생략');
+      // 유휴 후 재연결 확인
+      console.log('[ServiceList] 연결 상태 확인 중...');
+      const connectionOk = await ensureConnection();
+      if (!connectionOk) {
+        console.warn('[ServiceList] 재연결 실패 - 계속 시도');
+      }
       
       setSearchLoading(true);
       setServices([]); // 검색 시 기존 데이터 초기화

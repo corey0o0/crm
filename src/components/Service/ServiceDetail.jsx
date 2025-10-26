@@ -299,27 +299,39 @@ function ServiceDetail() {
       // 단순 쿼리로 먼저 서비스 데이터만 가져오기
       console.log('[ServiceDetail] Supabase 쿼리 시작 (단순 쿼리)');
       
-      // 10초 타임아웃으로 단축 (글로벌 fetch 타임아웃과 동일)
-      const queryTimeout = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('쿼리 시간 초과')), 10000);
-      });
+      let serviceData = null;
+      let serviceError = null;
       
-      const serviceQuery = supabase
-        .from('services')
-        .select('*')
-        .eq('id', id)
-        .single();
-      
-      const { data: serviceData, error: serviceError } = await Promise.race([
-        serviceQuery,
-        queryTimeout
-      ]);
-      
-      console.log('[ServiceDetail] 쿼리 응답 수신:', { 
-        hasData: !!serviceData, 
-        hasError: !!serviceError,
-        errorMsg: serviceError?.message 
-      });
+      try {
+        // 15초 타임아웃 (10초는 너무 짧음)
+        const queryTimeout = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('쿼리 시간 초과')), 15000);
+        });
+        
+        const serviceQuery = supabase
+          .from('services')
+          .select('*')
+          .eq('id', id)
+          .single();
+        
+        const result = await Promise.race([
+          serviceQuery,
+          queryTimeout
+        ]);
+        
+        serviceData = result.data;
+        serviceError = result.error;
+        
+        console.log('[ServiceDetail] 쿼리 응답 수신:', { 
+          hasData: !!serviceData, 
+          hasError: !!serviceError,
+          errorMsg: serviceError?.message 
+        });
+      } catch (timeoutError) {
+        // Promise.race에서 reject된 경우 (타임아웃)
+        console.error('[ServiceDetail] 쿼리 타임아웃 발생:', timeoutError.message);
+        serviceError = timeoutError;
+      }
       
       console.log('[ServiceDetail] 기본 데이터 쿼리 완료 - 데이터:', !!serviceData, '에러:', !!serviceError);
       
