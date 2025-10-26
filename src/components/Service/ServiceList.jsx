@@ -725,7 +725,12 @@ function ServiceList() {
         console.log('[ServiceList] 쿼리 실행 시작 - await 전');
         
         try {
-          firstPageResult = await simpleQuery;
+          // 10초 타임아웃 추가
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('검색 쿼리 시간 초과')), 10000)
+          );
+          
+          firstPageResult = await Promise.race([simpleQuery, timeoutPromise]);
           console.log('[ServiceList] 쿼리 실행 완료:', firstPageResult);
         } catch (queryExecutionError) {
           console.error('[ServiceList] 쿼리 실행 중 오류:', queryExecutionError);
@@ -784,17 +789,23 @@ function ServiceList() {
     } catch (err) {
       console.error('[ServiceList] 검색 오류:', err);
       
-      // 네트워크 오류인 경우에만 재시도 (타임아웃 관련 조건 제거)
+      // 타임아웃 또는 네트워크 오류 시 재시도
+      const isTimeout = err.message?.includes('시간 초과') || 
+                       err.message?.includes('timeout') ||
+                       err.name === 'AbortError';
+      
       if (retryCount < 2 && (
+        isTimeout ||
         err.message.includes('network') || 
         err.message.includes('fetch') || 
         err.message.includes('Failed to fetch')
       )) {
-        console.log(`[ServiceList] 네트워크 오류로 인한 재시도 (${retryCount + 1}/2)`);
+        const delay = isTimeout ? 0 : 1000 * (retryCount + 1);
+        console.log(`[ServiceList] ${isTimeout ? '타임아웃 -' : '네트워크 오류로 인한'} 재시도 (${retryCount + 1}/2, ${delay}ms 후)`);
         
         setTimeout(() => {
           performServerSearch(searchParams, retryCount + 1);
-        }, 3000 * (retryCount + 1)); // 3초, 6초 지연
+        }, delay);
         return;
       }
       
