@@ -60,9 +60,9 @@ const startIdleDetection = () => {
   idleCheckInterval = setInterval(() => {
     const idleTime = Date.now() - lastActivityTime;
     
-    // 5분 이상 유휴 시 재연결 필요 플래그 설정
-    if (idleTime > 5 * 60 * 1000) {
-      console.log('[Supabase] 5분 이상 유휴 감지 - 다음 쿼리 시 재연결 필요');
+    // 10분 이상 유휴 시 재연결 필요 플래그 설정 (5분 → 10분으로 변경)
+    if (idleTime > 10 * 60 * 1000) {
+      console.log('[Supabase] 10분 이상 유휴 감지 - 다음 쿼리 시 재연결 필요');
       // window에 플래그 설정 (AuthContext에서 확인 가능)
       window._supabaseNeedsReconnect = true;
     }
@@ -76,8 +76,8 @@ if (typeof window !== 'undefined') {
   // 포커스 복귀 시 즉시 재연결 필요 플래그 체크
   window.addEventListener('focus', () => {
     const idleTime = Date.now() - lastActivityTime;
-    if (idleTime > 5 * 60 * 1000) {
-      console.log('[Supabase] 포커스 복귀 + 장시간 유휴 - 재연결 필요');
+    if (idleTime > 10 * 60 * 1000) {
+      console.log('[Supabase] 포커스 복귀 + 10분 이상 유휴 - 재연결 필요');
       window._supabaseNeedsReconnect = true;
     }
   });
@@ -107,31 +107,20 @@ export const queryWithTimeout = async (queryPromise, timeout = 15000) => {
 
 /**
  * 유휴 후 재연결이 필요한지 확인하고 세션 갱신
- * @returns {Promise<boolean>} 재연결 성공 여부
+ * 단순화: 재연결 시도하지 않고 플래그만 해제
+ * Supabase는 자동으로 재연결을 처리함
+ * @returns {Promise<boolean>} 항상 true 반환
  */
 export const ensureConnection = async () => {
   if (!window._supabaseNeedsReconnect) {
     return true; // 재연결 불필요
   }
   
-  console.log('[Supabase] 재연결 시작...');
+  console.log('[Supabase] 유휴 감지 - 플래그 해제 (자동 재연결 대기)');
   
-  try {
-    // 세션 갱신
-    const { data, error } = await supabase.auth.refreshSession();
-    
-    if (error) {
-      console.error('[Supabase] 재연결 실패:', error);
-      return false;
-    }
-    
-    console.log('[Supabase] 재연결 성공');
-    window._supabaseNeedsReconnect = false;
-    resetIdleTimer();
-    return true;
-    
-  } catch (err) {
-    console.error('[Supabase] 재연결 예외:', err);
-    return false;
-  }
+  // 플래그만 해제하고 Supabase의 자동 재연결에 맡김
+  window._supabaseNeedsReconnect = false;
+  resetIdleTimer();
+  
+  return true; // 항상 계속 진행
 }; 
