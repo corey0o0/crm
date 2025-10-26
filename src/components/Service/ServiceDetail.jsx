@@ -384,20 +384,10 @@ function ServiceDetail() {
         )) {
           console.log(`[ServiceDetail] ${isTimeout ? '타임아웃 -' : ''} 재시도 준비 중... (${retryCount + 1}/2)`);
           
-          // 타임아웃 시 세션 강제 갱신 시도
-          if (isTimeout && retryCount === 0) {
-            console.log('[ServiceDetail] 첫 타임아웃 - 세션 강제 갱신 시도');
-            try {
-              await supabase.auth.refreshSession();
-              console.log('[ServiceDetail] 세션 갱신 성공');
-            } catch (refreshErr) {
-              console.warn('[ServiceDetail] 세션 갱신 실패 (무시):', refreshErr);
-            }
-          }
-          
-          // 재시도 전 1초 대기 (연결 안정화)
-          const retryDelay = isTimeout ? 1000 : 1000 * (retryCount + 1);
-          console.log(`[ServiceDetail] ${retryDelay}ms 후 재시도...`);
+          // 재시도 전 2초 대기 (연결 안정화 + Supabase 자동 재연결 시간 확보)
+          // refreshSession은 제거 - hang 위험이 있고 Supabase가 자동으로 처리함
+          const retryDelay = isTimeout ? 2000 : 1000 * (retryCount + 1);
+          console.log(`[ServiceDetail] ${retryDelay}ms 후 재시도 (Supabase 자동 재연결 대기)...`);
           
           setTimeout(() => {
             fetchServiceDetail(retryCount + 1);
