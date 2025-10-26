@@ -38,6 +38,51 @@ export const createSupabaseClient = () => {
 // 기본 클라이언트 (하위 호환성)
 export const supabase = createSupabaseClient();
 
+// 유휴 상태 감지 및 재연결
+let lastActivityTime = Date.now();
+let idleCheckInterval = null;
+
+// 활동 감지 이벤트
+const resetIdleTimer = () => {
+  lastActivityTime = Date.now();
+};
+
+// 유휴 감지 시작
+const startIdleDetection = () => {
+  if (idleCheckInterval) return;
+  
+  // 사용자 활동 감지
+  ['mousedown', 'keydown', 'scroll', 'touchstart'].forEach(event => {
+    window.addEventListener(event, resetIdleTimer, { passive: true });
+  });
+  
+  // 30초마다 유휴 시간 체크
+  idleCheckInterval = setInterval(() => {
+    const idleTime = Date.now() - lastActivityTime;
+    
+    // 5분 이상 유휴 시 재연결 필요 플래그 설정
+    if (idleTime > 5 * 60 * 1000) {
+      console.log('[Supabase] 5분 이상 유휴 감지 - 다음 쿼리 시 재연결 필요');
+      // window에 플래그 설정 (AuthContext에서 확인 가능)
+      window._supabaseNeedsReconnect = true;
+    }
+  }, 30000);
+};
+
+// 페이지 로드 시 유휴 감지 시작
+if (typeof window !== 'undefined') {
+  startIdleDetection();
+  
+  // 포커스 복귀 시 즉시 재연결 필요 플래그 체크
+  window.addEventListener('focus', () => {
+    const idleTime = Date.now() - lastActivityTime;
+    if (idleTime > 5 * 60 * 1000) {
+      console.log('[Supabase] 포커스 복귀 + 장시간 유휴 - 재연결 필요');
+      window._supabaseNeedsReconnect = true;
+    }
+  });
+}
+
 /**
  * Supabase 쿼리를 타임아웃과 함께 실행하는 래퍼 함수
  * @param {Promise} queryPromise - Supabase 쿼리 프로미스
@@ -57,5 +102,36 @@ export const queryWithTimeout = async (queryPromise, timeout = 10000) => {
       throw new Error('데이터 로딩 시간이 초과되었습니다. 다시 시도해주세요.');
     }
     throw error;
+  }
+};
+
+/**
+ * 유휴 후 재연결이 필요한지 확인하고 세션 갱신
+ * @returns {Promise<boolean>} 재연결 성공 여부
+ */
+export const ensureConnection = async () => {
+  if (!window._supabaseNeedsReconnect) {
+    return true; // 재연결 불필요
+  }
+  
+  console.log('[Supabase] 재연결 시작...');
+  
+  try {
+    // 세션 갱신
+    const { data, error } = await supabase.auth.refreshSession();
+    
+    if (error) {
+      console.error('[Supabase] 재연결 실패:', error);
+      return false;
+    }
+    
+    console.log('[Supabase] 재연결 성공');
+    window._supabaseNeedsReconnect = false;
+    resetIdleTimer();
+    return true;
+    
+  } catch (err) {
+    console.error('[Supabase] 재연결 예외:', err);
+    return false;
   }
 }; 

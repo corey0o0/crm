@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '../../lib/supabaseClient';
+import { supabase, ensureConnection } from '../../lib/supabaseClient';
 import useAutoSave from '../../hooks/useAutoSave';
 import {
   Box,
@@ -287,8 +287,12 @@ function ServiceDetail() {
         throw new Error('A/S ID가 없습니다.');
       }
       
-      // 세션 확인 제거 - RLS 정책이 허용하므로 바로 데이터 로딩 진행
-      console.log('[ServiceDetail] 세션 확인 생략 - 바로 데이터 로딩 시작');
+      // 유휴 후 재연결 확인
+      console.log('[ServiceDetail] 연결 상태 확인 중...');
+      const connectionOk = await ensureConnection();
+      if (!connectionOk) {
+        console.warn('[ServiceDetail] 재연결 실패 - 계속 시도');
+      }
       
       console.log(`[ServiceDetail] 데이터 로딩 시작 - 시도 ${retryCount + 1}/3, ID: ${id}`);
       
@@ -325,31 +329,21 @@ function ServiceDetail() {
       
       if (serviceData && !serviceError) {
         try {
-          // 부품 정보 로딩 (타임아웃 추가)
-          const partsTimeout = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('부품 데이터 로딩 시간 초과')), 10000);
-          });
-          
-          const partsQuery = supabase
+          // 부품 정보 로딩
+          const { data: partsData } = await supabase
             .from('service_parts')
             .select('id, part_id, quantity, price, usage')
             .eq('service_id', id);
           
-          const { data: partsData } = await Promise.race([partsQuery, partsTimeout]);
           serviceParts = partsData || [];
           console.log('[ServiceDetail] 부품 데이터 로딩 완료:', serviceParts.length);
           
-          // 태그 정보 로딩 (타임아웃 추가)
-          const tagsTimeout = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('태그 데이터 로딩 시간 초과')), 10000);
-          });
-          
-          const tagsQuery = supabase
+          // 태그 정보 로딩
+          const { data: tagsData } = await supabase
             .from('service_tags')
             .select('tag_name')
             .eq('service_id', id);
           
-          const { data: tagsData } = await Promise.race([tagsQuery, tagsTimeout]);
           serviceTags = tagsData || [];
           console.log('[ServiceDetail] 태그 데이터 로딩 완료:', serviceTags.length);
         } catch (extraErr) {
@@ -480,21 +474,10 @@ function ServiceDetail() {
 
       if (serviceData.service_parts?.length > 0) {
         const partIds = serviceData.service_parts.map(sp => sp.part_id);
-        
-        // parts 정보 로딩에도 타임아웃 추가
-        const partsInfoTimeout = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('파츠 상세 정보 로딩 시간 초과')), 10000);
-        });
-        
-        const partsInfoQuery = supabase
+        const { data: partsData, error: partsError } = await supabase
           .from('parts')
           .select('*')
           .in('id', partIds);
-        
-        const { data: partsData, error: partsError } = await Promise.race([
-          partsInfoQuery,
-          partsInfoTimeout
-        ]);
 
         if (partsError) throw partsError;
 
