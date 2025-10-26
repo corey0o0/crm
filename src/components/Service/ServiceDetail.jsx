@@ -325,21 +325,31 @@ function ServiceDetail() {
       
       if (serviceData && !serviceError) {
         try {
-          // 부품 정보 로딩
-          const { data: partsData } = await supabase
+          // 부품 정보 로딩 (타임아웃 추가)
+          const partsTimeout = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('부품 데이터 로딩 시간 초과')), 10000);
+          });
+          
+          const partsQuery = supabase
             .from('service_parts')
             .select('id, part_id, quantity, price, usage')
             .eq('service_id', id);
           
+          const { data: partsData } = await Promise.race([partsQuery, partsTimeout]);
           serviceParts = partsData || [];
           console.log('[ServiceDetail] 부품 데이터 로딩 완료:', serviceParts.length);
           
-          // 태그 정보 로딩
-          const { data: tagsData } = await supabase
+          // 태그 정보 로딩 (타임아웃 추가)
+          const tagsTimeout = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('태그 데이터 로딩 시간 초과')), 10000);
+          });
+          
+          const tagsQuery = supabase
             .from('service_tags')
             .select('tag_name')
             .eq('service_id', id);
           
+          const { data: tagsData } = await Promise.race([tagsQuery, tagsTimeout]);
           serviceTags = tagsData || [];
           console.log('[ServiceDetail] 태그 데이터 로딩 완료:', serviceTags.length);
         } catch (extraErr) {
@@ -470,10 +480,21 @@ function ServiceDetail() {
 
       if (serviceData.service_parts?.length > 0) {
         const partIds = serviceData.service_parts.map(sp => sp.part_id);
-        const { data: partsData, error: partsError } = await supabase
+        
+        // parts 정보 로딩에도 타임아웃 추가
+        const partsInfoTimeout = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('파츠 상세 정보 로딩 시간 초과')), 10000);
+        });
+        
+        const partsInfoQuery = supabase
           .from('parts')
           .select('*')
           .in('id', partIds);
+        
+        const { data: partsData, error: partsError } = await Promise.race([
+          partsInfoQuery,
+          partsInfoTimeout
+        ]);
 
         if (partsError) throw partsError;
 
