@@ -303,14 +303,21 @@ function ServiceDetail() {
       let serviceError = null;
       
       try {
-        // 글로벌 fetch 타임아웃(15초)에만 의존 - 로컬 타임아웃 제거
-        console.log('[ServiceDetail] 쿼리 실행 (글로벌 타임아웃 15초)');
+        // 20초 타임아웃 (유휴 후 첫 연결은 더 오래 걸림)
+        const queryTimeout = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('쿼리 시간 초과')), 20000);
+        });
         
-        const result = await supabase
+        const serviceQuery = supabase
           .from('services')
           .select('*')
           .eq('id', id)
           .single();
+        
+        const result = await Promise.race([
+          serviceQuery,
+          queryTimeout
+        ]);
         
         serviceData = result.data;
         serviceError = result.error;
@@ -320,10 +327,10 @@ function ServiceDetail() {
           hasError: !!serviceError,
           errorMsg: serviceError?.message 
         });
-      } catch (queryError) {
-        // 쿼리 실행 중 에러 (AbortError 등)
-        console.error('[ServiceDetail] 쿼리 실행 오류:', queryError.message);
-        serviceError = queryError;
+      } catch (timeoutError) {
+        // Promise.race에서 reject된 경우 (타임아웃)
+        console.error('[ServiceDetail] 쿼리 타임아웃 발생:', timeoutError.message);
+        serviceError = timeoutError;
       }
       
       console.log('[ServiceDetail] 기본 데이터 쿼리 완료 - 데이터:', !!serviceData, '에러:', !!serviceError);
@@ -360,27 +367,37 @@ function ServiceDetail() {
       if (serviceError) {
         console.error(`[ServiceDetail] 데이터 로딩 오류 (시도 ${retryCount + 1}):`, serviceError);
         
-        // 재시도 로직 개선
-        const isTimeout = serviceError.message?.includes('timeout') ||
-                         serviceError.message?.includes('aborted') ||
+        // 재시도 로직 개선 - 타임아웃은 세션 갱신 후 재시도
+        const isTimeout = serviceError.message.includes('쿼리 시간 초과') || 
+                         serviceError.message.includes('timeout') ||
                          serviceError.name === 'AbortError';
         
-        const isNetworkError = serviceError.message?.includes('network') || 
-                              serviceError.message?.includes('fetch') ||
-                              serviceError.message?.includes('Failed to fetch');
-        
-        const isAuthError = serviceError.message?.includes('JWT') ||
-                           serviceError.message?.includes('auth') ||
-                           serviceError.message?.includes('401') ||
-                           serviceError.code === 'PGRST116';
-        
-        // 재시도 가능한 에러: 타임아웃, 네트워크, 인증
-        if (retryCount < 2 && (isTimeout || isNetworkError || isAuthError)) {
-          // 타임아웃/네트워크는 1초 대기, 인증은 2초 대기
-          const retryDelay = isTimeout || isNetworkError ? 1000 : 2000;
-          console.log(`[ServiceDetail] 재시도 중... (${retryCount + 1}/2, ${retryDelay}ms 후) - 원인: ${
-            isTimeout ? '타임아웃' : isNetworkError ? '네트워크' : '인증'
-          }`);
+        if (retryCount < 2 && (
+          isTimeout ||
+          serviceError.code === 'PGRST116' || 
+          serviceError.message.includes('network') || 
+          serviceError.message.includes('fetch') ||
+          serviceError.message.includes('Failed to fetch') ||
+          serviceError.message.includes('JWT') ||
+          serviceError.message.includes('auth') ||
+          serviceError.message.includes('401')
+        )) {
+          console.log(`[ServiceDetail] ${isTimeout ? '타임아웃 -' : ''} 재시도 준비 중... (${retryCount + 1}/2)`);
+          
+          // 타임아웃 시 세션 강제 갱신 시도
+          if (isTimeout && retryCount === 0) {
+            console.log('[ServiceDetail] 첫 타임아웃 - 세션 강제 갱신 시도');
+            try {
+              await supabase.auth.refreshSession();
+              console.log('[ServiceDetail] 세션 갱신 성공');
+            } catch (refreshErr) {
+              console.warn('[ServiceDetail] 세션 갱신 실패 (무시):', refreshErr);
+            }
+          }
+          
+          // 재시도 전 1초 대기 (연결 안정화)
+          const retryDelay = isTimeout ? 1000 : 1000 * (retryCount + 1);
+          console.log(`[ServiceDetail] ${retryDelay}ms 후 재시도...`);
           
           setTimeout(() => {
             fetchServiceDetail(retryCount + 1);
