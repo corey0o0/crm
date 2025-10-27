@@ -3079,8 +3079,22 @@ function ServiceDetail() {
             gap: 2,
             borderTop: '1px solid #f2f2f2' 
           }}>
-            <Box />
             <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+              <Button 
+                onClick={handleDelete}
+                startIcon={<DeleteIcon />}
+                sx={{
+                  color: '#dc3545',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  textTransform: 'none',
+                  '&:hover': {
+                    bgcolor: 'rgba(220, 53, 69, 0.04)'
+                  }
+                }}
+              >
+                삭제
+              </Button>
               <Button 
                 onClick={handleBack}
                 sx={{
@@ -3095,6 +3109,7 @@ function ServiceDetail() {
               >
                 목록
               </Button>
+            </Box>
               <Button 
                 onClick={handlePrintEstimate}
                 startIcon={<ReceiptIcon />}
