@@ -2230,9 +2230,10 @@ function ServiceList() {
   useEffect(() => {
     const trimmedValue = inputValue.trim();
     
-    // 검색어가 비어있으면 즉시 실행 (초기화)
+    // 검색어가 비어있으면 searchTerm만 초기화 (페이지 새로고침 없음)
     if (trimmedValue === '') {
-      executeSearch();
+      setSearchTerm('');
+      // fetchServices()를 호출하지 않고, searchTerm이 비워지면 자연스럽게 전체 목록이 표시됨
       return;
     }
 
