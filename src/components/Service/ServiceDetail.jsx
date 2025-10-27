@@ -367,7 +367,7 @@ function ServiceDetail() {
       if (serviceError) {
         console.error(`[ServiceDetail] 데이터 로딩 오류 (시도 ${retryCount + 1}):`, serviceError);
         
-        // 재시도 로직 개선 - 타임아웃은 세션 갱신 후 재시도
+        // 재시도 로직 개선 - 타임아웃은 즉시 새로고침
         const isTimeout = serviceError.message.includes('쿼리 시간 초과') || 
                          serviceError.message.includes('timeout') ||
                          serviceError.name === 'AbortError';
@@ -382,21 +382,20 @@ function ServiceDetail() {
           serviceError.message.includes('auth') ||
           serviceError.message.includes('401')
         )) {
-          console.log(`[ServiceDetail] ${isTimeout ? '타임아웃 -' : ''} 재시도 준비 중... (${retryCount + 1}/2)`);
-          
-          // 2차 재시도 실패 시 페이지 새로고침으로 확실하게 해결
-          if (retryCount === 1 && isTimeout) {
-            console.log('[ServiceDetail] 2차 재시도 실패 - 페이지 새로고침으로 전환');
-            setError('연결 문제가 지속되고 있습니다. 페이지를 새로고침합니다...');
+          // 1차 타임아웃 시 즉시 페이지 새로고침 (가장 확실한 해결책)
+          if (retryCount === 0 && isTimeout) {
+            console.log('[ServiceDetail] 1차 타임아웃 - 페이지 새로고침으로 즉시 복구');
+            // 에러 메시지 없이 바로 새로고침 (로딩 상태 유지)
             setTimeout(() => {
               console.log('[ServiceDetail] 자동 페이지 새로고침 실행');
               window.location.reload();
-            }, 1000);
+            }, 500); // 0.5초 후 새로고침
             return;
           }
           
-          // 재시도 전 2초 대기 (연결 안정화)
-          const retryDelay = isTimeout ? 2000 : 1000 * (retryCount + 1);
+          // 기타 에러는 일반 재시도
+          console.log(`[ServiceDetail] 재시도 준비 중... (${retryCount + 1}/2)`);
+          const retryDelay = 1000 * (retryCount + 1);
           console.log(`[ServiceDetail] ${retryDelay}ms 후 재시도...`);
           
           setTimeout(() => {
