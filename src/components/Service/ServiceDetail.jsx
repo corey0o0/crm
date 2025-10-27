@@ -303,9 +303,9 @@ function ServiceDetail() {
       let serviceError = null;
       
       try {
-        // 20초 타임아웃 (유휴 후 첫 연결은 더 오래 걸림)
+        // 3초 타임아웃 (빠른 응답 없으면 즉시 새로고침)
         const queryTimeout = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('쿼리 시간 초과')), 20000);
+          setTimeout(() => reject(new Error('쿼리 시간 초과')), 3000);
         });
         
         const serviceQuery = supabase
