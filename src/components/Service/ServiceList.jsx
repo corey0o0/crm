@@ -2226,6 +2226,32 @@ function ServiceList() {
     setInputValue(event.target.value);
   };
 
+  // 실시간 검색을 위한 debounce 효과
+  useEffect(() => {
+    const trimmedValue = inputValue.trim();
+    
+    // 검색어가 비어있으면 즉시 실행 (초기화)
+    if (trimmedValue === '') {
+      executeSearch();
+      return;
+    }
+
+    // 검색어가 1글자면 검색하지 않음
+    if (trimmedValue.length === 1) {
+      return;
+    }
+
+    // 검색어가 2글자 이상이면 500ms 후 자동 검색
+    const debounceTimer = setTimeout(() => {
+      console.log('[ServiceList] 실시간 검색 실행:', trimmedValue);
+      executeSearch();
+    }, 500); // 500ms 대기 후 검색
+
+    // cleanup: 이전 타이머 취소
+    return () => clearTimeout(debounceTimer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inputValue]); // executeSearch는 의존성에서 제외 (무한 루프 방지)
+
 
   //1. 초기화 함수 추가
   const handleClearSearch = () => {
