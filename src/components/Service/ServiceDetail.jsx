@@ -496,6 +496,33 @@ function ServiceDetail() {
         fullDate: serviceData.reception_date ? new Date(serviceData.reception_date).toISOString() : null
       });
 
+      // 업로드된 파일 정보 로딩
+      try {
+        const { data: filesData, error: filesError } = await supabase
+          .from('service_files')
+          .select('*')
+          .eq('service_id', id)
+          .order('upload_date', { ascending: false });
+
+        if (!filesError && filesData) {
+          const formattedFiles = filesData.map(file => ({
+            id: file.file_id,
+            name: file.file_name,
+            webViewLink: file.web_view_link,
+            webContentLink: file.web_content_link,
+            size: file.file_size,
+            type: file.file_type,
+            uploadDate: file.upload_date,
+            dbId: file.id  // DB의 primary key 저장
+          }));
+          setUploadedFiles(formattedFiles);
+          console.log('[ServiceDetail] 업로드된 파일 로딩 완료:', formattedFiles.length);
+        }
+      } catch (filesErr) {
+        console.warn('[ServiceDetail] 파일 정보 로딩 오류 (무시):', filesErr);
+        // 파일 로딩 실패는 무시하고 진행
+      }
+
       if (serviceData.service_parts?.length > 0) {
         const partIds = serviceData.service_parts.map(sp => sp.part_id);
         const { data: partsData, error: partsError } = await supabase
@@ -1624,6 +1651,32 @@ function ServiceDetail() {
     const files = Array.from(event.target.files);
     if (files.length === 0) return;
 
+    // 파일 크기 검증 (10MB 제한)
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    const oversizedFiles = files.filter(f => f.size > MAX_FILE_SIZE);
+    
+    if (oversizedFiles.length > 0) {
+      setSnackbar({
+        open: true,
+        message: `다음 파일의 크기가 10MB를 초과합니다: ${oversizedFiles.map(f => f.name).join(', ')}`,
+        severity: 'error'
+      });
+      event.target.value = ''; // 파일 입력 초기화
+      return;
+    }
+
+    // 총 파일 개수 검증 (최대 20개)
+    const MAX_TOTAL_FILES = 20;
+    if (uploadedFiles.length + files.length > MAX_TOTAL_FILES) {
+      setSnackbar({
+        open: true,
+        message: `최대 ${MAX_TOTAL_FILES}개의 파일만 업로드할 수 있습니다. (현재: ${uploadedFiles.length}개)`,
+        severity: 'error'
+      });
+      event.target.value = '';
+      return;
+    }
+
     try {
       setUploadingFiles(true);
       
@@ -1670,24 +1723,58 @@ function ServiceDetail() {
         }
       }
 
-      if (uploadResults.length > 0) {
-        setUploadedFiles(prev => [...prev, ...uploadResults]);
-        
-        // 서비스 데이터에 파일 링크 추가
-        const fileLinks = uploadResults.map(file => file.webViewLink).join(', ');
-        const updatedNote = formData.note ? `${formData.note}\n\n[첨부파일]\n${fileLinks}` : `[첨부파일]\n${fileLinks}`;
-        
-        setFormData(prev => ({
-          ...prev,
-          note: updatedNote
+    if (uploadResults.length > 0) {
+      // DB에 파일 정보 저장
+      try {
+        const fileRecords = uploadResults.map(file => ({
+          service_id: parseInt(id),
+          file_id: file.id,
+          file_name: file.name,
+          file_size: file.size,
+          file_type: file.type,
+          web_view_link: file.webViewLink,
+          web_content_link: file.webContentLink,
+          upload_date: file.uploadDate
         }));
 
+        const { data: insertedFiles, error: insertError } = await supabase
+          .from('service_files')
+          .insert(fileRecords)
+          .select();
+
+        if (insertError) {
+          console.error('[ServiceDetail] 파일 정보 DB 저장 오류:', insertError);
+          throw insertError;
+        }
+
+        // DB의 primary key를 포함하여 상태 업데이트
+        const filesWithDbId = uploadResults.map((file, index) => ({
+          ...file,
+          dbId: insertedFiles[index].id
+        }));
+
+        setUploadedFiles(prev => [...prev, ...filesWithDbId]);
+        console.log('[ServiceDetail] 파일 정보 DB 저장 완료:', insertedFiles.length);
+        
+      } catch (dbError) {
+        console.error('[ServiceDetail] 파일 정보 DB 저장 실패:', dbError);
+        // DB 저장 실패 시에도 로컬 상태는 업데이트 (파일은 이미 구글 드라이브에 업로드됨)
+        setUploadedFiles(prev => [...prev, ...uploadResults]);
+        
         setSnackbar({
           open: true,
-          message: `${uploadResults.length}개 파일이 구글 드라이브에 업로드되었습니다.`,
-          severity: 'success'
+          message: `파일은 업로드되었으나 DB 저장 중 오류가 발생했습니다: ${dbError.message}`,
+          severity: 'warning'
         });
+        return;
       }
+
+      setSnackbar({
+        open: true,
+        message: `${uploadResults.length}개 파일이 성공적으로 업로드되었습니다.`,
+        severity: 'success'
+      });
+    }
 
     } catch (error) {
       console.error('파일 업로드 실패:', error);
@@ -1704,15 +1791,33 @@ function ServiceDetail() {
   };
 
   // 파일 삭제 핸들러
-  const handleFileDelete = async (fileId) => {
+  const handleFileDelete = async (fileId, dbId) => {
     try {
-      if (!googleAccessToken) {
-        throw new Error('구글 드라이브 인증이 필요합니다.');
+      // DB에서 파일 정보 삭제
+      if (dbId) {
+        const { error: deleteError } = await supabase
+          .from('service_files')
+          .delete()
+          .eq('id', dbId);
+
+        if (deleteError) {
+          console.error('[ServiceDetail] DB 파일 정보 삭제 오류:', deleteError);
+          throw deleteError;
+        }
+        console.log('[ServiceDetail] DB 파일 정보 삭제 완료:', dbId);
       }
 
-      // 구글 드라이브에서 파일 삭제
-      const { deleteGoogleDriveFile } = await import('../../utils/googleDriveUtils');
-      await deleteGoogleDriveFile(fileId, googleAccessToken);
+      // 구글 드라이브에서 파일 삭제 (선택적)
+      if (googleAccessToken) {
+        try {
+          const { deleteGoogleDriveFile } = await import('../../utils/googleDriveUtils');
+          await deleteGoogleDriveFile(fileId, googleAccessToken);
+          console.log('[ServiceDetail] 구글 드라이브 파일 삭제 완료:', fileId);
+        } catch (driveError) {
+          console.warn('[ServiceDetail] 구글 드라이브 파일 삭제 실패 (무시):', driveError);
+          // 구글 드라이브 삭제 실패는 무시 (DB에서는 이미 삭제됨)
+        }
+      }
       
       // 로컬 상태에서 제거
       setUploadedFiles(prev => prev.filter(file => file.id !== fileId));
@@ -1724,7 +1829,7 @@ function ServiceDetail() {
       });
       
     } catch (error) {
-      console.error('파일 삭제 실패:', error);
+      console.error('[ServiceDetail] 파일 삭제 실패:', error);
       setSnackbar({
         open: true,
         message: `파일 삭제 실패: ${error.message}`,
@@ -3050,8 +3155,9 @@ function ServiceDetail() {
                               <TableCell align="center">
                                 <IconButton
                                   size="small"
-                                  onClick={() => handleFileDelete(file.id)}
+                                  onClick={() => handleFileDelete(file.id, file.dbId)}
                                   color="error"
+                                  title="파일 삭제"
                                 >
                                   <DeleteIcon />
                                 </IconButton>

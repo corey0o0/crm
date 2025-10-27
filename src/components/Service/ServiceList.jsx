@@ -385,8 +385,8 @@ function ServiceList() {
         const processedServices = firstPageData.map(service => ({
           ...service,
           status: service.status || '접수',
-          tags: [], // REST API에서는 관계 데이터를 별도로 조회해야 함
-          parts: [] // REST API에서는 관계 데이터를 별도로 조회해야 함
+          tags: service.service_tags?.map(tag => tag.tag_name) || [],
+          service_parts: service.service_parts || [] // 사용부품 정보 포함
         }));
         
         setServices(processedServices);
@@ -506,8 +506,8 @@ function ServiceList() {
       const processedServices = servicesData.map(service => ({
         ...service,
         status: service.status || '접수',
-        tags: [], // REST API에서는 관계 데이터를 별도로 조회해야 함
-        parts: [] // REST API에서는 관계 데이터를 별도로 조회해야 함
+        tags: service.service_tags?.map(tag => tag.tag_name) || [],
+        service_parts: service.service_parts || [] // 사용부품 정보 포함
       }));
       
       // 기존 데이터에 추가
@@ -769,11 +769,7 @@ function ServiceList() {
             ...service,
             status: service.status || '접수',
             tags: service.service_tags?.map(tag => tag.tag_name) || [],
-            parts: service.service_parts?.map(part => ({
-              name: part.parts?.name || '',
-            price: part.price,
-            quantity: part.quantity
-            })) || []
+            service_parts: service.service_parts || [] // 사용부품 정보 포함
           }));
           
         setServices(processedServices);
@@ -848,11 +844,7 @@ function ServiceList() {
         ...service,
         status: service.status || '접수',
         tags: service.service_tags?.map(tag => tag.tag_name) || [],
-        parts: service.service_parts?.map(part => ({
-          name: part.parts?.name || '',
-              price: part.price,
-              quantity: part.quantity
-        })) || []
+        service_parts: service.service_parts || [] // 사용부품 정보 포함
       }));
 
           setServices(prev => [...prev, ...processedServices]);
@@ -1918,9 +1910,36 @@ function ServiceList() {
         
         {/* 처리내역 및 태그 부분 */}
         <Box sx={{ mt: 1.5, mb: 1.5 }}>
-          <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>
-            처리내역:
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+            <Typography variant="body2" sx={{ fontWeight: 500 }}>
+              처리내역:
+            </Typography>
+            {/* 사용부품 아이콘 */}
+            {Array.isArray(row.service_parts) && row.service_parts.length > 0 && (
+              <Tooltip
+                title={
+                  <Box>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>사용부품</Typography>
+                    {row.service_parts.map((sp, idx) => (
+                      <Typography key={idx} variant="body2" sx={{ whiteSpace: 'nowrap' }}>
+                        {sp.parts?.name || '-'} : {sp.price?.toLocaleString() || 0}원 × {sp.quantity ?? 1}
+                      </Typography>
+                    ))}
+                    <Typography variant="body2" sx={{ fontWeight: 900, color: '#fff', mt: 1 }}>
+                      합계: {row.service_parts.reduce((sum, sp) => {
+                        const partTotal = (sp.price || 0) * (sp.quantity ?? 1);
+                        return sum + partTotal;
+                      }, 0).toLocaleString()}원
+                    </Typography>
+                  </Box>
+                }
+                placement="top"
+                arrow
+              >
+                <BuildIcon sx={{ color: 'primary.main', fontSize: 16 }} />
+              </Tooltip>
+            )}
+          </Box>
           {row.tags?.length > 0 ? (
             <Tooltip
               title={

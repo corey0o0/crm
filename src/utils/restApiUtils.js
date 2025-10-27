@@ -168,7 +168,7 @@ export const fetchServices = async (options = {}) => {
   }
 
   return fetchFromSupabase('services', {
-    select: '*',
+    select: '*,service_tags(tag_name),service_parts(id,part_id,quantity,price,usage,parts(name,code))',
     filter: filter,
     order: 'reception_date.desc',
     limit: pageSize,
