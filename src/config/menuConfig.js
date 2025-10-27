@@ -13,6 +13,7 @@ export const MENU_CONFIG = {
   // ========================================
   'admin@xrider.com': 'all',
   'manager@xrider.com': 'all',
+  'master@slimpack.com': 'all',  // Slimpack 관리자
   
   // ========================================
   // A/S 담당자 (A/S 관련 메뉴만)
