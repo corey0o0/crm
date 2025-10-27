@@ -28,9 +28,9 @@ import StockList from './components/Stock/StockList';
 import BrandSettings from './components/Settings/BrandSettings';
 import InventoryLogs from './components/Inventory/InventoryLogs';
 import InventoryManagement from './components/Inventory/InventoryManagement';
-import RoleManagement from './components/Settings/RoleManagement';
+// import RoleManagement from './components/Settings/RoleManagement'; // 제거됨 - 이메일 기반으로 대체
 import BackupManager from './components/Backup/BackupManager';
-import PermissionRoute from './components/Auth/PermissionRoute';
+// import PermissionRoute from './components/Auth/PermissionRoute'; // 제거됨 - 이메일 기반으로 대체
 // import XRiderManual from './components/Manual/XRiderManual';
 // import NewManual from './components/Manual/NewManual';
 
@@ -89,175 +89,108 @@ function App() {
             <Route path="/login" element={!session ? <Login /> : <Navigate to="/" />} />
             <Route path="/" element={session ? <Layout /> : <Navigate to="/login" />}>
             <Route index element={
-              <PermissionRoute requiredPermission="dashboard">
                 <Dashboard />
-              </PermissionRoute>
             } />
             <Route path="customers" element={
-              <PermissionRoute requiredPermission="customers">
                 <CustomerManagement />
-              </PermissionRoute>
             } />
             <Route path="services" element={
-              <PermissionRoute requiredPermission="services">
                 <ServiceList />
-              </PermissionRoute>
             } />
             <Route path="services/:id" element={
-              <PermissionRoute requiredPermission="services">
                 <ServiceDetail />
-              </PermissionRoute>
             } />
             <Route path="add-service" element={
-              <PermissionRoute requiredPermission="services">
                 <AddService />
-              </PermissionRoute>
             } />
             <Route path="service-statistics" element={
-              <PermissionRoute requiredPermission="services">
                 <ServiceStatistics />
-              </PermissionRoute>
             } />
             <Route path="parts" element={
-              <PermissionRoute requiredPermission="parts">
                 <PartsManagement />
-              </PermissionRoute>
             } />
             
             {/* 기존 출고 관리 페이지 */}
             <Route path="shipments" element={
-              <PermissionRoute requiredPermission="shipment">
                 <ProductShipment />
-              </PermissionRoute>
             } />
             <Route path="shipments/:id" element={
-              <PermissionRoute requiredPermission="shipment">
                 <ProductShipment />
-              </PermissionRoute>
             } />
             <Route path="shipments/new" element={
-              <PermissionRoute requiredPermission="shipment">
                 <ProductShipment />
-              </PermissionRoute>
             } />
             
             {/* 새로운 출고 관리 페이지 라우팅 */}
             <Route path="shipment" element={
-              <PermissionRoute requiredPermission="shipment">
                 <ShipmentList />
-              </PermissionRoute>
             } />
             <Route path="shipment/new" element={
-              <PermissionRoute requiredPermission="shipment">
                 <ShipmentForm />
-              </PermissionRoute>
             } />
             <Route path="shipment/edit/:id" element={
-              <PermissionRoute requiredPermission="shipment">
                 <ShipmentForm />
-              </PermissionRoute>
             } />
             <Route path="shipment/:id" element={
-              <PermissionRoute requiredPermission="shipment">
                 <ShipmentDetail />
-              </PermissionRoute>
             } />
             
             <Route path="receipts" element={
-              <PermissionRoute requiredPermission="receipts">
                 <ReceiptScanner />
-              </PermissionRoute>
             } />
             <Route path="google-drive-test" element={
-              <PermissionRoute requiredPermission="google_drive_test">
                 <GoogleDriveTest />
-              </PermissionRoute>
             } />
             <Route path="service" element={
-              <PermissionRoute requiredPermission="services">
                 <ServiceList />
-              </PermissionRoute>
             } />
             <Route path="service/add" element={
-              <PermissionRoute requiredPermission="services">
                 <AddService />
-              </PermissionRoute>
             } />
             <Route path="service/stats" element={
-              <PermissionRoute requiredPermission="services">
                 <ServiceStats />
-              </PermissionRoute>
             } />
             <Route path="service/:id" element={
-              <PermissionRoute requiredPermission="services">
                 <ServiceDetail />
-              </PermissionRoute>
             } />
             <Route path="sales/stats" element={
-              <PermissionRoute requiredPermission="sales_stats">
                 <SalesStats />
-              </PermissionRoute>
             } />
             <Route path="stocks" element={
-              <PermissionRoute requiredPermission="stocks">
                 <StockList />
-              </PermissionRoute>
             } />
             <Route path="stats/service" element={
-              <PermissionRoute requiredPermission="services">
                 <ServiceStats />
-              </PermissionRoute>
             } />
             <Route path="brand-settings" element={
-              <PermissionRoute requiredPermission="brand_settings">
                 <BrandSettings />
-              </PermissionRoute>
             } />
             <Route path="inventory-logs" element={
-              <PermissionRoute requiredPermission="inventory_management">
                 <InventoryLogs />
-              </PermissionRoute>
             } />
             <Route path="inventory-management" element={
-              <PermissionRoute requiredPermission="inventory_management">
                 <InventoryManagement />
-              </PermissionRoute>
             } />
             
-            {/* 권한 설정 */}
-            <Route path="role-settings" element={
-              <PermissionRoute requiredPermission="role_settings">
-                <RoleManagement />
-              </PermissionRoute>
-            } />
+            {/* 권한 설정 - 제거됨 (이메일 기반으로 대체) */}
             
             {/* 데이터 백업/복원 */}
             <Route path="backup" element={
-              <PermissionRoute requiredPermission="backup_management">
                 <BackupManager />
-              </PermissionRoute>
             } />
             
             {/* 게시판 */}
             <Route path="board" element={
-              <PermissionRoute requiredPermission="board">
                 <BoardList />
-              </PermissionRoute>
             } />
             <Route path="board/new" element={
-              <PermissionRoute requiredPermission="board">
                 <BoardNew />
-              </PermissionRoute>
             } />
             <Route path="board/:id" element={
-              <PermissionRoute requiredPermission="board">
                 <BoardDetail />
-              </PermissionRoute>
             } />
             <Route path="board/:id/edit" element={
-              <PermissionRoute requiredPermission="board">
                 <BoardEdit />
-              </PermissionRoute>
             } />
           </Route>
         </Routes>

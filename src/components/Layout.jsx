@@ -56,6 +56,7 @@ import { styled } from '@mui/material/styles';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
+import { getUserMenuKeys } from '../config/menuConfig';
 // import NotificationBell from './Dashboard/NotificationBell'; // 임시 비활성화
 import ServiceCalendar from './ServiceCalendar';
 import dayjs from 'dayjs';
@@ -129,7 +130,7 @@ function Layout() {
   const [dailyServices, setDailyServices] = useState([]);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [syncStatus, setSyncStatus] = useState({});
-  const { hasPermission } = useAuth();
+  const { user } = useAuth();
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -243,12 +244,14 @@ function Layout() {
     { text: '게시판', icon: <MenuBookIcon />, path: '/board', key: 'board' },
     
     // ⚙️ 설정
-    { text: '권한 설정', icon: <SettingsIcon />, path: '/role-settings', key: 'role_settings' },
     { text: '데이터 백업/복원', icon: <BackupIcon />, path: '/backup', key: 'backup_management' }
   ];
 
-  // 권한에 따라 메뉴 필터링
-  const menuItems = allMenuItems.filter(item => hasPermission(item.key));
+  // 이메일 기반 메뉴 필터링 (DB 쿼리 없음!)
+  const userMenuKeys = getUserMenuKeys(user?.email);
+  const menuItems = userMenuKeys === 'all' 
+    ? allMenuItems 
+    : allMenuItems.filter(item => userMenuKeys.includes(item.key));
 
   const handleDrawerToggle = () => {
     setOpen(!open);
