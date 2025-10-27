@@ -3110,6 +3110,7 @@ function ServiceDetail() {
                 목록
               </Button>
             </Box>
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
               <Button 
                 onClick={handlePrintEstimate}
                 startIcon={<ReceiptIcon />}
