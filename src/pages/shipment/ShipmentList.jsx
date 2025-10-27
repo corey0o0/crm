@@ -1880,10 +1880,28 @@ function ShipmentList() {
       
       <Snackbar
         open={snackbar.open}
-        autoHideDuration={6000}
+        autoHideDuration={2000}
         onClose={() => setSnackbar(prev => ({...prev, open: false}))}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        sx={{
+          top: '50% !important',
+          transform: 'translateY(-50%)'
+        }}
       >
-        <Alert severity={snackbar.severity}>
+        <Alert
+          onClose={() => setSnackbar(prev => ({...prev, open: false}))}
+          severity={snackbar.severity}
+          variant="filled"
+          sx={{
+            width: '100%',
+            minWidth: '300px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            fontSize: '1rem',
+            '.MuiAlert-icon': {
+              fontSize: '24px'
+            }
+          }}
+        >
           {snackbar.message}
         </Alert>
       </Snackbar>
