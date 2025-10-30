@@ -15,6 +15,8 @@ AS 디테일에서 파일 업로드 기능을 사용하려면 구글 드라이�
 5. 승인된 리디렉션 URI에 다음 추가:
    - `http://localhost:3000/google-auth-callback.html` (개발용)
    - `https://yourdomain.com/google-auth-callback.html` (프로덕션용)
+   - `http://localhost:3000/google-auth-callback.html?service_id=*` (개발용 - 쿼리 파라미터 포함)
+   - `https://yourdomain.com/google-auth-callback.html?service_id=*` (프로덕션용 - 쿼리 파라미터 포함)
 
 ### 2. 환경변수 설정
 

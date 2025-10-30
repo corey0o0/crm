@@ -18,6 +18,7 @@ import {
 } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
 import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
+import { handlePhoneInput, normalizePhoneNumber, isValidPhoneNumber } from '../../utils/phoneUtils';
 
 function AddCustomer({ onSuccess }) {
   const [formData, setFormData] = useState({
@@ -30,12 +31,27 @@ function AddCustomer({ onSuccess }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // 한글 자모가 포함된 경우 오류 메시지 표시
+    if (/[ㄱ-ㅎㅏ-ㅣ]/.test(formData.phone)) {
+      alert('전화번호에 한글 자모가 포함되어 있습니다. 숫자로 입력해주세요.');
+      return;
+    }
+    
+    // 전화번호 유효성 검사
+    if (!isValidPhoneNumber(formData.phone)) {
+      alert('올바른 전화번호 형식을 입력해주세요. (예: 010-1234-5678)');
+      return;
+    }
+    
     try {
+      const normalizedPhone = normalizePhoneNumber(formData.phone);
+      
       const { error } = await supabase
         .from('customers')
         .insert([{
           name: formData.name,
-          phone: formData.phone,
+          phone: normalizedPhone,
           address: `${formData.address} ${formData.addressDetail}`.trim(),
           grade: formData.grade
         }]);
@@ -47,14 +63,26 @@ function AddCustomer({ onSuccess }) {
       }
     } catch (err) {
       console.error('Error adding customer:', err);
+      alert('고객 등록 중 오류가 발생했습니다.');
     }
   };
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+    const { name, value } = e.target;
+    
+    if (name === 'phone') {
+      // 전화번호 입력 시 한글 자모 변환 및 형식 정규화
+      const normalizedPhone = handlePhoneInput(value);
+      setFormData({
+        ...formData,
+        [name]: normalizedPhone
+      });
+    } else {
+      setFormData({
+        ...formData,
+        [name]: value
+      });
+    }
   };
 
   // 엑셀 업로드 처리

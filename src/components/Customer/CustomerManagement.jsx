@@ -96,8 +96,8 @@ function CustomerManagement() {
             onChange={handleChange}
             aria-label="customer management tabs"
           >
-            <Tab label="고객 목록" />
-            <Tab label="고객 등록" />
+            <Tab label="고객 목록" sx={{ fontWeight: 'bold' }} />
+            <Tab label="고객 등록" sx={{ fontWeight: 'bold' }} />
           </Tabs>
           {tabValue === 0 && (
             <Tooltip title="고객 목록 다운로드">

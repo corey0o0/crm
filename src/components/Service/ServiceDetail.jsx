@@ -1506,25 +1506,41 @@ function ServiceDetail() {
           .limit(5);
         const { data: recentShipments, error: recentShipmentsError } = await supabase
           .from('shipments')
-          .select('customer_name, customer_phone, customer_address, brand')
+          .select('customer_name, customer_phone, customer_address, brand, product_name')
           .eq('brand', formData.brand)
           .order('created_at', { ascending: false })
           .limit(5);
         if (recentServicesError) throw recentServicesError;
         if (recentShipmentsError) throw recentShipmentsError;
         const allRecentCustomers = [...(recentServices || []), ...(recentShipments || [])];
-        const uniqueCustomers = Array.from(new Set(allRecentCustomers.map(c => c.customer_phone)))
-          .map(phone => allRecentCustomers.find(c => c.customer_phone === phone))
-          .filter(customer => customer.customer_name && customer.customer_phone)
-          .slice(0, 10);
-        setCustomerSearchResults(uniqueCustomers.map(c => ({
-          id: c.customer_phone,
-          name: c.customer_name,
-          phone: c.customer_phone,
-          address: c.customer_address || '',
-          product_name: c.product_name || '',
-          seller: c.seller || ''
-        })));
+        
+        // 이름 + 전화번호 조합으로 중복 제거
+        const recentUniqueMap = new Map();
+        allRecentCustomers.forEach(customer => {
+          if (customer.customer_name && customer.customer_phone) {
+            const key = `${customer.customer_name.trim()}_${customer.customer_phone.trim()}`;
+            if (!recentUniqueMap.has(key)) {
+              recentUniqueMap.set(key, {
+                id: key,
+                name: customer.customer_name,
+                phone: customer.customer_phone,
+                address: customer.customer_address || '',
+                product_name: customer.product_name || '',
+                seller: customer.seller || '',
+                brand: customer.brand || ''
+              });
+            } else {
+              // 기존 고객이 있으면 product_name이 있는 경우 업데이트
+              const existing = recentUniqueMap.get(key);
+              if (customer.product_name && !existing.product_name) {
+                existing.product_name = customer.product_name;
+              }
+            }
+          }
+        });
+        
+        const uniqueRecentCustomers = Array.from(recentUniqueMap.values()).slice(0, 10);
+        setCustomerSearchResults(uniqueRecentCustomers);
         return;
       }
       const cleanSearchTerm = searchTerm.replace(/-/g, '');
@@ -1537,23 +1553,39 @@ function ServiceDetail() {
       if (serviceError) throw serviceError;
       const { data: shipmentResults, error: shipmentError } = await supabase
         .from('shipments')
-        .select('customer_name, customer_phone, customer_address, brand')
+        .select('customer_name, customer_phone, customer_address, brand, product_name')
         .eq('brand', formData.brand)
         .or(`customer_phone.ilike.%${cleanSearchTerm}%,customer_name.ilike.%${searchTerm}%`)
         .order('created_at', { ascending: false });
       if (shipmentError) throw shipmentError;
       const allResults = [...(serviceResults || []), ...(shipmentResults || [])];
-      const uniqueResults = Array.from(new Set(allResults.map(c => c.customer_phone)))
-        .map(phone => allResults.find(c => c.customer_phone === phone))
-        .filter(customer => customer.customer_name && customer.customer_phone)
-        .map(customer => ({
-          id: customer.customer_phone,
-          name: customer.customer_name,
-          phone: customer.customer_phone,
-          address: customer.customer_address || '',
-          product_name: customer.product_name || '',
-          seller: customer.seller || ''
-        }));
+      
+      // 이름 + 전화번호 조합으로 중복 제거
+      const uniqueMap = new Map();
+      allResults.forEach(customer => {
+        if (customer.customer_name && customer.customer_phone) {
+          const key = `${customer.customer_name.trim()}_${customer.customer_phone.trim()}`;
+          if (!uniqueMap.has(key)) {
+            uniqueMap.set(key, {
+              id: key,
+              name: customer.customer_name,
+              phone: customer.customer_phone,
+              address: customer.customer_address || '',
+              product_name: customer.product_name || '',
+              seller: customer.seller || '',
+              brand: customer.brand || ''
+            });
+          } else {
+            // 기존 고객이 있으면 product_name이 있는 경우 업데이트
+            const existing = uniqueMap.get(key);
+            if (customer.product_name && !existing.product_name) {
+              existing.product_name = customer.product_name;
+            }
+          }
+        }
+      });
+      
+      const uniqueResults = Array.from(uniqueMap.values());
       setCustomerSearchResults(uniqueResults);
     } catch (err) {
       setSnackbar({
@@ -1613,32 +1645,22 @@ function ServiceDetail() {
         throw new Error('구글 클라이언트 ID가 설정되지 않았습니다. 환경변수 REACT_APP_GOOGLE_CLIENT_ID를 확인하세요.');
       }
       
-      const redirectUri = `${window.location.origin}/google-auth-callback.html`;
+      // 팝업 차단을 우회하기 위해 현재 창에서 리다이렉트
+      const redirectUri = `${window.location.origin}/google-auth-callback.html?service_id=${id}`;
       const authUrl = `https://accounts.google.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=https://www.googleapis.com/auth/drive.file&response_type=token&access_type=offline`;
       
       setSnackbar({
         open: true,
-        message: '구글 드라이브 인증이 필요합니다. 새 창에서 인증을 완료해주세요.',
+        message: '구글 드라이브 인증이 필요합니다. 잠시 후 인증 페이지로 이동합니다.',
         severity: 'info'
       });
       
-      // 팝업 창으로 인증
-      const popup = window.open(authUrl, 'google-auth', 'width=500,height=600,scrollbars=yes,resizable=yes');
+      // 현재 창에서 인증 페이지로 이동
+      setTimeout(() => {
+        window.location.href = authUrl;
+      }, 2000);
       
-      return new Promise((resolve, reject) => {
-        const checkClosed = setInterval(() => {
-          if (popup.closed) {
-            clearInterval(checkClosed);
-            const newToken = localStorage.getItem('google_access_token');
-            if (newToken) {
-              setGoogleAccessToken(newToken);
-              resolve(newToken);
-            } else {
-              reject(new Error('구글 드라이브 인증이 취소되었습니다.'));
-            }
-          }
-        }, 1000);
-      });
+      throw new Error('인증 페이지로 이동합니다.');
       
     } catch (error) {
       console.error('구글 액세스 토큰 가져오기 실패:', error);
@@ -1689,9 +1711,16 @@ function ServiceDetail() {
         }
       }
 
-      // AS 서비스별 폴더 생성
+      // 업로드 루트/서브 폴더 설정 (환경변수 활용)
+      const rootFolderId = process.env.REACT_APP_GOOGLE_DRIVE_ROOT_FOLDER_ID || null; // 예: 1bcCscOsNptDJvOVA1qSrbi-m6XU1y4d7
+      const subFolderName = process.env.REACT_APP_GOOGLE_DRIVE_SUBFOLDER || 'upload_crm';
+
+      // 루트 폴더ID 하위에 서브폴더(upload_crm)를 생성/탐색
+      const subRootFolder = await findOrCreateFolder(subFolderName, rootFolderId, accessToken);
+
+      // 서비스별 하위 폴더 생성 (upload_crm/AS_...)
       const serviceFolderName = `AS_${formData.customer_name}_${formData.product_name}_${id}`;
-      const serviceFolder = await findOrCreateFolder(serviceFolderName, null, accessToken);
+      const serviceFolder = await findOrCreateFolder(serviceFolderName, subRootFolder?.id || rootFolderId, accessToken);
 
       const uploadResults = [];
       

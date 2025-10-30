@@ -1150,11 +1150,39 @@ function AddService() {
     }
   }, [selectedBrand, formData.brand]);
 
+  // 컴포넌트 마운트 시 최근 고객 정보 로드
+  useEffect(() => {
+    searchCustomers('');
+  }, []);
+
+  // 제품명에서 기체만 추출하는 함수
+  const extractMainProduct = (productName) => {
+    if (!productName) return '';
+    
+    // 쉼표로 구분된 제품명들을 배열로 분리
+    const products = productName.split(',').map(p => p.trim()).filter(Boolean);
+    
+    // 기체를 찾기 위한 키워드들
+    const mainProductKeywords = ['기체', '드론', '드론기체', '기본기체'];
+    
+    // 기체 키워드가 포함된 제품을 찾기
+    for (const product of products) {
+      for (const keyword of mainProductKeywords) {
+        if (product.includes(keyword)) {
+          return product;
+        }
+      }
+    }
+    
+    // 기체를 찾지 못한 경우 첫 번째 제품 반환
+    return products[0] || '';
+  };
+
   // 고객 검색 함수
   const searchCustomers = async (searchTerm) => {
     try {
       setSearchLoading(true);
-      if (searchTerm.length < 2) {
+      if (!searchTerm || searchTerm.length < 2) {
         // 최근 고객 정보 조회 (A/S + 출고) - 브랜드 구분 없이 모든 고객 검색
         const { data: recentServices, error: recentServicesError } = await supabase
           .from('services')
@@ -1163,7 +1191,7 @@ function AddService() {
           .limit(10);
         const { data: recentShipments, error: recentShipmentsError } = await supabase
           .from('shipments')
-          .select('customer_name, customer_phone, customer_address, brand')
+          .select('customer_name, customer_phone, customer_address, brand, product_name')
           .order('created_at', { ascending: false })
           .limit(10);
         if (recentServicesError) throw recentServicesError;
@@ -1172,12 +1200,13 @@ function AddService() {
         
         // 최근 고객도 이름 + 전화번호 조합으로 중복 제거
         const recentUniqueMap = new Map();
+        let customerIndex = 0;
         allRecentCustomers.forEach(customer => {
           if (customer.customer_name && customer.customer_phone) {
             const key = `${customer.customer_name.trim()}_${customer.customer_phone.trim()}`;
             if (!recentUniqueMap.has(key)) {
               recentUniqueMap.set(key, {
-                id: key,
+                id: `${key}_${customerIndex++}`, // 고유한 ID 생성
                 name: customer.customer_name,
                 phone: customer.customer_phone,
                 address: customer.customer_address || '',
@@ -1185,6 +1214,12 @@ function AddService() {
                 seller: customer.seller || '',
                 brand: customer.brand || ''
               });
+            } else {
+              // 기존 고객이 있으면 product_name이 있는 경우 업데이트
+              const existing = recentUniqueMap.get(key);
+              if (customer.product_name && !existing.product_name) {
+                existing.product_name = customer.product_name;
+              }
             }
           }
         });
@@ -1210,7 +1245,7 @@ function AddService() {
           
         shipmentQuery = supabase
           .from('shipments')
-          .select('customer_name, customer_phone, customer_address, brand')
+          .select('customer_name, customer_phone, customer_address, brand, product_name')
           .or(`customer_phone.ilike.%${cleanSearchTerm}%,customer_phone.ilike.%${searchTerm}%`)
           .order('created_at', { ascending: false });
       } else {
@@ -1223,7 +1258,7 @@ function AddService() {
           
         shipmentQuery = supabase
           .from('shipments')
-          .select('customer_name, customer_phone, customer_address, brand')
+          .select('customer_name, customer_phone, customer_address, brand, product_name')
           .or(`customer_name.ilike.%${searchTerm}%,customer_phone.ilike.%${cleanSearchTerm}%,customer_phone.ilike.%${searchTerm}%`)
           .order('created_at', { ascending: false });
       }
@@ -1236,12 +1271,13 @@ function AddService() {
       
       // 이름 + 전화번호 조합으로 중복 제거 (더 정확한 고객 식별)
       const uniqueMap = new Map();
+      let searchIndex = 0;
       allResults.forEach(customer => {
         if (customer.customer_name && customer.customer_phone) {
           const key = `${customer.customer_name.trim()}_${customer.customer_phone.trim()}`;
           if (!uniqueMap.has(key)) {
             uniqueMap.set(key, {
-              id: key,
+              id: `${key}_search_${searchIndex++}`, // 고유한 ID 생성
               name: customer.customer_name,
               phone: customer.customer_phone,
               address: customer.customer_address || '',
@@ -1249,6 +1285,12 @@ function AddService() {
               seller: customer.seller || '',
               brand: customer.brand || ''
             });
+          } else {
+            // 기존 고객이 있으면 product_name이 있는 경우 업데이트
+            const existing = uniqueMap.get(key);
+            if (customer.product_name && !existing.product_name) {
+              existing.product_name = customer.product_name;
+            }
           }
         }
       });
@@ -1408,12 +1450,15 @@ function AddService() {
 
   // 고객 선택 핸들러
   const handleCustomerSelect = (customer) => {
+    // 기체만 추출하여 제품명 설정
+    const mainProduct = extractMainProduct(customer.product_name);
+    
     setFormData(prev => ({
       ...prev,
       customer_name: customer.name,
       customer_phone: customer.phone,
       customer_address: customer.address || '',
-      product_name: customer.product_name || prev.product_name,
+      product_name: mainProduct || prev.product_name,
       seller: customer.seller || prev.seller
     }));
     setCustomerSearchOpen(false);
@@ -2094,20 +2139,78 @@ function AddService() {
                     </Typography>
                     <Grid container spacing={2}>
                       <Grid item xs={12}>
-                        <TextField
-                          fullWidth
-                          required
-                          size="small"
-                          label="고객명"
-                          name="customer_name"
+                        <Autocomplete
+                          freeSolo
+                          options={customerSearchResults}
+                          getOptionLabel={(option) => {
+                            if (typeof option === 'string') return option;
+                            return option.name || '';
+                          }}
+                          getOptionKey={(option) => {
+                            if (typeof option === 'string') return option;
+                            return option.id || `${option.name}_${option.phone}`;
+                          }}
                           value={formData.customer_name}
-                          onChange={handleInputChange}
+                          onInputChange={(event, newInputValue) => {
+                            setFormData(prev => ({
+                              ...prev,
+                              customer_name: newInputValue
+                            }));
+                            if (newInputValue.length >= 2) {
+                              searchCustomers(newInputValue);
+                            }
+                          }}
+                          onChange={(event, newValue) => {
+                            if (newValue && typeof newValue === 'object') {
+                              // 기체만 추출하여 제품명 설정
+                              const mainProduct = extractMainProduct(newValue.product_name);
+                              
+                              setFormData(prev => ({
+                                ...prev,
+                                customer_name: newValue.name,
+                                customer_phone: newValue.phone,
+                                customer_address: newValue.address,
+                                product_name: mainProduct || prev.product_name,
+                                seller: newValue.seller || prev.seller,
+                                brand: newValue.brand || prev.brand
+                              }));
+                            }
+                          }}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              fullWidth
+                              required
+                              size="small"
+                              label="고객명"
+                              placeholder="고객명을 입력하세요"
+                            />
+                          )}
+                          renderOption={(props, option) => (
+                            <Box component="li" {...props}>
+                              <Box>
+                                <Typography variant="body2" fontWeight="bold">
+                                  {option.name}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {option.phone} {option.address && `• ${option.address}`}
+                                </Typography>
+                                {option.product_name && (
+                                  <Typography variant="caption" color="primary" display="block">
+                                    기종: {option.product_name}
+                                  </Typography>
+                                )}
+                              </Box>
+                            </Box>
+                          )}
+                          loading={searchLoading}
+                          noOptionsText="검색 결과가 없습니다"
                         />
                       </Grid>
                       <Grid item xs={12}>
                         <TextField
                           fullWidth
-                          requirㅞㅡed
+                          required
                           size="small"
                           label="연락처"
                           name="customer_phone"
@@ -2373,7 +2476,7 @@ function AddService() {
               <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
                 <Box sx={{ display: 'flex', gap: 2 }}>
                   <Button
-                    startIcon={<SearchIcon />}
+                    startIcon={<AddIcon />}
                     variant="contained"
                     onClick={handleOpenPartsDialog}
                     sx={{ 

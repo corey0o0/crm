@@ -80,6 +80,26 @@
             document.getElementById('error-message').textContent = message;
         }
 
+        function getServiceIdFromReferrer() {
+            try {
+                // document.referrer에서 서비스 ID 추출
+                const referrer = document.referrer;
+                if (referrer) {
+                    const match = referrer.match(/\/service\/(\d+)/);
+                    if (match) {
+                        return match[1];
+                    }
+                }
+                
+                // URL 파라미터에서 서비스 ID 확인
+                const urlParams = new URLSearchParams(window.location.search);
+                return urlParams.get('service_id');
+            } catch (err) {
+                console.warn('서비스 ID 추출 실패:', err);
+                return null;
+            }
+        }
+
         function handleAuthCallback() {
             try {
                 // URL에서 액세스 토큰 추출
@@ -104,29 +124,40 @@
                     return;
                 }
                 
-                if (accessToken) {
-                    console.log('구글 OAuth 성공, 토큰:', accessToken.substring(0, 20) + '...');
-                    showSuccess();
-                    
-                    // 부모 창에 성공 메시지와 토큰 전달
-                    if (window.opener) {
-                        window.opener.postMessage({
-                            type: 'GOOGLE_AUTH_SUCCESS',
-                            accessToken: accessToken
-                        }, window.location.origin);
-                        
-                        // 2초 후 창 닫기
-                        setTimeout(() => {
-                            window.close();
-                        }, 2000);
-                    } else {
-                        // 팝업이 아닌 경우 localStorage에 저장
-                        localStorage.setItem('google_access_token', accessToken);
-                        showSuccess();
-                    }
-                } else {
-                    showError('액세스 토큰을 받지 못했습니다.');
-                }
+        if (accessToken) {
+          console.log('구글 OAuth 성공, 토큰:', accessToken.substring(0, 20) + '...');
+          showSuccess();
+          
+          // localStorage에 토큰 저장
+          localStorage.setItem('google_access_token', accessToken);
+          
+          // 부모 창에 성공 메시지와 토큰 전달 (팝업인 경우)
+          if (window.opener) {
+            window.opener.postMessage({
+              type: 'GOOGLE_AUTH_SUCCESS',
+              accessToken: accessToken
+            }, window.location.origin);
+            
+            // 2초 후 창 닫기
+            setTimeout(() => {
+              window.close();
+            }, 2000);
+          } else {
+            // 현재 창에서 리다이렉트된 경우 원래 페이지로 돌아가기
+            const serviceId = getServiceIdFromReferrer();
+            if (serviceId) {
+              setTimeout(() => {
+                window.location.href = `/service/${serviceId}`;
+              }, 2000);
+            } else {
+              setTimeout(() => {
+                window.location.href = '/service';
+              }, 2000);
+            }
+          }
+        } else {
+          showError('액세스 토큰을 받지 못했습니다.');
+        }
                 
             } catch (err) {
                 console.error('인증 콜백 처리 오류:', err);

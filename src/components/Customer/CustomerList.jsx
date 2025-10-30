@@ -35,6 +35,7 @@ import {
   DialogActions,
   DialogContentText
 } from '@mui/material';
+import ResponsiveTable from '../common/ResponsiveTable';
 import {
   Close as CloseIcon,
   Build as BuildIcon,
@@ -53,6 +54,7 @@ import { fetchFromSupabase } from '../../utils/restApiUtils';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { downloadExcel } from '../../utils/excelUtils';
 import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
+import { handlePhoneInput, normalizePhoneNumber, isValidPhoneNumber } from '../../utils/phoneUtils';
 
 function CustomerList({ refreshTrigger, onRefresh }) {
   const [customers, setCustomers] = useState([]);
@@ -452,19 +454,41 @@ function CustomerList({ refreshTrigger, onRefresh }) {
   // 고객 정보 수정 입력 처리
   const handleEditInputChange = (e) => {
     const { name, value } = e.target;
-    setEditCustomerData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    
+    if (name === 'phone') {
+      // 전화번호 입력 시 한글 자모 변환 및 형식 정규화
+      const normalizedPhone = handlePhoneInput(value);
+      setEditCustomerData(prev => ({
+        ...prev,
+        [name]: normalizedPhone
+      }));
+    } else {
+      setEditCustomerData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   };
 
   // 고객 정보 수정 제출
   const handleEditSubmit = async () => {
     try {
+      // 전화번호 유효성 검사
+      if (!isValidPhoneNumber(editCustomerData.phone)) {
+        setSnackbar({
+          open: true,
+          message: '올바른 전화번호 형식을 입력해주세요. (예: 010-1234-5678)',
+          severity: 'error'
+        });
+        return;
+      }
+      
+      const normalizedPhone = normalizePhoneNumber(editCustomerData.phone);
+      
       const { error } = await supabase
         .from('customers')
         .upsert({
-          phone: editCustomerData.phone,
+          phone: normalizedPhone,
           name: editCustomerData.name,
           address: editCustomerData.address
         });
@@ -492,19 +516,132 @@ function CustomerList({ refreshTrigger, onRefresh }) {
   // 고객 삭제 처리
   const handleDeleteCustomer = async () => {
     try {
-      const { error } = await supabase
+      // 한글 자모가 포함된 경우 오류 메시지 표시
+      if (/[ㄱ-ㅎㅏ-ㅣ]/.test(editCustomerData.phone)) {
+        setSnackbar({
+          open: true,
+          message: '전화번호에 한글 자모가 포함되어 있습니다. 숫자로 입력해주세요.',
+          severity: 'error'
+        });
+        return;
+      }
+      
+      const normalizedPhone = normalizePhoneNumber(editCustomerData.phone);
+      console.log('[CustomerList] 삭제 시도 - 고객 전화번호:', normalizedPhone);
+      
+      if (!normalizedPhone) {
+        setSnackbar({
+          open: true,
+          message: '올바른 전화번호를 입력해주세요.',
+          severity: 'error'
+        });
+        return;
+      }
+      
+      // 삭제 전 고객 존재 확인 - 정규화된 전화번호와 원본 전화번호 모두 시도
+      let existingCustomer = null;
+      let checkError = null;
+      
+      // 먼저 정규화된 전화번호로 검색
+      const { data: normalizedResult, error: normalizedError } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('phone', normalizedPhone)
+        .single();
+      
+      if (normalizedResult) {
+        existingCustomer = normalizedResult;
+      } else {
+        // 정규화된 전화번호로 찾지 못한 경우 원본 전화번호로 검색
+        const { data: originalResult, error: originalError } = await supabase
+          .from('customers')
+          .select('*')
+          .eq('phone', editCustomerData.phone)
+          .single();
+        
+        existingCustomer = originalResult;
+        checkError = originalError;
+      }
+
+      if (checkError) {
+        console.error('[CustomerList] 고객 확인 오류:', checkError);
+        throw new Error('고객 정보를 확인할 수 없습니다.');
+      }
+
+      if (!existingCustomer) {
+        throw new Error('삭제할 고객을 찾을 수 없습니다.');
+      }
+
+      console.log('[CustomerList] 삭제할 고객 정보:', existingCustomer);
+
+      // 고객 삭제 - 정규화된 전화번호와 원본 전화번호 모두 시도
+      let deleteError = null;
+      let deleteCount = null;
+      
+      // 먼저 정규화된 전화번호로 삭제 시도
+      const { error: normalizedDeleteError, count: normalizedCount } = await supabase
         .from('customers')
         .delete()
-        .eq('phone', editCustomerData.phone);
+        .eq('phone', normalizedPhone);
+      
+      if (normalizedDeleteError) {
+        // 정규화된 전화번호로 삭제 실패한 경우 원본 전화번호로 삭제 시도
+        const { error: originalDeleteError, count: originalCount } = await supabase
+          .from('customers')
+          .delete()
+          .eq('phone', editCustomerData.phone);
+        
+        deleteError = originalDeleteError;
+        deleteCount = originalCount;
+      } else {
+        deleteCount = normalizedCount;
+      }
 
-      if (error) throw error;
+      if (deleteError) {
+        console.error('[CustomerList] 삭제 오류:', deleteError);
+        throw deleteError;
+      }
+
+      console.log('[CustomerList] 삭제 결과 - 삭제된 행 수:', deleteCount);
+
+      // 삭제 확인 - 정규화된 전화번호와 원본 전화번호 모두 확인
+      const { data: normalizedCheck, error: normalizedVerifyError } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('phone', normalizedPhone);
+      
+      const { data: originalCheck, error: originalVerifyError } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('phone', editCustomerData.phone);
+      
+      const deletedCheck = [...(normalizedCheck || []), ...(originalCheck || [])];
+      const verifyError = normalizedVerifyError || originalVerifyError;
+
+      if (verifyError) {
+        console.error('[CustomerList] 삭제 확인 오류:', verifyError);
+      } else {
+        console.log('[CustomerList] 삭제 확인 - 남은 고객 수:', deletedCheck?.length || 0);
+      }
 
       // 스낵바 메시지 표시
       setSnackbar({
         open: true,
-        message: '고객이 성공적으로 삭제되었습니다.',
+        message: `고객이 성공적으로 삭제되었습니다. (삭제된 행: ${deleteCount || 0}개)`,
         severity: 'success'
       });
+
+      // 로컬 상태에서 고객 제거 - 정규화된 전화번호와 원본 전화번호 모두 제거
+      setCustomers(prevCustomers => 
+        prevCustomers.filter(customer => 
+          customer.phone !== normalizedPhone && customer.phone !== editCustomerData.phone
+        )
+      );
+      setFilteredCustomers(prevFiltered => 
+        prevFiltered.filter(customer => 
+          customer.phone !== normalizedPhone && customer.phone !== editCustomerData.phone
+        )
+      );
 
       // 다이얼로그 닫기
       setDeleteConfirmOpen(false);
@@ -515,19 +652,11 @@ function CustomerList({ refreshTrigger, onRefresh }) {
         onRefresh();
       }
 
-      // 로컬 상태도 업데이트
-      setCustomers(prevCustomers => 
-        prevCustomers.filter(customer => customer.phone !== editCustomerData.phone)
-      );
-      setFilteredCustomers(prevFiltered => 
-        prevFiltered.filter(customer => customer.phone !== editCustomerData.phone)
-      );
-
     } catch (err) {
-      console.error('Error deleting customer:', err);
+      console.error('[CustomerList] 고객 삭제 실패:', err);
       setSnackbar({
         open: true,
-        message: '고객 삭제 중 오류가 발생했습니다.',
+        message: `고객 삭제 중 오류가 발생했습니다: ${err.message}`,
         severity: 'error'
       });
     }
@@ -567,7 +696,12 @@ function CustomerList({ refreshTrigger, onRefresh }) {
   }
 
   return (
-    <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto', width: '100%' }}>
+    <Box sx={{ 
+      maxWidth: '1800px', 
+      width: 'auto', 
+      mx: 'auto',
+      p: 3
+    }}>
       <Box sx={{ mb: 2 }}>
         <TextField
           fullWidth
@@ -580,16 +714,16 @@ function CustomerList({ refreshTrigger, onRefresh }) {
         />
       </Box>
       <TableContainer component={Paper}>
-        <Table>
+        <Table sx={{ '& .MuiTableCell-root': { fontSize: '1rem' } }}>
           <TableHead>
             <TableRow>
-              <TableCell>이름</TableCell>
-              <TableCell>연락처</TableCell>
-              <TableCell>최근 A/S</TableCell>
-              <TableCell>최근 기종명</TableCell>
-              <TableCell>최근 출고</TableCell>
-              <TableCell>건수</TableCell>
-              <TableCell align="center">관리</TableCell>
+              <TableCell sx={{ fontWeight: 'bold' }}>이름</TableCell>
+              <TableCell sx={{ fontWeight: 'bold' }}>연락처</TableCell>
+              <TableCell sx={{ fontWeight: 'bold' }}>최근 A/S</TableCell>
+              <TableCell sx={{ fontWeight: 'bold' }}>최근 기종명</TableCell>
+              <TableCell sx={{ fontWeight: 'bold' }}>최근 출고</TableCell>
+              <TableCell sx={{ fontWeight: 'bold' }}>건수</TableCell>
+              <TableCell align="center" sx={{ fontWeight: 'bold' }}>관리</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -808,8 +942,16 @@ function CustomerList({ refreshTrigger, onRefresh }) {
                     }
                   }}
                 >
-                  <Tab value="service" label={`A/S 이력 (${serviceHistory.length})`} />
-                  <Tab value="shipment" label={`출고 이력 (${shipmentHistory.length})`} />
+                  <Tab 
+                    value="service" 
+                    label={`A/S 이력 (${serviceHistory.length})`} 
+                    sx={{ fontWeight: 'bold' }}
+                  />
+                  <Tab 
+                    value="shipment" 
+                    label={`출고 이력 (${shipmentHistory.length})`} 
+                    sx={{ fontWeight: 'bold' }}
+                  />
                 </Tabs>
               </Box>
 

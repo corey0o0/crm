@@ -2261,11 +2261,11 @@ function ServiceList() {
       return;
     }
 
-    // 검색어가 2글자 이상이면 500ms 후 자동 검색
+    // 검색어가 2글자 이상이면 800ms 후 자동 검색 (조금 더 여유를 줘서 불필요한 호출 감소)
     const debounceTimer = setTimeout(() => {
       console.log('[ServiceList] 실시간 검색 실행:', trimmedValue);
       executeSearch();
-    }, 500); // 500ms 대기 후 검색
+    }, 800); // 800ms 대기 후 검색
 
     // cleanup: 이전 타이머 취소
     return () => clearTimeout(debounceTimer);
