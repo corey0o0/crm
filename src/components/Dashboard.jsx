@@ -885,7 +885,7 @@ function Dashboard() {
     try {
       const memoName = memoNames[idx] || `메모 ${idx + 1}`;
       const message = `[${memoName}]\n${content}`;
-      await sendTelegramNotification(message);
+      await sendTelegramNotification({ message });
       setTelegramResult({ open: true, message: '텔레그램 전송 성공!', success: true });
     } catch (e) {
       setTelegramResult({ open: true, message: '텔레그램 전송 실패', success: false });
