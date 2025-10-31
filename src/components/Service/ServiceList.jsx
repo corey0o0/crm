@@ -2768,14 +2768,43 @@ function ServiceList() {
     // eslint-disable-next-line
   }, [selectedBrand, statusFilter, dateFilter, inputValue, searchTerm, selectedStatuses, selectedTags, searchMode, modelSearchTerm, solutionSearchTerm]);
 
-  // ServiceDetail에서 돌아온 경우 필터 상태 변경 시 자동 검색 실행
+  // 필터 변경 시 자동 검색 실행 (상태, 태그, 날짜, 기종, 처리내역)
   useEffect(() => {
     const shouldRestorePage = sessionStorage.getItem('restorePageState');
+    // ServiceDetail에서 돌아온 경우에는 자동 검색 실행하지 않음
     if (shouldRestorePage === 'true') {
-      // 필터가 복원된 후 자동 검색 실행 비활성화 (페이지 로딩 시 불필요한 검색 방지)
-      console.log('[ServiceList] 필터 상태 변경 감지 - 자동 검색 실행 비활성화');
+      console.log('[ServiceList] 필터 상태 변경 감지 - 자동 검색 실행 비활성화 (복원 중)');
+      return;
     }
-  }, [inputValue, selectedStatuses, selectedTags, modelSearchTerm, solutionSearchTerm, dateFilter, executeSearch]);
+
+    // 필터가 하나라도 설정되어 있는지 확인
+    const hasActiveFilter = selectedStatuses.length > 0 || 
+                           selectedTags.length > 0 || 
+                           dateFilter.startDate || 
+                           dateFilter.endDate || 
+                           modelSearchTerm.trim() || 
+                           solutionSearchTerm.trim();
+
+    // 약간의 디바운스 적용 (500ms)
+    const filterTimer = setTimeout(() => {
+      if (hasActiveFilter) {
+        console.log('[ServiceList] 필터 변경 감지 - 자동 검색 실행', {
+          selectedStatuses,
+          selectedTags,
+          dateFilter,
+          modelSearchTerm,
+          solutionSearchTerm
+        });
+        executeSearch();
+      } else {
+        // 필터가 모두 비워졌을 때는 전체 데이터 로딩
+        console.log('[ServiceList] 필터가 모두 비워짐 - 전체 데이터 로딩');
+        fetchServices();
+      }
+    }, 500);
+
+    return () => clearTimeout(filterTimer);
+  }, [selectedStatuses, selectedTags, dateFilter, modelSearchTerm, solutionSearchTerm, executeSearch, fetchServices]);
 
   // 필터 복원 후 강제 자동 검색 실행 비활성화 (ServiceDetail에서 돌아온 경우)
   useEffect(() => {
