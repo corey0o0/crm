@@ -83,6 +83,7 @@ function ServiceDetail() {
   const [error, setError] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [initialStatus, setInitialStatus] = useState(null); // 초기 상태 저장
   const [formData, setFormData] = useState({
     brand: '',
     reception_date: null,
@@ -478,6 +479,9 @@ function ServiceDetail() {
 
       const mileage = serviceData.mileage === null ? '' : serviceData.mileage;
       
+      // 초기 상태 저장
+      setInitialStatus(serviceData.status || '접수');
+      
       setFormData({
         ...serviceData,
         reception_date: receptionDate,
@@ -831,15 +835,16 @@ function ServiceDetail() {
         notificationSuccess = false;
       }
 
-      // 텔레그램 알림 전송 (수정)
-      if (notificationSuccess) { // DB 알림 등록 성공 시에만 텔레그램 전송
+      // 텔레그램 알림 전송 (처리 상태 변경 시에만)
+      const statusChanged = initialStatus !== null && initialStatus !== formData.status;
+      if (notificationSuccess && statusChanged) { // DB 알림 등록 성공 시에만 텔레그램 전송
         try {
           await sendTelegramNotification({
-            message: `A/S 수정 (접수번호: ${id}) - 고객: ${formData.customer_name}, 연락처: ${formData.customer_phone}`,
+            message: `A/S 상태 변경 (접수번호: ${id}) - 상태: ${initialStatus} → ${formData.status}, 고객: ${formData.customer_name}, 연락처: ${formData.customer_phone}`,
             link: `/service/${id}`
           });
         } catch (telegramError) {
-          console.error('A/S 수정 텔레그램 알림 전송 중 오류:', telegramError);
+          console.error('A/S 상태 변경 텔레그램 알림 전송 중 오류:', telegramError);
           // 텔레그램 전송 실패는 notificationSuccess 상태에 영향을 주지 않거나, 별도 처리 가능
         }
       }

@@ -876,6 +876,16 @@ function Dashboard() {
 
 
 
+  // HTML을 텍스트로 변환하는 함수
+  const stripHtml = (html) => {
+    if (!html) return '';
+    // 임시 div 요소를 생성하여 HTML 파싱
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    // 텍스트만 추출하고 줄바꿈 보존
+    return tmp.textContent || tmp.innerText || '';
+  };
+
   const handleSendMemoToTelegram = async (idx) => {
     const content = memoList[idx]?.content?.trim();
     if (!content) {
@@ -884,7 +894,9 @@ function Dashboard() {
     }
     try {
       const memoName = memoNames[idx] || `메모 ${idx + 1}`;
-      const message = `[${memoName}]\n${content}`;
+      // HTML 태그 제거하고 순수 텍스트만 추출
+      const plainText = stripHtml(content);
+      const message = `[${memoName}]\n${plainText}`;
       await sendTelegramNotification({ message });
       setTelegramResult({ open: true, message: '텔레그램 전송 성공!', success: true });
     } catch (e) {
