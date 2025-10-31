@@ -49,6 +49,7 @@ import { ko } from 'date-fns/locale';
 import { format } from 'date-fns';
 import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { debounce } from 'lodash';
+import { sendTelegramNotification } from '../../lib/telegram';
 
 // 부품 카테고리 정의
 const PART_CATEGORIES = ['기체', '파츠', '공임', '기타'];
@@ -511,40 +512,6 @@ function ShipmentForm() {
     setSelectedParts(prev => prev.filter(part => part.id !== id));
   };
 
-  // 텔레그램 알림 전송 함수 (컴포넌트 내에 추가)
-  const sendTelegramNotification = async (message) => {
-    const botToken = '7355852231:AAE4d36OyayXQbhSDPCJydDi0hte0f4R2x0';
-    const chatId = '-4682658690';
-    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: message,
-          parse_mode: 'HTML'
-        })
-      });
-      const responseData = await response.json();
-      if (!response.ok) {
-        console.error('텔레그램 API 에러:', responseData);
-        setSnackbar({
-          open: true,
-          message: `텔레그램 알림 전송 실패: ${responseData.description || '알 수 없는 오류'}`,
-          severity: 'error'
-        });
-      }
-    } catch (e) {
-      console.error('텔레그램 알림 전송 중 네트워크/기타 실패:', e);
-      setSnackbar({
-        open: true,
-        message: '텔레그램 알림 전송 중 오류 발생 (네트워크 등)',
-        severity: 'error'
-      });
-    }
-  };
-
   const handleSubmit = async () => {
     // 필수 입력값 검증
     const requiredFields = [
@@ -665,6 +632,19 @@ function ShipmentForm() {
         message: isEditMode ? '출고 정보가 수정되었습니다.' : '출고 정보가 등록되었습니다.',
         severity: 'success'
       });
+      
+      // 텔레그램 알림 전송 (신규 등록 시에만)
+      if (!isEditMode && shipmentId) {
+        try {
+          await sendTelegramNotification({
+            message: `출고 등록 (ID: ${shipmentId}) - 고객: ${shipmentData.customer_name}, 연락처: ${shipmentData.customer_phone}, 제품: ${combinedProductName}`,
+            link: `/shipment/${shipmentId}`
+          });
+        } catch (telegramError) {
+          console.error('출고 등록 텔레그램 알림 전송 중 오류:', telegramError);
+          // 텔레그램 전송 실패는 사용자에게 표시하지 않음 (선택적)
+        }
+      }
       
       // 변경사항 초기화
       setHasUnsavedChanges(false);
