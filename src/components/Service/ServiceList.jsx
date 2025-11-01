@@ -135,6 +135,12 @@ function ServiceList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
+  
+  // 초기 로딩 방지를 위한 ref
+  const isInitialMountRef = useRef(true);
+  const isFilterRestoringRef = useRef(false);
+  // 디바운스 타이머 ref
+  const debounceTimerRef = useRef(null);
   const [filteredServices, setFilteredServices] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [inputValue, setInputValue] = useState('');
@@ -632,7 +638,10 @@ function ServiceList() {
       
       // 상태 필터링
       if (searchParams.selectedStatuses && searchParams.selectedStatuses.length > 0) {
+        console.log('[ServiceList] 상태 필터링 적용:', searchParams.selectedStatuses);
         query = query.in('status', searchParams.selectedStatuses);
+      } else {
+        console.log('[ServiceList] 상태 필터 없음 또는 비어있음');
       }
       
       // 날짜 필터링
@@ -709,6 +718,41 @@ function ServiceList() {
         
         console.log('[ServiceList] 브랜드 필터 적용 완료');
         
+        // 상태 필터링 적용
+        if (searchParams.selectedStatuses && searchParams.selectedStatuses.length > 0) {
+          console.log('[ServiceList] 상태 필터 적용 중:', searchParams.selectedStatuses);
+          simpleQuery = simpleQuery.in('status', searchParams.selectedStatuses);
+          console.log('[ServiceList] 상태 필터 적용 완료');
+        }
+        
+        // 기종 검색 필터링
+        if (searchParams.modelSearchTerm && searchParams.modelSearchTerm.length >= 2) {
+          console.log('[ServiceList] 기종 필터 적용 중:', searchParams.modelSearchTerm);
+          simpleQuery = simpleQuery.ilike('product_name', `%${searchParams.modelSearchTerm}%`);
+          console.log('[ServiceList] 기종 필터 적용 완료');
+        }
+        
+        // 처리내역 검색 필터링
+        if (searchParams.solutionSearchTerm && searchParams.solutionSearchTerm.length >= 2) {
+          console.log('[ServiceList] 처리내역 필터 적용 중:', searchParams.solutionSearchTerm);
+          simpleQuery = simpleQuery.ilike('solution', `%${searchParams.solutionSearchTerm}%`);
+          console.log('[ServiceList] 처리내역 필터 적용 완료');
+        }
+        
+        // 날짜 필터링
+        if (searchParams.dateFilter && (searchParams.dateFilter.startDate || searchParams.dateFilter.endDate)) {
+          const dateField = searchParams.dateFilter.type || 'reception_date';
+          if (searchParams.dateFilter.startDate) {
+            console.log('[ServiceList] 날짜 시작 필터 적용 중:', searchParams.dateFilter.startDate);
+            simpleQuery = simpleQuery.gte(dateField, searchParams.dateFilter.startDate);
+          }
+          if (searchParams.dateFilter.endDate) {
+            console.log('[ServiceList] 날짜 종료 필터 적용 중:', searchParams.dateFilter.endDate);
+            simpleQuery = simpleQuery.lte(dateField, searchParams.dateFilter.endDate);
+          }
+          console.log('[ServiceList] 날짜 필터 적용 완료');
+        }
+        
         // 검색어 필터 적용 (가장 단순한 방식)
         if (searchParams.searchTerm && searchParams.searchTerm.length >= 2) {
           console.log('[ServiceList] 검색어 필터 적용 중:', searchParams.searchTerm);
@@ -717,6 +761,13 @@ function ServiceList() {
           console.log('[ServiceList] 고객명 검색만 테스트:', searchParams.searchTerm);
           simpleQuery = simpleQuery.ilike('customer_name', `%${searchParams.searchTerm}%`);
           console.log('[ServiceList] 검색어 필터 적용 완료');
+        }
+        
+        // 태그 필터링 (태그 검색 결과가 있으면 적용)
+        if (tagMatchedServiceIds && tagMatchedServiceIds.length > 0) {
+          console.log('[ServiceList] 태그 필터 적용 중:', tagMatchedServiceIds);
+          simpleQuery = simpleQuery.in('id', tagMatchedServiceIds);
+          console.log('[ServiceList] 태그 필터 적용 완료');
         }
         
         // 정렬 및 제한
@@ -1207,7 +1258,44 @@ function ServiceList() {
   };
 
   const handleStatusFilterChange = (event) => {
-    setStatusFilter(event.target.value);
+    const newStatusFilter = event.target.value;
+    console.log('[ServiceList] handleStatusFilterChange 호출됨', { newStatusFilter });
+    setStatusFilter(newStatusFilter);
+    
+    // selectedStatuses와 동기화
+    let newSelectedStatuses = [];
+    if (newStatusFilter !== 'all') {
+      newSelectedStatuses = [newStatusFilter];
+    }
+    
+    // 필터 복원 중이 아닐 때만 자동 검색 실행
+    const shouldRestorePage = sessionStorage.getItem('restorePageState');
+    if (shouldRestorePage !== 'true' && !isFilterRestoringRef.current) {
+      setSelectedStatuses(newSelectedStatuses);
+      // 상태 변경 시 자동 검색 실행 (최신 상태 값 전달)
+      setTimeout(() => {
+        // 현재 필터 상태 확인 (최신 값 사용)
+        const currentInputValue = inputValue.trim();
+        const currentSelectedTags = selectedTags;
+        const currentDateFilter = dateFilter;
+        const currentModelSearchTerm = modelSearchTerm.trim();
+        const currentSolutionSearchTerm = solutionSearchTerm.trim();
+        
+        // 상태 필터가 없고 다른 필터도 없으면 전체 데이터 로딩
+        if (newSelectedStatuses.length === 0 && !currentInputValue && currentSelectedTags.length === 0 && !currentDateFilter.startDate && !currentDateFilter.endDate && !currentModelSearchTerm && !currentSolutionSearchTerm) {
+          console.log('[ServiceList] 모든 필터가 없음 - 전체 데이터 로딩');
+          fetchServices();
+        } else {
+          // 상태 필터가 있으면 검색 실행 (최신 상태 값 직접 전달)
+          console.log('[ServiceList] 상태 필터 변경 - 검색 실행', { newSelectedStatuses });
+          executeSearch(newSelectedStatuses, null);
+        }
+      }, 150);
+    } else {
+      // 필터 복원 중일 때는 selectedStatuses만 업데이트 (검색 실행 안 함)
+      console.log('[ServiceList] 필터 복원 중 - selectedStatuses만 업데이트');
+      setSelectedStatuses(newSelectedStatuses);
+    }
   };
 
   const handleAddService = () => {
@@ -2249,6 +2337,12 @@ function ServiceList() {
   useEffect(() => {
     const trimmedValue = inputValue.trim();
     
+    // 이전 디바운스 타이머 취소
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    
     // 검색어가 비어있으면 searchTerm만 초기화 (페이지 새로고침 없음)
     if (trimmedValue === '') {
       setSearchTerm('');
@@ -2262,13 +2356,19 @@ function ServiceList() {
     }
 
     // 검색어가 2글자 이상이면 800ms 후 자동 검색 (조금 더 여유를 줘서 불필요한 호출 감소)
-    const debounceTimer = setTimeout(() => {
+    debounceTimerRef.current = setTimeout(() => {
       console.log('[ServiceList] 실시간 검색 실행:', trimmedValue);
+      debounceTimerRef.current = null;
       executeSearch();
     }, 800); // 800ms 대기 후 검색
 
     // cleanup: 이전 타이머 취소
-    return () => clearTimeout(debounceTimer);
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inputValue]); // executeSearch는 의존성에서 제외 (무한 루프 방지)
 
@@ -2410,6 +2510,9 @@ function ServiceList() {
       return;
     }
     try {
+      // 필터 복원 중 플래그 설정
+      isFilterRestoringRef.current = true;
+      
       const filterState = JSON.parse(saved);
       setSelectedBrand(validateBrand(filterState.selectedBrand || 'XRB'));
       setStatusFilter(filterState.statusFilter || 'all');
@@ -2421,12 +2524,19 @@ function ServiceList() {
       setSearchMode(filterState.searchMode || 'AND');
       setModelSearchTerm(filterState.modelSearchTerm || '');
       setSolutionSearchTerm(filterState.solutionSearchTerm || '');
+      
+      // 필터 복원 완료 (약간의 지연 후 플래그 해제)
+      setTimeout(() => {
+        isFilterRestoringRef.current = false;
+      }, 500);
+      
       setSnackbar({
         open: true,
         message: '필터가 불러와졌습니다.',
         severity: 'success'
       });
     } catch {
+      isFilterRestoringRef.current = false;
       setSnackbar({
         open: true,
         message: '필터 불러오기 실패',
@@ -2452,8 +2562,8 @@ function ServiceList() {
   const [retryCount, setRetryCount] = useState(0); // 재시도 횟수
 
   // 검색 실행 함수 (서버 사이드 검색)
-  const executeSearch = useCallback(() => {
-    console.log('[ServiceList] executeSearch 호출됨');
+  const executeSearch = useCallback((overrideStatuses = null, overrideTags = null) => {
+    console.log('[ServiceList] executeSearch 호출됨', { overrideStatuses, overrideTags });
     const term = inputValue.toLowerCase().trim();
     setSearchTerm(term);
     
@@ -2474,8 +2584,12 @@ function ServiceList() {
       return;
     }
 
+    // 오버라이드된 상태 값 사용 (상태 변경 시 최신 값 보장)
+    const currentStatuses = overrideStatuses !== null ? overrideStatuses : selectedStatuses;
+    const currentTags = overrideTags !== null ? overrideTags : selectedTags;
+
     // 검색어가 없거나 다른 필터도 없으면 전체 데이터 로딩으로 돌아가기
-    if (!term && selectedStatuses.length === 0 && selectedTags.length === 0 && !dateFilter.startDate && !dateFilter.endDate && !modelSearchTerm.trim() && !solutionSearchTerm.trim()) {
+    if (!term && currentStatuses.length === 0 && currentTags.length === 0 && !dateFilter.startDate && !dateFilter.endDate && !modelSearchTerm.trim() && !solutionSearchTerm.trim()) {
       fetchServices();
       return;
     }
@@ -2483,15 +2597,21 @@ function ServiceList() {
     // 서버 사이드 검색 실행
     const searchParams = {
       searchTerm: term,
-      selectedStatuses: selectedStatuses.length > 0 ? selectedStatuses : null,
-      selectedTags: selectedTags.length > 0 ? selectedTags : null,
+      selectedStatuses: currentStatuses.length > 0 ? currentStatuses : null,
+      selectedTags: currentTags.length > 0 ? currentTags : null,
       dateFilter: (dateFilter.startDate || dateFilter.endDate) ? dateFilter : null,
       searchMode,
       modelSearchTerm: modelSearchTerm.trim(),
       solutionSearchTerm: solutionSearchTerm.trim()
     };
     
-    console.log('[ServiceList] 검색 실행 시 태그 상태:', { selectedTags, searchParams: searchParams.selectedTags });
+    console.log('[ServiceList] 검색 실행 시 필터 상태:', { 
+      currentStatuses, 
+      currentStatusesLength: currentStatuses.length,
+      currentTags, 
+      searchParams,
+      selectedStatuses: searchParams.selectedStatuses
+    });
     
     performServerSearch(searchParams, 0);
   }, [inputValue, selectedStatuses, selectedTags, dateFilter, searchMode, modelSearchTerm, solutionSearchTerm, fetchServices, performServerSearch]);
@@ -2543,7 +2663,38 @@ function ServiceList() {
   const handleSearchModeChange = (e, value) => {
     if (value) setSearchMode(value);
   };
-  const handleStatusChange = (e, value) => setSelectedStatuses(value);
+  const handleStatusChange = (e, value) => {
+    console.log('[ServiceList] handleStatusChange 호출됨', { value, isFilterRestoring: isFilterRestoringRef.current });
+    // 필터 복원 중이 아닐 때만 자동 검색 실행
+    const shouldRestorePage = sessionStorage.getItem('restorePageState');
+    if (shouldRestorePage !== 'true' && !isFilterRestoringRef.current) {
+      setSelectedStatuses(value);
+      // 상태 변경 시 자동 검색 실행 (최신 상태 값 전달)
+      // 약간의 지연 없이 즉시 실행하되, 상태 업데이트를 보장하기 위해 다음 틱에서 실행
+      setTimeout(() => {
+        // 현재 필터 상태 확인 (최신 값 사용)
+        const currentInputValue = inputValue.trim();
+        const currentSelectedTags = selectedTags;
+        const currentDateFilter = dateFilter;
+        const currentModelSearchTerm = modelSearchTerm.trim();
+        const currentSolutionSearchTerm = solutionSearchTerm.trim();
+        
+        // 상태 필터가 없고 다른 필터도 없으면 전체 데이터 로딩
+        if (value.length === 0 && !currentInputValue && currentSelectedTags.length === 0 && !currentDateFilter.startDate && !currentDateFilter.endDate && !currentModelSearchTerm && !currentSolutionSearchTerm) {
+          console.log('[ServiceList] 모든 필터가 없음 - 전체 데이터 로딩');
+          fetchServices();
+        } else {
+          // 상태 필터가 있으면 검색 실행 (최신 상태 값 직접 전달)
+          console.log('[ServiceList] 상태 필터 변경 - 검색 실행', { value });
+          executeSearch(value, null);
+        }
+      }, 150);
+    } else {
+      // 필터 복원 중일 때는 selectedStatuses만 업데이트 (검색 실행 안 함)
+      console.log('[ServiceList] 필터 복원 중 - selectedStatuses만 업데이트');
+      setSelectedStatuses(value);
+    }
+  };
   const handleTagChange = (e, value, reason) => {
     console.log('[ServiceList] 태그 변경:', { 이전값: selectedTags, 새값: value, reason });
     
@@ -2768,43 +2919,8 @@ function ServiceList() {
     // eslint-disable-next-line
   }, [selectedBrand, statusFilter, dateFilter, inputValue, searchTerm, selectedStatuses, selectedTags, searchMode, modelSearchTerm, solutionSearchTerm]);
 
-  // 필터 변경 시 자동 검색 실행 (상태, 태그, 날짜, 기종, 처리내역)
-  useEffect(() => {
-    const shouldRestorePage = sessionStorage.getItem('restorePageState');
-    // ServiceDetail에서 돌아온 경우에는 자동 검색 실행하지 않음
-    if (shouldRestorePage === 'true') {
-      console.log('[ServiceList] 필터 상태 변경 감지 - 자동 검색 실행 비활성화 (복원 중)');
-      return;
-    }
-
-    // 필터가 하나라도 설정되어 있는지 확인
-    const hasActiveFilter = selectedStatuses.length > 0 || 
-                           selectedTags.length > 0 || 
-                           dateFilter.startDate || 
-                           dateFilter.endDate || 
-                           modelSearchTerm.trim() || 
-                           solutionSearchTerm.trim();
-
-    // 약간의 디바운스 적용 (500ms)
-    const filterTimer = setTimeout(() => {
-      if (hasActiveFilter) {
-        console.log('[ServiceList] 필터 변경 감지 - 자동 검색 실행', {
-          selectedStatuses,
-          selectedTags,
-          dateFilter,
-          modelSearchTerm,
-          solutionSearchTerm
-        });
-        executeSearch();
-      } else {
-        // 필터가 모두 비워졌을 때는 전체 데이터 로딩
-        console.log('[ServiceList] 필터가 모두 비워짐 - 전체 데이터 로딩');
-        fetchServices();
-      }
-    }, 500);
-
-    return () => clearTimeout(filterTimer);
-  }, [selectedStatuses, selectedTags, dateFilter, modelSearchTerm, solutionSearchTerm, executeSearch, fetchServices]);
+  
+  // 나머지 필터들(태그, 날짜, 기종, 처리내역)은 자동 검색하지 않음 - 검색 버튼 클릭 시에만 실행
 
   // 필터 복원 후 강제 자동 검색 실행 비활성화 (ServiceDetail에서 돌아온 경우)
   useEffect(() => {
@@ -3159,6 +3275,12 @@ function ServiceList() {
             onChange={handleSearchInput}
             onKeyPress={(e) => {
               if (e.key === 'Enter') {
+                // 디바운스 타이머 취소 (엔터 키 입력 시 즉시 검색하므로 디바운스 불필요)
+                if (debounceTimerRef.current) {
+                  clearTimeout(debounceTimerRef.current);
+                  debounceTimerRef.current = null;
+                }
+                
                 const term = inputValue.toLowerCase().trim();
                 if (term && term.length === 1) {
                   setSnackbar({
@@ -3168,6 +3290,7 @@ function ServiceList() {
                   });
                   return;
                 }
+                // 즉시 검색 실행
                 executeSearch();
               }
             }}
