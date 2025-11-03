@@ -1235,7 +1235,8 @@ function AddService() {
         });
         return;
       }
-      const cleanSearchTerm = searchTerm.replace(/-/g, '');
+      const cleanSearchTerm = searchTerm.replace(/[^\d]/g, '');
+      const flexiblePhonePattern = cleanSearchTerm ? `%${cleanSearchTerm.split('').join('%')}%` : '';
       
       // 전화번호 패턴인지 확인 (숫자나 하이픈이 포함된 경우)
       const isPhoneSearch = /^[\d-]+$/.test(searchTerm) && cleanSearchTerm.length >= 3;
@@ -1247,26 +1248,44 @@ function AddService() {
         serviceQuery = supabase
           .from('services')
           .select('customer_name, customer_phone, customer_address, brand, product_name, seller')
-          .or(`customer_phone.ilike.%${cleanSearchTerm}%,customer_phone.ilike.%${searchTerm}%`)
+          .or([
+            `customer_phone.ilike.%${cleanSearchTerm}%`,
+            `customer_phone.ilike.%${searchTerm}%`,
+            flexiblePhonePattern ? `customer_phone.ilike.${flexiblePhonePattern}` : ''
+          ].filter(Boolean).join(','))
           .order('created_at', { ascending: false });
           
         shipmentQuery = supabase
           .from('shipments')
           .select('customer_name, customer_phone, customer_address, brand, product_name')
-          .or(`customer_phone.ilike.%${cleanSearchTerm}%,customer_phone.ilike.%${searchTerm}%`)
+          .or([
+            `customer_phone.ilike.%${cleanSearchTerm}%`,
+            `customer_phone.ilike.%${searchTerm}%`,
+            flexiblePhonePattern ? `customer_phone.ilike.${flexiblePhonePattern}` : ''
+          ].filter(Boolean).join(','))
           .order('created_at', { ascending: false });
       } else {
         // 이름 검색 + 혼합 검색
         serviceQuery = supabase
           .from('services')
           .select('customer_name, customer_phone, customer_address, brand, product_name, seller')
-          .or(`customer_name.ilike.%${searchTerm}%,customer_phone.ilike.%${cleanSearchTerm}%,customer_phone.ilike.%${searchTerm}%`)
+          .or([
+            `customer_name.ilike.%${searchTerm}%`,
+            `customer_phone.ilike.%${cleanSearchTerm}%`,
+            `customer_phone.ilike.%${searchTerm}%`,
+            flexiblePhonePattern ? `customer_phone.ilike.${flexiblePhonePattern}` : ''
+          ].filter(Boolean).join(','))
           .order('created_at', { ascending: false });
           
         shipmentQuery = supabase
           .from('shipments')
           .select('customer_name, customer_phone, customer_address, brand, product_name')
-          .or(`customer_name.ilike.%${searchTerm}%,customer_phone.ilike.%${cleanSearchTerm}%,customer_phone.ilike.%${searchTerm}%`)
+          .or([
+            `customer_name.ilike.%${searchTerm}%`,
+            `customer_phone.ilike.%${cleanSearchTerm}%`,
+            `customer_phone.ilike.%${searchTerm}%`,
+            flexiblePhonePattern ? `customer_phone.ilike.${flexiblePhonePattern}` : ''
+          ].filter(Boolean).join(','))
           .order('created_at', { ascending: false });
       }
       
@@ -2217,14 +2236,71 @@ function AddService() {
                         />
                       </Grid>
                       <Grid item xs={12}>
-                        <TextField
-                          fullWidth
-                          required
-                          size="small"
-                          label="연락처"
-                          name="customer_phone"
+                        <Autocomplete
+                          freeSolo
+                          options={customerSearchResults}
+                          getOptionLabel={(option) => {
+                            if (typeof option === 'string') return option;
+                            return option.phone || '';
+                          }}
+                          getOptionKey={(option) => {
+                            if (typeof option === 'string') return option;
+                            return option.id || `${option.name}_${option.phone}`;
+                          }}
                           value={formData.customer_phone}
-                          onChange={handleInputChange}
+                          onInputChange={(event, newInputValue) => {
+                            setFormData(prev => ({
+                              ...prev,
+                              customer_phone: newInputValue
+                            }));
+                            if (newInputValue && newInputValue.length >= 2) {
+                              // 이름/전화 모두 지원하는 공용 검색 사용
+                              searchCustomers(newInputValue);
+                            }
+                          }}
+                          onChange={(event, newValue) => {
+                            if (newValue && typeof newValue === 'object') {
+                              const mainProduct = extractMainProduct(newValue.product_name);
+                              setFormData(prev => ({
+                                ...prev,
+                                customer_name: newValue.name || prev.customer_name,
+                                customer_phone: newValue.phone || prev.customer_phone,
+                                customer_address: newValue.address || prev.customer_address,
+                                product_name: mainProduct || prev.product_name,
+                                seller: newValue.seller || prev.seller,
+                                brand: newValue.brand || prev.brand
+                              }));
+                            }
+                          }}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              fullWidth
+                              required
+                              size="small"
+                              label="연락처"
+                              name="customer_phone"
+                            />
+                          )}
+                          renderOption={(props, option) => (
+                            <Box component="li" {...props}>
+                              <Box>
+                                <Typography variant="body2" fontWeight="bold">
+                                  {option.phone}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {option.name} {option.address && `• ${option.address}`}
+                                </Typography>
+                                {option.product_name && (
+                                  <Typography variant="caption" color="primary" display="block">
+                                    기종: {option.product_name}
+                                  </Typography>
+                                )}
+                              </Box>
+                            </Box>
+                          )}
+                          loading={searchLoading}
+                          noOptionsText="검색 결과가 없습니다"
                         />
                       </Grid>
                       <Grid item xs={12}>
