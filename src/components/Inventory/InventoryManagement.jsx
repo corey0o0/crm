@@ -1501,9 +1501,11 @@ function InventoryManagement() {
     return d.toISOString().split('T')[0];
   };
 
-  // 대리점별 입출고 통계 계산 (→대리점: 출고, ←대리점: 입고) (useMemo로 메모이제이션)
+  // 대리점별 입출고 통계 계산 (→대리점: 출고, ←대리점: 입고) (날짜 필터 적용)
   const dealerStats = useMemo(() => {
     const stats = {};
+    const dateFrom = dealerStatsFilter.dateFrom;
+    const dateTo = dealerStatsFilter.dateTo;
     
     dealers.forEach(dealer => {
       stats[dealer.id] = {
@@ -1527,6 +1529,10 @@ function InventoryManagement() {
     });
 
     transactions.forEach(t => {
+      // 날짜 필터 적용
+      if (dateFrom && t.date < dateFrom) return;
+      if (dateTo && t.date > dateTo) return;
+      
       const txDate = new Date(t.date);
       const dayKey = getDateKey(t.date, 'day');
       const weekKey = getDateKey(t.date, 'week');
@@ -1590,11 +1596,13 @@ function InventoryManagement() {
     });
 
     return stats;
-  }, [dealers, transactions]);
+  }, [dealers, transactions, dealerStatsFilter.dateFrom, dealerStatsFilter.dateTo]);
 
-  // 창고별 출고 통계 계산
+  // 창고별 출고 통계 계산 (날짜 필터 적용)
   const warehouseStats = useMemo(() => {
     const stats = {};
+    const dateFrom = dealerStatsFilter.dateFrom;
+    const dateTo = dealerStatsFilter.dateTo;
     
     warehouses.forEach(warehouse => {
       stats[warehouse.id] = {
@@ -1614,6 +1622,10 @@ function InventoryManagement() {
     });
 
     transactions.forEach(t => {
+      // 날짜 필터 적용
+      if (dateFrom && t.date < dateFrom) return;
+      if (dateTo && t.date > dateTo) return;
+      
       // 출고: 출발지가 창고인 경우
       if (t.type === 'out' && stats[t.fromLocation]) {
         const s = stats[t.fromLocation];
@@ -1650,7 +1662,7 @@ function InventoryManagement() {
     });
 
     return stats;
-  }, [warehouses, transactions]);
+  }, [warehouses, transactions, dealerStatsFilter.dateFrom, dealerStatsFilter.dateTo]);
 
   // 총 이동 수령 (총 입고량) 계산
   const totalInboundStats = useMemo(() => {
@@ -2780,23 +2792,7 @@ function InventoryManagement() {
             <Card sx={{ p: 1.5, mb: 1.5 }}>
               <Typography variant="subtitle1" gutterBottom sx={{ mb: 1, fontWeight: 'bold' }}>통계 필터</Typography>
               <Grid container spacing={1.5} alignItems="center">
-                <Grid item xs={12} sm={2.5}>
-                  <TextField
-                    select
-                    fullWidth
-                    size="small"
-                    label="기간 단위"
-                    value={dealerStatsFilter.period}
-                    onChange={(e) => setDealerStatsFilter(prev => ({ ...prev, period: e.target.value }))}
-                    SelectProps={{ native: true }}
-                  >
-                    <option value="day">일별</option>
-                    <option value="week">주별</option>
-                    <option value="month">월별</option>
-                    <option value="year">년별</option>
-                  </TextField>
-                </Grid>
-                <Grid item xs={12} sm={2.5}>
+                <Grid item xs={12} sm={3}>
                   <TextField
                     fullWidth
                     size="small"
@@ -2807,7 +2803,7 @@ function InventoryManagement() {
                     InputLabelProps={{ shrink: true }}
                   />
                 </Grid>
-                <Grid item xs={12} sm={2.5}>
+                <Grid item xs={12} sm={3}>
                   <TextField
                     fullWidth
                     size="small"
@@ -2818,13 +2814,13 @@ function InventoryManagement() {
                     InputLabelProps={{ shrink: true }}
                   />
                 </Grid>
-                <Grid item xs={12} sm={2}>
+                <Grid item xs={12} sm={3}>
                   <TextField
                     fullWidth
                     size="small"
                     select
                     label="대리점 선택"
-                    value={dealerStatsFilter.dealer}
+                    value={dealerStatsFilter.dealer || ''}
                     onChange={(e) => setDealerStatsFilter(prev => ({ ...prev, dealer: e.target.value }))}
                     SelectProps={{ native: true }}
                   >
@@ -2834,7 +2830,7 @@ function InventoryManagement() {
                     ))}
                   </TextField>
                 </Grid>
-                <Grid item xs={12} sm={2.5}>
+                <Grid item xs={12} sm={3}>
                   <Button
                     fullWidth
                     size="small"
