@@ -1699,12 +1699,18 @@ function InventoryManagement() {
     };
   }, [transactions]);
 
-  // 모델(제품)별 출고 통계 계산
+  // 모델(제품)별 출고 통계 계산 (날짜 필터 적용)
   const productStats = useMemo(() => {
     const stats = {};
+    const dateFrom = dealerStatsFilter.dateFrom;
+    const dateTo = dealerStatsFilter.dateTo;
     
     transactions.forEach(t => {
       if (t.type === 'out') {
+        // 날짜 필터 적용
+        if (dateFrom && t.date < dateFrom) return;
+        if (dateTo && t.date > dateTo) return;
+        
         const productId = t.productId;
         const productName = t.productName || '알 수 없음';
         const productCode = t.productCode || '';
@@ -1761,7 +1767,7 @@ function InventoryManagement() {
     });
 
     return stats;
-  }, [transactions]);
+  }, [transactions, dealerStatsFilter.dateFrom, dealerStatsFilter.dateTo]);
 
   // 창고/대리점 ID 매핑 객체 (필터링 성능 최적화)
   const locationMappings = useMemo(() => {
@@ -2770,262 +2776,15 @@ function InventoryManagement() {
 
         {activeTab === 2 && (
           <Box>
-            {/* 재고 현황 요약 카드 */}
-            <Grid container spacing={3} sx={{ mb: 3 }}>
-              <Grid item xs={12} md={4}>
-                <Card>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                      <Typography variant="h6">총 재고 수량</Typography>
-                    </Box>
-                    <Typography variant="h4" color="primary">
-                      {Object.values(inventory).reduce((total, products) => 
-                        total + Object.values(products).reduce((sum, qty) => sum + qty, 0), 0
-                      ).toLocaleString()}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      전체 재고 수량
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Card>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                      <Typography variant="h6">창고 수</Typography>
-                    </Box>
-                    <Typography variant="h4" color="secondary">
-                      {warehouses.length}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      운영 중인 창고
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Card>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                      <Typography variant="h6">대리점 수</Typography>
-                    </Box>
-                    <Typography variant="h4" color="success">
-                      {dealers.length}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      활성 대리점
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-
-            {/* 창고별 재고 현황 */}
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h5">창고별 재고 현황</Typography>
-            </Box>
-            <Grid container spacing={2} sx={{ mb: 4 }}>
-              {warehouses.map(warehouse => (
-                <Grid item xs={12} md={4} key={warehouse.id}>
-                  <Card>
-                    <CardContent>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                        <Typography variant="h6">
-                          {warehouse.name} ({warehouse.location})
-                        </Typography>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          {warehouse.syncWithProductStock ? (
-                            <Chip 
-                              icon={<SyncIcon />}
-                              label="재고 연동"
-                              color="primary"
-                              size="small"
-                            />
-                          ) : (
-                            <Chip 
-                              icon={<SyncDisabledIcon />}
-                              label="독립 재고"
-                              color="default"
-                              size="small"
-                            />
-                          )}
-                        </Box>
-                      </Box>
-                      <Box sx={{ textAlign: 'center', py: 2 }}>
-                        <Typography variant="h3" color="primary" fontWeight="bold">
-                          {Object.values(inventory[warehouse.id] || {}).reduce((sum, qty) => sum + qty, 0).toLocaleString()}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          총 재고 수량
-                        </Typography>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
-
-            {/* 총 이동 수령 (총 입고량) 표시 */}
-            <Card sx={{ p: 2, mb: 3, backgroundColor: '#f5f5f5' }}>
-              <Grid container spacing={2}>
-                <Grid item xs={12} md={4}>
-                  <Box sx={{ textAlign: 'center' }}>
-                    <Typography variant="h6" color="text.secondary" gutterBottom>
-                      총 이동 수령 (총 입고량)
-                    </Typography>
-                    <Typography variant="h3" color="primary" fontWeight="bold">
-                      {totalInboundStats.totalQuantity.toLocaleString()}개
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      총 {totalInboundStats.totalTransactions}건
-                    </Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={12} md={8}>
-                  <Typography variant="h6" gutterBottom>기간별 입고량</Typography>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>
-                          {dealerStatsFilter.period === 'day' ? '날짜' : 
-                           dealerStatsFilter.period === 'week' ? '주차' :
-                           dealerStatsFilter.period === 'month' ? '월' : '년'}
-                        </TableCell>
-                        <TableCell align="right">수량</TableCell>
-                        <TableCell align="right">건수</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {(() => {
-                        const periodStats = dealerStatsFilter.period === 'day' ? totalInboundStats.dailyStats :
-                                           dealerStatsFilter.period === 'week' ? totalInboundStats.weeklyStats :
-                                           dealerStatsFilter.period === 'month' ? totalInboundStats.monthlyStats :
-                                           totalInboundStats.yearlyStats;
-                        const sortedPeriods = Object.keys(periodStats).sort().reverse().slice(0, 10);
-                        return sortedPeriods.map(period => (
-                          <TableRow key={period}>
-                            <TableCell>
-                              {dealerStatsFilter.period === 'day' ? period :
-                               dealerStatsFilter.period === 'week' ? period.split('-W')[1] + '주차' :
-                               dealerStatsFilter.period === 'month' ? period.split('-')[0] + '년 ' + parseInt(period.split('-')[1]) + '월' :
-                               period + '년'}
-                            </TableCell>
-                            <TableCell align="right">{periodStats[period].quantity.toLocaleString()}개</TableCell>
-                            <TableCell align="right">{periodStats[period].transactions}건</TableCell>
-                          </TableRow>
-                        ));
-                      })()}
-                    </TableBody>
-                  </Table>
-                </Grid>
-              </Grid>
-            </Card>
-
-            {/* 창고별 나간 수량 통계 */}
-            <Card sx={{ p: 2, mb: 3 }}>
-              <Typography variant="h6" gutterBottom>창고별 나간 수량 (출고량) 통계</Typography>
-              <TableContainer component={Paper}>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>창고명</TableCell>
-                      <TableCell>지역</TableCell>
-                      <TableCell align="center">총 출고량</TableCell>
-                      <TableCell align="center">출고 건수</TableCell>
-                      <TableCell align="center">최근 출고일</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {Object.values(warehouseStats)
-                      .filter(stat => stat.outTransactions > 0)
-                      .sort((a, b) => b.outTotalQuantity - a.outTotalQuantity)
-                      .map((stat, index) => (
-                        <TableRow key={index} hover>
-                          <TableCell>
-                            <Typography variant="subtitle2" fontWeight="bold">
-                              {stat.name}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>{stat.location}</TableCell>
-                          <TableCell align="center">{stat.outTotalQuantity.toLocaleString()}개</TableCell>
-                          <TableCell align="center">{stat.outTransactions}건</TableCell>
-                          <TableCell align="center">{stat.outLastDate || '-'}</TableCell>
-                        </TableRow>
-                      ))}
-                    {Object.values(warehouseStats).filter(stat => stat.outTransactions > 0).length > 0 && (
-                      <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                        <TableCell colSpan={2} sx={{ fontWeight: 'bold' }}>전체 합계</TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 'bold' }}>
-                          {Object.values(warehouseStats).reduce((sum, stat) => sum + stat.outTotalQuantity, 0).toLocaleString()}개
-                        </TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 'bold' }}>
-                          {Object.values(warehouseStats).reduce((sum, stat) => sum + stat.outTransactions, 0)}건
-                        </TableCell>
-                        <TableCell align="center">-</TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Card>
-
-            {/* 모델(제품)별 출고 수량 통계 */}
-            <Card sx={{ p: 2, mb: 3 }}>
-              <Typography variant="h6" gutterBottom>모델(제품)별 출고 수량 통계</Typography>
-              <TableContainer component={Paper}>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>제품명</TableCell>
-                      <TableCell>제품코드</TableCell>
-                      <TableCell align="center">총 출고량</TableCell>
-                      <TableCell align="center">출고 건수</TableCell>
-                      <TableCell align="center">최근 출고일</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {Object.values(productStats)
-                      .filter(stat => stat.outTransactions > 0)
-                      .sort((a, b) => b.outTotalQuantity - a.outTotalQuantity)
-                      .map((stat, index) => (
-                        <TableRow key={index} hover>
-                          <TableCell>
-                            <Typography variant="subtitle2" fontWeight="bold">
-                              {stat.productName}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>{stat.productCode || '-'}</TableCell>
-                          <TableCell align="center">{stat.outTotalQuantity.toLocaleString()}개</TableCell>
-                          <TableCell align="center">{stat.outTransactions}건</TableCell>
-                          <TableCell align="center">{stat.outLastDate || '-'}</TableCell>
-                        </TableRow>
-                      ))}
-                    {Object.values(productStats).filter(stat => stat.outTransactions > 0).length > 0 && (
-                      <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                        <TableCell colSpan={2} sx={{ fontWeight: 'bold' }}>전체 합계</TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 'bold' }}>
-                          {Object.values(productStats).reduce((sum, stat) => sum + stat.outTotalQuantity, 0).toLocaleString()}개
-                        </TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 'bold' }}>
-                          {Object.values(productStats).reduce((sum, stat) => sum + stat.outTransactions, 0)}건
-                        </TableCell>
-                        <TableCell align="center">-</TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Card>
-
             {/* 입출고 통계 필터 */}
-            <Card sx={{ p: 2, mb: 3 }}>
-              <Typography variant="h6" gutterBottom>통계 필터</Typography>
-              <Grid container spacing={2} alignItems="center">
-                <Grid item xs={12} sm={3}>
+            <Card sx={{ p: 1.5, mb: 1.5 }}>
+              <Typography variant="subtitle1" gutterBottom sx={{ mb: 1, fontWeight: 'bold' }}>통계 필터</Typography>
+              <Grid container spacing={1.5} alignItems="center">
+                <Grid item xs={12} sm={2.5}>
                   <TextField
                     select
                     fullWidth
+                    size="small"
                     label="기간 단위"
                     value={dealerStatsFilter.period}
                     onChange={(e) => setDealerStatsFilter(prev => ({ ...prev, period: e.target.value }))}
@@ -3037,9 +2796,10 @@ function InventoryManagement() {
                     <option value="year">년별</option>
                   </TextField>
                 </Grid>
-                <Grid item xs={12} sm={3}>
+                <Grid item xs={12} sm={2.5}>
                   <TextField
                     fullWidth
+                    size="small"
                     type="date"
                     label="시작 날짜"
                     value={dealerStatsFilter.dateFrom}
@@ -3047,9 +2807,10 @@ function InventoryManagement() {
                     InputLabelProps={{ shrink: true }}
                   />
                 </Grid>
-                <Grid item xs={12} sm={3}>
+                <Grid item xs={12} sm={2.5}>
                   <TextField
                     fullWidth
+                    size="small"
                     type="date"
                     label="종료 날짜"
                     value={dealerStatsFilter.dateTo}
@@ -3060,6 +2821,7 @@ function InventoryManagement() {
                 <Grid item xs={12} sm={2}>
                   <TextField
                     fullWidth
+                    size="small"
                     select
                     label="대리점 선택"
                     value={dealerStatsFilter.dealer}
@@ -3072,15 +2834,15 @@ function InventoryManagement() {
                     ))}
                   </TextField>
                 </Grid>
-                <Grid item xs={12} sm={1}>
+                <Grid item xs={12} sm={2.5}>
                   <Button
                     fullWidth
+                    size="small"
                     variant="contained"
                     startIcon={<SearchIcon />}
                     onClick={() => {
                       showSnackbar('통계 필터가 적용되었습니다.', 'success');
                     }}
-                    sx={{ height: '56px' }}
                   >
                     검색
                   </Button>
@@ -3088,21 +2850,204 @@ function InventoryManagement() {
               </Grid>
             </Card>
 
+            {/* 요약 통계 카드 - 컴팩트하게 */}
+            <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
+              <Grid item xs={6} sm={3}>
+                <Card>
+                  <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                    <Typography variant="caption" color="text.secondary">총 재고</Typography>
+                    <Typography variant="h6" color="primary" sx={{ mt: 0.5 }}>
+                      {Object.values(inventory).reduce((total, products) => 
+                        total + Object.values(products).reduce((sum, qty) => sum + qty, 0), 0
+                      ).toLocaleString()}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <Card>
+                  <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                    <Typography variant="caption" color="text.secondary">총 입고량</Typography>
+                    <Typography variant="h6" color="success.main" sx={{ mt: 0.5 }}>
+                      {totalInboundStats.totalQuantity.toLocaleString()}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <Card>
+                  <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                    <Typography variant="caption" color="text.secondary">창고 수</Typography>
+                    <Typography variant="h6" color="secondary" sx={{ mt: 0.5 }}>
+                      {warehouses.length}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <Card>
+                  <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                    <Typography variant="caption" color="text.secondary">대리점 수</Typography>
+                    <Typography variant="h6" color="success.main" sx={{ mt: 0.5 }}>
+                      {dealers.length}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+
+            {/* 총 이동 수령 (총 입고량) 표시 - 컴팩트 */}
+            <Card sx={{ p: 1.5, mb: 1.5, backgroundColor: '#f5f5f5' }}>
+              <Typography variant="subtitle1" gutterBottom sx={{ mb: 1, fontWeight: 'bold' }}>
+                총 이동 수령 (총 입고량) - {totalInboundStats.totalQuantity.toLocaleString()}개 ({totalInboundStats.totalTransactions}건)
+              </Typography>
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ py: 0.5 }}>기간</TableCell>
+                      <TableCell align="right" sx={{ py: 0.5 }}>수량</TableCell>
+                      <TableCell align="right" sx={{ py: 0.5 }}>건수</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {(() => {
+                      const periodStats = dealerStatsFilter.period === 'day' ? totalInboundStats.dailyStats :
+                                         dealerStatsFilter.period === 'week' ? totalInboundStats.weeklyStats :
+                                         dealerStatsFilter.period === 'month' ? totalInboundStats.monthlyStats :
+                                         totalInboundStats.yearlyStats;
+                      const sortedPeriods = Object.keys(periodStats).sort().reverse().slice(0, 10);
+                      return sortedPeriods.map(period => (
+                        <TableRow key={period}>
+                          <TableCell sx={{ py: 0.5 }}>
+                            {dealerStatsFilter.period === 'day' ? period :
+                             dealerStatsFilter.period === 'week' ? period.split('-W')[1] + '주차' :
+                             dealerStatsFilter.period === 'month' ? period.split('-')[0] + '년 ' + parseInt(period.split('-')[1]) + '월' :
+                             period + '년'}
+                          </TableCell>
+                          <TableCell align="right" sx={{ py: 0.5 }}>{periodStats[period].quantity.toLocaleString()}개</TableCell>
+                          <TableCell align="right" sx={{ py: 0.5 }}>{periodStats[period].transactions}건</TableCell>
+                        </TableRow>
+                      ));
+                    })()}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Card>
+
+            {/* 창고별/모델별 출고 수량 통계 - 2열로 배치 */}
+            <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
+              <Grid item xs={12} md={6}>
+                <Card sx={{ p: 1.5 }}>
+                  <Typography variant="subtitle1" gutterBottom sx={{ mb: 1, fontWeight: 'bold' }}>창고별 출고량</Typography>
+                  <TableContainer>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ py: 0.5 }}>창고명</TableCell>
+                          <TableCell align="right" sx={{ py: 0.5 }}>출고량</TableCell>
+                          <TableCell align="right" sx={{ py: 0.5 }}>건수</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {Object.values(warehouseStats)
+                          .filter(stat => stat.outTransactions > 0)
+                          .sort((a, b) => b.outTotalQuantity - a.outTotalQuantity)
+                          .map((stat, index) => (
+                            <TableRow key={index} hover>
+                              <TableCell sx={{ py: 0.5 }}>
+                                <Typography variant="body2" fontWeight="medium">
+                                  {stat.name}
+                                </Typography>
+                              </TableCell>
+                              <TableCell align="right" sx={{ py: 0.5 }}>{stat.outTotalQuantity.toLocaleString()}</TableCell>
+                              <TableCell align="right" sx={{ py: 0.5 }}>{stat.outTransactions}</TableCell>
+                            </TableRow>
+                          ))}
+                        {Object.values(warehouseStats).filter(stat => stat.outTransactions > 0).length > 0 && (
+                          <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                            <TableCell sx={{ py: 0.5, fontWeight: 'bold' }}>합계</TableCell>
+                            <TableCell align="right" sx={{ py: 0.5, fontWeight: 'bold' }}>
+                              {Object.values(warehouseStats).reduce((sum, stat) => sum + stat.outTotalQuantity, 0).toLocaleString()}
+                            </TableCell>
+                            <TableCell align="right" sx={{ py: 0.5, fontWeight: 'bold' }}>
+                              {Object.values(warehouseStats).reduce((sum, stat) => sum + stat.outTransactions, 0)}
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Card>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Card sx={{ p: 1.5 }}>
+                  <Typography variant="subtitle1" gutterBottom sx={{ mb: 1, fontWeight: 'bold' }}>모델별 출고량</Typography>
+                  <TableContainer>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ py: 0.5 }}>제품명</TableCell>
+                          <TableCell align="right" sx={{ py: 0.5 }}>출고량</TableCell>
+                          <TableCell align="right" sx={{ py: 0.5 }}>건수</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {Object.values(productStats)
+                          .filter(stat => stat.outTransactions > 0)
+                          .sort((a, b) => b.outTotalQuantity - a.outTotalQuantity)
+                          .slice(0, 15)
+                          .map((stat, index) => (
+                            <TableRow key={index} hover>
+                              <TableCell sx={{ py: 0.5 }}>
+                                <Typography variant="body2" fontWeight="medium">
+                                  {stat.productName}
+                                </Typography>
+                                {stat.productCode && (
+                                  <Typography variant="caption" color="text.secondary" display="block">
+                                    {stat.productCode}
+                                  </Typography>
+                                )}
+                              </TableCell>
+                              <TableCell align="right" sx={{ py: 0.5 }}>{stat.outTotalQuantity.toLocaleString()}</TableCell>
+                              <TableCell align="right" sx={{ py: 0.5 }}>{stat.outTransactions}</TableCell>
+                            </TableRow>
+                          ))}
+                        {Object.values(productStats).filter(stat => stat.outTransactions > 0).length > 0 && (
+                          <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                            <TableCell sx={{ py: 0.5, fontWeight: 'bold' }}>합계</TableCell>
+                            <TableCell align="right" sx={{ py: 0.5, fontWeight: 'bold' }}>
+                              {Object.values(productStats).reduce((sum, stat) => sum + stat.outTotalQuantity, 0).toLocaleString()}
+                            </TableCell>
+                            <TableCell align="right" sx={{ py: 0.5, fontWeight: 'bold' }}>
+                              {Object.values(productStats).reduce((sum, stat) => sum + stat.outTransactions, 0)}
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Card>
+              </Grid>
+            </Grid>
+
             {/* 입출고 통계 테이블 */}
-            <TableContainer component={Paper}>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>대리점명</TableCell>
-                    <TableCell>지역</TableCell>
-                    <TableCell align="center">대리점 입고(←) 합계</TableCell>
-                    <TableCell align="center">입고 건수</TableCell>
-                    <TableCell align="center">대리점 출고(→) 합계</TableCell>
-                    <TableCell align="center">출고 건수</TableCell>
-                    <TableCell align="center">최근 입고일</TableCell>
-                    <TableCell align="center">최근 출고일</TableCell>
-                  </TableRow>
-                </TableHead>
+            <Card sx={{ p: 1.5 }}>
+              <Typography variant="subtitle1" gutterBottom sx={{ mb: 1, fontWeight: 'bold' }}>지점별 입출고 통계</Typography>
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ py: 0.5 }}>대리점명</TableCell>
+                      <TableCell sx={{ py: 0.5 }}>지역</TableCell>
+                      <TableCell align="right" sx={{ py: 0.5 }}>입고량</TableCell>
+                      <TableCell align="right" sx={{ py: 0.5 }}>입고건</TableCell>
+                      <TableCell align="right" sx={{ py: 0.5 }}>출고량</TableCell>
+                      <TableCell align="right" sx={{ py: 0.5 }}>출고건</TableCell>
+                      <TableCell sx={{ py: 0.5 }}>최근 입고일</TableCell>
+                      <TableCell sx={{ py: 0.5 }}>최근 출고일</TableCell>
+                    </TableRow>
+                  </TableHead>
                 <TableBody>
                   {Object.values(dealerStats)
                     .filter(stat => {
@@ -3117,18 +3062,18 @@ function InventoryManagement() {
                     .sort((a, b) => (b.outTotalQuantity + b.inTotalQuantity) - (a.outTotalQuantity + a.inTotalQuantity))
                     .map((stat, index) => (
                     <TableRow key={index} hover>
-                      <TableCell>
-                        <Typography variant="subtitle2" fontWeight="bold">
+                      <TableCell sx={{ py: 0.5 }}>
+                        <Typography variant="body2" fontWeight="medium">
                           {stat.name}
                         </Typography>
                       </TableCell>
-                      <TableCell>{stat.location}</TableCell>
-                      <TableCell align="center">{stat.inTotalQuantity.toLocaleString()}개</TableCell>
-                      <TableCell align="center">{stat.inTransactions}건</TableCell>
-                      <TableCell align="center">{stat.outTotalQuantity.toLocaleString()}개</TableCell>
-                      <TableCell align="center">{stat.outTransactions}건</TableCell>
-                      <TableCell align="center">{stat.inLastDate || '-'}</TableCell>
-                      <TableCell align="center">{stat.outLastDate || '-'}</TableCell>
+                      <TableCell sx={{ py: 0.5 }}>{stat.location}</TableCell>
+                      <TableCell align="right" sx={{ py: 0.5 }}>{stat.inTotalQuantity.toLocaleString()}</TableCell>
+                      <TableCell align="right" sx={{ py: 0.5 }}>{stat.inTransactions}</TableCell>
+                      <TableCell align="right" sx={{ py: 0.5 }}>{stat.outTotalQuantity.toLocaleString()}</TableCell>
+                      <TableCell align="right" sx={{ py: 0.5 }}>{stat.outTransactions}</TableCell>
+                      <TableCell sx={{ py: 0.5 }}>{stat.inLastDate || '-'}</TableCell>
+                      <TableCell sx={{ py: 0.5 }}>{stat.outLastDate || '-'}</TableCell>
                     </TableRow>
                   ))}
                   {Object.values(dealerStats).filter(stat => {
@@ -3137,198 +3082,117 @@ function InventoryManagement() {
                     return dealerFilter && hasTransactions;
                   }).length > 0 && (
                     <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                      <TableCell colSpan={2} sx={{ fontWeight: 'bold' }}>전체 합계</TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 'bold' }}>
+                      <TableCell colSpan={2} sx={{ py: 0.5, fontWeight: 'bold' }}>합계</TableCell>
+                      <TableCell align="right" sx={{ py: 0.5, fontWeight: 'bold' }}>
                         {Object.values(dealerStats)
                           .filter(stat => {
                             const dealerFilter = !dealerStatsFilter.dealer || stat.name === dealers.find(d => d.id === dealerStatsFilter.dealer)?.name;
                             const hasTransactions = (stat.outTransactions > 0) || (stat.inTransactions > 0);
                             return dealerFilter && hasTransactions;
                           })
-                          .reduce((sum, stat) => sum + stat.inTotalQuantity, 0).toLocaleString()}개
+                          .reduce((sum, stat) => sum + stat.inTotalQuantity, 0).toLocaleString()}
                       </TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 'bold' }}>
+                      <TableCell align="right" sx={{ py: 0.5, fontWeight: 'bold' }}>
                         {Object.values(dealerStats)
                           .filter(stat => {
                             const dealerFilter = !dealerStatsFilter.dealer || stat.name === dealers.find(d => d.id === dealerStatsFilter.dealer)?.name;
                             const hasTransactions = (stat.outTransactions > 0) || (stat.inTransactions > 0);
                             return dealerFilter && hasTransactions;
                           })
-                          .reduce((sum, stat) => sum + stat.inTransactions, 0)}건
+                          .reduce((sum, stat) => sum + stat.inTransactions, 0)}
                       </TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 'bold' }}>
+                      <TableCell align="right" sx={{ py: 0.5, fontWeight: 'bold' }}>
                         {Object.values(dealerStats)
                           .filter(stat => {
                             const dealerFilter = !dealerStatsFilter.dealer || stat.name === dealers.find(d => d.id === dealerStatsFilter.dealer)?.name;
                             const hasTransactions = (stat.outTransactions > 0) || (stat.inTransactions > 0);
                             return dealerFilter && hasTransactions;
                           })
-                          .reduce((sum, stat) => sum + stat.outTotalQuantity, 0).toLocaleString()}개
+                          .reduce((sum, stat) => sum + stat.outTotalQuantity, 0).toLocaleString()}
                       </TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 'bold' }}>
+                      <TableCell align="right" sx={{ py: 0.5, fontWeight: 'bold' }}>
                         {Object.values(dealerStats)
                           .filter(stat => {
                             const dealerFilter = !dealerStatsFilter.dealer || stat.name === dealers.find(d => d.id === dealerStatsFilter.dealer)?.name;
                             const hasTransactions = (stat.outTransactions > 0) || (stat.inTransactions > 0);
                             return dealerFilter && hasTransactions;
                           })
-                          .reduce((sum, stat) => sum + stat.outTransactions, 0)}건
+                          .reduce((sum, stat) => sum + stat.outTransactions, 0)}
                       </TableCell>
-                      <TableCell colSpan={2} align="center">-</TableCell>
+                      <TableCell colSpan={2} sx={{ py: 0.5 }}>-</TableCell>
                     </TableRow>
                   )}
                 </TableBody>
               </Table>
-            </TableContainer>
+              </TableContainer>
+            </Card>
 
-            {/* 기간별 상세 통계 */}
-            <Box sx={{ mt: 3 }}>
-              <Typography variant="h6" gutterBottom>
-                {dealerStatsFilter.period === 'day' ? '일별' : 
-                 dealerStatsFilter.period === 'week' ? '주별' :
-                 dealerStatsFilter.period === 'month' ? '월별' : '년별'} 상세 통계
-              </Typography>
-              
-              {/* 대리점별 기간별 통계 */}
-              <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>대리점별 통계</Typography>
-              <Grid container spacing={2}>
-                {Object.values(dealerStats)
-                  .filter(stat => {
-                    // 대리점 필터 적용
-                    const dealerFilter = !dealerStatsFilter.dealer || stat.name === dealers.find(d => d.id === dealerStatsFilter.dealer)?.name;
-                    
-                    // 거래가 있는 대리점만 표시 (총 거래 건수가 0보다 큰 경우)
-                    const hasTransactions = stat.totalTransactions > 0;
-                    
-                    return dealerFilter && hasTransactions;
-                  })
-                  .map((stat, index) => {
-                    const periodStats = dealerStatsFilter.period === 'day' ? stat.dailyStats :
-                                     dealerStatsFilter.period === 'week' ? stat.weeklyStats :
-                                     dealerStatsFilter.period === 'month' ? stat.monthlyStats :
-                                     stat.yearlyStats;
-                    
-                    const sortedPeriods = Object.keys(periodStats).sort().reverse().slice(0, 10);
-                    
-                    return (
-                      <Grid item xs={12} md={6} key={index}>
-                        <Card variant="outlined">
-                          <CardContent>
-                            <Typography variant="h6" gutterBottom>
+            {/* 기간별 상세 통계 - 컴팩트 (월별 제외) */}
+            {dealerStatsFilter.period !== 'day' && dealerStatsFilter.period !== 'month' && (
+              <Card sx={{ p: 1.5, mt: 1.5 }}>
+                <Typography variant="subtitle1" gutterBottom sx={{ mb: 1, fontWeight: 'bold' }}>
+                  {dealerStatsFilter.period === 'week' ? '주별' : '년별'} 대리점별 상세 통계
+                </Typography>
+                <Grid container spacing={1.5}>
+                  {Object.values(dealerStats)
+                    .filter(stat => {
+                      const dealerFilter = !dealerStatsFilter.dealer || stat.name === dealers.find(d => d.id === dealerStatsFilter.dealer)?.name;
+                      const hasTransactions = stat.totalTransactions > 0;
+                      return dealerFilter && hasTransactions;
+                    })
+                    .slice(0, 6)
+                    .map((stat, index) => {
+                      const periodStats = dealerStatsFilter.period === 'week' ? stat.weeklyStats :
+                                       dealerStatsFilter.period === 'month' ? stat.monthlyStats :
+                                       stat.yearlyStats;
+                      
+                      const sortedPeriods = Object.keys(periodStats).sort().reverse().slice(0, 8);
+                      
+                      return (
+                        <Grid item xs={12} sm={6} md={4} key={index}>
+                          <Card variant="outlined" sx={{ p: 1 }}>
+                            <Typography variant="body2" fontWeight="bold" gutterBottom sx={{ mb: 0.5 }}>
                               {stat.name} ({stat.location})
                             </Typography>
                             <Table size="small">
                               <TableHead>
                                 <TableRow>
-                                  <TableCell>
-                                    {dealerStatsFilter.period === 'day' ? '날짜' : 
-                                     dealerStatsFilter.period === 'week' ? '주차' :
-                                     dealerStatsFilter.period === 'month' ? '월' : '년'}
-                                  </TableCell>
-                                  <TableCell align="center">수량</TableCell>
-                                  <TableCell align="center">건수</TableCell>
+                                  <TableCell sx={{ py: 0.3, px: 1 }}>기간</TableCell>
+                                  <TableCell align="right" sx={{ py: 0.3, px: 1 }}>수량</TableCell>
+                                  <TableCell align="right" sx={{ py: 0.3, px: 1 }}>건수</TableCell>
                                 </TableRow>
                               </TableHead>
                               <TableBody>
                                 {sortedPeriods.map(period => (
                                   <TableRow key={period}>
-                                    <TableCell>
-                                      <Typography variant="body2">
-                                        {dealerStatsFilter.period === 'day' ? period :
-                                         dealerStatsFilter.period === 'week' ? period.split('-W')[0] + '년 ' + period.split('-W')[1] + '주차' :
-                                         dealerStatsFilter.period === 'month' ? period.split('-')[0] + '년 ' + parseInt(period.split('-')[1]) + '월' :
+                                    <TableCell sx={{ py: 0.3, px: 1 }}>
+                                      <Typography variant="caption">
+                                        {dealerStatsFilter.period === 'week' ? period.split('-W')[1] + '주차' :
+                                         dealerStatsFilter.period === 'month' ? parseInt(period.split('-')[1]) + '월' :
                                          period + '년'}
                                       </Typography>
                                     </TableCell>
-                                    <TableCell align="center">
-                                      <Typography variant="body2" fontWeight="medium">
-                                        {periodStats[period].quantity.toLocaleString()}개
+                                    <TableCell align="right" sx={{ py: 0.3, px: 1 }}>
+                                      <Typography variant="caption" fontWeight="medium">
+                                        {periodStats[period].quantity.toLocaleString()}
                                       </Typography>
                                     </TableCell>
-                                    <TableCell align="center">
-                                      <Typography variant="body2">
-                                        {periodStats[period].transactions}건
+                                    <TableCell align="right" sx={{ py: 0.3, px: 1 }}>
+                                      <Typography variant="caption">
+                                        {periodStats[period].transactions}
                                       </Typography>
                                     </TableCell>
                                   </TableRow>
                                 ))}
                               </TableBody>
                             </Table>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                    );
-                  })}
-              </Grid>
-
-              {/* 모델별 기간별 통계 */}
-              <Typography variant="h6" sx={{ mt: 4, mb: 2 }}>모델(제품)별 통계</Typography>
-              <Grid container spacing={2}>
-                {Object.values(productStats)
-                  .filter(stat => stat.outTransactions > 0)
-                  .sort((a, b) => b.outTotalQuantity - a.outTotalQuantity)
-                  .slice(0, 12)
-                  .map((stat, index) => {
-                    const periodStats = dealerStatsFilter.period === 'day' ? stat.dailyStats :
-                                     dealerStatsFilter.period === 'week' ? stat.weeklyStats :
-                                     dealerStatsFilter.period === 'month' ? stat.monthlyStats :
-                                     stat.yearlyStats;
-                    
-                    const sortedPeriods = Object.keys(periodStats).sort().reverse().slice(0, 10);
-                    
-                    if (sortedPeriods.length === 0) return null;
-                    
-                    return (
-                      <Grid item xs={12} md={6} key={index}>
-                        <Card variant="outlined">
-                          <CardContent>
-                            <Typography variant="h6" gutterBottom>
-                              {stat.productName} {stat.productCode && `(${stat.productCode})`}
-                            </Typography>
-                            <Table size="small">
-                              <TableHead>
-                                <TableRow>
-                                  <TableCell>
-                                    {dealerStatsFilter.period === 'day' ? '날짜' : 
-                                     dealerStatsFilter.period === 'week' ? '주차' :
-                                     dealerStatsFilter.period === 'month' ? '월' : '년'}
-                                  </TableCell>
-                                  <TableCell align="center">출고량</TableCell>
-                                  <TableCell align="center">건수</TableCell>
-                                </TableRow>
-                              </TableHead>
-                              <TableBody>
-                                {sortedPeriods.map(period => (
-                                  <TableRow key={period}>
-                                    <TableCell>
-                                      <Typography variant="body2">
-                                        {dealerStatsFilter.period === 'day' ? period :
-                                         dealerStatsFilter.period === 'week' ? period.split('-W')[0] + '년 ' + period.split('-W')[1] + '주차' :
-                                         dealerStatsFilter.period === 'month' ? period.split('-')[0] + '년 ' + parseInt(period.split('-')[1]) + '월' :
-                                         period + '년'}
-                                      </Typography>
-                                    </TableCell>
-                                    <TableCell align="center">
-                                      <Typography variant="body2" fontWeight="medium">
-                                        {periodStats[period].quantity.toLocaleString()}개
-                                      </Typography>
-                                    </TableCell>
-                                    <TableCell align="center">
-                                      <Typography variant="body2">
-                                        {periodStats[period].transactions}건
-                                      </Typography>
-                                    </TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                    );
-                  })}
-              </Grid>
-            </Box>
+                          </Card>
+                        </Grid>
+                      );
+                    })}
+                </Grid>
+              </Card>
+            )}
           </Box>
         )}
 
