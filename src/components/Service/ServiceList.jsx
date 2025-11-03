@@ -776,13 +776,42 @@ function ServiceList() {
           console.log('[ServiceList] 날짜 필터 적용 완료');
         }
         
-        // 검색어 필터 적용 (가장 단순한 방식)
+        // 검색어 필터 적용 (전화번호 검색 포함)
         if (searchParams.searchTerm && searchParams.searchTerm.length >= 2) {
           console.log('[ServiceList] 검색어 필터 적용 중:', searchParams.searchTerm);
           
-          // 일단 고객명 검색만 테스트
-          console.log('[ServiceList] 고객명 검색만 테스트:', searchParams.searchTerm);
-          simpleQuery = simpleQuery.ilike('customer_name', `%${searchParams.searchTerm}%`);
+          // 전화번호 검색을 위해 하이픈 제거 및 유연 패턴 생성
+          const cleanSearchTerm = searchParams.searchTerm.replace(/[^\d]/g, '');
+          const flexiblePhonePattern = cleanSearchTerm
+            ? `%${cleanSearchTerm.split('').join('%')}%`
+            : '';
+          
+          // 숫자인지 확인
+          const isNumeric = /^\d+$/.test(cleanSearchTerm);
+          
+          if (isNumeric) {
+            // 숫자인 경우: A/S ID 정확 검색 또는 전화번호 검색
+            const rawTerm = searchParams.searchTerm;
+            const hyphenPattern = `%${rawTerm}%`;
+            const orConditions = [
+              `id.eq.${cleanSearchTerm}`,
+              `customer_phone.ilike.%${cleanSearchTerm}%`,
+              flexiblePhonePattern ? `customer_phone.ilike.${flexiblePhonePattern}` : '',
+              rawTerm ? `customer_phone.ilike.${hyphenPattern}` : ''
+            ].filter(Boolean).join(',');
+            simpleQuery = simpleQuery.or(orConditions);
+          } else {
+            // 문자열인 경우: 고객명과 전화번호 검색
+            const rawTerm = searchParams.searchTerm;
+            const hyphenPattern = `%${rawTerm}%`;
+            const orConditions = [
+              `customer_name.ilike.%${rawTerm}%`,
+              `customer_phone.ilike.%${cleanSearchTerm}%`,
+              flexiblePhonePattern ? `customer_phone.ilike.${flexiblePhonePattern}` : '',
+              rawTerm ? `customer_phone.ilike.${hyphenPattern}` : ''
+            ].filter(Boolean).join(',');
+            simpleQuery = simpleQuery.or(orConditions);
+          }
           console.log('[ServiceList] 검색어 필터 적용 완료');
         }
         
