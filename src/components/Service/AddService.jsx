@@ -1226,6 +1226,13 @@ function AddService() {
         
         const uniqueRecentCustomers = Array.from(recentUniqueMap.values()).slice(0, 10);
         setCustomerSearchResults(uniqueRecentCustomers);
+        
+        // 각 고객의 이력 건수를 미리 조회
+        Promise.all(
+          uniqueRecentCustomers.map(customer => fetchCustomerHistoryCount(customer))
+        ).catch(err => {
+          console.error('최근 고객 이력 건수 조회 오류:', err);
+        });
         return;
       }
       const cleanSearchTerm = searchTerm.replace(/-/g, '');
@@ -1299,8 +1306,10 @@ function AddService() {
       setCustomerSearchResults(uniqueResults);
       
       // 각 고객의 이력 건수를 미리 조회
-      uniqueResults.forEach(customer => {
-        fetchCustomerHistoryCount(customer);
+      Promise.all(
+        uniqueResults.map(customer => fetchCustomerHistoryCount(customer))
+      ).catch(err => {
+        console.error('고객 이력 건수 조회 오류:', err);
       });
     } catch (err) {
       setSnackbar({

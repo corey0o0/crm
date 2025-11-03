@@ -109,7 +109,9 @@ const CustomerSearchModal = ({
                         }}
                       >
                         {historyLoading ? '...' : 
-                          (historyCounts[`${customer.phone}_${customer.name}`] || '')
+                          (historyCounts[`${customer.phone}_${customer.name}`] !== undefined 
+                            ? `${historyCounts[`${customer.phone}_${customer.name}`]}건` 
+                            : '-')
                         }
                       </Button>
                     </TableCell>
