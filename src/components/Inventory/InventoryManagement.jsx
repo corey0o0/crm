@@ -29,7 +29,8 @@ import {
   Badge,
   Autocomplete,
   Pagination,
-  InputAdornment
+  InputAdornment,
+  Popover
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -75,7 +76,7 @@ function InventoryManagement() {
   
   // 대리점별 통계 필터
   const [dealerStatsFilter, setDealerStatsFilter] = useState({
-    period: 'month', // 'day', 'week', 'month'
+    period: 'month', // 'day', 'week', 'month', 'year'
     dateFrom: '',
     dateTo: '',
     dealer: ''
@@ -94,6 +95,9 @@ function InventoryManagement() {
   // 표보기 클릭된 거래 모달 상태
   const [tableModalOpen, setTableModalOpen] = useState(false);
   const [selectedTableTransactions, setSelectedTableTransactions] = useState([]);
+  // 표보기 마우스 오버 팝오버 상태
+  const [hoverAnchorEl, setHoverAnchorEl] = useState(null);
+  const [hoverTransactions, setHoverTransactions] = useState([]);
   const [excelData, setExcelData] = useState([]);
   const [excelUploadType, setExcelUploadType] = useState(''); // 'in' | 'out'
   
@@ -341,6 +345,27 @@ function InventoryManagement() {
       setTableModalOpen(true);
     }
   }, [transactions]);
+
+  // 표보기 셀 마우스 오버 시 해당 거래들을 팝오버로 표시
+  const handleTableCellHover = useCallback((event, warehouseId, productId, date) => {
+    const dayTransactions = transactions.filter(tx => {
+      if (!tx || !tx.date) return false;
+      const txDate = typeof tx.date === 'string' ? tx.date.split('T')[0] : new Date(tx.date).toISOString().split('T')[0];
+      return txDate === date && 
+             (tx.toLocation === warehouseId || tx.fromLocation === warehouseId) &&
+             tx.productId === productId;
+    });
+    
+    if (dayTransactions.length > 0) {
+      setHoverTransactions(dayTransactions);
+      setHoverAnchorEl(event.currentTarget);
+    }
+  }, [transactions]);
+
+  const handleTableCellHoverLeave = useCallback(() => {
+    setHoverAnchorEl(null);
+    setHoverTransactions([]);
+  }, []);
 
   // 거래내역을 기반으로 창고 재고 재계산
   const recalculateInventoryFromTransactions = async () => {
@@ -1457,6 +1482,25 @@ function InventoryManagement() {
     return Object.values(grouped);
   }, [transactions]);
   
+  // 날짜 형식 헬퍼 함수
+  const getDateKey = (date, period) => {
+    const d = new Date(date);
+    if (period === 'day') {
+      return d.toISOString().split('T')[0];
+    } else if (period === 'week') {
+      const year = d.getFullYear();
+      const startOfYear = new Date(year, 0, 1);
+      const days = Math.floor((d - startOfYear) / (24 * 60 * 60 * 1000));
+      const week = Math.ceil((days + startOfYear.getDay() + 1) / 7);
+      return `${year}-W${week.toString().padStart(2, '0')}`;
+    } else if (period === 'month') {
+      return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}`;
+    } else if (period === 'year') {
+      return d.getFullYear().toString();
+    }
+    return d.toISOString().split('T')[0];
+  };
+
   // 대리점별 입출고 통계 계산 (→대리점: 출고, ←대리점: 입고) (useMemo로 메모이제이션)
   const dealerStats = useMemo(() => {
     const stats = {};
@@ -1473,32 +1517,251 @@ function InventoryManagement() {
         inTotalQuantity: 0,
         inTransactions: 0,
         inLastDate: null,
+        // 기간별 통계
+        dailyStats: {},
+        weeklyStats: {},
+        monthlyStats: {},
+        yearlyStats: {},
+        totalTransactions: 0
       };
     });
 
     transactions.forEach(t => {
+      const txDate = new Date(t.date);
+      const dayKey = getDateKey(t.date, 'day');
+      const weekKey = getDateKey(t.date, 'week');
+      const monthKey = getDateKey(t.date, 'month');
+      const yearKey = getDateKey(t.date, 'year');
+
       // →대리점 (출고)
       if (t.type === 'out' && stats[t.toLocation]) {
         const s = stats[t.toLocation];
         s.outTotalQuantity += t.quantity;
         s.outTransactions += 1;
-        if (!s.outLastDate || new Date(t.date) > new Date(s.outLastDate)) {
+        s.totalTransactions += 1;
+        if (!s.outLastDate || txDate > new Date(s.outLastDate)) {
           s.outLastDate = t.date;
         }
+        
+        // 기간별 통계 (출고)
+        s.dailyStats[dayKey] = s.dailyStats[dayKey] || { quantity: 0, transactions: 0 };
+        s.dailyStats[dayKey].quantity += t.quantity;
+        s.dailyStats[dayKey].transactions += 1;
+        
+        s.weeklyStats[weekKey] = s.weeklyStats[weekKey] || { quantity: 0, transactions: 0 };
+        s.weeklyStats[weekKey].quantity += t.quantity;
+        s.weeklyStats[weekKey].transactions += 1;
+        
+        s.monthlyStats[monthKey] = s.monthlyStats[monthKey] || { quantity: 0, transactions: 0 };
+        s.monthlyStats[monthKey].quantity += t.quantity;
+        s.monthlyStats[monthKey].transactions += 1;
+        
+        s.yearlyStats[yearKey] = s.yearlyStats[yearKey] || { quantity: 0, transactions: 0 };
+        s.yearlyStats[yearKey].quantity += t.quantity;
+        s.yearlyStats[yearKey].transactions += 1;
       }
       // ←대리점 (입고: from이 대리점)
       if (t.type === 'in' && stats[t.fromLocation]) {
         const s = stats[t.fromLocation];
         s.inTotalQuantity += t.quantity;
         s.inTransactions += 1;
-        if (!s.inLastDate || new Date(t.date) > new Date(s.inLastDate)) {
+        s.totalTransactions += 1;
+        if (!s.inLastDate || txDate > new Date(s.inLastDate)) {
           s.inLastDate = t.date;
         }
+        
+        // 기간별 통계 (입고) - 대리점에서 입고는 출고로 카운트
+        s.dailyStats[dayKey] = s.dailyStats[dayKey] || { quantity: 0, transactions: 0 };
+        s.dailyStats[dayKey].quantity += t.quantity;
+        s.dailyStats[dayKey].transactions += 1;
+        
+        s.weeklyStats[weekKey] = s.weeklyStats[weekKey] || { quantity: 0, transactions: 0 };
+        s.weeklyStats[weekKey].quantity += t.quantity;
+        s.weeklyStats[weekKey].transactions += 1;
+        
+        s.monthlyStats[monthKey] = s.monthlyStats[monthKey] || { quantity: 0, transactions: 0 };
+        s.monthlyStats[monthKey].quantity += t.quantity;
+        s.monthlyStats[monthKey].transactions += 1;
+        
+        s.yearlyStats[yearKey] = s.yearlyStats[yearKey] || { quantity: 0, transactions: 0 };
+        s.yearlyStats[yearKey].quantity += t.quantity;
+        s.yearlyStats[yearKey].transactions += 1;
       }
     });
 
     return stats;
   }, [dealers, transactions]);
+
+  // 창고별 출고 통계 계산
+  const warehouseStats = useMemo(() => {
+    const stats = {};
+    
+    warehouses.forEach(warehouse => {
+      stats[warehouse.id] = {
+        name: warehouse.name,
+        location: warehouse.location,
+        // 출고(창고에서 나간 수량)
+        outTotalQuantity: 0,
+        outTransactions: 0,
+        outLastDate: null,
+        // 기간별 통계
+        dailyStats: {},
+        weeklyStats: {},
+        monthlyStats: {},
+        yearlyStats: {},
+        totalTransactions: 0
+      };
+    });
+
+    transactions.forEach(t => {
+      // 출고: 출발지가 창고인 경우
+      if (t.type === 'out' && stats[t.fromLocation]) {
+        const s = stats[t.fromLocation];
+        const txDate = new Date(t.date);
+        s.outTotalQuantity += t.quantity;
+        s.outTransactions += 1;
+        s.totalTransactions += 1;
+        if (!s.outLastDate || txDate > new Date(s.outLastDate)) {
+          s.outLastDate = t.date;
+        }
+        
+        // 기간별 통계
+        const dayKey = getDateKey(t.date, 'day');
+        const weekKey = getDateKey(t.date, 'week');
+        const monthKey = getDateKey(t.date, 'month');
+        const yearKey = getDateKey(t.date, 'year');
+        
+        s.dailyStats[dayKey] = s.dailyStats[dayKey] || { quantity: 0, transactions: 0 };
+        s.dailyStats[dayKey].quantity += t.quantity;
+        s.dailyStats[dayKey].transactions += 1;
+        
+        s.weeklyStats[weekKey] = s.weeklyStats[weekKey] || { quantity: 0, transactions: 0 };
+        s.weeklyStats[weekKey].quantity += t.quantity;
+        s.weeklyStats[weekKey].transactions += 1;
+        
+        s.monthlyStats[monthKey] = s.monthlyStats[monthKey] || { quantity: 0, transactions: 0 };
+        s.monthlyStats[monthKey].quantity += t.quantity;
+        s.monthlyStats[monthKey].transactions += 1;
+        
+        s.yearlyStats[yearKey] = s.yearlyStats[yearKey] || { quantity: 0, transactions: 0 };
+        s.yearlyStats[yearKey].quantity += t.quantity;
+        s.yearlyStats[yearKey].transactions += 1;
+      }
+    });
+
+    return stats;
+  }, [warehouses, transactions]);
+
+  // 총 이동 수령 (총 입고량) 계산
+  const totalInboundStats = useMemo(() => {
+    let totalQuantity = 0;
+    let totalTransactions = 0;
+    const dailyStats = {};
+    const weeklyStats = {};
+    const monthlyStats = {};
+    const yearlyStats = {};
+
+    transactions.forEach(t => {
+      if (t.type === 'in') {
+        totalQuantity += t.quantity;
+        totalTransactions += 1;
+        
+        const dayKey = getDateKey(t.date, 'day');
+        const weekKey = getDateKey(t.date, 'week');
+        const monthKey = getDateKey(t.date, 'month');
+        const yearKey = getDateKey(t.date, 'year');
+        
+        dailyStats[dayKey] = dailyStats[dayKey] || { quantity: 0, transactions: 0 };
+        dailyStats[dayKey].quantity += t.quantity;
+        dailyStats[dayKey].transactions += 1;
+        
+        weeklyStats[weekKey] = weeklyStats[weekKey] || { quantity: 0, transactions: 0 };
+        weeklyStats[weekKey].quantity += t.quantity;
+        weeklyStats[weekKey].transactions += 1;
+        
+        monthlyStats[monthKey] = monthlyStats[monthKey] || { quantity: 0, transactions: 0 };
+        monthlyStats[monthKey].quantity += t.quantity;
+        monthlyStats[monthKey].transactions += 1;
+        
+        yearlyStats[yearKey] = yearlyStats[yearKey] || { quantity: 0, transactions: 0 };
+        yearlyStats[yearKey].quantity += t.quantity;
+        yearlyStats[yearKey].transactions += 1;
+      }
+    });
+
+    return {
+      totalQuantity,
+      totalTransactions,
+      dailyStats,
+      weeklyStats,
+      monthlyStats,
+      yearlyStats
+    };
+  }, [transactions]);
+
+  // 모델(제품)별 출고 통계 계산
+  const productStats = useMemo(() => {
+    const stats = {};
+    
+    transactions.forEach(t => {
+      if (t.type === 'out') {
+        const productId = t.productId;
+        const productName = t.productName || '알 수 없음';
+        const productCode = t.productCode || '';
+        
+        if (!stats[productId]) {
+          stats[productId] = {
+            productId,
+            productName,
+            productCode,
+            // 총 출고량
+            outTotalQuantity: 0,
+            outTransactions: 0,
+            outLastDate: null,
+            // 기간별 통계
+            dailyStats: {},
+            weeklyStats: {},
+            monthlyStats: {},
+            yearlyStats: {},
+            totalTransactions: 0
+          };
+        }
+        
+        const s = stats[productId];
+        const txDate = new Date(t.date);
+        s.outTotalQuantity += t.quantity;
+        s.outTransactions += 1;
+        s.totalTransactions += 1;
+        if (!s.outLastDate || txDate > new Date(s.outLastDate)) {
+          s.outLastDate = t.date;
+        }
+        
+        // 기간별 통계
+        const dayKey = getDateKey(t.date, 'day');
+        const weekKey = getDateKey(t.date, 'week');
+        const monthKey = getDateKey(t.date, 'month');
+        const yearKey = getDateKey(t.date, 'year');
+        
+        s.dailyStats[dayKey] = s.dailyStats[dayKey] || { quantity: 0, transactions: 0 };
+        s.dailyStats[dayKey].quantity += t.quantity;
+        s.dailyStats[dayKey].transactions += 1;
+        
+        s.weeklyStats[weekKey] = s.weeklyStats[weekKey] || { quantity: 0, transactions: 0 };
+        s.weeklyStats[weekKey].quantity += t.quantity;
+        s.weeklyStats[weekKey].transactions += 1;
+        
+        s.monthlyStats[monthKey] = s.monthlyStats[monthKey] || { quantity: 0, transactions: 0 };
+        s.monthlyStats[monthKey].quantity += t.quantity;
+        s.monthlyStats[monthKey].transactions += 1;
+        
+        s.yearlyStats[yearKey] = s.yearlyStats[yearKey] || { quantity: 0, transactions: 0 };
+        s.yearlyStats[yearKey].quantity += t.quantity;
+        s.yearlyStats[yearKey].transactions += 1;
+      }
+    });
+
+    return stats;
+  }, [transactions]);
 
   // 창고/대리점 ID 매핑 객체 (필터링 성능 최적화)
   const locationMappings = useMemo(() => {
@@ -2267,7 +2530,19 @@ function InventoryManagement() {
                   <MenuItem value="desc">내림차순</MenuItem>
                 </TextField>
               </Grid>
-              <Grid item xs={12} md={2}>
+              <Grid item xs={12} md={1.5}>
+                <Button
+                  fullWidth
+                  variant="contained"
+                  startIcon={<SearchIcon />}
+                  onClick={() => {
+                    showSnackbar('필터가 적용되었습니다.', 'success');
+                  }}
+                >
+                  검색
+                </Button>
+              </Grid>
+              <Grid item xs={12} md={1.5}>
                 <Button
                   fullWidth
                   variant="outlined"
@@ -2450,6 +2725,8 @@ function InventoryManagement() {
                                                      cursor: 'pointer',
                                                      '&:hover': { opacity: 0.7 }
                                                    }}
+                                                   onMouseEnter={(e) => handleTableCellHover(e, wid, p.id, dk)}
+                                                   onMouseLeave={handleTableCellHoverLeave}
                                                    onClick={() => handleTableCellClick(wid, p.id, dk)}
                                                  >
                                                    {io.inQty > 0 && (<span style={{ color: 'var(--mui-palette-success-main, #2e7d32)', fontWeight: 'bold', fontSize: '0.95rem' }}>+{io.inQty.toLocaleString()}</span>)}
@@ -2589,6 +2866,158 @@ function InventoryManagement() {
               ))}
             </Grid>
 
+            {/* 총 이동 수령 (총 입고량) 표시 */}
+            <Card sx={{ p: 2, mb: 3, backgroundColor: '#f5f5f5' }}>
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={4}>
+                  <Box sx={{ textAlign: 'center' }}>
+                    <Typography variant="h6" color="text.secondary" gutterBottom>
+                      총 이동 수령 (총 입고량)
+                    </Typography>
+                    <Typography variant="h3" color="primary" fontWeight="bold">
+                      {totalInboundStats.totalQuantity.toLocaleString()}개
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      총 {totalInboundStats.totalTransactions}건
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} md={8}>
+                  <Typography variant="h6" gutterBottom>기간별 입고량</Typography>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>
+                          {dealerStatsFilter.period === 'day' ? '날짜' : 
+                           dealerStatsFilter.period === 'week' ? '주차' :
+                           dealerStatsFilter.period === 'month' ? '월' : '년'}
+                        </TableCell>
+                        <TableCell align="right">수량</TableCell>
+                        <TableCell align="right">건수</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {(() => {
+                        const periodStats = dealerStatsFilter.period === 'day' ? totalInboundStats.dailyStats :
+                                           dealerStatsFilter.period === 'week' ? totalInboundStats.weeklyStats :
+                                           dealerStatsFilter.period === 'month' ? totalInboundStats.monthlyStats :
+                                           totalInboundStats.yearlyStats;
+                        const sortedPeriods = Object.keys(periodStats).sort().reverse().slice(0, 10);
+                        return sortedPeriods.map(period => (
+                          <TableRow key={period}>
+                            <TableCell>
+                              {dealerStatsFilter.period === 'day' ? period :
+                               dealerStatsFilter.period === 'week' ? period.split('-W')[1] + '주차' :
+                               dealerStatsFilter.period === 'month' ? period.split('-')[0] + '년 ' + parseInt(period.split('-')[1]) + '월' :
+                               period + '년'}
+                            </TableCell>
+                            <TableCell align="right">{periodStats[period].quantity.toLocaleString()}개</TableCell>
+                            <TableCell align="right">{periodStats[period].transactions}건</TableCell>
+                          </TableRow>
+                        ));
+                      })()}
+                    </TableBody>
+                  </Table>
+                </Grid>
+              </Grid>
+            </Card>
+
+            {/* 창고별 나간 수량 통계 */}
+            <Card sx={{ p: 2, mb: 3 }}>
+              <Typography variant="h6" gutterBottom>창고별 나간 수량 (출고량) 통계</Typography>
+              <TableContainer component={Paper}>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>창고명</TableCell>
+                      <TableCell>지역</TableCell>
+                      <TableCell align="center">총 출고량</TableCell>
+                      <TableCell align="center">출고 건수</TableCell>
+                      <TableCell align="center">최근 출고일</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {Object.values(warehouseStats)
+                      .filter(stat => stat.outTransactions > 0)
+                      .sort((a, b) => b.outTotalQuantity - a.outTotalQuantity)
+                      .map((stat, index) => (
+                        <TableRow key={index} hover>
+                          <TableCell>
+                            <Typography variant="subtitle2" fontWeight="bold">
+                              {stat.name}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>{stat.location}</TableCell>
+                          <TableCell align="center">{stat.outTotalQuantity.toLocaleString()}개</TableCell>
+                          <TableCell align="center">{stat.outTransactions}건</TableCell>
+                          <TableCell align="center">{stat.outLastDate || '-'}</TableCell>
+                        </TableRow>
+                      ))}
+                    {Object.values(warehouseStats).filter(stat => stat.outTransactions > 0).length > 0 && (
+                      <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                        <TableCell colSpan={2} sx={{ fontWeight: 'bold' }}>전체 합계</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 'bold' }}>
+                          {Object.values(warehouseStats).reduce((sum, stat) => sum + stat.outTotalQuantity, 0).toLocaleString()}개
+                        </TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 'bold' }}>
+                          {Object.values(warehouseStats).reduce((sum, stat) => sum + stat.outTransactions, 0)}건
+                        </TableCell>
+                        <TableCell align="center">-</TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Card>
+
+            {/* 모델(제품)별 출고 수량 통계 */}
+            <Card sx={{ p: 2, mb: 3 }}>
+              <Typography variant="h6" gutterBottom>모델(제품)별 출고 수량 통계</Typography>
+              <TableContainer component={Paper}>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>제품명</TableCell>
+                      <TableCell>제품코드</TableCell>
+                      <TableCell align="center">총 출고량</TableCell>
+                      <TableCell align="center">출고 건수</TableCell>
+                      <TableCell align="center">최근 출고일</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {Object.values(productStats)
+                      .filter(stat => stat.outTransactions > 0)
+                      .sort((a, b) => b.outTotalQuantity - a.outTotalQuantity)
+                      .map((stat, index) => (
+                        <TableRow key={index} hover>
+                          <TableCell>
+                            <Typography variant="subtitle2" fontWeight="bold">
+                              {stat.productName}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>{stat.productCode || '-'}</TableCell>
+                          <TableCell align="center">{stat.outTotalQuantity.toLocaleString()}개</TableCell>
+                          <TableCell align="center">{stat.outTransactions}건</TableCell>
+                          <TableCell align="center">{stat.outLastDate || '-'}</TableCell>
+                        </TableRow>
+                      ))}
+                    {Object.values(productStats).filter(stat => stat.outTransactions > 0).length > 0 && (
+                      <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                        <TableCell colSpan={2} sx={{ fontWeight: 'bold' }}>전체 합계</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 'bold' }}>
+                          {Object.values(productStats).reduce((sum, stat) => sum + stat.outTotalQuantity, 0).toLocaleString()}개
+                        </TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 'bold' }}>
+                          {Object.values(productStats).reduce((sum, stat) => sum + stat.outTransactions, 0)}건
+                        </TableCell>
+                        <TableCell align="center">-</TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Card>
+
             {/* 입출고 통계 필터 */}
             <Card sx={{ p: 2, mb: 3 }}>
               <Typography variant="h6" gutterBottom>통계 필터</Typography>
@@ -2605,6 +3034,7 @@ function InventoryManagement() {
                     <option value="day">일별</option>
                     <option value="week">주별</option>
                     <option value="month">월별</option>
+                    <option value="year">년별</option>
                   </TextField>
                 </Grid>
                 <Grid item xs={12} sm={3}>
@@ -2627,7 +3057,7 @@ function InventoryManagement() {
                     InputLabelProps={{ shrink: true }}
                   />
                 </Grid>
-                <Grid item xs={12} sm={3}>
+                <Grid item xs={12} sm={2}>
                   <TextField
                     fullWidth
                     select
@@ -2641,6 +3071,19 @@ function InventoryManagement() {
                       <option key={dealer.id} value={dealer.id}>{dealer.name}</option>
                     ))}
                   </TextField>
+                </Grid>
+                <Grid item xs={12} sm={1}>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    startIcon={<SearchIcon />}
+                    onClick={() => {
+                      showSnackbar('통계 필터가 적용되었습니다.', 'success');
+                    }}
+                    sx={{ height: '56px' }}
+                  >
+                    검색
+                  </Button>
                 </Grid>
               </Grid>
             </Card>
@@ -2688,6 +3131,52 @@ function InventoryManagement() {
                       <TableCell align="center">{stat.outLastDate || '-'}</TableCell>
                     </TableRow>
                   ))}
+                  {Object.values(dealerStats).filter(stat => {
+                    const dealerFilter = !dealerStatsFilter.dealer || stat.name === dealers.find(d => d.id === dealerStatsFilter.dealer)?.name;
+                    const hasTransactions = (stat.outTransactions > 0) || (stat.inTransactions > 0);
+                    return dealerFilter && hasTransactions;
+                  }).length > 0 && (
+                    <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                      <TableCell colSpan={2} sx={{ fontWeight: 'bold' }}>전체 합계</TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 'bold' }}>
+                        {Object.values(dealerStats)
+                          .filter(stat => {
+                            const dealerFilter = !dealerStatsFilter.dealer || stat.name === dealers.find(d => d.id === dealerStatsFilter.dealer)?.name;
+                            const hasTransactions = (stat.outTransactions > 0) || (stat.inTransactions > 0);
+                            return dealerFilter && hasTransactions;
+                          })
+                          .reduce((sum, stat) => sum + stat.inTotalQuantity, 0).toLocaleString()}개
+                      </TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 'bold' }}>
+                        {Object.values(dealerStats)
+                          .filter(stat => {
+                            const dealerFilter = !dealerStatsFilter.dealer || stat.name === dealers.find(d => d.id === dealerStatsFilter.dealer)?.name;
+                            const hasTransactions = (stat.outTransactions > 0) || (stat.inTransactions > 0);
+                            return dealerFilter && hasTransactions;
+                          })
+                          .reduce((sum, stat) => sum + stat.inTransactions, 0)}건
+                      </TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 'bold' }}>
+                        {Object.values(dealerStats)
+                          .filter(stat => {
+                            const dealerFilter = !dealerStatsFilter.dealer || stat.name === dealers.find(d => d.id === dealerStatsFilter.dealer)?.name;
+                            const hasTransactions = (stat.outTransactions > 0) || (stat.inTransactions > 0);
+                            return dealerFilter && hasTransactions;
+                          })
+                          .reduce((sum, stat) => sum + stat.outTotalQuantity, 0).toLocaleString()}개
+                      </TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 'bold' }}>
+                        {Object.values(dealerStats)
+                          .filter(stat => {
+                            const dealerFilter = !dealerStatsFilter.dealer || stat.name === dealers.find(d => d.id === dealerStatsFilter.dealer)?.name;
+                            const hasTransactions = (stat.outTransactions > 0) || (stat.inTransactions > 0);
+                            return dealerFilter && hasTransactions;
+                          })
+                          .reduce((sum, stat) => sum + stat.outTransactions, 0)}건
+                      </TableCell>
+                      <TableCell colSpan={2} align="center">-</TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </TableContainer>
@@ -2696,8 +3185,12 @@ function InventoryManagement() {
             <Box sx={{ mt: 3 }}>
               <Typography variant="h6" gutterBottom>
                 {dealerStatsFilter.period === 'day' ? '일별' : 
-                 dealerStatsFilter.period === 'week' ? '주별' : '월별'} 상세 통계
+                 dealerStatsFilter.period === 'week' ? '주별' :
+                 dealerStatsFilter.period === 'month' ? '월별' : '년별'} 상세 통계
               </Typography>
+              
+              {/* 대리점별 기간별 통계 */}
+              <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>대리점별 통계</Typography>
               <Grid container spacing={2}>
                 {Object.values(dealerStats)
                   .filter(stat => {
@@ -2711,9 +3204,11 @@ function InventoryManagement() {
                   })
                   .map((stat, index) => {
                     const periodStats = dealerStatsFilter.period === 'day' ? stat.dailyStats :
-                                     dealerStatsFilter.period === 'week' ? stat.weeklyStats : stat.monthlyStats;
+                                     dealerStatsFilter.period === 'week' ? stat.weeklyStats :
+                                     dealerStatsFilter.period === 'month' ? stat.monthlyStats :
+                                     stat.yearlyStats;
                     
-                    const sortedPeriods = Object.keys(periodStats).sort();
+                    const sortedPeriods = Object.keys(periodStats).sort().reverse().slice(0, 10);
                     
                     return (
                       <Grid item xs={12} md={6} key={index}>
@@ -2727,20 +3222,90 @@ function InventoryManagement() {
                                 <TableRow>
                                   <TableCell>
                                     {dealerStatsFilter.period === 'day' ? '날짜' : 
-                                     dealerStatsFilter.period === 'week' ? '주차' : '월'}
+                                     dealerStatsFilter.period === 'week' ? '주차' :
+                                     dealerStatsFilter.period === 'month' ? '월' : '년'}
                                   </TableCell>
                                   <TableCell align="center">수량</TableCell>
                                   <TableCell align="center">건수</TableCell>
                                 </TableRow>
                               </TableHead>
                               <TableBody>
-                                {sortedPeriods.slice(-10).reverse().map(period => (
+                                {sortedPeriods.map(period => (
                                   <TableRow key={period}>
                                     <TableCell>
                                       <Typography variant="body2">
                                         {dealerStatsFilter.period === 'day' ? period :
-                                         dealerStatsFilter.period === 'week' ? period.split('-W')[1] + '주차' :
-                                         period.split('-')[1] + '월'}
+                                         dealerStatsFilter.period === 'week' ? period.split('-W')[0] + '년 ' + period.split('-W')[1] + '주차' :
+                                         dealerStatsFilter.period === 'month' ? period.split('-')[0] + '년 ' + parseInt(period.split('-')[1]) + '월' :
+                                         period + '년'}
+                                      </Typography>
+                                    </TableCell>
+                                    <TableCell align="center">
+                                      <Typography variant="body2" fontWeight="medium">
+                                        {periodStats[period].quantity.toLocaleString()}개
+                                      </Typography>
+                                    </TableCell>
+                                    <TableCell align="center">
+                                      <Typography variant="body2">
+                                        {periodStats[period].transactions}건
+                                      </Typography>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    );
+                  })}
+              </Grid>
+
+              {/* 모델별 기간별 통계 */}
+              <Typography variant="h6" sx={{ mt: 4, mb: 2 }}>모델(제품)별 통계</Typography>
+              <Grid container spacing={2}>
+                {Object.values(productStats)
+                  .filter(stat => stat.outTransactions > 0)
+                  .sort((a, b) => b.outTotalQuantity - a.outTotalQuantity)
+                  .slice(0, 12)
+                  .map((stat, index) => {
+                    const periodStats = dealerStatsFilter.period === 'day' ? stat.dailyStats :
+                                     dealerStatsFilter.period === 'week' ? stat.weeklyStats :
+                                     dealerStatsFilter.period === 'month' ? stat.monthlyStats :
+                                     stat.yearlyStats;
+                    
+                    const sortedPeriods = Object.keys(periodStats).sort().reverse().slice(0, 10);
+                    
+                    if (sortedPeriods.length === 0) return null;
+                    
+                    return (
+                      <Grid item xs={12} md={6} key={index}>
+                        <Card variant="outlined">
+                          <CardContent>
+                            <Typography variant="h6" gutterBottom>
+                              {stat.productName} {stat.productCode && `(${stat.productCode})`}
+                            </Typography>
+                            <Table size="small">
+                              <TableHead>
+                                <TableRow>
+                                  <TableCell>
+                                    {dealerStatsFilter.period === 'day' ? '날짜' : 
+                                     dealerStatsFilter.period === 'week' ? '주차' :
+                                     dealerStatsFilter.period === 'month' ? '월' : '년'}
+                                  </TableCell>
+                                  <TableCell align="center">출고량</TableCell>
+                                  <TableCell align="center">건수</TableCell>
+                                </TableRow>
+                              </TableHead>
+                              <TableBody>
+                                {sortedPeriods.map(period => (
+                                  <TableRow key={period}>
+                                    <TableCell>
+                                      <Typography variant="body2">
+                                        {dealerStatsFilter.period === 'day' ? period :
+                                         dealerStatsFilter.period === 'week' ? period.split('-W')[0] + '년 ' + period.split('-W')[1] + '주차' :
+                                         dealerStatsFilter.period === 'month' ? period.split('-')[0] + '년 ' + parseInt(period.split('-')[1]) + '월' :
+                                         period + '년'}
                                       </Typography>
                                     </TableCell>
                                     <TableCell align="center">
@@ -4239,6 +4804,88 @@ function InventoryManagement() {
           loading={loading}
         />
       )}
+
+      {/* 표보기 마우스 오버 시 거래 상세 팝오버 */}
+      <Popover
+        open={Boolean(hoverAnchorEl)}
+        anchorEl={hoverAnchorEl}
+        onClose={handleTableCellHoverLeave}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'left',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'left',
+        }}
+        disableRestoreFocus
+        sx={{
+          pointerEvents: 'none',
+        }}
+        PaperProps={{
+          onMouseLeave: handleTableCellHoverLeave,
+          sx: {
+            pointerEvents: 'auto',
+            maxWidth: 600,
+            maxHeight: 400,
+            overflow: 'auto'
+          }
+        }}
+      >
+        {hoverTransactions.length > 0 && (
+          <Box sx={{ p: 2 }}>
+            <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
+              {hoverTransactions[0].date} - {hoverTransactions.length}건의 거래
+            </Typography>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>유형</TableCell>
+                    <TableCell>상품</TableCell>
+                    <TableCell align="right">수량</TableCell>
+                    <TableCell>출발지</TableCell>
+                    <TableCell>목적지</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {hoverTransactions.slice(0, 10).map((tx, idx) => {
+                    const product = products.find(p => p.id === tx.productId);
+                    const fromLocation = tx.fromLocation === '외부' ? '외부' : 
+                      warehouses.find(w => w.id === tx.fromLocation)?.name || 
+                      dealers.find(d => d.id === tx.fromLocation)?.name || 
+                      tx.fromLocation;
+                    const toLocation = 
+                      warehouses.find(w => w.id === tx.toLocation)?.name || 
+                      dealers.find(d => d.id === tx.toLocation)?.name || 
+                      tx.toLocation;
+                    return (
+                      <TableRow key={idx}>
+                        <TableCell>
+                          <Chip 
+                            label={tx.type === 'in' ? '입고' : '출고'} 
+                            size="small"
+                            color={tx.type === 'in' ? 'primary' : 'secondary'}
+                          />
+                        </TableCell>
+                        <TableCell>{product?.name || tx.productName || '알 수 없음'}</TableCell>
+                        <TableCell align="right">{tx.quantity.toLocaleString()}</TableCell>
+                        <TableCell>{fromLocation}</TableCell>
+                        <TableCell>{toLocation}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            {hoverTransactions.length > 10 && (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                ... 및 {hoverTransactions.length - 10}개 더 (클릭하여 전체 보기)
+              </Typography>
+            )}
+          </Box>
+        )}
+      </Popover>
 
       {/* 표보기 클릭 시 거래 상세 모달 */}
       <Dialog 
