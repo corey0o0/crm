@@ -1549,18 +1549,19 @@ function ServiceDetail() {
         return;
       }
       const cleanSearchTerm = searchTerm.replace(/-/g, '');
+      const originalSearchTerm = searchTerm.trim();
       const { data: serviceResults, error: serviceError } = await supabase
         .from('services')
         .select('customer_name, customer_phone, customer_address, brand, product_name, seller')
         .eq('brand', formData.brand)
-        .or(`customer_phone.ilike.%${cleanSearchTerm}%,customer_name.ilike.%${searchTerm}%`)
+        .or(`customer_phone.ilike.%${originalSearchTerm}%,customer_phone.ilike.%${cleanSearchTerm}%,customer_name.ilike.%${originalSearchTerm}%`)
         .order('created_at', { ascending: false });
       if (serviceError) throw serviceError;
       const { data: shipmentResults, error: shipmentError } = await supabase
         .from('shipments')
         .select('customer_name, customer_phone, customer_address, brand, product_name')
         .eq('brand', formData.brand)
-        .or(`customer_phone.ilike.%${cleanSearchTerm}%,customer_name.ilike.%${searchTerm}%`)
+        .or(`customer_phone.ilike.%${originalSearchTerm}%,customer_phone.ilike.%${cleanSearchTerm}%,customer_name.ilike.%${originalSearchTerm}%`)
         .order('created_at', { ascending: false });
       if (shipmentError) throw shipmentError;
       const allResults = [...(serviceResults || []), ...(shipmentResults || [])];

@@ -601,41 +601,21 @@ function ServiceList() {
       if (searchParams.searchTerm && searchParams.searchTerm.length >= 2) {
         console.log('Applying search filter for term:', searchParams.searchTerm);
         
-        // 전화번호 검색을 위해 하이픈 제거 및 유연 패턴 생성
-        const cleanSearchTerm = searchParams.searchTerm.replace(/[^\d]/g, '');
-        // 숫자들 사이에 와일드카드를 넣어 하이픈/공백 등 임의 문자 포함 매칭 허용
-        const flexiblePhonePattern = cleanSearchTerm
-          ? `%${cleanSearchTerm.split('').join('%')}%`
-          : '';
+        // 전화번호 검색을 위해 하이픈 제거
+        const cleanSearchTerm = searchParams.searchTerm.replace(/-/g, '');
+        const originalSearchTerm = searchParams.searchTerm.trim();
         
         // 고객명, 전화번호, A/S ID 검색
         const isNumeric = /^\d+$/.test(cleanSearchTerm);
         
         if (isNumeric) {
-          // 숫자인 경우: A/S ID 정확 검색 또는 전화번호 검색(하이픈 유무 상관없이 매칭)
-          // 1) 순수 숫자 포함
-          // 2) 숫자 사이에 임의 문자가 있어도 매칭되는 패턴
-          // 3) 사용자가 하이픈 포함 입력한 경우 그대로도 시도
-          const rawTerm = searchParams.searchTerm;
-          const hyphenPattern = `%${rawTerm}%`;
-          const ors = [
-            `id.eq.${cleanSearchTerm}`,
-            `customer_phone.ilike.%${cleanSearchTerm}%`,
-            flexiblePhonePattern ? `customer_phone.ilike.${flexiblePhonePattern}` : '',
-            rawTerm ? `customer_phone.ilike.${hyphenPattern}` : ''
-          ].filter(Boolean).join(',');
-          query = query.or(ors);
+          // 숫자인 경우: A/S ID 정확 검색 또는 전화번호 부분 검색 (하이픈 포함/제거 모두 검색)
+          // 전화번호는 원본 검색어와 하이픈 제거한 버전 모두 검색
+          query = query.or(`id.eq.${cleanSearchTerm},customer_phone.ilike.%${originalSearchTerm}%,customer_phone.ilike.%${cleanSearchTerm}%`);
         } else {
-          // 문자열인 경우: 고객명과 전화번호 검색 (전화번호는 하이픈/공백 무시 패턴 포함)
-          const rawTerm = searchParams.searchTerm;
-          const hyphenPattern = `%${rawTerm}%`;
-          const ors = [
-            `customer_name.ilike.%${rawTerm}%`,
-            `customer_phone.ilike.%${cleanSearchTerm}%`,
-            flexiblePhonePattern ? `customer_phone.ilike.${flexiblePhonePattern}` : '',
-            rawTerm ? `customer_phone.ilike.${hyphenPattern}` : ''
-          ].filter(Boolean).join(',');
-          query = query.or(ors);
+          // 문자열인 경우: 고객명과 전화번호 검색 (하이픈 포함/제거 모두 검색)
+          // 전화번호는 원본 검색어와 하이픈 제거한 버전 모두 검색
+          query = query.or(`customer_name.ilike.%${originalSearchTerm}%,customer_phone.ilike.%${originalSearchTerm}%,customer_phone.ilike.%${cleanSearchTerm}%`);
         }
       } else if (searchParams.searchTerm && searchParams.searchTerm.length < 2) {
         console.log('Search term too short, ignoring:', searchParams.searchTerm);
@@ -776,42 +756,13 @@ function ServiceList() {
           console.log('[ServiceList] 날짜 필터 적용 완료');
         }
         
-        // 검색어 필터 적용 (전화번호 검색 포함)
+        // 검색어 필터 적용 (가장 단순한 방식)
         if (searchParams.searchTerm && searchParams.searchTerm.length >= 2) {
           console.log('[ServiceList] 검색어 필터 적용 중:', searchParams.searchTerm);
           
-          // 전화번호 검색을 위해 하이픈 제거 및 유연 패턴 생성
-          const cleanSearchTerm = searchParams.searchTerm.replace(/[^\d]/g, '');
-          const flexiblePhonePattern = cleanSearchTerm
-            ? `%${cleanSearchTerm.split('').join('%')}%`
-            : '';
-          
-          // 숫자인지 확인
-          const isNumeric = /^\d+$/.test(cleanSearchTerm);
-          
-          if (isNumeric) {
-            // 숫자인 경우: A/S ID 정확 검색 또는 전화번호 검색
-            const rawTerm = searchParams.searchTerm;
-            const hyphenPattern = `%${rawTerm}%`;
-            const orConditions = [
-              `id.eq.${cleanSearchTerm}`,
-              `customer_phone.ilike.%${cleanSearchTerm}%`,
-              flexiblePhonePattern ? `customer_phone.ilike.${flexiblePhonePattern}` : '',
-              rawTerm ? `customer_phone.ilike.${hyphenPattern}` : ''
-            ].filter(Boolean).join(',');
-            simpleQuery = simpleQuery.or(orConditions);
-          } else {
-            // 문자열인 경우: 고객명과 전화번호 검색
-            const rawTerm = searchParams.searchTerm;
-            const hyphenPattern = `%${rawTerm}%`;
-            const orConditions = [
-              `customer_name.ilike.%${rawTerm}%`,
-              `customer_phone.ilike.%${cleanSearchTerm}%`,
-              flexiblePhonePattern ? `customer_phone.ilike.${flexiblePhonePattern}` : '',
-              rawTerm ? `customer_phone.ilike.${hyphenPattern}` : ''
-            ].filter(Boolean).join(',');
-            simpleQuery = simpleQuery.or(orConditions);
-          }
+          // 일단 고객명 검색만 테스트
+          console.log('[ServiceList] 고객명 검색만 테스트:', searchParams.searchTerm);
+          simpleQuery = simpleQuery.ilike('customer_name', `%${searchParams.searchTerm}%`);
           console.log('[ServiceList] 검색어 필터 적용 완료');
         }
         
