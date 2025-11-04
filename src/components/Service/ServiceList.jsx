@@ -756,13 +756,24 @@ function ServiceList() {
           console.log('[ServiceList] 날짜 필터 적용 완료');
         }
         
-        // 검색어 필터 적용 (가장 단순한 방식)
+        // 검색어 필터 적용 (고객명, 전화번호, A/S ID 검색)
         if (searchParams.searchTerm && searchParams.searchTerm.length >= 2) {
           console.log('[ServiceList] 검색어 필터 적용 중:', searchParams.searchTerm);
           
-          // 일단 고객명 검색만 테스트
-          console.log('[ServiceList] 고객명 검색만 테스트:', searchParams.searchTerm);
-          simpleQuery = simpleQuery.ilike('customer_name', `%${searchParams.searchTerm}%`);
+          // 전화번호 검색을 위해 하이픈 제거
+          const cleanSearchTerm = searchParams.searchTerm.replace(/-/g, '');
+          const originalSearchTerm = searchParams.searchTerm.trim();
+          
+          // 고객명, 전화번호, A/S ID 검색
+          const isNumeric = /^\d+$/.test(cleanSearchTerm);
+          
+          if (isNumeric) {
+            // 숫자인 경우: A/S ID 정확 검색 또는 전화번호 부분 검색 (하이픈 포함/제거 모두 검색)
+            simpleQuery = simpleQuery.or(`id.eq.${cleanSearchTerm},customer_phone.ilike.%${originalSearchTerm}%,customer_phone.ilike.%${cleanSearchTerm}%`);
+          } else {
+            // 문자열인 경우: 고객명과 전화번호 검색 (하이픈 포함/제거 모두 검색)
+            simpleQuery = simpleQuery.or(`customer_name.ilike.%${originalSearchTerm}%,customer_phone.ilike.%${originalSearchTerm}%,customer_phone.ilike.%${cleanSearchTerm}%`);
+          }
           console.log('[ServiceList] 검색어 필터 적용 완료');
         }
         
