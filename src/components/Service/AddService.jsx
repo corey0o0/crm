@@ -853,7 +853,12 @@ function AddService() {
         .single();
 
       if (insertError) {
-        console.error('[AddService] Service insert error:', insertError);
+        console.error('[AddService] Service insert error:', {
+          message: insertError.message,
+          code: insertError.code,
+          details: insertError.details,
+          hint: insertError.hint
+        });
         
         // JWT 또는 인증 오류 시 재시도
         if (insertError.message?.includes('JWT') || 
@@ -970,7 +975,21 @@ function AddService() {
       }, 1500);
 
     } catch (error) {
-      console.error('Error in handleSubmit:', error);
+      console.error('Error in handleSubmit:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+        code: error.code
+      });
+      
+      // AbortError는 무시 (사용자가 페이지를 떠났거나 요청이 취소됨)
+      if (error.name === 'AbortError') {
+        console.log('[AddService] 요청이 취소되었습니다.');
+        setIsFormSubmitted(false);
+        setSubmitting(false);
+        return;
+      }
+      
       let userMessage = `오류가 발생했습니다: ${error.message}`;
       if (error.message.includes('부품 등록 중 오류') && serviceId) {
         userMessage = `A/S 정보는 등록되었으나, 부품 정보 등록 중 오류가 발생했습니다. (A/S ID: ${serviceId}) 서비스 상세 화면에서 수정해주세요.`;
@@ -1235,8 +1254,7 @@ function AddService() {
         });
         return;
       }
-      const cleanSearchTerm = searchTerm.replace(/[^\d]/g, '');
-      const flexiblePhonePattern = cleanSearchTerm ? `%${cleanSearchTerm.split('').join('%')}%` : '';
+      const cleanSearchTerm = searchTerm.replace(/-/g, '');
       
       // 전화번호 패턴인지 확인 (숫자나 하이픈이 포함된 경우)
       const isPhoneSearch = /^[\d-]+$/.test(searchTerm) && cleanSearchTerm.length >= 3;
@@ -1248,44 +1266,26 @@ function AddService() {
         serviceQuery = supabase
           .from('services')
           .select('customer_name, customer_phone, customer_address, brand, product_name, seller')
-          .or([
-            `customer_phone.ilike.%${cleanSearchTerm}%`,
-            `customer_phone.ilike.%${searchTerm}%`,
-            flexiblePhonePattern ? `customer_phone.ilike.${flexiblePhonePattern}` : ''
-          ].filter(Boolean).join(','))
+          .or(`customer_phone.ilike.%${cleanSearchTerm}%,customer_phone.ilike.%${searchTerm}%`)
           .order('created_at', { ascending: false });
           
         shipmentQuery = supabase
           .from('shipments')
           .select('customer_name, customer_phone, customer_address, brand, product_name')
-          .or([
-            `customer_phone.ilike.%${cleanSearchTerm}%`,
-            `customer_phone.ilike.%${searchTerm}%`,
-            flexiblePhonePattern ? `customer_phone.ilike.${flexiblePhonePattern}` : ''
-          ].filter(Boolean).join(','))
+          .or(`customer_phone.ilike.%${cleanSearchTerm}%,customer_phone.ilike.%${searchTerm}%`)
           .order('created_at', { ascending: false });
       } else {
         // 이름 검색 + 혼합 검색
         serviceQuery = supabase
           .from('services')
           .select('customer_name, customer_phone, customer_address, brand, product_name, seller')
-          .or([
-            `customer_name.ilike.%${searchTerm}%`,
-            `customer_phone.ilike.%${cleanSearchTerm}%`,
-            `customer_phone.ilike.%${searchTerm}%`,
-            flexiblePhonePattern ? `customer_phone.ilike.${flexiblePhonePattern}` : ''
-          ].filter(Boolean).join(','))
+          .or(`customer_name.ilike.%${searchTerm}%,customer_phone.ilike.%${cleanSearchTerm}%,customer_phone.ilike.%${searchTerm}%`)
           .order('created_at', { ascending: false });
           
         shipmentQuery = supabase
           .from('shipments')
           .select('customer_name, customer_phone, customer_address, brand, product_name')
-          .or([
-            `customer_name.ilike.%${searchTerm}%`,
-            `customer_phone.ilike.%${cleanSearchTerm}%`,
-            `customer_phone.ilike.%${searchTerm}%`,
-            flexiblePhonePattern ? `customer_phone.ilike.${flexiblePhonePattern}` : ''
-          ].filter(Boolean).join(','))
+          .or(`customer_name.ilike.%${searchTerm}%,customer_phone.ilike.%${cleanSearchTerm}%,customer_phone.ilike.%${searchTerm}%`)
           .order('created_at', { ascending: false });
       }
       
@@ -1371,7 +1371,12 @@ function AddService() {
         .eq('customer_name', customer.name);
 
       if (serviceError) {
-        console.error('A/S 이력 조회 오류:', serviceError);
+        console.error('A/S 이력 조회 오류:', {
+          message: serviceError.message,
+          code: serviceError.code,
+          details: serviceError.details,
+          hint: serviceError.hint
+        });
       }
 
       // 출고 이력 건수 조회 - 이름과 전화번호 모두 정확히 매칭
@@ -1382,7 +1387,12 @@ function AddService() {
         .eq('customer_name', customer.name);
 
       if (shipmentError) {
-        console.error('출고 이력 조회 오류:', shipmentError);
+        console.error('출고 이력 조회 오류:', {
+          message: shipmentError.message,
+          code: shipmentError.code,
+          details: shipmentError.details,
+          hint: shipmentError.hint
+        });
       }
 
       const totalCount = (serviceCount || 0) + (shipmentCount || 0);
@@ -1419,7 +1429,12 @@ function AddService() {
       console.log('A/S 이력 조회 결과:', { serviceHistory, serviceError });
 
       if (serviceError) {
-        console.error('A/S 이력 조회 오류:', serviceError);
+        console.error('A/S 이력 조회 오류:', {
+          message: serviceError.message,
+          code: serviceError.code,
+          details: serviceError.details,
+          hint: serviceError.hint
+        });
       }
 
       // 출고 이력 조회 - 이름과 전화번호 정확히 매칭
@@ -1434,7 +1449,12 @@ function AddService() {
       console.log('출고 이력 조회 결과:', { shipmentHistory, shipmentError });
 
       if (shipmentError) {
-        console.error('출고 이력 조회 오류:', shipmentError);
+        console.error('출고 이력 조회 오류:', {
+          message: shipmentError.message,
+          code: shipmentError.code,
+          details: shipmentError.details,
+          hint: shipmentError.hint
+        });
       }
 
       // 데이터 통합 및 정렬
@@ -2236,71 +2256,14 @@ function AddService() {
                         />
                       </Grid>
                       <Grid item xs={12}>
-                        <Autocomplete
-                          freeSolo
-                          options={customerSearchResults}
-                          getOptionLabel={(option) => {
-                            if (typeof option === 'string') return option;
-                            return option.phone || '';
-                          }}
-                          getOptionKey={(option) => {
-                            if (typeof option === 'string') return option;
-                            return option.id || `${option.name}_${option.phone}`;
-                          }}
+                        <TextField
+                          fullWidth
+                          required
+                          size="small"
+                          label="연락처"
+                          name="customer_phone"
                           value={formData.customer_phone}
-                          onInputChange={(event, newInputValue) => {
-                            setFormData(prev => ({
-                              ...prev,
-                              customer_phone: newInputValue
-                            }));
-                            if (newInputValue && newInputValue.length >= 2) {
-                              // 이름/전화 모두 지원하는 공용 검색 사용
-                              searchCustomers(newInputValue);
-                            }
-                          }}
-                          onChange={(event, newValue) => {
-                            if (newValue && typeof newValue === 'object') {
-                              const mainProduct = extractMainProduct(newValue.product_name);
-                              setFormData(prev => ({
-                                ...prev,
-                                customer_name: newValue.name || prev.customer_name,
-                                customer_phone: newValue.phone || prev.customer_phone,
-                                customer_address: newValue.address || prev.customer_address,
-                                product_name: mainProduct || prev.product_name,
-                                seller: newValue.seller || prev.seller,
-                                brand: newValue.brand || prev.brand
-                              }));
-                            }
-                          }}
-                          renderInput={(params) => (
-                            <TextField
-                              {...params}
-                              fullWidth
-                              required
-                              size="small"
-                              label="연락처"
-                              name="customer_phone"
-                            />
-                          )}
-                          renderOption={(props, option) => (
-                            <Box component="li" {...props}>
-                              <Box>
-                                <Typography variant="body2" fontWeight="bold">
-                                  {option.phone}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  {option.name} {option.address && `• ${option.address}`}
-                                </Typography>
-                                {option.product_name && (
-                                  <Typography variant="caption" color="primary" display="block">
-                                    기종: {option.product_name}
-                                  </Typography>
-                                )}
-                              </Box>
-                            </Box>
-                          )}
-                          loading={searchLoading}
-                          noOptionsText="검색 결과가 없습니다"
+                          onChange={handleInputChange}
                         />
                       </Grid>
                       <Grid item xs={12}>
