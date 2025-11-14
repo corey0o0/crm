@@ -40,7 +40,9 @@ import {
   CheckCircle as CheckCircleIcon,
   Cancel as CancelIcon,
   Refresh as RefreshIcon,
-  PlayArrow as PlayArrowIcon
+  PlayArrow as PlayArrowIcon,
+  Download as DownloadIcon,
+  Settings as SettingsIcon
 } from '@mui/icons-material';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
@@ -52,6 +54,7 @@ import {
   updateOrderProcessingLog
 } from '../../utils/pendingOrderUtils';
 import { processOrderWithPlaywright, executeOrderSteps, searchProductOnWebsite, checkBackendServer } from '../../utils/orderAutomation';
+import { downloadSetupScript, downloadStartScript, detectPlatform } from '../../utils/fileDownloadUtils';
 import { format } from 'date-fns';
 
 function PendingOrderDetail() {
@@ -149,6 +152,16 @@ function PendingOrderDetail() {
 
   const handleSearchProduct = async () => {
     if (!matchingDialog.item) return;
+
+    // 서버 상태 확인
+    if (!serverStatus.online) {
+      setSnackbar({
+        open: true,
+        message: '백엔드 서버가 실행되지 않았습니다. 서버를 실행한 후 다시 시도하세요.',
+        severity: 'error'
+      });
+      return;
+    }
 
     try {
       setSearching(true);
@@ -453,6 +466,99 @@ function PendingOrderDetail() {
           </Grid>
         </CardContent>
       </Card>
+
+      {/* 백엔드 서버 상태 표시 */}
+      {serverStatus.checked && (
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Chip
+                  label={serverStatus.online ? '백엔드 서버 실행 중' : '백엔드 서버 미실행'}
+                  color={serverStatus.online ? 'success' : 'error'}
+                  size="small"
+                />
+                <Typography variant="body2" color="textSecondary">
+                  {serverStatus.message}
+                </Typography>
+              </Box>
+              <Button
+                size="small"
+                startIcon={<RefreshIcon />}
+                onClick={checkServerStatus}
+              >
+                확인
+              </Button>
+            </Box>
+            {!serverStatus.online && (
+              <Box sx={{ mt: 2, p: 2, bgcolor: 'warning.light', borderRadius: 1 }}>
+                <Typography variant="body2" color="warning.dark" sx={{ mb: 2 }}>
+                  백엔드 서버가 실행되지 않았습니다. 주문 처리를 하려면 서버를 실행해야 합니다.
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<DownloadIcon />}
+                    onClick={async () => {
+                      const platform = detectPlatform();
+                      const result = await downloadSetupScript(platform);
+                      if (result.success) {
+                        setSnackbar({
+                          open: true,
+                          message: `${result.filename} 파일이 다운로드되었습니다.`,
+                          severity: 'success'
+                        });
+                      } else {
+                        setSnackbar({
+                          open: true,
+                          message: `다운로드 실패: ${result.error}`,
+                          severity: 'error'
+                        });
+                      }
+                    }}
+                  >
+                    설치 스크립트 다운로드
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<DownloadIcon />}
+                    onClick={async () => {
+                      const platform = detectPlatform();
+                      const result = await downloadStartScript(platform);
+                      if (result.success) {
+                        setSnackbar({
+                          open: true,
+                          message: `${result.filename} 파일이 다운로드되었습니다.`,
+                          severity: 'success'
+                        });
+                      } else {
+                        setSnackbar({
+                          open: true,
+                          message: `다운로드 실패: ${result.error}`,
+                          severity: 'error'
+                        });
+                      }
+                    }}
+                  >
+                    실행 스크립트 다운로드
+                  </Button>
+                </Box>
+                <Typography variant="caption" display="block" sx={{ mt: 2, color: 'text.secondary' }}>
+                  <strong>사용 방법:</strong>
+                  <br />
+                  1. 설치 스크립트를 다운로드하여 server 디렉토리에서 실행하세요.
+                  <br />
+                  2. 설치가 완료되면 실행 스크립트를 다운로드하여 서버를 시작하세요.
+                  <br />
+                  3. 또는 터미널에서 <code>cd server && npm start</code> 명령어로 서버를 실행하세요.
+                </Typography>
+              </Box>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* 주문 처리 버튼 */}
       {pendingOrder.status === 'pending' && (
