@@ -66,6 +66,7 @@ import { formatKoreanDateTime } from '../../utils/dateUtils';
 import { format } from 'date-fns';
 import { sendTelegramNotification } from '../../lib/telegram';
 import { processServiceCompletion } from '../../utils/inventoryUtils';
+import { addServicePartsToPendingOrders } from '../../utils/pendingOrderUtils';
 import { 
   uploadFileToGoogleDrive, 
   findOrCreateFolder, 
@@ -851,6 +852,7 @@ function ServiceDetail() {
 
       // 재고 차감 처리 (상태가 "완료"인 경우)
       let inventoryMessage = '';
+      let pendingOrderMessage = '';
       if (formData.status === '완료') {
         try {
           console.log(`A/S 완료 처리 시작 - 서비스ID: ${id}, 브랜드: ${formData.brand}`);
@@ -871,6 +873,27 @@ function ServiceDetail() {
           console.error('재고 차감 처리 중 예외:', inventoryError);
           inventoryMessage = ` 하지만 재고 차감 중 오류 발생: ${inventoryError.message}`;
         }
+
+        // 주문대기 추가 처리
+        try {
+          console.log(`주문대기 추가 시작 - 서비스ID: ${id}, 브랜드: ${formData.brand}`);
+          
+          const pendingOrderResult = await addServicePartsToPendingOrders(id, formData.brand);
+          
+          if (pendingOrderResult.success) {
+            if (pendingOrderResult.skipped) {
+              pendingOrderMessage = ` 주문대기: ${pendingOrderResult.message}`;
+            } else {
+              pendingOrderMessage = ` 주문대기: ${pendingOrderResult.message}`;
+            }
+          } else {
+            pendingOrderMessage = ` 주문대기 추가 실패: ${pendingOrderResult.message}`;
+            console.error('주문대기 추가 오류:', pendingOrderResult.message);
+          }
+        } catch (pendingOrderError) {
+          console.error('주문대기 추가 중 예외:', pendingOrderError);
+          pendingOrderMessage = ` 주문대기 추가 실패: ${pendingOrderError.message}`;
+        }
       }
 
       // 모든 DB 작업 완료 후 데이터 다시 불러오기
@@ -878,8 +901,8 @@ function ServiceDetail() {
 
       setSnackbar({
         open: true,
-        message: (notificationSuccess ? '성공적으로 저장되었습니다.' : '저장되었으나 알림 등록에 실패했습니다.') + inventoryMessage,
-        severity: notificationSuccess && !inventoryMessage.includes('오류') ? 'success' : 'warning'
+        message: (notificationSuccess ? '성공적으로 저장되었습니다.' : '저장되었으나 알림 등록에 실패했습니다.') + inventoryMessage + pendingOrderMessage,
+        severity: notificationSuccess && !inventoryMessage.includes('오류') && !pendingOrderMessage.includes('실패') ? 'success' : 'warning'
       });
       
       // 변경사항 초기화
@@ -2117,27 +2140,24 @@ function ServiceDetail() {
                 <th>수량</th>
                 <th>단가</th>
                 <th>금액</th>
-                <th>세액</th>
               </tr>
             </thead>
             <tbody>
               ${selectedParts.map(part => {
                 const amount = (part.price || 0) * (part.quantity || 1);
-                const tax = Math.round(amount * 0.1);
+                // 요청에 따라 세액 열 및 계산을 제거했습니다.
                 return `
                   <tr>
                     <td>${part.name}</td>
                     <td>${part.quantity}</td>
                     <td class="amount-cell">${(part.price || 0).toLocaleString()}</td>
                     <td class="amount-cell">${amount.toLocaleString()}</td>
-                    <td class="amount-cell">${tax.toLocaleString()}</td>
                   </tr>
                 `;
               }).join('')}
               <tr class="total-row">
                 <td colspan="3" style="text-align:center;">합계</td>
                 <td class="amount-cell">${selectedParts.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 1), 0).toLocaleString()}</td>
-                <td class="amount-cell">${Math.round(selectedParts.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 1), 0) * 0.1).toLocaleString()}</td>
               </tr>
             </tbody>
           </table>
