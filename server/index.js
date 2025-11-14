@@ -7,6 +7,7 @@ const path = require('path');
 const pdfParse = require('pdf-parse');
 const pdfPoppler = require('pdf-poppler');
 const CloudmersiveConvertApiClient = require('cloudmersive-convert-api-client');
+const { searchProductOnWebsite, processOrderOnWebsite } = require('./playwrightOrderService');
 require('dotenv').config();
 
 const app = express();
@@ -21,7 +22,23 @@ const Apikey = defaultClient.authentications['Apikey'];
 Apikey.apiKey = cloudmersiveApiKey;
 
 // CORS 설정
-app.use(cors());
+const allowedOrigins = [
+  'http://localhost:3000',
+  process.env.FRONTEND_URL,
+  process.env.REACT_APP_FRONTEND_URL
+].filter(Boolean);
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // origin이 없거나 허용된 origin 목록에 있으면 허용
+    if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('CORS 정책에 의해 차단되었습니다'));
+    }
+  },
+  credentials: true
+}));
 app.use(express.json());
 
 // 헬스 체크 엔드포인트 추가
@@ -522,6 +539,50 @@ app.get('/api/uploads/:filename', (req, res) => {
     res.sendFile(filePath);
   } else {
     res.status(404).json({ error: '파일을 찾을 수 없습니다.' });
+  }
+});
+
+// 웹사이트 상품 검색 API
+app.post('/api/orders/search-product', async (req, res) => {
+  try {
+    const { brand, partName, partCode, barcode } = req.body;
+
+    if (!brand || !partName) {
+      return res.status(400).json({ error: '브랜드와 부품명은 필수입니다.' });
+    }
+
+    const result = await searchProductOnWebsite(brand, partName, partCode, barcode);
+    
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(500).json({ error: result.message });
+    }
+  } catch (error) {
+    console.error('상품 검색 API 오류:', error);
+    res.status(500).json({ error: `상품 검색 중 오류가 발생했습니다: ${error.message}` });
+  }
+});
+
+// 주문 처리 API
+app.post('/api/orders/process', async (req, res) => {
+  try {
+    const { brand, orderItems } = req.body;
+
+    if (!brand || !orderItems || !Array.isArray(orderItems)) {
+      return res.status(400).json({ error: '브랜드와 주문 항목은 필수입니다.' });
+    }
+
+    const result = await processOrderOnWebsite(brand, orderItems);
+    
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(500).json({ error: result.message });
+    }
+  } catch (error) {
+    console.error('주문 처리 API 오류:', error);
+    res.status(500).json({ error: `주문 처리 중 오류가 발생했습니다: ${error.message}` });
   }
 });
 

@@ -762,9 +762,9 @@ function Dashboard() {
 
       console.log('서비스 데이터 조회 성공:', services?.length, '건');
 
-      // 2. 출고 데이터 가져오기 (직접 REST API)
+      // 2. 출고 데이터 가져오기 (직접 REST API) - Egress 절감을 위해 limit 추가
       console.log('[Dashboard] Making shipments REST API call...');
-      const shipmentsResponse = await fetch(`${supabaseUrl}/rest/v1/shipments?select=*&order=created_at.desc`, {
+      const shipmentsResponse = await fetch(`${supabaseUrl}/rest/v1/shipments?select=*&order=created_at.desc&limit=100`, {
         method: 'GET',
         headers: {
           'apikey': supabaseKey,
@@ -783,9 +783,9 @@ function Dashboard() {
       const shipments = await shipmentsResponse.json();
       console.log('[Dashboard] Shipments data received:', shipments?.length || 0, 'items');
 
-      // 3. 최근 서비스 데이터 가져오기 (직접 REST API)
+      // 3. 최근 서비스 데이터 가져오기 (직접 REST API) - Egress 절감을 위해 limit 추가
       console.log('[Dashboard] Making recent services REST API call...');
-      const recentServicesResponse = await fetch(`${supabaseUrl}/rest/v1/services?select=id,customer_name,product_name,status,reception_date,brand&order=reception_date.desc`, {
+      const recentServicesResponse = await fetch(`${supabaseUrl}/rest/v1/services?select=id,customer_name,product_name,status,reception_date,brand&order=reception_date.desc&limit=100`, {
         method: 'GET',
         headers: {
           'apikey': supabaseKey,

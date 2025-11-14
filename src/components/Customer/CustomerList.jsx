@@ -102,29 +102,32 @@ function CustomerList({ refreshTrigger, onRefresh }) {
       
       // 안전한 재시도 로직 적용
       const [customersData, servicesData, shipmentsData] = await safeRetry(async () => {
-        // 1. 고객 정보 조회 (REST API)
+        // 1. 고객 정보 조회 (REST API) - Egress 절감을 위해 limit 추가
         console.log('[CustomerList] Fetching customers via REST API...');
         const customers = await fetchFromSupabase('customers', {
           select: '*',
-          order: 'updated_at.desc'
+          order: 'updated_at.desc',
+          limit: 1000
         });
         
         console.log('[CustomerList] Customers data received:', customers?.length || 0, 'items');
 
-        // 2. A/S 서비스 데이터 조회 (REST API)
+        // 2. A/S 서비스 데이터 조회 (REST API) - Egress 절감을 위해 limit 추가
         console.log('[CustomerList] Fetching services via REST API...');
         const services = await fetchFromSupabase('services', {
           select: 'customer_phone,customer_name,reception_date,brand,product_name',
-          order: 'reception_date.desc'
+          order: 'reception_date.desc',
+          limit: 1000
         });
         
         console.log('[CustomerList] Services data received:', services?.length || 0, 'items');
 
-        // 3. 출고 데이터 조회 (REST API)
+        // 3. 출고 데이터 조회 (REST API) - Egress 절감을 위해 limit 추가
         console.log('[CustomerList] Fetching shipments via REST API...');
         const shipments = await fetchFromSupabase('shipments', {
           select: '*',
-          order: 'shipment_date.desc'
+          order: 'shipment_date.desc',
+          limit: 1000
         });
         
         console.log('[CustomerList] Shipments data received:', shipments?.length || 0, 'items');

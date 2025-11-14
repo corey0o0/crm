@@ -44,6 +44,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { useNavigate, useParams } from 'react-router-dom';
 import { format, parseISO, isValid } from 'date-fns';
 import { processShipmentCompletion, processShipmentRevert } from '../../utils/inventoryUtils';
+import { addShipmentPartsToPendingOrders } from '../../utils/pendingOrderUtils';
 
 function ShipmentDetail() {
   const [loading, setLoading] = useState(true);
@@ -423,6 +424,7 @@ function ShipmentDetail() {
       }
 
       let inventoryMessage = '';
+      let pendingOrderMessage = '';
 
       // 재고 처리 로직
       if (newStatus === '출고완료' && previousStatus !== '출고완료') {
@@ -438,6 +440,27 @@ function ShipmentDetail() {
         } else {
           inventoryMessage = ` (재고 차감 오류: ${inventoryResult.message})`;
           console.error('재고 차감 오류 상세:', inventoryResult.errors);
+        }
+
+        // 주문대기 추가 처리
+        try {
+          console.log(`주문대기 추가 시작 - 출고ID: ${id}, 브랜드: ${brandCode}`);
+          
+          const pendingOrderResult = await addShipmentPartsToPendingOrders(id, brandCode);
+          
+          if (pendingOrderResult.success) {
+            if (pendingOrderResult.skipped) {
+              pendingOrderMessage = `, 주문대기: ${pendingOrderResult.message}`;
+            } else {
+              pendingOrderMessage = `, 주문대기: ${pendingOrderResult.message}`;
+            }
+          } else {
+            pendingOrderMessage = `, 주문대기 추가 실패: ${pendingOrderResult.message}`;
+            console.error('주문대기 추가 오류:', pendingOrderResult.message);
+          }
+        } catch (pendingOrderError) {
+          console.error('주문대기 추가 중 예외:', pendingOrderError);
+          pendingOrderMessage = `, 주문대기 추가 실패: ${pendingOrderError.message}`;
         }
       } else if (previousStatus === '출고완료' && newStatus !== '출고완료') {
         // 출고완료에서 다른 상태로 변경: 재고 복구
@@ -457,8 +480,8 @@ function ShipmentDetail() {
 
       setSnackbar({
         open: true,
-        message: `상태가 '${newStatus}'로 변경되었습니다${inventoryMessage}`,
-        severity: inventoryMessage.includes('오류') ? 'warning' : 'success'
+        message: `상태가 '${newStatus}'로 변경되었습니다${inventoryMessage}${pendingOrderMessage}`,
+        severity: inventoryMessage.includes('오류') || pendingOrderMessage.includes('실패') ? 'warning' : 'success'
       });
 
       // 데이터 새로고침

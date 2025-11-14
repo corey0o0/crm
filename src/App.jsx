@@ -22,6 +22,7 @@ import PartsManagement from './components/Service/PartsManagement';
 import ProductShipment from './components/Product/ProductShipment';
 import ReceiptScanner from './components/Receipt/ReceiptScanner';
 import GoogleDriveTest from './components/Test/GoogleDriveTest';
+import SystemHealthCheck from './components/Test/SystemHealthCheck';
 import ServiceStats from './components/Stats/ServiceStats';
 import SalesStats from './components/Stats/SalesStats';
 import StockList from './components/Stock/StockList';
@@ -42,6 +43,8 @@ import BoardList from './pages/board/BoardList';
 import BoardNew from './pages/board/BoardNew';
 import BoardDetail from './pages/board/BoardDetail';
 import BoardEdit from './pages/board/BoardEdit';
+import PendingOrderList from './pages/pendingOrders/PendingOrderList';
+import PendingOrderDetail from './pages/pendingOrders/PendingOrderDetail';
 
 function App() {
   const [session, setSession] = useState(null);
@@ -141,6 +144,9 @@ function App() {
             <Route path="google-drive-test" element={
                 <GoogleDriveTest />
             } />
+            <Route path="system-health-check" element={
+                <SystemHealthCheck />
+            } />
             <Route path="service" element={
                 <ServiceList />
             } />
@@ -191,6 +197,14 @@ function App() {
             } />
             <Route path="board/:id/edit" element={
                 <BoardEdit />
+            } />
+            
+            {/* 주문대기 */}
+            <Route path="pending-orders" element={
+                <PendingOrderList />
+            } />
+            <Route path="pending-orders/:id" element={
+                <PendingOrderDetail />
             } />
           </Route>
         </Routes>

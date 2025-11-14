@@ -61,10 +61,12 @@ export const productApi = {
         filter = `brand=eq.${encodeURIComponent(PARTS_BRAND)}`;
       }
 
+      // Egress 절감을 위해 기본 limit 설정 (최대 1000개)
       const data = await fetchFromSupabase(PARTS_TABLE, {
         select: 'id,code,barcode,name,price,brand,note',
         filter: filter,
-        order: 'name.asc'
+        order: 'name.asc',
+        limit: 1000
       });
       
       console.log('[ProductAPI] Products data received:', data?.length || 0, 'items');
