@@ -225,12 +225,15 @@ function Dashboard() {
           const supabaseUrlForShared = process.env.REACT_APP_SUPABASE_URL;
           const supabaseKeyForShared = process.env.REACT_APP_SUPABASE_ANON_KEY;
           const sharedFetchUrl = `${supabaseUrlForShared}/rest/v1/shared_memos?select=*&limit=1`;
+          const { data: { session } } = await supabase.auth.getSession();
+          const accessToken = session?.access_token;
           
           const response = await fetch(sharedFetchUrl, {
             method: 'GET',
             headers: {
               'apikey': supabaseKeyForShared,
-              'Authorization': `Bearer ${supabaseKeyForShared}`,
+              // 인증 토큰을 우선 사용해 RLS를 통과하도록 함
+              'Authorization': `Bearer ${accessToken ?? supabaseKeyForShared}`,
               'Content-Type': 'application/json',
               'Prefer': 'return=representation'
             }
@@ -285,7 +288,8 @@ function Dashboard() {
               method: 'POST',
               headers: {
                 'apikey': supabaseKey,
-                'Authorization': `Bearer ${supabaseKey}`,
+                // 사용자 토큰을 사용해 RLS 삽입 정책을 통과
+                'Authorization': `Bearer ${accessToken ?? supabaseKey}`,
                 'Content-Type': 'application/json',
                 'Prefer': 'return=representation'
               },
