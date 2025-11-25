@@ -188,17 +188,13 @@ export const fetchServices = async (options = {}) => {
 
   // 페이지네이션
   const offset = page * pageSize;
-  let url = `${supabaseUrl}/rest/v1/services?select=*&order=reception_date.desc&limit=${pageSize}&offset=${offset}`;
-  
-  if (filter) {
-    url += `&${filter}`;
-  }
 
   return fetchFromSupabase('services', {
     select: '*,service_tags(tag_name),service_parts(id,part_id,quantity,price,usage,parts(name,code))',
     filter: filter,
     order: 'reception_date.desc',
     limit: pageSize,
+    offset: offset,
     signal
   });
 };
