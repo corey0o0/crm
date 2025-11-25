@@ -3,12 +3,30 @@
  * Supabase JS SDK의 idle 연결 문제를 우회하기 위한 함수들
  */
 
+import { supabase } from '../lib/supabaseClient';
+
 const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
 const supabaseKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
   throw new Error('Supabase URL과 Anon Key가 설정되지 않았습니다.');
 }
+
+/**
+ * 현재 사용자 세션 토큰 가져오기
+ * @returns {Promise<string>} 사용자 토큰 또는 anon key
+ */
+const getAuthToken = async () => {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      return session.access_token;
+    }
+  } catch (error) {
+    console.warn('[REST API] 세션 토큰 가져오기 실패:', error);
+  }
+  return supabaseKey;
+};
 
 /**
  * 기본 REST API 호출 함수
@@ -54,11 +72,14 @@ export const fetchFromSupabase = async (table, options = {}) => {
 
   console.log(`[REST API] Fetching from ${table}:`, url.substring(0, 150) + '...');
 
+  // 사용자 세션 토큰 가져오기
+  const authToken = await getAuthToken();
+
   const response = await fetch(url, {
     method: 'GET',
     headers: {
       'apikey': supabaseKey,
-      'Authorization': `Bearer ${supabaseKey}`,
+      'Authorization': `Bearer ${authToken}`,
       'Content-Type': 'application/json',
       'Prefer': 'return=representation'
     },
@@ -93,11 +114,14 @@ export const countFromSupabase = async (table, filter = '', signal = null) => {
 
   console.log(`[REST API] Counting from ${table}:`, url.substring(0, 150) + '...');
 
+  // 사용자 세션 토큰 가져오기
+  const authToken = await getAuthToken();
+
   const response = await fetch(url, {
     method: 'GET',
     headers: {
       'apikey': supabaseKey,
-      'Authorization': `Bearer ${supabaseKey}`,
+      'Authorization': `Bearer ${authToken}`,
       'Content-Type': 'application/json',
       'Prefer': 'count=exact'
     },

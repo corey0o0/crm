@@ -41,11 +41,15 @@ fi
 echo ""
 echo "🌐 Playwright 브라우저를 설치합니다..."
 npx playwright install chromium
-npx playwright install-deps chromium
 
 if [ $? -ne 0 ]; then
-    echo "⚠️  Playwright 브라우저 설치에 실패했습니다. 나중에 수동으로 설치할 수 있습니다."
-    echo "   실행: npx playwright install chromium"
+    echo "⚠️  Playwright 브라우저 설치에 실패했습니다."
+    echo "   나중에 수동으로 설치할 수 있습니다: npx playwright install chromium"
+else
+    echo "✅ Playwright 브라우저 설치 완료"
+    echo "⚠️  시스템 의존성이 필요한 경우 다음 명령어를 실행하세요:"
+    echo "   npx playwright install-deps chromium"
+    echo "   (sudo 권한이 필요할 수 있습니다)"
 fi
 
 # .env 파일 확인
