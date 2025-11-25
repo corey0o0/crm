@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Box,
   Button,
@@ -21,8 +21,6 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
-  IconButton,
-  Tooltip,
   Snackbar,
   Table,
   TableBody,
@@ -30,7 +28,12 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper
+  Paper,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Switch
 } from '@mui/material';
 import {
   Backup as BackupIcon,
@@ -38,12 +41,12 @@ import {
   Download as DownloadIcon,
   Upload as UploadIcon,
   Storage as StorageIcon,
-  Warning as WarningIcon,
   CheckCircle as CheckCircleIcon,
   Error as ErrorIcon,
-  Info as InfoIcon,
-  Delete as DeleteIcon,
-  Refresh as RefreshIcon
+  Schedule as ScheduleIcon,
+  CloudUpload as CloudUploadIcon,
+  History as HistoryIcon,
+  Settings as SettingsIcon
 } from '@mui/icons-material';
 import {
   createBackup,
@@ -51,8 +54,15 @@ import {
   readBackupFile,
   restoreBackup,
   validateBackup,
-  getBackupStats
+  getBackupStats,
+  getBackupSettings,
+  saveBackupSettings,
+  getBackupHistory,
+  uploadBackupToGoogleDrive,
+  saveBackupHistory,
+  startBackupScheduler
 } from '../../utils/backupUtils';
+import { supabase } from '../../lib/supabaseClient';
 
 const BackupManager = () => {
   const [backupDialogOpen, setBackupDialogOpen] = useState(false);
@@ -73,6 +83,159 @@ const BackupManager = () => {
     severity: 'info'
   });
   const fileInputRef = useRef(null);
+  
+  // 자동백업 관련 상태
+  const [autoBackupSettings, setAutoBackupSettings] = useState({
+    enabled: false,
+    frequency: 'daily',
+    backup_time: '02:00:00',
+    google_drive_folder_id: '',
+    retention_count: 10
+  });
+  const [autoBackupDialogOpen, setAutoBackupDialogOpen] = useState(false);
+  const [backupHistory, setBackupHistory] = useState([]);
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const schedulerIntervalRef = useRef(null);
+
+  // 컴포넌트 마운트 시 백업 설정 로드 및 스케줄러 시작
+  useEffect(() => {
+    const loadBackupSettings = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const settings = await getBackupSettings(user.id);
+        if (settings) {
+          setAutoBackupSettings({
+            enabled: settings.enabled || false,
+            frequency: settings.frequency || 'daily',
+            backup_time: settings.backup_time || '02:00:00',
+            google_drive_folder_id: settings.google_drive_folder_id || '',
+            retention_count: settings.retention_count || 10
+          });
+        }
+
+        // 백업 이력 로드
+        const history = await getBackupHistory(user.id, 10);
+        setBackupHistory(history);
+
+        // 자동백업 스케줄러 시작
+        if (settings?.enabled) {
+          schedulerIntervalRef.current = startBackupScheduler();
+        }
+      } catch (error) {
+        console.error('백업 설정 로드 실패:', error);
+      }
+    };
+
+    loadBackupSettings();
+
+    // 컴포넌트 언마운트 시 스케줄러 정리
+    return () => {
+      if (schedulerIntervalRef.current) {
+        clearInterval(schedulerIntervalRef.current);
+      }
+    };
+  }, []);
+
+  // 자동백업 설정 저장
+  const handleSaveAutoBackupSettings = async () => {
+    try {
+      setIsSavingSettings(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('로그인이 필요합니다.');
+      }
+
+      await saveBackupSettings(user.id, autoBackupSettings);
+      
+      // 스케줄러 재시작
+      if (schedulerIntervalRef.current) {
+        clearInterval(schedulerIntervalRef.current);
+      }
+      if (autoBackupSettings.enabled) {
+        schedulerIntervalRef.current = startBackupScheduler();
+      }
+
+      setSnackbar({
+        open: true,
+        message: '자동백업 설정이 저장되었습니다.',
+        severity: 'success'
+      });
+      setAutoBackupDialogOpen(false);
+    } catch (error) {
+      console.error('자동백업 설정 저장 실패:', error);
+      setSnackbar({
+        open: true,
+        message: `설정 저장 실패: ${error.message}`,
+        severity: 'error'
+      });
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  // 수동으로 구글 드라이브에 백업 업로드
+  const handleUploadToGoogleDrive = async () => {
+    try {
+      if (!backupData) {
+        throw new Error('먼저 백업을 생성해주세요.');
+      }
+
+      setIsBackingUp(true);
+      const uploadResult = await uploadBackupToGoogleDrive(backupData, autoBackupSettings.google_drive_folder_id);
+      
+      // 백업 이력 저장
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await saveBackupHistory(user.id, {
+          backup_type: 'manual',
+          file_name: uploadResult.fileName,
+          google_drive_file_id: uploadResult.fileId,
+          google_drive_file_link: uploadResult.webViewLink,
+          file_size: uploadResult.fileSize,
+          total_tables: backupData.metadata.totalTables,
+          total_records: backupData.metadata.totalRecords,
+          status: 'success'
+        });
+      }
+
+      setSnackbar({
+        open: true,
+        message: '구글 드라이브에 백업이 업로드되었습니다.',
+        severity: 'success'
+      });
+    } catch (error) {
+      console.error('구글 드라이브 업로드 실패:', error);
+      setSnackbar({
+        open: true,
+        message: `업로드 실패: ${error.message}`,
+        severity: 'error'
+      });
+    } finally {
+      setIsBackingUp(false);
+    }
+  };
+
+  // 백업 이력 조회
+  const handleLoadBackupHistory = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const history = await getBackupHistory(user.id, 20);
+      setBackupHistory(history);
+      setHistoryDialogOpen(true);
+    } catch (error) {
+      console.error('백업 이력 조회 실패:', error);
+      setSnackbar({
+        open: true,
+        message: `이력 조회 실패: ${error.message}`,
+        severity: 'error'
+      });
+    }
+  };
 
   // 백업 생성
   const handleCreateBackup = async () => {
@@ -334,10 +497,80 @@ const BackupManager = () => {
                     </Typography>
                   </Grid>
                 </Grid>
+                {backupData && (
+                  <Box sx={{ mt: 2 }}>
+                    <Button
+                      variant="outlined"
+                      startIcon={<CloudUploadIcon />}
+                      onClick={handleUploadToGoogleDrive}
+                      disabled={isBackingUp}
+                    >
+                      구글 드라이브에 업로드
+                    </Button>
+                  </Box>
+                )}
               </CardContent>
             </Card>
           </Grid>
         )}
+
+        {/* 자동백업 설정 */}
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <ScheduleIcon />
+                자동백업 설정
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                정기적으로 구글 드라이브에 자동 백업합니다.
+              </Typography>
+              <Box sx={{ mb: 2 }}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={autoBackupSettings.enabled}
+                      onChange={(e) => setAutoBackupSettings(prev => ({
+                        ...prev,
+                        enabled: e.target.checked
+                      }))}
+                    />
+                  }
+                  label={autoBackupSettings.enabled ? '자동백업 활성화됨' : '자동백업 비활성화됨'}
+                />
+              </Box>
+              {autoBackupSettings.enabled && (
+                <Box>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    주기: {autoBackupSettings.frequency === 'daily' ? '매일' : 
+                           autoBackupSettings.frequency === 'weekly' ? '매주' : '매월'}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    시간: {autoBackupSettings.backup_time}
+                  </Typography>
+                </Box>
+              )}
+              <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                <Button
+                  variant="outlined"
+                  startIcon={<SettingsIcon />}
+                  onClick={() => setAutoBackupDialogOpen(true)}
+                  fullWidth
+                >
+                  설정
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<HistoryIcon />}
+                  onClick={handleLoadBackupHistory}
+                  fullWidth
+                >
+                  이력
+                </Button>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
       </Grid>
 
       {/* 백업 생성 다이얼로그 */}
@@ -517,6 +750,197 @@ const BackupManager = () => {
               {isRestoring ? '복원 중...' : '복원 시작'}
             </Button>
           )}
+        </DialogActions>
+      </Dialog>
+
+      {/* 자동백업 설정 다이얼로그 */}
+      <Dialog open={autoBackupDialogOpen} onClose={() => setAutoBackupDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <SettingsIcon />
+            자동백업 설정
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2 }}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={autoBackupSettings.enabled}
+                  onChange={(e) => setAutoBackupSettings(prev => ({
+                    ...prev,
+                    enabled: e.target.checked
+                  }))}
+                />
+              }
+              label="자동백업 활성화"
+            />
+          </Box>
+
+          {autoBackupSettings.enabled && (
+            <>
+              <FormControl fullWidth sx={{ mt: 3 }}>
+                <InputLabel>백업 주기</InputLabel>
+                <Select
+                  value={autoBackupSettings.frequency}
+                  label="백업 주기"
+                  onChange={(e) => setAutoBackupSettings(prev => ({
+                    ...prev,
+                    frequency: e.target.value
+                  }))}
+                >
+                  <MenuItem value="daily">매일</MenuItem>
+                  <MenuItem value="weekly">매주</MenuItem>
+                  <MenuItem value="monthly">매월</MenuItem>
+                </Select>
+              </FormControl>
+
+              <TextField
+                fullWidth
+                label="백업 시간"
+                type="time"
+                value={autoBackupSettings.backup_time}
+                onChange={(e) => setAutoBackupSettings(prev => ({
+                  ...prev,
+                  backup_time: e.target.value
+                }))}
+                sx={{ mt: 2 }}
+                InputLabelProps={{
+                  shrink: true,
+                }}
+                helperText="백업을 실행할 시간을 설정하세요 (24시간 형식)"
+              />
+
+              <TextField
+                fullWidth
+                label="구글 드라이브 폴더 ID (선택사항)"
+                value={autoBackupSettings.google_drive_folder_id}
+                onChange={(e) => setAutoBackupSettings(prev => ({
+                  ...prev,
+                  google_drive_folder_id: e.target.value
+                }))}
+                sx={{ mt: 2 }}
+                helperText="특정 폴더에 저장하려면 폴더 ID를 입력하세요. 비워두면 기본 백업 폴더에 저장됩니다."
+              />
+
+              <TextField
+                fullWidth
+                label="백업 보관 개수"
+                type="number"
+                value={autoBackupSettings.retention_count}
+                onChange={(e) => setAutoBackupSettings(prev => ({
+                  ...prev,
+                  retention_count: parseInt(e.target.value) || 10
+                }))}
+                sx={{ mt: 2 }}
+                InputProps={{
+                  inputProps: { min: 1, max: 100 }
+                }}
+                helperText="최대 보관할 백업 파일 개수 (오래된 백업은 자동 삭제)"
+              />
+
+              <Alert severity="info" sx={{ mt: 2 }}>
+                <Typography variant="body2">
+                  자동백업은 설정한 시간에 자동으로 실행됩니다.
+                  백업 파일은 구글 드라이브에 저장되며, 최신 {autoBackupSettings.retention_count}개만 보관됩니다.
+                </Typography>
+              </Alert>
+            </>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAutoBackupDialogOpen(false)}>
+            취소
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSaveAutoBackupSettings}
+            disabled={isSavingSettings}
+          >
+            {isSavingSettings ? '저장 중...' : '저장'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 백업 이력 다이얼로그 */}
+      <Dialog open={historyDialogOpen} onClose={() => setHistoryDialogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <HistoryIcon />
+            백업 이력
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {backupHistory.length === 0 ? (
+            <Alert severity="info">
+              백업 이력이 없습니다.
+            </Alert>
+          ) : (
+            <TableContainer component={Paper} sx={{ mt: 2 }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>일시</TableCell>
+                    <TableCell>타입</TableCell>
+                    <TableCell>파일명</TableCell>
+                    <TableCell align="right">크기</TableCell>
+                    <TableCell align="right">레코드 수</TableCell>
+                    <TableCell align="center">상태</TableCell>
+                    <TableCell>링크</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {backupHistory.map((history) => (
+                    <TableRow key={history.id}>
+                      <TableCell>
+                        {new Date(history.created_at).toLocaleString()}
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={history.backup_type === 'automatic' ? '자동' : '수동'}
+                          size="small"
+                          color={history.backup_type === 'automatic' ? 'primary' : 'default'}
+                        />
+                      </TableCell>
+                      <TableCell>{history.file_name}</TableCell>
+                      <TableCell align="right">
+                        {history.file_size ? `${(history.file_size / 1024 / 1024).toFixed(2)} MB` : '-'}
+                      </TableCell>
+                      <TableCell align="right">
+                        {history.total_records?.toLocaleString() || '-'}
+                      </TableCell>
+                      <TableCell align="center">
+                        <Chip
+                          label={history.status === 'success' ? '성공' : '실패'}
+                          size="small"
+                          color={history.status === 'success' ? 'success' : 'error'}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {history.google_drive_file_link ? (
+                          <Button
+                            size="small"
+                            href={history.google_drive_file_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            열기
+                          </Button>
+                        ) : (
+                          '-'
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setHistoryDialogOpen(false)}>
+            닫기
+          </Button>
         </DialogActions>
       </Dialog>
 

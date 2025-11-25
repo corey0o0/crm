@@ -1,4 +1,6 @@
 import { supabase } from '../lib/supabaseClient';
+import { initializeGoogleAPI, getAccessToken } from '../lib/googleDriveConfig';
+import { uploadFileToGoogleDrive, findOrCreateFolder } from './googleDriveUtils';
 
 /**
  * 복원 순서: 외래 키 의존성을 고려한 순서
@@ -478,4 +480,424 @@ export const getBackupStats = (backupData) => {
   });
 
   return stats;
+};
+
+/**
+ * 백업 데이터를 구글 드라이브에 업로드
+ * @param {Object} backupData - 백업 데이터
+ * @param {string} folderId - 구글 드라이브 폴더 ID (선택사항)
+ * @returns {Promise<Object>} 업로드된 파일 정보
+ */
+export const uploadBackupToGoogleDrive = async (backupData, folderId = null) => {
+  try {
+    console.log('구글 드라이브 백업 업로드 시작...');
+    
+    // 구글 API 초기화
+    await initializeGoogleAPI();
+    
+    // 액세스 토큰 획득
+    let accessToken;
+    try {
+      accessToken = await getAccessToken();
+      // getAccessToken이 토큰 객체를 반환하는 경우
+      if (window.gapi && window.gapi.client && window.gapi.client.getToken()) {
+        accessToken = window.gapi.client.getToken().access_token;
+      }
+    } catch (error) {
+      // 토큰이 없으면 재요청
+      if (window.gapi && window.gapi.client) {
+        const token = window.gapi.client.getToken();
+        if (token) {
+          accessToken = token.access_token;
+        } else {
+          throw new Error('구글 드라이브 인증이 필요합니다. 다시 시도해주세요.');
+        }
+      } else {
+        throw new Error('구글 드라이브 API 초기화에 실패했습니다.');
+      }
+    }
+    
+    if (!accessToken) {
+      throw new Error('구글 드라이브 액세스 토큰을 획득할 수 없습니다.');
+    }
+
+    // 백업 파일명 생성
+    const timestamp = new Date().toISOString().split('T')[0];
+    const fileName = `crm_backup_${timestamp}_${Date.now()}.json`;
+    
+    // 백업 데이터를 JSON 문자열로 변환
+    const dataStr = JSON.stringify(backupData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const file = new File([dataBlob], fileName, { type: 'application/json' });
+
+    // 폴더 ID가 없으면 기본 백업 폴더 찾기 또는 생성
+    let targetFolderId = folderId;
+    if (!targetFolderId) {
+      const rootFolderId = process.env.REACT_APP_GOOGLE_DRIVE_ROOT_FOLDER_ID;
+      const backupFolderName = 'CRM_Backups';
+      
+      const folder = await findOrCreateFolder(backupFolderName, rootFolderId, accessToken);
+      targetFolderId = folder.id;
+    }
+
+    // 구글 드라이브에 업로드
+    const uploadResult = await uploadFileToGoogleDrive(file, targetFolderId, accessToken);
+    
+    console.log('구글 드라이브 백업 업로드 완료:', uploadResult);
+    
+    return {
+      fileId: uploadResult.id,
+      fileName: fileName,
+      fileSize: file.size,
+      webViewLink: `https://drive.google.com/file/d/${uploadResult.id}/view`
+    };
+
+  } catch (error) {
+    console.error('구글 드라이브 백업 업로드 실패:', error);
+    throw error;
+  }
+};
+
+/**
+ * 백업 설정 조회
+ * @param {string} userId - 사용자 ID
+ * @returns {Promise<Object|null>} 백업 설정
+ */
+export const getBackupSettings = async (userId) => {
+  try {
+    const { data, error } = await supabase
+      .from('backup_settings')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (error && error.code !== 'PGRST116') { // PGRST116은 데이터 없음
+      throw error;
+    }
+
+    return data || null;
+  } catch (error) {
+    console.error('백업 설정 조회 실패:', error);
+    throw error;
+  }
+};
+
+/**
+ * 백업 설정 저장 또는 업데이트
+ * @param {string} userId - 사용자 ID
+ * @param {Object} settings - 백업 설정
+ * @returns {Promise<Object>} 저장된 설정
+ */
+export const saveBackupSettings = async (userId, settings) => {
+  try {
+    const { enabled, frequency, backup_time, google_drive_folder_id, retention_count } = settings;
+    
+    // 다음 백업 시간 계산
+    const nextBackupAt = enabled ? calculateNextBackupTime(frequency, backup_time) : null;
+
+    const settingsData = {
+      user_id: userId,
+      enabled: enabled || false,
+      frequency: frequency || 'daily',
+      backup_time: backup_time || '02:00:00',
+      google_drive_folder_id: google_drive_folder_id || null,
+      retention_count: retention_count || 10,
+      next_backup_at: nextBackupAt
+    };
+
+    // 기존 설정 확인
+    const existing = await getBackupSettings(userId);
+
+    let result;
+    if (existing) {
+      // 업데이트
+      const { data, error } = await supabase
+        .from('backup_settings')
+        .update(settingsData)
+        .eq('user_id', userId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      result = data;
+    } else {
+      // 새로 생성
+      const { data, error } = await supabase
+        .from('backup_settings')
+        .insert(settingsData)
+        .select()
+        .single();
+
+      if (error) throw error;
+      result = data;
+    }
+
+    console.log('백업 설정 저장 완료:', result);
+    return result;
+
+  } catch (error) {
+    console.error('백업 설정 저장 실패:', error);
+    throw error;
+  }
+};
+
+/**
+ * 다음 백업 시간 계산
+ * @param {string} frequency - 백업 주기 (daily, weekly, monthly)
+ * @param {string} backupTime - 백업 시간 (HH:MM 형식)
+ * @returns {string} 다음 백업 일시 (ISO 문자열)
+ */
+export const calculateNextBackupTime = (frequency, backupTime) => {
+  const now = new Date();
+  const [hours, minutes] = backupTime.split(':').map(Number);
+  
+  let nextBackup = new Date();
+  nextBackup.setHours(hours, minutes, 0, 0);
+
+  // 오늘의 백업 시간이 지났으면 다음 주기로
+  if (nextBackup <= now) {
+    if (frequency === 'daily') {
+      nextBackup.setDate(nextBackup.getDate() + 1);
+    } else if (frequency === 'weekly') {
+      nextBackup.setDate(nextBackup.getDate() + 7);
+    } else if (frequency === 'monthly') {
+      nextBackup.setMonth(nextBackup.getMonth() + 1);
+    }
+  } else if (frequency === 'weekly') {
+    // 주간 백업인 경우 다음 주 같은 요일로
+    const daysUntilNextWeek = 7;
+    nextBackup.setDate(nextBackup.getDate() + daysUntilNextWeek);
+  } else if (frequency === 'monthly') {
+    // 월간 백업인 경우 다음 달 같은 날로
+    nextBackup.setMonth(nextBackup.getMonth() + 1);
+  }
+
+  return nextBackup.toISOString();
+};
+
+/**
+ * 백업 이력 저장
+ * @param {string} userId - 사용자 ID
+ * @param {Object} backupInfo - 백업 정보
+ * @returns {Promise<Object>} 저장된 이력
+ */
+export const saveBackupHistory = async (userId, backupInfo) => {
+  try {
+    const {
+      backup_type = 'manual',
+      file_name,
+      google_drive_file_id,
+      google_drive_file_link,
+      file_size,
+      total_tables,
+      total_records,
+      status = 'success',
+      error_message = null
+    } = backupInfo;
+
+    const { data, error } = await supabase
+      .from('backup_history')
+      .insert({
+        user_id: userId,
+        backup_type,
+        file_name,
+        google_drive_file_id,
+        google_drive_file_link,
+        file_size,
+        total_tables,
+        total_records,
+        status,
+        error_message
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return data;
+  } catch (error) {
+    console.error('백업 이력 저장 실패:', error);
+    throw error;
+  }
+};
+
+/**
+ * 백업 이력 조회
+ * @param {string} userId - 사용자 ID
+ * @param {number} limit - 조회 개수 제한
+ * @returns {Promise<Array>} 백업 이력 목록
+ */
+export const getBackupHistory = async (userId, limit = 20) => {
+  try {
+    const { data, error } = await supabase
+      .from('backup_history')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+
+    return data || [];
+  } catch (error) {
+    console.error('백업 이력 조회 실패:', error);
+    throw error;
+  }
+};
+
+/**
+ * 자동백업 실행
+ * @param {string} userId - 사용자 ID
+ * @returns {Promise<Object>} 백업 결과
+ */
+export const runAutomaticBackup = async (userId) => {
+  try {
+    console.log('자동백업 실행 시작...');
+    
+    // 백업 설정 조회
+    const settings = await getBackupSettings(userId);
+    if (!settings || !settings.enabled) {
+      throw new Error('자동백업이 활성화되지 않았습니다.');
+    }
+
+    // 백업 생성
+    const backupData = await createBackup();
+    
+    // 구글 드라이브에 업로드
+    const uploadResult = await uploadBackupToGoogleDrive(
+      backupData,
+      settings.google_drive_folder_id
+    );
+
+    // 백업 이력 저장
+    const history = await saveBackupHistory(userId, {
+      backup_type: 'automatic',
+      file_name: uploadResult.fileName,
+      google_drive_file_id: uploadResult.fileId,
+      google_drive_file_link: uploadResult.webViewLink,
+      file_size: uploadResult.fileSize,
+      total_tables: backupData.metadata.totalTables,
+      total_records: backupData.metadata.totalRecords,
+      status: 'success'
+    });
+
+    // 다음 백업 시간 계산 및 업데이트
+    const nextBackupAt = calculateNextBackupTime(settings.frequency, settings.backup_time);
+    await supabase
+      .from('backup_settings')
+      .update({
+        last_backup_at: new Date().toISOString(),
+        next_backup_at: nextBackupAt
+      })
+      .eq('user_id', userId);
+
+    // 오래된 백업 삭제 (보관 개수 제한)
+    await cleanupOldBackups(userId, settings.retention_count);
+
+    console.log('자동백업 실행 완료:', history);
+    
+    return {
+      success: true,
+      history,
+      uploadResult
+    };
+
+  } catch (error) {
+    console.error('자동백업 실행 실패:', error);
+    
+    // 실패 이력 저장
+    try {
+      const settings = await getBackupSettings(userId);
+      if (settings) {
+        await saveBackupHistory(userId, {
+          backup_type: 'automatic',
+          file_name: `backup_failed_${Date.now()}.json`,
+          status: 'failed',
+          error_message: error.message
+        });
+      }
+    } catch (historyError) {
+      console.error('백업 실패 이력 저장 실패:', historyError);
+    }
+
+    throw error;
+  }
+};
+
+/**
+ * 오래된 백업 정리
+ * @param {string} userId - 사용자 ID
+ * @param {number} retentionCount - 보관할 백업 개수
+ */
+const cleanupOldBackups = async (userId, retentionCount) => {
+  try {
+    // 최신 백업 이력 조회
+    const { data: history, error } = await supabase
+      .from('backup_history')
+      .select('id, google_drive_file_id')
+      .eq('user_id', userId)
+      .eq('status', 'success')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    // 보관 개수보다 많으면 오래된 것 삭제
+    if (history && history.length > retentionCount) {
+      const toDelete = history.slice(retentionCount);
+      
+      for (const backup of toDelete) {
+        // 데이터베이스에서 삭제
+        await supabase
+          .from('backup_history')
+          .delete()
+          .eq('id', backup.id);
+
+        // 구글 드라이브에서도 삭제 (선택사항)
+        // 주의: 구글 드라이브 파일 삭제는 액세스 토큰이 필요하므로
+        // 여기서는 데이터베이스 기록만 삭제
+        console.log(`오래된 백업 삭제: ${backup.id}`);
+      }
+    }
+  } catch (error) {
+    console.error('오래된 백업 정리 실패:', error);
+    // 정리 실패는 치명적이지 않으므로 에러를 던지지 않음
+  }
+};
+
+/**
+ * 자동백업 스케줄러 시작
+ * 백업 시간이 되면 자동으로 백업 실행
+ */
+export const startBackupScheduler = () => {
+  // 1분마다 체크
+  const checkInterval = setInterval(async () => {
+    try {
+      // 현재 사용자 조회
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // 백업 설정 조회
+      const settings = await getBackupSettings(user.id);
+      if (!settings || !settings.enabled) return;
+
+      // 다음 백업 시간 확인
+      if (!settings.next_backup_at) return;
+
+      const nextBackupTime = new Date(settings.next_backup_at);
+      const now = new Date();
+
+      // 백업 시간이 되었는지 확인 (1분 오차 허용)
+      if (now >= nextBackupTime && (now - nextBackupTime) < 60000) {
+        console.log('자동백업 시간 도달, 백업 시작...');
+        await runAutomaticBackup(user.id);
+      }
+    } catch (error) {
+      console.error('자동백업 스케줄러 오류:', error);
+    }
+  }, 60000); // 1분마다 체크
+
+  console.log('자동백업 스케줄러 시작됨');
+  
+  // 컴포넌트 언마운트 시 정리할 수 있도록 interval ID 반환
+  return checkInterval;
 };
