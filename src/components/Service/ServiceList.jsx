@@ -1432,19 +1432,19 @@ function ServiceList() {
         // 목록 새로고침
         fetchServices();
 
-        // 텔레그램 알림 전송
-        if (insertedData && insertedData.length > 0) {
-          for (const service of insertedData) {
-            try {
-              await sendTelegramNotification({
-                message: `A/S 등록 (접수번호: ${service.id}) - 고객: ${service.customer_name || '정보없음'}, 연락처: ${service.customer_phone || '정보없음'}`,
-                link: `/service/${service.id}`
-              });
-            } catch (telegramError) {
-              console.error('엑셀 업로드 A/S 텔레그램 알림 전송 중 오류:', telegramError);
-            }
-          }
-        }
+        // 텔레그램 알림 전송 - 정지됨
+        // if (insertedData && insertedData.length > 0) {
+        //   for (const service of insertedData) {
+        //     try {
+        //       await sendTelegramNotification({
+        //         message: `A/S 등록 (접수번호: ${service.id}) - 고객: ${service.customer_name || '정보없음'}, 연락처: ${service.customer_phone || '정보없음'}`,
+        //         link: `/service/${service.id}`
+        //       });
+        //     } catch (telegramError) {
+        //       console.error('엑셀 업로드 A/S 텔레그램 알림 전송 중 오류:', telegramError);
+        //     }
+        //   }
+        // }
       } catch (error) {
         console.error('Error uploading excel:', error);
         setSnackbar({

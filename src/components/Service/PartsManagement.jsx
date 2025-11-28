@@ -483,15 +483,15 @@ function PartsManagement() {
         
         showSnackbar(`부품이 성공적으로 수정되었습니다.`, 'success');
 
-        // 텔레그램 알림 전송 (수정)
-        try {
-          await sendTelegramNotification({
-            message: `부품 수정 (코드: ${partData.code}) - 품명: ${partData.name}`,
-            link: `/parts`
-          });
-        } catch (telegramError) {
-          console.error('부품 정보 수정 텔레그램 알림 전송 중 오류:', telegramError);
-        }
+        // 텔레그램 알림 전송 (수정) - 정지됨
+        // try {
+        //   await sendTelegramNotification({
+        //     message: `부품 수정 (코드: ${partData.code}) - 품명: ${partData.name}`,
+        //     link: `/parts`
+        //   });
+        // } catch (telegramError) {
+        //   console.error('부품 정보 수정 텔레그램 알림 전송 중 오류:', telegramError);
+        // }
 
       } else {
         const { data: insertedPart, error } = await supabase
@@ -503,18 +503,18 @@ function PartsManagement() {
         
         showSnackbar(`부품이 성공적으로 등록되었습니다.`, 'success');
 
-        // 텔레그램 알림 전송 (신규 등록)
-        if (insertedPart && insertedPart.length > 0) {
-          const newPart = insertedPart[0];
-          try {
-            await sendTelegramNotification({
-              message: `부품 등록 (코드: ${newPart.code}) - 품명: ${newPart.name}`,
-              link: `/parts`
-            });
-          } catch (telegramError) {
-            console.error('신규 부품 등록 텔레그램 알림 전송 중 오류:', telegramError);
-          }
-        }
+        // 텔레그램 알림 전송 (신규 등록) - 정지됨
+        // if (insertedPart && insertedPart.length > 0) {
+        //   const newPart = insertedPart[0];
+        //   try {
+        //     await sendTelegramNotification({
+        //       message: `부품 등록 (코드: ${newPart.code}) - 품명: ${newPart.name}`,
+        //       link: `/parts`
+        //     });
+        //   } catch (telegramError) {
+        //     console.error('신규 부품 등록 텔레그램 알림 전송 중 오류:', telegramError);
+        //   }
+        // }
       }
 
       fetchParts();
@@ -744,18 +744,18 @@ function PartsManagement() {
           current: 100
         }));
 
-        // 텔레그램 알림 전송 (엑셀 업로드)
-        for (const newPart of finalData) {
-          try {
-            await sendTelegramNotification({
-              message: `부품 등록 (코드: ${newPart.code}) - 품명: ${newPart.name}`,
-              link: `/parts`
-            });
-          } catch (telegramError) {
-            console.error('엑셀 부품 등록 텔레그램 알림 전송 중 오류:', telegramError);
-            // 개별 알림 실패는 전체 프로세스를 중단시키지 않도록 처리
-          }
-        }
+        // 텔레그램 알림 전송 (엑셀 업로드) - 정지됨
+        // for (const newPart of finalData) {
+        //   try {
+        //     await sendTelegramNotification({
+        //       message: `부품 등록 (코드: ${newPart.code}) - 품명: ${newPart.name}`,
+        //       link: `/parts`
+        //     });
+        //   } catch (telegramError) {
+        //     console.error('엑셀 부품 등록 텔레그램 알림 전송 중 오류:', telegramError);
+        //     // 개별 알림 실패는 전체 프로세스를 중단시키지 않도록 처리
+        //   }
+        // }
 
         await fetchParts(); // 목록 새로고침
         
@@ -1031,15 +1031,15 @@ function PartsManagement() {
             
           if (updateError) throw updateError;
 
-          // 텔레그램 알림 (정보 업데이트)
-          try {
-            await sendTelegramNotification({
-              message: `부품 수정 (코드: ${newPart.code}) - 품명: ${newPart.name}, 브랜드: ${copyTargetBrand}`,
-              link: `/parts`
-            });
-          } catch (telegramError) {
-            console.error('부품 정보 수정(복사) 텔레그램 알림 전송 중 오류:', telegramError);
-          }
+          // 텔레그램 알림 (정보 업데이트) - 정지됨
+          // try {
+          //   await sendTelegramNotification({
+          //     message: `부품 수정 (코드: ${newPart.code}) - 품명: ${newPart.name}, 브랜드: ${copyTargetBrand}`,
+          //     link: `/parts`
+          //   });
+          // } catch (telegramError) {
+          //   console.error('부품 정보 수정(복사) 텔레그램 알림 전송 중 오류:', telegramError);
+          // }
 
         } else {
           // 새로 생성
@@ -1049,15 +1049,15 @@ function PartsManagement() {
             
           if (insertError) throw insertError;
 
-          // 텔레그램 알림 (신규 등록)
-          try {
-            await sendTelegramNotification({
-              message: `부품 등록 (코드: ${newPart.code}) - 품명: ${newPart.name}, 브랜드: ${copyTargetBrand}`,
-              link: `/parts`
-            });
-          } catch (telegramError) {
-            console.error('신규 부품 등록(복사) 텔레그램 알림 전송 중 오류:', telegramError);
-          }
+          // 텔레그램 알림 (신규 등록) - 정지됨
+          // try {
+          //   await sendTelegramNotification({
+          //     message: `부품 등록 (코드: ${newPart.code}) - 품명: ${newPart.name}, 브랜드: ${copyTargetBrand}`,
+          //     link: `/parts`
+          //   });
+          // } catch (telegramError) {
+          //   console.error('신규 부품 등록(복사) 텔레그램 알림 전송 중 오류:', telegramError);
+          // }
         }
       }
       
