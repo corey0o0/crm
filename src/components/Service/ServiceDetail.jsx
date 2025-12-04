@@ -66,7 +66,7 @@ import { formatKoreanDateTime } from '../../utils/dateUtils';
 import { format } from 'date-fns';
 import { sendTelegramNotification } from '../../lib/telegram';
 import { processServiceCompletion } from '../../utils/inventoryUtils';
-import { addServicePartsToPendingOrders } from '../../utils/pendingOrderUtils';
+// import { addServicePartsToPendingOrders } from '../../utils/pendingOrderUtils'; // 주문대기 기능 비활성화
 import { 
   uploadFileToGoogleDrive, 
   findOrCreateFolder, 
@@ -874,26 +874,26 @@ function ServiceDetail() {
           inventoryMessage = ` 하지만 재고 차감 중 오류 발생: ${inventoryError.message}`;
         }
 
-        // 주문대기 추가 처리
-        try {
-          console.log(`주문대기 추가 시작 - 서비스ID: ${id}, 브랜드: ${formData.brand}`);
-          
-          const pendingOrderResult = await addServicePartsToPendingOrders(id, formData.brand);
-          
-          if (pendingOrderResult.success) {
-            if (pendingOrderResult.skipped) {
-              pendingOrderMessage = ` 주문대기: ${pendingOrderResult.message}`;
-            } else {
-              pendingOrderMessage = ` 주문대기: ${pendingOrderResult.message}`;
-            }
-          } else {
-            pendingOrderMessage = ` 주문대기 추가 실패: ${pendingOrderResult.message}`;
-            console.error('주문대기 추가 오류:', pendingOrderResult.message);
-          }
-        } catch (pendingOrderError) {
-          console.error('주문대기 추가 중 예외:', pendingOrderError);
-          pendingOrderMessage = ` 주문대기 추가 실패: ${pendingOrderError.message}`;
-        }
+        // 주문대기 추가 처리 (비활성화됨)
+        // try {
+        //   console.log(`주문대기 추가 시작 - 서비스ID: ${id}, 브랜드: ${formData.brand}`);
+        //   
+        //   const pendingOrderResult = await addServicePartsToPendingOrders(id, formData.brand);
+        //   
+        //   if (pendingOrderResult.success) {
+        //     if (pendingOrderResult.skipped) {
+        //       pendingOrderMessage = ` 주문대기: ${pendingOrderResult.message}`;
+        //     } else {
+        //       pendingOrderMessage = ` 주문대기: ${pendingOrderResult.message}`;
+        //     }
+        //   } else {
+        //     pendingOrderMessage = ` 주문대기 추가 실패: ${pendingOrderResult.message}`;
+        //     console.error('주문대기 추가 오류:', pendingOrderResult.message);
+        //   }
+        // } catch (pendingOrderError) {
+        //   console.error('주문대기 추가 중 예외:', pendingOrderError);
+        //   pendingOrderMessage = ` 주문대기 추가 실패: ${pendingOrderError.message}`;
+        // }
       }
 
       // 모든 DB 작업 완료 후 데이터 다시 불러오기

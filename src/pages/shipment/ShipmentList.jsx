@@ -50,7 +50,7 @@ import {
   DateRange as DateRangeIcon
 } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
-import { fetchShipments as fetchShipmentsAPI, countShipments } from '../../utils/restApiUtils';
+import { fetchShipments as fetchShipmentsAPI, countShipments, countPendingAndShippingByBrand } from '../../utils/restApiUtils';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { format, parseISO, isValid } from 'date-fns';
 import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
@@ -139,6 +139,12 @@ function ShipmentList() {
   const [loadProgress, setLoadProgress] = useState(0);
   const [searchLoading, setSearchLoading] = useState(false);
   const [hasActiveSearch, setHasActiveSearch] = useState(false);
+  
+  // 브랜드별 준비중+배송중 건수
+  const [brandCounts, setBrandCounts] = useState({
+    XRB: 0,
+    NB: 0
+  });
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -176,6 +182,44 @@ function ShipmentList() {
   useEffect(() => {
     fetchShipments();
   }, [selectedBrand, dateFilter, statusFilter, sellerFilter]);
+
+  // 브랜드별 준비중+배송중 건수 조회
+  const fetchBrandCounts = async () => {
+    try {
+      const [xrbCount, nbCount] = await Promise.all([
+        countPendingAndShippingByBrand('XRB'),
+        countPendingAndShippingByBrand('NB')
+      ]);
+      
+      // 디버깅: 실제 데이터 확인
+      if (xrbCount > 0 || nbCount > 0) {
+        console.log('[ShipmentList] 브랜드별 건수:', { XRB: xrbCount, NB: nbCount });
+      }
+      
+      setBrandCounts({
+        XRB: xrbCount || 0,
+        NB: nbCount || 0
+      });
+    } catch (error) {
+      console.error('브랜드별 건수 조회 실패:', error);
+      // 에러 발생 시 0으로 설정
+      setBrandCounts({ XRB: 0, NB: 0 });
+    }
+  };
+
+  useEffect(() => {
+    fetchBrandCounts();
+    // 주기적으로 갱신 (30초마다)
+    const interval = setInterval(fetchBrandCounts, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // 출고 정보 변경 시 건수 갱신
+  useEffect(() => {
+    if (firstPageLoaded) {
+      fetchBrandCounts();
+    }
+  }, [firstPageLoaded, shipments.length]);
 
   // 라우트 재진입/포커스/가시성 복귀 시 자동 재요청
   useEffect(() => {
@@ -722,6 +766,7 @@ function ShipmentList() {
       if (error) throw error;
       
       fetchShipments();
+      fetchBrandCounts(); // 건수 갱신
       
       setSnackbar({
         open: true,
@@ -1110,6 +1155,7 @@ function ShipmentList() {
       
       // 데이터 새로고침
       fetchShipments();
+      fetchBrandCounts(); // 건수 갱신
       
     } catch (error) {
       console.error('엑셀 데이터 저장 중 오류:', error);
@@ -1327,6 +1373,7 @@ function ShipmentList() {
       
       // 데이터 새로고침
       fetchShipments();
+      fetchBrandCounts(); // 건수 갱신
       
     } catch (error) {
       console.error('Error during bulk migration:', error);
@@ -1478,12 +1525,12 @@ function ShipmentList() {
             onChange={handleBrandChange}
           >
             <Tab
-              label="X-RIDER"
+              label={`X-RIDER${brandCounts.XRB > 0 ? `(${brandCounts.XRB})` : ''}`}
               value="XRB"
               sx={{ fontWeight: 'bold' }}
             />
             <Tab
-              label="NEARBIKE"
+              label={`NEARBIKE${brandCounts.NB > 0 ? `(${brandCounts.NB})` : ''}`}
               value="NB"
               sx={{ fontWeight: 'bold' }}
             />
@@ -1539,12 +1586,12 @@ function ShipmentList() {
           onChange={handleBrandChange}
         >
           <Tab
-            label="X-RIDER"
+            label={`X-RIDER${brandCounts.XRB > 0 ? `(${brandCounts.XRB})` : ''}`}
             value="XRB"
             sx={{ fontWeight: 'bold' }}
           />
           <Tab
-            label="NEARBIKE"
+            label={`NEARBIKE${brandCounts.NB > 0 ? `(${brandCounts.NB})` : ''}`}
             value="NB"
             sx={{ fontWeight: 'bold' }}
           />

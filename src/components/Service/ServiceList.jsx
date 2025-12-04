@@ -68,7 +68,7 @@ import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { serviceApi } from '../../api/services';
 import { supabase, ensureConnection } from '../../lib/supabaseClient';
 import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
-import { fetchServices as fetchServicesAPI, countServices } from '../../utils/restApiUtils';
+import { fetchServices as fetchServicesAPI, countServices, countServiceStatusByBrand } from '../../utils/restApiUtils';
 import ResponsiveTable from '../common/ResponsiveTable';
 import AddService from './AddService';
 import { getCookie, setCookie, removeCookie, getJSONCookie, setJSONCookie } from '../../utils/cookieUtils';
@@ -184,6 +184,12 @@ function ServiceList() {
 
   // 하이라이트 타이머 관리를 위한 ref
   const highlightTimerRef = useRef(null);
+  
+  // 브랜드별 접수/처리중 건수
+  const [brandCounts, setBrandCounts] = useState({
+    XRB: { reception: 0, processing: 0 },
+    NB: { reception: 0, processing: 0 }
+  });
 
   // 컴포넌트 마운트 시 실행
   useEffect(() => {
@@ -974,6 +980,8 @@ function ServiceList() {
               removeCookie('highlightServiceId');
               localStorage.removeItem('highlightServiceId');
             }, 30000);
+            // 새 서비스 추가 시 건수 갱신
+            fetchBrandCounts();
           } else if (payload.eventType === 'UPDATE') {
             setServices(prev => prev.map(service => 
               service.id === payload.new.id ? {
@@ -981,10 +989,14 @@ function ServiceList() {
                 tags: service.tags || []  // 기존 태그 유지
               } : service
             ));
+            // 상태 변경 시 건수 갱신
+            fetchBrandCounts();
           } else if (payload.eventType === 'DELETE') {
             setServices(prev => prev.filter(service => 
               service.id !== payload.old.id
             ));
+            // 삭제 시 건수 갱신
+            fetchBrandCounts();
           }
         }
       )
@@ -1053,6 +1065,7 @@ function ServiceList() {
 
       setServices(prev => prev.filter(s => s.id !== selectedService.id));
       setDeleteDialogOpen(false);
+      fetchBrandCounts(); // 건수 갱신
     } catch (err) {
       console.error('Error deleting service:', err);
       setError(err.message);
@@ -1070,6 +1083,7 @@ function ServiceList() {
       setServices(updatedServices);
       setFilteredServices(updatedServices);
       setOpenDialog(false);
+      fetchBrandCounts(); // 건수 갱신
     }
   };
 
@@ -1260,6 +1274,41 @@ function ServiceList() {
   const calculatePartsTotal = (parts) => {
     return parts?.reduce((sum, part) => sum + (part.price || 0), 0) || 0;
   };
+
+  // 브랜드별 접수/처리중 건수 조회
+  const fetchBrandCounts = async () => {
+    try {
+      const [xrbCounts, nbCounts] = await Promise.all([
+        countServiceStatusByBrand('XRB'),
+        countServiceStatusByBrand('NB')
+      ]);
+      
+      setBrandCounts({
+        XRB: xrbCounts,
+        NB: nbCounts
+      });
+    } catch (error) {
+      console.error('브랜드별 건수 조회 실패:', error);
+      setBrandCounts({
+        XRB: { reception: 0, processing: 0 },
+        NB: { reception: 0, processing: 0 }
+      });
+    }
+  };
+
+  useEffect(() => {
+    fetchBrandCounts();
+    // 주기적으로 갱신 (30초마다)
+    const interval = setInterval(fetchBrandCounts, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // 서비스 데이터 변경 시 건수 갱신
+  useEffect(() => {
+    if (services.length > 0) {
+      fetchBrandCounts();
+    }
+  }, [services.length, selectedBrand]);
 
   const handleBrandChange = (event, newValue) => {
     console.log('handleBrandChange called with newValue:', newValue);
@@ -3237,14 +3286,22 @@ function ServiceList() {
             onChange={handleBrandChange}
           >
             <Tab 
-              label="X-RIDER" 
+              label={
+                brandCounts.XRB.reception > 0 || brandCounts.XRB.processing > 0
+                  ? `X-RIDER 접수(${brandCounts.XRB.reception})/처리중(${brandCounts.XRB.processing})`
+                  : "X-RIDER"
+              }
               value="XRB"
-              sx={{ fontWeight: 'bold' }}
+              sx={{ fontWeight: 'bold', fontSize: brandCounts.XRB.reception > 0 || brandCounts.XRB.processing > 0 ? '0.875rem' : 'inherit' }}
             />
             <Tab 
-              label="NEARBIKE" 
+              label={
+                brandCounts.NB.reception > 0 || brandCounts.NB.processing > 0
+                  ? `NEARBIKE 접수(${brandCounts.NB.reception})/처리중(${brandCounts.NB.processing})`
+                  : "NEARBIKE"
+              }
               value="NB"
-              sx={{ fontWeight: 'bold' }}
+              sx={{ fontWeight: 'bold', fontSize: brandCounts.NB.reception > 0 || brandCounts.NB.processing > 0 ? '0.875rem' : 'inherit' }}
             />
           </Tabs>
           <Stack direction="row" spacing={2}>

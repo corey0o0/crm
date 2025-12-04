@@ -322,3 +322,61 @@ export const countShipments = async (options = {}) => {
 
   return countFromSupabase('shipments', filter, signal);
 };
+
+/**
+ * 브랜드별 준비중+배송중 건수 조회
+ */
+export const countPendingAndShippingByBrand = async (brand, signal = null) => {
+  try {
+    // 각 상태를 개별적으로 조회하여 합산 (더 안정적)
+    const [preparingCount, shippingCount] = await Promise.all([
+      countFromSupabase('shipments', `brand=eq.${encodeURIComponent(brand)}&status=eq.${encodeURIComponent('준비중')}`, signal),
+      countFromSupabase('shipments', `brand=eq.${encodeURIComponent(brand)}&status=eq.${encodeURIComponent('배송중')}`, signal)
+    ]);
+    
+    const totalCount = (preparingCount || 0) + (shippingCount || 0);
+    console.log(`[REST API] Brand ${brand} - 준비중: ${preparingCount || 0}, 배송중: ${shippingCount || 0}, 합계: ${totalCount}`);
+    
+    return totalCount;
+  } catch (error) {
+    console.error(`[REST API] Error counting pending/shipping for brand ${brand}:`, error);
+    return 0;
+  }
+};
+
+/**
+ * 브랜드별 접수건(최근 일주일) 및 처리중 건수 조회
+ */
+export const countServiceStatusByBrand = async (brand, signal = null) => {
+  try {
+    // 최근 일주일 계산
+    const today = new Date();
+    const oneWeekAgo = new Date(today);
+    oneWeekAgo.setDate(today.getDate() - 7);
+    const oneWeekAgoStr = oneWeekAgo.toISOString().split('T')[0] + ' 00:00:00';
+    
+    // 접수건: 최근 일주일 내 접수된 것만
+    const receptionCount = await countFromSupabase(
+      'services',
+      `brand=eq.${encodeURIComponent(brand)}&status=eq.${encodeURIComponent('접수')}&reception_date=gte.${encodeURIComponent(oneWeekAgoStr)}`,
+      signal
+    );
+    
+    // 처리중건: 전체
+    const processingCount = await countFromSupabase(
+      'services',
+      `brand=eq.${encodeURIComponent(brand)}&status=eq.${encodeURIComponent('처리중')}`,
+      signal
+    );
+    
+    console.log(`[REST API] Brand ${brand} - 접수(최근 일주일): ${receptionCount || 0}, 처리중: ${processingCount || 0}`);
+    
+    return {
+      reception: receptionCount || 0,
+      processing: processingCount || 0
+    };
+  } catch (error) {
+    console.error(`[REST API] Error counting service status for brand ${brand}:`, error);
+    return { reception: 0, processing: 0 };
+  }
+};
