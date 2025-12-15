@@ -1,19 +1,30 @@
 import { createClient } from '@supabase/supabase-js'
 
-// 빌드 시점 env가 비어있는 경우를 대비해 window._env_ 런타임 값을 함께 확인
-const runtimeEnv = typeof window !== 'undefined' ? window._env_ || {} : {}
-const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || runtimeEnv.REACT_APP_SUPABASE_URL
-const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY || runtimeEnv.REACT_APP_SUPABASE_ANON_KEY
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Supabase URL과 Anon Key가 설정되지 않았습니다.')
-}
-
-console.log('[Supabase Client] Using URL:', supabaseUrl);
-console.log('[Supabase Client] Environment:', process.env.NODE_ENV);
+// 환경 변수를 가져오는 함수 (지연 로딩)
+const getEnvConfig = () => {
+  const runtimeEnv = typeof window !== 'undefined' ? window._env_ || {} : {}
+  const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || runtimeEnv.REACT_APP_SUPABASE_URL
+  const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY || runtimeEnv.REACT_APP_SUPABASE_ANON_KEY
+  
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error('[Supabase Client] 환경 변수 확인:', {
+      hasProcessEnv: !!process.env.REACT_APP_SUPABASE_URL,
+      hasWindowEnv: typeof window !== 'undefined' && !!window._env_,
+      windowEnvKeys: typeof window !== 'undefined' && window._env_ ? Object.keys(window._env_) : []
+    });
+    throw new Error('Supabase URL과 Anon Key가 설정되지 않았습니다.')
+  }
+  
+  return { supabaseUrl, supabaseAnonKey };
+};
 
 // 매번 새로운 클라이언트 인스턴스 생성
 export const createSupabaseClient = () => {
+  const { supabaseUrl, supabaseAnonKey } = getEnvConfig();
+  
+  console.log('[Supabase Client] Using URL:', supabaseUrl);
+  console.log('[Supabase Client] Environment:', process.env.NODE_ENV);
+  
   return createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       persistSession: true,
@@ -37,8 +48,18 @@ export const createSupabaseClient = () => {
   });
 };
 
-// 기본 클라이언트 (하위 호환성)
-export const supabase = createSupabaseClient();
+// 기본 클라이언트 (지연 초기화)
+let _supabaseClient = null;
+
+const getSupabaseClient = () => {
+  if (!_supabaseClient) {
+    _supabaseClient = createSupabaseClient();
+  }
+  return _supabaseClient;
+};
+
+// 기본 클라이언트 export (하위 호환성 유지)
+export const supabase = getSupabaseClient();
 
 // 유휴 상태 감지 및 재연결
 let lastActivityTime = Date.now();

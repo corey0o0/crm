@@ -31,18 +31,23 @@
       Learn how to configure a non-root public URL by running `npm run build`.
     -->
     <title>CRM App</title>
+    <script>
+      // env.js 로드 전에 기본 객체 초기화
+      window._env_ = window._env_ || {};
+    </script>
     <script src="%PUBLIC_URL%/env.js"></script>
     <script>
+      // env.js 로드 후 빌드 시점 환경 변수 병합
       window._env_ = {
         ...window._env_,
-        REACT_APP_OPENAI_API_ENDPOINT: '%REACT_APP_OPENAI_API_ENDPOINT%',
-        REACT_APP_OPENAI_MODEL: '%REACT_APP_OPENAI_MODEL%',
-        REACT_APP_OPENAI_API_KEY: '%REACT_APP_OPENAI_API_KEY%',
-        REACT_APP_SUPABASE_URL: '%REACT_APP_SUPABASE_URL%',
-        REACT_APP_SUPABASE_ANON_KEY: '%REACT_APP_SUPABASE_ANON_KEY%',
-        REACT_APP_CLAUDE_API_KEY: '%REACT_APP_CLAUDE_API_KEY%',
-        REACT_APP_CLOUDMARSSIVE_API_KEY: '%REACT_APP_CLOUDMARSSIVE_API_KEY%',
-        REACT_APP_GOOGLE_CLIENT_ID: '%REACT_APP_GOOGLE_CLIENT_ID%'
+        REACT_APP_OPENAI_API_ENDPOINT: '%REACT_APP_OPENAI_API_ENDPOINT%' || window._env_.REACT_APP_OPENAI_API_ENDPOINT,
+        REACT_APP_OPENAI_MODEL: '%REACT_APP_OPENAI_MODEL%' || window._env_.REACT_APP_OPENAI_MODEL,
+        REACT_APP_OPENAI_API_KEY: '%REACT_APP_OPENAI_API_KEY%' || window._env_.REACT_APP_OPENAI_API_KEY,
+        REACT_APP_SUPABASE_URL: '%REACT_APP_SUPABASE_URL%' || window._env_.REACT_APP_SUPABASE_URL,
+        REACT_APP_SUPABASE_ANON_KEY: '%REACT_APP_SUPABASE_ANON_KEY%' || window._env_.REACT_APP_SUPABASE_ANON_KEY,
+        REACT_APP_CLAUDE_API_KEY: '%REACT_APP_CLAUDE_API_KEY%' || window._env_.REACT_APP_CLAUDE_API_KEY,
+        REACT_APP_CLOUDMARSSIVE_API_KEY: '%REACT_APP_CLOUDMARSSIVE_API_KEY%' || window._env_.REACT_APP_CLOUDMARSSIVE_API_KEY,
+        REACT_APP_GOOGLE_CLIENT_ID: '%REACT_APP_GOOGLE_CLIENT_ID%' || window._env_.REACT_APP_GOOGLE_CLIENT_ID
       };
     </script>
     <!-- Google OAuth 및 API 클라이언트 라이브러리 -->

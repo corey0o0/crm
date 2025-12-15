@@ -6,51 +6,6 @@ import reportWebVitals from './reportWebVitals';
 import { StyledEngineProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 
-// iOS 사파리/프라이빗 환경 등에서 localStorage 접근 시 SecurityError가 발생해 앱이 멈추는 문제 방지
-(() => {
-  const createMemoryStorage = () => {
-    const store = new Map();
-    return {
-      getItem: (key) => (store.has(key) ? store.get(key) : null),
-      setItem: (key, value) => { store.set(key, String(value)); },
-      removeItem: (key) => { store.delete(key); },
-      clear: () => { store.clear(); },
-      key: (index) => Array.from(store.keys())[index] ?? null,
-      get length() { return store.size; }
-    };
-  };
-
-  try {
-    const testKey = '__crm_storage_test__';
-    window.localStorage.setItem(testKey, 'ok');
-    window.localStorage.removeItem(testKey);
-  } catch (storageError) {
-    console.warn('[Storage Guard] localStorage 사용 불가, 메모리 스토리지로 대체합니다:', storageError);
-    const memoryStorage = createMemoryStorage();
-    Object.defineProperty(window, 'localStorage', {
-      value: memoryStorage,
-      configurable: false,
-      enumerable: true,
-      writable: false
-    });
-  }
-
-  try {
-    const testKey = '__crm_session_test__';
-    window.sessionStorage.setItem(testKey, 'ok');
-    window.sessionStorage.removeItem(testKey);
-  } catch (storageError) {
-    console.warn('[Storage Guard] sessionStorage 사용 불가, 메모리 스토리지로 대체합니다:', storageError);
-    const memoryStorage = createMemoryStorage();
-    Object.defineProperty(window, 'sessionStorage', {
-      value: memoryStorage,
-      configurable: false,
-      enumerable: true,
-      writable: false
-    });
-  }
-})();
-
 // 개발 환경에서 ReactQuill의 findDOMNode 경고만 무시
 if (process.env.NODE_ENV === 'development') {
   const originalConsoleError = console.error;
@@ -67,13 +22,48 @@ if (process.env.NODE_ENV === 'development') {
   };
 }
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(
-  <StyledEngineProvider injectFirst>
-    <CssBaseline />
-    <App />
-  </StyledEngineProvider>
-);
+// 환경 변수 로드 대기 함수
+const waitForEnv = () => {
+  return new Promise((resolve) => {
+    // 이미 로드되어 있으면 즉시 반환
+    if (typeof window !== 'undefined' && window._env_) {
+      console.log('[App Init] 환경 변수 로드됨:', Object.keys(window._env_));
+      resolve();
+      return;
+    }
+    
+    // 최대 5초 대기
+    let attempts = 0;
+    const maxAttempts = 50; // 100ms * 50 = 5초
+    const checkInterval = setInterval(() => {
+      attempts++;
+      if (typeof window !== 'undefined' && window._env_) {
+        console.log('[App Init] 환경 변수 로드됨 (대기 후):', Object.keys(window._env_));
+        clearInterval(checkInterval);
+        resolve();
+      } else if (attempts >= maxAttempts) {
+        console.warn('[App Init] 환경 변수 로드 타임아웃, 계속 진행');
+        clearInterval(checkInterval);
+        resolve();
+      }
+    }, 100);
+  });
+};
+
+// 앱 초기화
+const initApp = async () => {
+  await waitForEnv();
+  
+  const root = ReactDOM.createRoot(document.getElementById('root'));
+  root.render(
+    <StyledEngineProvider injectFirst>
+      <CssBaseline />
+      <App />
+    </StyledEngineProvider>
+  );
+};
+
+initApp();
 
 // If you want to start measuring performance in your app, pass a function
 // to log results (for example: reportWebVitals(console.log))
