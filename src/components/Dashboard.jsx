@@ -103,6 +103,32 @@ function Dashboard() {
   const [error, setError] = useState(null);
   const [telegramResult, setTelegramResult] = useState({ open: false, message: '', success: true });
 
+  // 모바일 크롬에서 localStorage 접근이 SecurityError를 발생시켜 화면이 멈추는 문제 대응
+  const safeLocalStorage = {
+    getItem: (key) => {
+      try {
+        return localStorage.getItem(key);
+      } catch (storageError) {
+        console.warn('[Dashboard] localStorage.getItem 실패:', storageError);
+        return null;
+      }
+    },
+    setItem: (key, value) => {
+      try {
+        localStorage.setItem(key, value);
+      } catch (storageError) {
+        console.warn('[Dashboard] localStorage.setItem 실패:', storageError);
+      }
+    },
+    removeItem: (key) => {
+      try {
+        localStorage.removeItem(key);
+      } catch (storageError) {
+        console.warn('[Dashboard] localStorage.removeItem 실패:', storageError);
+      }
+    }
+  };
+
   // 초기 사용자 세션 확인 (자동 재로그인 제거)
   useEffect(() => {
     const checkSession = async () => {
@@ -419,7 +445,7 @@ function Dashboard() {
 
     // 로컬 스토리지에 임시 저장
     const tempKey = `temp_${memoType}_memo_${idx}`;
-    localStorage.setItem(tempKey, value);
+    safeLocalStorage.setItem(tempKey, value);
 
     // 기존 자동 저장 타이머 해제
     if (autoSaveTimers[idx]) {
@@ -453,9 +479,9 @@ function Dashboard() {
       const now = new Date().toISOString();
       
       // 로컬 스토리지에서 최신 값 가져오기
-      const memo1Content = localStorage.getItem(`temp_${memoType}_memo_0`) || memoList[0]?.content || '';
-      const memo2Content = localStorage.getItem(`temp_${memoType}_memo_1`) || memoList[1]?.content || '';
-      const memo3Content = localStorage.getItem(`temp_${memoType}_memo_2`) || memoList[2]?.content || '';
+      const memo1Content = safeLocalStorage.getItem(`temp_${memoType}_memo_0`) || memoList[0]?.content || '';
+      const memo2Content = safeLocalStorage.getItem(`temp_${memoType}_memo_1`) || memoList[1]?.content || '';
+      const memo3Content = safeLocalStorage.getItem(`temp_${memoType}_memo_2`) || memoList[2]?.content || '';
       
       if (memoType === 'personal') {
         // 개인 메모 저장
@@ -521,9 +547,9 @@ function Dashboard() {
       }
 
       // 임시 저장 데이터 제거
-      localStorage.removeItem(`temp_${memoType}_memo_0`);
-      localStorage.removeItem(`temp_${memoType}_memo_1`);
-      localStorage.removeItem(`temp_${memoType}_memo_2`);
+      safeLocalStorage.removeItem(`temp_${memoType}_memo_0`);
+      safeLocalStorage.removeItem(`temp_${memoType}_memo_1`);
+      safeLocalStorage.removeItem(`temp_${memoType}_memo_2`);
 
       console.log(`${memoType} 메모 저장 완료`);
 
