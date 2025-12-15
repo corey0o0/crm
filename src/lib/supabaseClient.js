@@ -1,7 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.REACT_APP_SUPABASE_URL
-const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY
+// 빌드 시점 env가 비어있는 경우를 대비해 window._env_ 런타임 값을 함께 확인
+const runtimeEnv = typeof window !== 'undefined' ? window._env_ || {} : {}
+const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || runtimeEnv.REACT_APP_SUPABASE_URL
+const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY || runtimeEnv.REACT_APP_SUPABASE_ANON_KEY
 
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Supabase URL과 Anon Key가 설정되지 않았습니다.')
