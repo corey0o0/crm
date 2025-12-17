@@ -25,24 +25,47 @@ if (process.env.NODE_ENV === 'development') {
 // 환경 변수 로드 대기 함수
 const waitForEnv = () => {
   return new Promise((resolve) => {
-    // 이미 로드되어 있으면 즉시 반환
+    // 이미 로드되어 있고 Supabase 값이 있으면 즉시 반환
     if (typeof window !== 'undefined' && window._env_) {
-      console.log('[App Init] 환경 변수 로드됨:', Object.keys(window._env_));
-      resolve();
-      return;
+      const hasSupabase = window._env_.REACT_APP_SUPABASE_URL && window._env_.REACT_APP_SUPABASE_ANON_KEY;
+      if (hasSupabase) {
+        console.log('[App Init] 환경 변수 로드됨:', {
+          keys: Object.keys(window._env_),
+          hasSupabaseUrl: !!window._env_.REACT_APP_SUPABASE_URL,
+          hasSupabaseKey: !!window._env_.REACT_APP_SUPABASE_ANON_KEY
+        });
+        resolve();
+        return;
+      }
     }
     
-    // 최대 5초 대기
+    // 최대 10초 대기 (모바일에서 네트워크가 느릴 수 있음)
     let attempts = 0;
-    const maxAttempts = 50; // 100ms * 50 = 5초
+    const maxAttempts = 100; // 100ms * 100 = 10초
     const checkInterval = setInterval(() => {
       attempts++;
       if (typeof window !== 'undefined' && window._env_) {
-        console.log('[App Init] 환경 변수 로드됨 (대기 후):', Object.keys(window._env_));
-        clearInterval(checkInterval);
-        resolve();
-      } else if (attempts >= maxAttempts) {
-        console.warn('[App Init] 환경 변수 로드 타임아웃, 계속 진행');
+        const hasSupabase = window._env_.REACT_APP_SUPABASE_URL && window._env_.REACT_APP_SUPABASE_ANON_KEY;
+        if (hasSupabase) {
+          console.log('[App Init] 환경 변수 로드됨 (대기 후):', {
+            attempts,
+            keys: Object.keys(window._env_),
+            hasSupabaseUrl: !!window._env_.REACT_APP_SUPABASE_URL,
+            hasSupabaseKey: !!window._env_.REACT_APP_SUPABASE_ANON_KEY
+          });
+          clearInterval(checkInterval);
+          resolve();
+          return;
+        }
+      }
+      
+      if (attempts >= maxAttempts) {
+        console.error('[App Init] 환경 변수 로드 타임아웃', {
+          hasWindow: typeof window !== 'undefined',
+          hasEnv: typeof window !== 'undefined' && !!window._env_,
+          envKeys: typeof window !== 'undefined' && window._env_ ? Object.keys(window._env_) : []
+        });
+        // 타임아웃이어도 계속 진행 (개발 환경에서는 에러 표시)
         clearInterval(checkInterval);
         resolve();
       }

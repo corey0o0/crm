@@ -48,18 +48,47 @@ export const createSupabaseClient = () => {
   });
 };
 
-// 기본 클라이언트 (지연 초기화)
+// 기본 클라이언트 (완전 지연 초기화)
 let _supabaseClient = null;
 
 const getSupabaseClient = () => {
   if (!_supabaseClient) {
-    _supabaseClient = createSupabaseClient();
+    try {
+      _supabaseClient = createSupabaseClient();
+    } catch (error) {
+      console.error('[Supabase Client] 초기화 실패:', error);
+      // 환경 변수가 아직 로드되지 않은 경우, 잠시 후 재시도
+      if (typeof window !== 'undefined' && !window._env_) {
+        console.warn('[Supabase Client] 환경 변수 대기 중...');
+        // 빈 객체를 반환하여 에러 방지 (나중에 재시도)
+        return null;
+      }
+      throw error;
+    }
   }
   return _supabaseClient;
 };
 
-// 기본 클라이언트 export (하위 호환성 유지)
-export const supabase = getSupabaseClient();
+// Proxy를 사용하여 완전한 지연 초기화 구현
+export const supabase = new Proxy({}, {
+  get(target, prop) {
+    const client = getSupabaseClient();
+    if (!client) {
+      // 환경 변수가 아직 로드되지 않은 경우
+      if (prop === 'auth' || prop === 'from') {
+        // 자주 사용되는 메서드에 대해 에러 메시지 반환
+        throw new Error('Supabase 클라이언트가 아직 초기화되지 않았습니다. 환경 변수를 확인해주세요.');
+      }
+      return undefined;
+    }
+    const value = client[prop];
+    // 함수인 경우 this 바인딩 유지
+    if (typeof value === 'function') {
+      return value.bind(client);
+    }
+    return value;
+  }
+});
 
 // 유휴 상태 감지 및 재연결
 let lastActivityTime = Date.now();
