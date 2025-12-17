@@ -10,6 +10,8 @@ import { AuthProvider } from './contexts/AuthContext';
 import theme from './theme';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import { setupStorage } from './lib/setupStorage';
+import DebugPanel from './components/DebugPanel';
+import DebugPanel from './components/DebugPanel';
 
 // 컴포넌트 import
 import Dashboard from './components/Dashboard';
@@ -28,7 +30,6 @@ import SalesStats from './components/Stats/SalesStats';
 import StockList from './components/Stock/StockList';
 import BrandSettings from './components/Settings/BrandSettings';
 import InventoryLogs from './components/Inventory/InventoryLogs';
-import InventoryManagement from './components/Inventory/InventoryManagement';
 // import RoleManagement from './components/Settings/RoleManagement'; // 제거됨 - 이메일 기반으로 대체
 import BackupManager from './components/Backup/BackupManager';
 // import PermissionRoute from './components/Auth/PermissionRoute'; // 제거됨 - 이메일 기반으로 대체
@@ -82,6 +83,7 @@ function App() {
     <AuthProvider>
       <ThemeProvider theme={theme}>
         <CssBaseline />
+        <DebugPanel />
         <Router
           future={{
             v7_startTransition: true,
@@ -174,9 +176,13 @@ function App() {
             <Route path="inventory-logs" element={
                 <InventoryLogs />
             } />
-            <Route path="inventory-management" element={
-                <InventoryManagement />
-            } />
+            <Route
+              path="inventory-management"
+              element={
+                // 입출고 관리 비활성화: 접근 시 대시보드로 리다이렉트
+                <Navigate to="/" replace />
+              }
+            />
             
             {/* 권한 설정 - 제거됨 (이메일 기반으로 대체) */}
             

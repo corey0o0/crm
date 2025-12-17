@@ -25,47 +25,24 @@ if (process.env.NODE_ENV === 'development') {
 // 환경 변수 로드 대기 함수
 const waitForEnv = () => {
   return new Promise((resolve) => {
-    // 이미 로드되어 있고 Supabase 값이 있으면 즉시 반환
+    // 이미 로드되어 있으면 즉시 반환
     if (typeof window !== 'undefined' && window._env_) {
-      const hasSupabase = window._env_.REACT_APP_SUPABASE_URL && window._env_.REACT_APP_SUPABASE_ANON_KEY;
-      if (hasSupabase) {
-        console.log('[App Init] 환경 변수 로드됨:', {
-          keys: Object.keys(window._env_),
-          hasSupabaseUrl: !!window._env_.REACT_APP_SUPABASE_URL,
-          hasSupabaseKey: !!window._env_.REACT_APP_SUPABASE_ANON_KEY
-        });
-        resolve();
-        return;
-      }
+      console.log('[App Init] 환경 변수 로드됨:', Object.keys(window._env_));
+      resolve();
+      return;
     }
     
-    // 최대 10초 대기 (모바일에서 네트워크가 느릴 수 있음)
+    // 최대 5초 대기
     let attempts = 0;
-    const maxAttempts = 100; // 100ms * 100 = 10초
+    const maxAttempts = 50; // 100ms * 50 = 5초
     const checkInterval = setInterval(() => {
       attempts++;
       if (typeof window !== 'undefined' && window._env_) {
-        const hasSupabase = window._env_.REACT_APP_SUPABASE_URL && window._env_.REACT_APP_SUPABASE_ANON_KEY;
-        if (hasSupabase) {
-          console.log('[App Init] 환경 변수 로드됨 (대기 후):', {
-            attempts,
-            keys: Object.keys(window._env_),
-            hasSupabaseUrl: !!window._env_.REACT_APP_SUPABASE_URL,
-            hasSupabaseKey: !!window._env_.REACT_APP_SUPABASE_ANON_KEY
-          });
-          clearInterval(checkInterval);
-          resolve();
-          return;
-        }
-      }
-      
-      if (attempts >= maxAttempts) {
-        console.error('[App Init] 환경 변수 로드 타임아웃', {
-          hasWindow: typeof window !== 'undefined',
-          hasEnv: typeof window !== 'undefined' && !!window._env_,
-          envKeys: typeof window !== 'undefined' && window._env_ ? Object.keys(window._env_) : []
-        });
-        // 타임아웃이어도 계속 진행 (개발 환경에서는 에러 표시)
+        console.log('[App Init] 환경 변수 로드됨 (대기 후):', Object.keys(window._env_));
+        clearInterval(checkInterval);
+        resolve();
+      } else if (attempts >= maxAttempts) {
+        console.warn('[App Init] 환경 변수 로드 타임아웃, 계속 진행');
         clearInterval(checkInterval);
         resolve();
       }
@@ -75,15 +52,54 @@ const waitForEnv = () => {
 
 // 앱 초기화
 const initApp = async () => {
-  await waitForEnv();
-  
-  const root = ReactDOM.createRoot(document.getElementById('root'));
-  root.render(
-    <StyledEngineProvider injectFirst>
-      <CssBaseline />
-      <App />
-    </StyledEngineProvider>
-  );
+  try {
+    await waitForEnv();
+    
+    // 환경 변수 최종 확인
+    if (typeof window !== 'undefined' && window._env_) {
+      const hasSupabase = window._env_.REACT_APP_SUPABASE_URL && window._env_.REACT_APP_SUPABASE_ANON_KEY;
+      if (!hasSupabase) {
+        console.error('[App Init] Supabase 환경 변수가 없습니다:', {
+          hasEnv: !!window._env_,
+          keys: Object.keys(window._env_),
+          hasUrl: !!window._env_.REACT_APP_SUPABASE_URL,
+          hasKey: !!window._env_.REACT_APP_SUPABASE_ANON_KEY
+        });
+      }
+    }
+    
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(
+      <StyledEngineProvider injectFirst>
+        <CssBaseline />
+        <App />
+      </StyledEngineProvider>
+    );
+  } catch (error) {
+    console.error('[App Init] 앱 초기화 실패:', error);
+    
+    // 에러를 화면에 표시
+    const root = document.getElementById('root');
+    if (root) {
+      root.innerHTML = `
+        <div style="padding: 20px; font-family: sans-serif;">
+          <h2 style="color: red;">앱 초기화 실패</h2>
+          <p><strong>에러:</strong> ${error.message}</p>
+          <pre style="background: #f5f5f5; padding: 10px; overflow: auto;">${error.stack || JSON.stringify(error, null, 2)}</pre>
+          <p style="margin-top: 20px;">
+            <strong>환경 변수 상태:</strong><br>
+            window._env_ 존재: ${typeof window !== 'undefined' && !!window._env_}<br>
+            ${typeof window !== 'undefined' && window._env_ 
+              ? `환경 변수 키: ${Object.keys(window._env_).join(', ')}` 
+              : '환경 변수 없음'}
+          </p>
+          <button onclick="window.location.reload()" style="margin-top: 20px; padding: 10px 20px; font-size: 16px;">
+            새로고침
+          </button>
+        </div>
+      `;
+    }
+  }
 };
 
 initApp();
