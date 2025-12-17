@@ -10,7 +10,7 @@
       content="CRM Application"
     />
     <!-- 보안 헤더 -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co https://api.anthropic.com https://api.openai.com https://api.telegram.org; frame-src 'self' https://accounts.google.com; worker-src 'self' blob:;" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://api.openai.com https://api.telegram.org; frame-src 'self' https://accounts.google.com; worker-src 'self' blob:;" />
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
     <meta http-equiv="X-Frame-Options" content="DENY" />
     <meta http-equiv="X-XSS-Protection" content="1; mode=block" />
@@ -34,38 +34,21 @@
     <script>
       // env.js 로드 전에 기본 객체 초기화
       window._env_ = window._env_ || {};
-      console.log('[HTML Init] 환경 변수 객체 초기화');
     </script>
-    <script src="%PUBLIC_URL%/env.js" onerror="console.error('[HTML Init] env.js 로드 실패'); window._env_ = window._env_ || {};"></script>
+    <script src="%PUBLIC_URL%/env.js"></script>
     <script>
       // env.js 로드 후 빌드 시점 환경 변수 병합
-      (function() {
-        console.log('[HTML Init] env.js 로드 후 환경 변수 확인:', {
-          hasEnv: !!window._env_,
-          keys: window._env_ ? Object.keys(window._env_) : [],
-          hasSupabaseUrl: !!(window._env_ && window._env_.REACT_APP_SUPABASE_URL),
-          hasSupabaseKey: !!(window._env_ && window._env_.REACT_APP_SUPABASE_ANON_KEY)
-        });
-        
-        window._env_ = {
-          ...window._env_,
-          REACT_APP_OPENAI_API_ENDPOINT: '%REACT_APP_OPENAI_API_ENDPOINT%' || (window._env_ && window._env_.REACT_APP_OPENAI_API_ENDPOINT) || '',
-          REACT_APP_OPENAI_MODEL: '%REACT_APP_OPENAI_MODEL%' || (window._env_ && window._env_.REACT_APP_OPENAI_MODEL) || 'gpt-4o-mini',
-          REACT_APP_OPENAI_API_KEY: '%REACT_APP_OPENAI_API_KEY%' || (window._env_ && window._env_.REACT_APP_OPENAI_API_KEY) || '',
-          REACT_APP_SUPABASE_URL: '%REACT_APP_SUPABASE_URL%' || (window._env_ && window._env_.REACT_APP_SUPABASE_URL) || '',
-          REACT_APP_SUPABASE_ANON_KEY: '%REACT_APP_SUPABASE_ANON_KEY%' || (window._env_ && window._env_.REACT_APP_SUPABASE_ANON_KEY) || '',
-          REACT_APP_CLAUDE_API_KEY: '%REACT_APP_CLAUDE_API_KEY%' || (window._env_ && window._env_.REACT_APP_CLAUDE_API_KEY) || '',
-          REACT_APP_CLOUDMARSSIVE_API_KEY: '%REACT_APP_CLOUDMARSSIVE_API_KEY%' || (window._env_ && window._env_.REACT_APP_CLOUDMARSSIVE_API_KEY) || '',
-          REACT_APP_GOOGLE_CLIENT_ID: '%REACT_APP_GOOGLE_CLIENT_ID%' || (window._env_ && window._env_.REACT_APP_GOOGLE_CLIENT_ID) || ''
-        };
-        
-        console.log('[HTML Init] 최종 환경 변수:', {
-          keys: Object.keys(window._env_),
-          hasSupabaseUrl: !!window._env_.REACT_APP_SUPABASE_URL,
-          hasSupabaseKey: !!window._env_.REACT_APP_SUPABASE_ANON_KEY,
-          supabaseUrl: window._env_.REACT_APP_SUPABASE_URL ? window._env_.REACT_APP_SUPABASE_URL.substring(0, 30) + '...' : '없음'
-        });
-      })();
+      window._env_ = {
+        ...window._env_,
+        REACT_APP_OPENAI_API_ENDPOINT: '%REACT_APP_OPENAI_API_ENDPOINT%' || window._env_.REACT_APP_OPENAI_API_ENDPOINT,
+        REACT_APP_OPENAI_MODEL: '%REACT_APP_OPENAI_MODEL%' || window._env_.REACT_APP_OPENAI_MODEL,
+        REACT_APP_OPENAI_API_KEY: '%REACT_APP_OPENAI_API_KEY%' || window._env_.REACT_APP_OPENAI_API_KEY,
+        REACT_APP_SUPABASE_URL: '%REACT_APP_SUPABASE_URL%' || window._env_.REACT_APP_SUPABASE_URL,
+        REACT_APP_SUPABASE_ANON_KEY: '%REACT_APP_SUPABASE_ANON_KEY%' || window._env_.REACT_APP_SUPABASE_ANON_KEY,
+        REACT_APP_CLAUDE_API_KEY: '%REACT_APP_CLAUDE_API_KEY%' || window._env_.REACT_APP_CLAUDE_API_KEY,
+        REACT_APP_CLOUDMARSSIVE_API_KEY: '%REACT_APP_CLOUDMARSSIVE_API_KEY%' || window._env_.REACT_APP_CLOUDMARSSIVE_API_KEY,
+        REACT_APP_GOOGLE_CLIENT_ID: '%REACT_APP_GOOGLE_CLIENT_ID%' || window._env_.REACT_APP_GOOGLE_CLIENT_ID
+      };
     </script>
     <!-- Google OAuth 및 API 클라이언트 라이브러리 -->
     <script src="https://accounts.google.com/gsi/client"></script>
