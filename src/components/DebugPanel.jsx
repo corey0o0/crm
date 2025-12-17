@@ -147,28 +147,28 @@ const DebugPanel = () => {
 
   return (
     <>
-      {/* 디버그 버튼 */}
-      <Box
-        sx={{
-          position: 'fixed',
-          bottom: 16,
-          right: 16,
-          zIndex: 10000
-        }}
-      >
-        <IconButton
-          onClick={() => setOpen(!open)}
+      {/* 디버그 버튼 - 에러가 있을 때만 표시 */}
+      {errorCount > 0 && (
+        <Box
           sx={{
-            bgcolor: errorCount > 0 ? 'error.main' : 'primary.main',
-            color: 'white',
-            '&:hover': {
-              bgcolor: errorCount > 0 ? 'error.dark' : 'primary.dark'
-            },
-            boxShadow: 3
+            position: 'fixed',
+            bottom: 16,
+            right: 16,
+            zIndex: 10000
           }}
         >
-          <BugReportIcon />
-          {errorCount > 0 && (
+          <IconButton
+            onClick={() => setOpen(!open)}
+            sx={{
+              bgcolor: 'error.main',
+              color: 'white',
+              '&:hover': {
+                bgcolor: 'error.dark'
+              },
+              boxShadow: 3
+            }}
+          >
+            <BugReportIcon />
             <Chip
               label={errorCount}
               size="small"
@@ -182,9 +182,9 @@ const DebugPanel = () => {
                 fontSize: '0.7rem'
               }}
             />
-          )}
-        </IconButton>
-      </Box>
+          </IconButton>
+        </Box>
+      )}
 
       {/* 디버그 패널 */}
       <Drawer

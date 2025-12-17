@@ -50,6 +50,7 @@ import {
   Backup as BackupIcon,
   CalendarToday as CalendarTodayIcon,
   Close as CloseIcon,
+  Logout as LogoutIcon,
   ShoppingCartOutlined as ShoppingCartOutlinedIcon
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
@@ -280,13 +281,17 @@ function Layout() {
   return (
     <Box sx={{ display: 'flex' }}>
       <AppBarStyled position="fixed" open={open}>
-        <Toolbar>
+        <Toolbar sx={{ 
+          px: { xs: 1, sm: 2 },
+          minHeight: { xs: 56, sm: 64 },
+          gap: { xs: 0.5, sm: 1 }
+        }}>
           <IconButton
             color="inherit"
             aria-label="open drawer"
             onClick={handleDrawerToggle}
             edge="start"
-            sx={{ mr: 2 }}
+            sx={{ mr: { xs: 1, sm: 2 } }}
           >
             <MenuIcon />
           </IconButton>
@@ -297,14 +302,16 @@ function Layout() {
             sx={{ 
               flexGrow: 1, 
               cursor: 'pointer',
-              fontSize: { xs: '0.9rem', sm: '1.25rem' },
+              fontSize: { xs: '0.875rem', sm: '1.25rem' },
+              fontWeight: { xs: 600, sm: 500 },
               wordBreak: 'keep-all',
               overflow: 'hidden',
-              textOverflow: 'ellipsis'
+              textOverflow: 'ellipsis',
+              maxWidth: { xs: '100px', sm: 'none' }
             }}
             onClick={() => navigate('/')}
           >
-            고객관리시스템
+            {isMobile ? 'CRM' : '고객관리시스템'}
           </Typography>
           {/* <NotificationBell /> */} {/* 임시 비활성화 */}
           <Box
@@ -312,12 +319,12 @@ function Layout() {
             sx={{
               display: 'flex',
               alignItems: 'center',
-              gap: 1,
-              mr: 2,
+              gap: { xs: 0.5, sm: 1 },
+              mr: { xs: 0.5, sm: 2 },
               cursor: 'pointer',
               borderRadius: 1,
-              px: 1.5,
-              py: 0.5,
+              px: { xs: 1, sm: 1.5 },
+              py: { xs: 0.5, sm: 0.5 },
               transition: 'all 0.2s ease-in-out',
               '&:hover': {
                 bgcolor: 'rgba(255, 255, 255, 0.1)',
@@ -325,13 +332,13 @@ function Layout() {
               }
             }}
           >
-            <CalendarTodayIcon sx={{ fontSize: '1.1rem', color: 'inherit' }} />
+            <CalendarTodayIcon sx={{ fontSize: { xs: '1rem', sm: '1.1rem' }, color: 'inherit', flexShrink: 0 }} />
             <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0 }}>
               <Typography
                 variant="body2"
                 sx={{
                   color: 'inherit',
-                  fontSize: { xs: '0.85rem', sm: '1rem' },
+                  fontSize: { xs: '0.8rem', sm: '1rem' },
                   fontWeight: 700,
                   lineHeight: 1.2,
                   textAlign: 'center',
@@ -345,7 +352,7 @@ function Layout() {
                 variant="caption"
                 sx={{
                   color: 'inherit',
-                  fontSize: { xs: '0.65rem', sm: '0.75rem' },
+                  fontSize: { xs: '0.7rem', sm: '0.75rem' },
                   fontWeight: 500,
                   opacity: 0.9,
                   lineHeight: 1.2,
@@ -360,7 +367,7 @@ function Layout() {
           </Box>
           
           {/* 연결 상태 아이콘 */}
-          <Box sx={{ ml: 1, display: 'flex', alignItems: 'center' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <Tooltip
               title={
                 <Box sx={{ p: 1 }}>
@@ -404,6 +411,7 @@ function Layout() {
               }}
             >
               <IconButton
+                size={isMobile ? 'small' : 'medium'}
                 sx={{
                   color: isOnline ? 'success.main' : 'error.main',
                   '&:hover': {
@@ -413,12 +421,12 @@ function Layout() {
               >
                 {isOnline ? (
                   <WifiIcon sx={{ 
-                    fontSize: '1.2rem',
+                    fontSize: { xs: '1rem', sm: '1.2rem' },
                     filter: 'drop-shadow(0 0 2px rgba(76, 175, 80, 0.3))'
                   }} />
                 ) : (
                   <WifiOffIcon sx={{ 
-                    fontSize: '1.2rem',
+                    fontSize: { xs: '1rem', sm: '1.2rem' },
                     filter: 'drop-shadow(0 0 2px rgba(244, 67, 54, 0.3))'
                   }} />
                 )}
@@ -426,28 +434,62 @@ function Layout() {
             </Tooltip>
           </Box>
           
-          <Button
-            color="inherit"
-            startIcon={<MessageIcon />}
-            component={Link}
-            href="https://messages.google.com/web/conversations"
-            target="_blank"
-            rel="noopener noreferrer"
-            sx={{ mr: 1 }}
-          >
-            구글 메시지
-          </Button>
-          <Button 
-            color="inherit" 
-            startIcon={<LinkIcon />}
-            onClick={handleOpenEkuraExcel} 
-            sx={{ mr: 1 }}
-          >
-            엑라엑셀
-          </Button>
-          <Button color="inherit" onClick={handleSignOut}>
-            로그아웃
-          </Button>
+          {/* 모바일에서는 아이콘만, 데스크톱에서는 텍스트 포함 */}
+          {isMobile ? (
+            <>
+              <IconButton
+                color="inherit"
+                component={Link}
+                href="https://messages.google.com/web/conversations"
+                target="_blank"
+                rel="noopener noreferrer"
+                size="small"
+                sx={{ mr: 0.5 }}
+              >
+                <MessageIcon />
+              </IconButton>
+              <IconButton 
+                color="inherit" 
+                onClick={handleOpenEkuraExcel}
+                size="small"
+                sx={{ mr: 0.5 }}
+              >
+                <LinkIcon />
+              </IconButton>
+              <IconButton 
+                color="inherit" 
+                onClick={handleSignOut}
+                size="small"
+              >
+                <LogoutIcon />
+              </IconButton>
+            </>
+          ) : (
+            <>
+              <Button
+                color="inherit"
+                startIcon={<MessageIcon />}
+                component={Link}
+                href="https://messages.google.com/web/conversations"
+                target="_blank"
+                rel="noopener noreferrer"
+                sx={{ mr: 1 }}
+              >
+                구글 메시지
+              </Button>
+              <Button 
+                color="inherit" 
+                startIcon={<LinkIcon />}
+                onClick={handleOpenEkuraExcel} 
+                sx={{ mr: 1 }}
+              >
+                엑라엑셀
+              </Button>
+              <Button color="inherit" onClick={handleSignOut}>
+                로그아웃
+              </Button>
+            </>
+          )}
         </Toolbar>
       </AppBarStyled>
       {isMobile ? (
