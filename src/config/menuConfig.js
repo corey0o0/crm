@@ -34,7 +34,7 @@ export const MENU_CONFIG = {
     'shipment',
     'parts',
     'stocks',
-    'inventory_management',
+    // 'inventory_management',  // 입출고 관리 비활성화
     'board'
   ],
   
@@ -123,7 +123,7 @@ export const MENU_KEYS = {
   SHIPMENT: 'shipment',
   PARTS: 'parts',
   STOCKS: 'stocks',
-  INVENTORY: 'inventory_management',
+  // INVENTORY: 'inventory_management', // 입출고 관리 비활성화
   SALES_STATS: 'sales_stats',
   BOARD: 'board',
   BACKUP: 'backup_management'

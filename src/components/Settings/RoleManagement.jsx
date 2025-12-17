@@ -54,7 +54,7 @@ const AVAILABLE_PERMISSIONS = [
   { key: 'shipment', label: '출고 관리' },
   { key: 'parts', label: '파츠 관리' },
   { key: 'stocks', label: '매장 재고 관리' },
-  { key: 'inventory_management', label: '입출고 관리' },
+  // { key: 'inventory_management', label: '입출고 관리' }, // 입출고 관리 비활성화
   { key: 'sales_stats', label: '매출 통계' },
   { key: 'board', label: '게시판' },
   { key: 'role_settings', label: '권한 설정' },
