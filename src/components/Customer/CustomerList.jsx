@@ -33,7 +33,9 @@ import {
   Alert,
   TablePagination,
   DialogActions,
-  DialogContentText
+  DialogContentText,
+  useMediaQuery,
+  useTheme
 } from '@mui/material';
 import ResponsiveTable from '../common/ResponsiveTable';
 import {
@@ -57,6 +59,8 @@ import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../../utils/
 import { handlePhoneInput, normalizePhoneNumber, isValidPhoneNumber } from '../../utils/phoneUtils';
 
 function CustomerList({ refreshTrigger, onRefresh }) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [customers, setCustomers] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [serviceHistory, setServiceHistory] = useState([]);
@@ -703,7 +707,7 @@ function CustomerList({ refreshTrigger, onRefresh }) {
       maxWidth: '1800px', 
       width: 'auto', 
       mx: 'auto',
-      p: 3
+      p: { xs: 1, sm: 3 }
     }}>
       <Box sx={{ mb: 2 }}>
         <TextField
@@ -714,161 +718,339 @@ function CustomerList({ refreshTrigger, onRefresh }) {
           onChange={handleSearchInput}
           onKeyPress={handleKeyPress}
           sx={{ mb: 2 }}
+          size={isMobile ? 'small' : 'medium'}
         />
       </Box>
-      <TableContainer component={Paper}>
-        <Table sx={{ '& .MuiTableCell-root': { fontSize: '1rem' } }}>
-          <TableHead>
-            <TableRow>
-              <TableCell sx={{ fontWeight: 'bold' }}>이름</TableCell>
-              <TableCell sx={{ fontWeight: 'bold' }}>연락처</TableCell>
-              <TableCell sx={{ fontWeight: 'bold' }}>최근 A/S</TableCell>
-              <TableCell sx={{ fontWeight: 'bold' }}>최근 기종명</TableCell>
-              <TableCell sx={{ fontWeight: 'bold' }}>최근 출고</TableCell>
-              <TableCell sx={{ fontWeight: 'bold' }}>건수</TableCell>
-              <TableCell align="center" sx={{ fontWeight: 'bold' }}>관리</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={6} align="center">
-                  <CircularProgress />
-                </TableCell>
-              </TableRow>
-            ) : error ? (
-              <TableRow>
-                <TableCell colSpan={6} align="center">
-                  <Typography color="error">{error}</Typography>
-                </TableCell>
-              </TableRow>
-            ) : filteredCustomers.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} align="center">
-                  검색 결과가 없습니다.
-                </TableCell>
-              </TableRow>
-            ) : (
-              paginatedCustomers.map((customer) => (
-                <TableRow 
+      
+      {isMobile ? (
+        // 모바일: 카드 형태로 표시
+        <Box>
+          {loading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+              <CircularProgress />
+            </Box>
+          ) : error ? (
+            <Box sx={{ p: 2, textAlign: 'center' }}>
+              <Typography color="error">{error}</Typography>
+            </Box>
+          ) : filteredCustomers.length === 0 ? (
+            <Box sx={{ p: 2, textAlign: 'center' }}>
+              <Typography>검색 결과가 없습니다.</Typography>
+            </Box>
+          ) : (
+            <Stack spacing={1.5}>
+              {paginatedCustomers.map((customer) => (
+                <Card
                   key={customer.phone}
                   onClick={() => handleCustomerClick(customer)}
-                  sx={{ 
+                  sx={{
                     cursor: 'pointer',
                     '&:hover': {
-                      backgroundColor: 'rgba(0, 0, 0, 0.04)'
+                      boxShadow: 3
                     }
                   }}
                 >
-                  <TableCell sx={{ fontWeight: 'bold' }}>{customer.name}</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold' }}>{customer.phone}</TableCell>
-                  <TableCell>
-                    <Stack direction="column" spacing={0.5}>
-                      <Typography variant="body2">
-                        {customer.lastServiceDate ? new Date(customer.lastServiceDate).toLocaleDateString() : '-'}
-                      </Typography>
-                      {customer.recentTag && (
-                        <Chip 
-                          label={customer.recentTag}
-                          size="small"
-                          sx={{
-                            height: '20px',
-                            fontSize: '0.75rem',
-                            bgcolor: 'primary.lighter',
-                            color: 'primary.main'
-                          }}
-                        />
-                      )}
+                  <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                    <Stack spacing={1.5}>
+                      {/* 이름과 연락처 */}
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <Box>
+                          <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 0.5 }}>
+                            {customer.name}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {customer.phone}
+                          </Typography>
+                        </Box>
+                        <Stack direction="row" spacing={0.5}>
+                          <Tooltip title="고객정보 수정">
+                            <IconButton 
+                              size="small" 
+                              onClick={(e) => handleEditClick(customer, e)}
+                            >
+                              <PersonIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="A/S 등록">
+                            <IconButton 
+                              size="small" 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleAddService(customer);
+                              }}
+                            >
+                              <BuildIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="출고 등록">
+                            <IconButton 
+                              size="small" 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleAddShipment(customer);
+                              }}
+                            >
+                              <LocalShippingIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Stack>
+                      </Box>
+                      
+                      <Divider />
+                      
+                      {/* 최근 A/S */}
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                          최근 A/S
+                        </Typography>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <Typography variant="body2">
+                            {customer.lastServiceDate ? new Date(customer.lastServiceDate).toLocaleDateString() : '-'}
+                          </Typography>
+                          {customer.recentTag && (
+                            <Chip 
+                              label={customer.recentTag}
+                              size="small"
+                              sx={{
+                                height: '20px',
+                                fontSize: '0.7rem',
+                                bgcolor: 'primary.lighter',
+                                color: 'primary.main'
+                              }}
+                            />
+                          )}
+                        </Stack>
+                      </Box>
+                      
+                      {/* 최근 기종명 */}
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                          최근 기종명
+                        </Typography>
+                        <Typography variant="body2">
+                          {customer.recentModelName || '-'}
+                        </Typography>
+                      </Box>
+                      
+                      {/* 최근 출고 */}
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                          최근 출고
+                        </Typography>
+                        <Typography variant="body2">
+                          {customer.lastShipmentDate ? new Date(customer.lastShipmentDate).toLocaleDateString() : '-'}
+                        </Typography>
+                      </Box>
+                      
+                      {/* 건수 */}
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                          건수
+                        </Typography>
+                        <Stack direction="row" spacing={1}>
+                          <Tooltip title={`A/S 건수: ${customer.serviceCount.XRB + customer.serviceCount.NB || 0}`} arrow>
+                            <Chip
+                              label={
+                                <>
+                                  <span style={{fontWeight:700, fontSize:'0.85rem'}}>A/S</span> <span style={{fontWeight:700, fontSize:'1rem'}}>{customer.serviceCount.XRB + customer.serviceCount.NB || 0}</span>
+                                </>
+                              }
+                              size="small"
+                              sx={{
+                                bgcolor: '#e3f2fd',
+                                color: '#1976d2',
+                                fontWeight: 700,
+                                fontSize: '0.9rem',
+                                borderRadius: '16px',
+                                px: 1.5,
+                                height: 28
+                              }}
+                            />
+                          </Tooltip>
+                          <Tooltip title={`출고 건수: ${customer.shipmentCount || 0}`} arrow>
+                            <Chip
+                              label={
+                                <>
+                                  <span style={{fontWeight:700, fontSize:'0.85rem'}}>출고</span> <span style={{fontWeight:700, fontSize:'1rem'}}>{customer.shipmentCount || 0}</span>
+                                </>
+                              }
+                              size="small"
+                              sx={{
+                                bgcolor: '#e8f5e9',
+                                color: '#388e3c',
+                                fontWeight: 700,
+                                fontSize: '0.9rem',
+                                borderRadius: '16px',
+                                px: 1.5,
+                                height: 28
+                              }}
+                            />
+                          </Tooltip>
+                        </Stack>
+                      </Box>
                     </Stack>
-                  </TableCell>
-                  <TableCell>
-                    {customer.recentModelName || '-'}
-                  </TableCell>
-                  <TableCell>
-                    {customer.lastShipmentDate ? new Date(customer.lastShipmentDate).toLocaleDateString() : '-'}
-                  </TableCell>
-                  <TableCell>
-                    <Stack direction="row" spacing={1}>
-                      <Tooltip title={`A/S 건수: ${customer.serviceCount.XRB + customer.serviceCount.NB || 0}`} arrow>
-                        <Chip
-                          label={
-                            <>
-                              <span style={{fontWeight:700, fontSize:'0.9rem'}}>A/S</span> <span style={{fontWeight:700, fontSize:'1.1rem'}}>{customer.serviceCount.XRB + customer.serviceCount.NB || 0}</span>
-                            </>
-                          }
-                          size="small"
-                          sx={{
-                            bgcolor: '#e3f2fd',
-                            color: '#1976d2',
-                            fontWeight: 700,
-                            fontSize: '1rem',
-                            borderRadius: '16px',
-                            px: 1.5,
-                            height: 28
-                          }}
-                        />
-                      </Tooltip>
-                      <Tooltip title={`출고 건수: ${customer.shipmentCount || 0}`} arrow>
-                        <Chip
-                          label={
-                            <>
-                              <span style={{fontWeight:700, fontSize:'0.9rem'}}>출고</span> <span style={{fontWeight:700, fontSize:'1.1rem'}}>{customer.shipmentCount || 0}</span>
-                            </>
-                          }
-                          size="small"
-                          sx={{
-                            bgcolor: '#e8f5e9',
-                            color: '#388e3c',
-                            fontWeight: 700,
-                            fontSize: '1rem',
-                            borderRadius: '16px',
-                            px: 1.5,
-                            height: 28
-                          }}
-                        />
-                      </Tooltip>
-                    </Stack>
-                  </TableCell>
-                  <TableCell align="center">
-                    <Stack direction="row" spacing={1} justifyContent="center">
-                      <Tooltip title="고객정보 수정">
-                        <IconButton 
-                          size="small" 
-                          onClick={(e) => handleEditClick(customer, e)}
-                        >
-                          <PersonIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="A/S 등록">
-                        <IconButton 
-                          size="small" 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleAddService(customer);
-                          }}
-                        >
-                          <BuildIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="출고 등록">
-                        <IconButton 
-                          size="small" 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleAddShipment(customer);
-                          }}
-                        >
-                          <LocalShippingIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </Stack>
+                  </CardContent>
+                </Card>
+              ))}
+            </Stack>
+          )}
+        </Box>
+      ) : (
+        // 데스크톱: 테이블 형태로 표시
+        <TableContainer component={Paper}>
+          <Table sx={{ '& .MuiTableCell-root': { fontSize: '1rem' } }}>
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 'bold' }}>이름</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>연락처</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>최근 A/S</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>최근 기종명</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>최근 출고</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>건수</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 'bold' }}>관리</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={7} align="center">
+                    <CircularProgress />
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
+              ) : error ? (
+                <TableRow>
+                  <TableCell colSpan={7} align="center">
+                    <Typography color="error">{error}</Typography>
+                  </TableCell>
+                </TableRow>
+              ) : filteredCustomers.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} align="center">
+                    검색 결과가 없습니다.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                paginatedCustomers.map((customer) => (
+                  <TableRow 
+                    key={customer.phone}
+                    onClick={() => handleCustomerClick(customer)}
+                    sx={{ 
+                      cursor: 'pointer',
+                      '&:hover': {
+                        backgroundColor: 'rgba(0, 0, 0, 0.04)'
+                      }
+                    }}
+                  >
+                    <TableCell sx={{ fontWeight: 'bold' }}>{customer.name}</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }}>{customer.phone}</TableCell>
+                    <TableCell>
+                      <Stack direction="column" spacing={0.5}>
+                        <Typography variant="body2">
+                          {customer.lastServiceDate ? new Date(customer.lastServiceDate).toLocaleDateString() : '-'}
+                        </Typography>
+                        {customer.recentTag && (
+                          <Chip 
+                            label={customer.recentTag}
+                            size="small"
+                            sx={{
+                              height: '20px',
+                              fontSize: '0.75rem',
+                              bgcolor: 'primary.lighter',
+                              color: 'primary.main'
+                            }}
+                          />
+                        )}
+                      </Stack>
+                    </TableCell>
+                    <TableCell>
+                      {customer.recentModelName || '-'}
+                    </TableCell>
+                    <TableCell>
+                      {customer.lastShipmentDate ? new Date(customer.lastShipmentDate).toLocaleDateString() : '-'}
+                    </TableCell>
+                    <TableCell>
+                      <Stack direction="row" spacing={1}>
+                        <Tooltip title={`A/S 건수: ${customer.serviceCount.XRB + customer.serviceCount.NB || 0}`} arrow>
+                          <Chip
+                            label={
+                              <>
+                                <span style={{fontWeight:700, fontSize:'0.9rem'}}>A/S</span> <span style={{fontWeight:700, fontSize:'1.1rem'}}>{customer.serviceCount.XRB + customer.serviceCount.NB || 0}</span>
+                              </>
+                            }
+                            size="small"
+                            sx={{
+                              bgcolor: '#e3f2fd',
+                              color: '#1976d2',
+                              fontWeight: 700,
+                              fontSize: '1rem',
+                              borderRadius: '16px',
+                              px: 1.5,
+                              height: 28
+                            }}
+                          />
+                        </Tooltip>
+                        <Tooltip title={`출고 건수: ${customer.shipmentCount || 0}`} arrow>
+                          <Chip
+                            label={
+                              <>
+                                <span style={{fontWeight:700, fontSize:'0.9rem'}}>출고</span> <span style={{fontWeight:700, fontSize:'1.1rem'}}>{customer.shipmentCount || 0}</span>
+                              </>
+                            }
+                            size="small"
+                            sx={{
+                              bgcolor: '#e8f5e9',
+                              color: '#388e3c',
+                              fontWeight: 700,
+                              fontSize: '1rem',
+                              borderRadius: '16px',
+                              px: 1.5,
+                              height: 28
+                            }}
+                          />
+                        </Tooltip>
+                      </Stack>
+                    </TableCell>
+                    <TableCell align="center">
+                      <Stack direction="row" spacing={1} justifyContent="center">
+                        <Tooltip title="고객정보 수정">
+                          <IconButton 
+                            size="small" 
+                            onClick={(e) => handleEditClick(customer, e)}
+                          >
+                            <PersonIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="A/S 등록">
+                          <IconButton 
+                            size="small" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAddService(customer);
+                            }}
+                          >
+                            <BuildIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="출고 등록">
+                          <IconButton 
+                            size="small" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAddShipment(customer);
+                            }}
+                          >
+                            <LocalShippingIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
 
       {/* 페이지네이션 추가 */}
       <TablePagination

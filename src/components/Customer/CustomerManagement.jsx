@@ -28,7 +28,7 @@ function TabPanel(props) {
       {...other}
     >
       {value === index && (
-        <Box sx={{ p: 3 }}>
+        <Box sx={{ p: { xs: 1, sm: 3 } }}>
           {children}
         </Box>
       )}
@@ -88,16 +88,17 @@ function CustomerManagement() {
   };
 
   return (
-    <Paper sx={{ maxWidth: 1200, mx: 'auto' }}>
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', p: 2 }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center">
+    <Paper sx={{ maxWidth: 1200, mx: 'auto', width: '100%' }}>
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', p: { xs: 1, sm: 2 } }}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 1, sm: 0 }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }}>
           <Tabs 
             value={tabValue} 
             onChange={handleChange}
             aria-label="customer management tabs"
+            sx={{ minHeight: { xs: 40, sm: 48 } }}
           >
-            <Tab label="고객 목록" sx={{ fontWeight: 'bold' }} />
-            <Tab label="고객 등록" sx={{ fontWeight: 'bold' }} />
+            <Tab label="고객 목록" sx={{ fontWeight: 'bold', fontSize: { xs: '0.875rem', sm: '1rem' } }} />
+            <Tab label="고객 등록" sx={{ fontWeight: 'bold', fontSize: { xs: '0.875rem', sm: '1rem' } }} />
           </Tabs>
           {tabValue === 0 && (
             <Tooltip title="고객 목록 다운로드">
@@ -105,6 +106,8 @@ function CustomerManagement() {
                 variant="outlined"
                 startIcon={<DownloadIcon />}
                 onClick={handleDownloadExcel}
+                size="small"
+                sx={{ width: { xs: '100%', sm: 'auto' } }}
               >
                 엑셀 다운로드
               </Button>
