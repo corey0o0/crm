@@ -1697,51 +1697,62 @@ function ShipmentList() {
         </Grid>
       </Box>
       
-      <Box sx={{ mb: 2, display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-        {(dateFilter.startDate || dateFilter.endDate) && (
-          <Chip 
-            label={`${dateFilter.startDate || '—'} ~ ${dateFilter.endDate || '—'}`} 
-            size="small" 
-            variant="outlined" 
-            sx={{ mr: 1 }}
+      <Box sx={{ mb: 2 }}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} useFlexGap flexWrap="wrap">
+          {(dateFilter.startDate || dateFilter.endDate) && (
+            <Chip 
+              label={`${dateFilter.startDate || '—'} ~ ${dateFilter.endDate || '—'}`} 
+              size="small" 
+              variant="outlined" 
+              sx={{ alignSelf: { xs: 'flex-start', sm: 'center' } }}
+            />
+          )}
+          <TextField
+            placeholder="고객명, 연락처, 제품명, 출고ID로 검색"
+            variant="outlined"
+            size="small"
+            value={inputValue}
+            onChange={handleSearchInput}
+            onKeyPress={handleKeyPress}
+            sx={{ 
+              flex: { xs: '1 1 100%', sm: '0 1 400px' },
+              width: { xs: '100%', sm: 'auto' },
+              maxWidth: { xs: '100%', sm: 400 },
+              minWidth: { xs: 'auto', sm: 200 }
+            }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+            }}
           />
-        )}
-        <TextField
-          placeholder="고객명, 연락처, 제품명, 출고ID로 검색"
-          variant="outlined"
-          size="small"
-          value={inputValue}
-          onChange={handleSearchInput}
-          onKeyPress={handleKeyPress}
-          sx={{ flex: '0 1 400px', maxWidth: 400, minWidth: 200 }}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon />
-              </InputAdornment>
-            ),
-          }}
-        />
-        <Button 
-          variant="contained" 
-          onClick={executeSearch}
-          size="small"
-        >
-          검색
-        </Button>
-        <Button
-          variant="outlined"
-          onClick={() => {
-            setInputValue('');
-            setSearchTerm('');
-            setStatusFilter('all');
-            setSellerFilter('all');
-            resetDateFilter();
-          }}
-          size="small"
-        >
-          초기화
-        </Button>
+          <Box sx={{ display: 'flex', gap: 1, width: { xs: '100%', sm: 'auto' } }}>
+            <Button 
+              variant="contained" 
+              onClick={executeSearch}
+              size="small"
+              sx={{ flex: { xs: 1, sm: 'none' } }}
+            >
+              검색
+            </Button>
+            <Button
+              variant="outlined"
+              onClick={() => {
+                setInputValue('');
+                setSearchTerm('');
+                setStatusFilter('all');
+                setSellerFilter('all');
+                resetDateFilter();
+              }}
+              size="small"
+              sx={{ flex: { xs: 1, sm: 'none' } }}
+            >
+              초기화
+            </Button>
+          </Box>
+        </Stack>
       </Box>
       
       {/* 오프라인 상태 알림 */}

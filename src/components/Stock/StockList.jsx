@@ -39,14 +39,17 @@ const SearchInput = React.memo(function SearchInput({
     if (e.key === 'Enter') onSearch();
   };
   return (
-    <Box sx={{ display: 'flex', gap: 1 }}>
+    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ width: '100%' }}>
       <TextField
         label="제품명/코드 검색"
         value={searchInput}
         onChange={handleInputChange}
         onKeyPress={handleKeyPress}
         size="small"
-        sx={{ width: 300 }}
+        sx={{ 
+          flex: { xs: '1 1 100%', sm: '1 1 auto' },
+          width: { xs: '100%', sm: 300 }
+        }}
         InputProps={{
           startAdornment: (
             <InputAdornment position="start">
@@ -66,11 +69,15 @@ const SearchInput = React.memo(function SearchInput({
         variant="contained"
         onClick={onSearch}
         disabled={isSearching}
-        sx={{ height: 40, ml: 1 }}
+        sx={{ 
+          height: { xs: 44, sm: 40 },
+          width: { xs: '100%', sm: 'auto' },
+          minWidth: { xs: 'auto', sm: 100 }
+        }}
       >
         {isSearching ? <CircularProgress size={20} /> : '검색'}
       </Button>
-    </Box>
+    </Stack>
   );
 });
 

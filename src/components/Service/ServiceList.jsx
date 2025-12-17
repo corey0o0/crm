@@ -3338,7 +3338,7 @@ function ServiceList() {
 
       {/* 단어 검색 필터 섹션 */}
       <Box sx={{ mb: 2 }}>
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems={{ xs: 'stretch', md: 'center' }} useFlexGap flexWrap="wrap">
           <TextField
             variant="outlined"
             placeholder="고객명, 전화번호, A/S ID로 검색"
@@ -3365,7 +3365,12 @@ function ServiceList() {
                 executeSearch();
               }
             }}
-            sx={{ flex: 1, minWidth: 200, maxWidth: 400 }}
+            sx={{ 
+              flex: { xs: '1 1 100%', md: '1 1 auto' },
+              width: { xs: '100%', md: 'auto' },
+              minWidth: { xs: 'auto', md: 200 },
+              maxWidth: { xs: '100%', md: 400 }
+            }}
             size="small"
             InputProps={{
               endAdornment: inputValue ? (
@@ -3388,7 +3393,12 @@ function ServiceList() {
             placeholder="기종으로 검색"
             value={modelSearchTerm}
             onChange={(e) => setModelSearchTerm(e.target.value)}
-            sx={{ flex: 1, minWidth: 150, maxWidth: 200 }}
+            sx={{ 
+              flex: { xs: '1 1 100%', md: '1 1 auto' },
+              width: { xs: '100%', md: 'auto' },
+              minWidth: { xs: 'auto', md: 150 },
+              maxWidth: { xs: '100%', md: 200 }
+            }}
             size="small"
             label="기종 검색"
             InputProps={{
@@ -3412,7 +3422,12 @@ function ServiceList() {
             placeholder="처리내역으로 검색"
             value={solutionSearchTerm}
             onChange={(e) => setSolutionSearchTerm(e.target.value)}
-            sx={{ flex: 1, minWidth: 150, maxWidth: 200 }}
+            sx={{ 
+              flex: { xs: '1 1 100%', md: '1 1 auto' },
+              width: { xs: '100%', md: 'auto' },
+              minWidth: { xs: 'auto', md: 150 },
+              maxWidth: { xs: '100%', md: 200 }
+            }}
             size="small"
             label="처리내역 검색"
             InputProps={{
@@ -3436,7 +3451,15 @@ function ServiceList() {
             exclusive
             onChange={handleSearchModeChange}
             size="small"
-            sx={{ height: 40 }}
+            sx={{ 
+              height: { xs: 44, md: 40 },
+              width: { xs: '100%', md: 'auto' },
+              '& .MuiToggleButton-root': {
+                flex: { xs: 1, md: 'none' },
+                fontSize: { xs: '0.95rem', md: '0.875rem' },
+                py: { xs: 1.5, md: 0.5 }
+              }
+            }}
           >
             <ToggleButton value="AND">AND</ToggleButton>
             <ToggleButton value="OR">OR</ToggleButton>
@@ -3448,7 +3471,12 @@ function ServiceList() {
             onChange={handleStatusChange}
             disableCloseOnSelect
             size="small"
-            sx={{ minWidth: 140, maxWidth: 180 }}
+            sx={{ 
+              flex: { xs: '1 1 100%', md: 'none' },
+              width: { xs: '100%', md: 'auto' },
+              minWidth: { xs: 'auto', md: 140 },
+              maxWidth: { xs: '100%', md: 180 }
+            }}
             renderInput={(params) => <TextField {...params} label="상태" size="small" />}
             renderTags={(value, getTagProps) =>
               value.map((option, index) => {
@@ -3472,7 +3500,12 @@ function ServiceList() {
             onChange={handleTagChange}
             disableCloseOnSelect
             size="small"
-            sx={{ minWidth: 140, maxWidth: 180 }}
+            sx={{ 
+              flex: { xs: '1 1 100%', md: 'none' },
+              width: { xs: '100%', md: 'auto' },
+              minWidth: { xs: 'auto', md: 140 },
+              maxWidth: { xs: '100%', md: 180 }
+            }}
             noOptionsText={tagOptions.length === 0 ? "태그 단어가 없습니다" : "태그 단어를 선택하거나 입력하세요"}
             renderInput={(params) => (
               <TextField 
@@ -3501,100 +3534,162 @@ function ServiceList() {
 
       {/* 날짜 검색 필터 섹션 */}
       <Box sx={{ mb: 2 }}>
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems={{ xs: 'stretch', md: 'center' }} useFlexGap flexWrap="wrap">
           <TextField
             select
             value={dateFilter.type}
             onChange={(e) => setDateFilter(prev => ({ ...prev, type: e.target.value }))}
-            sx={{ width: 120, minWidth: 100 }}
+            sx={{ 
+              flex: { xs: '1 1 100%', md: 'none' },
+              width: { xs: '100%', md: 120 },
+              minWidth: { xs: 'auto', md: 100 }
+            }}
             size="small"
             label="날짜유형"
           >
             <MenuItem value="reception_date">접수일자</MenuItem>
             <MenuItem value="completion_date">완료일자</MenuItem>
           </TextField>
-          <TextField
-            type="date"
-            value={dateFilter.startDate}
-            onChange={(e) => setDateFilter(prev => ({ ...prev, startDate: e.target.value }))}
-            sx={{ width: 120, minWidth: 100 }}
-            size="small"
-            label="시작일"
-            InputLabelProps={{ shrink: true }}
-            InputProps={{
-              endAdornment: dateFilter.startDate ? (
-                <InputAdornment position="end">
-                  <IconButton
-                    edge="end"
-                    size="small"
-                    aria-label="시작일 초기화"
-                    onClick={() => setDateFilter(prev => ({ ...prev, startDate: '' }))}
-                  >
-                    <CloseIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ) : null
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 1,
+            flex: { xs: '1 1 100%', md: 'none' },
+            width: { xs: '100%', md: 'auto' }
+          }}>
+            <TextField
+              type="date"
+              value={dateFilter.startDate}
+              onChange={(e) => setDateFilter(prev => ({ ...prev, startDate: e.target.value }))}
+              sx={{ 
+                flex: 1,
+                minWidth: { xs: 'auto', md: 100 }
+              }}
+              size="small"
+              label="시작일"
+              InputLabelProps={{ shrink: true }}
+              InputProps={{
+                endAdornment: dateFilter.startDate ? (
+                  <InputAdornment position="end">
+                    <IconButton
+                      edge="end"
+                      size="small"
+                      aria-label="시작일 초기화"
+                      onClick={() => setDateFilter(prev => ({ ...prev, startDate: '' }))}
+                    >
+                      <CloseIcon fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                ) : null
+              }}
+            />
+            <Typography variant="body2" sx={{ flexShrink: 0 }}>~</Typography>
+            <TextField
+              type="date"
+              value={dateFilter.endDate}
+              onChange={(e) => setDateFilter(prev => ({ ...prev, endDate: e.target.value }))}
+              sx={{ 
+                flex: 1,
+                minWidth: { xs: 'auto', md: 100 }
+              }}
+              size="small"
+              label="종료일"
+              InputLabelProps={{ shrink: true }}
+              InputProps={{
+                endAdornment: dateFilter.endDate ? (
+                  <InputAdornment position="end">
+                    <IconButton
+                      edge="end"
+                      size="small"
+                      aria-label="종료일 초기화"
+                      onClick={() => setDateFilter(prev => ({ ...prev, endDate: '' }))}
+                    >
+                      <CloseIcon fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                ) : null
+              }}
+            />
+          </Box>
+          <ButtonGroup 
+            sx={{ 
+              width: { xs: '100%', md: 'auto' },
+              display: 'flex',
+              flexWrap: { xs: 'wrap', md: 'nowrap' },
+              '& .MuiButton-root': {
+                flex: { xs: '1 1 calc(50% - 4px)', md: 'none' },
+                minWidth: { xs: 'calc(50% - 4px)', md: 'auto' },
+                fontSize: { xs: '0.875rem', md: '0.875rem' },
+                py: { xs: 1, md: 0.5 },
+                px: { xs: 1, md: 1.5 }
+              }
             }}
-          />
-          <Typography variant="body2" sx={{ mx: 0.5 }}>~</Typography>
-          <TextField
-            type="date"
-            value={dateFilter.endDate}
-            onChange={(e) => setDateFilter(prev => ({ ...prev, endDate: e.target.value }))}
-            sx={{ width: 120, minWidth: 100 }}
-            size="small"
-            label="종료일"
-            InputLabelProps={{ shrink: true }}
-            InputProps={{
-              endAdornment: dateFilter.endDate ? (
-                <InputAdornment position="end">
-                  <IconButton
-                    edge="end"
-                    size="small"
-                    aria-label="종료일 초기화"
-                    onClick={() => setDateFilter(prev => ({ ...prev, endDate: '' }))}
-                  >
-                    <CloseIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ) : null
-            }}
-          />
-          <ButtonGroup sx={{ ml: 1 }}>
+          >
             <Button onClick={() => handleQuickDate('today')}>오늘</Button>
             <Button onClick={() => handleQuickDate('yesterday')}>어제</Button>
             <Button onClick={() => handleQuickDate('thisWeek')}>이번주</Button>
             <Button onClick={() => handleQuickDate('thisMonth')}>이번달</Button>
             <Button onClick={() => handleQuickDate('lastMonth')}>지난달</Button>
           </ButtonGroup>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={() => {
-              console.log('[ServiceList] 검색 버튼 클릭됨');
-              executeSearch();
-            }}
-            disabled={searchLoading}
-            sx={{ minWidth: 100, height: 40, ml: 2 }}
-            startIcon={searchLoading ? <CircularProgress size={16} color="inherit" /> : null}
-          >
-            {searchLoading ? '검색 중' : '검색 실행'}
-          </Button>
-          <Button
-            variant="outlined"
-            color="secondary"
-            onClick={handleResetAll}
-            sx={{ minWidth: 100, height: 40 }}
-            startIcon={<RestartAltIcon fontSize="small" />}
-          >
-            전체 초기화
-          </Button>
-          <Button variant="outlined" onClick={saveFilterState} sx={{ minWidth: 80, height: 40 }}>
-            필터 저장
-          </Button>
-          <Button variant="outlined" onClick={loadFilterState} sx={{ minWidth: 80, height: 40 }}>
-            필터 불러오기
-          </Button>
+          <Box sx={{ 
+            display: 'flex', 
+            gap: 1,
+            width: { xs: '100%', md: 'auto' },
+            flexWrap: { xs: 'wrap', md: 'nowrap' }
+          }}>
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={() => {
+                console.log('[ServiceList] 검색 버튼 클릭됨');
+                executeSearch();
+              }}
+              disabled={searchLoading}
+              sx={{ 
+                flex: { xs: '1 1 calc(50% - 4px)', md: 'none' },
+                minWidth: { xs: 'calc(50% - 4px)', md: 100 },
+                height: { xs: 44, md: 40 }
+              }}
+              startIcon={searchLoading ? <CircularProgress size={16} color="inherit" /> : null}
+            >
+              {searchLoading ? '검색 중' : '검색 실행'}
+            </Button>
+            <Button
+              variant="outlined"
+              color="secondary"
+              onClick={handleResetAll}
+              sx={{ 
+                flex: { xs: '1 1 calc(50% - 4px)', md: 'none' },
+                minWidth: { xs: 'calc(50% - 4px)', md: 100 },
+                height: { xs: 44, md: 40 }
+              }}
+              startIcon={<RestartAltIcon fontSize="small" />}
+            >
+              전체 초기화
+            </Button>
+            <Button 
+              variant="outlined" 
+              onClick={saveFilterState} 
+              sx={{ 
+                flex: { xs: '1 1 calc(50% - 4px)', md: 'none' },
+                minWidth: { xs: 'calc(50% - 4px)', md: 80 },
+                height: { xs: 44, md: 40 }
+              }}
+            >
+              필터 저장
+            </Button>
+            <Button 
+              variant="outlined" 
+              onClick={loadFilterState} 
+              sx={{ 
+                flex: { xs: '1 1 calc(50% - 4px)', md: 'none' },
+                minWidth: { xs: 'calc(50% - 4px)', md: 80 },
+                height: { xs: 44, md: 40 }
+              }}
+            >
+              필터 불러오기
+            </Button>
+          </Box>
         </Stack>
       </Box>
 

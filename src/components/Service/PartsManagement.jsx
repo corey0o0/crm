@@ -33,7 +33,8 @@ import {
   InputLabel,
   Select,
   CircularProgress,
-  TablePagination
+  TablePagination,
+  Stack
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -247,7 +248,7 @@ const SearchInput = React.memo(function SearchInput({
     if (e.key === 'Enter') onSearch();
   };
   return (
-    <Box sx={{ display: 'flex', gap: 1 }}>
+    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ width: '100%' }}>
       <TextField
         fullWidth
         size="small"
@@ -255,6 +256,7 @@ const SearchInput = React.memo(function SearchInput({
         value={searchInput}
         onChange={handleInputChange}
         onKeyPress={handleKeyPress}
+        sx={{ flex: { xs: '1 1 100%', sm: '1 1 auto' } }}
         InputProps={{
           startAdornment: (
             <InputAdornment position="start">
@@ -274,11 +276,18 @@ const SearchInput = React.memo(function SearchInput({
         variant="contained"
         onClick={onSearch}
         disabled={isSearching}
-        sx={{ minWidth: '100px', height: '40px', px: 3, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        sx={{ 
+          minWidth: { xs: '100%', sm: '100px' },
+          height: { xs: 44, sm: 40 },
+          px: { xs: 2, sm: 3 },
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
       >
         {isSearching ? <CircularProgress size={20} /> : '검색'}
       </Button>
-    </Box>
+    </Stack>
   );
 });
 

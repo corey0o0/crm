@@ -2670,52 +2670,69 @@ function ProductShipment() {
         </Box>
       </Box>
 
-      <Box sx={{ mb: 2, display: 'flex', gap: 2, alignItems: 'center' }}>
-        <TextField
-          variant="outlined"
-          placeholder="제품명, 연락처로 검색"
-          value={inputValue}
-          onChange={handleSearchInput}
-          onKeyPress={handleKeyPress}
-          sx={{ mb: 2, width: '70%' }}
-          InputProps={{
-            endAdornment: (
-              <InputAdornment position="end">
-                <SearchIcon color="action" />
-              </InputAdornment>
-            ),
-          }}
-        />
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button
-            variant="contained"
-            onClick={executeSearch}
-            startIcon={<SearchIcon />}
-            sx={{ 
-              height: '40px',
-              bgcolor: '#3182f6',
-              '&:hover': { bgcolor: '#1b64da' }
-            }}
-          >
-            검색
-          </Button>
-          <Button
+      <Box sx={{ mb: 2 }}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'stretch', sm: 'center' }} useFlexGap flexWrap="wrap">
+          <TextField
             variant="outlined"
-            onClick={() => {
-              setInputValue('');
-              setSearchTerm('');
+            placeholder="제품명, 연락처로 검색"
+            value={inputValue}
+            onChange={handleSearchInput}
+            onKeyPress={handleKeyPress}
+            sx={{ 
+              flex: { xs: '1 1 100%', sm: '0 1 60%' },
+              width: { xs: '100%', sm: 'auto' },
+              minWidth: { xs: 'auto', sm: 200 }
             }}
-            startIcon={<ClearIcon />}
-            sx={{ height: '40px' }}
-          >
-            초기화
-          </Button>
-        </Box>
-        {searchTerm && (
-          <Typography variant="body2" color="textSecondary" sx={{ alignSelf: 'center' }}>
-            검색 결과: {filteredShipments.length}건
-          </Typography>
-        )}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon color="action" />
+                </InputAdornment>
+              ),
+            }}
+          />
+          <Box sx={{ display: 'flex', gap: 1, width: { xs: '100%', sm: 'auto' }, flex: { xs: '1 1 100%', sm: 'none' } }}>
+            <Button
+              variant="contained"
+              onClick={executeSearch}
+              startIcon={<SearchIcon />}
+              sx={{ 
+                flex: { xs: 1, sm: 'none' },
+                height: '40px',
+                bgcolor: '#3182f6',
+                '&:hover': { bgcolor: '#1b64da' }
+              }}
+            >
+              검색
+            </Button>
+            <Button
+              variant="outlined"
+              onClick={() => {
+                setInputValue('');
+                setSearchTerm('');
+              }}
+              startIcon={<ClearIcon />}
+              sx={{ 
+                flex: { xs: 1, sm: 'none' },
+                height: '40px' 
+              }}
+            >
+              초기화
+            </Button>
+          </Box>
+          {searchTerm && (
+            <Typography 
+              variant="body2" 
+              color="textSecondary" 
+              sx={{ 
+                alignSelf: { xs: 'flex-start', sm: 'center' },
+                width: { xs: '100%', sm: 'auto' }
+              }}
+            >
+              검색 결과: {filteredShipments.length}건
+            </Typography>
+          )}
+        </Stack>
       </Box>
 
       <ResponsiveTable
