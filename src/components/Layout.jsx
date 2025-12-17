@@ -46,7 +46,6 @@ import {
   Link as LinkIcon,
   Settings as SettingsIcon,
   History as HistoryIcon,
-  Warehouse as WarehouseIcon,
   MenuBook as MenuBookIcon,
   Backup as BackupIcon,
   CalendarToday as CalendarTodayIcon,
@@ -237,7 +236,6 @@ function Layout() {
     // { text: '주문대기', icon: <ShoppingCartOutlinedIcon />, path: '/pending-orders', key: 'pending_orders' }, // 비활성화됨
     { text: '파츠 관리', icon: <InventoryIcon />, path: '/parts', key: 'parts' },
     { text: '매장 재고 관리', icon: <InventoryIcon />, path: '/stocks', key: 'stocks' },
-    { text: '입출고 관리', icon: <WarehouseIcon />, path: '/inventory-management', key: 'inventory_management' },
     
     // 📊 통계 & 분석
     { text: '매출 통계', icon: <BarChartIcon />, path: '/sales/stats', key: 'sales_stats' },
@@ -298,7 +296,11 @@ function Layout() {
             component="div" 
             sx={{ 
               flexGrow: 1, 
-              cursor: 'pointer'
+              cursor: 'pointer',
+              fontSize: { xs: '0.9rem', sm: '1.25rem' },
+              wordBreak: 'keep-all',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
             }}
             onClick={() => navigate('/')}
           >
@@ -324,15 +326,17 @@ function Layout() {
             }}
           >
             <CalendarTodayIcon sx={{ fontSize: '1.1rem', color: 'inherit' }} />
-            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0 }}>
               <Typography
                 variant="body2"
                 sx={{
                   color: 'inherit',
-                  fontSize: { xs: '0.9rem', sm: '1rem' },
+                  fontSize: { xs: '0.85rem', sm: '1rem' },
                   fontWeight: 700,
-                  lineHeight: 1,
-                  textAlign: 'center'
+                  lineHeight: 1.2,
+                  textAlign: 'center',
+                  wordBreak: 'keep-all',
+                  whiteSpace: 'nowrap'
                 }}
               >
                 {formatDateTimeWithWeekday(currentDateTime).date}
@@ -341,11 +345,13 @@ function Layout() {
                 variant="caption"
                 sx={{
                   color: 'inherit',
-                  fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                  fontSize: { xs: '0.65rem', sm: '0.75rem' },
                   fontWeight: 500,
                   opacity: 0.9,
-                  lineHeight: 1,
-                  textAlign: 'center'
+                  lineHeight: 1.2,
+                  textAlign: 'center',
+                  wordBreak: 'keep-all',
+                  whiteSpace: 'nowrap'
                 }}
               >
                 {formatDateTimeWithWeekday(currentDateTime).weekday} • {formatDateTimeWithWeekday(currentDateTime).time}
@@ -493,7 +499,11 @@ function Layout() {
                 <ListItemText 
                   primary={item.text} 
                   primaryTypographyProps={{
-                    fontWeight: location.pathname === item.path ? 700 : 400
+                    fontWeight: location.pathname === item.path ? 700 : 400,
+                    sx: {
+                      wordBreak: 'keep-all',
+                      whiteSpace: 'normal'
+                    }
                   }}
                 />
               </ListItem>
@@ -549,7 +559,11 @@ function Layout() {
                 <ListItemText 
                   primary={item.text} 
                   primaryTypographyProps={{
-                    fontWeight: location.pathname === item.path ? 700 : 400
+                    fontWeight: location.pathname === item.path ? 700 : 400,
+                    sx: {
+                      wordBreak: 'keep-all',
+                      whiteSpace: 'normal'
+                    }
                   }}
                 />
               </ListItem>

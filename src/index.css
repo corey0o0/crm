@@ -11,3 +11,38 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+/* 모바일 텍스트 처리 - 한글 텍스트가 세로로 나오는 문제 해결 */
+* {
+  word-break: keep-all;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* 한글 텍스트가 포함된 요소들 */
+p, span, div, h1, h2, h3, h4, h5, h6, li, td, th, label, button {
+  word-break: keep-all;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* 긴 URL이나 영문은 break-all 허용 */
+a, code, pre {
+  word-break: break-all;
+}
+
+/* 테이블 셀은 nowrap이 아닌 경우에만 적용 */
+td:not([style*="nowrap"]), th:not([style*="nowrap"]) {
+  word-break: keep-all;
+  white-space: normal;
+}
+
+/* 모바일에서 텍스트가 너무 작게 보이지 않도록 */
+@media (max-width: 600px) {
+  body {
+    -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+}

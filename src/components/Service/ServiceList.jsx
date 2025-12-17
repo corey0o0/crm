@@ -1753,7 +1753,7 @@ function ServiceList() {
         >
           <Typography sx={{ 
             whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
+            wordBreak: 'keep-all',
             maxWidth: '200px',
             display: '-webkit-box',
             WebkitLineClamp: 4,
