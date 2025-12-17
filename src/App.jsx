@@ -11,7 +11,6 @@ import theme from './theme';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import { setupStorage } from './lib/setupStorage';
 import DebugPanel from './components/DebugPanel';
-import DebugPanel from './components/DebugPanel';
 
 // 컴포넌트 import
 import Dashboard from './components/Dashboard';
