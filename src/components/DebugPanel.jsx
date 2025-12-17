@@ -12,7 +12,9 @@ import {
   Button,
   Divider,
   TextField,
-  InputAdornment
+  InputAdornment,
+  useMediaQuery,
+  useTheme
 } from '@mui/material';
 import {
   BugReport as BugReportIcon,
@@ -22,6 +24,8 @@ import {
 } from '@mui/icons-material';
 
 const DebugPanel = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [open, setOpen] = useState(false);
   const [logs, setLogs] = useState([]);
   const [filter, setFilter] = useState('');
@@ -147,8 +151,8 @@ const DebugPanel = () => {
 
   return (
     <>
-      {/* 디버그 버튼 - 에러가 있을 때만 표시 */}
-      {errorCount > 0 && (
+      {/* 디버그 버튼 - 모바일에서만 표시 */}
+      {isMobile && (
         <Box
           sx={{
             position: 'fixed',
@@ -160,28 +164,32 @@ const DebugPanel = () => {
           <IconButton
             onClick={() => setOpen(!open)}
             sx={{
-              bgcolor: 'error.main',
+              bgcolor: errorCount > 0 ? 'error.main' : 'primary.main',
               color: 'white',
+              width: 56,
+              height: 56,
               '&:hover': {
-                bgcolor: 'error.dark'
+                bgcolor: errorCount > 0 ? 'error.dark' : 'primary.dark'
               },
               boxShadow: 3
             }}
           >
             <BugReportIcon />
-            <Chip
-              label={errorCount}
-              size="small"
-              color="error"
-              sx={{
-                position: 'absolute',
-                top: -8,
-                right: -8,
-                height: 20,
-                minWidth: 20,
-                fontSize: '0.7rem'
-              }}
-            />
+            {errorCount > 0 && (
+              <Chip
+                label={errorCount}
+                size="small"
+                color="error"
+                sx={{
+                  position: 'absolute',
+                  top: -8,
+                  right: -8,
+                  height: 20,
+                  minWidth: 20,
+                  fontSize: '0.7rem'
+                }}
+              />
+            )}
           </IconButton>
         </Box>
       )}
