@@ -2,8 +2,16 @@
 // notificationData: { message: "전송할 텍스트 메시지", link?: "관련 URL" }
 // options: { parse_mode, 기타 텔레그램 sendMessage 옵션 }
 export const sendTelegramNotification = async (notificationData, options = {}) => {
-  const botToken = process.env.REACT_APP_TELEGRAM_BOT_TOKEN || '7355852231:AAE4d36OyayXQbhSDPCJydDi0hte0f4R2x0';
-  const chatId = process.env.REACT_APP_TELEGRAM_CHAT_ID || '-4682658690';
+  // window._env_ 우선 사용 (React 앱에서 환경 변수는 window._env_에 저장됨)
+  const botToken = (typeof window !== 'undefined' && window._env_?.REACT_APP_TELEGRAM_BOT_TOKEN) 
+    || process.env.REACT_APP_TELEGRAM_BOT_TOKEN 
+    || '7355852231:AAE4d36OyayXQbhSDPCJydDi0hte0f4R2x0';
+  const chatId = (typeof window !== 'undefined' && window._env_?.REACT_APP_TELEGRAM_CHAT_ID) 
+    || process.env.REACT_APP_TELEGRAM_CHAT_ID 
+    || '-4682658690';
+  const baseUrl = (typeof window !== 'undefined' && window._env_?.REACT_APP_BASE_URL) 
+    || process.env.REACT_APP_BASE_URL 
+    || '';
   const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
 
   let textToSend = notificationData.message; // 기본 메시지
@@ -13,7 +21,7 @@ export const sendTelegramNotification = async (notificationData, options = {}) =
     // 링크 URL 생성 (절대 경로가 아닌 경우, 기본 URL을 앞에 붙여주어야 할 수 있음 - 현재는 그대로 사용)
     // 예: const fullLink = `https://your-app-domain.com${notificationData.link}`;
     // 여기서는 CRM 내부 링크이므로 그대로 사용합니다.
-    textToSend += `\n<a href="${process.env.REACT_APP_BASE_URL || ''}${notificationData.link}">내용 확인하기</a>`;
+    textToSend += `\n<a href="${baseUrl}${notificationData.link}">내용 확인하기</a>`;
   }
 
   const payload = {
