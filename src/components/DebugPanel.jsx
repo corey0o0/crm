@@ -10,22 +10,19 @@ import {
   ListItemText,
   Chip,
   TextField,
-  InputAdornment,
-  useMediaQuery,
-  useTheme
+  InputAdornment
 } from '@mui/material';
 import {
   BugReport as BugReportIcon,
   Close as CloseIcon,
   Clear as ClearIcon,
-  Search as SearchIcon
+  Search as SearchIcon,
+  Error as ErrorIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 
 const DebugPanel = () => {
   const { user } = useAuth();
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [open, setOpen] = useState(false);
   const [logs, setLogs] = useState([]);
   const [filter, setFilter] = useState('');
@@ -71,8 +68,6 @@ const DebugPanel = () => {
 
       if (level === 'error') {
         setErrorCount(prev => prev + 1);
-        // 에러가 있으면 자동으로 패널 열기
-        setOpen(true);
       }
     };
 
@@ -163,48 +158,58 @@ const DebugPanel = () => {
 
   return (
     <>
-      {/* 디버그 버튼 - 모바일에서만 표시 */}
-      {isMobile && (
-        <Box
+      {/* 디버그 버튼 - 오른쪽 사이드에 항상 표시 */}
+      <Box
+        sx={{
+          position: 'fixed',
+          top: '50%',
+          right: 0,
+          transform: 'translateY(-50%)',
+          zIndex: 10000,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center'
+        }}
+      >
+        <IconButton
+          onClick={() => setOpen(!open)}
           sx={{
-            position: 'fixed',
-            bottom: 16,
-            right: 16,
-            zIndex: 10000
+            bgcolor: errorCount > 0 ? 'error.main' : 'primary.main',
+            color: 'white',
+            width: 56,
+            height: 56,
+            borderRadius: '8px 0 0 8px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            '&:hover': {
+              bgcolor: errorCount > 0 ? 'error.dark' : 'primary.dark',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.25)'
+            },
+            position: 'relative'
           }}
         >
-          <IconButton
-            onClick={() => setOpen(!open)}
-            sx={{
-              bgcolor: errorCount > 0 ? 'error.main' : 'primary.main',
-              color: 'white',
-              width: 56,
-              height: 56,
-              '&:hover': {
-                bgcolor: errorCount > 0 ? 'error.dark' : 'primary.dark'
-              },
-              boxShadow: 3
-            }}
-          >
-            <BugReportIcon />
-            {errorCount > 0 && (
-              <Chip
-                label={errorCount}
-                size="small"
-                color="error"
-                sx={{
-                  position: 'absolute',
-                  top: -8,
-                  right: -8,
-                  height: 20,
-                  minWidth: 20,
-                  fontSize: '0.7rem'
-                }}
-              />
-            )}
-          </IconButton>
-        </Box>
-      )}
+          {errorCount > 0 ? (
+            <ErrorIcon sx={{ fontSize: 28 }} />
+          ) : (
+            <BugReportIcon sx={{ fontSize: 28 }} />
+          )}
+          {errorCount > 0 && (
+            <Chip
+              label={errorCount}
+              size="small"
+              color="error"
+              sx={{
+                position: 'absolute',
+                top: -8,
+                right: -8,
+                height: 20,
+                minWidth: 20,
+                fontSize: '0.7rem',
+                fontWeight: 'bold'
+              }}
+            />
+          )}
+        </IconButton>
+      </Box>
 
       {/* 디버그 패널 */}
       <Drawer
