@@ -24,6 +24,7 @@ import ProductShipment from './components/Product/ProductShipment';
 import ReceiptScanner from './components/Receipt/ReceiptScanner';
 import GoogleDriveTest from './components/Test/GoogleDriveTest';
 import SystemHealthCheck from './components/Test/SystemHealthCheck';
+import TelegramTest from './components/Test/TelegramTest';
 import ServiceStats from './components/Stats/ServiceStats';
 import SalesStats from './components/Stats/SalesStats';
 import StockList from './components/Stock/StockList';
@@ -147,6 +148,9 @@ function App() {
             } />
             <Route path="system-health-check" element={
                 <SystemHealthCheck />
+            } />
+            <Route path="telegram-test" element={
+                <TelegramTest />
             } />
             <Route path="service" element={
                 <ServiceList />

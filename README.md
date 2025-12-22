@@ -2,6 +2,18 @@
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
+## 📚 주요 문서
+
+- [Netlify 환경 변수 설정 가이드](./NETLIFY_ENV_VARIABLES.md) - Netlify 배포 시 필요한 모든 환경 변수 목록
+- [텔레그램 봇 토큰 업데이트 가이드](./TELEGRAM_BOT_UPDATE_GUIDE.md) - 텔레그램 봇 토큰 업데이트 방법
+
+## 🔧 환경 변수 관리
+
+**중요**: 모든 환경 변수는 `public/env.js` 파일에서 관리합니다.
+
+- **로컬 개발**: `public/env.js` 파일 수정
+- **Netlify 배포**: [NETLIFY_ENV_VARIABLES.md](./NETLIFY_ENV_VARIABLES.md) 참조
+
 ## 구글 드라이브 연동 설정
 
 AS 디테일에서 파일 업로드 기능을 사용하려면 구글 드라이브 API 설정이 필요합니다.

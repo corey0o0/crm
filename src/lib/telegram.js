@@ -12,6 +12,25 @@ export const sendTelegramNotification = async (notificationData, options = {}) =
   const baseUrl = (typeof window !== 'undefined' && window._env_?.REACT_APP_BASE_URL) 
     || process.env.REACT_APP_BASE_URL 
     || '';
+
+  // 디버깅: 환경 변수 로드 상태 확인
+  const envSource = {
+    hasWindowEnv: typeof window !== 'undefined' && !!window._env_,
+    hasWindowToken: typeof window !== 'undefined' && !!window._env_?.REACT_APP_TELEGRAM_BOT_TOKEN,
+    hasProcessToken: !!process.env.REACT_APP_TELEGRAM_BOT_TOKEN,
+    tokenLength: botToken ? botToken.length : 0,
+    tokenPrefix: botToken ? botToken.substring(0, 10) + '...' : '없음',
+    usingFallback: !(typeof window !== 'undefined' && window._env_?.REACT_APP_TELEGRAM_BOT_TOKEN) && !process.env.REACT_APP_TELEGRAM_BOT_TOKEN
+  };
+  console.log('[텔레그램] 환경 변수 상태:', envSource);
+
+  // 토큰 유효성 검사
+  if (!botToken || botToken.length < 20) {
+    console.error('[텔레그램] 봇 토큰이 유효하지 않습니다:', { botToken: botToken ? '설정됨' : '없음', length: botToken?.length });
+    console.warn('[텔레그램] 알림 전송을 건너뜁니다. 토큰을 설정하면 다시 작동합니다.');
+    return { success: false, error: 'InvalidToken', message: '텔레그램 봇 토큰이 설정되지 않았거나 유효하지 않습니다.' };
+  }
+
   const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
 
   let textToSend = notificationData.message; // 기본 메시지
@@ -52,13 +71,33 @@ export const sendTelegramNotification = async (notificationData, options = {}) =
     if (!response.ok) {
       const responseData = await response.json();
       console.error('텔레그램 API 오류 응답:', responseData);
+      
+      // 401 에러인 경우 상세한 디버깅 정보 제공 및 조용히 실패
+      if (response.status === 401) {
+        const errorInfo = {
+          error: responseData.description || responseData.error_code,
+          tokenSource: envSource,
+          tokenValid: botToken && botToken.length > 20,
+          message: '텔레그램 봇 토큰이 만료되었거나 잘못되었습니다. BotFather에서 새 토큰을 발급받아 env.js에 업데이트하세요.'
+        };
+        console.error('[텔레그램 401 에러]', errorInfo);
+        console.warn('[텔레그램] 알림 전송을 건너뜁니다. 토큰을 업데이트하면 다시 작동합니다.');
+        // 401 에러는 조용히 실패 (앱 크래시 방지)
+        return { success: false, error: 'Unauthorized', message: errorInfo.message };
+      }
+      
+      // 다른 에러는 기존대로 throw
       throw new Error(`Telegram API Error: ${response.status} ${response.statusText} - ${JSON.stringify(responseData)}`);
     }
-    // 성공 시 응답 내용도 로깅 (선택적)
-    // const responseData = await response.json();
-    // console.log('텔레그램 API 성공 응답:', responseData);
+    
+    // 성공 응답 반환
+    const responseData = await response.json();
+    console.log('텔레그램 API 성공 응답:', responseData);
+    return { success: true, data: responseData };
 
   } catch (e) {
     console.error('텔레그램 알림 전송 실패:', e);
+    // 네트워크 에러 등 기타 에러는 조용히 실패
+    return { success: false, error: e.message };
   }
 }; 

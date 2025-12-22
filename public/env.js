@@ -1,3 +1,20 @@
+/**
+ * 환경 변수 단일 소스 파일
+ * 
+ * ⚠️ 중요: 모든 환경 변수는 이 파일에서만 관리합니다.
+ * 
+ * 업데이트 방법:
+ * 1. 이 파일에서 필요한 환경 변수 값 수정
+ * 2. 개발 서버 재시작 (npm start)
+ * 3. 프로덕션 빌드 시: npm run build
+ * 
+ * 텔레그램 봇 토큰 업데이트:
+ * - TELEGRAM_BOT_UPDATE_GUIDE.md 파일 참조
+ * 
+ * 보안 주의:
+ * - 이 파일에는 민감한 정보가 포함되어 있습니다
+ * - Git에 커밋하지 않도록 주의하세요
+ */
 window._env_ = {
   REACT_APP_OPENAI_API_ENDPOINT: 'https://api.openai.com/v1/chat/completions',
   REACT_APP_OPENAI_MODEL: 'gpt-4o-mini',
@@ -9,7 +26,7 @@ window._env_ = {
   REACT_APP_GOOGLE_CLIENT_ID: '958057206007-6u2noksta8rli4009kojoh884n57l7j1.apps.googleusercontent.com',
   REACT_APP_GOOGLE_DRIVE_ROOT_FOLDER_ID: '1bcCscOsNptDJvOVA1qSrbi-m6XU1y4d7',
   REACT_APP_GOOGLE_DRIVE_SUBFOLDER: 'upload_crm',
-  REACT_APP_TELEGRAM_BOT_TOKEN: '7355852231:AAE4d36OyayXQbhSDPCJydDi0hte0f4R2x0',
+  REACT_APP_TELEGRAM_BOT_TOKEN: '1839298452:AAEWeDb5hUwvVcmWi3ueiUrTbajCSgypOeA',
   REACT_APP_TELEGRAM_CHAT_ID: '-4682658690',
   REACT_APP_BASE_URL: 'http://localhost:3000'
 }; 

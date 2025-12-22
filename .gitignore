@@ -20,6 +20,10 @@
 .env.test.local
 .env.production.local
 
+# 환경 변수 파일 (민감한 정보 포함)
+/public/env.js
+/build/env.js
+
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
