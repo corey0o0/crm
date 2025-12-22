@@ -9,8 +9,6 @@ import {
   ListItem,
   ListItemText,
   Chip,
-  Button,
-  Divider,
   TextField,
   InputAdornment,
   useMediaQuery,
@@ -22,8 +20,10 @@ import {
   Clear as ClearIcon,
   Search as SearchIcon
 } from '@mui/icons-material';
+import { useAuth } from '../contexts/AuthContext';
 
 const DebugPanel = () => {
+  const { user } = useAuth();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [open, setOpen] = useState(false);
@@ -31,7 +31,14 @@ const DebugPanel = () => {
   const [filter, setFilter] = useState('');
   const [errorCount, setErrorCount] = useState(0);
 
+  // 마스터 계정만 디버그 패널 표시
+  const isMasterAccount = user?.email === 'master@slimpack.com';
+
   useEffect(() => {
+    // 마스터 계정이 아니면 로그 캡처하지 않음
+    if (!isMasterAccount) {
+      return;
+    }
     // 콘솔 로그 캡처
     const originalLog = console.log;
     const originalError = console.error;
@@ -128,7 +135,12 @@ const DebugPanel = () => {
       window.removeEventListener('error', handleError);
       window.removeEventListener('unhandledrejection', handleUnhandledRejection);
     };
-  }, []);
+  }, [isMasterAccount]);
+
+  // 마스터 계정이 아니면 아무것도 렌더링하지 않음
+  if (!isMasterAccount) {
+    return null;
+  }
 
   const filteredLogs = logs.filter(log => {
     if (!filter) return true;
