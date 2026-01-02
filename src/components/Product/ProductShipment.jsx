@@ -487,7 +487,7 @@ function ProductShipment() {
       const { data, error } = await supabase
         .from('parts')
         .select('*')
-        .eq('brand', selectedBrand)
+        .in('brand', [selectedBrand, 'COMMON']) // 선택된 브랜드 + 공용 파츠 포함
         .order('name');
       
       if (error) throw error;
@@ -1278,7 +1278,10 @@ function ProductShipment() {
 
   const handleOpenPartsDialog = async () => {
     if (parts.length === 0) {
-      const { data, error } = await supabase.from('parts').select('*').eq('brand', selectedBrand);
+      const { data, error } = await supabase
+        .from('parts')
+        .select('*')
+        .in('brand', [selectedBrand, 'COMMON']); // 선택된 브랜드 + 공용 파츠 포함
       if (!error) setParts(data);
     }
     setOpenPartsDialog(true);
@@ -1315,8 +1318,8 @@ function ProductShipment() {
               .from('parts')
               .select('price, note, code, name')
               .eq('code', selectedPart.code)
-              .eq('brand', selectedBrand)
-              .single();
+              .in('brand', [selectedBrand, 'COMMON']) // 선택된 브랜드 + 공용 파츠 포함
+              .maybeSingle(); // 공용 파츠도 조회 가능하도록 maybeSingle 사용
             
             if (!error && data) {
               console.log('파츠 테이블에서 조회한 최신 정보:', data);

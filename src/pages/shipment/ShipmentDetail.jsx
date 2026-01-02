@@ -901,10 +901,11 @@ function ShipmentDetail() {
     // 부품 데이터가 없는 경우에만 로드 (최적화)
     if (availableParts.length === 0) {
       try {
+        const brand = shipmentData?.brand || 'XRB';
         const { data, error } = await supabase
           .from('parts')
           .select('*')
-          .eq('brand', shipmentData?.brand || 'XRB');
+          .in('brand', [brand, 'COMMON']); // 선택된 브랜드 + 공용 파츠 포함
           
         if (!error) {
           setAvailableParts(data || []);

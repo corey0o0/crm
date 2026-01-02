@@ -15,6 +15,8 @@ import { sendTelegramNotification } from '../../lib/telegram';
 import TablePagination from '@mui/material/TablePagination';
 import { useNavigate } from 'react-router-dom';
 import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
+import { getSyncedParts } from '../../utils/partSyncUtils';
+import LinkIcon from '@mui/icons-material/Link';
 
 // 메모이제이션된 옵션 상수
 const BRAND_OPTIONS = ['전체', 'XRB', 'NB'];
@@ -112,10 +114,29 @@ function StockList() {
   const [uploadFile, setUploadFile] = useState(null);
   const [changedItems, setChangedItems] = useState(new Set());
   const [originalStocks, setOriginalStocks] = useState({});
+  const [syncedPartsMap, setSyncedPartsMap] = useState({}); // 연동 파츠 정보
 
   useEffect(() => {
     fetchParts();
   }, [brand]);
+
+  // 연동된 파츠 정보 로드
+  useEffect(() => {
+    const loadSyncedParts = async () => {
+      const map = {};
+      for (const part of parts) {
+        const synced = await getSyncedParts(part.id);
+        if (synced.length > 0) {
+          map[part.id] = synced;
+        }
+      }
+      setSyncedPartsMap(map);
+    };
+    
+    if (parts.length > 0) {
+      loadSyncedParts();
+    }
+  }, [parts]);
 
   const fetchParts = async () => {
     try {
@@ -1275,32 +1296,33 @@ function StockList() {
                     )}
                   <TableCell align="right">{part.price?.toLocaleString()}원</TableCell>
                   <TableCell align="right">
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
-                      <IconButton
-                        size="small"
-                        onClick={() => {
-                          const next = Math.max(0, (part.stock ?? 0) - 1);
-                          handleStockChange(part.id, String(next));
-                        }}
-                        aria-label="decrement"
-                      >
-                        <RemoveIcon fontSize="small" />
-                      </IconButton>
-                      <TextField
-                        type="number"
-                        size="small"
-                        value={part.stock ?? 0}
-                        onChange={e => handleStockChange(part.id, e.target.value)}
-                        sx={{ 
-                          width: 80,
-                          '& input': {
-                            fontWeight: (part.stock > 0) ? 700 : 400,
-                            color: (part.stock === 0) ? 'error.main' : 'inherit',
-                            backgroundColor: changedItems.has(part.id) ? 'rgba(255, 235, 59, 0.3)' : 'inherit'
-                          },
-                          '& .MuiOutlinedInput-root': {
-                            '& fieldset': {
-                              borderColor: changedItems.has(part.id) ? '#ffcc02' : 'inherit',
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
+                        <IconButton
+                          size="small"
+                          onClick={() => {
+                            const next = Math.max(0, (part.stock ?? 0) - 1);
+                            handleStockChange(part.id, String(next));
+                          }}
+                          aria-label="decrement"
+                        >
+                          <RemoveIcon fontSize="small" />
+                        </IconButton>
+                        <TextField
+                          type="number"
+                          size="small"
+                          value={part.stock ?? 0}
+                          onChange={e => handleStockChange(part.id, e.target.value)}
+                          sx={{ 
+                            width: 80,
+                            '& input': {
+                              fontWeight: (part.stock > 0) ? 700 : 400,
+                              color: (part.stock === 0) ? 'error.main' : 'inherit',
+                              backgroundColor: changedItems.has(part.id) ? 'rgba(255, 235, 59, 0.3)' : 'inherit'
+                            },
+                            '& .MuiOutlinedInput-root': {
+                              '& fieldset': {
+                                borderColor: changedItems.has(part.id) ? '#ffcc02' : 'inherit',
                               borderWidth: changedItems.has(part.id) ? '2px' : '1px'
                             }
                           }
@@ -1321,6 +1343,16 @@ function StockList() {
                         <AddIcon fontSize="small" />
                       </IconButton>
                     </Box>
+                    {/* 연동 파츠 정보 표시 */}
+                    {syncedPartsMap[part.id] && syncedPartsMap[part.id].length > 0 && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+                        <LinkIcon fontSize="small" color="primary" sx={{ fontSize: '0.875rem' }} />
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                          연동: {syncedPartsMap[part.id].map(sp => `${sp.part.brand}(${sp.part.stock || 0})`).join(', ')}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
                   </TableCell>
                 </TableRow>
               ))}

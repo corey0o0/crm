@@ -400,7 +400,7 @@ function AddService() {
       const { data, error } = await supabase
         .from('parts')
         .select('*')
-        .eq('brand', selectedBrand)
+        .in('brand', [selectedBrand, 'COMMON']) // 선택된 브랜드 + 공용 파츠 포함
         .order('name');
 
       if (error) throw error;

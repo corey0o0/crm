@@ -956,7 +956,7 @@ function ServiceDetail() {
       const { data, error } = await supabase
         .from('parts')
         .select('*')
-        .eq('brand', formData.brand)
+        .in('brand', [formData.brand, 'COMMON']) // 선택된 브랜드 + 공용 파츠 포함
         .order('name');
       
       if (error) throw error;

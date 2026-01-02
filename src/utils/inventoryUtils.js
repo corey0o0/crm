@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
+import { getSyncedParts } from './partSyncUtils';
 
 /**
  * 브랜드 설정 조회
@@ -58,21 +59,45 @@ export const processInventory = async (parts, brandCode, referenceId, referenceT
         const quantityChange = isRevert ? part.quantity : -part.quantity;
         const newQuantity = Math.max(0, previousQuantity + quantityChange);
 
-        // 재고 업데이트
-        const { error: updateError } = await supabase
-          .from('parts')
-          .update({ 
-            stock: newQuantity,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', part.part_id);
+        // 연동된 파츠 목록 조회
+        const syncedParts = await getSyncedParts(part.part_id);
+        const allPartIds = [part.part_id, ...syncedParts.map(sp => sp.part.id)];
 
-        if (updateError) {
-          errors.push(`부품 ${part.part_name} 재고 업데이트 실패: ${updateError.message}`);
+        // 연동된 모든 파츠의 재고 조회
+        const { data: allPartsData, error: allPartsError } = await supabase
+          .from('parts')
+          .select('id, name, code, stock')
+          .in('id', allPartIds);
+
+        if (allPartsError) {
+          console.warn('연동 파츠 재고 조회 실패:', allPartsError);
+          // 연동 파츠 조회 실패해도 기본 파츠는 처리 계속
+        }
+
+        // 모든 파츠(기본 + 연동)의 재고 업데이트
+        const updatePromises = (allPartsData || [currentStock]).map(p => {
+          const partPreviousQuantity = p.stock || 0;
+          const partNewQuantity = Math.max(0, partPreviousQuantity + quantityChange);
+          
+          return supabase
+            .from('parts')
+            .update({ 
+              stock: partNewQuantity,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', p.id);
+        });
+
+        const updateResults = await Promise.all(updatePromises);
+        const updateErrors = updateResults.filter(r => r.error);
+
+        if (updateErrors.length > 0) {
+          const errorMessages = updateErrors.map(e => e.error.message).join(', ');
+          errors.push(`부품 ${part.part_name} 및 연동 파츠 재고 업데이트 실패: ${errorMessages}`);
           continue;
         }
 
-        // 재고 로그 기록 (외래키 제약조건 문제를 피하기 위해 part_id 제외)
+        // 재고 로그 기록 (기본 파츠만 기록)
         const { error: logError } = await supabase
           .from('inventory_logs')
           .insert({
@@ -87,8 +112,8 @@ export const processInventory = async (parts, brandCode, referenceId, referenceT
             reference_id: referenceId,
             reference_type: referenceType,
             notes: isRevert 
-              ? `${referenceType === 'shipment' ? '출고' : 'A/S'} 상태 되돌림으로 인한 재고 복구`
-              : `${referenceType === 'shipment' ? '출고' : 'A/S'} 완료로 인한 자동 차감`
+              ? `${referenceType === 'shipment' ? '출고' : 'A/S'} 상태 되돌림으로 인한 재고 복구${syncedParts.length > 0 ? ` (연동 파츠 ${syncedParts.length}개 포함)` : ''}`
+              : `${referenceType === 'shipment' ? '출고' : 'A/S'} 완료로 인한 자동 차감${syncedParts.length > 0 ? ` (연동 파츠 ${syncedParts.length}개 포함)` : ''}`
           });
 
         if (logError) {
@@ -103,7 +128,8 @@ export const processInventory = async (parts, brandCode, referenceId, referenceT
           new_quantity: newQuantity,
           changed_quantity: Math.abs(quantityChange),
           change_type: isRevert ? 'restored' : 'deducted',
-          success: true
+          success: true,
+          synced_parts_count: syncedParts.length
         });
 
       } catch (err) {

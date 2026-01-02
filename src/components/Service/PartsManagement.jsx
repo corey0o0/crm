@@ -45,13 +45,16 @@ import {
   Download as DownloadIcon,
   Search as SearchIcon,
   FileCopy as FileCopyIcon,
-  CheckBox as CheckBoxIcon
+  CheckBox as CheckBoxIcon,
+  Link as LinkIcon,
+  LinkOff as LinkOffIcon
 } from '@mui/icons-material';
 import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { supabase } from '../../lib/supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import { sendTelegramNotification } from '../../lib/telegram';
 import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
+import { getSyncedParts, createSyncRelation, deleteSyncRelationById } from '../../utils/partSyncUtils';
 
 // 입력 폼 컴포넌트 분리
 const PartsFormDialog = memo(({ 
@@ -147,7 +150,7 @@ const PartsFormDialog = memo(({
             >
               {brands.map((brand) => (
                 <MenuItem key={brand} value={brand}>
-                  {brand === 'XRB' ? 'X-RIDER' : 'NEARBIKE'}
+                  {brand === 'XRB' ? 'X-RIDER' : brand === 'NB' ? 'NEARBIKE' : '공용'}
                 </MenuItem>
               ))}
             </TextField>
@@ -336,6 +339,12 @@ function PartsManagement() {
   const [selectAll, setSelectAll] = useState(false);
   const [openCopyDialog, setOpenCopyDialog] = useState(false);
   const [copyTargetBrand, setCopyTargetBrand] = useState('');
+  
+  // 연동 관련 상태 추가
+  const [openSyncDialog, setOpenSyncDialog] = useState(false);
+  const [syncTargetPart, setSyncTargetPart] = useState(null);
+  const [syncSearchTerm, setSyncSearchTerm] = useState('');
+  const [syncedPartsMap, setSyncedPartsMap] = useState({}); // partId -> [syncedParts]
 
   // 다음 상품코드 생성기: 같은 브랜드의 기존 코드 중 숫자 접미사를 증가
   const getNextPartCode = useCallback((brandCode, category = '파츠') => {
@@ -343,13 +352,14 @@ function PartsManagement() {
       const brandPrefix = String(brandCode || '').toUpperCase();
       const brandParts = parts.filter(p => p.brand === brandPrefix && typeof p.code === 'string' && (!p.note || ['파츠','기체','공임','기타'].includes(p.note)));
       // 카테고리별 접두사 규칙
+      // 공용 브랜드는 'COMMON' 또는 'COM' 접두사 사용
       const categoryPrefixMap = {
-        '파츠': brandPrefix,
-        '기체': brandPrefix, // 필요 시 별도 접두사로 변경 가능
-        '공임': brandPrefix,
-        '기타': brandPrefix
+        '파츠': brandPrefix === 'COMMON' ? 'COM' : brandPrefix,
+        '기체': brandPrefix === 'COMMON' ? 'COM' : brandPrefix, // 필요 시 별도 접두사로 변경 가능
+        '공임': brandPrefix === 'COMMON' ? 'COM' : brandPrefix,
+        '기타': brandPrefix === 'COMMON' ? 'COM' : brandPrefix
       };
-      const selectedPrefix = categoryPrefixMap[category] || brandPrefix;
+      const selectedPrefix = categoryPrefixMap[category] || (brandPrefix === 'COMMON' ? 'COM' : brandPrefix);
       if (brandParts.length === 0) {
         // 기본 접두사와 시드 번호
         return `${selectedPrefix}-001`;
@@ -371,7 +381,8 @@ function PartsManagement() {
       return `${prefix}-${padded}`;
     } catch (e) {
       const fallback = (category && category.length > 0) ? String(brandCode || 'XRB').toUpperCase() : String(brandCode || 'XRB').toUpperCase();
-      return `${fallback}-001`;
+      const fallbackPrefix = fallback === 'COMMON' ? 'COM' : fallback;
+      return `${fallbackPrefix}-001`;
     }
   }, [parts]);
 
@@ -394,12 +405,30 @@ function PartsManagement() {
     setSearchTerm('');
   }, []);
 
-  const brands = ['XRB', 'NB']; // 브랜드 목록 수정
+  const brands = ['XRB', 'NB', 'COMMON']; // 브랜드 목록 수정 (공용 추가)
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchParts();
   }, []);
+
+  // 연동된 파츠 정보 로드
+  useEffect(() => {
+    const loadSyncedParts = async () => {
+      const map = {};
+      for (const part of parts) {
+        const synced = await getSyncedParts(part.id);
+        if (synced.length > 0) {
+          map[part.id] = synced;
+        }
+      }
+      setSyncedPartsMap(map);
+    };
+    
+    if (parts.length > 0) {
+      loadSyncedParts();
+    }
+  }, [parts]);
 
   const fetchParts = async () => {
     try {
@@ -573,8 +602,8 @@ function PartsManagement() {
       if (!row.brand) rowErrors.push('brand');
       if (!row.name) rowErrors.push('name');
 
-      if (row.brand && !['XRB', 'NB'].includes(String(row.brand).toUpperCase())) {
-        errors.push(`${index + 2}번 행: 브랜드는 XRB 또는 NB만 입력 가능합니다.`);
+      if (row.brand && !['XRB', 'NB', 'COMMON'].includes(String(row.brand).toUpperCase())) {
+        errors.push(`${index + 2}번 행: 브랜드는 XRB, NB 또는 COMMON(공용)만 입력 가능합니다.`);
         return;
       }
 
@@ -803,13 +832,22 @@ function PartsManagement() {
         note: '예시 데이터입니다'
       },
       {
-        brand: 'XRB',
-        code: 'XL-002',
+        brand: 'NB',
+        code: 'NB-001',
         name: '필터',
         supplyPrice: '',  // 빈 값 예시
         price: '0',       // 0 값 예시
         barcode: '',      // 빈 값 예시
         note: ''          // 빈 값 예시
+      },
+      {
+        brand: 'COMMON',
+        code: 'COM-001',
+        name: '공용 파츠 예시',
+        supplyPrice: '50000',
+        price: '75000',
+        barcode: '',
+        note: '파츠'
       }
     ];
 
@@ -1079,6 +1117,75 @@ function PartsManagement() {
     }
   };
 
+  // 연동 다이얼로그 열기
+  const handleOpenSyncDialog = (part) => {
+    setSyncTargetPart(part);
+    setSyncSearchTerm('');
+    setOpenSyncDialog(true);
+  };
+
+  // 연동 다이얼로그 닫기
+  const handleCloseSyncDialog = () => {
+    setOpenSyncDialog(false);
+    setSyncTargetPart(null);
+    setSyncSearchTerm('');
+  };
+
+  // 연동 관계 생성
+  const handleCreateSync = async (targetPartId) => {
+    if (!syncTargetPart) return;
+
+    try {
+      const result = await createSyncRelation(syncTargetPart.id, targetPartId);
+      if (result.success) {
+        showSnackbar('파츠 연동이 완료되었습니다.', 'success');
+        handleCloseSyncDialog();
+        fetchParts(); // 목록 새로고침
+      } else {
+        showSnackbar(result.error || '연동 실패', 'error');
+      }
+    } catch (error) {
+      console.error('연동 생성 중 오류:', error);
+      showSnackbar('연동 생성 중 오류가 발생했습니다.', 'error');
+    }
+  };
+
+  // 연동 관계 삭제
+  const handleDeleteSync = async (relationId, partId) => {
+    if (!window.confirm('연동을 해제하시겠습니까?')) return;
+
+    try {
+      const result = await deleteSyncRelationById(relationId);
+      if (result.success) {
+        showSnackbar('연동이 해제되었습니다.', 'success');
+        fetchParts(); // 목록 새로고침
+      } else {
+        showSnackbar(result.error || '연동 해제 실패', 'error');
+      }
+    } catch (error) {
+      console.error('연동 삭제 중 오류:', error);
+      showSnackbar('연동 삭제 중 오류가 발생했습니다.', 'error');
+    }
+  };
+
+  // 연동할 파츠 검색 필터링
+  const filteredSyncParts = useMemo(() => {
+    if (!syncTargetPart) return [];
+    
+    const searchLower = syncSearchTerm.toLowerCase();
+    return parts.filter(part => {
+      // 자기 자신 제외
+      if (part.id === syncTargetPart.id) return false;
+      // 이미 연동된 파츠 제외
+      const synced = syncedPartsMap[syncTargetPart.id] || [];
+      if (synced.some(sp => sp.part.id === part.id)) return false;
+      // 검색어 필터링
+      if (!syncSearchTerm) return true;
+      return part.name?.toLowerCase().includes(searchLower) ||
+        part.code?.toLowerCase().includes(searchLower);
+    });
+  }, [parts, syncTargetPart, syncSearchTerm, syncedPartsMap]);
+
   return (
     <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
       <Typography variant="h5" sx={{ mb: 3, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -1181,7 +1288,7 @@ function PartsManagement() {
                 <MenuItem value="전체">전체</MenuItem>
                 {brands.map(brand => (
                   <MenuItem key={brand} value={brand}>
-                    {brand === 'XRB' ? 'X-RIDER' : 'NEARBIKE'}
+                    {brand === 'XRB' ? 'X-RIDER' : brand === 'NB' ? 'NEARBIKE' : '공용'}
                   </MenuItem>
           ))}
               </TextField>
@@ -1264,7 +1371,7 @@ function PartsManagement() {
             <Tab 
               key={brand} 
               value={brand} 
-              label={brand === 'XRB' ? 'X-RIDER' : 'NEARBIKE'}
+              label={brand === 'XRB' ? 'X-RIDER' : brand === 'NB' ? 'NEARBIKE' : '공용'}
               sx={{
                 '&.Mui-selected': {
                   fontWeight: 'bold'
@@ -1294,6 +1401,7 @@ function PartsManagement() {
               {renderSortableHeader('price', '판매가', 'right')}
               {renderSortableHeader('stock', '재고', 'right')}
               {renderSortableHeader('note', '구분')}
+              <TableCell>연동</TableCell>
               <TableCell align="right">액션</TableCell>
             </TableRow>
           </TableHead>
@@ -1334,6 +1442,31 @@ function PartsManagement() {
                     {part.note || '-'}
                   </Typography>
                 </TableCell>
+                <TableCell>
+                  {syncedPartsMap[part.id] && syncedPartsMap[part.id].length > 0 ? (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                      {syncedPartsMap[part.id].map((sp, idx) => (
+                        <Box key={sp.relationId} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <LinkIcon fontSize="small" color="primary" />
+                          <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>
+                            {sp.part.brand} {sp.part.code}
+                          </Typography>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDeleteSync(sp.relationId, part.id)}
+                            sx={{ p: 0, ml: 0.5 }}
+                          >
+                            <LinkOffIcon fontSize="small" />
+                          </IconButton>
+                        </Box>
+                      ))}
+                    </Box>
+                  ) : (
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                      없음
+                    </Typography>
+                  )}
+                </TableCell>
                 <TableCell align="right">
                     <IconButton 
                       size="small" 
@@ -1341,6 +1474,19 @@ function PartsManagement() {
                     >
                     <EditIcon />
                     </IconButton>
+                    <Tooltip title="연동 설정">
+                      <IconButton 
+                        size="small" 
+                        onClick={() => handleOpenSyncDialog(part)}
+                        sx={{
+                          color: (syncedPartsMap[part.id] && syncedPartsMap[part.id].length > 0) 
+                            ? 'primary.main' 
+                            : 'action.disabled'
+                        }}
+                      >
+                        <LinkIcon />
+                      </IconButton>
+                    </Tooltip>
                     <IconButton 
                       size="small" 
                     onClick={() => handleDelete(part.id)}
@@ -1431,7 +1577,7 @@ function PartsManagement() {
               >
                 {brands.map(brand => (
                   <MenuItem key={brand} value={brand}>
-                    {brand}
+                    {brand === 'XRB' ? 'X-RIDER' : brand === 'NB' ? 'NEARBIKE' : '공용'}
                   </MenuItem>
                 ))}
               </Select>
@@ -1455,6 +1601,116 @@ function PartsManagement() {
           >
             복사
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 파츠 연동 다이얼로그 */}
+      <Dialog open={openSyncDialog} onClose={handleCloseSyncDialog} maxWidth="md" fullWidth>
+        <DialogTitle>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h6">파츠 연동 설정</Typography>
+            <IconButton onClick={handleCloseSyncDialog}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {syncTargetPart && (
+            <Box>
+              <Typography variant="body1" sx={{ mb: 2 }}>
+                <strong>{syncTargetPart.name}</strong> ({syncTargetPart.code}, {syncTargetPart.brand})
+              </Typography>
+              
+              {/* 현재 연동된 파츠 목록 */}
+              {syncedPartsMap[syncTargetPart.id] && syncedPartsMap[syncTargetPart.id].length > 0 && (
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="subtitle2" sx={{ mb: 1 }}>현재 연동된 파츠:</Typography>
+                  {syncedPartsMap[syncTargetPart.id].map((sp) => (
+                    <Box key={sp.relationId} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, p: 1, bgcolor: 'action.hover', borderRadius: 1 }}>
+                      <LinkIcon color="primary" />
+                      <Typography variant="body2">
+                        {sp.part.name} ({sp.part.code}, {sp.part.brand}) - 재고: {sp.part.stock || 0}
+                      </Typography>
+                      <IconButton
+                        size="small"
+                        onClick={() => handleDeleteSync(sp.relationId, syncTargetPart.id)}
+                        color="error"
+                      >
+                        <LinkOffIcon />
+                      </IconButton>
+                    </Box>
+                  ))}
+                </Box>
+              )}
+
+              {/* 연동할 파츠 검색 */}
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="연동할 파츠 검색 (이름 또는 코드)"
+                value={syncSearchTerm}
+                onChange={(e) => setSyncSearchTerm(e.target.value)}
+                sx={{ mb: 2 }}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon />
+                    </InputAdornment>
+                  )
+                }}
+              />
+
+              {/* 연동 가능한 파츠 목록 */}
+              <TableContainer sx={{ maxHeight: 400 }}>
+                <Table size="small" stickyHeader>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>브랜드</TableCell>
+                      <TableCell>코드</TableCell>
+                      <TableCell>파츠명</TableCell>
+                      <TableCell align="right">재고</TableCell>
+                      <TableCell align="right">액션</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {filteredSyncParts.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} align="center">
+                          {syncSearchTerm ? '검색 결과가 없습니다.' : '연동할 파츠를 검색해주세요.'}
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredSyncParts.map((part) => (
+                        <TableRow key={part.id} hover>
+                          <TableCell>{part.brand}</TableCell>
+                          <TableCell>{part.code}</TableCell>
+                          <TableCell>{part.name}</TableCell>
+                          <TableCell align="right">{part.stock || 0}</TableCell>
+                          <TableCell align="right">
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<LinkIcon />}
+                              onClick={() => handleCreateSync(part.id)}
+                            >
+                              연동
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                * 연동된 파츠들은 재고가 함께 차감됩니다.
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseSyncDialog}>닫기</Button>
         </DialogActions>
       </Dialog>
 

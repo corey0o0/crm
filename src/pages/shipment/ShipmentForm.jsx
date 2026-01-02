@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Box,
@@ -24,21 +25,17 @@ import {
   TableBody,
   TableRow,
   TableCell,
-  Chip,
   InputAdornment,
-  Autocomplete,
-  LinearProgress
+  Chip
 } from '@mui/material';
-import { 
-  ArrowBack as ArrowBackIcon, 
+import {
+  ArrowBack as ArrowBackIcon,
   Save as SaveIcon,
   Add as AddIcon,
   Delete as DeleteIcon,
   Search as SearchIcon,
   Refresh as RefreshIcon,
-  CloudUpload as CloudUploadIcon,
-  Print as PrintIcon,
-  Receipt as ReceiptIcon
+  CloudUpload as CloudUploadIcon
 } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -48,18 +45,15 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ko } from 'date-fns/locale';
 import { format } from 'date-fns';
 import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
-import { debounce } from 'lodash';
 import { sendTelegramNotification } from '../../lib/telegram';
 
-// 부품 카테고리 정의
-const PART_CATEGORIES = ['기체', '파츠', '공임', '기타'];
 
 // 부품 카테고리 자동 결정 함수 (setSelectedCategory 호출 제거, 카테고리 반환)
 const determinePartCategory = (part) => {
   if (!part) return '기타';
-  
+
   let category = '기타';
-  
+
   if (part.note) {
     const note = part.note.toLowerCase();
     if (note.includes('파츠') || note.includes('part') || note.includes('부품')) category = '파츠';
@@ -67,7 +61,7 @@ const determinePartCategory = (part) => {
     else if (note.includes('기타') || note.includes('etc')) category = '기타';
     else if (note.includes('기체') || note.includes('바이크') || note.includes('자전거')) category = '기체';
   }
-  
+
   if ((category === '기타' || !part.note) && part.code) {
     const code = part.code.toUpperCase();
     if (code.startsWith('XRBM-')) category = '기체';
@@ -114,23 +108,20 @@ function ShipmentForm() {
   const [partInputValue, setPartInputValue] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [allParts, setAllParts] = useState([]);
-  const [selectedPart, setSelectedPart] = useState(null);
-  const [partQuantity, setPartQuantity] = useState(1);
-  const [selectedCategory, setSelectedCategory] = useState('기체');
-  
+
   // 엑셀 업로드 관련 상태 추가
   const [excelUploadDialog, setExcelUploadDialog] = useState(false);
   const [uploadedData, setUploadedData] = useState([]);
   const [previewData, setPreviewData] = useState([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
-  
+
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
     severity: 'success'
   });
-  
+
   const navigate = useNavigate();
   const { id } = useParams();
   const isEditMode = !!id;
@@ -149,7 +140,7 @@ function ShipmentForm() {
   // 변경사항 감지 함수
   const checkForChanges = useCallback(() => {
     if (!initialData || isFormSubmitted) return;
-    
+
     const currentData = {
       shipmentData,
       selectedParts: selectedParts.map(part => ({
@@ -161,7 +152,7 @@ function ShipmentForm() {
         totalPrice: part.totalPrice
       }))
     };
-    
+
     const hasChanges = JSON.stringify(currentData) !== JSON.stringify(initialData);
     setHasUnsavedChanges(hasChanges);
   }, [shipmentData, selectedParts, initialData, isFormSubmitted]);
@@ -192,12 +183,12 @@ function ShipmentForm() {
     if (hasUnsavedChanges && !isFormSubmitted) {
       // 현재 페이지를 히스토리에 추가
       window.history.pushState(null, '', window.location.href);
-      
+
       const handlePopState = (event) => {
         if (hasUnsavedChanges && !isFormSubmitted) {
           // 브라우저 뒤로가기 시 확인 다이얼로그 표시
           const confirmLeave = window.confirm('변경사항이 저장되지 않았습니다. 정말 나가시겠습니까?');
-          
+
           if (confirmLeave) {
             // 사용자가 확인하면 실제로 뒤로가기 실행
             setHasUnsavedChanges(false);
@@ -261,18 +252,18 @@ function ShipmentForm() {
   // 메모이제이션된 필터링 함수
   const filteredParts = useMemo(() => {
     setIsSearching(true);
-    
+
     if (!searchTerm) {
       setIsSearching(false);
       return allParts.slice(0, 50); // 검색어 없을 때는 처음 50개만 표시
     }
-    
+
     const searchLower = searchTerm.toLowerCase();
-    const filtered = allParts.filter(part => 
+    const filtered = allParts.filter(part =>
       (part.name && part.name.toLowerCase().includes(searchLower)) ||
       (part.code && part.code.toLowerCase().includes(searchLower))
     ).slice(0, 100); // 최대 100개 결과로 제한
-    
+
     setIsSearching(false);
     return filtered;
   }, [searchTerm, allParts]);
@@ -297,6 +288,7 @@ function ShipmentForm() {
       fetchShipmentData();
     }
     fetchAllParts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const fetchShipmentData = async () => {
@@ -310,7 +302,7 @@ function ShipmentForm() {
         .single();
 
       if (error) throw error;
-      
+
       // 날짜 형식 조정
       const shipmentInfo = {
         ...data,
@@ -318,7 +310,7 @@ function ShipmentForm() {
         shipment_date: data.shipment_date || new Date().toISOString().split('T')[0],
         sales_channel: extractSalesChannel(data.note) || '공홈'
       };
-      
+
       setShipmentData(shipmentInfo);
 
       // 부품 정보 조회
@@ -338,9 +330,9 @@ function ShipmentForm() {
             price: part.price,
             totalPrice: part.total_price || part.price * part.quantity
           }));
-          
+
           setSelectedParts(formattedParts);
-          
+
           // 초기 데이터 설정 (변경사항 감지용)
           setInitialData({
             shipmentData: shipmentInfo,
@@ -396,7 +388,7 @@ function ShipmentForm() {
       const { data, error } = await supabase
         .from('parts')
         .select('*')
-        .eq('brand', shipmentData.brand)
+        .in('brand', [shipmentData.brand, 'COMMON']) // 선택된 브랜드 + 공용 파츠 포함
         .order('name');
 
       if (error) throw error;
@@ -411,13 +403,10 @@ function ShipmentForm() {
   useEffect(() => {
     // 브랜드가 변경되면 부품 목록 다시 가져오기
     fetchAllParts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shipmentData.brand]);
 
-  // 검색어 처리 함수 최적화 (디바운싱 적용)
-  const handlePartInputChange = (e) => {
-    setPartInputValue(e.target.value);
-    setPage(0); // 검색어 변경 시 첫 페이지로 이동
-  };
+
 
   // 엔터키 처리 함수 수정
   const handlePartKeyPress = (e) => {
@@ -437,12 +426,12 @@ function ShipmentForm() {
   // 판매처 정보 추출 함수
   const extractSalesChannel = (note) => {
     if (!note) return null;
-    
+
     const match = note.match(/\[판매처: (.*?)\]/);
     if (match && match[1]) {
       return match[1];
     }
-    
+
     return null;
   };
 
@@ -479,7 +468,7 @@ function ShipmentForm() {
 
     setSelectedParts(prevParts => {
       const existingPartIndex = prevParts.findIndex(p => p.part_code === partToAdd.code && p.part_name === partToAdd.name);
-      
+
       const categoryForNewPart = determinePartCategory(partToAdd);
 
       if (existingPartIndex >= 0) {
@@ -503,7 +492,7 @@ function ShipmentForm() {
 
     setSnackbar({
       open: true,
-      message: `${partToAdd.name} 추가됨 (또는 수량 증가)`,
+      message: `${partToAdd.name} 추가됨(또는 수량 증가)`,
       severity: 'success'
     });
   };
@@ -519,18 +508,18 @@ function ShipmentForm() {
       { field: 'customer_phone', label: '연락처' },
       { field: 'shipment_date', label: '출고일' }
     ];
-    
+
     const missingFields = requiredFields.filter(({ field }) => !shipmentData[field]);
-    
+
     if (missingFields.length > 0) {
       setSnackbar({
         open: true,
-        message: `다음 필수 정보를 입력해주세요: ${missingFields.map(f => f.label).join(', ')}`,
+        message: `다음 필수 정보를 입력해주세요: ${missingFields.map(f => f.label).join(', ')} `,
         severity: 'warning'
       });
       return;
     }
-    
+
     if (selectedParts.length === 0) {
       setSnackbar({
         open: true,
@@ -539,7 +528,7 @@ function ShipmentForm() {
       });
       return;
     }
-    
+
     setSaving(true);
     setIsFormSubmitted(true); // 폼 제출 상태로 변경
     let shipmentId = id;
@@ -551,14 +540,14 @@ function ShipmentForm() {
         if (finalNote.includes('[판매처:')) {
           finalNote = finalNote.replace(/\[판매처: .*?\]/, `[판매처: ${shipmentData.sales_channel}]`);
         } else {
-          finalNote = `[판매처: ${shipmentData.sales_channel}] ${finalNote}`.trim();
+          finalNote = `[판매처: ${shipmentData.sales_channel}] ${finalNote} `.trim();
         }
       }
-      
+
       const totalQuantity = selectedParts.reduce((sum, part) => sum + (parseInt(part.quantity) || 0), 0);
       const totalPrice = selectedParts.reduce((sum, part) => sum + calculateTotal(part), 0);
       const combinedProductName = selectedParts.map(p => p.part_name).join(', ');
-      
+
       const shipmentSaveData = {
         brand: shipmentData.brand,
         order_date: shipmentData.order_date,
@@ -576,22 +565,22 @@ function ShipmentForm() {
         price: totalPrice,
         updated_at: new Date().toISOString()
       };
-      
+
       if (isEditMode) {
         const { error: updateError } = await supabase
           .from('shipments')
           .update(shipmentSaveData)
           .eq('id', id);
-        if (updateError) throw new Error(`출고 정보 업데이트 중 오류: ${updateError.message}`);
+        if (updateError) throw new Error(`출고 정보 업데이트 중 오류: ${updateError.message} `);
       } else {
         const { data: newShipment, error: insertError } = await supabase
           .from('shipments')
           .insert([shipmentSaveData])
           .select();
-        if (insertError) throw new Error(`새 출고 정보 저장 중 오류: ${insertError.message}`);
+        if (insertError) throw new Error(`새 출고 정보 저장 중 오류: ${insertError.message} `);
         shipmentId = newShipment[0].id;
       }
-      
+
       if (!shipmentId) {
         throw new Error('출고 ID를 가져오지 못했습니다.');
       }
@@ -607,7 +596,7 @@ function ShipmentForm() {
           console.warn('기존 부품 정보 삭제 중 오류 (수정 모드): ', deletePartsError.message);
         }
       }
-      
+
       if (selectedParts.length > 0) {
         const partsData = selectedParts.map(part => ({
           shipment_id: shipmentId,
@@ -619,45 +608,45 @@ function ShipmentForm() {
           total_price: part.totalPrice || calculateTotal(part),
           created_at: new Date().toISOString()
         }));
-        
+
         const { error: insertPartsError } = await supabase
           .from('shipment_parts')
           .insert(partsData);
-        if (insertPartsError) throw new Error(`부품 정보 저장 중 오류: ${insertPartsError.message}`);
+        if (insertPartsError) throw new Error(`부품 정보 저장 중 오류: ${insertPartsError.message} `);
       }
-      
+
       // 등록 성공 후 알림 추가
       setSnackbar({
         open: true,
         message: isEditMode ? '출고 정보가 수정되었습니다.' : '출고 정보가 등록되었습니다.',
         severity: 'success'
       });
-      
+
       // 텔레그램 알림 전송 (신규 등록 시에만)
       if (!isEditMode && shipmentId) {
         try {
           await sendTelegramNotification({
-            message: `출고 등록 (ID: ${shipmentId}) - 고객: ${shipmentData.customer_name}, 연락처: ${shipmentData.customer_phone}, 제품: ${combinedProductName}`,
-            link: `/shipment/${shipmentId}`
+            message: `출고 등록(ID: ${shipmentId}) - 고객: ${shipmentData.customer_name}, 연락처: ${shipmentData.customer_phone}, 제품: ${combinedProductName} `,
+            link: `/ shipment / ${shipmentId} `
           });
         } catch (telegramError) {
           console.error('출고 등록 텔레그램 알림 전송 중 오류:', telegramError);
           // 텔레그램 전송 실패는 사용자에게 표시하지 않음 (선택적)
         }
       }
-      
+
       // 변경사항 초기화
       setHasUnsavedChanges(false);
-      
+
       setTimeout(() => {
         navigate('/shipment');
       }, 1500);
-      
+
     } catch (error) {
       console.error('Error in handleSubmit:', error);
       setSnackbar({
         open: true,
-        message: `오류가 발생했습니다: ${error.message}`,
+        message: `오류가 발생했습니다: ${error.message} `,
         severity: 'error'
       });
       setIsFormSubmitted(false); // 오류 발생 시 제출 상태 해제
@@ -715,11 +704,11 @@ function ShipmentForm() {
       // 기존에 분리된 부품이 있는 경우, 각 부품에 대해 파츠 관리에서 가격 정보 업데이트 시도
       if (partsExists) {
         const updatedParts = [];
-        
+
         for (const part of selectedParts) {
           let foundPart = null;
           let updatedPart = { ...part };
-          
+
           // 1. 정확한 이름으로 검색
           const { data: exactMatchParts } = await supabase
             .from('parts')
@@ -727,7 +716,7 @@ function ShipmentForm() {
             .eq('brand', shipment.brand)
             .eq('name', part.part_name)
             .limit(1);
-            
+
           if (exactMatchParts && exactMatchParts.length > 0) {
             foundPart = exactMatchParts[0];
           } else {
@@ -736,29 +725,29 @@ function ShipmentForm() {
               .from('parts')
               .select('*')
               .eq('brand', shipment.brand)
-              .ilike('name', `%${part.part_name}%`)
+              .ilike('name', `% ${part.part_name}% `)
               .limit(1);
-              
+
             if (partialMatchParts && partialMatchParts.length > 0) {
               foundPart = partialMatchParts[0];
             }
           }
-          
+
           // 파츠 관리에서 해당 부품을 찾았다면 가격 업데이트
           if (foundPart) {
             // 가격이 다른 경우에만 업데이트 카운트 증가
             if (foundPart.price !== updatedPart.price) {
               priceUpdated++;
             }
-            
+
             // 파츠 관리의 코드와 가격 적용
             updatedPart.part_code = foundPart.code || updatedPart.part_code;
             updatedPart.price = foundPart.price || 0;
             updatedPart.totalPrice = foundPart.price * (updatedPart.quantity || 1);
-            
+
             // 카테고리 업데이트 로직
             let category = updatedPart.category;
-            
+
             // 노트에서 카테고리 정보 확인
             if (foundPart.note) {
               const note = foundPart.note.toLowerCase();
@@ -772,7 +761,7 @@ function ShipmentForm() {
                 category = '기체';
               }
             }
-            
+
             // 코드에서 카테고리 정보 확인
             if (foundPart.code) {
               const code = foundPart.code.toUpperCase();
@@ -784,22 +773,22 @@ function ShipmentForm() {
                 category = '기체';
               }
             }
-            
+
             updatedPart.category = category;
           }
-          
+
           updatedParts.push(updatedPart);
         }
-        
+
         // 업데이트된 부품 정보 적용
         setSelectedParts(updatedParts);
-        
+
         setSnackbar({
           open: true,
           message: `${priceUpdated}개 제품의 가격 정보가 파츠 관리 기준으로 업데이트되었습니다.`,
           severity: 'success'
         });
-        
+
         setAnalyzing(false);
         return;
       }
@@ -807,25 +796,25 @@ function ShipmentForm() {
       // 기존에 분리된 부품이 없는 경우, 제품명을 기반으로 분석 진행
       // 2. 제품명이 여러 개인지 확인 (쉼표로 구분)
       const productNames = shipment.product_name.split(',').map(name => name.trim()).filter(name => name);
-      
+
       // 제품이 여러 개로 구분된 경우
       if (productNames.length > 1) {
         // 새 부품 정보 배열 생성
         const newParts = [];
         let partsUpdated = 0;
-        
+
         // 각 제품별로 처리
         for (let i = 0; i < productNames.length; i++) {
           const productName = productNames[i];
-          
+
           // 카테고리 기본값
           let category = '기체';
           let price = 0;
           let partCode = '';
-          
+
           // 파츠 관리 시스템에서 매칭되는 제품 검색 - 이름이 정확히 일치하는 항목 우선
           let partFromDB = null;
-          
+
           // 1. 정확한 이름으로 검색 (정확히 일치하는 제품 먼저 찾기)
           const { data: exactMatchParts } = await supabase
             .from('parts')
@@ -833,7 +822,7 @@ function ShipmentForm() {
             .eq('brand', shipment.brand)
             .eq('name', productName)
             .limit(1);
-            
+
           if (exactMatchParts && exactMatchParts.length > 0) {
             partFromDB = exactMatchParts[0];
           } else {
@@ -842,14 +831,14 @@ function ShipmentForm() {
               .from('parts')
               .select('*')
               .eq('brand', shipment.brand)
-              .ilike('name', `%${productName}%`)
+              .ilike('name', `% ${productName}% `)
               .limit(1);
-              
+
             if (partialMatchParts && partialMatchParts.length > 0) {
               partFromDB = partialMatchParts[0];
             }
           }
-            
+
           if (partFromDB) {
             // 파츠 관리에 설정된 구분 확인
             if (partFromDB.note) {
@@ -864,7 +853,7 @@ function ShipmentForm() {
                 category = '기체';
               }
             }
-            
+
             // 파츠 관리 시스템에서 코드 패턴으로 카테고리 추정
             if (partFromDB.code) {
               const code = partFromDB.code.toUpperCase();
@@ -876,7 +865,7 @@ function ShipmentForm() {
                 category = '기체';
               }
             }
-            
+
             // 파츠 관리의 가격 사용 (중요: 항상 파츠 관리의 가격 우선 적용)
             price = partFromDB.price || 0;
             partCode = partFromDB.code || '';
@@ -887,7 +876,7 @@ function ShipmentForm() {
             price = shipment.price ? Math.round(shipment.price / productNames.length) : 0;
             partCode = '';
           }
-          
+
           // 새 부품 정보 생성
           newParts.push({
             id: Date.now() + i, // 임시 ID (각각 고유하게)
@@ -899,13 +888,13 @@ function ShipmentForm() {
             totalPrice: price
           });
         }
-        
+
         // 부품 정보 업데이트
         setSelectedParts(newParts);
-        
+
         setSnackbar({
           open: true,
-          message: `${newParts.length}개의 제품으로 분리하여 분석했습니다. ${partsUpdated}개의 제품 가격과 구분이 파츠 관리 기준으로 업데이트되었습니다.`,
+          message: `${newParts.length}개의 제품으로 분리하여 분석했습니다.${partsUpdated}개의 제품 가격과 구분이 파츠 관리 기준으로 업데이트되었습니다.`,
           severity: 'success'
         });
       } else {
@@ -915,7 +904,7 @@ function ShipmentForm() {
         let price = 0; // 기본 가격은 0으로 설정
         let partCode = shipment.product_code || '';
         let updatedFromDB = false;
-        
+
         if (shipment.product_code) {
           const code = shipment.product_code.toUpperCase();
           if (code.startsWith('XRBP-') || code.startsWith('NBP-') || code.includes('PART')) {
@@ -927,7 +916,7 @@ function ShipmentForm() {
 
         // 3. 파츠 관리 시스템에서 매칭되는 제품 검색 - 이름이 정확히 일치하는 항목 우선
         let partFromDB = null;
-        
+
         // 1. 정확한 이름으로 검색 (정확히 일치하는 제품 먼저 찾기)
         const { data: exactMatchParts } = await supabase
           .from('parts')
@@ -935,7 +924,7 @@ function ShipmentForm() {
           .eq('brand', shipment.brand)
           .eq('name', shipment.product_name)
           .limit(1);
-          
+
         if (exactMatchParts && exactMatchParts.length > 0) {
           partFromDB = exactMatchParts[0];
         } else {
@@ -944,9 +933,9 @@ function ShipmentForm() {
             .from('parts')
             .select('*')
             .eq('brand', shipment.brand)
-            .ilike('name', `%${shipment.product_name}%`)
+            .ilike('name', `% ${shipment.product_name}% `)
             .limit(1);
-            
+
           if (partialMatchParts && partialMatchParts.length > 0) {
             partFromDB = partialMatchParts[0];
           }
@@ -965,7 +954,7 @@ function ShipmentForm() {
               category = '기체';
             }
           }
-          
+
           // 파츠 관리의 코드와 가격 사용 (중요: 항상 파츠 관리의 가격 우선 적용)
           partCode = partFromDB.code || partCode;
           price = partFromDB.price || 0;
@@ -991,8 +980,8 @@ function ShipmentForm() {
 
         setSnackbar({
           open: true,
-          message: updatedFromDB 
-            ? '제품 정보가 파츠 관리 기준으로 업데이트되었습니다.' 
+          message: updatedFromDB
+            ? '제품 정보가 파츠 관리 기준으로 업데이트되었습니다.'
             : '제품 정보가 성공적으로 분석되었습니다.',
           severity: 'success'
         });
@@ -1052,7 +1041,7 @@ function ShipmentForm() {
       const jsonData = await readExcelFile(file);
 
       setUploadProgress(50);
-      
+
       if (jsonData.length === 0) {
         setSnackbar({
           open: true,
@@ -1065,10 +1054,10 @@ function ShipmentForm() {
 
       // 프리뷰 데이터 생성 (최대 5개 항목)
       setPreviewData(jsonData.slice(0, 5));
-      
+
       // 전체 데이터 저장
       setUploadedData(jsonData);
-      
+
       setUploadProgress(100);
       setExcelUploadDialog(true);
       setIsUploading(false);
@@ -1081,7 +1070,7 @@ function ShipmentForm() {
       });
       setIsUploading(false);
     }
-    
+
     // 파일 input 초기화
     event.target.value = '';
   };
@@ -1089,13 +1078,13 @@ function ShipmentForm() {
   // 엑셀 데이터를 부품 목록으로 변환
   const handleProcessExcelData = () => {
     if (uploadedData.length === 0) return;
-    
+
     try {
       // 엑셀 데이터를 부품 목록으로 변환
       const newParts = uploadedData.map((item, index) => {
         // 카테고리 결정
         const category = item['카테고리'] || determineCategoryForExcel(item['제품코드'], item['제품명'], item['가격']);
-        
+
         return {
           id: Date.now() + index, // 임시 ID
           part_name: item['제품명'],
@@ -1106,22 +1095,22 @@ function ShipmentForm() {
           totalPrice: (parseFloat(item['가격']) || 0) * (parseInt(item['수량']) || 1)
         };
       });
-      
+
       // 고객 정보 설정 (첫 항목 기준)
       if (uploadedData.length > 0 && !isEditMode) {
         const firstItem = uploadedData[0];
-        
+
         // 판매처 정보를 메모에 포함
         let finalNote = shipmentData.note || '';
         const salesChannel = firstItem['판매처'] || '공홈';
-        
+
         // 메모 설정
         if (firstItem['메모']) {
-          finalNote = `[판매처: ${salesChannel}] ${firstItem['메모']}`;
+          finalNote = `[판매처: ${salesChannel}] ${firstItem['메모']} `;
         } else {
           finalNote = `[판매처: ${salesChannel}]`;
         }
-        
+
         setShipmentData(prev => ({
           ...prev,
           customer_name: firstItem['고객명'] || '',
@@ -1134,16 +1123,16 @@ function ShipmentForm() {
           sales_channel: salesChannel
         }));
       }
-      
+
       // 기존 부품 목록에 새 부품 추가
       setSelectedParts(prev => [...prev, ...newParts]);
-      
+
       setSnackbar({
         open: true,
         message: `${newParts.length}개 제품이 추가되었습니다.`,
         severity: 'success'
       });
-      
+
     } catch (error) {
       console.error('엑셀 데이터 처리 중 오류:', error);
       setSnackbar({
@@ -1251,147 +1240,6 @@ function ShipmentForm() {
     return determinePartCategory({ code, name, price, note: null }); // note는 없다고 가정
   };
 
-  // 견적서 출력 함수 (이미지 양식 참고)
-  const handlePrintEstimate = () => {
-    const today = new Date();
-    const estimateTotal = selectedParts.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 1), 0);
-    const taxTotal = Math.round(estimateTotal * 0.1);
-    const totalInKorean = '영'; // 숫자 한글 변환 함수 필요시 추가
-    const printHtml = `
-      <html>
-        <head>
-          <title>견적서</title>
-          <style>
-            body { font-family: 'Noto Sans KR', Arial, sans-serif; margin: 0; padding: 40px; }
-            .title { font-size: 2.2rem; font-weight: bold; margin-bottom: 24px; }
-            .info-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
-            .info-table td { padding: 6px 10px; font-size: 1rem; border: none; }
-            .info-table .label { font-weight: 500; width: 110px; }
-            .info-table .value { font-weight: 400; }
-            .info-table .section { font-weight: 500; width: 80px; }
-            .info-table .right { text-align: right; }
-            .info-table .bold { font-weight: bold; }
-            .info-table .border-b { border-bottom: 1.5px solid #222; }
-            .estimate-box {
-              border: 2.5px solid #111;
-              margin: 18px 0 12px 0;
-              padding: 12px 0;
-              display: flex;
-              align-items: center;
-              font-size: 1.1rem;
-              font-weight: 500;
-            }
-            .estimate-box > div { flex: 1; text-align: center; }
-            .estimate-box .label { font-weight: bold; font-size: 1.1rem; }
-            .estimate-box .amount { font-size: 1.2rem; font-weight: bold; }
-            .estimate-box .note { font-size: 1rem; text-align: right; }
-            .estimate-table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-top: 0;
-              font-size: 1rem;
-            }
-            .estimate-table th, .estimate-table td {
-              border: 1.5px solid #222;
-              padding: 8px 6px;
-              text-align: center;
-            }
-            .estimate-table th {
-              background: #f8f9fa;
-              font-weight: 500;
-            }
-            .estimate-table .empty-row td { height: 32px; }
-            .estimate-table .total-row { font-weight: bold; background: #f8f9fa; }
-            .validity { margin-top: 18px; font-size: 1rem; color: #444; }
-          </style>
-        </head>
-        <body>
-          <div class="title">견적서</div>
-          <table class="info-table">
-            <tr>
-              <td class="label">수&nbsp;&nbsp;&nbsp;&nbsp;신</td>
-              <td class="value">${shipmentData.customer_name || ''}</td>
-              <td class="label">상&nbsp;&nbsp;&nbsp;&nbsp;호</td>
-              <td class="value">(주)슬림팩</td>
-              <td class="label">대표</td>
-              <td class="value"> </td>
-            </tr>
-            <tr>
-              <td class="label">견적명</td>
-              <td class="value">${shipmentData.product_name || ''} 출고</td>
-              <td class="label">사업자번호</td>
-              <td class="value">230-81-03757</td>
-              <td class="label">전화번호</td>
-              <td class="value">02-548-8890</td>
-            </tr>
-            <tr>
-              <td class="label">견적날짜</td>
-              <td class="value">${today.getFullYear()}년 ${String(today.getMonth()+1).padStart(2,'0')}월 ${String(today.getDate()).padStart(2,'0')}일</td>
-              <td class="label">주소</td>
-              <td class="value" colspan="3">서울시 강남구 도산대로55길 18 1층</td>
-            </tr>
-            <tr>
-              <td class="label">유효기간</td>
-              <td class="value">견적일로부터 1개월</td>
-              <td class="label">E-mail</td>
-              <td class="value" colspan="3"></td>
-            </tr>
-          </table>
-          <div class="estimate-box">
-            <div class="label">견적금액</div>
-            <div>일금&nbsp;${totalInKorean}</div>
-            <div class="amount">( ￦${estimateTotal.toLocaleString()} )</div>
-            <div class="note">※ 부가세포함</div>
-          </div>
-          <table class="estimate-table">
-            <thead>
-              <tr>
-                <th>항목</th>
-                <th>세부내용</th>
-                <th>수량</th>
-                <th>단가</th>
-                <th>금액</th>
-                <th>세액</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${selectedParts.map((part, idx) => {
-                const amount = (part.price || 0) * (part.quantity || 1);
-                const tax = Math.round(amount * 0.1);
-                return `
-                  <tr>
-                    <td>${idx + 1}</td>
-                    <td>${part.part_name}</td>
-                    <td>${part.quantity}</td>
-                    <td>${(part.price || 0).toLocaleString()}</td>
-                    <td>${amount.toLocaleString()}</td>
-                    <td>${tax.toLocaleString()}</td>
-                  </tr>
-                `;
-              }).join('')}
-              ${Array.from({length: Math.max(5 - selectedParts.length, 0)}).map(() => `
-                <tr class="empty-row">
-                  <td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td>
-                </tr>
-              `).join('')}
-              <tr class="total-row">
-                <td colspan="4">합계</td>
-                <td>${estimateTotal.toLocaleString()}</td>
-                <td>${taxTotal.toLocaleString()}</td>
-              </tr>
-            </tbody>
-          </table>
-          <div class="validity">※ 본 견적서의 유효기간은 견적일로부터 1개월입니다.</div>
-        </body>
-      </html>
-    `;
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(printHtml);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
-    printWindow.close();
-  };
 
   if (loading) {
     return (
@@ -1416,15 +1264,15 @@ function ShipmentForm() {
         </Button>
         {hasTempData && (
           <>
-            <Button 
-              variant="outlined" 
+            <Button
+              variant="outlined"
               onClick={loadTempData}
               sx={{ ml: 2, minWidth: 150 }}
             >
               임시 데이터 불러오기
             </Button>
-            <Button 
-              variant="outlined" 
+            <Button
+              variant="outlined"
               color="error"
               onClick={clearTempData}
               sx={{ ml: 1, minWidth: 120 }}
@@ -1440,9 +1288,9 @@ function ShipmentForm() {
         </Typography>
         <Box>
           {isEditMode ? (
-            <Button 
-              variant="contained" 
-              startIcon={<SaveIcon />} 
+            <Button
+              variant="contained"
+              startIcon={<SaveIcon />}
               onClick={handleSubmit}
               disabled={saving || analyzing}
             >
@@ -1473,9 +1321,9 @@ function ShipmentForm() {
                   onChange={handleFileUpload}
                 />
               </Button>
-              <Button 
-                variant="contained" 
-                startIcon={<SaveIcon />} 
+              <Button
+                variant="contained"
+                startIcon={<SaveIcon />}
                 onClick={handleSubmit}
                 disabled={saving || analyzing}
               >
@@ -1485,7 +1333,7 @@ function ShipmentForm() {
           )}
         </Box>
       </Box>
-      
+
       <Paper sx={{ p: 3, mb: 3 }}>
         <Typography variant="h6" gutterBottom>기본 정보</Typography>
         <Grid container spacing={2}>
@@ -1503,7 +1351,7 @@ function ShipmentForm() {
               </Select>
             </FormControl>
           </Grid>
-          
+
           <Grid item xs={12} md={4}>
             <TextField
               fullWidth
@@ -1514,7 +1362,7 @@ function ShipmentForm() {
               required
             />
           </Grid>
-          
+
           <Grid item xs={12} md={4}>
             <TextField
               fullWidth
@@ -1525,7 +1373,7 @@ function ShipmentForm() {
               required
             />
           </Grid>
-          
+
           <Grid item xs={12}>
             <TextField
               fullWidth
@@ -1537,7 +1385,7 @@ function ShipmentForm() {
               rows={2}
             />
           </Grid>
-          
+
           <Grid item xs={12} md={4}>
             <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
               <DatePicker
@@ -1552,7 +1400,7 @@ function ShipmentForm() {
               />
             </LocalizationProvider>
           </Grid>
-          
+
           <Grid item xs={12} md={4}>
             <FormControl fullWidth>
               <InputLabel>판매처</InputLabel>
@@ -1571,7 +1419,7 @@ function ShipmentForm() {
               </Select>
             </FormControl>
           </Grid>
-          
+
           <Grid item xs={12} md={4}>
             <FormControl fullWidth>
               <InputLabel>배송 방법</InputLabel>
@@ -1588,7 +1436,7 @@ function ShipmentForm() {
               </Select>
             </FormControl>
           </Grid>
-          
+
           <Grid item xs={12} md={4}>
             <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
               <DatePicker
@@ -1604,7 +1452,7 @@ function ShipmentForm() {
               />
             </LocalizationProvider>
           </Grid>
-          
+
           <Grid item xs={12} md={4}>
             <FormControl fullWidth>
               <InputLabel>상태</InputLabel>
@@ -1620,7 +1468,7 @@ function ShipmentForm() {
               </Select>
             </FormControl>
           </Grid>
-          
+
           <Grid item xs={12} md={4}>
             <TextField
               fullWidth
@@ -1632,13 +1480,13 @@ function ShipmentForm() {
           </Grid>
         </Grid>
       </Paper>
-      
+
       <Paper sx={{ p: 3, mb: 3 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h6">제품 정보</Typography>
           <Box>
             {isEditMode && (
-              <Button 
+              <Button
                 variant="outlined"
                 color="secondary"
                 startIcon={<RefreshIcon />}
@@ -1659,7 +1507,7 @@ function ShipmentForm() {
             </Button>
           </Box>
         </Box>
-        
+
         {selectedParts.length === 0 ? (
           <Box sx={{ p: 3, textAlign: 'center', bgcolor: '#f5f5f5', borderRadius: 1 }}>
             <Typography color="text.secondary">
@@ -1710,13 +1558,13 @@ function ShipmentForm() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Chip 
-                        label={part.category} 
+                      <Chip
+                        label={part.category}
                         size="small"
                         color={
                           part.category === '기체' ? 'primary' :
-                          part.category === '파츠' ? 'secondary' :
-                          part.category === '공임' ? 'success' : 'default'
+                            part.category === '파츠' ? 'secondary' :
+                              part.category === '공임' ? 'success' : 'default'
                         }
                       />
                     </TableCell>
@@ -1727,8 +1575,8 @@ function ShipmentForm() {
                         variant="outlined"
                         value={part.quantity}
                         onChange={(e) => handlePartQuantityChange(part.id, e.target.value)}
-                        InputProps={{ 
-                          inputProps: { min: 1, style: { textAlign: 'right', padding: '4px 8px' } } 
+                        InputProps={{
+                          inputProps: { min: 1, style: { textAlign: 'right', padding: '4px 8px' } }
                         }}
                         sx={{ width: '70px' }}
                       />
@@ -1740,7 +1588,7 @@ function ShipmentForm() {
                         variant="outlined"
                         value={part.price}
                         onChange={(e) => handlePriceChange(part.id, e.target.value)}
-                        InputProps={{ 
+                        InputProps={{
                           inputProps: { min: 0, style: { textAlign: 'right', padding: '4px 8px' } },
                           endAdornment: <InputAdornment position="end">원</InputAdornment>
                         }}
@@ -1749,8 +1597,8 @@ function ShipmentForm() {
                     </TableCell>
                     <TableCell align="right">{part.totalPrice?.toLocaleString() || calculateTotal(part).toLocaleString()}원</TableCell>
                     <TableCell align="right">
-                      <IconButton 
-                        size="small" 
+                      <IconButton
+                        size="small"
                         color="error"
                         onClick={() => handleRemovePart(part.id)}
                       >
@@ -1773,7 +1621,7 @@ function ShipmentForm() {
           </TableContainer>
         )}
       </Paper>
-      
+
       {/* 엑셀 업로드 다이얼로그 */}
       <Dialog
         open={excelUploadDialog}
@@ -1787,7 +1635,7 @@ function ShipmentForm() {
             <Typography gutterBottom>
               총 {uploadedData.length}개의 항목이 발견되었습니다. 다음 데이터를 추가하시겠습니까?
             </Typography>
-            
+
             {isUploading && (
               <Box sx={{ width: '100%', mt: 2, mb: 2 }}>
                 <Typography variant="body2" align="center">
@@ -1811,16 +1659,16 @@ function ShipmentForm() {
                       left: 0,
                       height: '100%',
                       bgcolor: '#3182f6',
-                      width: `${uploadProgress}%`,
+                      width: `${uploadProgress}% `,
                       transition: 'width 0.3s ease-in-out'
                     }}
                   />
                 </Box>
               </Box>
             )}
-            
+
             <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>미리보기 (최대 5개 항목)</Typography>
-            
+
             <TableContainer component={Paper} sx={{ maxHeight: 300 }}>
               <Table size="small" stickyHeader>
                 <TableHead>
@@ -1851,7 +1699,7 @@ function ShipmentForm() {
                 </TableBody>
               </Table>
             </TableContainer>
-            
+
             <Box sx={{ mt: 2 }}>
               <Alert severity="info">
                 <Typography variant="body2">
@@ -1864,22 +1712,22 @@ function ShipmentForm() {
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button 
-            onClick={() => setExcelUploadDialog(false)} 
+          <Button
+            onClick={() => setExcelUploadDialog(false)}
             disabled={isUploading}
           >
             취소
           </Button>
-          <Button 
-            variant="contained" 
-            onClick={handleProcessExcelData} 
+          <Button
+            variant="contained"
+            onClick={handleProcessExcelData}
             disabled={isUploading || uploadedData.length === 0}
           >
             추가
           </Button>
         </DialogActions>
       </Dialog>
-      
+
       {/* 부품 선택 다이얼로그 */}
       <Dialog open={openPartsDialog} onClose={handleClosePartsDialog} maxWidth="md" fullWidth transitionDuration={0}>
         <DialogTitle>제품 추가</DialogTitle>
@@ -1895,8 +1743,8 @@ function ShipmentForm() {
                 onKeyPress={handlePartKeyPress}
                 sx={{ flex: 1 }}
               />
-              <Button 
-                variant="contained" 
+              <Button
+                variant="contained"
                 onClick={handleSearch}
                 startIcon={<SearchIcon />}
                 sx={{ minWidth: '100px' }}
@@ -1904,17 +1752,17 @@ function ShipmentForm() {
                 검색
               </Button>
             </Box>
-            
+
             <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Typography variant="caption" color="text.secondary">
-                {isSearching ? '검색 중...' : 
-                 filteredParts.length > 100 
-                  ? '100개 이상의 결과 (구체적으로 검색해주세요)' 
-                  : `검색 결과: ${filteredParts.length}개`}
+                {isSearching ? '검색 중...' :
+                  filteredParts.length > 100
+                    ? '100개 이상의 결과 (구체적으로 검색해주세요)'
+                    : `검색 결과: ${filteredParts.length} 개`}
               </Typography>
               <Box>
-                <Button 
-                  disabled={page === 0} 
+                <Button
+                  disabled={page === 0}
                   onClick={() => handlePageChange(page - 1)}
                   size="small"
                 >
@@ -1923,8 +1771,8 @@ function ShipmentForm() {
                 <Typography variant="caption" sx={{ mx: 1 }}>
                   {page + 1} / {Math.max(1, Math.ceil(filteredParts.length / rowsPerPage))}
                 </Typography>
-                <Button 
-                  disabled={page >= Math.ceil(filteredParts.length / rowsPerPage) - 1} 
+                <Button
+                  disabled={page >= Math.ceil(filteredParts.length / rowsPerPage) - 1}
                   onClick={() => handlePageChange(page + 1)}
                   size="small"
                 >
@@ -1932,7 +1780,7 @@ function ShipmentForm() {
                 </Button>
               </Box>
             </Box>
-            
+
             <TableContainer sx={{ maxHeight: 400 }}>
               <Table size="small" stickyHeader>
                 <TableHead>
@@ -1945,7 +1793,7 @@ function ShipmentForm() {
                 </TableHead>
                 <TableBody>
                   {paginatedParts.map((part) => (
-                    <TableRow 
+                    <TableRow
                       key={part.id}
                       hover
                       sx={{ cursor: 'pointer' }}
@@ -1954,7 +1802,7 @@ function ShipmentForm() {
                       <TableCell>{part.code}</TableCell>
                       <TableCell align="right">{part.price?.toLocaleString()}원</TableCell>
                       <TableCell>
-                        <IconButton 
+                        <IconButton
                           size="small"
                           onClick={() => handleAddPartToList(part)}
                         >
@@ -1987,7 +1835,7 @@ function ShipmentForm() {
           <Button onClick={handleClosePartsDialog}>닫기</Button>
         </DialogActions>
       </Dialog>
-      
+
       <Paper sx={{ p: 3 }}>
         <Typography variant="h6" gutterBottom>메모</Typography>
         <TextField
