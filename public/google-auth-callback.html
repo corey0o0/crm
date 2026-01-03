@@ -150,8 +150,20 @@
                 window.location.href = `/service/${serviceId}`;
               }, 2000);
             } else {
+              // referrer에서 원래 페이지 확인
+              const referrer = document.referrer;
+              let redirectUrl = '/services';
+              
+              if (referrer) {
+                if (referrer.includes('/add-service') || referrer.includes('/service/add')) {
+                  redirectUrl = '/add-service';
+                } else if (referrer.includes('/service/')) {
+                  redirectUrl = '/services';
+                }
+              }
+              
               setTimeout(() => {
-                window.location.href = '/service';
+                window.location.href = redirectUrl;
               }, 2000);
             }
           }

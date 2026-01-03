@@ -51,36 +51,52 @@ const SystemHealthCheck = () => {
   // 전체 점검 실행
   const runAllChecks = async () => {
     setLoading(true);
-    const newResults = {};
+    setResults({}); // 결과 초기화
+    setOverallStatus('unknown');
 
     try {
       // 1. 환경 변수 확인
-      newResults.env = await checkEnvironmentVariables();
-      
-      // 2. Supabase 연결 확인
-      newResults.supabase = await checkSupabaseConnection();
-      
-      // 3. 인증 상태 확인
-      newResults.auth = await checkAuthStatus();
-      
-      // 4. API 엔드포인트 테스트
-      newResults.apis = await checkApiEndpoints();
-      
-      // 5. 데이터베이스 테이블 확인
-      newResults.database = await checkDatabaseTables();
-      
-      // 6. 외부 서비스 연결 확인
-      newResults.external = await checkExternalServices();
-      
-      // 7. 권한 및 RLS 확인
-      newResults.permissions = await checkPermissions();
+      const envResult = await checkEnvironmentVariables();
+      setResults(prev => ({ ...prev, env: envResult }));
 
-      setResults(newResults);
-      
-      // 전체 상태 계산
-      const status = calculateOverallStatus(newResults);
+      // 2. Supabase 연결 확인
+      const supabaseResult = await checkSupabaseConnection();
+      setResults(prev => ({ ...prev, supabase: supabaseResult }));
+
+      // 3. 인증 상태 확인
+      const authResult = await checkAuthStatus();
+      setResults(prev => ({ ...prev, auth: authResult }));
+
+      // 4. API 엔드포인트 테스트
+      const apisResult = await checkApiEndpoints();
+      setResults(prev => ({ ...prev, apis: apisResult }));
+
+      // 5. 데이터베이스 테이블 확인
+      const dbResult = await checkDatabaseTables();
+      setResults(prev => ({ ...prev, database: dbResult }));
+
+      // 6. 외부 서비스 연결 확인
+      const extResult = await checkExternalServices();
+      setResults(prev => ({ ...prev, external: extResult }));
+
+      // 7. 권한 및 RLS 확인
+      const permResult = await checkPermissions();
+      setResults(prev => ({ ...prev, permissions: permResult }));
+
+      // 전체 상태 계산 (모든 결과가 모인 후)
+      const finalResults = {
+        env: envResult,
+        supabase: supabaseResult,
+        auth: authResult,
+        apis: apisResult,
+        database: dbResult,
+        external: extResult,
+        permissions: permResult
+      };
+
+      const status = calculateOverallStatus(finalResults);
       setOverallStatus(status);
-      
+
     } catch (error) {
       console.error('전체 점검 중 오류:', error);
       setResults(prev => ({
@@ -96,16 +112,18 @@ const SystemHealthCheck = () => {
     }
   };
 
-  // 환경 변수 확인
+  // 컴포넌트 마운트 시 자동 실행 제거
+  // useEffect(() => {
+  //   runAllChecks();
+  // }, []);
   const checkEnvironmentVariables = async () => {
     const checks = {};
     const env = window._env_ || {};
-    
+
     const requiredVars = [
       'REACT_APP_SUPABASE_URL',
       'REACT_APP_SUPABASE_ANON_KEY',
       'REACT_APP_OPENAI_API_KEY',
-      'REACT_APP_CLAUDE_API_KEY',
       'REACT_APP_GOOGLE_CLIENT_ID',
       'REACT_APP_TELEGRAM_BOT_TOKEN',
       'REACT_APP_BASE_URL'
@@ -143,8 +161,8 @@ const SystemHealthCheck = () => {
     return {
       status: allRequiredSet ? STATUS.SUCCESS : STATUS.ERROR,
       checks,
-      message: allRequiredSet 
-        ? '모든 필수 환경 변수가 설정되어 있습니다' 
+      message: allRequiredSet
+        ? '모든 필수 환경 변수가 설정되어 있습니다'
         : '일부 필수 환경 변수가 누락되었습니다'
     };
   };
@@ -152,14 +170,14 @@ const SystemHealthCheck = () => {
   // Supabase 연결 확인
   const checkSupabaseConnection = async () => {
     const checks = {};
-    
+
     try {
       // 연결 테스트
       const { data: testData, error: testError } = await supabase
         .from('services')
         .select('id')
         .limit(1);
-      
+
       checks.connection = {
         status: !testError ? STATUS.SUCCESS : STATUS.ERROR,
         message: !testError ? 'Supabase 연결 성공' : `연결 실패: ${testError.message}`
@@ -168,11 +186,11 @@ const SystemHealthCheck = () => {
       // URL 및 키 확인
       const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || window._env_?.REACT_APP_SUPABASE_URL;
       const supabaseKey = process.env.REACT_APP_SUPABASE_ANON_KEY || window._env_?.REACT_APP_SUPABASE_ANON_KEY;
-      
+
       checks.config = {
         status: (supabaseUrl && supabaseKey) ? STATUS.SUCCESS : STATUS.ERROR,
-        message: (supabaseUrl && supabaseKey) 
-          ? 'Supabase 설정이 올바릅니다' 
+        message: (supabaseUrl && supabaseKey)
+          ? 'Supabase 설정이 올바릅니다'
           : 'Supabase URL 또는 키가 설정되지 않았습니다',
         details: {
           url: supabaseUrl ? '설정됨' : '설정되지 않음',
@@ -202,10 +220,10 @@ const SystemHealthCheck = () => {
   // 인증 상태 확인
   const checkAuthStatus = async () => {
     const checks = {};
-    
+
     try {
       const { data: { session: currentSession }, error } = await supabase.auth.getSession();
-      
+
       checks.session = {
         status: currentSession ? STATUS.SUCCESS : STATUS.WARNING,
         message: currentSession ? '세션이 활성화되어 있습니다' : '세션이 없습니다 (로그인 필요)',
@@ -227,8 +245,8 @@ const SystemHealthCheck = () => {
       return {
         status: (currentSession && user) ? STATUS.SUCCESS : STATUS.WARNING,
         checks,
-        message: (currentSession && user) 
-          ? '인증 상태가 정상입니다' 
+        message: (currentSession && user)
+          ? '인증 상태가 정상입니다'
           : '인증이 필요합니다'
       };
     } catch (error) {
@@ -249,7 +267,7 @@ const SystemHealthCheck = () => {
   const checkApiEndpoints = async () => {
     const checks = {};
     const results = {};
-    
+
     // Services API 테스트
     try {
       const services = await serviceApi.getAll();
@@ -301,8 +319,8 @@ const SystemHealthCheck = () => {
     return {
       status: allSuccess ? STATUS.SUCCESS : (hasError ? STATUS.ERROR : STATUS.WARNING),
       checks: results,
-      message: allSuccess 
-        ? '모든 API 엔드포인트가 정상입니다' 
+      message: allSuccess
+        ? '모든 API 엔드포인트가 정상입니다'
         : '일부 API 엔드포인트에 문제가 있습니다'
     };
   };
@@ -331,7 +349,7 @@ const SystemHealthCheck = () => {
           .from(table)
           .select('id')
           .limit(1);
-        
+
         if (error) {
           results[table] = {
             status: STATUS.ERROR,
@@ -354,8 +372,8 @@ const SystemHealthCheck = () => {
     }
 
     return {
-      status: successCount === tables.length 
-        ? STATUS.SUCCESS 
+      status: successCount === tables.length
+        ? STATUS.SUCCESS
         : (successCount > 0 ? STATUS.WARNING : STATUS.ERROR),
       checks: results,
       message: `${successCount}/${tables.length}개 테이블에 접근 가능합니다`
@@ -365,10 +383,16 @@ const SystemHealthCheck = () => {
   // 외부 서비스 연결 확인
   const checkExternalServices = async () => {
     const checks = {};
-    
+
     // Google Drive 확인
     try {
-      await initializeGoogleAPI();
+      // 5초 타임아웃 설정
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Google API 초기화 시간 초과 (5초)')), 5000)
+      );
+
+      await Promise.race([initializeGoogleAPI(), timeoutPromise]);
+
       checks.googleDrive = {
         status: STATUS.SUCCESS,
         message: 'Google Drive API 초기화 성공'
@@ -394,21 +418,14 @@ const SystemHealthCheck = () => {
       message: openaiKey ? 'OpenAI API 키가 설정되어 있습니다' : 'OpenAI API 키가 설정되지 않았습니다'
     };
 
-    // Claude 확인 (API 키만 확인)
-    const claudeKey = window._env_?.REACT_APP_CLAUDE_API_KEY || process.env.REACT_APP_CLAUDE_API_KEY;
-    checks.claude = {
-      status: claudeKey ? STATUS.SUCCESS : STATUS.WARNING,
-      message: claudeKey ? 'Claude API 키가 설정되어 있습니다' : 'Claude API 키가 설정되지 않았습니다'
-    };
-
     const allSuccess = Object.values(checks).every(c => c.status === STATUS.SUCCESS);
     const hasError = Object.values(checks).some(c => c.status === STATUS.ERROR);
 
     return {
       status: allSuccess ? STATUS.SUCCESS : (hasError ? STATUS.ERROR : STATUS.WARNING),
       checks,
-      message: allSuccess 
-        ? '모든 외부 서비스가 연결되어 있습니다' 
+      message: allSuccess
+        ? '모든 외부 서비스가 연결되어 있습니다'
         : '일부 외부 서비스에 문제가 있습니다'
     };
   };
@@ -416,7 +433,7 @@ const SystemHealthCheck = () => {
   // 권한 및 RLS 확인
   const checkPermissions = async () => {
     const checks = {};
-    
+
     try {
       // 사용자 역할 확인
       if (user) {
@@ -441,11 +458,11 @@ const SystemHealthCheck = () => {
           .from('services')
           .select('id')
           .limit(1);
-        
+
         checks.rls = {
           status: !error ? STATUS.SUCCESS : STATUS.WARNING,
-          message: !error 
-            ? 'RLS 정책이 올바르게 작동합니다' 
+          message: !error
+            ? 'RLS 정책이 올바르게 작동합니다'
             : `RLS 정책 문제: ${error.message}`
         };
       } catch (error) {
@@ -457,7 +474,7 @@ const SystemHealthCheck = () => {
 
       return {
         status: Object.values(checks).every(c => c.status === STATUS.SUCCESS || c.status === STATUS.WARNING)
-          ? STATUS.SUCCESS 
+          ? STATUS.SUCCESS
           : STATUS.WARNING,
         checks,
         message: '권한 및 RLS 확인 완료'
@@ -479,7 +496,7 @@ const SystemHealthCheck = () => {
   // 전체 상태 계산
   const calculateOverallStatus = (results) => {
     const statuses = Object.values(results).map(r => r.status);
-    
+
     if (statuses.every(s => s === STATUS.SUCCESS)) {
       return STATUS.SUCCESS;
     } else if (statuses.some(s => s === STATUS.ERROR)) {
@@ -531,10 +548,7 @@ const SystemHealthCheck = () => {
     URL.revokeObjectURL(url);
   };
 
-  // 컴포넌트 마운트 시 자동 실행
-  useEffect(() => {
-    runAllChecks();
-  }, []);
+
 
   return (
     <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
@@ -566,22 +580,23 @@ const SystemHealthCheck = () => {
             <LinearProgress />
             <Typography variant="body2" sx={{ mt: 1, textAlign: 'center' }}>
               시스템 점검을 진행하고 있습니다...
+              ({Object.keys(results).length} / 7 완료)
             </Typography>
           </Box>
         )}
 
         {/* 전체 상태 요약 */}
         {overallStatus !== 'unknown' && !loading && (
-          <Alert 
-            severity={getStatusColor(overallStatus)} 
+          <Alert
+            severity={getStatusColor(overallStatus)}
             sx={{ mb: 3 }}
             icon={getStatusIcon(overallStatus)}
           >
             <Typography variant="h6">
               전체 상태: {
                 overallStatus === STATUS.SUCCESS ? '정상' :
-                overallStatus === STATUS.ERROR ? '오류 발견' :
-                '경고'
+                  overallStatus === STATUS.ERROR ? '오류 발견' :
+                    '경고'
               }
             </Typography>
           </Alert>
@@ -591,18 +606,18 @@ const SystemHealthCheck = () => {
         {Object.keys(results).length > 0 && !loading && (
           <Box>
             {/* 환경 변수 */}
-            <Accordion 
-              expanded={expandedSection === 'env'} 
+            <Accordion
+              expanded={expandedSection === 'env'}
               onChange={() => setExpandedSection(expandedSection === 'env' ? '' : 'env')}
             >
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
                   {getStatusIcon(results.env?.status)}
                   <Typography variant="h6">환경 변수</Typography>
-                  <Chip 
-                    label={results.env?.status} 
-                    color={getStatusColor(results.env?.status)} 
-                    size="small" 
+                  <Chip
+                    label={results.env?.status}
+                    color={getStatusColor(results.env?.status)}
+                    size="small"
                     sx={{ ml: 'auto' }}
                   />
                 </Box>
@@ -635,18 +650,18 @@ const SystemHealthCheck = () => {
             </Accordion>
 
             {/* Supabase 연결 */}
-            <Accordion 
-              expanded={expandedSection === 'supabase'} 
+            <Accordion
+              expanded={expandedSection === 'supabase'}
               onChange={() => setExpandedSection(expandedSection === 'supabase' ? '' : 'supabase')}
             >
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
                   {getStatusIcon(results.supabase?.status)}
                   <Typography variant="h6">Supabase 연결</Typography>
-                  <Chip 
-                    label={results.supabase?.status} 
-                    color={getStatusColor(results.supabase?.status)} 
-                    size="small" 
+                  <Chip
+                    label={results.supabase?.status}
+                    color={getStatusColor(results.supabase?.status)}
+                    size="small"
                     sx={{ ml: 'auto' }}
                   />
                 </Box>
@@ -679,18 +694,18 @@ const SystemHealthCheck = () => {
             </Accordion>
 
             {/* 인증 상태 */}
-            <Accordion 
-              expanded={expandedSection === 'auth'} 
+            <Accordion
+              expanded={expandedSection === 'auth'}
               onChange={() => setExpandedSection(expandedSection === 'auth' ? '' : 'auth')}
             >
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
                   {getStatusIcon(results.auth?.status)}
                   <Typography variant="h6">인증 상태</Typography>
-                  <Chip 
-                    label={results.auth?.status} 
-                    color={getStatusColor(results.auth?.status)} 
-                    size="small" 
+                  <Chip
+                    label={results.auth?.status}
+                    color={getStatusColor(results.auth?.status)}
+                    size="small"
                     sx={{ ml: 'auto' }}
                   />
                 </Box>
@@ -723,18 +738,18 @@ const SystemHealthCheck = () => {
             </Accordion>
 
             {/* API 엔드포인트 */}
-            <Accordion 
-              expanded={expandedSection === 'apis'} 
+            <Accordion
+              expanded={expandedSection === 'apis'}
               onChange={() => setExpandedSection(expandedSection === 'apis' ? '' : 'apis')}
             >
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
                   {getStatusIcon(results.apis?.status)}
                   <Typography variant="h6">API 엔드포인트</Typography>
-                  <Chip 
-                    label={results.apis?.status} 
-                    color={getStatusColor(results.apis?.status)} 
-                    size="small" 
+                  <Chip
+                    label={results.apis?.status}
+                    color={getStatusColor(results.apis?.status)}
+                    size="small"
                     sx={{ ml: 'auto' }}
                   />
                 </Box>
@@ -771,18 +786,18 @@ const SystemHealthCheck = () => {
             </Accordion>
 
             {/* 데이터베이스 테이블 */}
-            <Accordion 
-              expanded={expandedSection === 'database'} 
+            <Accordion
+              expanded={expandedSection === 'database'}
               onChange={() => setExpandedSection(expandedSection === 'database' ? '' : 'database')}
             >
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
                   {getStatusIcon(results.database?.status)}
                   <Typography variant="h6">데이터베이스 테이블</Typography>
-                  <Chip 
-                    label={results.database?.status} 
-                    color={getStatusColor(results.database?.status)} 
-                    size="small" 
+                  <Chip
+                    label={results.database?.status}
+                    color={getStatusColor(results.database?.status)}
+                    size="small"
                     sx={{ ml: 'auto' }}
                   />
                 </Box>
@@ -810,18 +825,18 @@ const SystemHealthCheck = () => {
             </Accordion>
 
             {/* 외부 서비스 */}
-            <Accordion 
-              expanded={expandedSection === 'external'} 
+            <Accordion
+              expanded={expandedSection === 'external'}
               onChange={() => setExpandedSection(expandedSection === 'external' ? '' : 'external')}
             >
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
                   {getStatusIcon(results.external?.status)}
                   <Typography variant="h6">외부 서비스</Typography>
-                  <Chip 
-                    label={results.external?.status} 
-                    color={getStatusColor(results.external?.status)} 
-                    size="small" 
+                  <Chip
+                    label={results.external?.status}
+                    color={getStatusColor(results.external?.status)}
+                    size="small"
                     sx={{ ml: 'auto' }}
                   />
                 </Box>
@@ -849,18 +864,18 @@ const SystemHealthCheck = () => {
             </Accordion>
 
             {/* 권한 및 RLS */}
-            <Accordion 
-              expanded={expandedSection === 'permissions'} 
+            <Accordion
+              expanded={expandedSection === 'permissions'}
               onChange={() => setExpandedSection(expandedSection === 'permissions' ? '' : 'permissions')}
             >
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
                   {getStatusIcon(results.permissions?.status)}
                   <Typography variant="h6">권한 및 RLS</Typography>
-                  <Chip 
-                    label={results.permissions?.status} 
-                    color={getStatusColor(results.permissions?.status)} 
-                    size="small" 
+                  <Chip
+                    label={results.permissions?.status}
+                    color={getStatusColor(results.permissions?.status)}
+                    size="small"
                     sx={{ ml: 'auto' }}
                   />
                 </Box>

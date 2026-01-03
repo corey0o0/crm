@@ -41,7 +41,8 @@ import {
   Stack,
   InputAdornment,
   FormControlLabel,
-  Checkbox
+  Checkbox,
+  Link
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -63,6 +64,13 @@ import { downloadExcel } from '../../utils/excelUtils';
 import { formatKoreanDateTime } from '../../utils/dateUtils';
 import { format } from 'date-fns';
 import { sendTelegramNotification } from '../../lib/telegram'; // 텔레그램 유틸리티 함수 import
+import { 
+  uploadFileToGoogleDrive, 
+  findOrCreateFolder, 
+  shareGoogleDriveFile,
+  deleteGoogleDriveFile 
+} from '../../utils/googleDriveUtils';
+import imageCompression from 'browser-image-compression';
 
 // 접수방법과 배송방법 옵션
 const RECEPTION_TYPES = ['공홈', '방문', '전화', '대리점', '기타'];
@@ -182,6 +190,11 @@ function AddService() {
 
   // ... AddService 함수 내에 추가
   const [hasTempData, setHasTempData] = useState(false);
+  
+  // 파일 업로드 관련 상태
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [googleAccessToken, setGoogleAccessToken] = useState(null);
 
   // 변경사항 감지 함수
   const checkForChanges = useCallback(() => {
@@ -710,7 +723,7 @@ function AddService() {
   };
 
   // 엑셀 업로드 처리 함수 수정
-  const handleFileUpload = async (event) => {
+  const handleExcelFileUpload = async (event) => {
     try {
       const file = event.target.files[0];
       if (!file) return;
@@ -918,6 +931,56 @@ function AddService() {
         }
       }
 
+      // 업로드된 파일 정보를 DB에 저장
+      if (uploadedFiles.length > 0) {
+        try {
+          // 서비스별 폴더 생성
+          const rootFolderId = process.env.REACT_APP_GOOGLE_DRIVE_ROOT_FOLDER_ID || 
+                              (typeof window !== 'undefined' && window._env_ && window._env_.REACT_APP_GOOGLE_DRIVE_ROOT_FOLDER_ID) || 
+                              null;
+          const subFolderName = process.env.REACT_APP_GOOGLE_DRIVE_SUBFOLDER || 
+                               (typeof window !== 'undefined' && window._env_ && window._env_.REACT_APP_GOOGLE_DRIVE_SUBFOLDER) || 
+                               'upload_crm';
+          const subRootFolder = await findOrCreateFolder(subFolderName, rootFolderId, googleAccessToken);
+          
+          const serviceFolderName = `AS_${formData.customer_name}_${formData.product_name}_${insertedService.id}`;
+          const serviceFolder = await findOrCreateFolder(serviceFolderName, subRootFolder?.id || rootFolderId, googleAccessToken);
+
+          // 파일을 서비스 폴더로 이동 (선택사항 - 임시 폴더에 그대로 두어도 됨)
+          // 여기서는 DB에만 연결하고 파일은 임시 폴더에 그대로 유지
+
+          const fileRecords = uploadedFiles.map(file => ({
+            service_id: parseInt(insertedService.id),
+            file_id: file.id,
+            file_name: file.name,
+            file_size: file.size,
+            file_type: file.type,
+            web_view_link: file.webViewLink,
+            web_content_link: file.webContentLink,
+            upload_date: file.uploadDate
+          }));
+
+          const { error: filesError } = await supabase
+            .from('service_files')
+            .insert(fileRecords);
+
+          if (filesError) {
+            console.error('[AddService] 파일 정보 DB 저장 오류:', filesError);
+            // 파일 DB 저장 실패는 경고로 처리하고 계속 진행
+            setSnackbar({
+              open: true,
+              message: 'A/S는 등록되었으나, 파일 정보 저장 중 오류가 발생했습니다.',
+              severity: 'warning'
+            });
+          } else {
+            console.log('[AddService] 파일 정보 DB 저장 완료:', uploadedFiles.length);
+          }
+        } catch (filesCatchError) {
+          console.error('[AddService] 파일 정보 저장 중 예외:', filesCatchError);
+          // 파일 저장 실패는 경고로 처리하고 계속 진행
+        }
+      }
+
       let notificationSuccess = true;
       try {
         const notificationPayload = {
@@ -1004,6 +1067,407 @@ function AddService() {
       setSubmitting(false);
     }
   };
+
+  // 이미지 리사이즈 함수
+  const resizeImage = async (file) => {
+    try {
+      // 이미지 파일이 아니면 원본 반환
+      if (!file.type.startsWith('image/')) {
+        return file;
+      }
+
+      const options = {
+        maxSizeMB: 2, // 최대 파일 크기 2MB
+        maxWidthOrHeight: 1920, // 최대 크기 1920x1920
+        useWebWorker: true,
+        fileType: 'image/jpeg',
+        initialQuality: 0.8,
+        maxIteration: 5
+      };
+
+      const compressedFile = await imageCompression(file, options);
+      console.log('이미지 리사이즈 완료:', {
+        원본: `${(file.size / 1024 / 1024).toFixed(2)}MB`,
+        압축: `${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`
+      });
+      
+      return compressedFile;
+    } catch (error) {
+      console.error('이미지 리사이즈 실패:', error);
+      // 리사이즈 실패 시 원본 반환
+      return file;
+    }
+  };
+
+  // 구글 드라이브 액세스 토큰 가져오기
+  const getGoogleAccessToken = async () => {
+    try {
+      const token = localStorage.getItem('google_access_token');
+      if (token) {
+        try {
+          const response = await fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (response.ok) {
+            setGoogleAccessToken(token);
+            return token;
+          } else {
+            localStorage.removeItem('google_access_token');
+          }
+        } catch (tokenError) {
+          console.warn('토큰 유효성 검사 실패:', tokenError);
+          localStorage.removeItem('google_access_token');
+        }
+      }
+      
+      // 환경 변수는 window._env_에서 가져오거나 process.env에서 가져옴
+      const processEnvClientId = process.env.REACT_APP_GOOGLE_CLIENT_ID;
+      const windowEnvClientId = typeof window !== 'undefined' && window._env_ && window._env_.REACT_APP_GOOGLE_CLIENT_ID;
+      const clientId = processEnvClientId || windowEnvClientId;
+      
+      // 디버깅: 클라이언트 ID 확인
+      console.log('[AddService] 구글 클라이언트 ID 확인:', {
+        processEnv: processEnvClientId,
+        windowEnv: windowEnvClientId,
+        selected: clientId,
+        allWindowEnvKeys: typeof window !== 'undefined' && window._env_ ? Object.keys(window._env_) : [],
+        windowEnvFull: typeof window !== 'undefined' && window._env_ ? window._env_ : null
+      });
+      
+      if (!clientId) {
+        console.error('[AddService] 구글 클라이언트 ID가 없습니다.');
+        throw new Error('구글 클라이언트 ID가 설정되지 않았습니다. 환경변수 REACT_APP_GOOGLE_CLIENT_ID를 확인하세요.');
+      }
+      
+      // 올바른 클라이언트 ID인지 확인
+      const expectedClientId = '858601328382-kpeaafkvvqaepgii0e79riruh8c642ei.apps.googleusercontent.com';
+      if (clientId !== expectedClientId) {
+        console.warn('[AddService] ⚠️ 잘못된 클라이언트 ID가 사용되고 있습니다!', {
+          current: clientId,
+          expected: expectedClientId
+        });
+      }
+      
+      const redirectUri = `${window.location.origin}/google-auth-callback.html`;
+      const authUrl = `https://accounts.google.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=https://www.googleapis.com/auth/drive.file&response_type=token&access_type=offline`;
+      
+      console.log('[AddService] 인증 URL 생성:', authUrl);
+      
+      setSnackbar({
+        open: true,
+        message: '구글 드라이브 인증이 필요합니다. 잠시 후 인증 페이지로 이동합니다.',
+        severity: 'info'
+      });
+      
+      // 현재 창에서 인증 페이지로 이동
+      // 리다이렉트되므로 Promise는 resolve되지 않음
+      setTimeout(() => {
+        window.location.href = authUrl;
+      }, 2000);
+      
+      // 리다이렉트가 발생하므로 여기까지 오지 않음
+      // Promise를 영원히 pending 상태로 유지
+      return new Promise(() => {});
+      
+    } catch (error) {
+      // 실제 에러인 경우에만 throw
+      if (!error.message || !error.message.includes('인증 페이지로 이동')) {
+        console.error('구글 액세스 토큰 가져오기 실패:', error);
+        throw error;
+      }
+      // 인증 페이지로 이동하는 경우는 에러가 아님
+      return new Promise(() => {});
+    }
+  };
+
+  // 파일 업로드 핸들러
+  const handleFileUpload = async (event) => {
+    const files = Array.from(event.target.files);
+    if (files.length === 0) return;
+
+    // 파일 크기 검증 (10MB 제한)
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    const oversizedFiles = files.filter(f => f.size > MAX_FILE_SIZE);
+    
+    if (oversizedFiles.length > 0) {
+      setSnackbar({
+        open: true,
+        message: `다음 파일의 크기가 10MB를 초과합니다: ${oversizedFiles.map(f => f.name).join(', ')}`,
+        severity: 'error'
+      });
+      event.target.value = '';
+      return;
+    }
+
+    // 총 파일 개수 검증 (최대 5개)
+    const MAX_TOTAL_FILES = 5;
+    if (uploadedFiles.length + files.length > MAX_TOTAL_FILES) {
+      setSnackbar({
+        open: true,
+        message: `최대 ${MAX_TOTAL_FILES}개의 파일만 업로드할 수 있습니다. (현재: ${uploadedFiles.length}개)`,
+        severity: 'error'
+      });
+      event.target.value = '';
+      return;
+    }
+
+    try {
+      setUploadingFiles(true);
+      
+      // 구글 액세스 토큰 확인
+      let accessToken = googleAccessToken;
+      
+      // 상태에 토큰이 없으면 localStorage에서 확인
+      if (!accessToken) {
+        const storedToken = localStorage.getItem('google_access_token');
+        if (storedToken) {
+          // 토큰 유효성 검사
+          try {
+            const response = await fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
+              headers: {
+                'Authorization': `Bearer ${storedToken}`
+              }
+            });
+            
+            if (response.ok) {
+              accessToken = storedToken;
+              setGoogleAccessToken(storedToken);
+            } else {
+              // 토큰이 만료되었으면 제거
+              localStorage.removeItem('google_access_token');
+            }
+          } catch (tokenError) {
+            console.warn('토큰 유효성 검사 실패:', tokenError);
+            localStorage.removeItem('google_access_token');
+          }
+        }
+      }
+      
+      // 여전히 토큰이 없으면 인증 요청
+      if (!accessToken) {
+        // 인증 페이지로 이동 (getGoogleAccessToken이 리다이렉트함)
+        try {
+          await getGoogleAccessToken();
+        } catch (error) {
+          // 인증 페이지로 이동하는 경우는 정상 플로우이므로 에러로 처리하지 않음
+          if (!error.message || !error.message.includes('인증 페이지로 이동')) {
+            throw error;
+          }
+        }
+        // 리다이렉트되므로 여기까지 오지 않음
+        return;
+      }
+
+      // 업로드 루트/서브 폴더 설정
+      const rootFolderId = process.env.REACT_APP_GOOGLE_DRIVE_ROOT_FOLDER_ID || 
+                          (typeof window !== 'undefined' && window._env_ && window._env_.REACT_APP_GOOGLE_DRIVE_ROOT_FOLDER_ID) || 
+                          null;
+      const subFolderName = process.env.REACT_APP_GOOGLE_DRIVE_SUBFOLDER || 
+                           (typeof window !== 'undefined' && window._env_ && window._env_.REACT_APP_GOOGLE_DRIVE_SUBFOLDER) || 
+                           'upload_crm';
+
+      // 루트 폴더ID 하위에 서브폴더(upload_crm)를 생성/탐색
+      const subRootFolder = await findOrCreateFolder(subFolderName, rootFolderId, accessToken);
+
+      // 임시 폴더 생성 (서비스 ID가 없으므로 임시로 저장)
+      const tempFolderName = `temp_${Date.now()}`;
+      const tempFolder = await findOrCreateFolder(tempFolderName, subRootFolder?.id || rootFolderId, accessToken);
+
+      const uploadResults = [];
+      
+      for (const file of files) {
+        try {
+          // 이미지 파일인 경우 리사이즈
+          let fileToUpload = file;
+          if (file.type.startsWith('image/')) {
+            fileToUpload = await resizeImage(file);
+          }
+
+          // 파일 업로드
+          const uploadResult = await uploadFileToGoogleDrive(fileToUpload, tempFolder.id, accessToken);
+          
+          // 파일 공유 설정
+          await shareGoogleDriveFile(uploadResult.id, accessToken, 'reader', 'anyone');
+          
+          uploadResults.push({
+            id: uploadResult.id,
+            name: uploadResult.name,
+            webViewLink: uploadResult.webViewLink,
+            webContentLink: uploadResult.webContentLink,
+            size: fileToUpload.size,
+            type: fileToUpload.type,
+            uploadDate: new Date().toISOString(),
+            tempFolderId: tempFolder.id // 나중에 서비스 폴더로 이동하기 위해 저장
+          });
+          
+        } catch (fileError) {
+          console.error(`파일 ${file.name} 업로드 실패:`, fileError);
+          setSnackbar({
+            open: true,
+            message: `파일 ${file.name} 업로드 실패: ${fileError.message}`,
+            severity: 'error'
+          });
+        }
+      }
+
+      if (uploadResults.length > 0) {
+        setUploadedFiles(prev => [...prev, ...uploadResults]);
+        
+        setSnackbar({
+          open: true,
+          message: `${uploadResults.length}개 파일이 성공적으로 업로드되었습니다.`,
+          severity: 'success'
+        });
+      }
+
+    } catch (error) {
+      // 인증 페이지로 이동하는 경우는 정상 플로우이므로 에러로 처리하지 않음
+      if (error.message && error.message.includes('인증 페이지로 이동')) {
+        // 리다이렉트가 발생하므로 여기까지 오지 않지만, 혹시 모를 경우를 대비
+        return;
+      }
+      
+      console.error('파일 업로드 실패:', error);
+      setSnackbar({
+        open: true,
+        message: `파일 업로드 실패: ${error.message}`,
+        severity: 'error'
+      });
+    } finally {
+      setUploadingFiles(false);
+      event.target.value = '';
+    }
+  };
+
+  // 파일 삭제 핸들러
+  const handleFileDelete = async (fileId) => {
+    try {
+      // 구글 드라이브에서 파일 삭제
+      if (googleAccessToken) {
+        try {
+          await deleteGoogleDriveFile(fileId, googleAccessToken);
+          console.log('[AddService] 구글 드라이브 파일 삭제 완료:', fileId);
+        } catch (driveError) {
+          console.warn('[AddService] 구글 드라이브 파일 삭제 실패 (무시):', driveError);
+        }
+      }
+      
+      // 로컬 상태에서 제거
+      setUploadedFiles(prev => prev.filter(file => file.id !== fileId));
+      
+      setSnackbar({
+        open: true,
+        message: '파일이 삭제되었습니다.',
+        severity: 'success'
+      });
+      
+    } catch (error) {
+      console.error('[AddService] 파일 삭제 실패:', error);
+      setSnackbar({
+        open: true,
+        message: `파일 삭제 실패: ${error.message}`,
+        severity: 'error'
+      });
+    }
+  };
+
+  // 파일 미리보기 핸들러
+  const handlePreview = (url) => {
+    if (!url) return;
+    
+    const fileType = url.toLowerCase().endsWith('.pdf') || url.includes('pdf') ? 'pdf' : 'image';
+    setPreviewType(fileType);
+    setPreviewUrl(url);
+    setPreviewOpen(true);
+  };
+
+  // 컴포넌트 마운트 시 localStorage에서 토큰 확인
+  useEffect(() => {
+    const token = localStorage.getItem('google_access_token');
+    if (token) {
+      // 토큰 유효성 검사
+      fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      .then(response => {
+        if (response.ok) {
+          setGoogleAccessToken(token);
+          console.log('[AddService] 기존 토큰 로드 완료');
+        } else {
+          // 토큰이 만료되었으면 제거
+          localStorage.removeItem('google_access_token');
+        }
+      })
+      .catch(() => {
+        // 네트워크 오류 등은 무시 (나중에 다시 시도)
+      });
+    }
+  }, []);
+
+  // 구글 OAuth 콜백 처리
+  useEffect(() => {
+    const handleGoogleOAuthCallback = () => {
+      const urlParams = new URLSearchParams(window.location.hash.substring(1));
+      const accessToken = urlParams.get('access_token');
+      const error = urlParams.get('error');
+      
+      if (error) {
+        console.error('구글 OAuth 오류:', error);
+        setSnackbar({
+          open: true,
+          message: `구글 드라이브 인증 실패: ${error}`,
+          severity: 'error'
+        });
+        return;
+      }
+      
+      if (accessToken) {
+        localStorage.setItem('google_access_token', accessToken);
+        setGoogleAccessToken(accessToken);
+        
+        window.history.replaceState({}, document.title, window.location.pathname);
+        
+        setSnackbar({
+          open: true,
+          message: '구글 드라이브 인증이 완료되었습니다.',
+          severity: 'success'
+        });
+      }
+    };
+
+    const handleMessage = (event) => {
+      if (event.origin !== window.location.origin) return;
+      
+      if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
+        const { accessToken } = event.data;
+        localStorage.setItem('google_access_token', accessToken);
+        setGoogleAccessToken(accessToken);
+        setSnackbar({
+          open: true,
+          message: '구글 드라이브 인증이 완료되었습니다.',
+          severity: 'success'
+        });
+      } else if (event.data.type === 'GOOGLE_AUTH_ERROR') {
+        setSnackbar({
+          open: true,
+          message: `구글 드라이브 인증 실패: ${event.data.error}`,
+          severity: 'error'
+        });
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    handleGoogleOAuthCallback();
+    
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, []);
 
   const handleCancel = () => {
     if (hasUnsavedChanges) {
@@ -1119,16 +1583,6 @@ function AddService() {
         status: newStatus
       }));
     }
-  };
-
-  // 미리보기 처리 함수
-  const handlePreview = (url) => {
-    if (!url) return;
-    
-    const fileType = url.toLowerCase().endsWith('.pdf') ? 'pdf' : 'image';
-    setPreviewType(fileType);
-    setPreviewUrl(url);
-    setPreviewOpen(true);
   };
 
   // 기존 제품명 목록 가져오기
@@ -2496,6 +2950,104 @@ function AddService() {
             </Grid>
           </Grid>
 
+          {/* 파일 업로드 섹션 */}
+          <Grid item xs={12}>
+            <Box sx={{ mt: 4 }}>
+              <Typography variant="subtitle1" sx={sectionStyle}>
+                첨부 파일
+              </Typography>
+              <Box sx={{ mt: 2 }}>
+                {/* 파일 업로드 버튼 */}
+                <Box sx={{ mb: 2 }}>
+                  <input
+                    accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx"
+                    style={{ display: 'none' }}
+                    id="file-upload-addservice"
+                    multiple
+                    type="file"
+                    onChange={handleFileUpload}
+                    disabled={uploadingFiles}
+                  />
+                  <label htmlFor="file-upload-addservice">
+                    <Button
+                      variant="outlined"
+                      component="span"
+                      startIcon={uploadingFiles ? <CircularProgress size={20} /> : <AddIcon />}
+                      disabled={uploadingFiles}
+                      sx={{ mb: 2 }}
+                    >
+                      {uploadingFiles ? '업로드 중...' : '파일 추가 (사진/영상/문서, 최대 5개)'}
+                    </Button>
+                  </label>
+                  <Typography variant="caption" color="text.secondary" sx={{ ml: 2 }}>
+                    구글 드라이브에 자동으로 업로드됩니다 (이미지는 자동 리사이즈됩니다)
+                  </Typography>
+                </Box>
+
+                {/* 업로드된 파일 목록 */}
+                {uploadedFiles.length > 0 && (
+                  <Box sx={{ mt: 2 }}>
+                    <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                      업로드된 파일 ({uploadedFiles.length}/5)
+                    </Typography>
+                    <TableContainer component={Paper} sx={{ maxHeight: 300 }}>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>파일명</TableCell>
+                            <TableCell>크기</TableCell>
+                            <TableCell>업로드일</TableCell>
+                            <TableCell align="center">작업</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {uploadedFiles.map((file) => (
+                            <TableRow key={file.id}>
+                              <TableCell>
+                                <Link 
+                                  href={file.webViewLink} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  sx={{ textDecoration: 'none' }}
+                                >
+                                  {file.name}
+                                </Link>
+                              </TableCell>
+                              <TableCell>
+                                {(file.size / 1024 / 1024).toFixed(2)} MB
+                              </TableCell>
+                              <TableCell>
+                                {new Date(file.uploadDate).toLocaleDateString()}
+                              </TableCell>
+                              <TableCell align="center">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handlePreview(file.webViewLink)}
+                                  title="미리보기"
+                                  sx={{ mr: 1 }}
+                                >
+                                  <VisibilityIcon fontSize="small" />
+                                </IconButton>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleFileDelete(file.id)}
+                                  color="error"
+                                  title="파일 삭제"
+                                >
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Box>
+                )}
+              </Box>
+            </Box>
+          </Grid>
+
           {/* 부품 정보 섹션 */}
           <Grid item xs={12}>
             <Box sx={{ mt: 4 }}>
@@ -2830,6 +3382,52 @@ function AddService() {
             onPartsSelected={handlePartsSelected}
             isDialogMode={true}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* 파일 미리보기 다이얼로그 */}
+      <Dialog
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography>파일 미리보기</Typography>
+            <IconButton onClick={() => setPreviewOpen(false)}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ 
+            width: '100%', 
+            height: '80vh', 
+            display: 'flex', 
+            justifyContent: 'center', 
+            alignItems: 'center' 
+          }}>
+            {previewType === 'pdf' ? (
+              <iframe
+                src={`${previewUrl}#toolbar=0`}
+                width="100%"
+                height="100%"
+                style={{ border: 'none' }}
+                title="PDF 미리보기"
+              />
+            ) : (
+              <img
+                src={previewUrl}
+                alt="파일 미리보기"
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '100%',
+                  objectFit: 'contain'
+                }}
+              />
+            )}
+          </Box>
         </DialogContent>
       </Dialog>
 

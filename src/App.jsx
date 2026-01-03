@@ -40,6 +40,7 @@ import BackupManager from './components/Backup/BackupManager';
 import ShipmentList from './pages/shipment/ShipmentList';
 import ShipmentDetail from './pages/shipment/ShipmentDetail';
 import ShipmentForm from './pages/shipment/ShipmentForm';
+import AdminTools from './pages/admin/AdminTools';
 import BoardList from './pages/board/BoardList';
 import BoardNew from './pages/board/BoardNew';
 import BoardDetail from './pages/board/BoardDetail';
@@ -93,132 +94,137 @@ function App() {
           <Routes>
             <Route path="/login" element={!session ? <Login /> : <Navigate to="/" />} />
             <Route path="/" element={session ? <Layout /> : <Navigate to="/login" />}>
-            <Route index element={
+              <Route index element={
                 <Dashboard />
-            } />
-            <Route path="customers" element={
+              } />
+              <Route path="customers" element={
                 <CustomerManagement />
-            } />
-            <Route path="services" element={
+              } />
+              <Route path="services" element={
                 <ServiceList />
-            } />
-            <Route path="services/:id" element={
+              } />
+              <Route path="services/:id" element={
                 <ServiceDetail />
-            } />
-            <Route path="add-service" element={
+              } />
+              <Route path="add-service" element={
                 <AddService />
-            } />
-            <Route path="service-statistics" element={
+              } />
+              <Route path="service-statistics" element={
                 <ServiceStatistics />
-            } />
-            <Route path="parts" element={
+              } />
+              <Route path="parts" element={
                 <PartsManagement />
-            } />
-            
-            {/* 기존 출고 관리 페이지 */}
-            <Route path="shipments" element={
+              } />
+
+              {/* 기존 출고 관리 페이지 */}
+              <Route path="shipments" element={
                 <ProductShipment />
-            } />
-            <Route path="shipments/:id" element={
+              } />
+              <Route path="shipments/:id" element={
                 <ProductShipment />
-            } />
-            <Route path="shipments/new" element={
+              } />
+              <Route path="shipments/new" element={
                 <ProductShipment />
-            } />
-            
-            {/* 새로운 출고 관리 페이지 라우팅 */}
-            <Route path="shipment" element={
+              } />
+
+              {/* 새로운 출고 관리 페이지 라우팅 */}
+              <Route path="shipment" element={
                 <ShipmentList />
-            } />
-            <Route path="shipment/new" element={
+              } />
+              <Route path="shipment/new" element={
                 <ShipmentForm />
-            } />
-            <Route path="shipment/edit/:id" element={
+              } />
+              <Route path="shipment/edit/:id" element={
                 <ShipmentForm />
-            } />
-            <Route path="shipment/:id" element={
+              } />
+              <Route path="shipment/:id" element={
                 <ShipmentDetail />
-            } />
-            
-            <Route path="receipts" element={
+              } />
+
+              <Route path="receipts" element={
                 <ReceiptScanner />
-            } />
-            <Route path="google-drive-test" element={
+              } />
+              <Route path="google-drive-test" element={
                 <GoogleDriveTest />
-            } />
-            <Route path="system-health-check" element={
+              } />
+              <Route path="system-health-check" element={
                 <SystemHealthCheck />
-            } />
-            <Route path="telegram-test" element={
+              } />
+              <Route path="telegram-test" element={
                 <TelegramTest />
-            } />
-            <Route path="service" element={
+              } />
+              <Route path="service" element={
                 <ServiceList />
-            } />
-            <Route path="service/add" element={
+              } />
+              <Route path="service/add" element={
                 <AddService />
-            } />
-            <Route path="service/stats" element={
+              } />
+              <Route path="service/stats" element={
                 <ServiceStats />
-            } />
-            <Route path="service/:id" element={
+              } />
+              <Route path="service/:id" element={
                 <ServiceDetail />
-            } />
-            <Route path="sales/stats" element={
+              } />
+              <Route path="sales/stats" element={
                 <SalesStats />
-            } />
-            <Route path="stocks" element={
+              } />
+              <Route path="stocks" element={
                 <StockList />
-            } />
-            <Route path="stats/service" element={
+              } />
+              <Route path="stats/service" element={
                 <ServiceStats />
-            } />
-            <Route path="brand-settings" element={
+              } />
+              <Route path="brand-settings" element={
                 <BrandSettings />
-            } />
-            <Route path="inventory-logs" element={
+              } />
+              <Route path="inventory-logs" element={
                 <InventoryLogs />
-            } />
-            <Route
-              path="inventory-management"
-              element={
-                // 입출고 관리 비활성화: 접근 시 대시보드로 리다이렉트
-                <Navigate to="/" replace />
-              }
-            />
-            
-            {/* 권한 설정 - 제거됨 (이메일 기반으로 대체) */}
-            
-            {/* 데이터 백업/복원 */}
-            <Route path="backup" element={
+              } />
+              <Route
+                path="inventory-management"
+                element={
+                  // 입출고 관리 비활성화: 접근 시 대시보드로 리다이렉트
+                  <Navigate to="/" replace />
+                }
+              />
+
+              {/* 권한 설정 - 제거됨 (이메일 기반으로 대체) */}
+
+              {/* 데이터 백업/복원 */}
+              <Route path="backup" element={
                 <BackupManager />
-            } />
-            
-            {/* 게시판 */}
-            <Route path="board" element={
+              } />
+
+              {/* 관리자 도구 */}
+              <Route path="admin/tools" element={
+                <AdminTools />
+              } />
+
+              {/* 게시판 */}
+              <Route path="board" element={
                 <BoardList />
-            } />
-            <Route path="board/new" element={
+              } />
+              <Route path="board/new" element={
                 <BoardNew />
-            } />
-            <Route path="board/:id" element={
+              } />
+              <Route path="board/:id" element={
                 <BoardDetail />
-            } />
-            <Route path="board/:id/edit" element={
+              } />
+              <Route path="board/:id/edit" element={
                 <BoardEdit />
-            } />
-            
-            {/* 주문대기 */}
-            <Route path="pending-orders" element={
+              } />
+
+              {/* 주문대기 */}
+              <Route path="pending-orders" element={
                 <PendingOrderList />
-            } />
-            <Route path="pending-orders/:id" element={
+              } />
+              <Route path="pending-orders/:id" element={
                 <PendingOrderDetail />
-            } />
-          </Route>
-        </Routes>
-      </Router>
-    </ThemeProvider>
+              } />
+            </Route>
+          </Routes>
+        </Router>
+      </ThemeProvider>
     </AuthProvider>
   );
 }

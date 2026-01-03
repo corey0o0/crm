@@ -1424,6 +1424,34 @@ function ServiceDetail() {
     }
   }, [formData.brand]);
 
+  // 컴포넌트 마운트 시 localStorage에서 토큰 확인
+  useEffect(() => {
+    const token = localStorage.getItem('google_access_token');
+    if (token) {
+      // 토큰 유효성 검사
+      fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      .then(response => {
+        if (response.ok) {
+          setGoogleAccessToken(token);
+          console.log('[ServiceDetail] 기존 토큰 로드 완료');
+        } else {
+          // 토큰이 만료되었거나 유효하지 않으면 제거
+          console.warn('[ServiceDetail] 토큰이 유효하지 않습니다. 삭제합니다.');
+          localStorage.removeItem('google_access_token');
+          setGoogleAccessToken(null);
+        }
+      })
+      .catch((error) => {
+        // 네트워크 오류 등은 무시하되, 토큰은 유지 (나중에 다시 시도)
+        console.warn('[ServiceDetail] 토큰 유효성 검사 중 오류:', error);
+      });
+    }
+  }, []);
+
   // 구글 OAuth 콜백 처리
   useEffect(() => {
     const handleGoogleOAuthCallback = () => {
@@ -1659,24 +1687,57 @@ function ServiceDetail() {
             setGoogleAccessToken(token);
             return token;
           } else {
-            // 토큰이 만료되었으면 제거
+            // 토큰이 만료되었거나 유효하지 않으면 제거
+            const errorData = await response.json().catch(() => ({}));
+            console.warn('[ServiceDetail] 토큰 유효성 검사 실패:', response.status, errorData);
             localStorage.removeItem('google_access_token');
+            setGoogleAccessToken(null);
           }
         } catch (tokenError) {
-          console.warn('토큰 유효성 검사 실패:', tokenError);
-          localStorage.removeItem('google_access_token');
+          console.warn('[ServiceDetail] 토큰 유효성 검사 중 오류:', tokenError);
+          // 네트워크 오류는 토큰을 유지하되, 다른 오류는 삭제
+          if (tokenError.name !== 'TypeError' && !tokenError.message.includes('fetch')) {
+            localStorage.removeItem('google_access_token');
+            setGoogleAccessToken(null);
+          }
         }
       }
       
       // 토큰이 없거나 만료되었으면 구글 OAuth 인증 요청
-      const clientId = process.env.REACT_APP_GOOGLE_CLIENT_ID;
+      // 환경 변수는 window._env_에서 가져오거나 process.env에서 가져옴
+      const processEnvClientId = process.env.REACT_APP_GOOGLE_CLIENT_ID;
+      const windowEnvClientId = typeof window !== 'undefined' && window._env_ && window._env_.REACT_APP_GOOGLE_CLIENT_ID;
+      const clientId = processEnvClientId || windowEnvClientId;
+      
+      // 디버깅: 클라이언트 ID 확인
+      console.log('[ServiceDetail] 구글 클라이언트 ID 확인:', {
+        processEnv: processEnvClientId,
+        windowEnv: windowEnvClientId,
+        selected: clientId,
+        allWindowEnvKeys: typeof window !== 'undefined' && window._env_ ? Object.keys(window._env_) : [],
+        windowEnvFull: typeof window !== 'undefined' && window._env_ ? window._env_ : null
+      });
+      
       if (!clientId) {
+        console.error('[ServiceDetail] 구글 클라이언트 ID가 없습니다.');
         throw new Error('구글 클라이언트 ID가 설정되지 않았습니다. 환경변수 REACT_APP_GOOGLE_CLIENT_ID를 확인하세요.');
       }
       
+      // 올바른 클라이언트 ID인지 확인
+      const expectedClientId = '858601328382-kpeaafkvvqaepgii0e79riruh8c642ei.apps.googleusercontent.com';
+      if (clientId !== expectedClientId) {
+        console.warn('[ServiceDetail] ⚠️ 잘못된 클라이언트 ID가 사용되고 있습니다!', {
+          current: clientId,
+          expected: expectedClientId
+        });
+      }
+      
       // 팝업 차단을 우회하기 위해 현재 창에서 리다이렉트
-      const redirectUri = `${window.location.origin}/google-auth-callback.html?service_id=${id}`;
+      // redirect_uri는 쿼리 파라미터 없이 통일 (구글 OAuth 요구사항)
+      const redirectUri = `${window.location.origin}/google-auth-callback.html`;
       const authUrl = `https://accounts.google.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=https://www.googleapis.com/auth/drive.file&response_type=token&access_type=offline`;
+      
+      console.log('[ServiceDetail] 인증 URL 생성:', authUrl);
       
       setSnackbar({
         open: true,
@@ -1685,15 +1746,23 @@ function ServiceDetail() {
       });
       
       // 현재 창에서 인증 페이지로 이동
+      // 리다이렉트되므로 Promise는 resolve되지 않음
       setTimeout(() => {
         window.location.href = authUrl;
       }, 2000);
       
-      throw new Error('인증 페이지로 이동합니다.');
+      // 리다이렉트가 발생하므로 여기까지 오지 않음
+      // Promise를 영원히 pending 상태로 유지
+      return new Promise(() => {});
       
     } catch (error) {
-      console.error('구글 액세스 토큰 가져오기 실패:', error);
-      throw error;
+      // 실제 에러인 경우에만 throw
+      if (!error.message.includes('인증 페이지로 이동')) {
+        console.error('구글 액세스 토큰 가져오기 실패:', error);
+        throw error;
+      }
+      // 인증 페이지로 이동하는 경우는 에러가 아님
+      return new Promise(() => {});
     }
   };
 
@@ -1733,16 +1802,62 @@ function ServiceDetail() {
       
       // 구글 액세스 토큰 확인
       let accessToken = googleAccessToken;
+      
+      // 상태에 토큰이 없으면 localStorage에서 확인
       if (!accessToken) {
-        accessToken = await getGoogleAccessToken();
-        if (!accessToken) {
-          throw new Error('구글 드라이브 인증이 필요합니다.');
+        const storedToken = localStorage.getItem('google_access_token');
+        if (storedToken) {
+          // 토큰 유효성 검사
+          try {
+            const response = await fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
+              headers: {
+                'Authorization': `Bearer ${storedToken}`
+              }
+            });
+            
+            if (response.ok) {
+              accessToken = storedToken;
+              setGoogleAccessToken(storedToken);
+            } else {
+              // 토큰이 만료되었거나 유효하지 않으면 제거
+              const errorData = await response.json().catch(() => ({}));
+              console.warn('[ServiceDetail] 파일 업로드: 토큰 유효성 검사 실패:', response.status, errorData);
+              localStorage.removeItem('google_access_token');
+              setGoogleAccessToken(null);
+            }
+          } catch (tokenError) {
+            console.warn('[ServiceDetail] 파일 업로드: 토큰 유효성 검사 중 오류:', tokenError);
+            // 네트워크 오류가 아닌 경우에만 토큰 삭제
+            if (tokenError.name !== 'TypeError' && !tokenError.message.includes('fetch')) {
+              localStorage.removeItem('google_access_token');
+              setGoogleAccessToken(null);
+            }
+          }
         }
+      }
+      
+      // 여전히 토큰이 없으면 인증 요청
+      if (!accessToken) {
+        // 인증 페이지로 이동 (getGoogleAccessToken이 리다이렉트함)
+        try {
+          await getGoogleAccessToken();
+        } catch (error) {
+          // 인증 페이지로 이동하는 경우는 정상 플로우이므로 에러로 처리하지 않음
+          if (!error.message || !error.message.includes('인증 페이지로 이동')) {
+            throw error;
+          }
+        }
+        // 리다이렉트되므로 여기까지 오지 않음
+        return;
       }
 
       // 업로드 루트/서브 폴더 설정 (환경변수 활용)
-      const rootFolderId = process.env.REACT_APP_GOOGLE_DRIVE_ROOT_FOLDER_ID || null; // 예: 1bcCscOsNptDJvOVA1qSrbi-m6XU1y4d7
-      const subFolderName = process.env.REACT_APP_GOOGLE_DRIVE_SUBFOLDER || 'upload_crm';
+      const rootFolderId = process.env.REACT_APP_GOOGLE_DRIVE_ROOT_FOLDER_ID || 
+                          (typeof window !== 'undefined' && window._env_ && window._env_.REACT_APP_GOOGLE_DRIVE_ROOT_FOLDER_ID) || 
+                          null;
+      const subFolderName = process.env.REACT_APP_GOOGLE_DRIVE_SUBFOLDER || 
+                           (typeof window !== 'undefined' && window._env_ && window._env_.REACT_APP_GOOGLE_DRIVE_SUBFOLDER) || 
+                           'upload_crm';
 
       // 루트 폴더ID 하위에 서브폴더(upload_crm)를 생성/탐색
       const subRootFolder = await findOrCreateFolder(subFolderName, rootFolderId, accessToken);
@@ -1835,6 +1950,12 @@ function ServiceDetail() {
     }
 
     } catch (error) {
+      // 인증 페이지로 이동하는 경우는 정상 플로우이므로 에러로 처리하지 않음
+      if (error.message && error.message.includes('인증 페이지로 이동')) {
+        // 리다이렉트가 발생하므로 여기까지 오지 않지만, 혹시 모를 경우를 대비
+        return;
+      }
+      
       console.error('파일 업로드 실패:', error);
       setSnackbar({
         open: true,
@@ -3210,11 +3331,19 @@ function ServiceDetail() {
                               <TableCell align="center">
                                 <IconButton
                                   size="small"
+                                  onClick={() => handlePreview(file.webViewLink)}
+                                  title="미리보기"
+                                  sx={{ mr: 1 }}
+                                >
+                                  <VisibilityIcon fontSize="small" />
+                                </IconButton>
+                                <IconButton
+                                  size="small"
                                   onClick={() => handleFileDelete(file.id, file.dbId)}
                                   color="error"
                                   title="파일 삭제"
                                 >
-                                  <DeleteIcon />
+                                  <DeleteIcon fontSize="small" />
                                 </IconButton>
                               </TableCell>
                             </TableRow>

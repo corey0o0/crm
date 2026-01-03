@@ -13,7 +13,7 @@ export const downloadExcel = async (data, headers, filename) => {
     const worksheet = workbook.addWorksheet('데이터');
 
     // 헤더 설정
-    const headerRow = headers.map(header => 
+    const headerRow = headers.map(header =>
       typeof header === 'string' ? header : header.label
     );
     worksheet.addRow(headerRow);
@@ -40,7 +40,7 @@ export const downloadExcel = async (data, headers, filename) => {
       const row = headers.map(header => {
         const key = typeof header === 'string' ? header : header.key;
         let value = item[key];
-        
+
         // 날짜 포맷팅
         if (value && typeof value === 'string' && value.includes('T')) {
           try {
@@ -52,7 +52,7 @@ export const downloadExcel = async (data, headers, filename) => {
             // 날짜 변환 실패 시 원본 값 유지
           }
         }
-        
+
         return value || '';
       });
       worksheet.addRow(row);
@@ -86,10 +86,10 @@ export const downloadExcel = async (data, headers, filename) => {
 
     // 파일 다운로드
     const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], { 
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     });
-    
+
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -98,7 +98,7 @@ export const downloadExcel = async (data, headers, filename) => {
     link.click();
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
-    
+
     return true;
   } catch (error) {
     console.error('Excel 파일 생성 중 오류:', error);
@@ -115,27 +115,27 @@ export const downloadExcel = async (data, headers, filename) => {
 export const readExcelFile = async (file, options = {}) => {
   try {
     const workbook = new ExcelJS.Workbook();
-    
+
     // ArrayBuffer로 파일 읽기
     const arrayBuffer = await file.arrayBuffer();
     await workbook.xlsx.load(arrayBuffer);
-    
+
     // 첫 번째 워크시트 가져오기 (또는 지정된 시트)
-    const worksheet = options.sheetName 
+    const worksheet = options.sheetName
       ? workbook.getWorksheet(options.sheetName)
       : workbook.getWorksheet(1);
-    
+
     if (!worksheet) {
       throw new Error('워크시트를 찾을 수 없습니다.');
     }
 
     const jsonData = [];
     const headers = [];
-    
+
     // 헤더 행 처리 (기본적으로 첫 번째 행)
     const headerRowNumber = options.headerRow || 1;
     const headerRow = worksheet.getRow(headerRowNumber);
-    
+
     headerRow.eachCell((cell, colNumber) => {
       headers[colNumber] = cell.value ? cell.value.toString().trim() : `Column${colNumber}`;
     });
@@ -143,16 +143,16 @@ export const readExcelFile = async (file, options = {}) => {
     // 데이터 행 처리
     const startRow = headerRowNumber + 1;
     const endRow = worksheet.rowCount;
-    
+
     for (let rowNumber = startRow; rowNumber <= endRow; rowNumber++) {
       const row = worksheet.getRow(rowNumber);
       const rowData = {};
       let hasData = false;
-      
+
       row.eachCell((cell, colNumber) => {
         if (headers[colNumber]) {
           let value = cell.value;
-          
+
           // 날짜 처리
           if (value instanceof Date) {
             value = value.toISOString().split('T')[0];
@@ -182,18 +182,18 @@ export const readExcelFile = async (file, options = {}) => {
           } else {
             value = '';
           }
-          
+
           rowData[headers[colNumber]] = value;
           if (value !== '') hasData = true;
         }
       });
-      
+
       // 빈 행이 아닌 경우에만 추가
       if (hasData) {
         jsonData.push(rowData);
       }
     }
-    
+
     return jsonData;
   } catch (error) {
     console.error('Excel 파일 읽기 중 오류:', error);
@@ -234,7 +234,7 @@ export const read = async (file, options = {}) => {
   };
 };
 
-export default {
+const excelUtils = {
   downloadExcel,
   readExcelFile,
   jsonToSheet,
@@ -242,3 +242,5 @@ export default {
   writeFile,
   read
 };
+
+export default excelUtils;

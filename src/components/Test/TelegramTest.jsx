@@ -26,14 +26,14 @@ const TelegramTest = () => {
     const status = {
       hasWindowEnv: typeof window !== 'undefined' && !!window._env_,
       windowEnvKeys: typeof window !== 'undefined' && window._env_ ? Object.keys(window._env_) : [],
-      telegramToken: typeof window !== 'undefined' && window._env_?.REACT_APP_TELEGRAM_BOT_TOKEN 
-        ? window._env_.REACT_APP_TELEGRAM_BOT_TOKEN.substring(0, 15) + '...' 
+      telegramToken: typeof window !== 'undefined' && window._env_?.REACT_APP_TELEGRAM_BOT_TOKEN
+        ? window._env_.REACT_APP_TELEGRAM_BOT_TOKEN.substring(0, 15) + '...'
         : '없음',
-      telegramChatId: typeof window !== 'undefined' && window._env_?.REACT_APP_TELEGRAM_CHAT_ID 
-        ? window._env_.REACT_APP_TELEGRAM_CHAT_ID 
+      telegramChatId: typeof window !== 'undefined' && window._env_?.REACT_APP_TELEGRAM_CHAT_ID
+        ? window._env_.REACT_APP_TELEGRAM_CHAT_ID
         : '없음',
-      baseUrl: typeof window !== 'undefined' && window._env_?.REACT_APP_BASE_URL 
-        ? window._env_.REACT_APP_BASE_URL 
+      baseUrl: typeof window !== 'undefined' && window._env_?.REACT_APP_BASE_URL
+        ? window._env_.REACT_APP_BASE_URL
         : '없음',
       processEnvToken: process.env.REACT_APP_TELEGRAM_BOT_TOKEN ? '있음' : '없음',
       processEnvChatId: process.env.REACT_APP_TELEGRAM_CHAT_ID ? '있음' : '없음'
@@ -48,9 +48,9 @@ const TelegramTest = () => {
     setResult(null);
 
     try {
-      const botToken = (typeof window !== 'undefined' && window._env_?.REACT_APP_TELEGRAM_BOT_TOKEN) 
+      const botToken = (typeof window !== 'undefined' && window._env_?.REACT_APP_TELEGRAM_BOT_TOKEN)
         || process.env.REACT_APP_TELEGRAM_BOT_TOKEN;
-      const chatId = (typeof window !== 'undefined' && window._env_?.REACT_APP_TELEGRAM_CHAT_ID) 
+      const chatId = (typeof window !== 'undefined' && window._env_?.REACT_APP_TELEGRAM_CHAT_ID)
         || process.env.REACT_APP_TELEGRAM_CHAT_ID;
 
       if (!botToken || !chatId) {
@@ -139,13 +139,81 @@ const TelegramTest = () => {
     }
   };
 
+  // 전체 테스트 실행 (순차적)
+  const runAllTests = async () => {
+    setLoading(true);
+    setResult(null);
+    const results = [];
+
+    try {
+      // 1. 환경 변수 확인
+      const env = checkEnvStatus();
+      results.push({ step: '환경 변수 확인', success: true, data: env });
+
+      // 2. 봇 정보 확인
+      const botToken = (typeof window !== 'undefined' && window._env_?.REACT_APP_TELEGRAM_BOT_TOKEN)
+        || process.env.REACT_APP_TELEGRAM_BOT_TOKEN;
+
+      if (!botToken) throw new Error('텔레그램 토큰이 없습니다.');
+
+      const infoUrl = `https://api.telegram.org/bot${botToken}/getMe`;
+      const infoRes = await fetch(infoUrl);
+      const infoData = await infoRes.json();
+
+      if (!infoRes.ok) throw new Error(`봇 정보 조회 실패: ${JSON.stringify(infoData)}`);
+      results.push({ step: '봇 정보 확인', success: true, data: infoData });
+
+      // 3. 직접 API 호출
+      const chatId = (typeof window !== 'undefined' && window._env_?.REACT_APP_TELEGRAM_CHAT_ID)
+        || process.env.REACT_APP_TELEGRAM_CHAT_ID;
+
+      if (!chatId) throw new Error('채팅 ID가 없습니다.');
+
+      const msgUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
+      const msgPayload = {
+        chat_id: chatId,
+        text: `[전체 테스트] ${testMessage}`,
+        parse_mode: 'HTML'
+      };
+
+      const msgRes = await fetch(msgUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(msgPayload)
+      });
+      const msgData = await msgRes.json();
+
+      if (!msgRes.ok) throw new Error(`메시지 발송 실패: ${JSON.stringify(msgData)}`);
+      results.push({ step: '메시지 발송 테스트', success: true, data: msgData });
+
+      setResult({
+        success: true,
+        type: 'all',
+        message: '전체 테스트 완료',
+        data: results
+      });
+
+    } catch (error) {
+      console.error('[전체 테스트] 실패:', error);
+      setResult({
+        success: false,
+        type: 'all',
+        message: `테스트 중단: ${error.message}`,
+        error: error,
+        partialResults: results
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // 봇 정보 확인
   const testBotInfo = async () => {
     setLoading(true);
     setResult(null);
 
     try {
-      const botToken = (typeof window !== 'undefined' && window._env_?.REACT_APP_TELEGRAM_BOT_TOKEN) 
+      const botToken = (typeof window !== 'undefined' && window._env_?.REACT_APP_TELEGRAM_BOT_TOKEN)
         || process.env.REACT_APP_TELEGRAM_BOT_TOKEN;
 
       if (!botToken) {
@@ -190,8 +258,8 @@ const TelegramTest = () => {
         <Typography variant="h6" gutterBottom>
           환경 변수 상태
         </Typography>
-        <Button 
-          variant="outlined" 
+        <Button
+          variant="outlined"
           onClick={checkEnvStatus}
           sx={{ mb: 2 }}
         >
@@ -200,45 +268,45 @@ const TelegramTest = () => {
         {envStatus && (
           <List dense>
             <ListItem>
-              <ListItemText 
-                primary="window._env_ 존재" 
-                secondary={envStatus.hasWindowEnv ? '✅ 있음' : '❌ 없음'} 
+              <ListItemText
+                primary="window._env_ 존재"
+                secondary={envStatus.hasWindowEnv ? '✅ 있음' : '❌ 없음'}
               />
             </ListItem>
             <ListItem>
-              <ListItemText 
-                primary="환경 변수 키 개수" 
-                secondary={envStatus.windowEnvKeys.length} 
+              <ListItemText
+                primary="환경 변수 키 개수"
+                secondary={envStatus.windowEnvKeys.length}
               />
             </ListItem>
             <ListItem>
-              <ListItemText 
-                primary="텔레그램 토큰 (window._env_)" 
-                secondary={envStatus.telegramToken} 
+              <ListItemText
+                primary="텔레그램 토큰 (window._env_)"
+                secondary={envStatus.telegramToken}
               />
             </ListItem>
             <ListItem>
-              <ListItemText 
-                primary="텔레그램 채팅 ID (window._env_)" 
-                secondary={envStatus.telegramChatId} 
+              <ListItemText
+                primary="텔레그램 채팅 ID (window._env_)"
+                secondary={envStatus.telegramChatId}
               />
             </ListItem>
             <ListItem>
-              <ListItemText 
-                primary="Base URL (window._env_)" 
-                secondary={envStatus.baseUrl} 
+              <ListItemText
+                primary="Base URL (window._env_)"
+                secondary={envStatus.baseUrl}
               />
             </ListItem>
             <ListItem>
-              <ListItemText 
-                primary="텔레그램 토큰 (process.env)" 
-                secondary={envStatus.processEnvToken} 
+              <ListItemText
+                primary="텔레그램 토큰 (process.env)"
+                secondary={envStatus.processEnvToken}
               />
             </ListItem>
             <ListItem>
-              <ListItemText 
-                primary="텔레그램 채팅 ID (process.env)" 
-                secondary={envStatus.processEnvChatId} 
+              <ListItemText
+                primary="텔레그램 채팅 ID (process.env)"
+                secondary={envStatus.processEnvChatId}
               />
             </ListItem>
           </List>
@@ -256,6 +324,15 @@ const TelegramTest = () => {
         />
 
         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+          <Button
+            variant="contained"
+            color="success"
+            onClick={runAllTests}
+            disabled={loading}
+            startIcon={loading ? <CircularProgress size={20} /> : null}
+          >
+            전체 기능 테스트
+          </Button>
           <Button
             variant="contained"
             onClick={testBotInfo}
@@ -296,7 +373,7 @@ const TelegramTest = () => {
             color={result.success ? 'success' : 'error'}
             sx={{ mb: 2 }}
           />
-          <Alert 
+          <Alert
             severity={result.success ? 'success' : 'error'}
             sx={{ mb: 2 }}
           >
@@ -307,9 +384,9 @@ const TelegramTest = () => {
               <Typography variant="subtitle2" gutterBottom>
                 응답 데이터:
               </Typography>
-              <pre style={{ 
-                background: '#f5f5f5', 
-                padding: '10px', 
+              <pre style={{
+                background: '#f5f5f5',
+                padding: '10px',
                 borderRadius: '4px',
                 overflow: 'auto',
                 fontSize: '12px'
@@ -323,9 +400,9 @@ const TelegramTest = () => {
               <Typography variant="subtitle2" gutterBottom color="error">
                 오류 상세:
               </Typography>
-              <pre style={{ 
-                background: '#ffebee', 
-                padding: '10px', 
+              <pre style={{
+                background: '#ffebee',
+                padding: '10px',
                 borderRadius: '4px',
                 overflow: 'auto',
                 fontSize: '12px'

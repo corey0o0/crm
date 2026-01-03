@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { 
-  Box, 
-  Typography, 
-  Button, 
-  CircularProgress, 
+import {
+  Box,
+  Typography,
+  Button,
+  CircularProgress,
   TextField,
   InputAdornment,
   Paper,
@@ -23,31 +23,26 @@ import {
   Tabs,
   Tab,
   ButtonGroup,
-  Tooltip,
-  Snackbar,
-  Alert,
-  Divider,
-  Grid,
-  Dialog,
-  DialogTitle,
-  DialogContent,
   DialogActions,
   LinearProgress,
   TablePagination,
   Skeleton,
-  Container,
-  Backdrop
+  Backdrop,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  Snackbar,
+  Alert,
+  Grid
 } from '@mui/material';
-import { 
-  Add as AddIcon, 
-  Search as SearchIcon, 
+import {
+  Add as AddIcon,
+  Search as SearchIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  FilterList as FilterListIcon,
-  Download as DownloadIcon,
   CloudUpload as CloudUploadIcon,
   Clear as ClearIcon,
-  DateRange as DateRangeIcon
+  Download as DownloadIcon
 } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
 import { fetchShipments as fetchShipmentsAPI, countShipments, countPendingAndShippingByBrand } from '../../utils/restApiUtils';
@@ -59,7 +54,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ko } from 'date-fns/locale';
 import { getCookie, setCookie, removeCookie, getJSONCookie, setJSONCookie } from '../../utils/cookieUtils';
-import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
+
 import dayjs from 'dayjs';
 
 function ShipmentList() {
@@ -101,7 +96,7 @@ function ShipmentList() {
   });
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedShipment, setSelectedShipment] = useState(null);
-  
+
   // 엑셀 업로드 관련 상태 추가
   const [excelUploadDialog, setExcelUploadDialog] = useState(false);
   const [uploadedData, setUploadedData] = useState([]);
@@ -113,10 +108,10 @@ function ShipmentList() {
   const [migrateDialogOpen, setMigrateDialogOpen] = useState(false);
   const [migrating, setMigrating] = useState(false);
   const [migrationProgress, setMigrationProgress] = useState(0);
-  const [migrationStats, setMigrationStats] = useState({ 
-    total: 0, 
-    migrated: 0, 
-    skipped: 0, 
+  const [migrationStats, setMigrationStats] = useState({
+    total: 0,
+    migrated: 0,
+    skipped: 0,
     failed: 0,
     split: 0
   });
@@ -124,7 +119,7 @@ function ShipmentList() {
   // 페이징 상태 추가
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(30);
-  
+
   // 지연 로딩 관련 상태 추가
   const [firstPageLoaded, setFirstPageLoaded] = useState(false);
   const [totalExpected, setTotalExpected] = useState(0);
@@ -134,12 +129,12 @@ function ShipmentList() {
   const [networkError, setNetworkError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+
   const [backgroundLoading, setBackgroundLoading] = useState(false);
-  const [progressiveLoading, setProgressiveLoading] = useState(false);
   const [loadProgress, setLoadProgress] = useState(0);
   const [searchLoading, setSearchLoading] = useState(false);
   const [hasActiveSearch, setHasActiveSearch] = useState(false);
-  
+
   // 브랜드별 준비중+배송중 건수
   const [brandCounts, setBrandCounts] = useState({
     XRB: 0,
@@ -181,6 +176,7 @@ function ShipmentList() {
 
   useEffect(() => {
     fetchShipments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBrand, dateFilter, statusFilter, sellerFilter]);
 
   // 브랜드별 준비중+배송중 건수 조회
@@ -190,12 +186,12 @@ function ShipmentList() {
         countPendingAndShippingByBrand('XRB'),
         countPendingAndShippingByBrand('NB')
       ]);
-      
+
       // 디버깅: 실제 데이터 확인
       if (xrbCount > 0 || nbCount > 0) {
         console.log('[ShipmentList] 브랜드별 건수:', { XRB: xrbCount, NB: nbCount });
       }
-      
+
       setBrandCounts({
         XRB: xrbCount || 0,
         NB: nbCount || 0
@@ -280,7 +276,7 @@ function ShipmentList() {
     if (match && match[1]) return match[1].trim();
     // 키워드 보정
     if (note.includes('청담매장') || note.includes('청담')) return '청담매장';
-    const keywords = ['공홈','블로그','네이버','인스타','쿠팡','매장','스마트할부','라이클-우리','스마트스토어'];
+    const keywords = ['공홈', '블로그', '네이버', '인스타', '쿠팡', '매장', '스마트할부', '라이클-우리', '스마트스토어'];
     for (const k of keywords) if (note.includes(k)) return k;
     return '공홈';
   };
@@ -301,13 +297,13 @@ function ShipmentList() {
         setSnackbar({ open: true, severity: 'error', message: '요청이 예상보다 오래 걸립니다. 네트워크 상태를 확인한 후 다시 시도하세요.' });
         setLoading(false);
       }, 15000);
-      
+
       if (retryAttempt === 0) {
         setShipments([]); // 첫 번째 시도에서만 초기화
       }
-      
+
       console.log('fetchFirstPage called with selectedBrand:', selectedBrand, 'retry:', retryAttempt);
-      
+
       const FIRST_PAGE_SIZE = 50;
 
       // REST API로 변경 - 날짜 필터 준비
@@ -339,14 +335,14 @@ function ShipmentList() {
           signal: controller.signal
         })
       ]);
-      
+
       clearTimeout(timeoutId);
-      
+
       console.log('[ShipmentList] REST API results - count:', totalCount, 'first page:', firstPageData?.length);
-      
+
       setTotalExpected(totalCount);
       console.log(`Total shipments: ${totalCount}, First page loaded: ${firstPageData?.length || 0}`);
-      
+
       if (firstPageData && firstPageData.length > 0) {
         // 날짜 기준으로 정렬 (REST API 버전)
         const sortedData = [...firstPageData].sort((a, b) => {
@@ -363,19 +359,19 @@ function ShipmentList() {
           }
           return dateB - dateA;
         });
-        
+
         setShipments(sortedData);
         setFirstPageLoaded(true);
         setLoading(false); // 첫 페이지 로딩 완료
         setLoadedChunks(1); // 첫 번째 청크 로드 완료
-        
+
         // 판매처 목록 업데이트
         const uniqueSellers = new Set(['전체']);
         sortedData.forEach(shipment => {
           uniqueSellers.add(extractSalesChannel(shipment.note, shipment.sales_channel));
         });
         setSellers(Array.from(uniqueSellers));
-        
+
         // 백그라운드에서 한 청크(100건)만 더 로딩
         if (totalCount > FIRST_PAGE_SIZE) {
           setTimeout(() => {
@@ -389,14 +385,14 @@ function ShipmentList() {
         setLoading(false);
         setHasMoreData(false);
       }
-      
+
       // 재시도 카운트 초기화
       setRetryCount(0);
       if (loadingWatchdogRef.current) {
         clearTimeout(loadingWatchdogRef.current);
         loadingWatchdogRef.current = null;
       }
-      
+
     } catch (err) {
       console.error('[ShipmentList] Error fetching first page:', err);
       setNetworkError(true);
@@ -409,14 +405,14 @@ function ShipmentList() {
         setLoading(false);
         return;
       }
-      
+
       // Failed to fetch 계열 자동 1회 재시도
       const msg = String(err?.message || '');
-      if (retryAttempt === 0 && (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('fetch'))){
+      if (retryAttempt === 0 && (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('fetch'))) {
         console.log('[ShipmentList] Network error detected, retrying once...');
         return fetchFirstPage(1);
       }
-      
+
       // 네트워크 오류가 계속되면 명확한 안내
       setSnackbar({
         open: true,
@@ -431,12 +427,12 @@ function ShipmentList() {
   const fetchNextChunk = async (startOffset) => {
     try {
       setIsLoadingNextChunk(true);
-      
+
       const CHUNK_SIZE = 100;
       const page = Math.floor(startOffset / CHUNK_SIZE);
-      
+
       console.log(`[ShipmentList] Loading next chunk: page ${page}, offset ${startOffset}`);
-      
+
       // REST API로 변경 - 날짜 필터 준비
       let processedDateFilter = {};
       if (dateFilter.startDate && dateFilter.endDate) {
@@ -464,9 +460,9 @@ function ShipmentList() {
         setHasMoreData(false);
         return;
       }
-      
+
       console.log(`[ShipmentList] Next chunk loaded: ${shipmentsData.length} items`);
-      
+
       // 날짜 기준으로 정렬
       const sortedData = [...shipmentsData].sort((a, b) => {
         let dateA, dateB;
@@ -482,7 +478,7 @@ function ShipmentList() {
         }
         return dateB - dateA;
       });
-      
+
       // 기존 데이터에 추가 (id 기준 중복 제거)
       setShipments(prev => {
         const byId = new Map(prev.map(item => [item.id, item]));
@@ -492,7 +488,7 @@ function ShipmentList() {
         return Array.from(byId.values());
       });
       setLoadedChunks(prev => prev + 1);
-      
+
       // 판매처 목록 업데이트
       const uniqueSellers = new Set(['전체']);
       setShipments(currentShipments => {
@@ -502,16 +498,16 @@ function ShipmentList() {
         setSellers(Array.from(uniqueSellers));
         return currentShipments;
       });
-      
+
       // 로드된 데이터가 청크 크기보다 작으면 더 이상 데이터 없음
       if (shipmentsData.length < CHUNK_SIZE) {
         setHasMoreData(false);
       }
-      
+
       console.log(`[ShipmentList] Chunk loaded: ${shipmentsData.length} items. Total chunks: ${loadedChunks + 1}`);
-      
+
       console.log(`Chunk loaded: ${shipmentsData.length} items. Total chunks: ${loadedChunks + 1}`);
-      
+
     } catch (err) {
       console.error('Error loading next chunk:', err);
       if (err?.name === 'AbortError') {
@@ -529,17 +525,17 @@ function ShipmentList() {
       console.log('No data to display, staying on current page');
       return;
     }
-    
+
     // 현재 페이지에 표시할 데이터가 있는지 확인
     const maxPage = Math.max(0, Math.ceil(filteredShipments.length / rowsPerPage) - 1);
     const validPage = Math.min(newPage, maxPage);
-    
+
     setPage(validPage);
-    
+
     // 3페이지마다 새 청크 로딩 체크
     const itemsNeeded = (validPage + 1) * rowsPerPage;
     const currentItemsLoaded = shipments.length;
-    
+
     // 현재 로드된 데이터로 충분하지 않고, 더 로드할 데이터가 있으며, 현재 로딩 중이 아닐 때
     if (itemsNeeded > currentItemsLoaded && hasMoreData && !isLoadingNextChunk && !hasActiveSearch) {
       console.log(`Need ${itemsNeeded} items, have ${currentItemsLoaded}. Loading next chunk...`);
@@ -620,7 +616,7 @@ function ShipmentList() {
   // 실시간 검색을 위한 debounce 효과
   useEffect(() => {
     const trimmedValue = inputValue.trim();
-    
+
     // 검색어가 비어있으면 searchTerm만 초기화 (페이지 새로고침 없음)
     if (trimmedValue === '') {
       setSearchTerm('');
@@ -672,25 +668,25 @@ function ShipmentList() {
     const today = new Date();
     let start = new Date();
     let end = new Date();
-    
-    switch(period) {
+
+    switch (period) {
       case 'today':
-        start.setHours(0,0,0,0);
-        end.setHours(23,59,59,999);
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
         break;
       case 'yesterday':
         start.setDate(today.getDate() - 1);
-        start.setHours(0,0,0,0);
+        start.setHours(0, 0, 0, 0);
         end.setDate(today.getDate() - 1);
-        end.setHours(23,59,59,999);
+        end.setHours(23, 59, 59, 999);
         break;
       case 'thisWeek':
         const day = today.getDay();
         const diff = today.getDate() - day + (day === 0 ? -6 : 1);
         start = new Date(today.setDate(diff));
-        start.setHours(0,0,0,0);
+        start.setHours(0, 0, 0, 0);
         end = new Date();
-        end.setHours(23,59,59,999);
+        end.setHours(23, 59, 59, 999);
         break;
       case 'lastWeek':
         // 월요일 시작 기준 지난주
@@ -704,30 +700,30 @@ function ShipmentList() {
           lastWeekEnd.setDate(lastWeekStart.getDate() + 6);
           start = lastWeekStart;
           end = lastWeekEnd;
-          start.setHours(0,0,0,0);
-          end.setHours(23,59,59,999);
+          start.setHours(0, 0, 0, 0);
+          end.setHours(23, 59, 59, 999);
         }
         break;
       case 'thisMonth':
         start = new Date(today.getFullYear(), today.getMonth(), 1);
         end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-        end.setHours(23,59,59,999);
+        end.setHours(23, 59, 59, 999);
         break;
       case 'lastMonth':
         start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
         end = new Date(today.getFullYear(), today.getMonth(), 0);
-        end.setHours(23,59,59,999);
+        end.setHours(23, 59, 59, 999);
         break;
       default:
         return;
     }
-    
+
     const newDateFilter = {
       ...dateFilter,
       startDate: format(start, 'yyyy-MM-dd'),
       endDate: format(end, 'yyyy-MM-dd')
     };
-    
+
     setDateFilter(newDateFilter);
   };
 
@@ -757,17 +753,17 @@ function ShipmentList() {
   const handleDeleteConfirm = async () => {
     try {
       setLoading(true);
-      
+
       const { error } = await supabase
         .from('shipments')
         .delete()
         .eq('id', selectedShipment.id);
 
       if (error) throw error;
-      
+
       fetchShipments();
       fetchBrandCounts(); // 건수 갱신
-      
+
       setSnackbar({
         open: true,
         message: '출고 정보가 성공적으로 삭제되었습니다.',
@@ -791,7 +787,7 @@ function ShipmentList() {
     try {
       // 필터가 적용된 현재 표시 중인 출고 데이터 사용
       const shipmentsToExport = filteredShipments;
-      
+
       if (shipmentsToExport.length === 0) {
         setSnackbar({
           open: true,
@@ -833,7 +829,7 @@ function ShipmentList() {
       ];
 
       const brandName = selectedBrand === 'XRB' ? 'X-RIDER' : 'NEARBIKE';
-      
+
       // 필터 정보를 파일명에 포함
       let filterInfo = '';
       if (searchTerm) {
@@ -850,7 +846,7 @@ function ShipmentList() {
         const endDate = dateFilter.endDate ? format(new Date(dateFilter.endDate), 'yyyy-MM-dd') : '';
         filterInfo += `_기간_${startDate}_${endDate}`;
       }
-      
+
       const fileName = `출고목록_${brandName}${filterInfo}_${exportData.length}건_${new Date().toLocaleDateString()}.xlsx`;
       downloadExcel(exportData, headers, fileName);
 
@@ -882,98 +878,12 @@ function ShipmentList() {
     }
   };
 
-  // 엑셀 템플릿 다운로드 함수
-  const handleDownloadTemplate = () => {
-    try {
-      // 템플릿 데이터 생성
-      const templateData = [
-        {
-          '고객명': '홍길동',
-          '연락처': '010-1234-5678',
-          '주소': '서울시 강남구',
-          '제품명': 'X-RIDER 전기자전거',
-          '제품코드': 'XRBM-001',
-          '수량': '1',
-          '가격': '1500000',
-          '카테고리': '기체',
-          '판매처': '공홈',
-          '배송방법': '택배',
-          '주문일': '2024-05-01',
-          '출고일': '2024-05-05',
-          '메모': '배송 전 연락 요망'
-        },
-        {
-          '고객명': '김철수',
-          '연락처': '010-9876-5432',
-          '주소': '부산시 해운대구',
-          '제품명': 'X-RIDER MINI',
-          '제품코드': 'XRBM-002',
-          '수량': '1',
-          '가격': '1200000',
-          '카테고리': '기체',
-          '판매처': '청담매장',
-          '배송방법': '방문수령',
-          '주문일': '2024-05-02',
-          '출고일': '',
-          '메모': '주문확인 완료'
-        },
-        {
-          '고객명': '김철수',
-          '연락처': '010-9876-5432',
-          '주소': '부산시 해운대구',
-          '제품명': '배터리 충전기',
-          '제품코드': 'XRBP-001',
-          '수량': '1',
-          '가격': '50000',
-          '카테고리': '파츠',
-          '판매처': '청담매장',
-          '배송방법': '방문수령',
-          '주문일': '2024-05-02',
-          '출고일': '',
-          '메모': ''
-        }
-      ];
-
-      const headers = [
-        { label: '고객명', key: '고객명' },
-        { label: '연락처', key: '연락처' },
-        { label: '주소', key: '주소' },
-        { label: '제품명', key: '제품명' },
-        { label: '제품코드', key: '제품코드' },
-        { label: '수량', key: '수량' },
-        { label: '가격', key: '가격' },
-        { label: '카테고리', key: '카테고리' },
-        { label: '판매처', key: '판매처' },
-        { label: '배송방법', key: '배송방법' },
-        { label: '주문일', key: '주문일' },
-        { label: '출고일', key: '출고일' },
-        { label: '메모', key: '메모' }
-      ];
-
-      // 파일 다운로드
-      downloadExcel(templateData, headers, `출고등록템플릿_${selectedBrand}.xlsx`);
-
-      setSnackbar({
-        open: true,
-        message: '템플릿이 다운로드되었습니다.',
-        severity: 'success'
-      });
-    } catch (err) {
-      console.error('템플릿 다운로드 중 오류:', err);
-      setSnackbar({
-        open: true,
-        message: '템플릿 다운로드 중 오류가 발생했습니다.',
-        severity: 'error'
-      });
-    }
-  };
-
   // 카테고리 결정 함수 (코드 패턴 기반)
   const determineCategory = (code, name, price) => {
     if (!code) return '기타';
-    
+
     const upperCode = code.toUpperCase();
-    
+
     // 코드 패턴 기반 카테고리 결정
     if (upperCode.startsWith('XRBM-') || upperCode.startsWith('NBM-') || upperCode.includes('BIKE')) {
       return '기체';
@@ -982,64 +892,19 @@ function ShipmentList() {
     } else if (upperCode.startsWith('XRBS-') || upperCode.startsWith('NBS-') || upperCode.includes('SERVICE')) {
       return '공임';
     }
-    
+
     // 기본값
     return '기타';
   };
 
-  // 엑셀 파일 업로드 핸들러
-  const handleFileUpload = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    setIsUploading(true);
-    setUploadProgress(10);
-
-    try {
-      const jsonData = await readExcelFile(file);
-
-      setUploadProgress(50);
-      
-      if (jsonData.length === 0) {
-        setSnackbar({
-          open: true,
-          message: '업로드한 파일에 데이터가 없습니다.',
-          severity: 'warning'
-        });
-        setIsUploading(false);
-        return;
-      }
-
-      // 프리뷰 데이터 생성 (최대 5개 항목)
-      setPreviewData(jsonData.slice(0, 5));
-      
-      // 전체 데이터 저장
-      setUploadedData(jsonData);
-      
-      setUploadProgress(100);
-      setExcelUploadDialog(true);
-      setIsUploading(false);
-    } catch (error) {
-      console.error('엑셀 파일 처리 중 오류:', error);
-      setSnackbar({
-        open: true,
-        message: '엑셀 파일 형식이 올바르지 않습니다.',
-        severity: 'error'
-      });
-      setIsUploading(false);
-    }
-    
-    // 파일 input 초기화
-    event.target.value = '';
-  };
 
   // 엑셀 데이터 저장 처리
   const handleSaveExcelData = async () => {
     if (uploadedData.length === 0) return;
-    
+
     setIsUploading(true);
     setUploadProgress(0);
-    
+
     try {
       // 중복 확인을 위한 고객 정보별 그룹화
       const customerGroups = {};
@@ -1061,7 +926,7 @@ function ShipmentList() {
             products: []
           };
         }
-        
+
         // 제품 정보 추가
         customerGroups[customer].products.push({
           name: item['제품명'],
@@ -1071,23 +936,23 @@ function ShipmentList() {
           category: item['카테고리'] || determineCategory(item['제품코드'], item['제품명'], item['가격'])
         });
       });
-      
+
       const totalGroups = Object.keys(customerGroups).length;
       let processedGroups = 0;
-      
+
       // 각 고객 그룹별로 출고 정보 저장
       for (const customer of Object.keys(customerGroups)) {
         const groupData = customerGroups[customer];
-        
+
         // 기본 출고 정보 데이터 준비
         const mainProduct = groupData.products[0]; // 첫 번째 제품을 메인 제품으로 사용
         const totalQuantity = groupData.products.reduce((sum, p) => sum + p.quantity, 0);
         const totalPrice = groupData.products.reduce((sum, p) => sum + (p.price * p.quantity), 0);
         const productNames = groupData.products.map(p => p.name).join(', ');
-        
+
         // 판매처 정보를 메모에 포함
         const finalNote = `[판매처: ${groupData.salesChannel}] ${groupData.note || ''}`;
-        
+
         // 출고 데이터 생성
         const shipmentData = {
           brand: selectedBrand,
@@ -1107,20 +972,20 @@ function ShipmentList() {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         };
-        
+
         // 출고 정보 저장
         const { data: savedShipment, error: shipmentError } = await supabase
           .from('shipments')
           .insert([shipmentData])
           .select();
-          
+
         if (shipmentError) {
           console.error('출고 정보 저장 중 오류:', shipmentError);
           continue; // 오류가 있어도 다음 데이터 처리
         }
-        
+
         const shipmentId = savedShipment[0].id;
-        
+
         // 제품별 상세 정보 저장
         const partsData = groupData.products.map(product => ({
           shipment_id: shipmentId,
@@ -1132,7 +997,7 @@ function ShipmentList() {
           total_price: product.price * product.quantity,
           created_at: new Date().toISOString()
         }));
-        
+
         try {
           await supabase
             .from('shipment_parts')
@@ -1141,22 +1006,22 @@ function ShipmentList() {
           console.error('제품 상세 정보 저장 중 오류:', partsError);
           // 오류가 있어도 진행
         }
-        
+
         processedGroups++;
         setUploadProgress(Math.round((processedGroups / totalGroups) * 100));
       }
-      
+
       // 모든 데이터 처리 완료
       setSnackbar({
         open: true,
         message: `${Object.keys(customerGroups).length}건의 출고 정보가 성공적으로 등록되었습니다.`,
         severity: 'success'
       });
-      
+
       // 데이터 새로고침
       fetchShipments();
       fetchBrandCounts(); // 건수 갱신
-      
+
     } catch (error) {
       console.error('엑셀 데이터 저장 중 오류:', error);
       setSnackbar({
@@ -1178,15 +1043,15 @@ function ShipmentList() {
       setMigrating(true);
       setMigrationProgress(0);
       setMigrationStats({ total: 0, migrated: 0, skipped: 0, failed: 0, split: 0 });
-      
+
       // 1. 모든 출고 정보 조회
       const { data: allShipments, error } = await supabase
         .from('shipments')
         .select('id, product_name, product_code, quantity, price, brand')
         .eq('brand', selectedBrand);
-        
+
       if (error) throw error;
-      
+
       if (!allShipments || allShipments.length === 0) {
         setSnackbar({
           open: true,
@@ -1196,53 +1061,53 @@ function ShipmentList() {
         setMigrating(false);
         return;
       }
-      
+
       // 2. 각 출고 정보별로 부품 정보 유무 확인
       const stats = { total: allShipments.length, migrated: 0, skipped: 0, failed: 0, split: 0 };
       setMigrationStats(stats);
-      
+
       for (let i = 0; i < allShipments.length; i++) {
         const shipment = allShipments[i];
         setMigrationProgress(Math.floor((i / allShipments.length) * 100));
-        
+
         // 제품명이 없으면 스킵
         if (!shipment.product_name) {
           stats.skipped++;
           continue;
         }
-        
+
         // 이미 부품 정보가 있는지 확인
         const { data: existingParts, error: partsError } = await supabase
           .from('shipment_parts')
           .select('id')
           .eq('shipment_id', shipment.id);
-          
+
         if (partsError) {
           stats.failed++;
           continue;
         }
-        
+
         // 이미 부품 정보가 있으면 스킵
         if (existingParts && existingParts.length > 0) {
           stats.skipped++;
           continue;
         }
-        
+
         // 제품명이 여러 개인지 확인 (쉼표로 구분)
         const productNames = shipment.product_name.split(',').map(name => name.trim()).filter(name => name);
-        
+
         // 여러 제품으로 구분된 경우
         if (productNames.length > 1) {
           // 여러 파트로 분리해서 등록
           const partsData = [];
-          
+
           // 각 제품별로 처리
           for (let j = 0; j < productNames.length; j++) {
             const productName = productNames[j];
-            
+
             // 카테고리 추정
             let category = '기체'; // 기본값
-            
+
             // 파츠 관리 시스템에서 매칭되는 제품 검색
             let partFromDB = null;
             try {
@@ -1252,10 +1117,10 @@ function ShipmentList() {
                 .eq('brand', shipment.brand)
                 .ilike('name', `%${productName}%`)
                 .limit(1);
-                
+
               if (matchingParts && matchingParts.length > 0) {
                 partFromDB = matchingParts[0];
-                
+
                 // 파츠 관리에 설정된 구분 확인
                 if (partFromDB.note) {
                   const note = partFromDB.note.toLowerCase();
@@ -1269,7 +1134,7 @@ function ShipmentList() {
                     category = '기체';
                   }
                 }
-                
+
                 // 코드 패턴으로 카테고리 추정
                 if (partFromDB.code) {
                   const code = partFromDB.code.toUpperCase();
@@ -1285,10 +1150,10 @@ function ShipmentList() {
             } catch (searchError) {
               console.error('파츠 검색 중 오류:', searchError);
             }
-            
+
             // 가격 계산 - 제품별 가격 정보가 없으면 전체 가격을 균등 분배
             const estimatedPrice = shipment.price ? Math.round(shipment.price / productNames.length) : 0;
-            
+
             // 새 부품 정보 생성
             partsData.push({
               shipment_id: shipment.id,
@@ -1297,19 +1162,19 @@ function ShipmentList() {
               part_category: category,
               quantity: Math.ceil((shipment.quantity || 1) / productNames.length), // 수량 분배
               price: partFromDB?.price || estimatedPrice,
-              total_price: partFromDB?.price 
+              total_price: partFromDB?.price
                 ? partFromDB.price * Math.ceil((shipment.quantity || 1) / productNames.length)
                 : estimatedPrice * Math.ceil((shipment.quantity || 1) / productNames.length),
               created_at: new Date().toISOString()
             });
           }
-          
+
           // 부품 정보 저장
           try {
             const { error: insertError } = await supabase
               .from('shipment_parts')
               .insert(partsData);
-              
+
             if (insertError) {
               console.error('분리된 제품 정보 저장 중 오류:', insertError);
               stats.failed++;
@@ -1333,7 +1198,7 @@ function ShipmentList() {
               category = '공임';
             }
           }
-          
+
           // 새 부품 정보 생성
           const partData = {
             shipment_id: shipment.id,
@@ -1345,36 +1210,36 @@ function ShipmentList() {
             total_price: shipment.price || 0,
             created_at: new Date().toISOString()
           };
-          
+
           // 부품 정보 저장
           const { error: insertError } = await supabase
             .from('shipment_parts')
             .insert([partData]);
-            
+
           if (insertError) {
             stats.failed++;
           } else {
             stats.migrated++;
           }
         }
-        
+
         // 상태 업데이트
-        setMigrationStats({...stats});
+        setMigrationStats({ ...stats });
       }
-      
+
       setMigrationProgress(100);
-      
+
       // 작업 완료 메시지
       setSnackbar({
         open: true,
         message: `마이그레이션 완료: ${stats.migrated}개 성공 (${stats.split}개 제품 분리), ${stats.skipped}개 스킵, ${stats.failed}개 실패`,
         severity: 'success'
       });
-      
+
       // 데이터 새로고침
       fetchShipments();
       fetchBrandCounts(); // 건수 갱신
-      
+
     } catch (error) {
       console.error('Error during bulk migration:', error);
       setSnackbar({
@@ -1394,7 +1259,7 @@ function ShipmentList() {
   const renderSkeletonTable = () => {
     const isInitialLoading = loading && !firstPageLoaded;
     const isSearchLoading = searchLoading;
-    
+
     return (
       <>
         {(isInitialLoading || isSearchLoading) && (
@@ -1414,7 +1279,7 @@ function ShipmentList() {
                   인터넷 연결을 확인해주세요.
                 </Typography>
               )}
-              <LinearProgress 
+              <LinearProgress
                 sx={{ width: 300, mt: 2 }}
                 variant={networkError ? "indeterminate" : "determinate"}
                 value={isSearchLoading ? 50 : 25}
@@ -1422,7 +1287,7 @@ function ShipmentList() {
             </Box>
           </Backdrop>
         )}
-        
+
         <TableContainer component={Paper} sx={{ width: '100%', overflowX: 'auto' }}>
           <Table sx={{ minWidth: 650, width: '100%', tableLayout: 'fixed' }}>
             <TableHead>
@@ -1498,8 +1363,8 @@ function ShipmentList() {
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Typography variant="h5">출고 관리</Typography>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <Button 
-              variant="contained" 
+            <Button
+              variant="contained"
               startIcon={<AddIcon />}
               disabled
               sx={{
@@ -1518,7 +1383,7 @@ function ShipmentList() {
             </Button>
           </Stack>
         </Box>
-        
+
         <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
           <Tabs
             value={selectedBrand}
@@ -1547,8 +1412,8 @@ function ShipmentList() {
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h5">출고 관리</Typography>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-          <Button 
-            variant="contained" 
+          <Button
+            variant="contained"
             startIcon={<AddIcon />}
             onClick={handleAddNew}
             sx={{
@@ -1579,7 +1444,7 @@ function ShipmentList() {
           */}
         </Stack>
       </Box>
-      
+
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
         <Tabs
           value={selectedBrand}
@@ -1615,7 +1480,7 @@ function ShipmentList() {
                   <MenuItem value="출고완료">출고완료</MenuItem>
                 </Select>
               </FormControl>
-              
+
               <FormControl size="small" sx={{ width: 150 }}>
                 <InputLabel>판매처</InputLabel>
                 <Select
@@ -1631,7 +1496,7 @@ function ShipmentList() {
               </FormControl>
             </Stack>
           </Grid>
-          
+
           <Grid item xs={12} sm={6} lg={9}>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
               <FormControl size="small" sx={{ width: 150 }}>
@@ -1645,7 +1510,7 @@ function ShipmentList() {
                   <MenuItem value="completion_date">출고일자</MenuItem>
                 </Select>
               </FormControl>
-              
+
               <ButtonGroup size="small" variant="outlined">
                 <Button onClick={() => handleQuickDateFilter('today')}>오늘</Button>
                 <Button onClick={() => handleQuickDateFilter('yesterday')}>어제</Button>
@@ -1654,7 +1519,7 @@ function ShipmentList() {
                 <Button onClick={() => handleQuickDateFilter('thisMonth')}>이번달</Button>
                 <Button onClick={() => handleQuickDateFilter('lastMonth')}>지난달</Button>
               </ButtonGroup>
-              
+
               <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <DatePicker
@@ -1683,8 +1548,8 @@ function ShipmentList() {
                     }}
                   />
                   {(dateFilter.startDate || dateFilter.endDate) && (
-                    <IconButton 
-                      size="small" 
+                    <IconButton
+                      size="small"
                       onClick={resetDateFilter}
                     >
                       <ClearIcon fontSize="small" />
@@ -1696,14 +1561,14 @@ function ShipmentList() {
           </Grid>
         </Grid>
       </Box>
-      
+
       <Box sx={{ mb: 2 }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} useFlexGap flexWrap="wrap">
           {(dateFilter.startDate || dateFilter.endDate) && (
-            <Chip 
-              label={`${dateFilter.startDate || '—'} ~ ${dateFilter.endDate || '—'}`} 
-              size="small" 
-              variant="outlined" 
+            <Chip
+              label={`${dateFilter.startDate || '—'} ~ ${dateFilter.endDate || '—'}`}
+              size="small"
+              variant="outlined"
               sx={{ alignSelf: { xs: 'flex-start', sm: 'center' } }}
             />
           )}
@@ -1714,7 +1579,7 @@ function ShipmentList() {
             value={inputValue}
             onChange={handleSearchInput}
             onKeyPress={handleKeyPress}
-            sx={{ 
+            sx={{
               flex: { xs: '1 1 100%', sm: '0 1 400px' },
               width: { xs: '100%', sm: 'auto' },
               maxWidth: { xs: '100%', sm: 400 },
@@ -1729,8 +1594,8 @@ function ShipmentList() {
             }}
           />
           <Box sx={{ display: 'flex', gap: 1, width: { xs: '100%', sm: 'auto' } }}>
-            <Button 
-              variant="contained" 
+            <Button
+              variant="contained"
               onClick={executeSearch}
               size="small"
               sx={{ flex: { xs: 1, sm: 'none' } }}
@@ -1754,7 +1619,7 @@ function ShipmentList() {
           </Box>
         </Stack>
       </Box>
-      
+
       {/* 오프라인 상태 알림 */}
       {!isOnline && (
         <Alert severity="warning" sx={{ mb: 2 }}>
@@ -1763,17 +1628,17 @@ function ShipmentList() {
           </Typography>
         </Alert>
       )}
-      
+
       {/* 백그라운드 로딩 상태 표시 */}
       {(backgroundLoading || isLoadingNextChunk) && firstPageLoaded && (
-        <Box sx={{ 
-          position: 'fixed', 
-          bottom: 20, 
-          right: 20, 
+        <Box sx={{
+          position: 'fixed',
+          bottom: 20,
+          right: 20,
           zIndex: 1000,
-          bgcolor: 'rgba(0, 0, 0, 0.8)', 
-          color: 'white', 
-          borderRadius: 2, 
+          bgcolor: 'rgba(0, 0, 0, 0.8)',
+          color: 'white',
+          borderRadius: 2,
           p: 2,
           display: 'flex',
           alignItems: 'center',
@@ -1781,8 +1646,8 @@ function ShipmentList() {
           minWidth: 200,
           boxShadow: 3
         }}>
-          <Box sx={{ 
-            display: 'flex', 
+          <Box sx={{
+            display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
@@ -1795,33 +1660,33 @@ function ShipmentList() {
                   {isLoadingNextChunk ? '다음 페이지 로딩 중...' : '추가 데이터 로딩 중...'}
                 </Typography>
                 <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                  {shipments.length}/{hasActiveSearch ? shipments.length : totalExpected}건 
+                  {shipments.length}/{hasActiveSearch ? shipments.length : totalExpected}건
                   {loadProgress > 0 && ` (${Math.round(loadProgress)}%)`}
                   {isLoadingNextChunk && ` • 청크 ${loadedChunks + 1} 로딩`}
                 </Typography>
               </Box>
             </Box>
             {loadProgress > 0 && (
-              <LinearProgress 
-                variant="determinate" 
-                value={loadProgress} 
-                sx={{ 
-                  width: '100%', 
+              <LinearProgress
+                variant="determinate"
+                value={loadProgress}
+                sx={{
+                  width: '100%',
                   mt: 1,
                   '& .MuiLinearProgress-bar': {
                     backgroundColor: 'white'
                   }
-                }} 
+                }}
               />
             )}
           </Box>
         </Box>
       )}
-      
+
       {filteredShipments.length === 0 ? (
         <Typography align="center" sx={{ mt: 3 }}>
-          {searchTerm || statusFilter !== 'all' || sellerFilter !== 'all' || dateFilter.startDate || dateFilter.endDate ? 
-            '검색 조건에 맞는 출고 정보가 없습니다.' : 
+          {searchTerm || statusFilter !== 'all' || sellerFilter !== 'all' || dateFilter.startDate || dateFilter.endDate ?
+            '검색 조건에 맞는 출고 정보가 없습니다.' :
             '등록된 출고 정보가 없습니다.'}
         </Typography>
       ) : (
@@ -1844,7 +1709,7 @@ function ShipmentList() {
               {filteredShipments
                 .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                 .map((shipment) => (
-                  <TableRow 
+                  <TableRow
                     key={shipment.id}
                     hover
                     onClick={() => handleViewDetails(shipment.id)}
@@ -1856,7 +1721,7 @@ function ShipmentList() {
                         : '-'}
                     </TableCell>
                     <TableCell>
-                      {isValid(parseISO(shipment.shipment_date)) 
+                      {isValid(parseISO(shipment.shipment_date))
                         ? format(parseISO(shipment.shipment_date), 'yyyy-MM-dd')
                         : '-'}
                     </TableCell>
@@ -1895,15 +1760,15 @@ function ShipmentList() {
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Chip 
-                        label={shipment.status} 
+                      <Chip
+                        label={shipment.status}
                         color={getStatusColor(shipment.status)}
                         size="small"
                       />
                     </TableCell>
                     <TableCell>
-                      <IconButton 
-                        size="small" 
+                      <IconButton
+                        size="small"
                         onClick={(e) => handleEdit(shipment.id, e)}
                       >
                         <EditIcon fontSize="small" />
@@ -1929,17 +1794,17 @@ function ShipmentList() {
             rowsPerPage={rowsPerPage}
             rowsPerPageOptions={[30, 50, 100]}
             labelRowsPerPage="페이지당 행 수"
-            labelDisplayedRows={({ from, to, count }) => 
+            labelDisplayedRows={({ from, to, count }) =>
               `${count}개 중 ${from}-${to}`
             }
           />
         </TableContainer>
       )}
-      
+
       <Snackbar
         open={snackbar.open}
         autoHideDuration={2000}
-        onClose={() => setSnackbar(prev => ({...prev, open: false}))}
+        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
         sx={{
           top: '50% !important',
@@ -1947,7 +1812,7 @@ function ShipmentList() {
         }}
       >
         <Alert
-          onClose={() => setSnackbar(prev => ({...prev, open: false}))}
+          onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
           severity={snackbar.severity}
           variant="filled"
           sx={{
@@ -1963,7 +1828,7 @@ function ShipmentList() {
           {snackbar.message}
         </Alert>
       </Snackbar>
-      
+
       <Dialog
         open={deleteDialogOpen}
         onClose={() => setDeleteDialogOpen(false)}
@@ -1998,10 +1863,10 @@ function ShipmentList() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteDialogOpen(false)}>취소</Button>
-          <Button 
-            onClick={handleDeleteConfirm} 
-            variant="contained" 
-            color="error" 
+          <Button
+            onClick={handleDeleteConfirm}
+            variant="contained"
+            color="error"
             autoFocus
           >
             삭제
@@ -2022,7 +1887,7 @@ function ShipmentList() {
             <Typography gutterBottom>
               총 {uploadedData.length}개의 항목이 발견되었습니다. 다음 데이터를 업로드하시겠습니까?
             </Typography>
-            
+
             {isUploading && (
               <Box sx={{ width: '100%', mt: 2, mb: 2 }}>
                 <Typography variant="body2" align="center">
@@ -2053,9 +1918,9 @@ function ShipmentList() {
                 </Box>
               </Box>
             )}
-            
+
             <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>미리보기 (최대 5개 항목)</Typography>
-            
+
             <TableContainer component={Paper} sx={{ maxHeight: 300 }}>
               <Table size="small" stickyHeader>
                 <TableHead>
@@ -2086,7 +1951,7 @@ function ShipmentList() {
                 </TableBody>
               </Table>
             </TableContainer>
-            
+
             <Box sx={{ mt: 2 }}>
               <Alert severity="info">
                 <Typography variant="body2">
@@ -2099,15 +1964,15 @@ function ShipmentList() {
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button 
-            onClick={() => setExcelUploadDialog(false)} 
+          <Button
+            onClick={() => setExcelUploadDialog(false)}
             disabled={isUploading}
           >
             취소
           </Button>
-          <Button 
-            variant="contained" 
-            onClick={handleSaveExcelData} 
+          <Button
+            variant="contained"
+            onClick={handleSaveExcelData}
             disabled={isUploading || uploadedData.length === 0}
           >
             업로드
@@ -2162,15 +2027,15 @@ function ShipmentList() {
           )}
         </DialogContent>
         <DialogActions>
-          <Button 
-            onClick={() => setMigrateDialogOpen(false)} 
+          <Button
+            onClick={() => setMigrateDialogOpen(false)}
             disabled={migrating}
           >
             취소
           </Button>
-          <Button 
-            onClick={handleBulkMigration} 
-            variant="contained" 
+          <Button
+            onClick={handleBulkMigration}
+            variant="contained"
             color="primary"
             disabled={migrating}
           >

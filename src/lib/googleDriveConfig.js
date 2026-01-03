@@ -5,7 +5,7 @@ const DISCOVERY_DOCS = ['https://www.googleapis.com/discovery/v1/apis/drive/v3/r
 const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 
 // 환경에 따른 리디렉션 URI 설정
-const REDIRECT_URI = process.env.NODE_ENV === 'production' 
+const REDIRECT_URI = process.env.NODE_ENV === 'production'
   ? 'https://crmapp8893.netlify.app'
   : window.location.origin;
 
@@ -15,27 +15,44 @@ let gisInited = false;
 
 export const initializeGoogleAPI = () => {
   return new Promise((resolve, reject) => {
+    // 이미 초기화된 경우 즉시 해결
+    if (gapiInited && gisInited) {
+      resolve();
+      return;
+    }
+
+    console.log('[GoogleDrive] Initializing API...');
+
     const script1 = document.createElement('script');
     script1.src = 'https://apis.google.com/js/api.js';
     script1.onload = () => {
+      console.log('[GoogleDrive] gapi script loaded');
       window.gapi.load('client', async () => {
         try {
+          console.log('[GoogleDrive] Initializing gapi client...');
           await window.gapi.client.init({
             apiKey: API_KEY,
             discoveryDocs: DISCOVERY_DOCS,
           });
+          console.log('[GoogleDrive] gapi client initialized');
           gapiInited = true;
           maybeResolve();
         } catch (err) {
+          console.error('[GoogleDrive] gapi init error:', err);
           reject(err);
         }
       });
+    };
+    script1.onerror = (e) => {
+      console.error('[GoogleDrive] gapi script load error', e);
+      reject(new Error('Failed to load gapi script'));
     };
     document.body.appendChild(script1);
 
     const script2 = document.createElement('script');
     script2.src = 'https://accounts.google.com/gsi/client';
     script2.onload = () => {
+      console.log('[GoogleDrive] gsi script loaded');
       tokenClient = window.google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
@@ -47,13 +64,19 @@ export const initializeGoogleAPI = () => {
         include_granted_scopes: true,
         enable_serial_consent: true
       });
+      console.log('[GoogleDrive] token client initialized');
       gisInited = true;
       maybeResolve();
+    };
+    script2.onerror = (e) => {
+      console.error('[GoogleDrive] gsi script load error', e);
+      reject(new Error('Failed to load gsi script'));
     };
     document.body.appendChild(script2);
 
     function maybeResolve() {
       if (gapiInited && gisInited) {
+        console.log('[GoogleDrive] API fully initialized');
         resolve();
       }
     }
@@ -95,12 +118,12 @@ export const uploadToGoogleDrive = async (file, fileName) => {
 
     const response = await fetch(
       'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${window.gapi.client.getToken().access_token}`,
-        },
-        body: form,
-      }
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${window.gapi.client.getToken().access_token}`,
+      },
+      body: form,
+    }
     );
 
     if (!response.ok) {

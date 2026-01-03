@@ -20,7 +20,6 @@
 | **OpenAI** | `REACT_APP_OPENAI_API_ENDPOINT` | ⚪ | OpenAI API 엔드포인트 |
 | **OpenAI** | `REACT_APP_OPENAI_MODEL` | ⚪ | OpenAI 모델명 |
 | **OpenAI** | `REACT_APP_OPENAI_API_KEY` | ⚪ | OpenAI API 키 |
-| **Claude** | `REACT_APP_CLAUDE_API_KEY` | ⚪ | Claude API 키 |
 | **Cloudmarssive** | `REACT_APP_CLOUDMARSSIVE_API_KEY` | ⚪ | Cloudmarssive API 키 |
 
 **범례**: ✅ 필수 | ⚪ 선택적 (기능 사용 시 필요)
@@ -74,7 +73,7 @@ Netlify 대시보드에서 다음 환경 변수들을 반드시 설정하세요.
 ### Google 설정
 ```
 변수명: REACT_APP_GOOGLE_CLIENT_ID
-값: 958057206007-6u2noksta8rli4009kojoh884n57l7j1.apps.googleusercontent.com
+값: 858601328382-kpeaafkvvqaepgii0e79riruh8c642ei.apps.googleusercontent.com
 ```
 
 ```
@@ -112,12 +111,6 @@ Netlify 대시보드에서 다음 환경 변수들을 반드시 설정하세요.
 ```
 변수명: REACT_APP_OPENAI_API_KEY
 값: (OpenAI API 키 입력)
-```
-
-### Claude 설정 (사용하는 경우)
-```
-변수명: REACT_APP_CLAUDE_API_KEY
-값: (Claude API 키 입력)
 ```
 
 ### Cloudmarssive 설정 (사용하는 경우)

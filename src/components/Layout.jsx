@@ -51,7 +51,8 @@ import {
   CalendarToday as CalendarTodayIcon,
   Close as CloseIcon,
   Logout as LogoutIcon,
-  ShoppingCartOutlined as ShoppingCartOutlinedIcon
+  ShoppingCartOutlined as ShoppingCartOutlinedIcon,
+  Science as ScienceIcon
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
@@ -145,10 +146,10 @@ function Layout() {
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
-    
+
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    
+
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
@@ -161,7 +162,7 @@ function Layout() {
       const status = getSyncStatus();
       setSyncStatus(status);
     }, 2000);
-    
+
     return () => clearInterval(interval);
   }, []);
 
@@ -225,39 +226,40 @@ function Layout() {
   const allMenuItems = [
     // 📊 대시보드
     { text: '대시보드', icon: <DashboardIcon />, path: '/', key: 'dashboard' },
-    
+
     // 👥 CRM & 고객 관리
     { text: '고객 관리', icon: <PeopleIcon />, path: '/customers', key: 'customers' },
-    
+
     // 🔧 서비스 관리
     { text: 'A/S 관리', icon: <BuildIcon />, path: '/services', key: 'services' },
-    
+
     // 📦 재고 & 물류 관리
     { text: '출고 관리', icon: <LocalShippingIcon />, path: '/shipment', key: 'shipment' },
     // { text: '주문대기', icon: <ShoppingCartOutlinedIcon />, path: '/pending-orders', key: 'pending_orders' }, // 비활성화됨
     { text: '파츠 관리', icon: <InventoryIcon />, path: '/parts', key: 'parts' },
     { text: '매장 재고 관리', icon: <InventoryIcon />, path: '/stocks', key: 'stocks' },
-    
+
     // 📊 통계 & 분석
     { text: '매출 통계', icon: <BarChartIcon />, path: '/sales/stats', key: 'sales_stats' },
-    
+
     // 💬 커뮤니티
     { text: '게시판', icon: <MenuBookIcon />, path: '/board', key: 'board' },
-    
+
     // ⚙️ 설정
-    { text: '데이터 백업/복원', icon: <BackupIcon />, path: '/backup', key: 'backup_management' }
+    { text: '데이터 백업/복원', icon: <BackupIcon />, path: '/backup', key: 'backup_management' },
+    { text: '관리자 도구', icon: <ScienceIcon />, path: '/admin/tools', key: 'admin_tools' }
   ];
 
   // 이메일 기반 메뉴 필터링 (DB 쿼리 없음!)
   const userMenuKeys = getUserMenuKeys(user?.email);
-  const menuItems = userMenuKeys === 'all' 
-    ? allMenuItems 
+  const menuItems = userMenuKeys === 'all'
+    ? allMenuItems
     : allMenuItems.filter(item => userMenuKeys.includes(item.key));
 
   const handleDrawerToggle = () => {
     setOpen(!open);
   };
-  
+
 
   const handleSignOut = async () => {
     const { error } = await supabase.auth.signOut();
@@ -281,7 +283,7 @@ function Layout() {
   return (
     <Box sx={{ display: 'flex' }}>
       <AppBarStyled position="fixed" open={open}>
-        <Toolbar sx={{ 
+        <Toolbar sx={{
           px: { xs: 1, sm: 2 },
           minHeight: { xs: 56, sm: 64 },
           gap: { xs: 0.5, sm: 1 }
@@ -295,12 +297,12 @@ function Layout() {
           >
             <MenuIcon />
           </IconButton>
-          <Typography 
-            variant="h6" 
-            noWrap 
-            component="div" 
-            sx={{ 
-              flexGrow: 1, 
+          <Typography
+            variant="h6"
+            noWrap
+            component="div"
+            sx={{
+              flexGrow: 1,
               cursor: 'pointer',
               fontSize: { xs: '0.875rem', sm: '1.25rem' },
               fontWeight: { xs: 600, sm: 500 },
@@ -365,7 +367,7 @@ function Layout() {
               </Typography>
             </Box>
           </Box>
-          
+
           {/* 연결 상태 아이콘 */}
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <Tooltip
@@ -420,12 +422,12 @@ function Layout() {
                 }}
               >
                 {isOnline ? (
-                  <WifiIcon sx={{ 
+                  <WifiIcon sx={{
                     fontSize: { xs: '1rem', sm: '1.2rem' },
                     filter: 'drop-shadow(0 0 2px rgba(76, 175, 80, 0.3))'
                   }} />
                 ) : (
-                  <WifiOffIcon sx={{ 
+                  <WifiOffIcon sx={{
                     fontSize: { xs: '1rem', sm: '1.2rem' },
                     filter: 'drop-shadow(0 0 2px rgba(244, 67, 54, 0.3))'
                   }} />
@@ -433,7 +435,7 @@ function Layout() {
               </IconButton>
             </Tooltip>
           </Box>
-          
+
           {/* 모바일에서는 아이콘만, 데스크톱에서는 텍스트 포함 */}
           {isMobile ? (
             <>
@@ -448,16 +450,16 @@ function Layout() {
               >
                 <MessageIcon />
               </IconButton>
-              <IconButton 
-                color="inherit" 
+              <IconButton
+                color="inherit"
                 onClick={handleOpenEkuraExcel}
                 size="small"
                 sx={{ mr: 0.5 }}
               >
                 <LinkIcon />
               </IconButton>
-              <IconButton 
-                color="inherit" 
+              <IconButton
+                color="inherit"
                 onClick={handleSignOut}
                 size="small"
               >
@@ -477,10 +479,10 @@ function Layout() {
               >
                 구글 메시지
               </Button>
-              <Button 
-                color="inherit" 
+              <Button
+                color="inherit"
                 startIcon={<LinkIcon />}
-                onClick={handleOpenEkuraExcel} 
+                onClick={handleOpenEkuraExcel}
                 sx={{ mr: 1 }}
               >
                 엑라엑셀
@@ -538,8 +540,8 @@ function Layout() {
                 }}
               >
                 <ListItemIcon>{item.icon}</ListItemIcon>
-                <ListItemText 
-                  primary={item.text} 
+                <ListItemText
+                  primary={item.text}
                   primaryTypographyProps={{
                     fontWeight: location.pathname === item.path ? 700 : 400,
                     sx: {
@@ -598,8 +600,8 @@ function Layout() {
                 }}
               >
                 <ListItemIcon>{item.icon}</ListItemIcon>
-                <ListItemText 
-                  primary={item.text} 
+                <ListItemText
+                  primary={item.text}
                   primaryTypographyProps={{
                     fontWeight: location.pathname === item.path ? 700 : 400,
                     sx: {
@@ -617,17 +619,17 @@ function Layout() {
         <DrawerHeader />
         <Outlet />
       </Main>
-      
+
       {/* 달력 모달 */}
-      <Dialog 
-        open={calendarOpen} 
+      <Dialog
+        open={calendarOpen}
         onClose={handleCalendarClose}
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle sx={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
+        <DialogTitle sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
           alignItems: 'center',
           pb: 2
         }}>
@@ -642,19 +644,19 @@ function Layout() {
           <Grid container spacing={3}>
             {/* 달력 */}
             <Grid item xs={12} md={7}>
-              <ServiceCalendar 
+              <ServiceCalendar
                 selectedDate={selectedDate}
                 onDateChange={handleDateChange}
               />
             </Grid>
-            
+
             {/* 선택된 날짜의 A/S 현황 */}
             <Grid item xs={12} md={5}>
               <Paper elevation={0} sx={{ p: 2, bgcolor: '#f8f9fa', border: '1px solid #e9ecef' }}>
                 <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                   {selectedDate.locale('ko').format('MM월 DD일 dddd')} A/S 현황
                 </Typography>
-                
+
                 {dailyServices.length === 0 ? (
                   <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
                     선택된 날짜에 A/S 접수 내역이 없습니다.
@@ -662,11 +664,11 @@ function Layout() {
                 ) : (
                   <List sx={{ maxHeight: 400, overflow: 'auto' }}>
                     {dailyServices.map((service) => (
-                      <ListItem 
-                        key={service.id} 
-                        sx={{ 
-                          mb: 1, 
-                          bgcolor: 'white', 
+                      <ListItem
+                        key={service.id}
+                        sx={{
+                          mb: 1,
+                          bgcolor: 'white',
                           borderRadius: 1,
                           border: '1px solid #e9ecef',
                           cursor: 'pointer',
@@ -683,14 +685,14 @@ function Layout() {
                               <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                                 {service.customer_name}
                               </Typography>
-                              <Chip 
-                                label={service.status} 
+                              <Chip
+                                label={service.status}
                                 size="small"
                                 sx={{
                                   bgcolor: service.status === '접수' ? '#3182f6' :
-                                          service.status === '처리중' ? '#ffa927' :
-                                          service.status === '부분완료' ? '#4e5968' :
-                                          '#00c773',
+                                    service.status === '처리중' ? '#ffa927' :
+                                      service.status === '부분완료' ? '#4e5968' :
+                                        '#00c773',
                                   color: 'white',
                                   fontSize: '0.75rem'
                                 }}

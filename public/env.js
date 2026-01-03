@@ -14,6 +14,8 @@
  * 보안 주의:
  * - 이 파일에는 민감한 정보가 포함되어 있습니다
  * - Git에 커밋하지 않도록 주의하세요
+ * 
+ * 버전: 2024-12-29 (클라이언트 ID 업데이트)
  */
 window._env_ = {
   REACT_APP_OPENAI_API_ENDPOINT: 'https://api.openai.com/v1/chat/completions',
@@ -23,7 +25,7 @@ window._env_ = {
   REACT_APP_SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZleHRsYWdxdmVybHJhamxta29uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA3NjEwOTgsImV4cCI6MjA1NjMzNzA5OH0.3EpsSNquIukHRgNmPCUIVyC6YKVMXh9RBEP8kM_m9c4',
   REACT_APP_CLAUDE_API_KEY: '',
   REACT_APP_CLOUDMARSSIVE_API_KEY: '',
-  REACT_APP_GOOGLE_CLIENT_ID: '958057206007-6u2noksta8rli4009kojoh884n57l7j1.apps.googleusercontent.com',
+  REACT_APP_GOOGLE_CLIENT_ID: '858601328382-kpeaafkvvqaepgii0e79riruh8c642ei.apps.googleusercontent.com',
   REACT_APP_GOOGLE_DRIVE_ROOT_FOLDER_ID: '1bcCscOsNptDJvOVA1qSrbi-m6XU1y4d7',
   REACT_APP_GOOGLE_DRIVE_SUBFOLDER: 'upload_crm',
   REACT_APP_TELEGRAM_BOT_TOKEN: '1839298452:AAEWeDb5hUwvVcmWi3ueiUrTbajCSgypOeA',

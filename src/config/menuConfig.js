@@ -14,7 +14,7 @@ export const MENU_CONFIG = {
   'admin@xrider.com': 'all',
   'manager@xrider.com': 'all',
   'master@slimpack.com': 'all',  // Slimpack 관리자
-  
+
   // ========================================
   // A/S 담당자 (A/S 관련 메뉴만)
   // ========================================
@@ -25,7 +25,7 @@ export const MENU_CONFIG = {
     'parts',
     'board'
   ],
-  
+
   // ========================================
   // 재고 담당자 (재고 관련 메뉴만)
   // ========================================
@@ -37,7 +37,7 @@ export const MENU_CONFIG = {
     // 'inventory_management',  // 입출고 관리 비활성화
     'board'
   ],
-  
+
   // ========================================
   // 영업 담당자 (영업 관련 메뉴만)
   // ========================================
@@ -48,7 +48,7 @@ export const MENU_CONFIG = {
     'sales_stats',
     'board'
   ],
-  
+
   // ========================================
   // CRM 담당자 (파츠/입출고/백업 제외)
   // ========================================
@@ -64,7 +64,7 @@ export const MENU_CONFIG = {
     // 'inventory_management',  // 입출고 관리 (제외)
     // 'backup_management'      // 데이터 백업/복원 (제외)
   ],
-  
+
   // ========================================
   // 기본 권한 (설정 없는 사용자)
   // ========================================
@@ -78,20 +78,20 @@ export const MENU_CONFIG = {
  */
 export const getUserMenuKeys = (userEmail) => {
   if (!userEmail) return [];
-  
+
   // 이메일별 설정 확인
   const permissions = MENU_CONFIG[userEmail];
-  
+
   // 'all' 권한
   if (permissions === 'all') {
     return 'all';
   }
-  
+
   // 특정 메뉴 배열
   if (Array.isArray(permissions)) {
     return permissions;
   }
-  
+
   // 기본 권한
   return MENU_CONFIG['default'];
 };
@@ -104,11 +104,11 @@ export const getUserMenuKeys = (userEmail) => {
  */
 export const hasMenuAccess = (userEmail, menuKey) => {
   const userMenuKeys = getUserMenuKeys(userEmail);
-  
+
   if (userMenuKeys === 'all') {
     return true;
   }
-  
+
   return userMenuKeys.includes(menuKey);
 };
 
@@ -126,6 +126,7 @@ export const MENU_KEYS = {
   // INVENTORY: 'inventory_management', // 입출고 관리 비활성화
   SALES_STATS: 'sales_stats',
   BOARD: 'board',
-  BACKUP: 'backup_management'
+  BACKUP: 'backup_management',
+  ADMIN_TOOLS: 'admin_tools'
 };
 

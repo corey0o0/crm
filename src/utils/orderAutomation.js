@@ -1,8 +1,7 @@
-import { 
-  createOrderProcessingLog, 
+import {
+  createOrderProcessingLog,
   updateOrderProcessingLog,
   updatePendingOrderStatus,
-  matchProductToWebsiteItem,
   updatePendingOrderItemsToOrdered
 } from './pendingOrderUtils';
 
@@ -193,7 +192,7 @@ export const processOrderWithPlaywright = async (brand, orderItems, pendingOrder
 export const executeOrderSteps = async (brand, orderItems, playwrightTools) => {
   try {
     const config = BRAND_CONFIG[brand];
-    const { navigate, fill, click, getVisibleText } = playwrightTools;
+    const { navigate } = playwrightTools;
 
     // 1. 웹사이트 접속
     await navigate({ url: config.url });
@@ -212,7 +211,7 @@ export const executeOrderSteps = async (brand, orderItems, playwrightTools) => {
       }
 
       // 상품 검색
-      const searchTerm = item.matchedProductName || item.partName;
+      // const searchTerm = item.matchedProductName || item.partName;
       // await fill({ selector: config.selectors.searchInput, value: searchTerm });
       // await click({ selector: config.selectors.searchButton });
 
@@ -226,7 +225,7 @@ export const executeOrderSteps = async (brand, orderItems, playwrightTools) => {
 
       // 장바구니 추가
       // await click({ selector: config.selectors.addToCart });
-      
+
       // 수량 조정이 필요한 경우
       if (item.quantity > 1) {
         // 수량 입력 로직

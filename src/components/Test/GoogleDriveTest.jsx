@@ -22,23 +22,28 @@ function GoogleDriveTest() {
   const [fileIdToCheck, setFileIdToCheck] = useState('');
   const [apiInitialized, setApiInitialized] = useState(false);
 
-  useEffect(() => {
-    const initAPI = async () => {
-      try {
-        setLoading(true);
-        await initializeGoogleAPI();
-        setApiInitialized(true);
-        setSuccess('Google API가 성공적으로 초기화되었습니다.');
-      } catch (err) {
-        console.error('API initialization error:', err);
-        setError('Google API 초기화 중 오류가 발생했습니다: ' + err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const runDiagnostic = async () => {
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+    setApiInitialized(false);
 
-    initAPI();
-  }, []);
+    try {
+      await initializeGoogleAPI();
+      setApiInitialized(true);
+      setSuccess('Google API 초기화 및 연결 테스트 성공');
+    } catch (err) {
+      console.error('API initialization error:', err);
+      setError('Google API 초기화 중 오류가 발생했습니다: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 컴포넌트 마운트 시에는 실행하지 않음
+  // useEffect(() => {
+  //   runDiagnostic();
+  // }, []);
 
   const handleFileChange = (event) => {
     const selectedFile = event.target.files[0];
@@ -65,9 +70,9 @@ function GoogleDriveTest() {
 
       const timestamp = new Date().toISOString();
       const fileName = `test_${timestamp}_${file.name}`;
-      
+
       const { fileId, webViewLink } = await uploadToGoogleDrive(file, fileName);
-      
+
       setUploadedFileId(fileId);
       setUploadedFileLink(webViewLink);
       setSuccess('파일이 성공적으로 업로드되었습니다.');
@@ -113,13 +118,22 @@ function GoogleDriveTest() {
           Google Drive API 테스트
         </Typography>
 
-        {/* API 상태 표시 */}
-        <Alert 
-          severity={apiInitialized ? "success" : "info"} 
-          sx={{ mb: 3 }}
-        >
-          Google API 상태: {apiInitialized ? '초기화됨' : '초기화 중...'}
-        </Alert>
+        {/* API 상태 표시 및 진단 버튼 */}
+        <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Alert
+            severity={apiInitialized ? "success" : "info"}
+            sx={{ flexGrow: 1 }}
+          >
+            Google API 상태: {apiInitialized ? '초기화됨' : '미초기화'}
+          </Alert>
+          <Button
+            variant="contained"
+            onClick={runDiagnostic}
+            disabled={loading}
+          >
+            {loading ? <CircularProgress size={24} /> : '진단 실행'}
+          </Button>
+        </Box>
 
         {/* 파일 업로드 섹션 */}
         <Box sx={{ mb: 4 }}>

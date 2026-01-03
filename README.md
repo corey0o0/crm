@@ -4,8 +4,22 @@ This project was bootstrapped with [Create React App](https://github.com/faceboo
 
 ## 📚 주요 문서
 
+### 빠른 시작
+- [빠른 시작 가이드](./QUICK_START.md) - 프로젝트 빠른 이해 및 시작 가이드
+
+### 프로젝트 구조 및 참조
+- [프로젝트 구조 문서](./PROJECT_STRUCTURE.md) - 전체 프로젝트 구조 및 폴더별 설명
+- [파일 참조 가이드](./FILE_REFERENCE.md) - 주요 파일별 상세 설명 및 사용법
+
+### 설정 및 배포
 - [Netlify 환경 변수 설정 가이드](./NETLIFY_ENV_VARIABLES.md) - Netlify 배포 시 필요한 모든 환경 변수 목록
+- [배포 가이드](./DEPLOYMENT_GUIDE.md) - 배포 절차 및 환경 설정
 - [텔레그램 봇 토큰 업데이트 가이드](./TELEGRAM_BOT_UPDATE_GUIDE.md) - 텔레그램 봇 토큰 업데이트 방법
+- [구글 클라이언트 ID 갱신 가이드](./GOOGLE_CLIENT_ID_UPDATE_GUIDE.md) - Google OAuth 클라이언트 ID 생성 및 업데이트 방법
+
+### 기능 가이드
+- [역할 및 권한 가이드](./ROLE_PERMISSION_GUIDE.md) - 권한 시스템 설명
+- [Playwright 설정 가이드](./PLAYWRIGHT_SETUP.md) - 브라우저 자동화 설정
 
 ## 🔧 환경 변수 관리
 
@@ -24,11 +38,11 @@ AS 디테일에서 파일 업로드 기능을 사용하려면 구글 드라이�
 2. 새 프로젝트 생성 또는 기존 프로젝트 선택
 3. "API 및 서비스" > "라이브러리"에서 "Google Drive API" 활성화
 4. "API 및 서비스" > "사용자 인증 정보"에서 OAuth 2.0 클라이언트 ID 생성
-5. 승인된 리디렉션 URI에 다음 추가:
+5. 승인된 리디렉션 URI에 다음 추가 (쿼리 파라미터 없이):
    - `http://localhost:3000/google-auth-callback.html` (개발용)
-   - `https://yourdomain.com/google-auth-callback.html` (프로덕션용)
-   - `http://localhost:3000/google-auth-callback.html?service_id=*` (개발용 - 쿼리 파라미터 포함)
-   - `https://yourdomain.com/google-auth-callback.html?service_id=*` (프로덕션용 - 쿼리 파라미터 포함)
+   - `https://crmapp8893.netlify.app/google-auth-callback.html` (프로덕션용)
+   
+   ⚠️ **중요**: 쿼리 파라미터(`?service_id=*`)는 포함하지 마세요. 구글 OAuth는 redirect_uri가 정확히 일치해야 합니다.
 
 ### 2. 환경변수 설정
 
