@@ -16,8 +16,7 @@ import {
   Edit as EditIcon,
   Check as CheckIcon
 } from '@mui/icons-material';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
+import QuillEditor from '../common/QuillEditor';
 import { supabase } from '../../lib/supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -382,7 +381,7 @@ function MemoPanel() {
 
       {/* 에디터 */}
       <Box sx={{ flex: 1, overflow: 'hidden' }}>
-        <ReactQuill
+        <QuillEditor
           value={currentMemoContent}
           onChange={(value) => handleMemoChange(selectedMemoTab, value)}
           style={{ height: 'calc(100% - 42px)' }}

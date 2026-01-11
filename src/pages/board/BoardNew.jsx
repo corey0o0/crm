@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { Box, Paper, Typography, TextField, Button, Stack, LinearProgress } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
+import QuillEditor from '../../components/common/QuillEditor';
 
 function BoardNew() {
   const [title, setTitle] = useState('');
@@ -12,7 +11,7 @@ function BoardNew() {
   const [htmlMode, setHtmlMode] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [attachments, setAttachments] = useState([]);
+  const [, setAttachments] = useState([]);
   const navigate = useNavigate();
 
   const quillModules = {
@@ -65,7 +64,7 @@ function BoardNew() {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const path = `board/${Date.now()}_${Math.random().toString(36).slice(2)}_${file.name}`;
-        const { data, error } = await supabase.storage.from('receipts').upload(path, file, {
+        const { error } = await supabase.storage.from('receipts').upload(path, file, {
           cacheControl: '3600',
           upsert: false
         });
@@ -120,7 +119,7 @@ function BoardNew() {
               '& .ql-container': { borderBottomLeftRadius: 4, borderBottomRightRadius: 4 },
               '& .ql-toolbar': { borderTopLeftRadius: 4, borderTopRightRadius: 4 }
             }}>
-              <ReactQuill
+              <QuillEditor
                 theme="snow"
                 value={content}
                 onChange={setContent}

@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { Box, Paper, Typography, TextField, Button, Stack, LinearProgress } from '@mui/material';
 import { useNavigate, useParams } from 'react-router-dom';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
+import QuillEditor from '../../components/common/QuillEditor';
 
 function BoardEdit() {
   const { id } = useParams();
@@ -57,11 +56,10 @@ function BoardEdit() {
     if (!title.trim() || !content.trim()) return;
     try {
       setSaving(true);
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('board_posts')
         .update({ title, content, updated_at: new Date().toISOString() })
-        .eq('id', id)
-        .select();
+        .eq('id', id);
       if (error) throw error;
       navigate(`/board/${id}`);
     } catch (e) {
@@ -137,7 +135,7 @@ function BoardEdit() {
               '& .ql-container': { borderBottomLeftRadius: 4, borderBottomRightRadius: 4 },
               '& .ql-toolbar': { borderTopLeftRadius: 4, borderTopRightRadius: 4 }
             }}>
-              <ReactQuill
+              <QuillEditor
                 theme="snow"
                 value={content}
                 onChange={setContent}

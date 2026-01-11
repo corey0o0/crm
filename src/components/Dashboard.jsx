@@ -3,47 +3,23 @@ import {
   Typography,
   Paper,
   Grid,
-  Card,
-  CardContent,
   Box,
-  Divider,
-  List,
-  ListItem,
-  ListItemText,
   Chip,
   CircularProgress,
   Alert,
   Button,
-  Stack,
-  LinearProgress,
   Tabs,
   Tab,
   TextField,
   Container,
   IconButton,
-  ButtonGroup,
-  Select,
-  MenuItem,
-  FormControl,
 } from '@mui/material';
 import {
-  Build as BuildIcon,
-  Person as PersonIcon,
-  Timeline as TimelineIcon,
-  Speed as SpeedIcon,
   Refresh as RefreshIcon,
-  LocalShipping as LocalShippingIcon,
-  Close as CloseIcon,
-  FormatBold as FormatBoldIcon,
-  Highlight as HighlightIcon,
-  FormatSize as FormatSizeIcon
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
-import { fetchFromSupabase } from '../utils/restApiUtils';
-import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../utils/networkUtils';
-import { setCache, getCache, isCacheValid } from '../utils/cacheUtils';
+import { shouldRetry, getErrorMessage, isOffline } from '../utils/networkUtils';
 import { smartLoad, setupConnectionMonitoring, syncPendingChanges, trackOfflineChange } from '../utils/syncUtils';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ko';
@@ -53,13 +29,10 @@ import Snackbar from '@mui/material/Snackbar';
 import MuiAlert from '@mui/material/Alert';
 import Tooltip from '@mui/material/Tooltip';
 import SendIcon from '@mui/icons-material/Send';
-import ReactQuill, { Quill } from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
+import QuillEditor from './common/QuillEditor';
 
 function Dashboard() {
-  const navigate = useNavigate();
-  const { user, loading: authLoading, setUser } = useAuth();
-  const [selectedBrand, setSelectedBrand] = useState('ALL');
+  const { user, loading: authLoading } = useAuth();
   
   // 메모 타입 (개인/공유)
   const [memoType, setMemoType] = useState('shared');
@@ -92,13 +65,11 @@ function Dashboard() {
   const [editingMemoName, setEditingMemoName] = useState(null);
   const [selectedMemoTab, setSelectedMemoTab] = useState(0);
   const [autoSaveTimers, setAutoSaveTimers] = useState([null, null, null]);
-  const [memoFormats, setMemoFormats] = useState([
+  const [memoFormats] = useState([
     { bold: false, highlight: false, fontSize: 'medium' },
     { bold: false, highlight: false, fontSize: 'medium' },
     { bold: false, highlight: false, fontSize: 'medium' }
   ]);
-  const [selectedText, setSelectedText] = useState('');
-  const [textSelection, setTextSelection] = useState({ start: 0, end: 0, memoIndex: -1 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [telegramResult, setTelegramResult] = useState({ open: false, message: '', success: true });
@@ -569,12 +540,6 @@ function Dashboard() {
   };
 
 
-  // 폰트 사이즈 변경
-  const handleFontSize = (memoIndex, fontSize) => {
-    const newFormats = [...memoFormats];
-    newFormats[memoIndex] = { ...newFormats[memoIndex], fontSize };
-    setMemoFormats(newFormats);
-  };
 
   // Quill 에디터 설정
   const quillModules = {
@@ -594,33 +559,11 @@ function Dashboard() {
 
 
   // Quill 에디터 참조를 위한 ref 배열
-  const [quillRefs, setQuillRefs] = useState([
+  const [quillRefs] = useState([
     React.createRef(),
     React.createRef(), 
     React.createRef()
   ]);
-
-  // 새 메모 추가
-  const handleAddMemo = () => {
-    if (memoList.length >= 5) return; // 최대 5개 제한
-    if (memoType === 'personal') {
-      setPersonalMemoList(prev => [...prev, { content: '', lastSaved: null, hasChanges: false, saving: false }]);
-    } else {
-      setSharedMemoList(prev => [...prev, { content: '', lastSaved: null, hasChanges: false, saving: false }]);
-    }
-    setSelectedMemoTab(memoList.length);
-  };
-
-  // 메모 삭제
-  const handleDeleteMemo = (idx) => {
-    if (memoList.length <= 2) return; // 최소 2개 보장
-    if (memoType === 'personal') {
-      setPersonalMemoList(prev => prev.filter((_, i) => i !== idx));
-    } else {
-      setSharedMemoList(prev => prev.filter((_, i) => i !== idx));
-    }
-    setSelectedMemoTab(0);
-  };
 
   // 메모 탭 변경
   const handleMemoTabChange = (event, newValue) => setSelectedMemoTab(newValue);
@@ -693,13 +636,6 @@ function Dashboard() {
     }
   };
 
-  // 상태별 색상 정의
-  const statusColors = {
-    '접수': '#3182f6',
-    '처리중': '#ffa927',
-    '부분완료': '#4e5968',
-    '완료': '#00c773'
-  };
 
   // 데이터 가져오기
   const fetchDashboardData = async () => {
@@ -819,24 +755,7 @@ function Dashboard() {
 
 
       // 안전한 데이터 처리를 위한 기본값 설정
-      const safeServices = services || [];
-      const safeShipments = shipments || [];
-      const safeRecentServices = recentServices || [];
-
-      // 고객 수 계산
-      const uniqueCustomers = [...new Set(safeServices.map(service => service.customer_phone))];
-      const totalCustomers = uniqueCustomers.length;
-
-      // 날짜 기준 설정
-      const now = new Date();
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      // 이번 달 서비스 데이터 필터링
-      const monthlyServices = safeServices.filter(service => 
-        new Date(service.reception_date) >= startOfMonth
-      );
+      // const safeServices = services || []; // 사용되지 않음
 
 
       // 삭제된 현황 섹션들과 관련된 데이터 처리 완료
@@ -870,12 +789,10 @@ function Dashboard() {
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisibility);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
 
-  const handleBrandChange = (event, newValue) => {
-    setSelectedBrand(newValue);
-  };
 
 
 
@@ -1093,7 +1010,7 @@ function Dashboard() {
                     borderRight: '1px solid #ccc',
                   }
                 }}>
-                  <ReactQuill
+                  <QuillEditor
                     key={`${memoType}-memo-0`}
                     ref={quillRefs[0]}
                     theme="snow"
@@ -1201,7 +1118,7 @@ function Dashboard() {
                     borderRight: '1px solid #ccc',
                   }
                 }}>
-                  <ReactQuill
+                  <QuillEditor
                     key={`${memoType}-memo-2`}
                     ref={quillRefs[2]}
                     theme="snow"
@@ -1310,7 +1227,7 @@ function Dashboard() {
                 borderRight: '1px solid #ccc',
               }
             }}>
-              <ReactQuill
+              <QuillEditor
                 key={`${memoType}-memo-1`}
                 ref={quillRefs[1]}
                 theme="snow"

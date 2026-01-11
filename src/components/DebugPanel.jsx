@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Drawer,
@@ -27,6 +27,7 @@ const DebugPanel = () => {
   const [logs, setLogs] = useState([]);
   const [filter, setFilter] = useState('');
   const [errorCount, setErrorCount] = useState(0);
+  const logCounterRef = useRef(0); // 고유 ID 생성을 위한 카운터
 
   // 마스터 계정만 디버그 패널 표시
   const isMasterAccount = user?.email === 'master@slimpack.com';
@@ -53,22 +54,27 @@ const DebugPanel = () => {
         return String(arg);
       }).join(' ');
 
+      // 고유 ID 생성: 타임스탬프 + 카운터 + 랜덤값
+      logCounterRef.current += 1;
       const logEntry = {
-        id: Date.now() + Math.random(),
+        id: `${Date.now()}-${logCounterRef.current}-${Math.random()}`,
         level,
         message,
         timestamp: new Date().toLocaleTimeString(),
         raw: args
       };
 
-      setLogs(prev => {
-        const newLogs = [logEntry, ...prev].slice(0, 100); // 최대 100개만 유지
-        return newLogs;
-      });
+      // 렌더링 중 상태 업데이트 방지를 위해 비동기로 처리
+      queueMicrotask(() => {
+        setLogs(prev => {
+          const newLogs = [logEntry, ...prev].slice(0, 100); // 최대 100개만 유지
+          return newLogs;
+        });
 
-      if (level === 'error') {
-        setErrorCount(prev => prev + 1);
-      }
+        if (level === 'error') {
+          setErrorCount(prev => prev + 1);
+        }
+      });
     };
 
     console.log = (...args) => {
