@@ -1,17 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Button,
   Typography,
   Paper,
-  CircularProgress,
   Alert,
   Accordion,
   AccordionSummary,
   AccordionDetails,
   Grid,
   Chip,
-  Divider,
   Card,
   CardContent,
   LinearProgress,
@@ -34,7 +32,7 @@ import { productApi } from '../../api/productApi';
 import { initializeGoogleAPI } from '../../lib/googleDriveConfig';
 
 const SystemHealthCheck = () => {
-  const { user, session } = useAuth();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState({});
   const [overallStatus, setOverallStatus] = useState('unknown');
@@ -173,7 +171,7 @@ const SystemHealthCheck = () => {
 
     try {
       // 연결 테스트
-      const { data: testData, error: testError } = await supabase
+      const { error: testError } = await supabase
         .from('services')
         .select('id')
         .limit(1);
@@ -222,7 +220,7 @@ const SystemHealthCheck = () => {
     const checks = {};
 
     try {
-      const { data: { session: currentSession }, error } = await supabase.auth.getSession();
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
 
       checks.session = {
         status: currentSession ? STATUS.SUCCESS : STATUS.WARNING,
@@ -265,7 +263,6 @@ const SystemHealthCheck = () => {
 
   // API 엔드포인트 테스트
   const checkApiEndpoints = async () => {
-    const checks = {};
     const results = {};
 
     // Services API 테스트
@@ -327,7 +324,6 @@ const SystemHealthCheck = () => {
 
   // 데이터베이스 테이블 확인
   const checkDatabaseTables = async () => {
-    const checks = {};
     const tables = [
       'services',
       'customers',
@@ -345,7 +341,7 @@ const SystemHealthCheck = () => {
 
     for (const table of tables) {
       try {
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from(table)
           .select('id')
           .limit(1);
@@ -454,7 +450,7 @@ const SystemHealthCheck = () => {
 
       // RLS 정책 확인 (services 테이블 접근 테스트)
       try {
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from('services')
           .select('id')
           .limit(1);
