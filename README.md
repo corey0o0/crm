@@ -16,6 +16,7 @@ This project was bootstrapped with [Create React App](https://github.com/faceboo
 - [배포 가이드](./DEPLOYMENT_GUIDE.md) - 배포 절차 및 환경 설정
 - [텔레그램 봇 토큰 업데이트 가이드](./TELEGRAM_BOT_UPDATE_GUIDE.md) - 텔레그램 봇 토큰 업데이트 방법
 - [구글 클라이언트 ID 갱신 가이드](./GOOGLE_CLIENT_ID_UPDATE_GUIDE.md) - Google OAuth 클라이언트 ID 생성 및 업데이트 방법
+- [구글 드라이브 재설정 가이드](./GOOGLE_DRIVE_RESET_GUIDE.md) - 구글 드라이브 연동 문제 해결 및 재설정 방법
 
 ### 기능 가이드
 - [역할 및 권한 가이드](./ROLE_PERMISSION_GUIDE.md) - 권한 시스템 설명

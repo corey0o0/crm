@@ -645,8 +645,18 @@ function ServiceList() {
         query = query.ilike('solution', `%${searchParams.solutionSearchTerm}%`);
       }
       
+      // 날짜 필터링 (상태 필터링 전에 확인하여 완료일자 검색 시 상태 필터 자동 적용)
+      let dateField = 'reception_date';
+      if (searchParams.dateFilter && (searchParams.dateFilter.startDate || searchParams.dateFilter.endDate)) {
+        dateField = searchParams.dateFilter.type || 'reception_date';
+      }
+      
       // 상태 필터링
-      if (searchParams.selectedStatuses && searchParams.selectedStatuses.length > 0) {
+      // 완료일자로 검색할 때는 처리상태가 "완료"인 것만 필터링 (기존 상태 필터 무시)
+      if (dateField === 'completion_date') {
+        console.log('[ServiceList] 완료일자 검색이므로 상태 "완료" 필터 자동 적용');
+        query = query.eq('status', '완료');
+      } else if (searchParams.selectedStatuses && searchParams.selectedStatuses.length > 0) {
         console.log('[ServiceList] 상태 필터링 적용:', searchParams.selectedStatuses);
         query = query.in('status', searchParams.selectedStatuses);
       } else {
@@ -655,12 +665,29 @@ function ServiceList() {
       
       // 날짜 필터링
       if (searchParams.dateFilter && (searchParams.dateFilter.startDate || searchParams.dateFilter.endDate)) {
-        const dateField = searchParams.dateFilter.type || 'reception_date';
+        console.log('[ServiceList] 날짜 필터링 적용:', {
+          dateField,
+          startDate: searchParams.dateFilter.startDate,
+          endDate: searchParams.dateFilter.endDate
+        });
+        
+        // 완료일자 검색 시 null이 아닌 것만 필터링
+        if (dateField === 'completion_date') {
+          query = query.not(dateField, 'is', null);
+        }
+        
         if (searchParams.dateFilter.startDate) {
+          console.log('[ServiceList] 날짜 시작 필터:', searchParams.dateFilter.startDate);
           query = query.gte(dateField, searchParams.dateFilter.startDate);
         }
         if (searchParams.dateFilter.endDate) {
-          query = query.lte(dateField, searchParams.dateFilter.endDate);
+          // endDate의 다음 날 00:00:00 미만으로 검색하여 해당 날짜의 모든 시간대 포함
+          // 날짜 문자열을 직접 조작하여 타임존 문제 방지
+          const [year, month, day] = searchParams.dateFilter.endDate.split('-').map(Number);
+          const endDate = new Date(year, month - 1, day + 1);
+          const nextDay = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
+          console.log('[ServiceList] 날짜 종료 필터:', searchParams.dateFilter.endDate, '->', nextDay);
+          query = query.lt(dateField, nextDay);
         }
       }
 
@@ -727,8 +754,19 @@ function ServiceList() {
         
         console.log('[ServiceList] 브랜드 필터 적용 완료');
         
+        // 날짜 필터 타입 확인 (상태 필터링 전에 확인하여 완료일자 검색 시 상태 필터 자동 적용)
+        let dateField = 'reception_date';
+        if (searchParams.dateFilter && (searchParams.dateFilter.startDate || searchParams.dateFilter.endDate)) {
+          dateField = searchParams.dateFilter.type || 'reception_date';
+        }
+        
         // 상태 필터링 적용
-        if (searchParams.selectedStatuses && searchParams.selectedStatuses.length > 0) {
+        // 완료일자로 검색할 때는 처리상태가 "완료"인 것만 필터링 (기존 상태 필터 무시)
+        if (dateField === 'completion_date') {
+          console.log('[ServiceList] 완료일자 검색이므로 상태 "완료" 필터 자동 적용');
+          simpleQuery = simpleQuery.eq('status', '완료');
+          console.log('[ServiceList] 상태 필터 적용 완료');
+        } else if (searchParams.selectedStatuses && searchParams.selectedStatuses.length > 0) {
           console.log('[ServiceList] 상태 필터 적용 중:', searchParams.selectedStatuses);
           simpleQuery = simpleQuery.in('status', searchParams.selectedStatuses);
           console.log('[ServiceList] 상태 필터 적용 완료');
@@ -750,14 +788,31 @@ function ServiceList() {
         
         // 날짜 필터링
         if (searchParams.dateFilter && (searchParams.dateFilter.startDate || searchParams.dateFilter.endDate)) {
-          const dateField = searchParams.dateFilter.type || 'reception_date';
+          console.log('[ServiceList] 날짜 필터링 적용:', {
+            dateField,
+            startDate: searchParams.dateFilter.startDate,
+            endDate: searchParams.dateFilter.endDate
+          });
+          
+          // 완료일자 검색 시 null이 아닌 것만 필터링
+          if (dateField === 'completion_date') {
+            console.log('[ServiceList] 완료일자 null 제외 필터 적용');
+            simpleQuery = simpleQuery.not(dateField, 'is', null);
+          }
+          
           if (searchParams.dateFilter.startDate) {
             console.log('[ServiceList] 날짜 시작 필터 적용 중:', searchParams.dateFilter.startDate);
             simpleQuery = simpleQuery.gte(dateField, searchParams.dateFilter.startDate);
           }
           if (searchParams.dateFilter.endDate) {
             console.log('[ServiceList] 날짜 종료 필터 적용 중:', searchParams.dateFilter.endDate);
-            simpleQuery = simpleQuery.lte(dateField, searchParams.dateFilter.endDate);
+            // endDate의 다음 날 00:00:00 미만으로 검색하여 해당 날짜의 모든 시간대 포함
+            // 날짜 문자열을 직접 조작하여 타임존 문제 방지
+            const [year, month, day] = searchParams.dateFilter.endDate.split('-').map(Number);
+            const endDate = new Date(year, month - 1, day + 1);
+            const nextDay = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
+            console.log('[ServiceList] 종료일 다음 날로 필터 적용:', nextDay);
+            simpleQuery = simpleQuery.lt(dateField, nextDay);
           }
           console.log('[ServiceList] 날짜 필터 적용 완료');
         }
