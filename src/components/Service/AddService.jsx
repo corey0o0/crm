@@ -794,8 +794,7 @@ function AddService() {
           for (const service of insertedData) {
             try {
               await sendTelegramNotification({
-                message: `A/S 등록 (접수번호: ${service.id}) - 고객: ${service.customer_name || '정보없음'}, 연락처: ${service.customer_phone || '정보없음'}`,
-                link: `/service/${service.id}`
+                message: `A/S 등록 (접수번호: ${service.id}) - 고객: ${service.customer_name || '정보없음'}, 연락처: ${service.customer_phone || '정보없음'}`
               });
             } catch (telegramError) {
               console.error('엑셀 업로드 A/S 텔레그램 알림 전송 중 오류:', telegramError);
@@ -1002,8 +1001,7 @@ function AddService() {
       if (insertedService && insertedService.id) {
         try {
           await sendTelegramNotification({
-            message: `A/S 등록 (접수번호: ${insertedService.id}) - 고객: ${formData.customer_name}, 연락처: ${formData.customer_phone}`,
-            link: `/service/${insertedService.id}`
+            message: `A/S 등록 (접수번호: ${insertedService.id}) - 고객: ${formData.customer_name}, 연락처: ${formData.customer_phone}`
           });
         } catch (telegramError) {
           console.error('A/S 등록 텔레그램 알림 전송 중 오류:', telegramError);
