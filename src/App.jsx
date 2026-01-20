@@ -28,6 +28,7 @@ import TelegramTest from './components/Test/TelegramTest';
 import ServiceStats from './components/Stats/ServiceStats';
 import SalesStats from './components/Stats/SalesStats';
 import StockList from './components/Stock/StockList';
+import ServiceAnalysis from './components/Service/ServiceAnalysis';
 import BrandSettings from './components/Settings/BrandSettings';
 import InventoryLogs from './components/Inventory/InventoryLogs';
 // import RoleManagement from './components/Settings/RoleManagement'; // 제거됨 - 이메일 기반으로 대체
@@ -161,6 +162,9 @@ function App() {
               } />
               <Route path="service/stats" element={
                 <ServiceStats />
+              } />
+              <Route path="service/analysis" element={
+                <ServiceAnalysis />
               } />
               <Route path="service/:id" element={
                 <ServiceDetail />

@@ -23,4 +23,31 @@ module.exports = function(app) {
   } else {
     console.warn('REACT_APP_SUPABASE_URL 미설정: Supabase 프록시 비활성화');
   }
+
+  // Ollama 프록시 (CORS 문제 해결)
+  app.use(
+    '/__ollama',
+    createProxyMiddleware({
+      target: 'http://localhost:11434',
+      changeOrigin: true,
+      pathRewrite: {
+        '^/__ollama': ''
+      },
+      logLevel: 'silent',
+      onError: (err, req, res) => {
+        console.error('[Ollama Proxy] Error:', err.message);
+      },
+      onProxyReq: (proxyReq, req, res) => {
+        // CORS 헤더 추가
+        proxyReq.setHeader('Origin', 'http://localhost:11434');
+      },
+      onProxyRes: (proxyRes, req, res) => {
+        // CORS 헤더 추가
+        proxyRes.headers['Access-Control-Allow-Origin'] = '*';
+        proxyRes.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS';
+        proxyRes.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization';
+      }
+    })
+  );
+  console.log('[Ollama Proxy] Initialized at /__ollama -> http://localhost:11434');
 }; 

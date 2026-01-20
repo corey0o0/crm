@@ -19,5 +19,15 @@ export const API_CONFIG = {
     ENDPOINT: 'https://api.openai.com/v1/chat/completions',
     MODEL: getEnvVariable('REACT_APP_OPENAI_MODEL', 'gpt-4o-mini'),
     API_KEY: getEnvVariable('REACT_APP_OPENAI_API_KEY')
+  },
+  // 로컬 LLM (Ollama) 설정
+  LOCAL_LLM: {
+    ENABLED: getEnvVariable('REACT_APP_USE_LOCAL_LLM', 'false') === 'true',
+    // 개발 환경에서는 프록시를 통해 접근 (CORS 문제 해결)
+    ENDPOINT: process.env.NODE_ENV === 'development' 
+      ? '/__ollama/v1/chat/completions'
+      : getEnvVariable('REACT_APP_LOCAL_LLM_ENDPOINT', 'http://localhost:11434/v1/chat/completions'),
+    MODEL: getEnvVariable('REACT_APP_LOCAL_LLM_MODEL', 'llama3.2:latest'),
+    API_KEY: null // 로컬 LLM은 API 키가 필요 없음
   }
 }; 

@@ -56,12 +56,14 @@ import { sendTelegramNotification } from '../../lib/telegram';
 import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
 import { getSyncedParts, createSyncRelation, deleteSyncRelationById } from '../../utils/partSyncUtils';
 
+const BRANDS = ['XRB', 'NB', 'COMMON'];
+
 // 입력 폼 컴포넌트 분리
-const PartsFormDialog = memo(({ 
-  open, 
-  onClose, 
-  onSubmit, 
-  initialData, 
+const PartsFormDialog = memo(({
+  open,
+  onClose,
+  onSubmit,
+  initialData,
   brands,
   getNextPartCode
 }) => {
@@ -75,32 +77,45 @@ const PartsFormDialog = memo(({
     note: '파츠'
   });
 
+  // 폼이 열려있는지 추적하여 불필요한 리셋 방지
+  const isOpenRef = useRef(open);
+  const prevInitialDataRef = useRef(initialData);
+
   useEffect(() => {
-    if (initialData) {
-      setFormData({
-        name: initialData.name || '',
-        brand: initialData.brand || '',
-        code: initialData.code || '',
-        supplyPrice: initialData.supply_price?.toString() || '',
-        price: initialData.price?.toString() || '',
-        barcode: initialData.barcode || '',
-        note: initialData.note || '파츠'
-      });
-    } else {
-      const defaultBrand = brands[0] || '';
-      const defaultCategory = '파츠';
-      const suggestedCode = typeof getNextPartCode === 'function' ? getNextPartCode(defaultBrand, defaultCategory) : '';
-      setFormData({
-        name: '',
-        brand: defaultBrand,
-        code: suggestedCode,
-        supplyPrice: '',
-        price: '',
-        barcode: '',
-        note: defaultCategory
-      });
+    // 닫혀있다가 열릴 때, 또는 initialData가 변경될 때만 초기화
+    const justOpened = open && !isOpenRef.current;
+    const dataChanged = initialData !== prevInitialDataRef.current;
+
+    if (justOpened || (open && dataChanged)) {
+      if (initialData) {
+        setFormData({
+          name: initialData.name || '',
+          brand: initialData.brand || '',
+          code: initialData.code || '',
+          supplyPrice: initialData.supply_price?.toString() || '',
+          price: initialData.price?.toString() || '',
+          barcode: initialData.barcode || '',
+          note: initialData.note || '파츠'
+        });
+      } else {
+        const defaultBrand = brands[0] || '';
+        const defaultCategory = '파츠';
+        // 신규 등록일 때만 코드 추천
+        const suggestedCode = typeof getNextPartCode === 'function' ? getNextPartCode(defaultBrand, defaultCategory) : '';
+        setFormData({
+          name: '',
+          brand: defaultBrand,
+          code: suggestedCode,
+          supplyPrice: '',
+          price: '',
+          barcode: '',
+          note: defaultCategory
+        });
+      }
     }
-  }, [initialData, brands, getNextPartCode]);
+    isOpenRef.current = open;
+    prevInitialDataRef.current = initialData;
+  }, [open, initialData, brands, getNextPartCode]);
 
   const handleChange = useCallback((e) => {
     const { name, value } = e.target;
@@ -126,11 +141,11 @@ const PartsFormDialog = memo(({
   }, [formData, onSubmit]);
 
   return (
-    <Dialog 
-      open={open} 
-      onClose={onClose} 
-      maxWidth="sm" 
-      fullWidth 
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="sm"
+      fullWidth
       transitionDuration={0}
     >
       <DialogTitle>
@@ -156,14 +171,28 @@ const PartsFormDialog = memo(({
             </TextField>
           </Grid>
           <Grid item xs={12}>
-            <TextField
-              fullWidth
-              label="상품코드"
-              name="code"
-              value={formData.code}
-              onChange={handleChange}
-              required
-            />
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+              <TextField
+                fullWidth
+                label="상품코드"
+                name="code"
+                value={formData.code}
+                onChange={handleChange}
+                required
+              />
+              <Button
+                variant="outlined"
+                sx={{ height: 56, minWidth: 100 }}
+                onClick={() => {
+                  if (typeof getNextPartCode === 'function') {
+                    const newCode = getNextPartCode(formData.brand, formData.note);
+                    setFormData(prev => ({ ...prev, code: newCode }));
+                  }
+                }}
+              >
+                코드생성
+              </Button>
+            </Box>
           </Grid>
           <Grid item xs={12}>
             <TextField
@@ -219,7 +248,7 @@ const PartsFormDialog = memo(({
               value={formData.note}
               onChange={handleChange}
             >
-              {['파츠','기체','공임','기타'].map(opt => (
+              {['파츠', '기체', '공임', '기타'].map(opt => (
                 <MenuItem key={opt} value={opt}>{opt}</MenuItem>
               ))}
             </TextField>
@@ -279,7 +308,7 @@ const SearchInput = React.memo(function SearchInput({
         variant="contained"
         onClick={onSearch}
         disabled={isSearching}
-        sx={{ 
+        sx={{
           minWidth: { xs: '100%', sm: '100px' },
           height: { xs: 44, sm: 40 },
           px: { xs: 2, sm: 3 },
@@ -328,18 +357,18 @@ function PartsManagement() {
     current: 0,
     message: ''
   });
-  
+
   const [order, setOrder] = useState('asc');
   const [orderBy, setOrderBy] = useState('code');
   const [showSupplyPrice, setShowSupplyPrice] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('전체');
-  
+
   // 체크박스 관련 상태 추가
   const [selectedItems, setSelectedItems] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
   const [openCopyDialog, setOpenCopyDialog] = useState(false);
   const [copyTargetBrand, setCopyTargetBrand] = useState('');
-  
+
   // 연동 관련 상태 추가
   const [openSyncDialog, setOpenSyncDialog] = useState(false);
   const [syncTargetPart, setSyncTargetPart] = useState(null);
@@ -347,42 +376,52 @@ function PartsManagement() {
   const [syncedPartsMap, setSyncedPartsMap] = useState({}); // partId -> [syncedParts]
 
   // 다음 상품코드 생성기: 같은 브랜드의 기존 코드 중 숫자 접미사를 증가
+  // 다음 상품코드 생성기: 브랜드+카테고리 약어 조합
   const getNextPartCode = useCallback((brandCode, category = '파츠') => {
     try {
       const brandPrefix = String(brandCode || '').toUpperCase();
-      const brandParts = parts.filter(p => p.brand === brandPrefix && typeof p.code === 'string' && (!p.note || ['파츠','기체','공임','기타'].includes(p.note)));
-      // 카테고리별 접두사 규칙
-      // 공용 브랜드는 'COMMON' 또는 'COM' 접두사 사용
-      const categoryPrefixMap = {
-        '파츠': brandPrefix === 'COMMON' ? 'COM' : brandPrefix,
-        '기체': brandPrefix === 'COMMON' ? 'COM' : brandPrefix, // 필요 시 별도 접두사로 변경 가능
-        '공임': brandPrefix === 'COMMON' ? 'COM' : brandPrefix,
-        '기타': brandPrefix === 'COMMON' ? 'COM' : brandPrefix
-      };
-      const selectedPrefix = categoryPrefixMap[category] || (brandPrefix === 'COMMON' ? 'COM' : brandPrefix);
-      if (brandParts.length === 0) {
-        // 기본 접두사와 시드 번호
-        return `${selectedPrefix}-001`;
+
+      // 1. 브랜드 코드 매핑
+      // XRB -> XRB, NB -> NB, COMMON -> COM
+      const basePrefix = brandPrefix === 'COMMON' ? 'COM' : brandPrefix;
+
+      // 2. 카테고리 코드 매핑
+      // 파츠: P, 기체: M, 공임: S, 기타: E
+      let categorySuffix = 'P';
+      if (category === '기체') categorySuffix = 'M';
+      else if (category === '공임') categorySuffix = 'S';
+      else if (category === '기타') categorySuffix = 'E';
+
+      // 최종 접두사: Brand + Category (예: XRBP, NBM, COMS)
+      const fullPrefix = `${basePrefix}${categorySuffix}`;
+
+      // 해당 접두사로 시작하는 파츠들만 필터링
+      // 예: XRBP- 로 시작하는 코드들 찾기
+      const brandParts = parts.filter(p => p.brand === brandPrefix && typeof p.code === 'string');
+      const categoryParts = brandParts.filter(p => p.code.startsWith(fullPrefix));
+
+      if (categoryParts.length === 0) {
+        // 해당 카테고리 첫 아이템
+        return `${fullPrefix}-001`;
       }
 
       // 코드에서 숫자 꼬리를 추출하여 최대값+1 생성
       let maxNum = 0;
-      brandParts.forEach(p => {
-        const match = String(p.code).match(/(\d+)$/);
+      categoryParts.forEach(p => {
+        // 접두사 뒤의 숫자를 찾음
+        const match = p.code.match(new RegExp(`^${fullPrefix}-(\\d+)$`));
         if (match) {
           const n = parseInt(match[1], 10);
           if (!isNaN(n)) maxNum = Math.max(maxNum, n);
         }
       });
       const nextNum = maxNum + 1;
-      const padded = String(nextNum).padStart(3, '0');
-      const base = String(brandParts[0]?.code || '').split('-')[0];
-      const prefix = base && base.length >= 2 ? base : selectedPrefix;
-      return `${prefix}-${padded}`;
+      const padded = String(nextNum).padStart(3, '0'); // 기본 3자리, 필요시 늘어남
+      return `${fullPrefix}-${padded}`;
     } catch (e) {
-      const fallback = (category && category.length > 0) ? String(brandCode || 'XRB').toUpperCase() : String(brandCode || 'XRB').toUpperCase();
-      const fallbackPrefix = fallback === 'COMMON' ? 'COM' : fallback;
-      return `${fallbackPrefix}-001`;
+      console.error('Error generating code:', e);
+      // Fallback
+      return `${String(brandCode || 'XRB')}-001`;
     }
   }, [parts]);
 
@@ -405,7 +444,7 @@ function PartsManagement() {
     setSearchTerm('');
   }, []);
 
-  const brands = ['XRB', 'NB', 'COMMON']; // 브랜드 목록 수정 (공용 추가)
+  const brands = BRANDS; // 브랜드 목록 수정 (공용 추가)
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -424,7 +463,7 @@ function PartsManagement() {
       }
       setSyncedPartsMap(map);
     };
-    
+
     if (parts.length > 0) {
       loadSyncedParts();
     }
@@ -451,12 +490,12 @@ function PartsManagement() {
         maxTime: 30000,
         baseDelay: 1000
       });
-      
+
       if (error) throw error;
       setParts(data || []);
     } catch (err) {
       console.error('Error fetching parts:', err);
-      
+
       // 스마트 오류 처리
       const errorMessage = getErrorMessage(err);
       showSnackbar(`부품 목록을 불러오는데 실패했습니다: ${errorMessage}`, 'error');
@@ -476,10 +515,10 @@ function PartsManagement() {
         const bValue = b[orderBy] || 0;
         return order === 'asc' ? aValue - bValue : bValue - aValue;
       }
-      
+
       const aValue = (a[orderBy] || '').toString().toLowerCase();
       const bValue = (b[orderBy] || '').toString().toLowerCase();
-      
+
       if (order === 'asc') {
         return aValue.localeCompare(bValue);
       } else {
@@ -516,9 +555,9 @@ function PartsManagement() {
           .from('parts')
           .update(partData)
           .eq('id', selectedPart.id);
-        
+
         if (error) throw error;
-        
+
         showSnackbar(`부품이 성공적으로 수정되었습니다.`, 'success');
 
         // 텔레그램 알림 전송 (수정) - 정지됨
@@ -536,9 +575,9 @@ function PartsManagement() {
           .from('parts')
           .insert([partData])
           .select(); // 등록된 데이터 가져오기
-        
+
         if (error) throw error;
-        
+
         showSnackbar(`부품이 성공적으로 등록되었습니다.`, 'success');
 
         // 텔레그램 알림 전송 (신규 등록) - 정지됨
@@ -598,7 +637,7 @@ function PartsManagement() {
 
     data.forEach((row, index) => {
       const rowErrors = [];
-      
+
       if (!row.brand) rowErrors.push('brand');
       if (!row.name) rowErrors.push('name');
 
@@ -607,13 +646,13 @@ function PartsManagement() {
         return;
       }
 
-      if (row.supplyPrice !== undefined && row.supplyPrice !== '' && 
-          isNaN(Number(String(row.supplyPrice).replace(/[^0-9]/g, '')))) {
+      if (row.supplyPrice !== undefined && row.supplyPrice !== '' &&
+        isNaN(Number(String(row.supplyPrice).replace(/[^0-9]/g, '')))) {
         errors.push(`${index + 2}번 행: 공급가는 숫자만 입력 가능합니다.`);
         return;
       }
-      if (row.price !== undefined && row.price !== '' && 
-          isNaN(Number(String(row.price).replace(/[^0-9]/g, '')))) {
+      if (row.price !== undefined && row.price !== '' &&
+        isNaN(Number(String(row.price).replace(/[^0-9]/g, '')))) {
         errors.push(`${index + 2}번 행: 판매가는 숫자만 입력 가능합니다.`);
         return;
       }
@@ -682,11 +721,11 @@ function PartsManagement() {
           brand: String(row.brand).toUpperCase(),
           code: (row.code !== undefined && row.code !== null) ? String(row.code).trim() : '',
           name: String(row.name).trim(),
-          supply_price: row.supplyPrice === undefined || row.supplyPrice === '' 
-            ? 0 
+          supply_price: row.supplyPrice === undefined || row.supplyPrice === ''
+            ? 0
             : Number(String(row.supplyPrice).replace(/[^0-9]/g, '')),
-          price: row.price === undefined || row.price === '' 
-            ? 0 
+          price: row.price === undefined || row.price === ''
+            ? 0
             : Number(String(row.price).replace(/[^0-9]/g, '')),
           barcode: row.barcode ? String(row.barcode).trim() : null,
           note: row.note ? String(row.note).trim() : null
@@ -796,7 +835,7 @@ function PartsManagement() {
         // }
 
         await fetchParts(); // 목록 새로고침
-        
+
         setTimeout(() => {
           closeUploadStatus();
           showSnackbar(`${formattedData.length}개의 파츠가 성공적으로 등록되었습니다.`, 'success');
@@ -808,7 +847,7 @@ function PartsManagement() {
         closeUploadStatus();
         console.error('엑셀 파일 처리 중 오류:', error);
         showSnackbar(
-          error.code === '23505' 
+          error.code === '23505'
             ? '동일한 상품코드를 가진 파츠가 이미 존재합니다.'
             : '엑셀 파일 처리 중 오류가 발생했습니다: ' + error.message,
           'error'
@@ -919,7 +958,7 @@ function PartsManagement() {
       // 구분(카테고리)로 필터링
       const categoryMatch = selectedCategory === '전체' || (part.note || '') === selectedCategory;
       if (!categoryMatch) return false;
-      
+
       // 검색어가 없으면 브랜드 필터링만 적용
       if (!searchTerm) return true;
 
@@ -954,8 +993,8 @@ function PartsManagement() {
   }, [sortedParts, page, rowsPerPage]);
 
   const renderSortableHeader = (id, label, align = 'left') => (
-    <TableCell 
-      align={align} 
+    <TableCell
+      align={align}
       sortDirection={orderBy === id ? order : false}
       sx={{ cursor: 'pointer' }}
     >
@@ -1007,11 +1046,11 @@ function PartsManagement() {
       showSnackbar('복사할 항목을 선택해주세요.', 'warning');
       return;
     }
-    
+
     // 다른 브랜드 선택 (현재 선택된 항목의 브랜드와 다른 브랜드)
     const selectedParts = parts.filter(part => selectedItems.includes(part.id));
     const currentBrands = [...new Set(selectedParts.map(part => part.brand))];
-    
+
     // 타겟 브랜드 기본값 설정
     const availableBrands = brands.filter(brand => !currentBrands.includes(brand));
     if (availableBrands.length > 0) {
@@ -1019,7 +1058,7 @@ function PartsManagement() {
     } else {
       setCopyTargetBrand('');
     }
-    
+
     setOpenCopyDialog(true);
   };
 
@@ -1038,7 +1077,7 @@ function PartsManagement() {
     try {
       // 선택된 파츠 정보 가져오기
       const selectedPartsData = parts.filter(part => selectedItems.includes(part.id));
-      
+
       // 각 파츠를 새로운 브랜드로 복사
       const newPartsData = selectedPartsData.map(part => ({
         name: part.name,
@@ -1050,7 +1089,7 @@ function PartsManagement() {
         note: part.note || null,
         stock: 0 // 초기 재고는 0으로 설정
       }));
-      
+
       // 중복 체크를 위한 쿼리
       for (const newPart of newPartsData) {
         // 동일한 코드와 브랜드 조합 체크
@@ -1060,9 +1099,9 @@ function PartsManagement() {
           .eq('code', newPart.code)
           .eq('brand', newPart.brand)
           .limit(1);
-          
+
         if (checkError) throw checkError;
-        
+
         // 이미 존재하는 경우 덮어쓰기
         if (existingPart && existingPart.length > 0) {
           const { error: updateError } = await supabase
@@ -1075,7 +1114,7 @@ function PartsManagement() {
               note: newPart.note
             })
             .eq('id', existingPart[0].id);
-            
+
           if (updateError) throw updateError;
 
           // 텔레그램 알림 (정보 업데이트) - 정지됨
@@ -1093,7 +1132,7 @@ function PartsManagement() {
           const { error: insertError } = await supabase
             .from('parts')
             .insert([newPart]);
-            
+
           if (insertError) throw insertError;
 
           // 텔레그램 알림 (신규 등록) - 정지됨
@@ -1107,7 +1146,7 @@ function PartsManagement() {
           // }
         }
       }
-      
+
       showSnackbar(`${newPartsData.length}개 파츠가 ${copyTargetBrand} 브랜드로 복사되었습니다.`, 'success');
       handleCloseCopyDialog();
       fetchParts(); // 목록 새로고침
@@ -1171,7 +1210,7 @@ function PartsManagement() {
   // 연동할 파츠 검색 필터링
   const filteredSyncParts = useMemo(() => {
     if (!syncTargetPart) return [];
-    
+
     const searchLower = syncSearchTerm.toLowerCase();
     return parts.filter(part => {
       // 자기 자신 제외
@@ -1206,7 +1245,7 @@ function PartsManagement() {
                 추가
               </Button>
             </Grid>
-            
+
             <Grid item>
               <Button
                 variant="contained"
@@ -1218,16 +1257,16 @@ function PartsManagement() {
                 선택 항목 복사
               </Button>
             </Grid>
-            
+
             <Grid item>
-          <FormControlLabel
-            control={
-                  <Checkbox 
+              <FormControlLabel
+                control={
+                  <Checkbox
                     checked={selectAll}
                     onChange={handleSelectAll}
                     icon={<CheckBoxIcon fontSize="small" />}
-              />
-            }
+                  />
+                }
                 label={`전체 선택 ${selectedItems.length > 0 ? `(${selectedItems.length}개)` : ''}`}
               />
             </Grid>
@@ -1235,11 +1274,11 @@ function PartsManagement() {
             <Grid item xs />
 
             <Grid item>
-            <Button
-              variant="outlined"
-              startIcon={<UploadIcon />}
+              <Button
+                variant="outlined"
+                startIcon={<UploadIcon />}
                 onClick={() => document.getElementById('excel-upload').click()}
-            >
+              >
                 파츠 업로드
               </Button>
               <input
@@ -1250,25 +1289,25 @@ function PartsManagement() {
                 style={{ display: 'none' }}
               />
             </Grid>
-            
+
             <Grid item>
-            <Button
+              <Button
                 variant="outlined"
                 startIcon={<DownloadIcon />}
                 onClick={handleDownloadExcel}
-            >
+              >
                 엑셀 다운로드
-            </Button>
+              </Button>
             </Grid>
 
             <Grid item>
-          <Button
+              <Button
                 variant="outlined"
                 startIcon={<DownloadIcon />}
                 onClick={handleDownloadTemplate}
-          >
+              >
                 템플릿 다운로드
-          </Button>
+              </Button>
             </Grid>
           </Grid>
         </Paper>
@@ -1282,15 +1321,15 @@ function PartsManagement() {
                 fullWidth
                 size="small"
                 label="브랜드"
-          value={selectedBrand}
+                value={selectedBrand}
                 onChange={(e) => setSelectedBrand(e.target.value)}
-        >
+              >
                 <MenuItem value="전체">전체</MenuItem>
                 {brands.map(brand => (
                   <MenuItem key={brand} value={brand}>
                     {brand === 'XRB' ? 'X-RIDER' : brand === 'NB' ? 'NEARBIKE' : '공용'}
                   </MenuItem>
-          ))}
+                ))}
               </TextField>
             </Grid>
 
@@ -1312,7 +1351,7 @@ function PartsManagement() {
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
               >
-                {['전체','파츠','기체','공임','기타'].map(opt => (
+                {['전체', '파츠', '기체', '공임', '기타'].map(opt => (
                   <MenuItem key={opt} value={opt}>{opt}</MenuItem>
                 ))}
               </TextField>
@@ -1341,8 +1380,8 @@ function PartsManagement() {
               <Typography variant="body2" color="text.secondary" sx={{ ml: 2 }}>
                 검색 결과: <strong>{filteredParts.length}건</strong>
               </Typography>
-              <IconButton 
-                size="small" 
+              <IconButton
+                size="small"
                 onClick={handleClearSearch}
                 sx={{ ml: 1 }}
               >
@@ -1368,9 +1407,9 @@ function PartsManagement() {
           }}
         >
           {brands.map((brand) => (
-            <Tab 
-              key={brand} 
-              value={brand} 
+            <Tab
+              key={brand}
+              value={brand}
               label={brand === 'XRB' ? 'X-RIDER' : brand === 'NB' ? 'NEARBIKE' : '공용'}
               sx={{
                 '&.Mui-selected': {
@@ -1417,8 +1456,8 @@ function PartsManagement() {
                 <TableCell>{part.brand}</TableCell>
                 <TableCell>{part.code}</TableCell>
                 <TableCell>
-                  <Typography 
-                    sx={{ 
+                  <Typography
+                    sx={{
                       fontSize: '0.875rem',
                       color: part.barcode ? 'text.primary' : 'text.secondary',
                       fontStyle: part.barcode ? 'normal' : 'italic'
@@ -1432,8 +1471,8 @@ function PartsManagement() {
                 <TableCell align="right">{part.price?.toLocaleString()}</TableCell>
                 <TableCell align="right">{part.stock || 0}</TableCell>
                 <TableCell>
-                  <Typography 
-                  sx={{ 
+                  <Typography
+                    sx={{
                       fontSize: '0.875rem',
                       color: part.note ? 'text.primary' : 'text.secondary',
                       fontStyle: part.note ? 'normal' : 'italic'
@@ -1468,34 +1507,34 @@ function PartsManagement() {
                   )}
                 </TableCell>
                 <TableCell align="right">
-                    <IconButton 
-                      size="small" 
+                  <IconButton
+                    size="small"
                     onClick={() => handleOpenDialog(part)}
-                    >
+                  >
                     <EditIcon />
+                  </IconButton>
+                  <Tooltip title="연동 설정">
+                    <IconButton
+                      size="small"
+                      onClick={() => handleOpenSyncDialog(part)}
+                      sx={{
+                        color: (syncedPartsMap[part.id] && syncedPartsMap[part.id].length > 0)
+                          ? 'primary.main'
+                          : 'action.disabled'
+                      }}
+                    >
+                      <LinkIcon />
                     </IconButton>
-                    <Tooltip title="연동 설정">
-                      <IconButton 
-                        size="small" 
-                        onClick={() => handleOpenSyncDialog(part)}
-                        sx={{
-                          color: (syncedPartsMap[part.id] && syncedPartsMap[part.id].length > 0) 
-                            ? 'primary.main' 
-                            : 'action.disabled'
-                        }}
-                      >
-                        <LinkIcon />
-                      </IconButton>
-                    </Tooltip>
-                    <IconButton 
-                      size="small" 
+                  </Tooltip>
+                  <IconButton
+                    size="small"
                     onClick={() => handleDelete(part.id)}
                     color="error"
-                    >
+                  >
                     <DeleteIcon />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
+                  </IconButton>
+                </TableCell>
+              </TableRow>
             ))}
           </TableBody>
         </Table>
@@ -1544,9 +1583,9 @@ function PartsManagement() {
         </DialogTitle>
         <DialogContent>
           <Box sx={{ width: '100%', mt: 1 }}>
-            <LinearProgress 
-              variant="determinate" 
-              value={uploadStatus.current} 
+            <LinearProgress
+              variant="determinate"
+              value={uploadStatus.current}
               sx={{ height: 10, borderRadius: 5 }}
             />
             <Typography sx={{ mt: 2, mb: 1 }} variant="body1">
@@ -1567,7 +1606,7 @@ function PartsManagement() {
             <Typography variant="body1" gutterBottom>
               선택된 {selectedItems.length}개 항목을 다른 브랜드로 복사합니다.
             </Typography>
-            
+
             <FormControl fullWidth sx={{ mt: 2 }}>
               <InputLabel>대상 브랜드</InputLabel>
               <Select
@@ -1582,7 +1621,7 @@ function PartsManagement() {
                 ))}
               </Select>
             </FormControl>
-            
+
             <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
               * 이미 존재하는 코드는 정보가 업데이트됩니다.
             </Typography>
@@ -1593,9 +1632,9 @@ function PartsManagement() {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseCopyDialog}>취소</Button>
-          <Button 
-            onClick={handleCopyParts} 
-            variant="contained" 
+          <Button
+            onClick={handleCopyParts}
+            variant="contained"
             color="primary"
             disabled={!copyTargetBrand}
           >
@@ -1620,7 +1659,7 @@ function PartsManagement() {
               <Typography variant="body1" sx={{ mb: 2 }}>
                 <strong>{syncTargetPart.name}</strong> ({syncTargetPart.code}, {syncTargetPart.brand})
               </Typography>
-              
+
               {/* 현재 연동된 파츠 목록 */}
               {syncedPartsMap[syncTargetPart.id] && syncedPartsMap[syncTargetPart.id].length > 0 && (
                 <Box sx={{ mb: 3 }}>

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,13 +15,15 @@
             margin: 0;
             background-color: #f5f5f5;
         }
+
         .container {
             text-align: center;
             padding: 20px;
             background: white;
             border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         }
+
         .spinner {
             border: 4px solid #f3f3f3;
             border-top: 4px solid #3498db;
@@ -30,18 +33,27 @@
             animation: spin 2s linear infinite;
             margin: 20px auto;
         }
+
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
+
         .success {
             color: #27ae60;
         }
+
         .error {
             color: #e74c3c;
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div id="loading">
@@ -90,7 +102,7 @@
                         return match[1];
                     }
                 }
-                
+
                 // URL 파라미터에서 서비스 ID 확인
                 const urlParams = new URLSearchParams(window.location.search);
                 return urlParams.get('service_id');
@@ -105,15 +117,18 @@
                 // URL에서 액세스 토큰 추출
                 const hash = window.location.hash.substring(1);
                 const params = new URLSearchParams(hash);
-                
+
                 const accessToken = params.get('access_token');
                 const error = params.get('error');
                 const errorDescription = params.get('error_description');
-                
+                // state 파라미터에서 원래 경로 복원
+                const state = params.get('state');
+                const returnUrl = state ? decodeURIComponent(state) : null;
+
                 if (error) {
                     console.error('구글 OAuth 오류:', error, errorDescription);
                     showError(`인증 오류: ${errorDescription || error}`);
-                    
+
                     // 부모 창에 오류 메시지 전달
                     if (window.opener) {
                         window.opener.postMessage({
@@ -123,54 +138,61 @@
                     }
                     return;
                 }
-                
-        if (accessToken) {
-          console.log('구글 OAuth 성공, 토큰:', accessToken.substring(0, 20) + '...');
-          showSuccess();
-          
-          // localStorage에 토큰 저장
-          localStorage.setItem('google_access_token', accessToken);
-          
-          // 부모 창에 성공 메시지와 토큰 전달 (팝업인 경우)
-          if (window.opener) {
-            window.opener.postMessage({
-              type: 'GOOGLE_AUTH_SUCCESS',
-              accessToken: accessToken
-            }, window.location.origin);
-            
-            // 2초 후 창 닫기
-            setTimeout(() => {
-              window.close();
-            }, 2000);
-          } else {
-            // 현재 창에서 리다이렉트된 경우 원래 페이지로 돌아가기
-            const serviceId = getServiceIdFromReferrer();
-            if (serviceId) {
-              setTimeout(() => {
-                window.location.href = `/service/${serviceId}`;
-              }, 2000);
-            } else {
-              // referrer에서 원래 페이지 확인
-              const referrer = document.referrer;
-              let redirectUrl = '/services';
-              
-              if (referrer) {
-                if (referrer.includes('/add-service') || referrer.includes('/service/add')) {
-                  redirectUrl = '/add-service';
-                } else if (referrer.includes('/service/')) {
-                  redirectUrl = '/services';
+
+                if (accessToken) {
+                    console.log('구글 OAuth 성공, 토큰:', accessToken.substring(0, 20) + '...');
+                    showSuccess();
+
+                    // localStorage에 토큰 저장
+                    localStorage.setItem('google_access_token', accessToken);
+
+                    // 부모 창에 성공 메시지와 토큰 전달 (팝업인 경우)
+                    if (window.opener) {
+                        window.opener.postMessage({
+                            type: 'GOOGLE_AUTH_SUCCESS',
+                            accessToken: accessToken
+                        }, window.location.origin);
+
+                        // 2초 후 창 닫기
+                        setTimeout(() => {
+                            window.close();
+                        }, 2000);
+                    } else {
+                        // 현재 창에서 리다이렉트된 경우 원래 페이지로 돌아가기
+                        if (returnUrl) {
+                            console.log('원래 페이지로 복귀:', returnUrl);
+                            setTimeout(() => {
+                                window.location.href = returnUrl;
+                            }, 2000);
+                        } else {
+                            const serviceId = getServiceIdFromReferrer();
+                            if (serviceId) {
+                                setTimeout(() => {
+                                    window.location.href = `/service/${serviceId}`;
+                                }, 2000);
+                            } else {
+                                // referrer에서 원래 페이지 확인
+                                const referrer = document.referrer;
+                                let redirectUrl = '/services';
+
+                                if (referrer) {
+                                    if (referrer.includes('/add-service') || referrer.includes('/service/add')) {
+                                        redirectUrl = '/add-service';
+                                    } else if (referrer.includes('/service/')) {
+                                        redirectUrl = '/services';
+                                    }
+                                }
+
+                                setTimeout(() => {
+                                    window.location.href = redirectUrl;
+                                }, 2000);
+                            }
+                        }
+                    }
+                } else {
+                    showError('액세스 토큰을 받지 못했습니다.');
                 }
-              }
-              
-              setTimeout(() => {
-                window.location.href = redirectUrl;
-              }, 2000);
-            }
-          }
-        } else {
-          showError('액세스 토큰을 받지 못했습니다.');
-        }
-                
+
             } catch (err) {
                 console.error('인증 콜백 처리 오류:', err);
                 showError('인증 처리 중 오류가 발생했습니다: ' + err.message);
@@ -181,4 +203,5 @@
         document.addEventListener('DOMContentLoaded', handleAuthCallback);
     </script>
 </body>
+
 </html>

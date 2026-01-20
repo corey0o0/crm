@@ -53,7 +53,7 @@ import ReceiptScanner from '../Receipt/ReceiptScanner';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
 import 'react-pdf/dist/esm/Page/TextLayer.css';
-import { 
+import {
   Close as CloseIconMui,
   ZoomIn as ZoomInIcon,
   Preview as PreviewIcon,
@@ -67,11 +67,11 @@ import { format } from 'date-fns';
 import { sendTelegramNotification } from '../../lib/telegram';
 import { processServiceCompletion } from '../../utils/inventoryUtils';
 // import { addServicePartsToPendingOrders } from '../../utils/pendingOrderUtils'; // 주문대기 기능 비활성화
-import { 
-  uploadFileToGoogleDrive, 
-  findOrCreateFolder, 
+import {
+  uploadFileToGoogleDrive,
+  findOrCreateFolder,
   shareGoogleDriveFile,
-  getGoogleDrivePreviewUrl 
+  getGoogleDrivePreviewUrl
 } from '../../utils/googleDriveUtils';
 
 // PDF worker 설정
@@ -114,16 +114,16 @@ function ServiceDetail() {
   const [tags, setTags] = useState([]);
   const [availableTags] = useState([
     '배터리스위치', '전체점검', '브레이크-패드', '브레이크-로터', '브레이크-교체', '배터리', '펑크',
-    '충전기', '모터', '워런티', '사고-보험', 'E07','E09','E010'
+    '충전기', '모터', '워런티', '사고-보험', 'E07', 'E09', 'E010'
   ]);
   const [submitting, setSubmitting] = useState(false);
   const [openReceiptDialog, setOpenReceiptDialog] = useState(false);
-  
+
   // 파일 업로드 관련 상태
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [googleAccessToken, setGoogleAccessToken] = useState(null);
-  
+
   const [confirmDialog, setConfirmDialog] = useState({
     open: false,
     title: '',
@@ -154,13 +154,13 @@ function ServiceDetail() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [initialData, setInitialData] = useState(null);
   const [isFormSubmitted, setIsFormSubmitted] = useState(false);
-  
+
   // 로딩 상태 추적을 위한 ref
   const isLoadingRef = React.useRef(false);
-  
+
   // 강제 리렌더링을 위한 key 상태
   const [componentKey, setComponentKey] = useState(0);
-  
+
   // 자동저장 Hook (수정 모드일 때만 활성화)
   const autoSave = useAutoSave(
     {
@@ -177,7 +177,7 @@ function ServiceDetail() {
   // 변경사항 감지 함수
   const checkForChanges = useCallback(() => {
     if (!initialData || isFormSubmitted || !isEditing) return;
-    
+
     const currentData = {
       formData,
       selectedParts: selectedParts.map(part => ({
@@ -190,7 +190,7 @@ function ServiceDetail() {
       tags: tags.slice().sort(),
       receiptLink
     };
-    
+
     const hasChanges = JSON.stringify(currentData) !== JSON.stringify(initialData);
     setHasUnsavedChanges(hasChanges);
   }, [formData, selectedParts, tags, receiptLink, initialData, isFormSubmitted, isEditing]);
@@ -234,12 +234,12 @@ function ServiceDetail() {
     if (hasUnsavedChanges && !isFormSubmitted) {
       // 현재 페이지를 히스토리에 추가
       window.history.pushState(null, '', window.location.href);
-      
+
       const handlePopState = (event) => {
         if (hasUnsavedChanges && !isFormSubmitted) {
           // 브라우저 뒤로가기 시 확인 다이얼로그 표시
           const confirmLeave = window.confirm('변경사항이 저장되지 않았습니다. 정말 나가시겠습니까?');
-          
+
           if (confirmLeave) {
             // 사용자가 확인하면 실제로 뒤로가기 실행
             setHasUnsavedChanges(false);
@@ -269,78 +269,78 @@ function ServiceDetail() {
   const fetchServiceDetail = React.useCallback(async (retryCount = 0) => {
     try {
       console.log(`[ServiceDetail] fetchServiceDetail 호출됨 - retryCount: ${retryCount}, isLoadingRef: ${isLoadingRef.current}`);
-      
+
       // 이미 로딩 중이면 중복 요청 방지 (재시도가 아닌 경우에만)
       if (isLoadingRef.current && retryCount === 0) {
         console.log('[ServiceDetail] 이미 로딩 중이므로 요청을 건너뜁니다.');
         return;
       }
-      
+
       // 상태 초기화
       isLoadingRef.current = true;
       setLoading(true);
       setError(null);
-      
+
       console.log('[ServiceDetail] 상태 초기화 완료, 데이터 로딩 시작');
-      
+
       // ID 유효성 검사 추가
       if (!id) {
         console.error('[ServiceDetail] ID가 없습니다.');
         throw new Error('A/S ID가 없습니다.');
       }
-      
+
       // 유휴 후 재연결 확인
       console.log('[ServiceDetail] 연결 상태 확인 중...');
       const connectionOk = await ensureConnection();
       if (!connectionOk) {
         console.warn('[ServiceDetail] 재연결 실패 - 계속 시도');
       }
-      
+
       console.log(`[ServiceDetail] 데이터 로딩 시작 - 시도 ${retryCount + 1}/3, ID: ${id}`);
-      
+
       // 단순 쿼리로 먼저 서비스 데이터만 가져오기
       console.log('[ServiceDetail] Supabase 쿼리 시작 (단순 쿼리)');
-      
+
       let serviceData = null;
       let serviceError = null;
-      
+
       try {
         // 3초 타임아웃 (빠른 응답 없으면 즉시 새로고침)
         const queryTimeout = new Promise((_, reject) => {
           setTimeout(() => reject(new Error('쿼리 시간 초과')), 3000);
         });
-        
+
         const serviceQuery = supabase
           .from('services')
           .select('*')
           .eq('id', id)
           .single();
-        
+
         const result = await Promise.race([
           serviceQuery,
           queryTimeout
         ]);
-        
+
         serviceData = result.data;
         serviceError = result.error;
-        
-        console.log('[ServiceDetail] 쿼리 응답 수신:', { 
-          hasData: !!serviceData, 
+
+        console.log('[ServiceDetail] 쿼리 응답 수신:', {
+          hasData: !!serviceData,
           hasError: !!serviceError,
-          errorMsg: serviceError?.message 
+          errorMsg: serviceError?.message
         });
       } catch (timeoutError) {
         // Promise.race에서 reject된 경우 (타임아웃)
         console.error('[ServiceDetail] 쿼리 타임아웃 발생:', timeoutError.message);
         serviceError = timeoutError;
       }
-      
+
       console.log('[ServiceDetail] 기본 데이터 쿼리 완료 - 데이터:', !!serviceData, '에러:', !!serviceError);
-      
+
       // 기본 데이터 로딩 후 추가 데이터(parts, tags) 별도로 로딩
       let serviceParts = [];
       let serviceTags = [];
-      
+
       if (serviceData && !serviceError) {
         try {
           // 부품 정보 로딩
@@ -348,16 +348,16 @@ function ServiceDetail() {
             .from('service_parts')
             .select('id, part_id, quantity, price, usage')
             .eq('service_id', id);
-          
+
           serviceParts = partsData || [];
           console.log('[ServiceDetail] 부품 데이터 로딩 완료:', serviceParts.length);
-          
+
           // 태그 정보 로딩
           const { data: tagsData } = await supabase
             .from('service_tags')
             .select('tag_name')
             .eq('service_id', id);
-          
+
           serviceTags = tagsData || [];
           console.log('[ServiceDetail] 태그 데이터 로딩 완료:', serviceTags.length);
         } catch (extraErr) {
@@ -368,16 +368,16 @@ function ServiceDetail() {
 
       if (serviceError) {
         console.error(`[ServiceDetail] 데이터 로딩 오류 (시도 ${retryCount + 1}):`, serviceError);
-        
+
         // 재시도 로직 개선 - 타임아웃은 즉시 새로고침
-        const isTimeout = serviceError.message.includes('쿼리 시간 초과') || 
-                         serviceError.message.includes('timeout') ||
-                         serviceError.name === 'AbortError';
-        
+        const isTimeout = serviceError.message.includes('쿼리 시간 초과') ||
+          serviceError.message.includes('timeout') ||
+          serviceError.name === 'AbortError';
+
         if (retryCount < 2 && (
           isTimeout ||
-          serviceError.code === 'PGRST116' || 
-          serviceError.message.includes('network') || 
+          serviceError.code === 'PGRST116' ||
+          serviceError.message.includes('network') ||
           serviceError.message.includes('fetch') ||
           serviceError.message.includes('Failed to fetch') ||
           serviceError.message.includes('JWT') ||
@@ -394,18 +394,18 @@ function ServiceDetail() {
             }, 500); // 0.5초 후 새로고침
             return;
           }
-          
+
           // 기타 에러는 일반 재시도
           console.log(`[ServiceDetail] 재시도 준비 중... (${retryCount + 1}/2)`);
           const retryDelay = 1000 * (retryCount + 1);
           console.log(`[ServiceDetail] ${retryDelay}ms 후 재시도...`);
-          
+
           setTimeout(() => {
             fetchServiceDetail(retryCount + 1);
           }, retryDelay);
           return;
         }
-        
+
         throw serviceError;
       }
 
@@ -413,7 +413,7 @@ function ServiceDetail() {
         console.error('[ServiceDetail] 서비스 데이터가 null입니다.');
         throw new Error('서비스 데이터를 찾을 수 없습니다.');
       }
-      
+
       // 별도로 로딩한 parts, tags 데이터를 serviceData에 추가
       serviceData.service_parts = serviceParts;
       serviceData.service_tags = serviceTags;
@@ -467,7 +467,7 @@ function ServiceDetail() {
             note: ''
           })
           .eq('id', id);
-          
+
         if (!updateError) {
           serviceData.seller = serviceData.note;
           serviceData.note = '';
@@ -479,10 +479,10 @@ function ServiceDetail() {
       }
 
       const mileage = serviceData.mileage === null ? '' : serviceData.mileage;
-      
+
       // 초기 상태 저장
       setInitialStatus(serviceData.status || '접수');
-      
+
       setFormData({
         ...serviceData,
         reception_date: receptionDate,
@@ -549,7 +549,7 @@ function ServiceDetail() {
         });
 
         setSelectedParts(selectedParts);
-        
+
         // 초기 데이터 설정 (변경사항 감지용)
         setInitialData({
           formData: {
@@ -592,9 +592,9 @@ function ServiceDetail() {
       }
     } catch (err) {
       console.error('[ServiceDetail] 데이터 로딩 최종 실패:', err);
-      
+
       let errorMessage = '데이터를 불러오는 중 오류가 발생했습니다.';
-      
+
       if (err.message.includes('JWT') || err.message.includes('auth') || err.message.includes('401') || err.message.includes('Unauthorized')) {
         errorMessage = '데이터 로딩 중 오류가 발생했습니다. 다시 시도해주세요.';
         // 자동 리다이렉트 제거
@@ -607,7 +607,7 @@ function ServiceDetail() {
       } else if (err.message) {
         errorMessage = err.message;
       }
-      
+
       setError(errorMessage);
     } finally {
       isLoadingRef.current = false;
@@ -625,7 +625,7 @@ function ServiceDetail() {
     }
 
     console.log('[ServiceDetail] ID 변경 감지, 데이터 재로딩:', id);
-    
+
     // 디바운싱을 위한 타이머
     const timeoutId = setTimeout(() => {
       setError(null);
@@ -716,11 +716,11 @@ function ServiceDetail() {
     e.preventDefault();
     setSubmitting(true);
     setIsFormSubmitted(true); // 폼 제출 상태로 변경
-    
+
     try {
       let receptionDateTime = null;
       let completionDateTime = null;
-      
+
       if (formData.reception_date && formData.reception_time) {
         receptionDateTime = `${formData.reception_date}T${formData.reception_time}:00+09:00`;
       }
@@ -817,7 +817,7 @@ function ServiceDetail() {
           throw new Error(`새 태그 정보 저장 중 오류: ${tagInsertError.message}`);
         }
       }
-      
+
       // A/S 수정 알림 추가 (핵심 로직과 분리)
       let notificationSuccess = true;
       try {
@@ -856,9 +856,9 @@ function ServiceDetail() {
       if (formData.status === '완료') {
         try {
           console.log(`A/S 완료 처리 시작 - 서비스ID: ${id}, 브랜드: ${formData.brand}`);
-          
+
           const inventoryResult = await processServiceCompletion(id, formData.brand);
-          
+
           if (inventoryResult.success) {
             if (inventoryResult.skipped) {
               inventoryMessage = ` ${inventoryResult.message}`;
@@ -904,15 +904,15 @@ function ServiceDetail() {
         message: (notificationSuccess ? '성공적으로 저장되었습니다.' : '저장되었으나 알림 등록에 실패했습니다.') + inventoryMessage + pendingOrderMessage,
         severity: notificationSuccess && !inventoryMessage.includes('오류') && !pendingOrderMessage.includes('실패') ? 'success' : 'warning'
       });
-      
+
       // 변경사항 초기화
       setHasUnsavedChanges(false);
       setIsEditing(false);
-      
+
       // 자동저장 데이터 삭제
       autoSave.clear();
       console.log('[ServiceDetail] 저장 성공 - 자동저장 데이터 삭제');
-      
+
       localStorage.setItem('highlightServiceId', id);
 
       // 성공적으로 모든 작업 완료 후 페이지 이동
@@ -935,7 +935,7 @@ function ServiceDetail() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    
+
     if (name === 'completion_date') {
       setFormData((prev) => ({
         ...prev,
@@ -944,9 +944,9 @@ function ServiceDetail() {
       }));
     } else {
       setFormData((prev) => ({
-      ...prev,
-      [name]: value
-    }));
+        ...prev,
+        [name]: value
+      }));
     }
     setIsEditing(true);
   };
@@ -958,11 +958,11 @@ function ServiceDetail() {
         .select('*')
         .in('brand', [formData.brand, 'COMMON']) // 선택된 브랜드 + 공용 파츠 포함
         .order('name');
-      
+
       if (error) throw error;
-      
+
       console.log('Available parts:', data);
-      
+
       setAvailableParts(data);
     } catch (err) {
       console.error('Error fetching parts:', err);
@@ -970,8 +970,8 @@ function ServiceDetail() {
     }
   };
 
-  const filteredParts = availableParts.filter(part => 
-    (part.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  const filteredParts = availableParts.filter(part =>
+  (part.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     part.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
     part.brand.toLowerCase().includes(searchTerm.toLowerCase()))
   );
@@ -1000,7 +1000,7 @@ function ServiceDetail() {
   const handleAddPart = () => {
     if (selectedPart && partQuantity > 0) {
       const existingPartIndex = selectedParts.findIndex(p => p.id === selectedPart.id);
-      
+
       if (existingPartIndex >= 0) {
         const updatedParts = [...selectedParts];
         updatedParts[existingPartIndex].quantity += partQuantity;
@@ -1018,7 +1018,7 @@ function ServiceDetail() {
         };
         setSelectedParts(prev => [...prev, newPart]);
       }
-      
+
       setSelectedPart(null);
       setPartQuantity(1);
       setModifiedPrice('');
@@ -1040,24 +1040,24 @@ function ServiceDetail() {
         return 'success';
       default:
         return 'info';
-        }
+    }
   };
 
   const buttonStyle = (isSelected) => ({
     marginLeft: '8px',
     backgroundColor: isSelected ? (
       formData.status === '접수' ? '#1976d2' :
-      formData.status === '처리중' ? '#ed6c02' :
-      formData.status === '완료' ? '#2e7d32' : '#3182f6'
+        formData.status === '처리중' ? '#ed6c02' :
+          formData.status === '완료' ? '#2e7d32' : '#3182f6'
     ) : '#f2f4f6',
     color: isSelected ? '#ffffff' : '#4e5968',
-        '&:hover': {
+    '&:hover': {
       backgroundColor: isSelected ? (
         formData.status === '접수' ? '#1565c0' :
-        formData.status === '처리중' ? '#d65f02' :
-        formData.status === '완료' ? '#1e5e20' : '#1b64da'
+          formData.status === '처리중' ? '#d65f02' :
+            formData.status === '완료' ? '#1e5e20' : '#1b64da'
       ) : '#e5e8eb'
-      }
+    }
   });
 
   const sectionStyle = {
@@ -1101,7 +1101,7 @@ function ServiceDetail() {
       onConfirm: async () => {
         try {
           setSubmitting(true);
-          
+
           const { error: deleteTagsError } = await supabase
             .from('service_tags')
             .delete()
@@ -1159,7 +1159,7 @@ function ServiceDetail() {
 
       const updatedParts = [...selectedParts];
       const priceValue = newPrice === '' ? 0 : Number(newPrice);
-      
+
       updatedParts[index] = {
         ...updatedParts[index],
         price: priceValue,
@@ -1172,9 +1172,9 @@ function ServiceDetail() {
         '수량': updatedParts[index].quantity,
         '새로운 총액': updatedParts[index].total
       });
-      
+
       setSelectedParts(updatedParts);
-      
+
       console.log('전체 선택된 부품 목록:', updatedParts);
     } catch (err) {
       console.error('가격 수정 중 오류:', err);
@@ -1189,7 +1189,7 @@ function ServiceDetail() {
   const handleSavePrice = async (index) => {
     try {
       const updatedPart = selectedParts[index];
-      
+
       console.log('가격 저장 시작:', {
         '부품명': updatedPart.name,
         '부품 ID': updatedPart.id,
@@ -1200,7 +1200,7 @@ function ServiceDetail() {
 
       const { error: updateError } = await supabase
         .from('service_parts')
-        .update({ 
+        .update({
           price: updatedPart.price,
           quantity: updatedPart.quantity,
           usage: updatedPart.usage || 'A/S'
@@ -1218,7 +1218,7 @@ function ServiceDetail() {
         '부품 ID': updatedPart.id,
         '업데이트된 가격': updatedPart.price
       });
-      
+
       setSnackbar({
         open: true,
         message: '가격이 성공적으로 저장되었습니다.',
@@ -1259,7 +1259,7 @@ function ServiceDetail() {
 
   const handlePreview = (url) => {
     if (!url) return;
-    
+
     const fileType = url.toLowerCase().endsWith('.pdf') ? 'pdf' : 'image';
     setPreviewType(fileType);
     setPreviewUrl(url);
@@ -1267,16 +1267,16 @@ function ServiceDetail() {
   };
 
   const handleDateChange = (date, field) => {
-      setFormData(prev => ({
-        ...prev,
+    setFormData(prev => ({
+      ...prev,
       [field]: date
-      }));
+    }));
   };
 
   const handleComplete = async () => {
     try {
       let completionDate = formData.completion_date;
-      
+
       if (!completionDate) {
         completionDate = new Date();
       }
@@ -1372,9 +1372,9 @@ function ServiceDetail() {
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setOpen(false)}>닫기</Button>
-            <Button 
-              component="a" 
-              href={url} 
+            <Button
+              component="a"
+              href={url}
               target="_blank"
               rel="noopener noreferrer"
               variant="contained"
@@ -1434,21 +1434,21 @@ function ServiceDetail() {
           'Authorization': `Bearer ${token}`
         }
       })
-      .then(response => {
-        if (response.ok) {
-          setGoogleAccessToken(token);
-          console.log('[ServiceDetail] 기존 토큰 로드 완료');
-        } else {
-          // 토큰이 만료되었거나 유효하지 않으면 제거
-          console.warn('[ServiceDetail] 토큰이 유효하지 않습니다. 삭제합니다.');
-          localStorage.removeItem('google_access_token');
-          setGoogleAccessToken(null);
-        }
-      })
-      .catch((error) => {
-        // 네트워크 오류 등은 무시하되, 토큰은 유지 (나중에 다시 시도)
-        console.warn('[ServiceDetail] 토큰 유효성 검사 중 오류:', error);
-      });
+        .then(response => {
+          if (response.ok) {
+            setGoogleAccessToken(token);
+            console.log('[ServiceDetail] 기존 토큰 로드 완료');
+          } else {
+            // 토큰이 만료되었거나 유효하지 않으면 제거
+            console.warn('[ServiceDetail] 토큰이 유효하지 않습니다. 삭제합니다.');
+            localStorage.removeItem('google_access_token');
+            setGoogleAccessToken(null);
+          }
+        })
+        .catch((error) => {
+          // 네트워크 오류 등은 무시하되, 토큰은 유지 (나중에 다시 시도)
+          console.warn('[ServiceDetail] 토큰 유효성 검사 중 오류:', error);
+        });
     }
   }, []);
 
@@ -1458,7 +1458,7 @@ function ServiceDetail() {
       const urlParams = new URLSearchParams(window.location.hash.substring(1));
       const accessToken = urlParams.get('access_token');
       const error = urlParams.get('error');
-      
+
       if (error) {
         console.error('구글 OAuth 오류:', error);
         setSnackbar({
@@ -1468,14 +1468,14 @@ function ServiceDetail() {
         });
         return;
       }
-      
+
       if (accessToken) {
         localStorage.setItem('google_access_token', accessToken);
         setGoogleAccessToken(accessToken);
-        
+
         // URL에서 토큰 제거
         window.history.replaceState({}, document.title, window.location.pathname);
-        
+
         setSnackbar({
           open: true,
           message: '구글 드라이브 인증이 완료되었습니다.',
@@ -1487,7 +1487,7 @@ function ServiceDetail() {
     // 팝업 창에서 부모 창으로 메시지 전달 처리
     const handleMessage = (event) => {
       if (event.origin !== window.location.origin) return;
-      
+
       if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
         const { accessToken } = event.data;
         localStorage.setItem('google_access_token', accessToken);
@@ -1508,7 +1508,7 @@ function ServiceDetail() {
 
     window.addEventListener('message', handleMessage);
     handleGoogleOAuthCallback();
-    
+
     return () => {
       window.removeEventListener('message', handleMessage);
     };
@@ -1569,7 +1569,7 @@ function ServiceDetail() {
         if (recentServicesError) throw recentServicesError;
         if (recentShipmentsError) throw recentShipmentsError;
         const allRecentCustomers = [...(recentServices || []), ...(recentShipments || [])];
-        
+
         // 이름 + 전화번호 조합으로 중복 제거
         const recentUniqueMap = new Map();
         allRecentCustomers.forEach(customer => {
@@ -1594,7 +1594,7 @@ function ServiceDetail() {
             }
           }
         });
-        
+
         const uniqueRecentCustomers = Array.from(recentUniqueMap.values()).slice(0, 10);
         setCustomerSearchResults(uniqueRecentCustomers);
         return;
@@ -1616,7 +1616,7 @@ function ServiceDetail() {
         .order('created_at', { ascending: false });
       if (shipmentError) throw shipmentError;
       const allResults = [...(serviceResults || []), ...(shipmentResults || [])];
-      
+
       // 이름 + 전화번호 조합으로 중복 제거
       const uniqueMap = new Map();
       allResults.forEach(customer => {
@@ -1641,7 +1641,7 @@ function ServiceDetail() {
           }
         }
       });
-      
+
       const uniqueResults = Array.from(uniqueMap.values());
       setCustomerSearchResults(uniqueResults);
     } catch (err) {
@@ -1682,7 +1682,7 @@ function ServiceDetail() {
               'Authorization': `Bearer ${token}`
             }
           });
-          
+
           if (response.ok) {
             setGoogleAccessToken(token);
             return token;
@@ -1702,13 +1702,13 @@ function ServiceDetail() {
           }
         }
       }
-      
+
       // 토큰이 없거나 만료되었으면 구글 OAuth 인증 요청
       // 환경 변수는 window._env_에서 가져오거나 process.env에서 가져옴
       const processEnvClientId = process.env.REACT_APP_GOOGLE_CLIENT_ID;
       const windowEnvClientId = typeof window !== 'undefined' && window._env_ && window._env_.REACT_APP_GOOGLE_CLIENT_ID;
       const clientId = processEnvClientId || windowEnvClientId;
-      
+
       // 디버깅: 클라이언트 ID 확인
       console.log('[ServiceDetail] 구글 클라이언트 ID 확인:', {
         processEnv: processEnvClientId,
@@ -1717,12 +1717,12 @@ function ServiceDetail() {
         allWindowEnvKeys: typeof window !== 'undefined' && window._env_ ? Object.keys(window._env_) : [],
         windowEnvFull: typeof window !== 'undefined' && window._env_ ? window._env_ : null
       });
-      
+
       if (!clientId) {
         console.error('[ServiceDetail] 구글 클라이언트 ID가 없습니다.');
         throw new Error('구글 클라이언트 ID가 설정되지 않았습니다. 환경변수 REACT_APP_GOOGLE_CLIENT_ID를 확인하세요.');
       }
-      
+
       // 올바른 클라이언트 ID인지 확인
       const expectedClientId = '858601328382-kpeaafkvvqaepgii0e79riruh8c642ei.apps.googleusercontent.com';
       if (clientId !== expectedClientId) {
@@ -1731,30 +1731,32 @@ function ServiceDetail() {
           expected: expectedClientId
         });
       }
-      
+
       // 팝업 차단을 우회하기 위해 현재 창에서 리다이렉트
       // redirect_uri는 쿼리 파라미터 없이 통일 (구글 OAuth 요구사항)
       const redirectUri = `${window.location.origin}/google-auth-callback.html`;
-      const authUrl = `https://accounts.google.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=https://www.googleapis.com/auth/drive.file&response_type=token&access_type=offline`;
-      
+      // 현재 경로를 state 파라미터에 담아서 전달 (리다이렉트 후 복귀를 위해)
+      const state = encodeURIComponent(window.location.pathname);
+      const authUrl = `https://accounts.google.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=https://www.googleapis.com/auth/drive.file&response_type=token&access_type=offline&state=${state}`;
+
       console.log('[ServiceDetail] 인증 URL 생성:', authUrl);
-      
+
       setSnackbar({
         open: true,
         message: '구글 드라이브 인증이 필요합니다. 잠시 후 인증 페이지로 이동합니다.',
         severity: 'info'
       });
-      
+
       // 현재 창에서 인증 페이지로 이동
       // 리다이렉트되므로 Promise는 resolve되지 않음
       setTimeout(() => {
         window.location.href = authUrl;
       }, 2000);
-      
+
       // 리다이렉트가 발생하므로 여기까지 오지 않음
       // Promise를 영원히 pending 상태로 유지
-      return new Promise(() => {});
-      
+      return new Promise(() => { });
+
     } catch (error) {
       // 실제 에러인 경우에만 throw
       if (!error.message.includes('인증 페이지로 이동')) {
@@ -1762,7 +1764,7 @@ function ServiceDetail() {
         throw error;
       }
       // 인증 페이지로 이동하는 경우는 에러가 아님
-      return new Promise(() => {});
+      return new Promise(() => { });
     }
   };
 
@@ -1774,7 +1776,7 @@ function ServiceDetail() {
     // 파일 크기 검증 (10MB 제한)
     const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
     const oversizedFiles = files.filter(f => f.size > MAX_FILE_SIZE);
-    
+
     if (oversizedFiles.length > 0) {
       setSnackbar({
         open: true,
@@ -1799,10 +1801,10 @@ function ServiceDetail() {
 
     try {
       setUploadingFiles(true);
-      
+
       // 구글 액세스 토큰 확인
       let accessToken = googleAccessToken;
-      
+
       // 상태에 토큰이 없으면 localStorage에서 확인
       if (!accessToken) {
         const storedToken = localStorage.getItem('google_access_token');
@@ -1814,7 +1816,7 @@ function ServiceDetail() {
                 'Authorization': `Bearer ${storedToken}`
               }
             });
-            
+
             if (response.ok) {
               accessToken = storedToken;
               setGoogleAccessToken(storedToken);
@@ -1835,7 +1837,7 @@ function ServiceDetail() {
           }
         }
       }
-      
+
       // 여전히 토큰이 없으면 인증 요청
       if (!accessToken) {
         // 인증 페이지로 이동 (getGoogleAccessToken이 리다이렉트함)
@@ -1852,12 +1854,12 @@ function ServiceDetail() {
       }
 
       // 업로드 루트/서브 폴더 설정 (환경변수 활용)
-      const rootFolderId = process.env.REACT_APP_GOOGLE_DRIVE_ROOT_FOLDER_ID || 
-                          (typeof window !== 'undefined' && window._env_ && window._env_.REACT_APP_GOOGLE_DRIVE_ROOT_FOLDER_ID) || 
-                          null;
-      const subFolderName = process.env.REACT_APP_GOOGLE_DRIVE_SUBFOLDER || 
-                           (typeof window !== 'undefined' && window._env_ && window._env_.REACT_APP_GOOGLE_DRIVE_SUBFOLDER) || 
-                           'upload_crm';
+      const rootFolderId = process.env.REACT_APP_GOOGLE_DRIVE_ROOT_FOLDER_ID ||
+        (typeof window !== 'undefined' && window._env_ && window._env_.REACT_APP_GOOGLE_DRIVE_ROOT_FOLDER_ID) ||
+        null;
+      const subFolderName = process.env.REACT_APP_GOOGLE_DRIVE_SUBFOLDER ||
+        (typeof window !== 'undefined' && window._env_ && window._env_.REACT_APP_GOOGLE_DRIVE_SUBFOLDER) ||
+        'upload_crm';
 
       // 루트 폴더ID 하위에 서브폴더(upload_crm)를 생성/탐색
       const subRootFolder = await findOrCreateFolder(subFolderName, rootFolderId, accessToken);
@@ -1867,15 +1869,15 @@ function ServiceDetail() {
       const serviceFolder = await findOrCreateFolder(serviceFolderName, subRootFolder?.id || rootFolderId, accessToken);
 
       const uploadResults = [];
-      
+
       for (const file of files) {
         try {
           // 파일 업로드
           const uploadResult = await uploadFileToGoogleDrive(file, serviceFolder.id, accessToken);
-          
+
           // 파일 공유 설정 (링크로 접근 가능하도록)
           await shareGoogleDriveFile(uploadResult.id, accessToken, 'reader', 'anyone');
-          
+
           uploadResults.push({
             id: uploadResult.id,
             name: uploadResult.name,
@@ -1885,7 +1887,7 @@ function ServiceDetail() {
             type: file.type,
             uploadDate: new Date().toISOString()
           });
-          
+
         } catch (fileError) {
           console.error(`파일 ${file.name} 업로드 실패:`, fileError);
           setSnackbar({
@@ -1896,58 +1898,58 @@ function ServiceDetail() {
         }
       }
 
-    if (uploadResults.length > 0) {
-      // DB에 파일 정보 저장
-      try {
-        const fileRecords = uploadResults.map(file => ({
-          service_id: parseInt(id),
-          file_id: file.id,
-          file_name: file.name,
-          file_size: file.size,
-          file_type: file.type,
-          web_view_link: file.webViewLink,
-          web_content_link: file.webContentLink,
-          upload_date: file.uploadDate
-        }));
+      if (uploadResults.length > 0) {
+        // DB에 파일 정보 저장
+        try {
+          const fileRecords = uploadResults.map(file => ({
+            service_id: parseInt(id),
+            file_id: file.id,
+            file_name: file.name,
+            file_size: file.size,
+            file_type: file.type,
+            web_view_link: file.webViewLink,
+            web_content_link: file.webContentLink,
+            upload_date: file.uploadDate
+          }));
 
-        const { data: insertedFiles, error: insertError } = await supabase
-          .from('service_files')
-          .insert(fileRecords)
-          .select();
+          const { data: insertedFiles, error: insertError } = await supabase
+            .from('service_files')
+            .insert(fileRecords)
+            .select();
 
-        if (insertError) {
-          console.error('[ServiceDetail] 파일 정보 DB 저장 오류:', insertError);
-          throw insertError;
+          if (insertError) {
+            console.error('[ServiceDetail] 파일 정보 DB 저장 오류:', insertError);
+            throw insertError;
+          }
+
+          // DB의 primary key를 포함하여 상태 업데이트
+          const filesWithDbId = uploadResults.map((file, index) => ({
+            ...file,
+            dbId: insertedFiles[index].id
+          }));
+
+          setUploadedFiles(prev => [...prev, ...filesWithDbId]);
+          console.log('[ServiceDetail] 파일 정보 DB 저장 완료:', insertedFiles.length);
+
+        } catch (dbError) {
+          console.error('[ServiceDetail] 파일 정보 DB 저장 실패:', dbError);
+          // DB 저장 실패 시에도 로컬 상태는 업데이트 (파일은 이미 구글 드라이브에 업로드됨)
+          setUploadedFiles(prev => [...prev, ...uploadResults]);
+
+          setSnackbar({
+            open: true,
+            message: `파일은 업로드되었으나 DB 저장 중 오류가 발생했습니다: ${dbError.message}`,
+            severity: 'warning'
+          });
+          return;
         }
 
-        // DB의 primary key를 포함하여 상태 업데이트
-        const filesWithDbId = uploadResults.map((file, index) => ({
-          ...file,
-          dbId: insertedFiles[index].id
-        }));
-
-        setUploadedFiles(prev => [...prev, ...filesWithDbId]);
-        console.log('[ServiceDetail] 파일 정보 DB 저장 완료:', insertedFiles.length);
-        
-      } catch (dbError) {
-        console.error('[ServiceDetail] 파일 정보 DB 저장 실패:', dbError);
-        // DB 저장 실패 시에도 로컬 상태는 업데이트 (파일은 이미 구글 드라이브에 업로드됨)
-        setUploadedFiles(prev => [...prev, ...uploadResults]);
-        
         setSnackbar({
           open: true,
-          message: `파일은 업로드되었으나 DB 저장 중 오류가 발생했습니다: ${dbError.message}`,
-          severity: 'warning'
+          message: `${uploadResults.length}개 파일이 성공적으로 업로드되었습니다.`,
+          severity: 'success'
         });
-        return;
       }
-
-      setSnackbar({
-        open: true,
-        message: `${uploadResults.length}개 파일이 성공적으로 업로드되었습니다.`,
-        severity: 'success'
-      });
-    }
 
     } catch (error) {
       // 인증 페이지로 이동하는 경우는 정상 플로우이므로 에러로 처리하지 않음
@@ -1955,7 +1957,7 @@ function ServiceDetail() {
         // 리다이렉트가 발생하므로 여기까지 오지 않지만, 혹시 모를 경우를 대비
         return;
       }
-      
+
       console.error('파일 업로드 실패:', error);
       setSnackbar({
         open: true,
@@ -1997,16 +1999,16 @@ function ServiceDetail() {
           // 구글 드라이브 삭제 실패는 무시 (DB에서는 이미 삭제됨)
         }
       }
-      
+
       // 로컬 상태에서 제거
       setUploadedFiles(prev => prev.filter(file => file.id !== fileId));
-      
+
       setSnackbar({
         open: true,
         message: '파일이 삭제되었습니다.',
         severity: 'success'
       });
-      
+
     } catch (error) {
       console.error('[ServiceDetail] 파일 삭제 실패:', error);
       setSnackbar({
@@ -2265,9 +2267,9 @@ function ServiceDetail() {
             </thead>
             <tbody>
               ${selectedParts.map(part => {
-                const amount = (part.price || 0) * (part.quantity || 1);
-                // 요청에 따라 세액 열 및 계산을 제거했습니다.
-                return `
+      const amount = (part.price || 0) * (part.quantity || 1);
+      // 요청에 따라 세액 열 및 계산을 제거했습니다.
+      return `
                   <tr>
                     <td>${part.name}</td>
                     <td>${part.quantity}</td>
@@ -2275,7 +2277,7 @@ function ServiceDetail() {
                     <td class="amount-cell">${amount.toLocaleString()}</td>
                   </tr>
                 `;
-              }).join('')}
+    }).join('')}
               <tr class="total-row">
                 <td colspan="3" style="text-align:center;">합계</td>
                 <td class="amount-cell">${selectedParts.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 1), 0).toLocaleString()}</td>
@@ -2341,10 +2343,10 @@ function ServiceDetail() {
 
   if (loading) {
     return (
-      <Box sx={{ 
-        display: 'flex', 
+      <Box sx={{
+        display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'center', 
+        justifyContent: 'center',
         alignItems: 'center',
         mt: 4,
         gap: 2
@@ -2371,7 +2373,7 @@ function ServiceDetail() {
             variant="contained"
             onClick={() => {
               console.log('[ServiceDetail] 재시도 버튼 클릭됨 - 페이지 새로고침');
-              
+
               // 현재 URL로 페이지 새로고침 (가장 확실한 방법)
               window.location.reload();
             }}
@@ -2397,10 +2399,10 @@ function ServiceDetail() {
           <Button
             variant="outlined"
             onClick={() => navigate('/services')}
-            sx={{ 
+            sx={{
               borderColor: '#3182f6',
               color: '#3182f6',
-              '&:hover': { 
+              '&:hover': {
                 borderColor: '#1b64da',
                 color: '#1b64da',
                 bgcolor: 'rgba(49, 130, 246, 0.04)'
@@ -2416,7 +2418,7 @@ function ServiceDetail() {
 
   const partsSection = (
     <Box sx={{ mt: 4 }}>
-      <Typography variant="h6" sx={{ 
+      <Typography variant="h6" sx={{
         mb: 2,
         color: '#191f28',
         fontWeight: 600,
@@ -2444,7 +2446,7 @@ function ServiceDetail() {
             startIcon={<AddIcon />}
             variant="contained"
             onClick={handleOpenPartsDialog}
-            sx={{ 
+            sx={{
               bgcolor: '#3182f6',
               '&:hover': { bgcolor: '#1b64da' }
             }}
@@ -2455,10 +2457,10 @@ function ServiceDetail() {
             startIcon={<ReceiptIcon />}
             variant="outlined"
             onClick={() => setOpenReceiptDialog(true)}
-            sx={{ 
+            sx={{
               color: '#3182f6',
               borderColor: '#3182f6',
-              '&:hover': { 
+              '&:hover': {
                 bgcolor: 'rgba(49, 130, 246, 0.04)',
                 borderColor: '#1b64da'
               }
@@ -2496,7 +2498,7 @@ function ServiceDetail() {
                   <IconButton
                     onClick={() => {
                       if (!receiptLink) return;
-                      const previewUrl = receiptLink.includes('drive.google.com') 
+                      const previewUrl = receiptLink.includes('drive.google.com')
                         ? receiptLink.replace('/view?usp=sharing', '/preview')
                         : receiptLink;
                       window.open(previewUrl, '_blank', 'width=800,height=600');
@@ -2513,7 +2515,7 @@ function ServiceDetail() {
           />
         </Box>
       </Stack>
-      
+
       <TableContainer component={Paper} sx={{ mt: 2 }}>
         <Table size="small">
           <TableHead>
@@ -2570,7 +2572,7 @@ function ServiceDetail() {
                           '가격': part.price,
                           '총액': part.total
                         })}
-                        sx={{ 
+                        sx={{
                           width: '120px',
                           '& .MuiOutlinedInput-root': {
                             borderRadius: 1,
@@ -2578,7 +2580,7 @@ function ServiceDetail() {
                           }
                         }}
                         InputProps={{
-                          inputProps: { 
+                          inputProps: {
                             min: 0,
                             step: "1"
                           },
@@ -2589,7 +2591,7 @@ function ServiceDetail() {
                         size="small"
                         variant="contained"
                         onClick={() => handleSavePrice(index)}
-                        sx={{ 
+                        sx={{
                           minWidth: 'auto',
                           px: 2,
                           bgcolor: '#3182f6',
@@ -2606,7 +2608,7 @@ function ServiceDetail() {
                     size="small"
                     value={part.usage || 'A/S'}
                     onChange={(e) => handleUsageChange(index, e.target.value)}
-                    sx={{ 
+                    sx={{
                       minWidth: 100,
                       height: '32px',
                       '& .MuiSelect-select': {
@@ -2677,7 +2679,7 @@ function ServiceDetail() {
               </TableHead>
               <TableBody>
                 {filteredParts.map((part) => (
-                  <TableRow 
+                  <TableRow
                     key={part.id}
                     selected={selectedPart?.id === part.id}
                     onClick={() => handlePartSelect(part)}
@@ -2726,13 +2728,13 @@ function ServiceDetail() {
         </DialogActions>
       </Dialog>
 
-      <Dialog 
-        open={openReceiptDialog} 
+      <Dialog
+        open={openReceiptDialog}
         onClose={() => setOpenReceiptDialog(false)}
         maxWidth="xl"
         fullWidth
       >
-        <DialogTitle sx={{ 
+        <DialogTitle sx={{
           pb: 1,
           display: 'flex',
           justifyContent: 'space-between',
@@ -2744,7 +2746,7 @@ function ServiceDetail() {
           </IconButton>
         </DialogTitle>
         <DialogContent sx={{ p: 0 }}>
-          <ReceiptScanner 
+          <ReceiptScanner
             onPartsSelected={(selectedParts) => {
               setSelectedParts(prev => [...prev, ...selectedParts]);
               setOpenReceiptDialog(false);
@@ -2779,13 +2781,13 @@ function ServiceDetail() {
 
         <Paper sx={paperStyle}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-            <Typography variant="h5" sx={{ 
+            <Typography variant="h5" sx={{
               color: '#191f28',
-              fontWeight: 600 
+              fontWeight: 600
             }}>
               A/S 상세 정보
             </Typography>
-            
+
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               {/* 자동저장 상태 표시 (수정 모드일 때만) */}
               {isEditing && autoSave.lastSaved && (
@@ -2798,7 +2800,7 @@ function ServiceDetail() {
                   sx={{ fontSize: '0.75rem' }}
                 />
               )}
-              
+
               {isEditing && autoSave.isSaving && (
                 <Chip
                   size="small"
@@ -2809,7 +2811,7 @@ function ServiceDetail() {
                   sx={{ fontSize: '0.75rem' }}
                 />
               )}
-              
+
               <Box sx={{ textAlign: 'right' }}>
                 <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                   A/S ID
@@ -2831,27 +2833,27 @@ function ServiceDetail() {
                   <Grid item xs={12}>
                     <Box sx={{ display: 'flex', gap: 2 }}>
                       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 2 }}>
-                          <Typography variant="caption" sx={{ color: 'text.secondary', ml: 1 }}>
+                        <Typography variant="caption" sx={{ color: 'text.secondary', ml: 1 }}>
                           접수일시*
-                          </Typography>
+                        </Typography>
                         <Box sx={{ display: 'flex', gap: 1 }}>
-                              <TextField 
+                          <TextField
                             required
                             type="date"
                             name="reception_date"
                             value={formData.reception_date || ''}
                             onChange={handleChange}
-                                size="small"
-                                sx={{
+                            size="small"
+                            sx={{
                               flex: 2,
-                                  '& .MuiOutlinedInput-root': {
-                                    height: '36px',
-                                    borderRadius: 1,
-                                    bgcolor: '#f9fafb'
-                                  }
-                                }}
-                              />
-                              <TextField 
+                              '& .MuiOutlinedInput-root': {
+                                height: '36px',
+                                borderRadius: 1,
+                                bgcolor: '#f9fafb'
+                              }
+                            }}
+                          />
+                          <TextField
                             select
                             required
                             name="reception_time"
@@ -2862,15 +2864,15 @@ function ServiceDetail() {
                                 value: e.target.value
                               }
                             })}
-                                size="small"
-                                sx={{
+                            size="small"
+                            sx={{
                               flex: 1,
-                                  '& .MuiOutlinedInput-root': {
-                                    height: '36px',
-                                    borderRadius: 1,
-                                    bgcolor: '#f9fafb'
-                                  }
-                                }}
+                              '& .MuiOutlinedInput-root': {
+                                height: '36px',
+                                borderRadius: 1,
+                                bgcolor: '#f9fafb'
+                              }
+                            }}
                           >
                             {RECEPTION_TIME_OPTIONS.map((time) => (
                               <MenuItem key={time} value={time}>{time}</MenuItem>
@@ -2883,21 +2885,21 @@ function ServiceDetail() {
                           완료일시
                         </Typography>
                         <Box sx={{ display: 'flex', gap: 1 }}>
-                        <TextField
+                          <TextField
                             type="date"
                             name="completion_date"
                             value={formData.completion_date || ''}
-                          onChange={handleChange}
+                            onChange={handleChange}
                             size="small"
-                          sx={{ 
+                            sx={{
                               flex: 2,
-                            '& .MuiOutlinedInput-root': {
+                              '& .MuiOutlinedInput-root': {
                                 height: '36px',
                                 borderRadius: 1,
                                 bgcolor: '#f9fafb'
-                            }
-                          }}
-                        />
+                              }
+                            }}
+                          />
                           <TextField
                             select
                             name="completion_time"
@@ -2930,24 +2932,24 @@ function ServiceDetail() {
                   </Grid>
                   <Grid item xs={12}>
                     <Box sx={{ display: 'flex', gap: 1, mb: 2, alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                      <Button 
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button
                           variant={formData.status === '접수' ? 'contained' : 'outlined'}
-                        onClick={() => handleStatusChange('접수')}
+                          onClick={() => handleStatusChange('접수')}
                           sx={buttonStyle(formData.status === '접수')}
-                      >
-                        접수
-                      </Button>
-                      <Button 
+                        >
+                          접수
+                        </Button>
+                        <Button
                           variant={formData.status === '처리중' ? 'contained' : 'outlined'}
-                        onClick={() => handleStatusChange('처리중')}
+                          onClick={() => handleStatusChange('처리중')}
                           sx={buttonStyle(formData.status === '처리중')}
-                      >
-                        처리중
-                      </Button>
-                      <Button 
+                        >
+                          처리중
+                        </Button>
+                        <Button
                           variant={formData.status === '완료' ? 'contained' : 'outlined'}
-                        onClick={() => handleStatusChange('완료')}
+                          onClick={() => handleStatusChange('완료')}
                           sx={buttonStyle(formData.status === '완료')}
                         >
                           완료
@@ -3313,9 +3315,9 @@ function ServiceDetail() {
                           {uploadedFiles.map((file) => (
                             <TableRow key={file.id}>
                               <TableCell>
-                                <Link 
-                                  href={file.webViewLink} 
-                                  target="_blank" 
+                                <Link
+                                  href={file.webViewLink}
+                                  target="_blank"
                                   rel="noopener noreferrer"
                                   sx={{ textDecoration: 'none' }}
                                 >
@@ -3361,16 +3363,16 @@ function ServiceDetail() {
             {partsSection}
           </Grid>
 
-          <Box sx={{ 
-            mt: 5, 
-            pt: 3, 
-            display: 'flex', 
-            justifyContent: 'space-between', 
+          <Box sx={{
+            mt: 5,
+            pt: 3,
+            display: 'flex',
+            justifyContent: 'space-between',
             gap: 2,
-            borderTop: '1px solid #f2f2f2' 
+            borderTop: '1px solid #f2f2f2'
           }}>
             <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-              <Button 
+              <Button
                 onClick={handleDelete}
                 startIcon={<DeleteIcon />}
                 sx={{
@@ -3385,7 +3387,7 @@ function ServiceDetail() {
               >
                 삭제
               </Button>
-              <Button 
+              <Button
                 onClick={handleBack}
                 sx={{
                   color: '#4e5968',
@@ -3401,7 +3403,7 @@ function ServiceDetail() {
               </Button>
             </Box>
             <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-              <Button 
+              <Button
                 onClick={handlePrintEstimate}
                 startIcon={<ReceiptIcon />}
                 sx={{
@@ -3416,7 +3418,7 @@ function ServiceDetail() {
               >
                 견적서
               </Button>
-              <Button 
+              <Button
                 onClick={handlePrint}
                 startIcon={<PrintIcon />}
                 sx={{
@@ -3432,7 +3434,7 @@ function ServiceDetail() {
                 프린트
               </Button>
               {isEditing ? (
-                <Button 
+                <Button
                   type="submit"
                   variant="contained"
                   disabled={submitting}
@@ -3450,7 +3452,7 @@ function ServiceDetail() {
                   저장
                 </Button>
               ) : (
-                <Button 
+                <Button
                   onClick={handleStartEdit}
                   variant="contained"
                   sx={{
@@ -3508,13 +3510,13 @@ function ServiceDetail() {
             <Typography>{confirmDialog.message}</Typography>
           </DialogContent>
           <DialogActions>
-            <Button 
+            <Button
               onClick={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
               sx={{ color: '#666' }}
             >
               취소
             </Button>
-            <Button 
+            <Button
               onClick={confirmDialog.onConfirm}
               variant="contained"
               sx={{
@@ -3542,12 +3544,12 @@ function ServiceDetail() {
             </Box>
           </DialogTitle>
           <DialogContent>
-            <Box sx={{ 
-              width: '100%', 
-              height: '80vh', 
-              display: 'flex', 
-              justifyContent: 'center', 
-              alignItems: 'center' 
+            <Box sx={{
+              width: '100%',
+              height: '80vh',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center'
             }}>
               {previewType === 'pdf' ? (
                 <iframe
@@ -3626,7 +3628,7 @@ function ServiceDetail() {
                   {customerSearchResults.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} align="center">
-                        {customerInputValue.length > 0 
+                        {customerInputValue.length > 0
                           ? '검색 결과가 없습니다.'
                           : '검색어를 입력하세요. (2글자 이상)'}
                       </TableCell>

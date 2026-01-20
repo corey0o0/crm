@@ -146,7 +146,7 @@ const DebugPanel = () => {
   const filteredLogs = logs.filter(log => {
     if (!filter) return true;
     return log.message.toLowerCase().includes(filter.toLowerCase()) ||
-           log.level.toLowerCase().includes(filter.toLowerCase());
+      log.level.toLowerCase().includes(filter.toLowerCase());
   });
 
   const getLogColor = (level) => {
@@ -160,6 +160,13 @@ const DebugPanel = () => {
   const clearLogs = () => {
     setLogs([]);
     setErrorCount(0);
+  };
+
+  const toggleDrawer = () => {
+    if (!open && errorCount > 0) {
+      setFilter('error');
+    }
+    setOpen(!open);
   };
 
   return (
@@ -178,7 +185,7 @@ const DebugPanel = () => {
         }}
       >
         <IconButton
-          onClick={() => setOpen(!open)}
+          onClick={toggleDrawer}
           sx={{
             bgcolor: errorCount > 0 ? 'error.main' : 'primary.main',
             color: 'white',
@@ -260,16 +267,16 @@ const DebugPanel = () => {
           />
 
           {/* 환경 변수 정보 */}
-          <Paper sx={{ p: 2, mb: 2, bgcolor: 'grey.100' }}>
+          <Paper sx={{ p: 2, mb: 2, bgcolor: 'grey.100', maxHeight: 200, overflow: 'auto' }}>
             <Typography variant="subtitle2" sx={{ mb: 1 }}>환경 변수 상태</Typography>
-            <Typography variant="body2" component="pre" sx={{ fontSize: '0.75rem', overflow: 'auto' }}>
+            <Typography variant="body2" component="pre" sx={{ fontSize: '0.75rem' }}>
               {typeof window !== 'undefined' && window._env_
                 ? JSON.stringify({
-                    keys: Object.keys(window._env_),
-                    hasSupabaseUrl: !!window._env_.REACT_APP_SUPABASE_URL,
-                    hasSupabaseKey: !!window._env_.REACT_APP_SUPABASE_ANON_KEY,
-                    supabaseUrl: window._env_.REACT_APP_SUPABASE_URL?.substring(0, 30) + '...' || '없음'
-                  }, null, 2)
+                  keys: Object.keys(window._env_),
+                  hasSupabaseUrl: !!window._env_.REACT_APP_SUPABASE_URL,
+                  hasSupabaseKey: !!window._env_.REACT_APP_SUPABASE_ANON_KEY,
+                  supabaseUrl: window._env_.REACT_APP_SUPABASE_URL?.substring(0, 30) + '...' || '없음'
+                }, null, 2)
                 : '환경 변수 없음'}
             </Typography>
           </Paper>
@@ -302,8 +309,8 @@ const DebugPanel = () => {
                         fontSize: '0.75rem',
                         whiteSpace: 'pre-wrap',
                         wordBreak: 'break-word',
-                        bgcolor: log.level === 'error' ? 'error.light' : 
-                                log.level === 'warn' ? 'warning.light' : 'grey.50',
+                        bgcolor: log.level === 'error' ? 'error.light' :
+                          log.level === 'warn' ? 'warning.light' : 'grey.50',
                         p: 1,
                         borderRadius: 1,
                         overflow: 'auto',

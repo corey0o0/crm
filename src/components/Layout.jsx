@@ -43,6 +43,7 @@ import {
   DriveFileMove as DriveIcon,
   Message as MessageIcon,
   Assessment as AssessmentIcon,
+  Analytics as AnalyticsIcon,
   Link as LinkIcon,
   Settings as SettingsIcon,
   History as HistoryIcon,
@@ -241,6 +242,7 @@ function Layout() {
 
     // 📊 통계 & 분석
     { text: '매출 통계', icon: <BarChartIcon />, path: '/sales/stats', key: 'sales_stats' },
+    { text: 'A/S 분석', icon: <AnalyticsIcon />, path: '/service/analysis', key: 'service_analysis' },
 
     // 💬 커뮤니티
     { text: '게시판', icon: <MenuBookIcon />, path: '/board', key: 'board' },

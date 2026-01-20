@@ -21,6 +21,11 @@ window._env_ = {
   REACT_APP_OPENAI_API_ENDPOINT: 'https://api.openai.com/v1/chat/completions',
   REACT_APP_OPENAI_MODEL: 'gpt-4o-mini',
   REACT_APP_OPENAI_API_KEY: '',
+  // 로컬 LLM (Ollama) 설정
+  // 로컬 LLM을 사용하려면 REACT_APP_USE_LOCAL_LLM을 'true'로 설정하세요
+  REACT_APP_USE_LOCAL_LLM: 'true', // 'true' 또는 'false'
+  REACT_APP_LOCAL_LLM_ENDPOINT: 'http://localhost:11434/v1/chat/completions',
+  REACT_APP_LOCAL_LLM_MODEL: 'llama3.2:latest', // 설치된 모델명으로 변경 가능
   REACT_APP_SUPABASE_URL: 'https://fextlagqverlrajlmkon.supabase.co',
   REACT_APP_SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZleHRsYWdxdmVybHJhamxta29uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA3NjEwOTgsImV4cCI6MjA1NjMzNzA5OH0.3EpsSNquIukHRgNmPCUIVyC6YKVMXh9RBEP8kM_m9c4',
   REACT_APP_CLAUDE_API_KEY: '',
