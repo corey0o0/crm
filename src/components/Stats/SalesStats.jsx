@@ -21,7 +21,11 @@ import {
   Divider,
   Autocomplete,
   ButtonGroup,
-  Container
+  Container,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material';
 import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
@@ -84,6 +88,8 @@ function SalesStats() {
     message: '',
     severity: 'success'
   });
+  const [channelModalOpen, setChannelModalOpen] = useState(false);
+  const [selectedChannelStats, setSelectedChannelStats] = useState(null);
   const [totalLaborSales, setTotalLaborSales] = useState(0);
   const brandOptions = ['전체', 'XRB', 'NB'];
   const currentMonth = getMonth(new Date());
@@ -108,11 +114,11 @@ function SalesStats() {
     // 선택된 연도의 1월 1일부터 12월 31일까지로 날짜 설정
     const newStartDate = startOfYear(new Date(year, 0, 1));
     const newEndDate = endOfYear(new Date(year, 11, 31));
-    
+
     setStartDate(newStartDate);
     setEndDate(newEndDate);
     setSelectedMonth(null); // 월 선택 초기화
-    
+
     handleSearch(newStartDate, newEndDate, brand);
   };
 
@@ -194,7 +200,7 @@ function SalesStats() {
       // 1. parts 테이블에서 모든 부품의 이름과 단가(price)를 가져옵니다.
       const { data: allPartsData, error: allPartsError } = await supabase
         .from('parts')
-        .select('name, price');
+        .select('name, price, note');
 
       if (allPartsError) {
         console.error('Parts 테이블 조회 오류:', allPartsError);
@@ -203,13 +209,17 @@ function SalesStats() {
       const partsPriceMap = new Map();
       if (allPartsData) {
         allPartsData.forEach(p => {
-          if (p.name && typeof p.price === 'number') {
-            partsPriceMap.set(p.name.trim(), p.price);
+          if (p.name) {
+            // 가격과 노트를 객체로 저장
+            partsPriceMap.set(p.name.trim(), {
+              price: typeof p.price === 'number' ? p.price : 0,
+              note: p.note
+            });
           }
         });
       }
       partsPriceMapRef.current = partsPriceMap;
-      console.log('[DEBUG] Parts Price Map:', partsPriceMap);
+      console.log('[DEBUG] Parts Price Map Loaded');
 
       // 날짜 범위를 'YYYY-MM-DD 00:00:00' ~ 'YYYY-MM-DD 23:59:59'로 변환
       const formattedStartDate = format(queryStartDate, 'yyyy-MM-dd');
@@ -301,7 +311,8 @@ function SalesStats() {
         // fallback: 기존 임의 분배/추정 로직 (단일 품목만 처리)
         const productNames = (shipment.product_name || '').split(',').map(pn => pn.trim()).filter(pn => pn);
         if (productNames.length === 1) {
-          const unitPriceFromMap = partsPriceMap.get(productNames[0]);
+          const partInfo = partsPriceMap.get(productNames[0]);
+          const unitPriceFromMap = partInfo ? partInfo.price : undefined;
           const actualQuantity = shipment.quantity || 1;
           let displayedUnitPrice = typeof unitPriceFromMap === 'number' ? unitPriceFromMap : (shipment.price || 0) / actualQuantity;
           if (!fallbackShipmentPartsByDate[date]) fallbackShipmentPartsByDate[date] = [];
@@ -434,7 +445,8 @@ function SalesStats() {
 
           if (productNames.length === 0) { // product_name이 비어있거나 단일 항목이지만 분리 안된 경우 (예: 이전 데이터)
             const productNameTrimmed = (shipment.product_name || '').trim();
-            const unitPriceFromMap = productNameTrimmed ? partsPriceMap.get(productNameTrimmed) : undefined;
+            const partInfo = productNameTrimmed ? partsPriceMap.get(productNameTrimmed) : undefined;
+            const unitPriceFromMap = partInfo ? partInfo.price : undefined;
 
             let displayedUnitPrice; // 부품 1개당 단가
             const actualQuantity = originalShipmentQuantity || 1; // 실제 출고된 수량 (단일 품목이므로 세트 수량과 동일)
@@ -462,7 +474,8 @@ function SalesStats() {
             });
           } else {
             productNames.forEach((individualName, index) => {
-              const unitPriceFromMap = partsPriceMap.get(individualName);
+              const partInfo = partsPriceMap.get(individualName);
+              const unitPriceFromMap = partInfo ? partInfo.price : undefined;
               const actualSetQuantity = originalShipmentQuantity || 1; // 실제 출고된 세트 수량
 
               let displayedUnitPrice; // '단가' 컬럼에 표시될 값 (부품 1개당 단가)
@@ -641,7 +654,8 @@ function SalesStats() {
             name: salesChannel,
             totalAmount: 0,
             shipmentCount: 0,
-            processedShipments: new Set()
+            processedShipments: new Set(),
+            products: {} // 제품별 수량 집계
           };
         }
 
@@ -651,6 +665,50 @@ function SalesStats() {
           newTotalCustomerSales[salesChannel].shipmentCount++;
           newTotalCustomerSales[salesChannel].processedShipments.add(shipment.id);
         }
+      });
+
+      // [수정] 제품별 상세 수량 집계 (shipmentPartsByDate 기준 - 정확한 파트별 수량 사용)
+      Object.values(shipmentPartsByDate).forEach(dailyParts => {
+        dailyParts.forEach(part => {
+          // 채널명 추출 (이미 part 객체에 있으면 사용, 없으면 찾기 - shipmentPartsByDate 생성 시점에 추출됨)
+          const salesChannel = part.sales_channel || '미지정';
+
+          if (!newTotalCustomerSales[salesChannel]) {
+            // 혹시라도 위 루프에서 누락된 채널이 있다면 생성 (보통은 위에서 처리됨)
+            newTotalCustomerSales[salesChannel] = {
+              name: salesChannel,
+              totalAmount: 0,
+              shipmentCount: 0,
+              processedShipments: new Set(),
+              products: {}
+            };
+          }
+          if (!newTotalCustomerSales[salesChannel].products) {
+            newTotalCustomerSales[salesChannel].products = {};
+          }
+
+          const productName = (part.name || '미지정').trim();
+
+          // 카테고리 정보 저장 (정렬을 위해)
+          // DB에서 가져온 part_category가 있으면 사용, 없으면 partsPriceMap에서 조회
+          let category = part.part_category;
+          if (!category) {
+            const partInfo = partsPriceMapRef.current.get(productName);
+            category = partInfo ? partInfo.note : '기타';
+          }
+
+          if (!newTotalCustomerSales[salesChannel].products[productName]) {
+            newTotalCustomerSales[salesChannel].products[productName] = {
+              quantity: 0,
+              category: category
+            };
+          }
+          newTotalCustomerSales[salesChannel].products[productName].quantity += (part.quantity || 0);
+          // 카테고리가 없었다면 업데이트
+          if (!newTotalCustomerSales[salesChannel].products[productName].category && category) {
+            newTotalCustomerSales[salesChannel].products[productName].category = category;
+          }
+        });
       });
 
       // 총 건수 계산
@@ -710,7 +768,8 @@ function SalesStats() {
             }
             // 워런티 0원 처리 정상가치
             if (part.usage === '워런티' && (part.price === 0 || part.price === '0')) {
-              const normalPrice = partsPriceMapRef.current.get((part.name || '').trim()) || 0;
+              const partInfo = partsPriceMapRef.current.get((part.name || '').trim());
+              const normalPrice = partInfo ? partInfo.price : 0;
               warrantyNormalValue += (part.quantity || 0) * normalPrice;
             }
             dailyServiceIds.add(part.service_id);
@@ -1550,6 +1609,17 @@ function SalesStats() {
     return text;
   };
 
+  // 판매처 클릭 핸들러
+  const handleChannelClick = (channelData) => {
+    setSelectedChannelStats(channelData);
+    setChannelModalOpen(true);
+  };
+
+  const handleChannelClose = () => {
+    setChannelModalOpen(false);
+    setSelectedChannelStats(null);
+  };
+
   // 매출 요약 엑셀 다운로드 함수
   const handleDownloadSummaryExcel = () => {
     if (!salesData || salesData.length === 0) return;
@@ -1969,7 +2039,23 @@ function SalesStats() {
                       .sort(([, a], [, b]) => b.totalAmount - a.totalAmount)
                       .map(([channelName, channelData]) => (
                         <Grid item xs={12} sm={6} md={3} lg={2} key={channelName}>
-                          <Paper sx={{ p: 2, bgcolor: '#f9fafb', display: 'flex', flexDirection: 'column', height: '100%' }}>
+                          <Paper
+                            onClick={() => handleChannelClick(channelData)}
+                            sx={{
+                              p: 2,
+                              bgcolor: '#f9fafb',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              height: '100%',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s',
+                              '&:hover': {
+                                transform: 'translateY(-4px)',
+                                boxShadow: 3,
+                                bgcolor: '#e3f2fd'
+                              }
+                            }}
+                          >
                             <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
                               {channelData.name} {/* 판매채널 이름 */}
                             </Typography>
@@ -1978,7 +2064,8 @@ function SalesStats() {
                             </Typography>
                             <Typography variant="caption" color="textSecondary">
                               출고건수: {channelData.shipmentCount}건
-                              {/* firstOrderDate, lastOrderDate는 제거 또는 다른 방식으로 표시 */}
+                              <br />
+                              <span style={{ fontSize: '0.75rem', color: '#1976d2' }}>상세보기 &gt;</span>
                             </Typography>
                           </Paper>
                         </Grid>
@@ -2551,6 +2638,83 @@ function SalesStats() {
             )}
           </Box>
         </Paper>
+        {/* 판매처 상세 내역 모달 */}
+        <Dialog
+          open={channelModalOpen}
+          onClose={handleChannelClose}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle sx={{ borderBottom: '1px solid #eee' }}>
+            {selectedChannelStats?.name} 상세 출고 내역
+            <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>
+              기간: {format(startDate, 'yyyy-MM-dd')} ~ {format(endDate, 'yyyy-MM-dd')}
+            </Typography>
+          </DialogTitle>
+          <DialogContent sx={{ pt: 3 }}>
+            {selectedChannelStats && (
+              <TableContainer component={Paper} elevation={0} variant="outlined">
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                      <TableCell>순위</TableCell>
+                      <TableCell>제품명</TableCell>
+                      <TableCell align="right">수량</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {Object.entries(selectedChannelStats.products || {})
+                      .sort(([nameA, dataA], [nameB, dataB]) => {
+                        // 1. 기체(Airframe) 우선 정렬
+                        const isAirframeA = dataA.category === '기체';
+                        const isAirframeB = dataB.category === '기체';
+
+                        if (isAirframeA && !isAirframeB) return -1;
+                        if (!isAirframeA && isAirframeB) return 1;
+
+                        // 2. 수량 내림차순
+                        return dataB.quantity - dataA.quantity;
+                      })
+                      .map(([productName, data], index) => (
+                        <TableRow key={productName} hover>
+                          <TableCell width="60">{index + 1}</TableCell>
+                          <TableCell>
+                            {productName}
+                            {data.category === '기체' && (
+                              <Typography component="span" variant="caption" sx={{ ml: 1, color: 'primary.main', bgcolor: '#e3f2fd', px: 0.5, borderRadius: 0.5 }}>
+                                기체
+                              </Typography>
+                            )}
+                          </TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                            {data.quantity.toLocaleString()}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    {Object.keys(selectedChannelStats.products || {}).length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={3} align="center" sx={{ py: 3 }}>
+                          출고 상세 내역이 없습니다.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+            <Box sx={{ mt: 2, textAlign: 'right' }}>
+              <Typography variant="subtitle2" color="primary">
+                총 출고 건수: {selectedChannelStats?.shipmentCount}건
+              </Typography>
+              <Typography variant="subtitle2" color="primary">
+                총 매출액: {formatCurrency(selectedChannelStats?.totalAmount)}
+              </Typography>
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleChannelClose} color="primary">닫기</Button>
+          </DialogActions>
+        </Dialog>
       </Box>
 
     </LocalizationProvider>
