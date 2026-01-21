@@ -282,6 +282,10 @@ function Layout() {
     window.open('https://docs.google.com/spreadsheets/d/1VPMcM_qRly_lKsx0wt54QjpRStolIhk9G_QPKJDOP-U/edit?gid=0#gid=0', '_blank');
   };
 
+  const handleOpenBoltonAS = () => {
+    window.open('https://onedrive.live.com/:x:/g/personal/4F1EFA708E1F82FD/EcakLuv3M8lEgR5v3v1xFp4BxzwiCQjfozZSYJgoZNyfwQ?resid=4F1EFA708E1F82FD!seb2ea4c633f744c9811e6fdefd71169e&ithint=file%2Cxlsx&e=DIWp4f&migratedtospo=true&redeem=aHR0cHM6Ly8xZHJ2Lm1zL3gvYy80ZjFlZmE3MDhlMWY4MmZkL0VjYWtMdXYzTThsRWdSNXYzdjF4RnA0Qnh6d2lDUWpmb3paU1lKZ29aTnlmd1E_ZT1ESVdwNGY', '_blank');
+  };
+
   return (
     <Box sx={{ display: 'flex' }}>
       <AppBarStyled position="fixed" open={open}>
@@ -462,6 +466,14 @@ function Layout() {
               </IconButton>
               <IconButton
                 color="inherit"
+                onClick={handleOpenBoltonAS}
+                size="small"
+                sx={{ mr: 0.5 }}
+              >
+                <LinkIcon />
+              </IconButton>
+              <IconButton
+                color="inherit"
                 onClick={handleSignOut}
                 size="small"
               >
@@ -488,6 +500,14 @@ function Layout() {
                 sx={{ mr: 1 }}
               >
                 엑라엑셀
+              </Button>
+              <Button
+                color="inherit"
+                startIcon={<LinkIcon />}
+                onClick={handleOpenBoltonAS}
+                sx={{ mr: 1 }}
+              >
+                볼턴A/S
               </Button>
               <Button color="inherit" onClick={handleSignOut}>
                 로그아웃
