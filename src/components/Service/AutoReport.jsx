@@ -50,7 +50,7 @@ function AutoReport({ analysisData, filters }) {
 
       const response = await generateAutoReport(analysisData, filterInfo);
       setReport(response);
-      
+
       // 리포트 제목 자동 생성
       const title = `A/S 분석 리포트_${filterInfo.startDate || '전체'}_${filterInfo.endDate || '전체'}_${new Date().toISOString().split('T')[0]}`;
       setReportTitle(title);
@@ -139,7 +139,7 @@ ${'='.repeat(50)}
 </body>
 </html>
     `;
-    
+
     printWindow.document.write(content);
     printWindow.document.close();
     printWindow.focus();
@@ -214,11 +214,11 @@ ${'='.repeat(50)}
             </Button>
           </Box>
 
-          <Paper 
-            variant="outlined" 
-            sx={{ 
-              p: 2, 
-              maxHeight: '500px', 
+          <Paper
+            variant="outlined"
+            sx={{
+              p: 2,
+              maxHeight: '500px',
               overflowY: 'auto',
               bgcolor: 'grey.50'
             }}
@@ -229,11 +229,11 @@ ${'='.repeat(50)}
             <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 2 }}>
               생성일시: {new Date().toLocaleString('ko-KR')}
             </Typography>
-            <Typography 
-              variant="body2" 
-              component="pre" 
-              sx={{ 
-                whiteSpace: 'pre-wrap', 
+            <Typography
+              variant="body2"
+              component="pre"
+              sx={{
+                whiteSpace: 'pre-wrap',
                 wordWrap: 'break-word',
                 fontFamily: 'inherit',
                 margin: 0

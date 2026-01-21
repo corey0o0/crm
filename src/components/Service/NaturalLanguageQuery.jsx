@@ -20,19 +20,19 @@ import {
 } from '@mui/icons-material';
 import { processNaturalLanguageQuery } from '../../utils/aiAnalysisUtils';
 
+const exampleQueries = [
+  '브레이크 소음이 가장 많은 기종은?',
+  '완료율이 낮은 접수 내용은?',
+  '가장 많이 사용된 부품은?',
+  '주행거리별 접수 패턴은?',
+  '태그별 주요 접수 내용은?'
+];
+
 function NaturalLanguageQuery({ analysisData }) {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [answers, setAnswers] = useState([]);
-
-  const exampleQueries = [
-    '브레이크 소음이 가장 많은 기종은?',
-    '완료율이 낮은 접수 내용은?',
-    '가장 많이 사용된 부품은?',
-    '주행거리별 접수 패턴은?',
-    '태그별 주요 접수 내용은?'
-  ];
 
   const handleQuery = async () => {
     if (!query.trim()) {
@@ -50,7 +50,7 @@ function NaturalLanguageQuery({ analysisData }) {
 
     try {
       const response = await processNaturalLanguageQuery(query, analysisData);
-      
+
       setAnswers(prev => [
         {
           question: query,
@@ -59,7 +59,7 @@ function NaturalLanguageQuery({ analysisData }) {
         },
         ...prev
       ]);
-      
+
       setQuery('');
     } catch (err) {
       console.error('질의 처리 오류:', {
@@ -168,16 +168,16 @@ function NaturalLanguageQuery({ analysisData }) {
                   <Typography variant="body2" sx={{ mb: 2 }}>
                     {item.question}
                   </Typography>
-                  
+
                   <Divider sx={{ my: 1 }} />
-                  
+
                   <Typography variant="subtitle2" color="success.main" sx={{ fontWeight: 'bold', mb: 0.5 }}>
                     답변
                   </Typography>
                   <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
                     {item.answer}
                   </Typography>
-                  
+
                   <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
                     {item.timestamp.toLocaleString('ko-KR')}
                   </Typography>

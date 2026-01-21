@@ -6,10 +6,10 @@ import { API_CONFIG } from '../config/api';
 export const getOllamaModels = async () => {
   try {
     // 개발 환경에서는 프록시를 통해 접근 (CORS 문제 해결)
-    const apiUrl = process.env.NODE_ENV === 'development' 
+    const apiUrl = process.env.NODE_ENV === 'development'
       ? '/__ollama/api/tags'
       : 'http://localhost:11434/api/tags';
-    
+
     const response = await fetch(apiUrl);
     if (!response.ok) {
       throw new Error('Ollama 모델 목록을 가져올 수 없습니다.');
@@ -33,7 +33,7 @@ export const callOpenAI = async (prompt, systemPrompt = null, customModel = null
     // 로컬 LLM 사용 여부 확인
     const useLocalLLM = API_CONFIG.LOCAL_LLM.ENABLED;
     const endpoint = useLocalLLM ? API_CONFIG.LOCAL_LLM.ENDPOINT : API_CONFIG.OPENAI.ENDPOINT;
-    
+
     // 사용자 지정 모델이 있으면 우선 사용, 없으면 localStorage에서 확인, 없으면 기본값
     let model;
     if (customModel) {
@@ -45,7 +45,7 @@ export const callOpenAI = async (prompt, systemPrompt = null, customModel = null
     } else {
       model = API_CONFIG.OPENAI.MODEL;
     }
-    
+
     const apiKey = useLocalLLM ? API_CONFIG.LOCAL_LLM.API_KEY : API_CONFIG.OPENAI.API_KEY;
 
     // OpenAI API 사용 시 API 키 필수
@@ -54,7 +54,7 @@ export const callOpenAI = async (prompt, systemPrompt = null, customModel = null
       console.error(errorMsg);
       throw new Error(errorMsg);
     }
-    
+
     if (!endpoint) {
       const errorMsg = 'API 엔드포인트가 설정되지 않았습니다.';
       console.error(errorMsg);
@@ -62,14 +62,14 @@ export const callOpenAI = async (prompt, systemPrompt = null, customModel = null
     }
 
     const messages = [];
-    
+
     if (systemPrompt) {
       messages.push({
         role: 'system',
         content: systemPrompt
       });
     }
-    
+
     messages.push({
       role: 'user',
       content: prompt
@@ -151,7 +151,7 @@ export const callOpenAI = async (prompt, systemPrompt = null, customModel = null
       stack: error.stack,
       error: error
     });
-    
+
     // 에러 메시지가 없으면 기본 메시지 사용
     const errorMessage = error.message || '알 수 없는 오류가 발생했습니다.';
     throw new Error(errorMessage);
@@ -206,28 +206,28 @@ export const prepareAnalysisData = (analysisData) => {
  */
 export const generateAIInsights = async (analysisData) => {
   const data = prepareAnalysisData(analysisData);
-  
+
   const systemPrompt = `당신은 A/S 서비스 데이터 분석 전문가입니다. 제공된 통계 데이터를 분석하여 주요 인사이트, 패턴, 트렌드, 그리고 개선 권장사항을 제시해주세요. 
 응답은 한국어로 작성하고, 구체적이고 실행 가능한 권장사항을 포함해주세요.
 중요: 각 섹션의 내용은 중복되지 않도록 서로 다른 관점에서 작성해주세요. 같은 내용을 반복하지 마세요.`;
 
   // 데이터 요약 생성
-  const completionRate = data.summary.totalCount > 0 
-    ? ((data.summary.completedCount / data.summary.totalCount) * 100).toFixed(1) 
+  const completionRate = data.summary.totalCount > 0
+    ? ((data.summary.completedCount / data.summary.totalCount) * 100).toFixed(1)
     : '0';
-  
-  const topSymptomText = data.topSymptoms.length > 0 
+
+  const topSymptomText = data.topSymptoms.length > 0
     ? data.topSymptoms.slice(0, 5).map(s => `- ${s.symptom} (${s.count}건, ${s.percentage}%)`).join('\n')
     : '데이터 없음';
-  
+
   const topSolutionText = data.topSolutions.length > 0
     ? data.topSolutions.slice(0, 5).map(s => `- ${s.solution} (${s.count}건, ${s.percentage}%)`).join('\n')
     : '데이터 없음';
-  
+
   const topProductText = data.topProducts.length > 0
     ? data.topProducts.slice(0, 5).map(p => `- ${p.product} (${p.count}건, ${p.percentage}%)`).join('\n')
     : '데이터 없음';
-  
+
   const topPartText = data.topParts.length > 0
     ? data.topParts.slice(0, 5).map(p => `- ${p.part} (${p.count}회 사용)`).join('\n')
     : '데이터 없음';
@@ -283,63 +283,84 @@ ${topPartText}
 /**
  * AI 기반 기종/문의/해결 정규화
  */
+/**
+ * AI 기반 기종/문의/해결 정규화 (고유값 기반)
+ */
 export const aiNormalizeServiceData = async (services, options = {}) => {
-  const sampleSize = Math.min(120, services.length);
-  const sample = services.slice(0, sampleSize).map((s, idx) => ({
-    id: s.id || idx,
-    product_original: s.product_name || '',
-    symptom_original: s.symptom || '',
-    solution_original: s.solution || ''
-  }));
+  // 1. 고유값 추출
+  const uniqueProducts = new Set();
+  const uniqueSymptoms = new Set();
+  const uniqueSolutions = new Set();
 
-  const systemPrompt = `당신은 A/S 서비스 데이터를 정규화하는 어시스턴트입니다.
-기종명, 문의 내용(증상), 해결 방법을 표준화된 짧은 라벨로 변환하세요.
-- 기종: 공백/특수문자 제거, 대문자 통일, 유사 기종을 동일 라벨로 묶기 (예: X200 PRO, X200프로 -> X200 PRO)
-- 문의 내용: 핵심 키워드 3~5단어로 요약 (예: 브레이크 소음, 모터 소음, 배터리 방전)
-- 해결 방법: 작업 유형을 간단히 요약 (예: 브레이크 패드 교체, 튜브 교체, 전체 점검)
-JSON 배열만 반환하세요. 추가 설명이나 코드블록 없이 순수 JSON만 응답하세요.`;
+  services.forEach(s => {
+    if (s.product_name && s.product_name.trim()) uniqueProducts.add(s.product_name.trim());
+    if (s.symptom && s.symptom.trim()) uniqueSymptoms.add(s.symptom.trim());
+    if (s.solution && s.solution.trim()) uniqueSolutions.add(s.solution.trim());
+  });
 
-  const prompt = `다음 데이터의 각 항목을 정규화하세요. 
-입력 필드: product_original, symptom_original, solution_original
-반환 필드: product_normalized, symptom_normalized, solution_normalized
+  // 2. 분석할 데이터 준비 (토큰 제한 고려하여 최대 개수 제한)
+  // 실제로는 너무 많으면 청크로 나눠야 하지만, 여기서는 상위 빈도수 위주로 하거나 일단 전체를 보냄 (최대 300개 정도면 충분할 수 있음)
+  const productsList = Array.from(uniqueProducts).slice(0, 100);
+  const symptomsList = Array.from(uniqueSymptoms).slice(0, 100);
+  const solutionsList = Array.from(uniqueSolutions).slice(0, 100);
 
-데이터 (JSON):
-${JSON.stringify(sample, null, 2)}
+  // 빈 데이터면 처리 안함
+  if (productsList.length === 0 && symptomsList.length === 0 && solutionsList.length === 0) {
+    return { productMap: {}, symptomMap: {}, solutionMap: {} };
+  }
 
-반드시 JSON 배열만 반환하세요. 각 객체는 다음 필드를 포함해야 합니다:
-- product_original, product_normalized
-- symptom_original, symptom_normalized
-- solution_original, solution_normalized`;
+  const systemPrompt = `당신은 A/S 서비스 데이터를 정규화하는 데이터 분석 어시스턴트입니다.
+제공된 원본 텍스트 목록(기종, 문의내용, 해결방법)을 분석하여 표준화된 라벨로 매핑해주세요.
+
+규칙:
+1. 기종 (Product): 대소문자 통일, 공백 제거, 동일 모델의 다양한 표기를 하나로 통일 (예: "X 200", "x200", "X-200" -> "X200")
+2. 문의내용 (Symptom): 핵심 문제 원인이나 증상으로 요약 (예: "앞바퀴에서 소리가 나요" -> "바퀴 소음")
+3. 해결방법 (Solution): 수행한 작업의 핵심 내용을 요약 (예: "타이어 튜브 교체해드렸습니다" -> "튜브 교체")
+
+중요: 출력은 반드시 원본 텍스트와 정규화된 텍스트를 매핑한 JSON 객체 형태여야 합니다.
+형식: 
+{
+  "products": { "원본1": "정규화1", ... },
+  "symptoms": { "원본1": "정규화1", ... },
+  "solutions": { "원본1": "정규화1", ... }
+}
+`;
+
+  const prompt = `다음 데이터를 정규화해주세요.
+JSON 형식으로 응답해주세요. 설명은 필요 없습니다.
+
+**기종 목록:**
+${JSON.stringify(productsList)}
+
+**문의내용 목록:**
+${JSON.stringify(symptomsList)}
+
+**해결방법 목록:**
+${JSON.stringify(solutionsList)}
+`;
 
   try {
     const response = await callOpenAI(prompt, systemPrompt, options.model);
-    const start = response.indexOf('[');
-    const end = response.lastIndexOf(']');
-    if (start === -1 || end === -1) {
-      throw new Error('정규화 응답에서 JSON을 찾을 수 없습니다.');
+
+    // JSON 파싱 시도
+    let jsonText = response;
+    const start = response.indexOf('{');
+    const end = response.lastIndexOf('}');
+    if (start !== -1 && end !== -1) {
+      jsonText = response.slice(start, end + 1);
     }
-    const jsonText = response.slice(start, end + 1);
+
     const parsed = JSON.parse(jsonText);
 
-    const productMap = {};
-    const symptomMap = {};
-    const solutionMap = {};
+    return {
+      productMap: parsed.products || {},
+      symptomMap: parsed.symptoms || {},
+      solutionMap: parsed.solutions || {}
+    };
 
-    parsed.forEach(item => {
-      if (item.product_original && item.product_normalized) {
-        productMap[item.product_original.trim()] = item.product_normalized.trim();
-      }
-      if (item.symptom_original && item.symptom_normalized) {
-        symptomMap[item.symptom_original.trim()] = item.symptom_normalized.trim();
-      }
-      if (item.solution_original && item.solution_normalized) {
-        solutionMap[item.solution_original.trim()] = item.solution_normalized.trim();
-      }
-    });
-
-    return { productMap, symptomMap, solutionMap };
   } catch (error) {
     console.error('AI 정규화 실패:', error);
+    // 실패 시 빈 맵 반환 (원본 사용됨)
     return { productMap: {}, symptomMap: {}, solutionMap: {} };
   }
 };
@@ -349,7 +370,7 @@ ${JSON.stringify(sample, null, 2)}
  */
 export const processNaturalLanguageQuery = async (query, analysisData) => {
   const data = prepareAnalysisData(analysisData);
-  
+
   const systemPrompt = `당신은 A/S 서비스 데이터 분석 어시스턴트입니다. 사용자의 질문에 대해 제공된 데이터를 기반으로 정확하고 구체적인 답변을 제공해주세요.
 데이터에 없는 정보는 추측하지 말고, "데이터에 해당 정보가 없습니다"라고 답변해주세요.`;
 
@@ -374,7 +395,7 @@ ${JSON.stringify(data, null, 2)}
  */
 export const generateAutoReport = async (analysisData, filters) => {
   const data = prepareAnalysisData(analysisData);
-  
+
   const systemPrompt = `당신은 A/S 서비스 데이터 분석 리포트 작성 전문가입니다. 제공된 데이터를 기반으로 전문적이고 구조화된 리포트를 작성해주세요.`;
 
   const filterInfo = `
@@ -427,7 +448,7 @@ ${JSON.stringify(data, null, 2)}
  */
 export const detectAnomalies = (analysisData) => {
   const anomalies = [];
-  
+
   // 완료율이 낮은 경우 (50% 미만)
   const completionRate = (analysisData.completedCount / analysisData.totalCount) * 100;
   if (completionRate < 50) {
@@ -439,7 +460,7 @@ export const detectAnomalies = (analysisData) => {
       recommendation: '접수 처리 프로세스 개선 및 완료율 향상 방안 수립 필요'
     });
   }
-  
+
   // 특정 접수 내용이 과도하게 많은 경우 (전체의 20% 이상)
   if (analysisData.symptomStats.length > 0) {
     const topSymptom = analysisData.symptomStats[0];
@@ -454,7 +475,7 @@ export const detectAnomalies = (analysisData) => {
       });
     }
   }
-  
+
   // 특정 기종의 접수가 과도하게 많은 경우
   if (analysisData.productStats.length > 0) {
     const topProduct = analysisData.productStats[0];
@@ -469,7 +490,7 @@ export const detectAnomalies = (analysisData) => {
       });
     }
   }
-  
+
   // 부품 사용이 집중된 경우
   if (analysisData.partsStats.length > 0) {
     const topPart = analysisData.partsStats[0];
@@ -487,7 +508,7 @@ export const detectAnomalies = (analysisData) => {
       }
     }
   }
-  
+
   // 고유 접수 내용이 과도하게 많은 경우 (접수 건수 대비)
   const symptomRatio = analysisData.uniqueSymptoms / analysisData.totalCount;
   if (symptomRatio > 0.8) {
@@ -499,7 +520,7 @@ export const detectAnomalies = (analysisData) => {
       recommendation: '접수 내용 표준화 및 분류 체계 개선 검토'
     });
   }
-  
+
   return anomalies;
 };
 
@@ -510,9 +531,9 @@ export const analyzeAnomalies = async (anomalies, analysisData) => {
   if (anomalies.length === 0) {
     return '이상 패턴이 감지되지 않았습니다. 데이터가 정상적으로 보입니다.';
   }
-  
+
   const data = prepareAnalysisData(analysisData);
-  
+
   const systemPrompt = `당신은 A/S 서비스 데이터 분석 전문가입니다. 감지된 이상 패턴을 분석하고 심층적인 인사이트를 제공해주세요.`;
 
   const prompt = `다음은 A/S 서비스 통계 데이터와 감지된 이상 패턴입니다:
