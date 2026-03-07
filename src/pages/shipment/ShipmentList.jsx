@@ -33,7 +33,8 @@ import {
   DialogContent,
   Snackbar,
   Alert,
-  Grid
+  Grid,
+  Tooltip
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -1740,9 +1741,30 @@ function ShipmentList() {
                     </TableCell>
                     <TableCell>{shipment.customer_phone}</TableCell>
                     <TableCell>
-                      <Typography noWrap sx={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {getSortedProductNames(shipment)}
-                      </Typography>
+                      <Tooltip
+                        title={
+                          <Box sx={{ p: 0.5 }}>
+                            {getSortedProductNames(shipment).split(',').map((name, idx) => (
+                              <Typography key={idx} variant="body2" sx={{ mb: 0.5 }}>
+                                • {name.trim()}
+                              </Typography>
+                            ))}
+                          </Box>
+                        }
+                        arrow
+                        placement="top"
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, cursor: 'pointer' }}>
+                          <Typography noWrap sx={{ maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 500 }}>
+                            {(() => {
+                              const sortedNames = getSortedProductNames(shipment).split(',').map(n => n.trim()).filter(Boolean);
+                              if (sortedNames.length === 0) return '-';
+                              if (sortedNames.length === 1) return sortedNames[0];
+                              return `${sortedNames[0]} 외 ${sortedNames.length - 1}건`;
+                            })()}
+                          </Typography>
+                        </Box>
+                      </Tooltip>
                       <Typography variant="body2" color="text.secondary">
                         {shipment.quantity}개 / {shipment.price?.toLocaleString()}원
                       </Typography>
