@@ -275,7 +275,7 @@ export const fetchShipments = async (options = {}) => {
   const offset = page * pageSize;
 
   return fetchFromSupabase('shipments', {
-    select: '*,shipment_parts(id,part_name,part_category)',
+    select: '*,shipment_parts(id,part_name,part_category,quantity)',
     filter: filter,
     order: 'created_at.desc',
     limit: pageSize,

@@ -36,7 +36,8 @@ import {
   Snackbar,
   Alert,
   Grid,
-  Tooltip
+  Tooltip,
+  Divider
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -1424,16 +1425,19 @@ function ShipmentList() {
           </Box>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
             {(() => {
-              const sortedNames = getSortedProductNames(shipment).split(',').map(n => n.trim()).filter(Boolean);
-              if (sortedNames.length === 0) {
+              const products = getSortedProducts(shipment);
+              if (products.length === 0) {
                 return <Typography variant="body2" sx={{ fontWeight: 500, color: 'text.primary' }}>-</Typography>;
               }
-              return sortedNames.map((name, idx) => (
+              return products.map((item, idx) => (
                 <Typography key={idx} variant="body2" sx={{ fontWeight: 500, color: 'text.primary' }}>
-                  • {name}
+                  • {item.name} {item.quantity}개
                 </Typography>
               ));
             })()}
+            <Typography variant="caption" sx={{ mt: 0.5, color: 'text.secondary', fontWeight: 'bold' }}>
+              총 수량: {shipment.quantity}개
+            </Typography>
           </Box>
         </Box>
 
@@ -1551,26 +1555,31 @@ function ShipmentList() {
   };
 
   // 제품명 정렬 함수: 기체가 1번
-  function getSortedProductNames(shipment) {
-    if (!shipment.product_name) return '';
+  function getSortedProducts(shipment) {
+    if (!shipment.product_name) return [];
     const names = shipment.product_name.split(',').map(n => n.trim()).filter(Boolean);
-    // shipment_parts에서 part_category 정보 가져오기
-    // shipment에 shipment_parts가 없으면 그냥 기존 순서 반환
-    if (!shipment.shipment_parts || !Array.isArray(shipment.shipment_parts)) return names.join(', ');
-    // 각 제품명에 대해 part_category 확인
     const partsMap = new Map();
-    shipment.shipment_parts.forEach(part => {
-      partsMap.set(part.part_name, part.part_category || '기타');
-    });
-    // 정렬: 기체 먼저, 그 외 뒤에
-    names.sort((a, b) => {
-      const aCat = partsMap.get(a) || '기타';
-      const bCat = partsMap.get(b) || '기타';
-      if (aCat === '기체' && bCat !== '기체') return -1;
-      if (aCat !== '기체' && bCat === '기체') return 1;
+    if (shipment.shipment_parts && Array.isArray(shipment.shipment_parts)) {
+      shipment.shipment_parts.forEach(part => {
+        partsMap.set(part.part_name, { category: part.part_category || '기타', quantity: part.quantity || 1 });
+      });
+    }
+
+    // Convert names into object format
+    const products = names.map(name => ({
+      name,
+      category: partsMap.get(name)?.category || '기타',
+      quantity: partsMap.get(name)?.quantity || 1
+    }));
+
+    // Sort logic
+    products.sort((a, b) => {
+      if (a.category === '기체' && b.category !== '기체') return -1;
+      if (a.category !== '기체' && b.category === '기체') return 1;
       return 0;
     });
-    return names.join(', ');
+
+    return products;
   }
 
   // 초기 로딩 중일 때 스켈레톤 표시
@@ -1972,11 +1981,15 @@ function ShipmentList() {
                           <Tooltip
                             title={
                               <Box sx={{ p: 0.5 }}>
-                                {getSortedProductNames(shipment).split(',').map((name, idx) => (
+                                {getSortedProducts(shipment).map((item, idx) => (
                                   <Typography key={idx} variant="body2" sx={{ mb: 0.5 }}>
-                                    • {name.trim()}
+                                    • {item.name} {item.quantity}개
                                   </Typography>
                                 ))}
+                                <Divider sx={{ my: 0.5, borderColor: 'rgba(255,255,255,0.2)' }} />
+                                <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                                  총 수량: {shipment.quantity}개
+                                </Typography>
                               </Box>
                             }
                             arrow
@@ -1985,10 +1998,10 @@ function ShipmentList() {
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, cursor: 'pointer' }}>
                               <Typography noWrap sx={{ maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 500 }}>
                                 {(() => {
-                                  const sortedNames = getSortedProductNames(shipment).split(',').map(n => n.trim()).filter(Boolean);
-                                  if (sortedNames.length === 0) return '-';
-                                  if (sortedNames.length === 1) return sortedNames[0];
-                                  return `${sortedNames[0]} 외 ${sortedNames.length - 1}건`;
+                                  const products = getSortedProducts(shipment);
+                                  if (products.length === 0) return '-';
+                                  if (products.length === 1) return products[0].name;
+                                  return `${products[0].name} 외 ${products.length - 1}건`;
                                 })()}
                               </Typography>
                             </Box>
