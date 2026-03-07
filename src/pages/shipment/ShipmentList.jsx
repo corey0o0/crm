@@ -23,6 +23,8 @@ import {
   Tabs,
   Tab,
   ButtonGroup,
+  ToggleButton,
+  ToggleButtonGroup,
   DialogActions,
   LinearProgress,
   TablePagination,
@@ -43,12 +45,18 @@ import {
   Delete as DeleteIcon,
   CloudUpload as CloudUploadIcon,
   Clear as ClearIcon,
-  Download as DownloadIcon
+  Download as DownloadIcon,
+  NavigateBefore as NavigateBeforeIcon,
+  NavigateNext as NavigateNextIcon
 } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
 import { fetchShipments as fetchShipmentsAPI, countShipments, countPendingAndShippingByBrand } from '../../utils/restApiUtils';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { format, parseISO, isValid } from 'date-fns';
+import {
+  format, parseISO, isValid,
+  startOfMonth, endOfMonth, startOfWeek, endOfWeek,
+  addDays, subDays, subMonths, addMonths, isSameMonth, isSameDay, isToday
+} from 'date-fns';
 import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -97,6 +105,10 @@ function ShipmentList() {
   });
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedShipment, setSelectedShipment] = useState(null);
+
+  // 캘린더/타임라인 뷰 중심 날짜 상태
+  const [timelineDate, setTimelineDate] = useState(() => new Date());
+  const [viewMode, setViewMode] = useState('list'); // 'list' | 'timeline'
 
   // 엑셀 업로드 관련 상태 추가
   const [excelUploadDialog, setExcelUploadDialog] = useState(false);
@@ -1342,6 +1354,202 @@ function ShipmentList() {
     );
   };
 
+  // --- 공통 식별 및 색상 맵핑 함수 (리스트, 타임라인 공용) ---
+  const getSalesChannel = (note) => {
+    const match = note?.match(/\[판매처: (.*?)\]/);
+    return match && match[1] ? match[1] : '공홈';
+  };
+
+  const getChannelColorInfo = (channel) => {
+    const colors = {
+      '공홈': { bg: '#e3f2fd', color: '#1565c0', border: '#90caf9' },
+      '스마트스토어': { bg: '#e8f5e9', color: '#2e7d32', border: '#a5d6a7' },
+      '네이버': { bg: '#e8f5e9', color: '#2e7d32', border: '#a5d6a7' },
+      '쿠팡': { bg: '#fbe9e7', color: '#d84315', border: '#ffab91' },
+      '청담매장': { bg: '#f3e5f5', color: '#6a1b9a', border: '#ce93d8' },
+      '인스타': { bg: '#fce4ec', color: '#c2185b', border: '#f48fb1' },
+      '라이클-우리': { bg: '#fff8e1', color: '#f57f17', border: '#ffe082' },
+      '스마트할부': { bg: '#ebf8fa', color: '#00838f', border: '#80deea' },
+      '블로그': { bg: '#e8eaf6', color: '#283593', border: '#9fa8da' }
+    };
+    return colors[channel] || { bg: '#f5f5f5', color: '#616161', border: '#e0e0e0' };
+  };
+
+  const getDeliveryColorInfo = (method) => {
+    const colors = {
+      '택배': { bg: '#e3f2fd', color: '#1565c0' },
+      '방문수령': { bg: '#f3e5f5', color: '#6a1b9a' },
+      '화물': { bg: '#424242', color: '#ffffff' },
+      '퀵-선불': { bg: '#424242', color: '#ffffff' },
+      '퀵-착불': { bg: '#ffebee', color: '#c62828' }
+    };
+    return colors[method] || { bg: '#f5f5f5', color: '#616161' };
+  };
+  // -----------------------------------------------------------
+
+  // 타임라인 뷰 렌더링 함수
+  const renderTimelineCard = (shipment) => {
+    const timeStr = shipment.created_at ? format(parseISO(shipment.created_at), 'HH:mm') : '-';
+    // 판매처
+    const salesChannel = getSalesChannel(shipment.note);
+    const channelColor = getChannelColorInfo(salesChannel);
+    // 배송
+    const delColor = getDeliveryColorInfo(shipment.delivery_method);
+
+    return (
+      <Paper
+        key={shipment.id}
+        elevation={0}
+        sx={{
+          p: 2,
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 2,
+          border: '1px solid',
+          borderColor: 'divider',
+          '&:hover': { bgcolor: '#f8f9fa' },
+          cursor: 'pointer'
+        }}
+        onClick={() => handleViewDetails(shipment.id)}
+      >
+        <Box sx={{ minWidth: '60px', textAlign: 'center', pt: 0.5 }}>
+          <Typography variant="h6" color="primary.main" sx={{ fontWeight: 'bold' }}>{timeStr}</Typography>
+        </Box>
+
+        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography sx={{ fontWeight: 'bold', fontSize: '1.05rem' }}>{shipment.customer_name}</Typography>
+            <Typography variant="body2" color="text.secondary">{shipment.customer_phone}</Typography>
+            <Chip label={shipment.status} color={getStatusColor(shipment.status)} size="small" sx={{ ml: 'auto', height: 20, fontSize: '0.7rem' }} />
+          </Box>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+            {(() => {
+              const sortedNames = getSortedProductNames(shipment).split(',').map(n => n.trim()).filter(Boolean);
+              if (sortedNames.length === 0) {
+                return <Typography variant="body2" sx={{ fontWeight: 500, color: 'text.primary' }}>-</Typography>;
+              }
+              return sortedNames.map((name, idx) => (
+                <Typography key={idx} variant="body2" sx={{ fontWeight: 500, color: 'text.primary' }}>
+                  • {name}
+                </Typography>
+              ));
+            })()}
+          </Box>
+        </Box>
+
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: '120px', alignItems: 'flex-end' }}>
+          <Chip
+            label={salesChannel}
+            size="small"
+            sx={{
+              backgroundColor: channelColor.bg,
+              color: channelColor.color,
+              borderColor: channelColor.border,
+              borderWidth: '1px',
+              borderStyle: 'solid',
+              fontWeight: 600,
+              fontSize: '0.7rem',
+              height: 20
+            }}
+          />
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Chip
+              label={shipment.delivery_method || '미지정'}
+              size="small"
+              sx={{
+                height: 20,
+                fontSize: '0.7rem',
+                bgcolor: delColor.bg,
+                color: delColor.color,
+                fontWeight: 600
+              }}
+            />
+            {shipment.tracking_number && (
+              <Typography variant="caption" sx={{ color: '#1976d2', fontFamily: 'monospace', fontSize: '0.7rem' }}>
+                [{shipment.tracking_number}]
+              </Typography>
+            )}
+          </Box>
+        </Box>
+      </Paper>
+    );
+  };
+
+  const renderTimeline = () => {
+    const handlePrevDay = () => setTimelineDate(prev => subDays(prev, 1));
+    const handleNextDay = () => setTimelineDate(prev => addDays(prev, 1));
+
+    const targetDateStr = format(timelineDate, 'yyyy-MM-dd');
+
+    // 선택된 일자의 출고건 필터링 및 시간순 정렬
+    const dayShipments = filteredShipments
+      .filter(shipment => {
+        // 출고일자(shipment_date) 기준 필터링
+        if (!shipment.shipment_date || !isValid(parseISO(shipment.shipment_date))) return false;
+        return format(parseISO(shipment.shipment_date), 'yyyy-MM-dd') === targetDateStr;
+      })
+      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at)); // 생성시간 오름차순 (아침->저녁)
+
+    return (
+      <Box sx={{ mt: 3, px: 2, pb: 4 }}>
+        {/* 일자 네비게이션 */}
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mb: 4 }}>
+          <IconButton onClick={handlePrevDay} sx={{ bgcolor: 'rgba(0,0,0,0.04)', mr: 2 }}>
+            <NavigateBeforeIcon />
+          </IconButton>
+          <Box sx={{ textAlign: 'center' }}>
+            <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+              {format(timelineDate, 'yyyy년 MM월 dd일')}
+            </Typography>
+            <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 0.5 }}>
+              총 {dayShipments.length}건
+            </Typography>
+          </Box>
+          <IconButton onClick={handleNextDay} sx={{ bgcolor: 'rgba(0,0,0,0.04)', ml: 2 }}>
+            <NavigateNextIcon />
+          </IconButton>
+        </Box>
+
+        {/* 세로 타임라인 라인 및 리스트 */}
+        {dayShipments.length === 0 ? (
+          <Typography align="center" sx={{ mt: 3, py: 5, color: 'text.secondary', bgcolor: '#f9f9f9', borderRadius: 2 }}>
+            해당 일자에 배정된 출고 내역이 없습니다.
+          </Typography>
+        ) : (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative', pl: 4 }}>
+            {/* 세로선 */}
+            <Box sx={{
+              position: 'absolute',
+              left: '14px',
+              top: '10px',
+              bottom: '10px',
+              width: '2px',
+              bgcolor: '#e0e0e0'
+            }} />
+
+            {dayShipments.map((shipment) => (
+              <Box key={shipment.id} sx={{ position: 'relative' }}>
+                {/* 타임라인 노드(점) */}
+                <Box sx={{
+                  position: 'absolute',
+                  left: '-32.5px',
+                  top: '20px',
+                  width: '12px',
+                  height: '12px',
+                  borderRadius: '50%',
+                  bgcolor: '#1976d2',
+                  boxShadow: '0 0 0 3px white',
+                  zIndex: 1
+                }} />
+                {renderTimelineCard(shipment)}
+              </Box>
+            ))}
+          </Box>
+        )}
+      </Box>
+    );
+  };
+
   // 제품명 정렬 함수: 기체가 1번
   function getSortedProductNames(shipment) {
     if (!shipment.product_name) return '';
@@ -1454,7 +1662,7 @@ function ShipmentList() {
         </Stack>
       </Box>
 
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Tabs
           value={selectedBrand}
           onChange={handleBrandChange}
@@ -1470,6 +1678,22 @@ function ShipmentList() {
             sx={{ fontWeight: 'bold' }}
           />
         </Tabs>
+
+        <ToggleButtonGroup
+          value={viewMode}
+          exclusive
+          onChange={(e, newMode) => {
+            if (newMode) setViewMode(newMode);
+            if (newMode === 'timeline') {
+              // 타임라인 진입시 오늘 날짜로 포커스 이동을 제안 (현재는 뷰상에서만 움직임 처리)
+              // 원한다면 setTimelineDate(new Date()) 추가
+            }
+          }}
+          size="small"
+        >
+          <ToggleButton value="list" sx={{ px: 2, py: 0.5, fontSize: '0.85rem' }}>리스트</ToggleButton>
+          <ToggleButton value="timeline" sx={{ px: 2, py: 0.5, fontSize: '0.85rem' }}>타임라인</ToggleButton>
+        </ToggleButtonGroup>
       </Box>
 
       <Box sx={{ mb: 2 }}>
@@ -1692,205 +1916,181 @@ function ShipmentList() {
         </Box>
       )}
 
-      {filteredShipments.length === 0 ? (
-        <Typography align="center" sx={{ mt: 3 }}>
-          {searchTerm || statusFilter !== 'all' || sellerFilter !== 'all' || dateFilter.startDate || dateFilter.endDate ?
-            '검색 조건에 맞는 출고 정보가 없습니다.' :
-            '등록된 출고 정보가 없습니다.'}
-        </Typography>
+      {viewMode === 'timeline' ? (
+        renderTimeline()
       ) : (
-        <TableContainer component={Paper} sx={{ width: '100%', overflowX: 'auto' }}>
-          <Table sx={{ minWidth: 650, width: '100%', tableLayout: 'fixed' }}>
-            <TableHead>
-              <TableRow>
-                <TableCell width="10%">주문일자</TableCell>
-                <TableCell width="10%">출고일자</TableCell>
-                <TableCell width="10%">고객명</TableCell>
-                <TableCell width="12%">연락처</TableCell>
-                <TableCell width="20%">제품정보</TableCell>
-                <TableCell width="10%">판매처</TableCell>
-                <TableCell width="20%">배송정보</TableCell>
-                <TableCell width="8%">상태</TableCell>
-                <TableCell width="10%">관리</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredShipments
-                .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                .map((shipment) => (
-                  <TableRow
-                    key={shipment.id}
-                    hover
-                    onClick={() => handleViewDetails(shipment.id)}
-                    sx={{ cursor: 'pointer' }}
-                  >
-                    <TableCell>
-                      {shipment.order_date
-                        ? dayjs(shipment.order_date).format('YYYY-MM-DD')
-                        : '-'}
-                    </TableCell>
-                    <TableCell>
-                      {isValid(parseISO(shipment.shipment_date))
-                        ? format(parseISO(shipment.shipment_date), 'yyyy-MM-dd')
-                        : '-'}
-                    </TableCell>
-                    <TableCell>
-                      <Typography sx={{ fontWeight: 'bold' }}>
-                        {shipment.customer_name}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>{shipment.customer_phone}</TableCell>
-                    <TableCell>
-                      <Tooltip
-                        title={
-                          <Box sx={{ p: 0.5 }}>
-                            {getSortedProductNames(shipment).split(',').map((name, idx) => (
-                              <Typography key={idx} variant="body2" sx={{ mb: 0.5 }}>
-                                • {name.trim()}
-                              </Typography>
-                            ))}
-                          </Box>
-                        }
-                        arrow
-                        placement="top"
-                      >
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, cursor: 'pointer' }}>
-                          <Typography noWrap sx={{ maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 500 }}>
-                            {(() => {
-                              const sortedNames = getSortedProductNames(shipment).split(',').map(n => n.trim()).filter(Boolean);
-                              if (sortedNames.length === 0) return '-';
-                              if (sortedNames.length === 1) return sortedNames[0];
-                              return `${sortedNames[0]} 외 ${sortedNames.length - 1}건`;
-                            })()}
-                          </Typography>
-                        </Box>
-                      </Tooltip>
-                      <Typography variant="body2" color="text.secondary">
-                        {shipment.quantity}개 / {shipment.price?.toLocaleString()}원
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      {(() => {
-                        const match = shipment.note?.match(/\[판매처: (.*?)\]/);
-                        const salesChannel = match && match[1] ? match[1] : '공홈';
-
-                        // 판매처별 색상 정의
-                        const getChannelColorInfo = (channel) => {
-                          const colors = {
-                            '공홈': { bg: '#e3f2fd', color: '#1565c0', border: '#90caf9' },     // 파란색계열
-                            '스마트스토어': { bg: '#e8f5e9', color: '#2e7d32', border: '#a5d6a7' }, // 네이버초록
-                            '네이버': { bg: '#e8f5e9', color: '#2e7d32', border: '#a5d6a7' },       // 네이버초록
-                            '쿠팡': { bg: '#fbe9e7', color: '#d84315', border: '#ffab91' },         // 쿠팡로켓빨강
-                            '청담매장': { bg: '#f3e5f5', color: '#6a1b9a', border: '#ce93d8' },     // 보라색계열
-                            '인스타': { bg: '#fce4ec', color: '#c2185b', border: '#f48fb1' },       // 핑크/자주색
-                            '라이클-우리': { bg: '#fff8e1', color: '#f57f17', border: '#ffe082' },    // 노란/주황계열
-                            '스마트할부': { bg: '#ebf8fa', color: '#00838f', border: '#80deea' },     // 청록색계열
-                            '블로그': { bg: '#e8eaf6', color: '#283593', border: '#9fa8da' }        // 남색계열
-                          };
-
-                          // 매핑된 색상이 있으면 반환, 없으면 기본 회색 계열 반환
-                          return colors[channel] || { bg: '#f5f5f5', color: '#616161', border: '#e0e0e0' };
-                        };
-
-                        const colorInfo = getChannelColorInfo(salesChannel);
-
-                        return (
-                          <Chip
-                            label={salesChannel}
-                            size="small"
-                            sx={{
-                              backgroundColor: colorInfo.bg,
-                              color: colorInfo.color,
-                              borderColor: colorInfo.border,
-                              borderWidth: '1px',
-                              borderStyle: 'solid',
-                              fontWeight: 600,
-                              fontSize: '0.75rem'
-                            }}
-                          />
-                        );
-                      })()}
-                    </TableCell>
-                    <TableCell>
-                      {(() => {
-                        const getDeliveryColorInfo = (method) => {
-                          const colors = {
-                            '택배': { bg: '#e3f2fd', color: '#1565c0' },
-                            '방문수령': { bg: '#f3e5f5', color: '#6a1b9a' },
-                            '화물': { bg: '#424242', color: '#ffffff' },
-                            '퀵-선불': { bg: '#424242', color: '#ffffff' },
-                            '퀵-착불': { bg: '#ffebee', color: '#c62828' }
-                          };
-                          return colors[method] || { bg: '#f5f5f5', color: '#616161' };
-                        };
-                        const delColor = getDeliveryColorInfo(shipment.delivery_method);
-
-                        return (
-                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-start' }}>
-                            <Chip
-                              label={shipment.delivery_method || '미지정'}
-                              size="small"
-                              sx={{
-                                height: 22,
-                                fontSize: '0.75rem',
-                                bgcolor: delColor.bg,
-                                color: delColor.color,
-                                fontWeight: 600
-                              }}
-                            />
-                            {shipment.tracking_number ? (
-                              <Typography variant="caption" sx={{ color: '#1976d2', fontFamily: 'monospace', fontSize: '0.8rem', letterSpacing: '0.5px' }}>
-                                {shipment.tracking_number}
-                              </Typography>
-                            ) : (
-                              <Typography variant="caption" color="text.secondary">
-                                송장번호 없음
-                              </Typography>
-                            )}
-                          </Box>
-                        );
-                      })()}
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={shipment.status}
-                        color={getStatusColor(shipment.status)}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <IconButton
-                        size="small"
-                        onClick={(e) => handleEdit(shipment.id, e)}
-                      >
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        color="default"
-                        sx={{ color: 'grey.500' }}
-                        onClick={(e) => handleDeleteClick(shipment, e)}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </TableCell>
+        <>
+          {filteredShipments.length === 0 ? (
+            <Typography align="center" sx={{ mt: 3 }}>
+              {searchTerm || statusFilter !== 'all' || sellerFilter !== 'all' || dateFilter.startDate || dateFilter.endDate ?
+                '검색 조건에 맞는 출고 정보가 없습니다.' :
+                '등록된 출고 정보가 없습니다.'}
+            </Typography>
+          ) : (
+            <TableContainer component={Paper} sx={{ width: '100%', overflowX: 'auto' }}>
+              <Table sx={{ minWidth: 650, width: '100%', tableLayout: 'fixed' }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell width="10%">주문일자</TableCell>
+                    <TableCell width="10%">출고일자</TableCell>
+                    <TableCell width="10%">고객명</TableCell>
+                    <TableCell width="12%">연락처</TableCell>
+                    <TableCell width="20%">제품정보</TableCell>
+                    <TableCell width="10%">판매처</TableCell>
+                    <TableCell width="20%">배송정보</TableCell>
+                    <TableCell width="8%">상태</TableCell>
+                    <TableCell width="10%">관리</TableCell>
                   </TableRow>
-                ))}
-            </TableBody>
-          </Table>
-          <TablePagination
-            component="div"
-            count={hasActiveSearch ? filteredShipments.length : Math.max(filteredShipments.length, totalExpected)}
-            page={page}
-            onPageChange={handlePageChangeWithLoading}
-            rowsPerPage={rowsPerPage}
-            rowsPerPageOptions={[30, 50, 100]}
-            labelRowsPerPage="페이지당 행 수"
-            labelDisplayedRows={({ from, to, count }) =>
-              `${count}개 중 ${from}-${to}`
-            }
-          />
-        </TableContainer>
+                </TableHead>
+                <TableBody>
+                  {filteredShipments
+                    .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                    .map((shipment) => (
+                      <TableRow
+                        key={shipment.id}
+                        hover
+                        onClick={() => handleViewDetails(shipment.id)}
+                        sx={{ cursor: 'pointer' }}
+                      >
+                        <TableCell>
+                          {shipment.order_date
+                            ? dayjs(shipment.order_date).format('YYYY-MM-DD')
+                            : '-'}
+                        </TableCell>
+                        <TableCell>
+                          {isValid(parseISO(shipment.shipment_date))
+                            ? format(parseISO(shipment.shipment_date), 'yyyy-MM-dd')
+                            : '-'}
+                        </TableCell>
+                        <TableCell>
+                          <Typography sx={{ fontWeight: 'bold' }}>
+                            {shipment.customer_name}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>{shipment.customer_phone}</TableCell>
+                        <TableCell>
+                          <Tooltip
+                            title={
+                              <Box sx={{ p: 0.5 }}>
+                                {getSortedProductNames(shipment).split(',').map((name, idx) => (
+                                  <Typography key={idx} variant="body2" sx={{ mb: 0.5 }}>
+                                    • {name.trim()}
+                                  </Typography>
+                                ))}
+                              </Box>
+                            }
+                            arrow
+                            placement="top"
+                          >
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, cursor: 'pointer' }}>
+                              <Typography noWrap sx={{ maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 500 }}>
+                                {(() => {
+                                  const sortedNames = getSortedProductNames(shipment).split(',').map(n => n.trim()).filter(Boolean);
+                                  if (sortedNames.length === 0) return '-';
+                                  if (sortedNames.length === 1) return sortedNames[0];
+                                  return `${sortedNames[0]} 외 ${sortedNames.length - 1}건`;
+                                })()}
+                              </Typography>
+                            </Box>
+                          </Tooltip>
+                          <Typography variant="body2" color="text.secondary">
+                            {shipment.quantity}개 / {shipment.price?.toLocaleString()}원
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          {(() => {
+                            const salesChannel = getSalesChannel(shipment.note);
+                            const colorInfo = getChannelColorInfo(salesChannel);
+
+                            return (
+                              <Chip
+                                label={salesChannel}
+                                size="small"
+                                sx={{
+                                  backgroundColor: colorInfo.bg,
+                                  color: colorInfo.color,
+                                  borderColor: colorInfo.border,
+                                  borderWidth: '1px',
+                                  borderStyle: 'solid',
+                                  fontWeight: 600,
+                                  fontSize: '0.75rem'
+                                }}
+                              />
+                            );
+                          })()}
+                        </TableCell>
+                        <TableCell>
+                          {(() => {
+                            const delColor = getDeliveryColorInfo(shipment.delivery_method);
+
+                            return (
+                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-start' }}>
+                                <Chip
+                                  label={shipment.delivery_method || '미지정'}
+                                  size="small"
+                                  sx={{
+                                    height: 22,
+                                    fontSize: '0.75rem',
+                                    bgcolor: delColor.bg,
+                                    color: delColor.color,
+                                    fontWeight: 600
+                                  }}
+                                />
+                                {shipment.tracking_number ? (
+                                  <Typography variant="caption" sx={{ color: '#1976d2', fontFamily: 'monospace', fontSize: '0.8rem', letterSpacing: '0.5px' }}>
+                                    {shipment.tracking_number}
+                                  </Typography>
+                                ) : (
+                                  <Typography variant="caption" color="text.secondary">
+                                    송장번호 없음
+                                  </Typography>
+                                )}
+                              </Box>
+                            );
+                          })()}
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={shipment.status}
+                            color={getStatusColor(shipment.status)}
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <IconButton
+                            size="small"
+                            onClick={(e) => handleEdit(shipment.id, e)}
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            color="default"
+                            sx={{ color: 'grey.500' }}
+                            onClick={(e) => handleDeleteClick(shipment, e)}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                </TableBody>
+              </Table>
+              <TablePagination
+                component="div"
+                count={hasActiveSearch ? filteredShipments.length : Math.max(filteredShipments.length, totalExpected)}
+                page={page}
+                onPageChange={handlePageChangeWithLoading}
+                rowsPerPage={rowsPerPage}
+                rowsPerPageOptions={[30, 50, 100]}
+                labelRowsPerPage="페이지당 행 수"
+                labelDisplayedRows={({ from, to, count }) =>
+                  `${count}개 중 ${from}-${to}`
+                }
+              />
+            </TableContainer>
+          )}
+        </>
       )}
 
       <Snackbar
