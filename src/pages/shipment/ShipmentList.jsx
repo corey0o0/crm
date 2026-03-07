@@ -1812,10 +1812,44 @@ function ShipmentList() {
                       })()}
                     </TableCell>
                     <TableCell>
-                      <Typography>{shipment.delivery_method}</Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {shipment.tracking_number || '-'}
-                      </Typography>
+                      {(() => {
+                        const getDeliveryColorInfo = (method) => {
+                          const colors = {
+                            '택배': { bg: '#e3f2fd', color: '#1565c0' },
+                            '방문수령': { bg: '#f3e5f5', color: '#6a1b9a' },
+                            '화물': { bg: '#424242', color: '#ffffff' },
+                            '퀵-선불': { bg: '#424242', color: '#ffffff' },
+                            '퀵-착불': { bg: '#ffebee', color: '#c62828' }
+                          };
+                          return colors[method] || { bg: '#f5f5f5', color: '#616161' };
+                        };
+                        const delColor = getDeliveryColorInfo(shipment.delivery_method);
+
+                        return (
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-start' }}>
+                            <Chip
+                              label={shipment.delivery_method || '미지정'}
+                              size="small"
+                              sx={{
+                                height: 22,
+                                fontSize: '0.75rem',
+                                bgcolor: delColor.bg,
+                                color: delColor.color,
+                                fontWeight: 600
+                              }}
+                            />
+                            {shipment.tracking_number ? (
+                              <Typography variant="caption" sx={{ color: '#1976d2', fontFamily: 'monospace', fontSize: '0.8rem', letterSpacing: '0.5px' }}>
+                                {shipment.tracking_number}
+                              </Typography>
+                            ) : (
+                              <Typography variant="caption" color="text.secondary">
+                                송장번호 없음
+                              </Typography>
+                            )}
+                          </Box>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>
                       <Chip
