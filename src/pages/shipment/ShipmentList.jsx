@@ -577,6 +577,14 @@ function ShipmentList() {
 
     // 정렬
     filtered.sort((a, b) => {
+      // 1. 기체 포함 여부로 먼저 정렬
+      const aHasDrone = (a.shipment_parts || []).some(part => part.part_category === '기체');
+      const bHasDrone = (b.shipment_parts || []).some(part => part.part_category === '기체');
+
+      if (aHasDrone && !bHasDrone) return -1;
+      if (!aHasDrone && bHasDrone) return 1;
+
+      // 2. 그 다음 날짜로 정렬
       let dateA, dateB;
       if (dateFilter.type === 'order_date') {
         dateA = a.order_date ? new Date(a.order_date) : new Date(0);
@@ -1743,12 +1751,40 @@ function ShipmentList() {
                       {(() => {
                         const match = shipment.note?.match(/\[판매처: (.*?)\]/);
                         const salesChannel = match && match[1] ? match[1] : '공홈';
+
+                        // 판매처별 색상 정의
+                        const getChannelColorInfo = (channel) => {
+                          const colors = {
+                            '공홈': { bg: '#e3f2fd', color: '#1565c0', border: '#90caf9' },     // 파란색계열
+                            '스마트스토어': { bg: '#e8f5e9', color: '#2e7d32', border: '#a5d6a7' }, // 네이버초록
+                            '네이버': { bg: '#e8f5e9', color: '#2e7d32', border: '#a5d6a7' },       // 네이버초록
+                            '쿠팡': { bg: '#fbe9e7', color: '#d84315', border: '#ffab91' },         // 쿠팡로켓빨강
+                            '청담매장': { bg: '#f3e5f5', color: '#6a1b9a', border: '#ce93d8' },     // 보라색계열
+                            '인스타': { bg: '#fce4ec', color: '#c2185b', border: '#f48fb1' },       // 핑크/자주색
+                            '라이클-우리': { bg: '#fff8e1', color: '#f57f17', border: '#ffe082' },    // 노란/주황계열
+                            '스마트할부': { bg: '#ebf8fa', color: '#00838f', border: '#80deea' },     // 청록색계열
+                            '블로그': { bg: '#e8eaf6', color: '#283593', border: '#9fa8da' }        // 남색계열
+                          };
+
+                          // 매핑된 색상이 있으면 반환, 없으면 기본 회색 계열 반환
+                          return colors[channel] || { bg: '#f5f5f5', color: '#616161', border: '#e0e0e0' };
+                        };
+
+                        const colorInfo = getChannelColorInfo(salesChannel);
+
                         return (
                           <Chip
                             label={salesChannel}
                             size="small"
-                            color="primary"
-                            variant="outlined"
+                            sx={{
+                              backgroundColor: colorInfo.bg,
+                              color: colorInfo.color,
+                              borderColor: colorInfo.border,
+                              borderWidth: '1px',
+                              borderStyle: 'solid',
+                              fontWeight: 600,
+                              fontSize: '0.75rem'
+                            }}
                           />
                         );
                       })()}

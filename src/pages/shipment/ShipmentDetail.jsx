@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  Box, 
-  Typography, 
-  Button, 
-  CircularProgress, 
+import {
+  Box,
+  Typography,
+  Button,
+  CircularProgress,
   Paper,
   Grid,
   Chip,
@@ -30,8 +30,8 @@ import {
   FormControl,
   InputLabel
 } from '@mui/material';
-import { 
-  ArrowBack as ArrowBackIcon, 
+import {
+  ArrowBack as ArrowBackIcon,
   Edit as EditIcon,
   Print as PrintIcon,
   Save as SaveIcon,
@@ -86,7 +86,7 @@ function ShipmentDetail() {
   const fetchShipmentDetail = async () => {
     try {
       setLoading(true);
-      
+
       // 출고 정보 조회
       const { data: shipment, error } = await supabase
         .from('shipments')
@@ -96,18 +96,18 @@ function ShipmentDetail() {
 
       if (error) throw error;
       setShipmentData(shipment);
-      
+
       // 부품 정보 조회
       try {
         const { data: parts, error: partsError } = await supabase
           .from('shipment_parts')
           .select('*')
           .eq('shipment_id', id);
-          
+
         if (!partsError) {
           const partsData = parts || [];
           setShipmentParts(partsData);
-          
+
           // 부품 정보가 없지만 shipment 데이터에 product_name이 있는 경우 
           // 자동으로 데이터 마이그레이션 실행
           if (partsData.length === 0 && shipment.product_name) {
@@ -117,7 +117,7 @@ function ShipmentDetail() {
       } catch (partsError) {
         console.error('Error fetching shipment parts:', partsError);
       }
-      
+
     } catch (error) {
       console.error('Error fetching shipment details:', error);
     } finally {
@@ -129,7 +129,7 @@ function ShipmentDetail() {
   const migrateProductData = async (shipment) => {
     try {
       setMigrating(true);
-      
+
       // 제품 카테고리 추정
       let category = '기체';
       if (shipment.product_code) {
@@ -140,7 +140,7 @@ function ShipmentDetail() {
           category = '공임';
         }
       }
-      
+
       // 부품 데이터 생성
       const partData = {
         shipment_id: shipment.id,
@@ -152,17 +152,17 @@ function ShipmentDetail() {
         total_price: shipment.price || 0,
         created_at: new Date().toISOString()
       };
-      
+
       // 부품 정보 저장
       const { data, error } = await supabase
         .from('shipment_parts')
         .insert([partData])
         .select();
-        
+
       if (error) {
         throw error;
       }
-      
+
       // 저장 성공 시 부품 목록 업데이트
       if (data && data.length > 0) {
         setShipmentParts(data);
@@ -172,7 +172,7 @@ function ShipmentDetail() {
           severity: 'success'
         });
       }
-      
+
     } catch (error) {
       console.error('Error migrating product data:', error);
       setSnackbar({
@@ -341,27 +341,27 @@ function ShipmentDetail() {
           severity: 'warning'
         });
       }
-      
+
       const { error } = await supabase
         .from('shipments')
         .delete()
         .eq('id', id);
-      
+
       if (error) {
         console.error("Error deleting shipment:", error);
         throw new Error(`출고 정보 삭제 중 오류: ${error.message}`);
       }
-      
+
       setSnackbar({
         open: true,
         message: '출고 정보가 삭제되었습니다.',
         severity: 'success'
       });
-      
+
       setTimeout(() => {
         navigate('/shipment');
       }, 1500);
-      
+
     } catch (error) {
       console.error('Error deleting shipment:', error);
       setSnackbar({
@@ -388,10 +388,10 @@ function ShipmentDetail() {
     setSaving(true);
     try {
       const previousStatus = shipmentData.status;
-      
+
       // 브랜드 코드 확인 (출고 정보에서 브랜드 추정)
       let brandCode = 'XRB'; // 기본값
-      
+
       // shipment_parts에서 part_code를 확인하여 브랜드 추정
       if (shipmentParts.length > 0) {
         const firstPartCode = shipmentParts[0]?.part_code;
@@ -401,19 +401,19 @@ function ShipmentDetail() {
           }
         }
       }
-      
+
       // 상태 업데이트 데이터 준비
-      const updateData = { 
+      const updateData = {
         status: newStatus,
         updated_at: new Date().toISOString()
       };
-      
+
       // 배송중/출고완료로 변경 시 출고일도 현재 시점으로 업데이트
       // (요청사항: 출고상태가 '배송중' 또는 '출고완료'로 변경되면 출고일을 현재 날짜로 설정)
       if (newStatus === '출고완료' || newStatus === '배송중') {
         updateData.shipment_date = new Date().toISOString().split('T')[0];
       }
-      
+
       const { error: updateError } = await supabase
         .from('shipments')
         .update(updateData)
@@ -430,9 +430,9 @@ function ShipmentDetail() {
       if (newStatus === '출고완료' && previousStatus !== '출고완료') {
         // 출고완료로 변경: 재고 차감
         console.log(`출고 완료 처리 시작 - 출고ID: ${id}, 브랜드: ${brandCode}`);
-        
+
         const inventoryResult = await processShipmentCompletion(id, brandCode);
-        
+
         if (inventoryResult.success) {
           if (!inventoryResult.skipped) {
             inventoryMessage = `, ${inventoryResult.message}`;
@@ -465,9 +465,9 @@ function ShipmentDetail() {
       } else if (previousStatus === '출고완료' && newStatus !== '출고완료') {
         // 출고완료에서 다른 상태로 변경: 재고 복구
         console.log(`출고 상태 복구 처리 시작 - 출고ID: ${id}, 브랜드: ${brandCode}`);
-        
+
         const inventoryResult = await processShipmentRevert(id, brandCode);
-        
+
         if (inventoryResult.success) {
           if (!inventoryResult.skipped) {
             inventoryMessage = `, ${inventoryResult.message}`;
@@ -743,7 +743,7 @@ function ShipmentDetail() {
               <div style="font-weight:600; margin-bottom:8px; font-size:1.08rem;">고객 정보</div>
               <div><b>고객명</b>: ${shipmentData?.customer_name || ''}</div>
               <div><b>연락처</b>: ${shipmentData?.customer_phone || ''}</div>
-              <div><b>견적날짜</b>: ${today.getFullYear()}년 ${String(today.getMonth()+1).padStart(2,'0')}월 ${String(today.getDate()).padStart(2,'0')}일</div>
+              <div><b>견적날짜</b>: ${today.getFullYear()}년 ${String(today.getMonth() + 1).padStart(2, '0')}월 ${String(today.getDate()).padStart(2, '0')}일</div>
               <div><b>유효기간</b>: 견적일로부터 1개월</div>
             </div>
             <div class="company-info">
@@ -772,9 +772,9 @@ function ShipmentDetail() {
             </thead>
             <tbody>
               ${shipmentParts.map((part, idx) => {
-                const amount = (part.price || 0) * (part.quantity || 1);
-                const tax = Math.round(amount * 0.1);
-                return `
+      const amount = (part.price || 0) * (part.quantity || 1);
+      const tax = Math.round(amount * 0.1);
+      return `
                   <tr>
                     <td>${idx + 1}</td>
                     <td>${part.part_name}</td>
@@ -784,8 +784,8 @@ function ShipmentDetail() {
                     <td>${tax.toLocaleString()}</td>
                   </tr>
                 `;
-              }).join('')}
-              ${Array.from({length: Math.max(5 - shipmentParts.length, 0)}).map(() => `
+    }).join('')}
+              ${Array.from({ length: Math.max(5 - shipmentParts.length, 0) }).map(() => `
                 <tr class="empty-row">
                   <td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td>
                 </tr>
@@ -827,9 +827,9 @@ function ShipmentDetail() {
       case '기체':
         return 'primary';
       case '파츠':
-        return 'secondary';
-      case '공임':
         return 'success';
+      case '공임':
+        return 'warning';
       default:
         return 'default';
     }
@@ -849,30 +849,30 @@ function ShipmentDetail() {
 
   const getSalesChannel = () => {
     if (!shipmentData?.note) return '공홈';
-    
+
     const salesChannelMatch = shipmentData.note.match(/\[판매처: (.*?)\]/);
     if (salesChannelMatch && salesChannelMatch[1]) {
       return salesChannelMatch[1];
     }
-    
+
     return shipmentData.sales_channel || '공홈';
   };
 
   // 메모이제이션된 필터링 함수
   const filteredParts = useMemo(() => {
     setIsSearching(true);
-    
+
     if (!searchTerm) {
       setIsSearching(false);
       return availableParts.slice(0, 50); // 검색어 없을 때는 처음 50개만 표시
     }
-    
+
     const searchLower = searchTerm.toLowerCase();
-    const filtered = availableParts.filter(part => 
+    const filtered = availableParts.filter(part =>
       (part.name && part.name.toLowerCase().includes(searchLower)) ||
       (part.code && part.code.toLowerCase().includes(searchLower))
     ).slice(0, 100); // 최대 100개 결과로 제한
-    
+
     setIsSearching(false);
     return filtered;
   }, [searchTerm, availableParts]);
@@ -897,7 +897,7 @@ function ShipmentDetail() {
     setPartQuantity(1);
     setModifiedPrice('');
     setPage(0);
-    
+
     // 부품 데이터가 없는 경우에만 로드 (최적화)
     if (availableParts.length === 0) {
       try {
@@ -906,7 +906,7 @@ function ShipmentDetail() {
           .from('parts')
           .select('*')
           .in('brand', [brand, 'COMMON']); // 선택된 브랜드 + 공용 파츠 포함
-          
+
         if (!error) {
           setAvailableParts(data || []);
         }
@@ -941,12 +941,12 @@ function ShipmentDetail() {
     if (!partToAdd) return;
 
     setEditableParts(prevParts => {
-      const existingPartIndex = prevParts.findIndex(p => 
-        (p.part_code === partToAdd.code && p.part_name === partToAdd.name) || 
+      const existingPartIndex = prevParts.findIndex(p =>
+        (p.part_code === partToAdd.code && p.part_name === partToAdd.name) ||
         (p.id === partToAdd.id) // 기존 부품 ID로도 체크 (새로 추가되는 경우와 구분)
       );
-      
-      let categoryFromPart = '기체'; 
+
+      let categoryFromPart = '기체';
       if (partToAdd.note) { // 간단한 카테고리 추론 예시 (ShipmentForm의 determinePartCategory와 유사하게)
         const note = partToAdd.note.toLowerCase();
         if (note.includes('파츠') || note.includes('part')) categoryFromPart = '파츠';
@@ -967,7 +967,7 @@ function ShipmentDetail() {
       } else {
         const newPartEntry = {
           id: Date.now(), // 새 부품은 임시 ID 사용
-          shipment_id: id, 
+          shipment_id: id,
           part_name: partToAdd.name,
           part_code: partToAdd.code,
           part_category: categoryFromPart,
@@ -1033,17 +1033,17 @@ function ShipmentDetail() {
         <Box>
           {isEditing ? (
             <>
-              <Button 
-                variant="outlined" 
+              <Button
+                variant="outlined"
                 onClick={handleCancelEdit}
                 sx={{ mr: 1 }}
                 disabled={saving}
               >
                 취소
               </Button>
-              <Button 
-                variant="contained" 
-                startIcon={<SaveIcon />} 
+              <Button
+                variant="contained"
+                startIcon={<SaveIcon />}
                 onClick={handleSaveChanges}
                 disabled={saving}
               >
@@ -1052,26 +1052,26 @@ function ShipmentDetail() {
             </>
           ) : (
             <>
-              <Button 
-                variant="outlined" 
+              <Button
+                variant="outlined"
                 color="error"
-                startIcon={<DeleteIcon />} 
+                startIcon={<DeleteIcon />}
                 onClick={handleOpenConfirmDialog}
                 sx={{ mr: 1 }}
               >
                 삭제
               </Button>
-              <Button 
-                variant="outlined" 
-                startIcon={<ReceiptIcon />} 
+              <Button
+                variant="outlined"
+                startIcon={<ReceiptIcon />}
                 onClick={handlePrintEstimate}
                 sx={{ mr: 1 }}
               >
                 견적서
               </Button>
-              <Button 
-                variant="outlined" 
-                startIcon={<PrintIcon />} 
+              <Button
+                variant="outlined"
+                startIcon={<PrintIcon />}
                 onClick={handlePrint}
                 sx={{ mr: 1 }}
               >
@@ -1084,15 +1084,15 @@ function ShipmentDetail() {
           )}
         </Box>
       </Box>
-      
+
       <Paper sx={{ p: 3, mb: 3 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h5" gutterBottom>
             출고 상세 정보
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Chip 
-              label={shipmentData.status} 
+            <Chip
+              label={shipmentData.status}
               color={getStatusColor(shipmentData.status)}
               sx={{ fontSize: '1rem', py: 0.5, height: 'auto' }}
             />
@@ -1113,9 +1113,9 @@ function ShipmentDetail() {
             )}
           </Box>
         </Box>
-        
+
         <Divider sx={{ mb: 3 }} />
-        
+
         <Grid container spacing={3}>
           <Grid item xs={12} md={6}>
             <Typography variant="h6" gutterBottom>고객 정보</Typography>
@@ -1133,7 +1133,7 @@ function ShipmentDetail() {
               </CardContent>
             </Card>
           </Grid>
-          
+
           <Grid item xs={12} md={6}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
               <Typography variant="h6">출고 정보</Typography>
@@ -1152,8 +1152,8 @@ function ShipmentDetail() {
                   <Grid item xs={4}>
                     <Typography variant="body2" color="text.secondary">주문일</Typography>
                     <Typography variant="body1">
-                      {shipmentData.order_date ? format(parseISO(shipmentData.order_date), 'yyyy-MM-dd') : 
-                       shipmentData.created_at ? format(parseISO(shipmentData.created_at), 'yyyy-MM-dd') : '-'}
+                      {shipmentData.order_date ? format(parseISO(shipmentData.order_date), 'yyyy-MM-dd') :
+                        shipmentData.created_at ? format(parseISO(shipmentData.created_at), 'yyyy-MM-dd') : '-'}
                     </Typography>
                   </Grid>
                   <Grid item xs={4}>
@@ -1186,16 +1186,16 @@ function ShipmentDetail() {
           </Grid>
         </Grid>
       </Paper>
-      
+
       <Paper sx={{ p: 3, mb: 3 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h6">
             제품 정보
           </Typography>
           {shipmentParts.length > 0 && !isEditing && (
-            <Button 
-              variant="outlined" 
-              startIcon={<EditIcon />} 
+            <Button
+              variant="outlined"
+              startIcon={<EditIcon />}
               onClick={handleStartEdit}
               size="small"
             >
@@ -1203,7 +1203,7 @@ function ShipmentDetail() {
             </Button>
           )}
         </Box>
-        
+
         <Card variant="outlined">
           <CardContent>
             {loading || migrating ? (
@@ -1219,7 +1219,7 @@ function ShipmentDetail() {
                 <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2 }}>
                   제품 정보 수정 모드
                 </Typography>
-                
+
                 {sortedEditableParts.length > 0 ? (
                   <TableContainer>
                     <Table size="small">
@@ -1245,8 +1245,8 @@ function ShipmentDetail() {
                               )}
                             </TableCell>
                             <TableCell>
-                              <Chip 
-                                label={part.part_category || '기체'} 
+                              <Chip
+                                label={part.part_category || '기체'}
                                 size="small"
                                 color={getCategoryColor(part.part_category || '기체')}
                               />
@@ -1258,8 +1258,8 @@ function ShipmentDetail() {
                                 variant="outlined"
                                 value={part.quantity || 1}
                                 onChange={(e) => handleQuantityChange(part.id, e.target.value)}
-                                InputProps={{ 
-                                  inputProps: { min: 1, style: { textAlign: 'right', padding: '4px 8px' } } 
+                                InputProps={{
+                                  inputProps: { min: 1, style: { textAlign: 'right', padding: '4px 8px' } }
                                 }}
                                 sx={{ width: '70px' }}
                               />
@@ -1271,7 +1271,7 @@ function ShipmentDetail() {
                                 variant="outlined"
                                 value={part.price || 0}
                                 onChange={(e) => handlePriceChange(part.id, e.target.value)}
-                                InputProps={{ 
+                                InputProps={{
                                   inputProps: { min: 0, style: { textAlign: 'right', padding: '4px 8px' } },
                                   endAdornment: <InputAdornment position="end">원</InputAdornment>
                                 }}
@@ -1282,8 +1282,8 @@ function ShipmentDetail() {
                               {(part.total_price || (part.price * part.quantity)).toLocaleString()}원
                             </TableCell>
                             <TableCell align="center">
-                              <IconButton 
-                                size="small" 
+                              <IconButton
+                                size="small"
                                 color="error"
                                 onClick={() => handleRemovePart(part.id)}
                               >
@@ -1355,7 +1355,12 @@ function ShipmentDetail() {
                           <TableCell>{part.part_name}</TableCell>
                           <TableCell>{part.part_code}</TableCell>
                           <TableCell>
-                            <Chip label={part.part_category || '기타'} size="small" color="primary" variant="outlined" />
+                            <Chip
+                              label={part.part_category || '기타'}
+                              size="small"
+                              color={getCategoryColor(part.part_category || '기타')}
+                              variant="filled"
+                            />
                           </TableCell>
                           <TableCell>{part.quantity}</TableCell>
                           <TableCell>{part.price?.toLocaleString()}원</TableCell>
@@ -1397,7 +1402,7 @@ function ShipmentDetail() {
                   </Typography>
                 </Box>
                 <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center' }}>
-                  <Button 
+                  <Button
                     variant="outlined"
                     size="small"
                     onClick={() => migrateProductData(shipmentData)}
@@ -1423,7 +1428,7 @@ function ShipmentDetail() {
           </CardContent>
         </Card>
       </Paper>
-      
+
       {shipmentData.note && (
         <Paper sx={{ p: 3 }}>
           <Typography variant="h6" gutterBottom>
@@ -1460,8 +1465,8 @@ function ShipmentDetail() {
         onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        <Alert 
-          onClose={() => setSnackbar(prev => ({ ...prev, open: false }))} 
+        <Alert
+          onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
           severity={snackbar.severity}
           sx={{ width: '100%' }}
         >
@@ -1491,17 +1496,17 @@ function ShipmentDetail() {
               검색
             </Button>
           </Box>
-          
+
           <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="caption" color="text.secondary">
-              {isSearching ? '검색 중...' : 
-               filteredParts.length > 100 
-                ? '100개 이상의 결과 (구체적으로 검색해주세요)' 
-                : `검색 결과: ${filteredParts.length}개`}
+              {isSearching ? '검색 중...' :
+                filteredParts.length > 100
+                  ? '100개 이상의 결과 (구체적으로 검색해주세요)'
+                  : `검색 결과: ${filteredParts.length}개`}
             </Typography>
             <Box>
-              <Button 
-                disabled={page === 0} 
+              <Button
+                disabled={page === 0}
                 onClick={() => handlePageChange(page - 1)}
                 size="small"
               >
@@ -1510,8 +1515,8 @@ function ShipmentDetail() {
               <Typography variant="caption" sx={{ mx: 1 }}>
                 {page + 1} / {Math.max(1, Math.ceil(filteredParts.length / rowsPerPage))}
               </Typography>
-              <Button 
-                disabled={page >= Math.ceil(filteredParts.length / rowsPerPage) - 1} 
+              <Button
+                disabled={page >= Math.ceil(filteredParts.length / rowsPerPage) - 1}
                 onClick={() => handlePageChange(page + 1)}
                 size="small"
               >
@@ -1519,7 +1524,7 @@ function ShipmentDetail() {
               </Button>
             </Box>
           </Box>
-          
+
           <TableContainer sx={{ maxHeight: 300 }}>
             <Table size="small" stickyHeader>
               <TableHead>
@@ -1539,7 +1544,7 @@ function ShipmentDetail() {
                     <TableCell>{part.code}</TableCell>
                     <TableCell align="right">{part.price?.toLocaleString()}원</TableCell>
                     <TableCell align="center">
-                      <IconButton 
+                      <IconButton
                         size="small"
                         onClick={() => handleAddPartToList(part)}
                       >

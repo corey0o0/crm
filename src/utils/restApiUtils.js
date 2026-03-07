@@ -55,15 +55,15 @@ export const fetchFromSupabase = async (table, options = {}) => {
 
   // URL 구성
   let url = `${supabaseUrl}/rest/v1/${table}?select=${encodeURIComponent(select)}`;
-  
+
   if (filter) {
     url += `&${filter}`;
   }
-  
+
   if (order) {
     url += `&order=${encodeURIComponent(order)}`;
   }
-  
+
   // limit이 null이어도 기본값 적용
   url += `&limit=${safeLimit}`;
   if (offset && Number.isFinite(offset) && offset > 0) {
@@ -94,7 +94,7 @@ export const fetchFromSupabase = async (table, options = {}) => {
 
   const data = await response.json();
   console.log(`[REST API] ${table} data received:`, data?.length || 0, 'items');
-  
+
   return data;
 };
 
@@ -107,7 +107,7 @@ export const fetchFromSupabase = async (table, options = {}) => {
  */
 export const countFromSupabase = async (table, filter = '', signal = null) => {
   let url = `${supabaseUrl}/rest/v1/${table}?select=count`;
-  
+
   if (filter) {
     url += `&${filter}`;
   }
@@ -149,7 +149,7 @@ export const countFromSupabase = async (table, filter = '', signal = null) => {
   const data = await response.json();
   const count = data?.[0]?.count || 0;
   console.log(`[REST API] ${table} count from data:`, count);
-  
+
   return count;
 };
 
@@ -257,7 +257,7 @@ export const fetchShipments = async (options = {}) => {
   if (dateFilter.startDate && dateFilter.endDate) {
     const startDate = dateFilter.startDate;
     const endDate = dateFilter.endDate;
-    
+
     if (dateFilter.type === 'order_date') {
       filters.push(`order_date=gte.${startDate}`);
       filters.push(`order_date=lte.${endDate}`);
@@ -273,9 +273,9 @@ export const fetchShipments = async (options = {}) => {
 
   // 페이지네이션
   const offset = page * pageSize;
-  
+
   return fetchFromSupabase('shipments', {
-    select: '*',
+    select: '*,shipment_parts(id,part_name,part_category)',
     filter: filter,
     order: 'created_at.desc',
     limit: pageSize,
@@ -306,7 +306,7 @@ export const countShipments = async (options = {}) => {
   if (dateFilter.startDate && dateFilter.endDate) {
     const startDate = dateFilter.startDate;
     const endDate = dateFilter.endDate;
-    
+
     if (dateFilter.type === 'order_date') {
       filters.push(`order_date=gte.${startDate}`);
       filters.push(`order_date=lte.${endDate}`);
@@ -333,10 +333,10 @@ export const countPendingAndShippingByBrand = async (brand, signal = null) => {
       countFromSupabase('shipments', `brand=eq.${encodeURIComponent(brand)}&status=eq.${encodeURIComponent('준비중')}`, signal),
       countFromSupabase('shipments', `brand=eq.${encodeURIComponent(brand)}&status=eq.${encodeURIComponent('배송중')}`, signal)
     ]);
-    
+
     const totalCount = (preparingCount || 0) + (shippingCount || 0);
     console.log(`[REST API] Brand ${brand} - 준비중: ${preparingCount || 0}, 배송중: ${shippingCount || 0}, 합계: ${totalCount}`);
-    
+
     return totalCount;
   } catch (error) {
     console.error(`[REST API] Error counting pending/shipping for brand ${brand}:`, error);
@@ -354,23 +354,23 @@ export const countServiceStatusByBrand = async (brand, signal = null) => {
     const oneWeekAgo = new Date(today);
     oneWeekAgo.setDate(today.getDate() - 7);
     const oneWeekAgoStr = oneWeekAgo.toISOString().split('T')[0] + ' 00:00:00';
-    
+
     // 접수건: 최근 일주일 내 접수된 것만
     const receptionCount = await countFromSupabase(
       'services',
       `brand=eq.${encodeURIComponent(brand)}&status=eq.${encodeURIComponent('접수')}&reception_date=gte.${encodeURIComponent(oneWeekAgoStr)}`,
       signal
     );
-    
+
     // 처리중건: 전체
     const processingCount = await countFromSupabase(
       'services',
       `brand=eq.${encodeURIComponent(brand)}&status=eq.${encodeURIComponent('처리중')}`,
       signal
     );
-    
+
     console.log(`[REST API] Brand ${brand} - 접수(최근 일주일): ${receptionCount || 0}, 처리중: ${processingCount || 0}`);
-    
+
     return {
       reception: receptionCount || 0,
       processing: processingCount || 0
