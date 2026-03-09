@@ -25,8 +25,11 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  Chip
 } from '@mui/material';
+
+
 import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -50,6 +53,27 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import { downloadExcel } from '../../utils/excelUtils';
 import DownloadIcon from '@mui/icons-material/Download';
 import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
+
+const getCategoryChipProps = (category) => {
+  switch (category) {
+    case '기체': return { sx: { bgcolor: '#e3f2fd', color: '#1565c0', fontWeight: 'bold' } };
+    case '파츠': return { sx: { bgcolor: '#fce4ec', color: '#c2185b', fontWeight: 'bold' } };
+    case '배터리': return { sx: { bgcolor: '#e8f5e9', color: '#2e7d32', fontWeight: 'bold' } };
+    case '공임': return { sx: { bgcolor: '#fff3e0', color: '#e65100', fontWeight: 'bold' } };
+    case '악세서리': return { sx: { bgcolor: '#f3e5f5', color: '#6a1b9a', fontWeight: 'bold' } };
+    default: return { sx: { bgcolor: '#f5f5f5', color: '#616161', fontWeight: 'bold' } };
+  }
+};
+
+const getUsageChipProps = (usage) => {
+  switch (usage) {
+    case '워런티': return { sx: { bgcolor: '#e3f2fd', color: '#1565c0', fontWeight: 'bold' } };
+    case '일반수리': return { sx: { bgcolor: '#fce4ec', color: '#c2185b', fontWeight: 'bold' } };
+    case '판매': return { sx: { bgcolor: '#e8f5e9', color: '#2e7d32', fontWeight: 'bold' } };
+    case '초기불량': return { sx: { bgcolor: '#fff3e0', color: '#e65100', fontWeight: 'bold' } };
+    default: return { sx: { bgcolor: '#f5f5f5', color: '#616161', fontWeight: 'bold' } };
+  }
+};
 
 function SalesStats() {
   const [loading, setLoading] = useState(true);
@@ -1348,7 +1372,14 @@ function SalesStats() {
                             <TableCell align="right">{part.quantity}</TableCell>
                             <TableCell align="right">{formatCurrency(part.price)}</TableCell>
                             <TableCell align="right">{formatCurrency(part.total)}</TableCell>
-                            <TableCell>{part.usage}</TableCell>
+                            <TableCell>
+                              <Chip
+                                label={part.usage || '기타'}
+                                size="small"
+                                {...getUsageChipProps(part.usage)}
+                                sx={{ height: 20, fontSize: '0.75rem', ...getUsageChipProps(part.usage).sx }}
+                              />
+                            </TableCell>
                             <TableCell>{part.parts_note || '-'}</TableCell>
                           </TableRow>
                         );
@@ -1376,7 +1407,10 @@ function SalesStats() {
                           }
                           return (
                             <TableRow key={`usage-sum-${usage}-${idx}`} sx={{ backgroundColor: '#f7f7f7' }}>
-                              <TableCell colSpan={3} align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{usage} 합계</TableCell>
+                              <TableCell colSpan={3} align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                                <Chip label={usage} size="small" sx={{ mr: 1, height: 20, fontSize: '0.75rem', ...getUsageChipProps(usage).sx }} />
+                                합계
+                              </TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold' }}>{sum.quantity}</TableCell>
                               <TableCell></TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold' }}>{displayTotal}</TableCell>
@@ -1450,7 +1484,14 @@ function SalesStats() {
                           </Typography>
                         </TableCell>
                         <TableCell>{part.name}</TableCell>
-                        <TableCell>{part.part_category || '기타'}</TableCell>
+                        <TableCell>
+                          <Chip
+                            label={part.part_category || '기타'}
+                            size="small"
+                            {...getCategoryChipProps(part.part_category)}
+                            sx={{ height: 20, fontSize: '0.75rem', ...getCategoryChipProps(part.part_category).sx }}
+                          />
+                        </TableCell>
                         <TableCell align="right">{part.quantity}</TableCell>
                         <TableCell align="right">{formatCurrency(part.price)}</TableCell>
                         <TableCell align="right">{formatCurrency(part.total)}</TableCell>
@@ -1470,7 +1511,10 @@ function SalesStats() {
                       });
                       return Object.entries(catMap).map(([cat, sum], idx) => (
                         <TableRow key={`cat-sum-${cat}-${idx}`} sx={{ backgroundColor: '#e3f2fd' }}>
-                          <TableCell colSpan={2} align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{cat} 합계</TableCell>
+                          <TableCell colSpan={2} align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                            <Chip label={cat} size="small" sx={{ mr: 1, height: 20, fontSize: '0.75rem', ...getCategoryChipProps(cat).sx }} />
+                            합계
+                          </TableCell>
                           <TableCell align="right" sx={{ fontWeight: 'bold' }}>{sum.quantity}</TableCell>
                           <TableCell></TableCell>
                           <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(sum.total)}</TableCell>
@@ -1512,8 +1556,9 @@ function SalesStats() {
                           {/* 판매채널별 카테고리 상세 */}
                           {categories.map((cat, catIdx) => (
                             <TableRow key={`channel-cat-${channel}-${cat.category}-${catIdx}`} sx={{ backgroundColor: '#f8f9ff' }}>
-                              <TableCell colSpan={2} align="right" sx={{ fontWeight: 'bold', color: '#1565c0', fontSize: '0.9rem' }}>
-                                {channel} ({cat.category})
+                              <TableCell colSpan={2} align="right" sx={{ fontWeight: 'bold', color: '#1565c0', fontSize: '0.9rem', verticalAlign: 'middle' }}>
+                                {channel}{' '}
+                                <Chip label={cat.category} size="small" sx={{ height: 20, fontSize: '0.75rem', ml: 0.5, ...getCategoryChipProps(cat.category).sx }} />
                               </TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold', color: '#424242', fontSize: '0.9rem' }}>{cat.quantity}</TableCell>
                               <TableCell></TableCell>
