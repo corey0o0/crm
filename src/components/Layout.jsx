@@ -53,7 +53,8 @@ import {
   Close as CloseIcon,
   Logout as LogoutIcon,
   ShoppingCartOutlined as ShoppingCartOutlinedIcon,
-  Science as ScienceIcon
+  Science as ScienceIcon,
+  Store as StoreIcon
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
@@ -248,6 +249,7 @@ function Layout() {
     { text: '게시판', icon: <MenuBookIcon />, path: '/board', key: 'board' },
 
     // ⚙️ 설정
+    { text: '카페24 연동', icon: <StoreIcon />, path: '/settings/cafe24', key: 'cafe24_settings' },
     { text: '데이터 백업/복원', icon: <BackupIcon />, path: '/backup', key: 'backup_management' },
     { text: '관리자 도구', icon: <ScienceIcon />, path: '/admin/tools', key: 'admin_tools' }
   ];

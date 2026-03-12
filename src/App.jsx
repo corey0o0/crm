@@ -48,6 +48,7 @@ import BoardDetail from './pages/board/BoardDetail';
 import BoardEdit from './pages/board/BoardEdit';
 import PendingOrderList from './pages/pendingOrders/PendingOrderList';
 import PendingOrderDetail from './pages/pendingOrders/PendingOrderDetail';
+import Cafe24Settings from './components/Settings/Cafe24Settings';
 
 function App() {
   const [session, setSession] = useState(null);
@@ -202,6 +203,11 @@ function App() {
               {/* 관리자 도구 */}
               <Route path="admin/tools" element={
                 <AdminTools />
+              } />
+
+              {/* 카페24 연동 설정 */}
+              <Route path="settings/cafe24" element={
+                <Cafe24Settings />
               } />
 
               {/* 게시판 */}

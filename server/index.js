@@ -163,7 +163,10 @@ async function convertPdfToImage(pdfPath) {
       quality: 100,        // JPEG 품질 (1-100)
     };
     
-    // PDF를 이미지로 변환
+    // PDF를 이미지로 변환 (macOS 전용, Linux 미지원)
+    if (!pdfPoppler) {
+      throw new Error('PDF 변환 기능은 현재 서버 환경에서 지원되지 않습니다.');
+    }
     await pdfPoppler.convert(pdfPath, opts);
     
     // 생성된 이미지 파일 목록 가져오기
