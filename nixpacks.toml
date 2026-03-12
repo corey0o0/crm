@@ -1,0 +1,11 @@
+# Railway Nixpacks 설정
+# server 디렉토리만 빌드 대상으로 지정
+
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+
+[phases.install]
+cmds = ["cd server && npm install --production"]
+
+[start]
+cmd = "cd server && node index.js"
