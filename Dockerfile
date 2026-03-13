@@ -1,5 +1,8 @@
 FROM node:18-slim
 
+# 캐시 버스터 (강제 리빌드용)
+ARG CACHEBUST=20260313
+
 # 시스템 라이브러리 설치
 RUN apt-get update && apt-get install -y \
     libnss3 \
