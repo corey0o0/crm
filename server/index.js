@@ -30,18 +30,17 @@ Apikey.apiKey = cloudmersiveApiKey;
 // CORS 설정
 const allowedOrigins = [
   'http://localhost:3000',
+  'https://crmapp8893.netlify.app',
   process.env.FRONTEND_URL,
   process.env.REACT_APP_FRONTEND_URL
 ].filter(Boolean);
 
 app.use(cors({
   origin: function (origin, callback) {
-    // origin이 없거나 허용된 origin 목록에 있으면 허용
-    if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('CORS 정책에 의해 차단되었습니다'));
-    }
+    if (!origin) return callback(null, true);
+    if (origin.includes('railway.app')) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error('CORS 정책에 의해 차단되었습니다'));
   },
   credentials: true
 }));
