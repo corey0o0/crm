@@ -858,6 +858,32 @@ function ShipmentDetail() {
     return shipmentData.sales_channel || '공홈';
   };
 
+  const getChannelColorInfo = (channel) => {
+    const colors = {
+      '공홈': { bg: '#e3f2fd', color: '#1565c0', border: '#90caf9' },
+      '스마트스토어': { bg: '#e8f5e9', color: '#2e7d32', border: '#a5d6a7' },
+      '네이버': { bg: '#e8f5e9', color: '#2e7d32', border: '#a5d6a7' },
+      '쿠팡': { bg: '#fbe9e7', color: '#d84315', border: '#ffab91' },
+      '청담매장': { bg: '#f3e5f5', color: '#6a1b9a', border: '#ce93d8' },
+      '인스타': { bg: '#fce4ec', color: '#c2185b', border: '#f48fb1' },
+      '라이클-우리': { bg: '#fff8e1', color: '#f57f17', border: '#ffe082' },
+      '스마트할부': { bg: '#ebf8fa', color: '#00838f', border: '#80deea' },
+      '블로그': { bg: '#e8eaf6', color: '#283593', border: '#9fa8da' }
+    };
+    return colors[channel] || { bg: '#f5f5f5', color: '#616161', border: '#e0e0e0' };
+  };
+
+  const getDeliveryColorInfo = (method) => {
+    const colors = {
+      '택배': { bg: '#e3f2fd', color: '#1565c0' },
+      '방문수령': { bg: '#f3e5f5', color: '#6a1b9a' },
+      '화물': { bg: '#424242', color: '#ffffff' },
+      '퀵-선불': { bg: '#424242', color: '#ffffff' },
+      '퀵-착불': { bg: '#ffebee', color: '#c62828' }
+    };
+    return colors[method] || { bg: '#f5f5f5', color: '#616161' };
+  };
+
   // 메모이제이션된 필터링 함수
   const filteredParts = useMemo(() => {
     setIsSearching(true);
@@ -1163,16 +1189,48 @@ function ShipmentDetail() {
                     </Typography>
                   </Grid>
                   <Grid item xs={4}>
-                    <Typography variant="body2" color="text.secondary">판매처</Typography>
-                    <Typography variant="body1">
-                      {getSalesChannel()}
-                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>판매처</Typography>
+                    {(() => {
+                      const channelName = getSalesChannel();
+                      const channelColor = getChannelColorInfo(channelName);
+                      return (
+                        <Chip
+                          label={channelName}
+                          size="small"
+                          sx={{
+                            backgroundColor: channelColor.bg,
+                            color: channelColor.color,
+                            borderColor: channelColor.border,
+                            borderWidth: '1px',
+                            borderStyle: 'solid',
+                            fontWeight: 600,
+                            fontSize: '0.8rem',
+                            height: 24
+                          }}
+                        />
+                      );
+                    })()}
                   </Grid>
                   <Grid item xs={4}>
-                    <Typography variant="body2" color="text.secondary">배송방법</Typography>
-                    <Typography variant="body1">
-                      {shipmentData.delivery_method || '-'}
-                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>배송방법</Typography>
+                    {(() => {
+                      const method = shipmentData.delivery_method;
+                      if (!method) return <Typography variant="body1">-</Typography>;
+                      const delColor = getDeliveryColorInfo(method);
+                      return (
+                        <Chip
+                          label={method}
+                          size="small"
+                          sx={{
+                            height: 24,
+                            fontSize: '0.8rem',
+                            bgcolor: delColor.bg,
+                            color: delColor.color,
+                            fontWeight: 600
+                          }}
+                        />
+                      );
+                    })()}
                   </Grid>
                   <Grid item xs={8}>
                     <Typography variant="body2" color="text.secondary">송장번호</Typography>
