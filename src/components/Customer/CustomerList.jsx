@@ -384,6 +384,7 @@ function CustomerList({ refreshTrigger, onRefresh }) {
   const executeSearch = () => {
     const term = inputValue.toLowerCase().trim();
     setSearchTerm(term);
+    setPage(0); // 검색 시 페이지 번호 초기화
 
     if (!term) {
       setFilteredCustomers(customers);

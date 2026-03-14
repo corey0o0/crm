@@ -270,12 +270,14 @@ function ProductList() {
   const handleSearchChange = (e) => {
     const value = e.target.value;
     setSearchTerm(value);
+    setPage(0); // 검색어 변경 시 페이지 초기화
     setCookie('product_searchTerm', value);
   };
 
   const handleCategoryChange = (e) => {
     const value = e.target.value;
     setCategoryFilter(value);
+    setPage(0); // 필터 변경 시 페이지 초기화
     setCookie('product_categoryFilter', value);
   };
 

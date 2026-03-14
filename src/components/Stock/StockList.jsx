@@ -326,12 +326,14 @@ function StockList() {
   const executeSearch = () => {
     setIsSearching(true);
     setSearchTerm(searchInput.toLowerCase().trim());
+    setPage(0); // 검색 시 페이지 초기화
     setIsSearching(false);
   };
 
   const handleClearSearch = () => {
     setSearchInput('');
     setSearchTerm('');
+    setPage(0); // 검색 초기화 시 페이지 리셋
   };
 
   // 디바운스 적용: searchInput 변경 시 500ms 후 searchTerm 업데이트
@@ -420,11 +422,13 @@ function StockList() {
   // 브랜드 선택 핸들러 메모이제이션
   const handleBrandChange = useCallback((e) => {
     setBrand(e.target.value);
+    setPage(0); // 필터 변경 시 페이지 초기화
   }, []);
 
   // 재고 상태 필터 핸들러 메모이제이션
   const handleStockFilterChange = useCallback((e) => {
     setStockFilter(e.target.value);
+    setPage(0); // 필터 변경 시 페이지 초기화
   }, []);
 
   const sortArrow = (key) => sortConfig.key === key ? (sortConfig.direction === 'asc' ? ' ▲' : ' ▼') : '';

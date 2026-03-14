@@ -430,18 +430,21 @@ function PartsManagement() {
   React.useEffect(() => {
     // 입력이 멈춘 뒤 300ms 후에만 검색 실행
     setSearchTerm(debouncedSearchInput);
+    setPage(0); // 검색 시 페이지 초기화
   }, [debouncedSearchInput]);
 
   // [검색 버튼/엔터는 즉시 검색]
   const executeSearch = useCallback(() => {
     setIsSearching(true);
     setSearchTerm(searchInput);
+    setPage(0); // 검색 시 페이지 초기화
     setIsSearching(false);
   }, [searchInput]);
 
   const handleClearSearch = useCallback(() => {
     setSearchInput('');
     setSearchTerm('');
+    setPage(0); // 초기화 시 페이지 리셋
   }, []);
 
   const brands = BRANDS; // 브랜드 목록 수정 (공용 추가)

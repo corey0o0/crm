@@ -589,6 +589,7 @@ function ServiceList() {
       setServices([]); // 검색 시 기존 데이터 초기화
       setFirstPageLoaded(false);
       setBackgroundLoading(false);
+      setPage(0); // 검색 시 페이지 번호 초기화
       
       console.log('[ServiceList] 검색 파라미터:', searchParams);
       
