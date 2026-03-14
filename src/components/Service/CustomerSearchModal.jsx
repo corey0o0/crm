@@ -26,63 +26,76 @@ const CustomerSearchModal = ({
   searchResults,
   searchLoading,
   historyCounts,
-  onHistoryClick,
-  onCustomerSelect,
-  historyLoading
-}) => {
-  return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      maxWidth="lg"
-      fullWidth
-    >
-      <DialogTitle>고객 검색</DialogTitle>
-      <DialogContent>
-        <TextField
-          fullWidth
-          placeholder="고객명 또는 연락처를 입력하세요 (2글자 이상)"
-          value={searchValue}
-          onChange={onSearchChange}
-          onKeyPress={onSearchKeyPress}
-          sx={{ mb: 2 }}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon />
-              </InputAdornment>
-            ),
-            endAdornment: searchLoading && (
-              <InputAdornment position="end">
-                <CircularProgress size={20} />
-              </InputAdornment>
-            )
-          }}
-        />
-        
-        <TableContainer sx={{ maxHeight: 400 }}>
-          <Table stickyHeader>
-            <TableHead>
-              <TableRow>
-                <TableCell>고객명</TableCell>
-                <TableCell>연락처</TableCell>
-                <TableCell>주소</TableCell>
-                <TableCell>기종</TableCell>
-                <TableCell>구입처</TableCell>
-                <TableCell>브랜드</TableCell>
-                <TableCell align="center">기록보기</TableCell>
-                <TableCell align="center">선택</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {searchResults.length === 0 ? (
+    onHistoryClick,
+    onCustomerSelect,
+    historyLoading,
+    onAddNewCustomer
+  }) => {
+    return (
+      <Dialog
+        open={open}
+        onClose={onClose}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogTitle>고객 검색</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            placeholder="고객명 또는 연락처를 입력하세요 (2글자 이상)"
+            value={searchValue}
+            onChange={onSearchChange}
+            onKeyPress={onSearchKeyPress}
+            sx={{ mb: 2 }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+              endAdornment: searchLoading && (
+                <InputAdornment position="end">
+                  <CircularProgress size={20} />
+                </InputAdornment>
+              )
+            }}
+          />
+          
+          <TableContainer sx={{ maxHeight: 400 }}>
+            <Table stickyHeader>
+              <TableHead>
                 <TableRow>
-                  <TableCell colSpan={8} align="center">
-                    {searchValue.length > 0 
-                      ? '검색 결과가 없습니다.'
-                      : '검색어를 입력하세요. (2글자 이상)'}
-                  </TableCell>
+                  <TableCell>고객명</TableCell>
+                  <TableCell>연락처</TableCell>
+                  <TableCell>주소</TableCell>
+                  <TableCell>기종</TableCell>
+                  <TableCell>구입처</TableCell>
+                  <TableCell>브랜드</TableCell>
+                  <TableCell align="center">기록보기</TableCell>
+                  <TableCell align="center">선택</TableCell>
                 </TableRow>
+              </TableHead>
+              <TableBody>
+                {searchResults.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
+                      <Typography variant="body1" color="text.secondary" gutterBottom>
+                        {searchValue.length > 0 
+                          ? `'${searchValue}'에 대한 검색 결과가 없습니다.`
+                          : '검색어를 입력하세요. (2글자 이상)'}
+                      </Typography>
+                      {searchValue.length > 0 && onAddNewCustomer && (
+                        <Button
+                          variant="contained"
+                          color="primary"
+                          onClick={() => onAddNewCustomer(searchValue)}
+                          sx={{ mt: 2 }}
+                        >
+                          '{searchValue}'(으)로 신규 등록하기
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
               ) : (
                 searchResults.map((customer, index) => (
                   <TableRow key={`${customer.phone}-${index}`}>

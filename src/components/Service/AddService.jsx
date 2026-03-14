@@ -138,6 +138,7 @@ function AddService() {
   const [receiptLink, setReceiptLink] = useState('');
   const [receiptPreviewAnchor, setReceiptPreviewAnchor] = useState(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const searchAbortControllerRef = React.useRef(null);
   
   // 자동저장 관련 상태
   const [showRestoreDialog, setShowRestoreDialog] = useState(false);
@@ -1626,6 +1627,22 @@ function AddService() {
     searchCustomers('');
   }, []);
 
+  // 고객 신규 등록 핸들러 (검색 모달에서 호출)
+  const handleAddNewCustomer = (searchValue) => {
+    if (!searchValue) return;
+    
+    // 전화번호 형식인지 확인 (숫자나 하이픈으로만 이루어져 있는지)
+    const isPhoneNumber = /^[\d-]+$/.test(searchValue.trim());
+    
+    setFormData(prev => ({
+      ...prev,
+      customer_phone: isPhoneNumber ? searchValue.trim() : prev.customer_phone,
+      customer_name: !isPhoneNumber ? searchValue.trim() : prev.customer_name
+    }));
+    
+    setCustomerSearchOpen(false);
+  };
+
   // 제품명에서 기체만 추출하는 함수
   const extractMainProduct = (productName) => {
     if (!productName) return '';
@@ -1651,6 +1668,15 @@ function AddService() {
 
   // 고객 검색 함수
   const searchCustomers = async (searchTerm) => {
+    // 이전 검색 요청 취소
+    if (searchAbortControllerRef.current) {
+      searchAbortControllerRef.current.abort();
+    }
+    // 새 취소 컨트롤러 생성
+    const abortController = new AbortController();
+    searchAbortControllerRef.current = abortController;
+    const signal = abortController.signal;
+
     try {
       setSearchLoading(true);
       if (!searchTerm || searchTerm.length < 2) {
@@ -1698,12 +1724,21 @@ function AddService() {
         const uniqueRecentCustomers = Array.from(recentUniqueMap.values()).slice(0, 10);
         setCustomerSearchResults(uniqueRecentCustomers);
         
-        // 각 고객의 이력 건수를 미리 조회
-        Promise.all(
-          uniqueRecentCustomers.map(customer => fetchCustomerHistoryCount(customer))
-        ).catch(err => {
-          console.error('최근 고객 이력 건수 조회 오류:', err);
-        });
+        const fetchHistoryCountsSequentially = async () => {
+          for (const customer of uniqueRecentCustomers) {
+            if (signal.aborted) break;
+            try {
+              await fetchCustomerHistoryCount(customer, signal);
+            } catch (err) {
+              if (err.name === 'AbortError' || err.message?.includes('AbortError')) {
+                console.log('최근 고객 이력 건수 조회 취소됨');
+              } else {
+                console.error('최근 고객 이력 건수 조회 오류:', err);
+              }
+            }
+          }
+        };
+        fetchHistoryCountsSequentially();
         return;
       }
       const cleanSearchTerm = searchTerm.replace(/-/g, '');
@@ -1719,32 +1754,40 @@ function AddService() {
           .from('services')
           .select('customer_name, customer_phone, customer_address, brand, product_name, seller')
           .or(`customer_phone.ilike.%${cleanSearchTerm}%,customer_phone.ilike.%${searchTerm}%`)
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false })
+          .abortSignal(signal);
           
         shipmentQuery = supabase
           .from('shipments')
           .select('customer_name, customer_phone, customer_address, brand, product_name')
           .or(`customer_phone.ilike.%${cleanSearchTerm}%,customer_phone.ilike.%${searchTerm}%`)
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false })
+          .abortSignal(signal);
       } else {
         // 이름 검색 + 혼합 검색
         serviceQuery = supabase
           .from('services')
           .select('customer_name, customer_phone, customer_address, brand, product_name, seller')
           .or(`customer_name.ilike.%${searchTerm}%,customer_phone.ilike.%${cleanSearchTerm}%,customer_phone.ilike.%${searchTerm}%`)
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false })
+          .abortSignal(signal);
           
         shipmentQuery = supabase
           .from('shipments')
           .select('customer_name, customer_phone, customer_address, brand, product_name')
           .or(`customer_name.ilike.%${searchTerm}%,customer_phone.ilike.%${cleanSearchTerm}%,customer_phone.ilike.%${searchTerm}%`)
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false })
+          .abortSignal(signal);
       }
       
       const { data: serviceResults, error: serviceError } = await serviceQuery;
       if (serviceError) throw serviceError;
+      if (signal.aborted) return;
+
       const { data: shipmentResults, error: shipmentError } = await shipmentQuery;
       if (shipmentError) throw shipmentError;
+      if (signal.aborted) return;
+      
       const allResults = [...(serviceResults || []), ...(shipmentResults || [])];
       
       // 이름 + 전화번호 조합으로 중복 제거 (더 정확한 고객 식별)
@@ -1776,20 +1819,37 @@ function AddService() {
       const uniqueResults = Array.from(uniqueMap.values());
       setCustomerSearchResults(uniqueResults);
       
-      // 각 고객의 이력 건수를 미리 조회
-      Promise.all(
-        uniqueResults.map(customer => fetchCustomerHistoryCount(customer))
-      ).catch(err => {
-        console.error('고객 이력 건수 조회 오류:', err);
-      });
+      // 각 고객의 이력 건수를 순차적으로 조회하여 AbortError 방지
+      const fetchHistoryCountsSequentially = async () => {
+        for (const customer of uniqueResults) {
+          if (signal.aborted) break;
+          try {
+            await fetchCustomerHistoryCount(customer, signal);
+          } catch (err) {
+            if (err.name === 'AbortError' || err.message?.includes('AbortError')) {
+              console.log('고객 이력 건수 조회 취소됨');
+            } else {
+              console.error('고객 이력 건수 조회 오류:', err);
+            }
+          }
+        }
+      };
+      fetchHistoryCountsSequentially();
     } catch (err) {
+      if (err.name === 'AbortError' || err.message?.includes('AbortError')) {
+        console.log('이전 검색 요청이 취소되었습니다.');
+        return;
+      }
+      
       setSnackbar({
         open: true,
         message: '고객 검색 중 오류가 발생했습니다.',
         severity: 'error'
       });
     } finally {
-      setSearchLoading(false);
+      if (searchAbortControllerRef.current === abortController) {
+        setSearchLoading(false);
+      }
     }
   };
 
@@ -1813,39 +1873,37 @@ function AddService() {
   };
 
   // 고객별 이력 건수 조회 함수
-  const fetchCustomerHistoryCount = async (customer) => {
+  const fetchCustomerHistoryCount = async (customer, signal) => {
     try {
       // A/S 이력 건수 조회 - 이름과 전화번호 모두 정확히 매칭
-      const { count: serviceCount, error: serviceError } = await supabase
+      let serviceQuery = supabase
         .from('services')
         .select('*', { count: 'exact', head: true })
         .eq('customer_phone', customer.phone)
         .eq('customer_name', customer.name);
 
-      if (serviceError) {
-        console.error('A/S 이력 조회 오류:', {
-          message: serviceError.message,
-          code: serviceError.code,
-          details: serviceError.details,
-          hint: serviceError.hint
-        });
+      if (signal) {
+        serviceQuery = serviceQuery.abortSignal(signal);
       }
 
+      const { count: serviceCount, error: serviceError } = await serviceQuery;
+
+      if (serviceError) throw serviceError;
+
       // 출고 이력 건수 조회 - 이름과 전화번호 모두 정확히 매칭
-      const { count: shipmentCount, error: shipmentError } = await supabase
+      let shipmentQuery = supabase
         .from('shipments')
         .select('*', { count: 'exact', head: true })
         .eq('customer_phone', customer.phone)
         .eq('customer_name', customer.name);
 
-      if (shipmentError) {
-        console.error('출고 이력 조회 오류:', {
-          message: shipmentError.message,
-          code: shipmentError.code,
-          details: shipmentError.details,
-          hint: shipmentError.hint
-        });
+      if (signal) {
+        shipmentQuery = shipmentQuery.abortSignal(signal);
       }
+
+      const { count: shipmentCount, error: shipmentError } = await shipmentQuery;
+
+      if (shipmentError) throw shipmentError;
 
       const totalCount = (serviceCount || 0) + (shipmentCount || 0);
       
@@ -1856,6 +1914,9 @@ function AddService() {
 
       return totalCount;
     } catch (error) {
+      if (error.name === 'AbortError' || error.message?.includes('AbortError') || error.code === '20') {
+        throw error; // Let the caller handle AbortError
+      }
       console.error('고객 이력 건수 조회 오류:', error);
       return 0;
     }
@@ -2686,36 +2747,100 @@ function AddService() {
                               placeholder="고객명을 입력하세요"
                             />
                           )}
-                          renderOption={(props, option) => (
-                            <Box component="li" {...props}>
-                              <Box>
-                                <Typography variant="body2" fontWeight="bold">
-                                  {option.name}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  {option.phone} {option.address && `• ${option.address}`}
-                                </Typography>
-                                {option.product_name && (
-                                  <Typography variant="caption" color="primary" display="block">
-                                    기종: {option.product_name}
+                          renderOption={(props, option) => {
+                            const { key, ...otherProps } = props;
+                            return (
+                              <Box key={key} component="li" {...otherProps}>
+                                <Box>
+                                  <Typography variant="body2" fontWeight="bold">
+                                    {option.name}
                                   </Typography>
-                                )}
+                                  <Typography variant="caption" color="text.secondary">
+                                    {option.phone} {option.address && `• ${option.address}`}
+                                  </Typography>
+                                  {option.product_name && (
+                                    <Typography variant="caption" color="primary" display="block">
+                                      기종: {option.product_name}
+                                    </Typography>
+                                  )}
+                                </Box>
                               </Box>
-                            </Box>
-                          )}
+                            );
+                          }}
                           loading={searchLoading}
                           noOptionsText="검색 결과가 없습니다"
                         />
                       </Grid>
                       <Grid item xs={12}>
-                        <TextField
-                          fullWidth
-                          required
-                          size="small"
-                          label="연락처"
-                          name="customer_phone"
+                        <Autocomplete
+                          freeSolo
+                          options={customerSearchResults}
+                          getOptionLabel={(option) => {
+                            if (typeof option === 'string') return option;
+                            return option.phone || '';
+                          }}
+                          getOptionKey={(option) => {
+                            if (typeof option === 'string') return option;
+                            return option.id || `${option.name}_${option.phone}`;
+                          }}
                           value={formData.customer_phone}
-                          onChange={handleInputChange}
+                          onInputChange={(event, newInputValue) => {
+                            setFormData(prev => ({
+                              ...prev,
+                              customer_phone: newInputValue
+                            }));
+                            if (newInputValue.length >= 3) {
+                              searchCustomers(newInputValue);
+                            }
+                          }}
+                          onChange={(event, newValue) => {
+                            if (newValue && typeof newValue === 'object') {
+                              // 기체만 추출하여 제품명 설정
+                              const mainProduct = extractMainProduct(newValue.product_name);
+                              
+                              setFormData(prev => ({
+                                ...prev,
+                                customer_name: newValue.name,
+                                customer_phone: newValue.phone,
+                                customer_address: newValue.address,
+                                product_name: mainProduct || prev.product_name,
+                                seller: newValue.seller || prev.seller,
+                                brand: newValue.brand || prev.brand
+                              }));
+                            }
+                          }}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              fullWidth
+                              required
+                              size="small"
+                              label="연락처"
+                              placeholder="연락처를 입력하세요"
+                            />
+                          )}
+                          renderOption={(props, option) => {
+                            const { key, ...otherProps } = props;
+                            return (
+                              <Box key={key} component="li" {...otherProps}>
+                                <Box>
+                                  <Typography variant="body2" fontWeight="bold">
+                                    {option.phone}
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {option.name} {option.address && `• ${option.address}`}
+                                  </Typography>
+                                  {option.product_name && (
+                                    <Typography variant="caption" color="primary" display="block">
+                                      기종: {option.product_name}
+                                    </Typography>
+                                  )}
+                                </Box>
+                              </Box>
+                            );
+                          }}
+                          loading={searchLoading}
+                          noOptionsText="검색 결과가 없습니다"
                         />
                       </Grid>
                       <Grid item xs={12}>
@@ -2877,7 +3002,8 @@ function AddService() {
                       fullWidth
                       required
                       multiline
-                      rows={5}
+                      minRows={5}
+                      maxRows={15}
                       name="symptom"
                       label="문의내용"
                       value={formData.symptom}
@@ -2894,7 +3020,8 @@ function AddService() {
                     <TextField
                       fullWidth
                       multiline
-                      rows={5}
+                      minRows={5}
+                      maxRows={15}
                       name="solution"
                       label="처리내역"
                       value={formData.solution}
@@ -3508,6 +3635,7 @@ function AddService() {
         onHistoryClick={fetchCustomerHistory}
         onCustomerSelect={handleCustomerSelect}
         historyLoading={customerHistoryLoading}
+        onAddNewCustomer={handleAddNewCustomer}
       />
 
       {/* 고객 이력 다이얼로그 */}

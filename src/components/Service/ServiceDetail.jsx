@@ -3166,7 +3166,8 @@ function ServiceDetail() {
                     <TextField
                       fullWidth
                       multiline
-                      rows={5}
+                      minRows={5}
+                      maxRows={15}
                       name="symptom"
                       label="문의내용"
                       value={formData.symptom}
@@ -3183,7 +3184,8 @@ function ServiceDetail() {
                     <TextField
                       fullWidth
                       multiline
-                      rows={5}
+                      minRows={5}
+                      maxRows={15}
                       name="solution"
                       label="처리내역"
                       value={formData.solution}
