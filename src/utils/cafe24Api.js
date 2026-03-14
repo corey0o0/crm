@@ -4,6 +4,7 @@
  */
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001';
+console.log('[카페24 API] 사용 중인 백엔드 URL:', BACKEND_URL);
 
 /**
  * 카페24 OAuth 인증 URL 생성 및 팝업 창 열기
