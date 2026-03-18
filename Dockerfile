@@ -1,4 +1,4 @@
-FROM node:18-slim
+FROM node:22-slim
 
 # 캐시 버스터 (강제 리빌드용)
 ARG CACHEBUST=20260313
