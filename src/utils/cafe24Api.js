@@ -7,6 +7,20 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001'
 console.log('[카페24 API] 사용 중인 백엔드 URL:', BACKEND_URL);
 
 /**
+ * 카페24 프론트엔드 설정 가져오기 (서버 .env에서)
+ */
+export async function getCafe24Config() {
+  try {
+    const resp = await fetch(`${BACKEND_URL}/api/cafe24/config`);
+    if (!resp.ok) return { mall_id: '', client_id: '' };
+    return resp.json();
+  } catch (error) {
+    console.error('Failed to load Cafe24 Config', error);
+    return { mall_id: '', client_id: '' };
+  }
+}
+
+/**
  * 카페24 OAuth 인증 URL 생성 및 팝업 창 열기
  */
 export function openCafe24AuthPopup({ mallId, clientId, redirectUri, scopes }) {
@@ -36,15 +50,12 @@ export function openCafe24AuthPopup({ mallId, clientId, redirectUri, scopes }) {
 /**
  * OAuth 인증 코드로 액세스 토큰 교환 (백엔드 프록시 사용)
  */
-export async function exchangeCafe24Code({ code, mallId, clientId, clientSecret, redirectUri }) {
+export async function exchangeCafe24Code({ code, redirectUri }) {
   const resp = await fetch(`${BACKEND_URL}/api/cafe24/auth/callback`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       code,
-      mall_id: mallId,
-      client_id: clientId,
-      client_secret: clientSecret,
       redirect_uri: redirectUri
     })
   });

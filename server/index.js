@@ -269,17 +269,42 @@ const supabaseAdmin = createClient(
 );
 
 /**
- * 카페24 설정을 DB에서 가져오기
+ * 카페24 프론트엔드 설정 제공
+ */
+app.get('/api/cafe24/config', (req, res) => {
+  res.json({
+    mall_id: process.env.CAFE24_MALL_ID || '',
+    client_id: process.env.CAFE24_CLIENT_ID || ''
+  });
+});
+
+/**
+ * 환경 변수(.env) 자동 갱신 함수
+ */
+function updateEnvFile(key, value) {
+  const envPath = path.join(__dirname, '.env');
+  let envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : '';
+  const regex = new RegExp(`^${key}=.*`, 'm');
+  if (regex.test(envContent)) {
+    envContent = envContent.replace(regex, `${key}=${value}`);
+  } else {
+    envContent += `\n${key}=${value}`;
+  }
+  fs.writeFileSync(envPath, envContent);
+  process.env[key] = value;
+}
+
+/**
+ * 카페24 환경 변수 기반 설정 가져오기
  */
 async function getCafe24Settings() {
-  const { data, error } = await supabaseAdmin
-    .from('cafe24_settings')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
-  if (error) throw new Error('카페24 설정을 불러올 수 없습니다.');
-  return data;
+  return {
+    mall_id: process.env.CAFE24_MALL_ID,
+    access_token: process.env.CAFE24_ACCESS_TOKEN,
+    refresh_token: process.env.CAFE24_REFRESH_TOKEN,
+    token_expires_at: process.env.CAFE24_TOKEN_EXPIRES_AT,
+    board_no: process.env.CAFE24_BOARD_NO || 1
+  };
 }
 
 /**
@@ -287,11 +312,11 @@ async function getCafe24Settings() {
  */
 async function refreshCafe24Token(settings) {
   const credentials = Buffer.from(
-    `${settings.client_id}:${settings.client_secret_encrypted}`
+    `${process.env.CAFE24_CLIENT_ID}:${process.env.CAFE24_CLIENT_SECRET}`
   ).toString('base64');
 
   const resp = await axios.post(
-    `https://${settings.mall_id}.cafe24api.com/api/v2/oauth/token`,
+    `https://${process.env.CAFE24_MALL_ID}.cafe24api.com/api/v2/oauth/token`,
     `grant_type=refresh_token&refresh_token=${settings.refresh_token}`,
     {
       headers: {
@@ -304,17 +329,12 @@ async function refreshCafe24Token(settings) {
   const { access_token, refresh_token, expires_in } = resp.data;
   const expiresAt = new Date(Date.now() + expires_in * 1000).toISOString();
 
-  // DB 갱신
-  await supabaseAdmin
-    .from('cafe24_settings')
-    .update({
-      access_token,
-      refresh_token,
-      token_expires_at: expiresAt,
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', settings.id);
+  // .env 파일과 메모리에 동시 갱신
+  updateEnvFile('CAFE24_ACCESS_TOKEN', access_token);
+  updateEnvFile('CAFE24_REFRESH_TOKEN', refresh_token);
+  updateEnvFile('CAFE24_TOKEN_EXPIRES_AT', expiresAt);
 
+  console.log('[Cafe24] 토큰 로컬 .env 에 갱신 및 저장 완료');
   return { ...settings, access_token, refresh_token, token_expires_at: expiresAt };
 }
 
@@ -340,9 +360,13 @@ async function getValidToken(settings) {
 // OAuth 인증 코드 → 액세스 토큰 교환
 app.post('/api/cafe24/auth/callback', async (req, res) => {
   try {
-    const { code, mall_id, client_id, client_secret, redirect_uri } = req.body;
+    const { code, redirect_uri } = req.body;
+    const mall_id = process.env.CAFE24_MALL_ID;
+    const client_id = process.env.CAFE24_CLIENT_ID;
+    const client_secret = process.env.CAFE24_CLIENT_SECRET;
+
     if (!code || !mall_id || !client_id || !client_secret) {
-      return res.status(400).json({ error: '필수 파라미터가 누락되었습니다.' });
+      return res.status(400).json({ error: '필수 파라미터가 누락되었습니다. (서버 환경 변수 확인 필요)' });
     }
 
     const credentials = Buffer.from(`${client_id}:${client_secret}`).toString('base64');
@@ -360,37 +384,12 @@ app.post('/api/cafe24/auth/callback', async (req, res) => {
     const { access_token, refresh_token, expires_in } = resp.data;
     const expiresAt = new Date(Date.now() + expires_in * 1000).toISOString();
 
-    // 기존 설정이 있으면 업데이트, 없으면 삽입
-    const { data: existing } = await supabaseAdmin
-      .from('cafe24_settings')
-      .select('id')
-      .eq('mall_id', mall_id)
-      .single();
+    // DB가 아닌 .env 파일에 갱신 내역 덮어쓰기 저장
+    updateEnvFile('CAFE24_ACCESS_TOKEN', access_token);
+    updateEnvFile('CAFE24_REFRESH_TOKEN', refresh_token);
+    updateEnvFile('CAFE24_TOKEN_EXPIRES_AT', expiresAt);
 
-    if (existing?.id) {
-      await supabaseAdmin
-        .from('cafe24_settings')
-        .update({
-          client_id,
-          client_secret_encrypted: client_secret,
-          access_token,
-          refresh_token,
-          token_expires_at: expiresAt,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', existing.id);
-    } else {
-      await supabaseAdmin
-        .from('cafe24_settings')
-        .insert({
-          mall_id,
-          client_id,
-          client_secret_encrypted: client_secret,
-          access_token,
-          refresh_token,
-          token_expires_at: expiresAt
-        });
-    }
+    console.log('[Cafe24] 최초 인증 토큰이 .env 에 성공적으로 저장되었습니다.');
 
     res.json({ success: true, message: '카페24 연동이 완료되었습니다.' });
   } catch (error) {
@@ -406,7 +405,7 @@ app.get('/api/cafe24/boards', async (req, res) => {
     const token = await getValidToken(settings);
 
     const resp = await axios.get(
-      `https://${settings.mall_id}.cafe24api.com/api/v2/admin/boards`,
+      `https://${process.env.CAFE24_MALL_ID}.cafe24api.com/api/v2/admin/boards`,
       {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -435,7 +434,7 @@ app.get('/api/cafe24/boards/:boardNo/articles', async (req, res) => {
     if (start_no) params.append('start_no', start_no);
 
     const resp = await axios.get(
-      `https://${settings.mall_id}.cafe24api.com/api/v2/admin/boards/${boardNo}/articles?${params}`,
+      `https://${process.env.CAFE24_MALL_ID}.cafe24api.com/api/v2/admin/boards/${boardNo}/articles?${params}`,
       {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -466,7 +465,7 @@ app.post('/api/cafe24/sync', async (req, res) => {
 
     // 마지막 동기화 이후 게시글 가져오기 (최대 100개)
     const resp = await axios.get(
-      `https://${settings.mall_id}.cafe24api.com/api/v2/admin/boards/${boardNo}/articles?limit=100`,
+      `https://${process.env.CAFE24_MALL_ID}.cafe24api.com/api/v2/admin/boards/${boardNo}/articles?limit=100`,
       {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -494,7 +493,7 @@ app.post('/api/cafe24/sync', async (req, res) => {
           cafe24_board_no: parseInt(boardNo),
           cafe24_writer_name: article.writer?.name || null,
           cafe24_writer_email: article.writer?.email || null,
-          cafe24_url: `https://${settings.mall_id}.cafe24.com/board/${boardNo}/article/${article.article_no}`,
+          cafe24_url: `https://${process.env.CAFE24_MALL_ID}.cafe24.com/board/${boardNo}/article/${article.article_no}`,
           synced_at: new Date().toISOString(),
           created_at: article.created_date || new Date().toISOString()
         }, {
@@ -510,11 +509,8 @@ app.post('/api/cafe24/sync', async (req, res) => {
       }
     }
 
-    // 마지막 동기화 시간 업데이트
-    await supabaseAdmin
-      .from('cafe24_settings')
-      .update({ last_synced_at: new Date().toISOString() })
-      .eq('id', settings.id);
+    // 마지막 동기화 시간 업데이트 (현재 환경변수에서는 무시)
+    // .env로 변경되면서 관리 생략 (굳이 시간 저장 안해도 동작함)
 
     res.json({
       success: true,
@@ -532,27 +528,17 @@ app.post('/api/cafe24/sync', async (req, res) => {
 // 카페24 연동 상태 확인
 app.get('/api/cafe24/status', async (req, res) => {
   try {
-    const { data, error } = await supabaseAdmin
-      .from('cafe24_settings')
-      .select('mall_id, board_no, last_synced_at, token_expires_at, access_token')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (error || !data) {
-      return res.json({ connected: false });
-    }
-
-    const isConnected = !!data.access_token;
-    const tokenExpired = data.token_expires_at
-      ? new Date(data.token_expires_at) < new Date()
+    const settings = await getCafe24Settings();
+    const isConnected = !!settings.access_token;
+    const tokenExpired = settings.token_expires_at
+      ? new Date(settings.token_expires_at) < new Date()
       : true;
 
     res.json({
       connected: isConnected && !tokenExpired,
-      mall_id: data.mall_id,
-      board_no: data.board_no,
-      last_synced_at: data.last_synced_at,
+      mall_id: process.env.CAFE24_MALL_ID,
+      board_no: settings.board_no,
+      last_synced_at: null,
       token_expired: tokenExpired
     });
   } catch (error) {
@@ -573,7 +559,7 @@ app.post('/api/cafe24/boards/:boardNo/articles/:articleNo/comments', async (req,
     }
 
     const resp = await axios.post(
-      `https://${settings.mall_id}.cafe24api.com/api/v2/admin/boards/${boardNo}/articles/${articleNo}/comments`,
+      `https://${process.env.CAFE24_MALL_ID}.cafe24api.com/api/v2/admin/boards/${boardNo}/articles/${articleNo}/comments`,
       { comment: { content } },
       {
         headers: {
@@ -588,6 +574,25 @@ app.post('/api/cafe24/boards/:boardNo/articles/:articleNo/comments', async (req,
   } catch (error) {
     console.error('[Cafe24] 댓글 작성 오류:', error?.response?.data || error.message);
     res.status(500).json({ error: error?.response?.data?.errors?.[0]?.message || error.message });
+  }
+});
+
+// =============================================
+// 이카운트 ERP 세션 연동 및 테스트 라우트
+// =============================================
+const ecountService = require('./ecountService');
+
+app.get('/api/ecount/status', async (req, res) => {
+  try {
+    const session = await ecountService.getValidEcountSession();
+    if (session) {
+      res.json({ connected: true, session_id: session.SESSION_ID.substring(0, 10) + '...' });
+    } else {
+      res.json({ connected: false });
+    }
+  } catch (error) {
+    console.error('[ECount GET /api/ecount/status 오류]', error.message);
+    res.status(500).json({ connected: false, error: '이카운트 연동에 실패했습니다. (아이디/API Key를 확인해주세요)' });
   }
 });
 

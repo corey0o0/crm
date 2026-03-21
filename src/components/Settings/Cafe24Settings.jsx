@@ -14,8 +14,7 @@ import {
   OpenInNew as OpenInNewIcon,
   Info as InfoIcon
 } from '@mui/icons-material';
-import { supabase } from '../../lib/supabaseClient';
-import { getCafe24Status, openCafe24AuthPopup, exchangeCafe24Code, syncCafe24Posts, getCafe24Boards } from '../../utils/cafe24Api';
+import { getCafe24Status, openCafe24AuthPopup, exchangeCafe24Code, syncCafe24Posts, getCafe24Boards, getCafe24Config } from '../../utils/cafe24Api';
 
 const REDIRECT_URI = `${window.location.origin}/cafe24-callback.html`;
 
@@ -27,9 +26,6 @@ function Cafe24Settings() {
   const [boards, setBoards] = useState([]);
 
   // 폼 상태
-  const [mallId, setMallId] = useState('');
-  const [clientId, setClientId] = useState('');
-  const [clientSecret, setClientSecret] = useState('');
   const [boardNo, setBoardNo] = useState(1);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState(null);
@@ -48,9 +44,6 @@ function Cafe24Settings() {
         .single();
 
       if (data) {
-        setMallId(data.mall_id || '');
-        setClientId(data.client_id || '');
-        setClientSecret(data.client_secret_encrypted || '');
         setBoardNo(data.board_no || 1);
       }
 
@@ -67,27 +60,26 @@ function Cafe24Settings() {
     loadSettings();
   }, [loadSettings]);
 
-  // 설정 저장 (토큰 없이 mall_id, client_id만)
+  // 설정 저장 (보드 번호만)
   const handleSaveSettings = async () => {
-    if (!mallId.trim() || !clientId.trim() || !clientSecret.trim()) {
-      setSaveMsg({ type: 'error', text: '쇼핑몰 아이디, Client ID, Secret Key를 모두 입력해주세요.' });
-      return;
-    }
     setSaving(true);
     setSaveMsg(null);
     try {
+      const config = await getCafe24Config();
+      if (!config.mall_id) {
+        throw new Error('서버 .env에 CAFE24_MALL_ID 가 설정되어 있지 않습니다.');
+      }
+      
       const { data: existing } = await supabase
         .from('cafe24_settings')
         .select('id')
-        .eq('mall_id', mallId.trim())
+        .eq('mall_id', config.mall_id)
         .single();
 
       if (existing?.id) {
         await supabase
           .from('cafe24_settings')
           .update({
-            client_id: clientId.trim(),
-            client_secret_encrypted: clientSecret.trim(),
             board_no: boardNo,
           })
           .eq('id', existing.id);
@@ -95,9 +87,7 @@ function Cafe24Settings() {
         await supabase
           .from('cafe24_settings')
           .insert({
-            mall_id: mallId.trim(),
-            client_id: clientId.trim(),
-            client_secret_encrypted: clientSecret.trim(),
+            mall_id: config.mall_id,
             board_no: boardNo,
           });
       }
@@ -111,18 +101,20 @@ function Cafe24Settings() {
   };
 
   // 카페24 OAuth 연동 팝업
-  const handleConnect = () => {
-    if (!mallId.trim() || !clientId.trim() || !clientSecret.trim()) {
-      setConnectMsg({ type: 'error', text: '먼저 설정을 저장해주세요.' });
-      return;
-    }
-
+  const handleConnect = async () => {
     setConnecting(true);
     setConnectMsg(null);
 
+    const config = await getCafe24Config();
+    if (!config.mall_id || !config.client_id) {
+      setConnectMsg({ type: 'error', text: '서버 .env에 카페24 설정(CAFE24_MALL_ID, CAFE24_CLIENT_ID)이 누락되어 있습니다.' });
+      setConnecting(false);
+      return;
+    }
+
     const popup = openCafe24AuthPopup({
-      mallId: mallId.trim(),
-      clientId: clientId.trim(),
+      mallId: config.mall_id,
+      clientId: config.client_id,
       redirectUri: REDIRECT_URI
     });
 
@@ -133,9 +125,6 @@ function Cafe24Settings() {
         try {
           await exchangeCafe24Code({
             code: event.data.code,
-            mallId: mallId.trim(),
-            clientId: clientId.trim(),
-            clientSecret: clientSecret.trim(),
             redirectUri: REDIRECT_URI
           });
           setConnectMsg({ type: 'success', text: '카페24 연동 성공! 이제 게시글을 동기화할 수 있습니다.' });
@@ -238,41 +227,13 @@ function Cafe24Settings() {
 
         <Alert severity="info" sx={{ mb: 2 }}>
           <Typography variant="body2">
-            <b>카페24 개발자센터</b>에서 앱을 생성하고 Client ID와 Secret Key를 발급받으세요.
-            {' '}<Button size="small" endIcon={<OpenInNewIcon fontSize="small" />}
-              onClick={() => window.open('https://developers.cafe24.com', '_blank')}>
-              개발자센터 바로가기
-            </Button>
-          </Typography>
-          <Typography variant="body2" sx={{ mt: 0.5 }}>
-            앱 등록 시 Redirect URI에 <code>{REDIRECT_URI}</code> 를 추가해주세요.
+            <b>카페24 연동 보안 설정 알림:</b><br />
+            현재 카페24 앱 자격 증명(Client ID, Secret Key, Mall ID)은 서버의 안전한 <code>.env</code> 파일로 관리되고 있습니다.<br />
+            하단의 <b>카페24 연결하기</b> 버튼을 클릭하여 본인 쇼핑몰 아이디로 로그인 해 권한을 승인해 주시면 연동이 즉시 완료됩니다.
           </Typography>
         </Alert>
 
         <Stack spacing={2}>
-          <TextField
-            label="카페24 쇼핑몰 아이디"
-            placeholder="예: myshop (myshop.cafe24.com에서 myshop)"
-            value={mallId}
-            onChange={(e) => setMallId(e.target.value)}
-            fullWidth
-            size="small"
-          />
-          <TextField
-            label="Client ID"
-            value={clientId}
-            onChange={(e) => setClientId(e.target.value)}
-            fullWidth
-            size="small"
-          />
-          <TextField
-            label="Secret Key"
-            type="password"
-            value={clientSecret}
-            onChange={(e) => setClientSecret(e.target.value)}
-            fullWidth
-            size="small"
-          />
           <TextField
             label="동기화할 게시판 번호"
             type="number"
