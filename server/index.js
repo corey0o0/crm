@@ -6,7 +6,7 @@ const path = require('path');
 const pdfParse = require('pdf-parse');
 const CloudmersiveConvertApiClient = require('cloudmersive-convert-api-client');
 const { searchProductOnWebsite, processOrderOnWebsite } = require('./playwrightOrderService');
-require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 // pdf-poppler는 Linux에서 지원 안 됨 → 조건부 로드
 let pdfPoppler = null;
