@@ -12,11 +12,13 @@ console.log('[카페24 API] 사용 중인 백엔드 URL:', BACKEND_URL);
 export async function getCafe24Config() {
   try {
     const resp = await fetch(`${BACKEND_URL}/api/cafe24/config`);
-    if (!resp.ok) return { mall_id: '', client_id: '' };
+    if (!resp.ok) {
+      throw new Error(`서버에서 설정을 불러올 수 없습니다. Status: ${resp.status}`);
+    }
     return resp.json();
   } catch (error) {
     console.error('Failed to load Cafe24 Config', error);
-    return { mall_id: '', client_id: '' };
+    throw new Error(`백엔드 서버(${BACKEND_URL})에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.`);
   }
 }
 
