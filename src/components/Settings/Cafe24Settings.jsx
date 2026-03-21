@@ -36,15 +36,9 @@ function Cafe24Settings() {
   const loadSettings = useCallback(async () => {
     setLoadingStatus(true);
     try {
-      const { data } = await supabase
-        .from('cafe24_settings')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (data) {
-        setBoardNo(data.board_no || 1);
+      const storedBoardNo = localStorage.getItem('cafe24_board_no');
+      if (storedBoardNo) {
+        setBoardNo(Number(storedBoardNo));
       }
 
       const s = await getCafe24Status();
@@ -60,39 +54,13 @@ function Cafe24Settings() {
     loadSettings();
   }, [loadSettings]);
 
-  // 설정 저장 (보드 번호만)
+  // 설정 저장 (보드 번호만 로컬에 저장)
   const handleSaveSettings = async () => {
     setSaving(true);
     setSaveMsg(null);
     try {
-      const config = await getCafe24Config();
-      if (!config.mall_id) {
-        throw new Error('서버 .env에 CAFE24_MALL_ID 가 설정되어 있지 않습니다.');
-      }
-      
-      const { data: existing } = await supabase
-        .from('cafe24_settings')
-        .select('id')
-        .eq('mall_id', config.mall_id)
-        .single();
-
-      if (existing?.id) {
-        await supabase
-          .from('cafe24_settings')
-          .update({
-            board_no: boardNo,
-          })
-          .eq('id', existing.id);
-      } else {
-        await supabase
-          .from('cafe24_settings')
-          .insert({
-            mall_id: config.mall_id,
-            board_no: boardNo,
-          });
-      }
-
-      setSaveMsg({ type: 'success', text: '설정이 저장되었습니다.' });
+      localStorage.setItem('cafe24_board_no', boardNo);
+      setSaveMsg({ type: 'success', text: '게시판 번호가 기기에 저장되었습니다.' });
     } catch (e) {
       setSaveMsg({ type: 'error', text: `저장 실패: ${e.message}` });
     } finally {
