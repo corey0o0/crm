@@ -326,8 +326,8 @@ async function refreshCafe24Token(settings) {
     }
   );
 
-  const { access_token, refresh_token, expires_in } = resp.data;
-  const expiresAt = new Date(Date.now() + expires_in * 1000).toISOString();
+  const { access_token, refresh_token, expires_at } = resp.data;
+  const expiresAt = new Date(expires_at).toISOString();
 
   // .env 파일과 메모리에 동시 갱신
   updateEnvFile('CAFE24_ACCESS_TOKEN', access_token);
@@ -381,8 +381,8 @@ app.post('/api/cafe24/auth/callback', async (req, res) => {
       }
     );
 
-    const { access_token, refresh_token, expires_in } = resp.data;
-    const expiresAt = new Date(Date.now() + expires_in * 1000).toISOString();
+    const { access_token, refresh_token, expires_at } = resp.data;
+    const expiresAt = new Date(expires_at).toISOString();
 
     // DB가 아닌 .env 파일에 갱신 내역 덮어쓰기 저장
     updateEnvFile('CAFE24_ACCESS_TOKEN', access_token);
