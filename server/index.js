@@ -459,65 +459,74 @@ app.post('/api/cafe24/sync', async (req, res) => {
   try {
     const settings = await getCafe24Settings();
     const token = await getValidToken(settings);
-    const boardNo = req.body.board_no || settings.board_no || 1;
-    
-    console.log(`[Cafe24] 게시판 ${boardNo} 동기화 시작...`);
+    const rawBoardNo = req.body.board_no || settings.board_no || '1';
+    const boardNos = String(rawBoardNo)
+      .split(',')
+      .map(n => parseInt(n.trim(), 10))
+      .filter(n => !isNaN(n));
 
-    // 마지막 동기화 이후 게시글 가져오기 (최대 100개)
-    const resp = await axios.get(
-      `https://${process.env.CAFE24_MALL_ID}.cafe24api.com/api/v2/admin/boards/${boardNo}/articles?limit=100`,
-      {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'X-Cafe24-Api-Version': '2024-06-01'
+    if (boardNos.length === 0) {
+      return res.status(400).json({ error: '유효한 게시판 번호가 없습니다.' });
+    }
+
+    let totalInserted = 0;
+    let totalSkipped = 0;
+    let totalFetched = 0;
+
+    for (const boardNo of boardNos) {
+      console.log(`[Cafe24] 게시판 ${boardNo} 동기화 시작...`);
+
+      // 마지막 동기화 이후 게시글 가져오기 (최대 100개)
+      const resp = await axios.get(
+        `https://${process.env.CAFE24_MALL_ID}.cafe24api.com/api/v2/admin/boards/${boardNo}/articles?limit=100`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'X-Cafe24-Api-Version': '2024-06-01'
+          }
         }
-      }
-    );
+      );
 
-    const articles = resp.data.articles || [];
-    console.log(`[Cafe24] ${articles.length}개 게시글 가져옴`);
+      const articles = resp.data.articles || [];
+      console.log(`[Cafe24] 게시판 ${boardNo}에서 ${articles.length}개 게시글 가져옴`);
+      totalFetched += articles.length;
 
-    let inserted = 0;
-    let skipped = 0;
+      for (const article of articles) {
+        const { error } = await supabaseAdmin
+          .from('board_posts')
+          .upsert({
+            title: article.title,
+            content: article.content || article.content_text || '',
+            author_email: article.writer?.email || null,
+            source: 'cafe24',
+            cafe24_article_no: article.article_no,
+            cafe24_board_no: boardNo,
+            cafe24_writer_name: article.writer?.name || null,
+            cafe24_writer_email: article.writer?.email || null,
+            cafe24_url: `https://${process.env.CAFE24_MALL_ID}.cafe24.com/board/${boardNo}/article/${article.article_no}`,
+            synced_at: new Date().toISOString(),
+            created_at: article.created_date || new Date().toISOString()
+          }, {
+            onConflict: 'cafe24_board_no,cafe24_article_no',
+            ignoreDuplicates: false
+          });
 
-    for (const article of articles) {
-      const { error } = await supabaseAdmin
-        .from('board_posts')
-        .upsert({
-          title: article.title,
-          content: article.content || article.content_text || '',
-          author_email: article.writer?.email || null,
-          source: 'cafe24',
-          cafe24_article_no: article.article_no,
-          cafe24_board_no: parseInt(boardNo),
-          cafe24_writer_name: article.writer?.name || null,
-          cafe24_writer_email: article.writer?.email || null,
-          cafe24_url: `https://${process.env.CAFE24_MALL_ID}.cafe24.com/board/${boardNo}/article/${article.article_no}`,
-          synced_at: new Date().toISOString(),
-          created_at: article.created_date || new Date().toISOString()
-        }, {
-          onConflict: 'cafe24_board_no,cafe24_article_no',
-          ignoreDuplicates: false
-        });
-
-      if (error) {
-        console.error('[Cafe24] 게시글 저장 오류:', error);
-        skipped++;
-      } else {
-        inserted++;
+        if (error) {
+          console.error(`[Cafe24] 게시판 ${boardNo} 게시글 저장 오류:`, error);
+          totalSkipped++;
+        } else {
+          totalInserted++;
+        }
       }
     }
 
-    // 마지막 동기화 시간 업데이트 (현재 환경변수에서는 무시)
-    // .env로 변경되면서 관리 생략 (굳이 시간 저장 안해도 동작함)
-
     res.json({
       success: true,
-      message: `동기화 완료: ${inserted}개 저장, ${skipped}개 오류`,
-      inserted,
-      skipped,
-      total: articles.length
+      message: `동기화 완료: ${boardNos.length}개의 게시판에서 총 ${totalInserted}개 저장, ${totalSkipped}개 오류`,
+      inserted: totalInserted,
+      skipped: totalSkipped,
+      total: totalFetched
     });
   } catch (error) {
     console.error('[Cafe24] 동기화 오류:', error?.response?.data || error.message);

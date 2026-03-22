@@ -26,7 +26,7 @@ function Cafe24Settings() {
   const [boards, setBoards] = useState([]);
 
   // 폼 상태
-  const [boardNo, setBoardNo] = useState(1);
+  const [boardNo, setBoardNo] = useState('1');
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState(null);
   const [connecting, setConnecting] = useState(false);
@@ -38,7 +38,7 @@ function Cafe24Settings() {
     try {
       const storedBoardNo = localStorage.getItem('cafe24_board_no');
       if (storedBoardNo) {
-        setBoardNo(Number(storedBoardNo));
+        setBoardNo(storedBoardNo);
       }
 
       const s = await getCafe24Status();
@@ -203,12 +203,11 @@ function Cafe24Settings() {
 
         <Stack spacing={2}>
           <TextField
-            label="동기화할 게시판 번호"
-            type="number"
+            label="동기화할 게시판 번호 (쉼표로 구분)"
+            type="text"
             value={boardNo}
-            onChange={(e) => setBoardNo(Number(e.target.value))}
-            helperText="카페24 관리자 > 게시판 관리에서 번호 확인"
-            inputProps={{ min: 1 }}
+            onChange={(e) => setBoardNo(e.target.value)}
+            helperText="여러 게시판 조회 시 쉼표로 구분 (예: 6,9)"
             fullWidth
             size="small"
           />
