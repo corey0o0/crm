@@ -476,9 +476,9 @@ app.post('/api/cafe24/sync', async (req, res) => {
     for (const boardNo of boardNos) {
       console.log(`[Cafe24] 게시판 ${boardNo} 동기화 시작...`);
 
-      // 마지막 동기화 이후 게시글 가져오기 (최대 100개)
+      // 마지막 동기화 이후 게시글 가져오기 (최대 50개)
       const resp = await axios.get(
-        `https://${process.env.CAFE24_MALL_ID}.cafe24api.com/api/v2/admin/boards/${boardNo}/articles?limit=100`,
+        `https://${process.env.CAFE24_MALL_ID}.cafe24api.com/api/v2/admin/boards/${boardNo}/articles?limit=50`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -529,8 +529,10 @@ app.post('/api/cafe24/sync', async (req, res) => {
       total: totalFetched
     });
   } catch (error) {
-    console.error('[Cafe24] 동기화 오류:', error?.response?.data || error.message);
-    res.status(500).json({ error: error?.response?.data?.errors?.[0]?.message || error.message });
+    const cafe24Error = error?.response?.data?.error?.message || error?.response?.data?.errors?.[0]?.message;
+    const finalErrorMsg = cafe24Error ? `Cafe24 에러: ${cafe24Error}` : error.message;
+    console.error('[Cafe24] 동기화 오류 상세:', error?.response?.data || error.message);
+    res.status(500).json({ error: finalErrorMsg });
   }
 });
 
