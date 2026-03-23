@@ -645,12 +645,17 @@ app.get('/api/ecount/status', async (req, res) => {
 app.get('/api/ecount/products', async (req, res) => {
   try {
     const ecountService = require('./ecountService');
-    const response = await ecountService.executeEcountApi('/OAPI/V2/Product/GetListProduct', {
-      PROD_CD: "" // 빈값 전송시 전체(기본 page limit) 내역 반환
-    });
+    const response = await ecountService.executeEcountApi('/OAPI/V2/InventoryBasic/GetBasicProductsList', {});
     
-    // Ecount API 응답에서 실 상품 목록 추출
-    const products = response.Data?.Result || response.Data || [];
+    // Ecount API 응답에서 실 상품 목록 추출 (Result가 String 배열일 경우 파싱)
+    let products = [];
+    if (response.Data && response.Data.Result) {
+      if (typeof response.Data.Result === 'string') {
+        products = JSON.parse(response.Data.Result);
+      } else {
+        products = response.Data.Result;
+      }
+    }
     res.json({ success: true, products });
   } catch (error) {
     console.error('[대시보드] 이카운트 상품 조회 실패:', error.message);

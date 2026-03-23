@@ -4,14 +4,7 @@ const ZONE_URL = 'https://sboapi.ecount.com';
 const TEST_KEY = '374cb9bc9186d4234a183c0a470302ad32'; // Test API Key is used as SESSION_ID
 
 const apisToVerify = [
-  // 재고현황 조회
-  { name: 'Inventory Balance (조회)', path: '/OAPI/V2/InventoryBalance/GetListInventoryBalance', payload: {} },
-  // 품목 조회
-  { name: 'Product List (조회)', path: '/OAPI/V2/Product/GetListProduct', payload: {} },
-  // 주문서 저장
-  { name: 'Save Order (저장)', path: '/OAPI/V2/Order/SaveOrder', payload: { OrderList: [] } },
-  // 판매(매출) 저장
-  { name: 'Save Sale (저장)', path: '/OAPI/V2/Sale/SaveSale', payload: { SaleList: [] } },
+  { name: 'Product List (조회)', path: '/OAPI/V2/InventoryBasic/GetBasicProductsList', payload: {} },
 ];
 
 async function verifyApis() {

@@ -69,9 +69,9 @@ async function loginToEcount() {
       console.log(`[ECount] 정식 SESSION_ID 발급 완료`);
       return { SESSION_ID: sessionId, zoneUrl, isTest: false };
     } else if (data && String(data.Status) === '200' && data.Data && String(data.Data.Code) === '204') {
-      // 테스트용 인증키인 경우
+      // 테스트용 인증키인 경우 (테스트 키 자체가 세션 ID로 쓰이며, sboapi 도메인을 사용해야 함)
       console.log(`[ECount] 테스트용 인증키 정상 확인됨`);
-      return { SESSION_ID: 'TEST_KEY_VERIFIED', zoneUrl, isTest: true, message: data.Data.Message };
+      return { SESSION_ID: ECOUNT_API_KEY, zoneUrl: zoneUrl.replace('https://oapi', 'https://sboapi'), isTest: true, message: data.Data.Message };
     } else {
       throw new Error(`Login API 인증 실패: ${JSON.stringify(data.Errors || data)}`);
     }
