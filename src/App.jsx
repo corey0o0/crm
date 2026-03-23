@@ -49,6 +49,7 @@ import BoardEdit from './pages/board/BoardEdit';
 import PendingOrderList from './pages/pendingOrders/PendingOrderList';
 import PendingOrderDetail from './pages/pendingOrders/PendingOrderDetail';
 import Cafe24Settings from './components/Settings/Cafe24Settings';
+import ProductComparisonDashboard from './components/Settings/ProductComparisonDashboard';
 
 function App() {
   const [session, setSession] = useState(null);
@@ -208,6 +209,11 @@ function App() {
               {/* 카페24 연동 설정 */}
               <Route path="settings/cafe24" element={
                 <Cafe24Settings />
+              } />
+              
+              {/* 이카운트 상품 동기화 및 비교 대시보드 */}
+              <Route path="settings/product-sync" element={
+                <ProductComparisonDashboard />
               } />
 
               {/* 게시판 */}

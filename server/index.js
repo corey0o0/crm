@@ -641,6 +641,46 @@ app.get('/api/ecount/status', async (req, res) => {
   }
 });
 
+// --- 제품 비교 대시보드 API (Ecount) ---
+app.get('/api/ecount/products', async (req, res) => {
+  try {
+    const ecountService = require('./ecountService');
+    const response = await ecountService.executeEcountApi('/OAPI/V2/Product/GetListProduct', {
+      PROD_CD: "" // 빈값 전송시 전체(기본 page limit) 내역 반환
+    });
+    
+    // Ecount API 응답에서 실 상품 목록 추출
+    const products = response.Data?.Result || response.Data || [];
+    res.json({ success: true, products });
+  } catch (error) {
+    console.error('[대시보드] 이카운트 상품 조회 실패:', error.message);
+    res.status(500).json({ success: false, error: '이카운트 제품 목록을 불러올 수 없습니다.' });
+  }
+});
+
+// --- 제품 비교 대시보드 API (Cafe24) ---
+app.get('/api/cafe24/products', async (req, res) => {
+  try {
+    const settings = await getCafe24Settings();
+    const token = await getValidToken(settings);
+    
+    const resp = await axios.get(
+      `https://${process.env.CAFE24_MALL_ID}.cafe24api.com/api/v2/admin/products?limit=100`,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'X-Cafe24-Api-Version': '2023-03-01'
+        }
+      }
+    );
+    res.json({ success: true, products: resp.data.products || [] });
+  } catch (error) {
+    console.error('[대시보드] 카페24 상품 조회 실패:', error?.response?.data || error.message);
+    res.status(500).json({ success: false, error: '카페24 제품 목록을 불러올 수 없습니다.' });
+  }
+});
+
 // 서버 시작
 app.listen(port, () => {
   console.log(`서버가 포트 ${port}에서 실행 중입니다.`);
