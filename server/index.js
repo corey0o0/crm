@@ -51,6 +51,40 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: '서버가 정상적으로 실행 중입니다.' });
 });
 
+// 텔레그램 프록시 엔드포인트 (보안 강화: 프론트엔드 토큰 노출 차단)
+app.post('/api/telegram/send', async (req, res) => {
+  try {
+    const botToken = process.env.TELEGRAM_BOT_TOKEN || process.env.REACT_APP_TELEGRAM_BOT_TOKEN;
+    const defaultChatId = process.env.TELEGRAM_CHAT_ID || process.env.REACT_APP_TELEGRAM_CHAT_ID;
+    
+    if (!botToken) {
+      return res.status(500).json({ success: false, error: '텔레그램 봇 토큰이 백엔드 서버에 설정되지 않았습니다.' });
+    }
+
+    const payload = {
+      chat_id: req.body.chat_id || defaultChatId,
+      ...req.body
+    };
+
+    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      console.error('[텔레그램 프록시] 전송 실패:', data);
+      return res.status(response.status).json(data);
+    }
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('[텔레그램 프록시] 서버 에러:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // 파일 업로드를 위한 multer 설정
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
