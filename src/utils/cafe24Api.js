@@ -35,7 +35,10 @@ export async function updateCafe24BoardNo(mall_id, board_no) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ board_no })
   });
-  if (!resp.ok) throw new Error('게시판 설정 저장 실패');
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error || '게시판 설정 저장 실패');
+  }
   return resp.json();
 }
 
