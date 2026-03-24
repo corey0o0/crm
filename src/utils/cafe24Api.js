@@ -28,7 +28,8 @@ export async function getCafe24Config() {
 export function openCafe24AuthPopup({ mallId, clientId, redirectUri, scopes }) {
   const scope = scopes || [
     'mall.read_community',
-    'mall.write_community'
+    'mall.write_community',
+    'mall.read_product'
   ].join(',');
 
   const authUrl = `https://${mallId}.cafe24api.com/api/v2/oauth/authorize`
