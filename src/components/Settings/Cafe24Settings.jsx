@@ -174,7 +174,7 @@ function Cafe24Settings() {
             </Typography>
             {status?.connected && (
               <Typography variant="body2" color="text.secondary">
-                쇼핑몰: <b>{status.mall_id}</b> · 게시판: <b>{status.board_no}번</b>
+                쇼핑몰: <b>{status.mall_id}</b> · 게시판: <b>{boardNo}번</b>
                 {status.last_synced_at && (
                   <> · 마지막 동기화: <b>{new Date(status.last_synced_at).toLocaleString('ko-KR')}</b></>
                 )}

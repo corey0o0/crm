@@ -528,24 +528,35 @@ app.post('/api/cafe24/sync', async (req, res) => {
       totalFetched += articles.length;
 
       for (const article of articles) {
-        const { error } = await supabaseAdmin
+        const payload = {
+          title: article.title,
+          content: article.content || article.content_text || '',
+          author_email: article.writer?.email || null,
+          source: 'cafe24',
+          cafe24_article_no: article.article_no,
+          cafe24_board_no: boardNo,
+          cafe24_writer_name: article.writer?.name || null,
+          cafe24_writer_email: article.writer?.email || null,
+          cafe24_url: `https://${process.env.CAFE24_MALL_ID}.cafe24.com/board/${boardNo}/article/${article.article_no}`,
+          synced_at: new Date().toISOString(),
+          created_at: article.created_date || new Date().toISOString()
+        };
+
+        const { data: existing } = await supabaseAdmin
           .from('board_posts')
-          .upsert({
-            title: article.title,
-            content: article.content || article.content_text || '',
-            author_email: article.writer?.email || null,
-            source: 'cafe24',
-            cafe24_article_no: article.article_no,
-            cafe24_board_no: boardNo,
-            cafe24_writer_name: article.writer?.name || null,
-            cafe24_writer_email: article.writer?.email || null,
-            cafe24_url: `https://${process.env.CAFE24_MALL_ID}.cafe24.com/board/${boardNo}/article/${article.article_no}`,
-            synced_at: new Date().toISOString(),
-            created_at: article.created_date || new Date().toISOString()
-          }, {
-            onConflict: 'cafe24_board_no,cafe24_article_no',
-            ignoreDuplicates: false
-          });
+          .select('id')
+          .eq('cafe24_board_no', boardNo)
+          .eq('cafe24_article_no', article.article_no)
+          .maybeSingle();
+
+        let error = null;
+        if (existing) {
+          const { error: updateErr } = await supabaseAdmin.from('board_posts').update(payload).eq('id', existing.id);
+          error = updateErr;
+        } else {
+          const { error: insertErr } = await supabaseAdmin.from('board_posts').insert(payload);
+          error = insertErr;
+        }
 
         if (error) {
           console.error(`[Cafe24] 게시판 ${boardNo} 게시글 저장 오류:`, error);
