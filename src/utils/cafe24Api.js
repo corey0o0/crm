@@ -1,32 +1,46 @@
 /**
- * 카페24 API 유틸리티
- * CRM 백엔드 프록시를 통해 카페24 API를 호출합니다
+ * 카페24 다중 몰 연동 API 유틸리티
  */
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001';
-console.log('[카페24 API] 사용 중인 백엔드 URL:', BACKEND_URL);
 
-/**
- * 카페24 프론트엔드 설정 가져오기 (서버 .env에서)
- */
-export async function getCafe24Config() {
-  try {
-    const resp = await fetch(`${BACKEND_URL}/api/cafe24/config`);
-    if (!resp.ok) {
-      throw new Error(`서버에서 설정을 불러올 수 없습니다. Status: ${resp.status}`);
-    }
-    return resp.json();
-  } catch (error) {
-    console.error('Failed to load Cafe24 Config', error);
-    throw new Error(`백엔드 서버(${BACKEND_URL})에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.`);
-  }
+export async function getCafe24Malls() {
+  const resp = await fetch(`${BACKEND_URL}/api/cafe24/malls`);
+  if (!resp.ok) return { success: false, malls: [] };
+  return resp.json();
 }
 
-/**
- * 카페24 OAuth 인증 URL 생성 및 팝업 창 열기
- */
-export function openCafe24AuthPopup({ mallId, clientId, redirectUri, scopes }) {
-  const scope = scopes || [
+export async function addCafe24Mall({ mall_id, client_id, client_secret }) {
+  const resp = await fetch(`${BACKEND_URL}/api/cafe24/malls`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mall_id, client_id, client_secret })
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error || '쇼핑몰 추가 실패');
+  }
+  return resp.json();
+}
+
+export async function deleteCafe24Mall(mall_id) {
+  const resp = await fetch(`${BACKEND_URL}/api/cafe24/malls/${mall_id}`, { method: 'DELETE' });
+  if (!resp.ok) throw new Error('쇼핑몰 삭제 실패');
+  return resp.json();
+}
+
+export async function updateCafe24BoardNo(mall_id, board_no) {
+  const resp = await fetch(`${BACKEND_URL}/api/cafe24/malls/${mall_id}/board`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ board_no })
+  });
+  if (!resp.ok) throw new Error('게시판 설정 저장 실패');
+  return resp.json();
+}
+
+export function openCafe24AuthPopup({ mallId, clientId, redirectUri }) {
+  const scope = [
     'mall.read_community',
     'mall.write_community',
     'mall.read_product'
@@ -43,52 +57,25 @@ export function openCafe24AuthPopup({ mallId, clientId, redirectUri, scopes }) {
   const left = window.screenLeft + (window.outerWidth - width) / 2;
   const top = window.screenTop + (window.outerHeight - height) / 2;
 
-  return window.open(
-    authUrl,
-    'cafe24_auth',
-    `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no`
-  );
+  return window.open(authUrl, 'cafe24_auth', `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no`);
 }
 
-/**
- * OAuth 인증 코드로 액세스 토큰 교환 (백엔드 프록시 사용)
- */
-export async function exchangeCafe24Code({ code, redirectUri }) {
+export async function exchangeCafe24Code({ code, redirectUri, mallId }) {
   const resp = await fetch(`${BACKEND_URL}/api/cafe24/auth/callback`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      code,
-      redirect_uri: redirectUri
-    })
+    body: JSON.stringify({ code, redirect_uri: redirectUri, mall_id: mallId })
   });
 
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
-    throw new Error(err.error || '카페24 인증에 실패했습니다.');
+    throw new Error(err.error || '인증 실패');
   }
-
   return resp.json();
 }
 
-/**
- * 카페24 연동 상태 확인
- */
-export async function getCafe24Status() {
-  try {
-    const resp = await fetch(`${BACKEND_URL}/api/cafe24/status`);
-    if (!resp.ok) return { connected: false };
-    return resp.json();
-  } catch {
-    return { connected: false };
-  }
-}
-
-/**
- * 카페24 게시판 목록 조회
- */
-export async function getCafe24Boards() {
-  const resp = await fetch(`${BACKEND_URL}/api/cafe24/boards`);
+export async function getCafe24Boards(mall_id) {
+  const resp = await fetch(`${BACKEND_URL}/api/cafe24/boards/${mall_id}`);
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
     throw new Error(err.error || '게시판 목록 조회 실패');
@@ -96,31 +83,23 @@ export async function getCafe24Boards() {
   return resp.json();
 }
 
-/**
- * 카페24 게시글 → CRM 동기화 실행
- * @param {number} boardNo - 동기화할 카페24 게시판 번호
- */
-export async function syncCafe24Posts(boardNo) {
-  const resp = await fetch(`${BACKEND_URL}/api/cafe24/sync`, {
+export async function syncCafe24Posts(mall_id, board_no) {
+  const resp = await fetch(`${BACKEND_URL}/api/cafe24/sync/${mall_id}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ board_no: boardNo })
+    body: JSON.stringify({ board_no })
   });
 
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
-    throw new Error(err.error || '동기화에 실패했습니다.');
+    throw new Error(err.error || '동기화 실패');
   }
-
   return resp.json();
 }
 
-/**
- * 카페24 게시글에 댓글 작성
- */
-export async function postCafe24Comment({ boardNo, articleNo, content }) {
+export async function postCafe24Comment({ mall_id, board_no, article_no, content }) {
   const resp = await fetch(
-    `${BACKEND_URL}/api/cafe24/boards/${boardNo}/articles/${articleNo}/comments`,
+    `${BACKEND_URL}/api/cafe24/boards/${mall_id}/${board_no}/articles/${article_no}/comments`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -130,8 +109,7 @@ export async function postCafe24Comment({ boardNo, articleNo, content }) {
 
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
-    throw new Error(err.error || '댓글 작성에 실패했습니다.');
+    throw new Error(err.error || '댓글 작성 실패');
   }
-
   return resp.json();
 }

@@ -1,271 +1,198 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  Box, Paper, Typography, TextField, Button, Alert, Stack, Divider,
-  CircularProgress, Chip, Switch, FormControlLabel, IconButton, Tooltip,
-  Select, MenuItem, FormControl, InputLabel
+  Box, Typography, Paper, Stack, Button, TextField, CircularProgress,
+  Alert, Divider, Chip, IconButton, Table, TableBody, TableCell, TableContainer, TableHead, TableRow
 } from '@mui/material';
-import {
-  CheckCircle as CheckCircleIcon,
-  Error as ErrorIcon,
-  Sync as SyncIcon,
-  Link as LinkIcon,
-  LinkOff as LinkOffIcon,
-  Refresh as RefreshIcon,
-  OpenInNew as OpenInNewIcon,
-  Info as InfoIcon
-} from '@mui/icons-material';
-import { getCafe24Status, openCafe24AuthPopup, exchangeCafe24Code, syncCafe24Posts, getCafe24Boards, getCafe24Config } from '../../utils/cafe24Api';
+import { Link as LinkIcon, Sync as SyncIcon, Delete as DeleteIcon, Save as SaveIcon, CheckCircle as CheckCircleIcon, Store as StoreIcon } from '@mui/icons-material';
+import { getCafe24Malls, addCafe24Mall, deleteCafe24Mall, openCafe24AuthPopup, exchangeCafe24Code, syncCafe24Posts, updateCafe24BoardNo } from '../../utils/cafe24Api';
 
-const REDIRECT_URI = `${window.location.origin}/cafe24-callback.html`;
+const REDIRECT_URI = window.location.origin + '/settings/cafe24';
 
 function Cafe24Settings() {
-  const [status, setStatus] = useState(null);
-  const [loadingStatus, setLoadingStatus] = useState(true);
+  const [malls, setMalls] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  const [newMallId, setNewMallId] = useState('');
+  const [newClientId, setNewClientId] = useState('');
+  const [newClientSecret, setNewClientSecret] = useState('');
+  
+  const [msg, setMsg] = useState(null);
   const [syncing, setSyncing] = useState(false);
-  const [syncResult, setSyncResult] = useState(null);
-  const [boards, setBoards] = useState([]);
+  const [activePopupMall, setActivePopupMall] = useState(null);
 
-  // 폼 상태
-  const [boardNo, setBoardNo] = useState('1');
-  const [saving, setSaving] = useState(false);
-  const [saveMsg, setSaveMsg] = useState(null);
-  const [connecting, setConnecting] = useState(false);
-  const [connectMsg, setConnectMsg] = useState(null);
-
-  // 저장된 설정 불러오기
-  const loadSettings = useCallback(async () => {
-    setLoadingStatus(true);
+  const loadMalls = async () => {
+    setLoading(true);
     try {
-      const storedBoardNo = localStorage.getItem('cafe24_board_no');
-      if (storedBoardNo) {
-        setBoardNo(storedBoardNo);
-      }
-
-      const s = await getCafe24Status();
-      setStatus(s);
+      const res = await getCafe24Malls();
+      if (res.success) setMalls(res.malls || []);
     } catch (e) {
-      setStatus({ connected: false });
+      setMsg({ type: 'error', text: '목록 조회 실패: ' + e.message });
     } finally {
-      setLoadingStatus(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadSettings();
-  }, [loadSettings]);
-
-  // 설정 저장 (보드 번호만 로컬에 저장)
-  const handleSaveSettings = async () => {
-    setSaving(true);
-    setSaveMsg(null);
-    try {
-      localStorage.setItem('cafe24_board_no', boardNo);
-      setSaveMsg({ type: 'success', text: '게시판 번호가 기기에 저장되었습니다.' });
-    } catch (e) {
-      setSaveMsg({ type: 'error', text: `저장 실패: ${e.message}` });
-    } finally {
-      setSaving(false);
+      setLoading(false);
     }
   };
 
-  // 카페24 OAuth 연동 팝업
-  const handleConnect = async () => {
-    setConnecting(true);
-    setConnectMsg(null);
+  useEffect(() => { loadMalls(); }, []);
 
-    const config = await getCafe24Config();
-    if (!config.mall_id || !config.client_id) {
-      setConnectMsg({ type: 'error', text: '서버 .env에 카페24 설정(CAFE24_MALL_ID, CAFE24_CLIENT_ID)이 누락되어 있습니다.' });
-      setConnecting(false);
+  const handleAddMall = async () => {
+    if (!newMallId || !newClientId || !newClientSecret) {
+      setMsg({ type: 'warning', text: '모든 항목을 기입해주세요.' });
       return;
     }
+    setMsg(null);
+    try {
+      await addCafe24Mall({ mall_id: newMallId, client_id: newClientId, client_secret: newClientSecret });
+      setMsg({ type: 'success', text: `${newMallId} 쇼핑몰이 추가되었습니다.` });
+      setNewMallId(''); setNewClientId(''); setNewClientSecret('');
+      loadMalls();
+    } catch(e) { setMsg({ type: 'error', text: e.message }); }
+  };
 
-    const popup = openCafe24AuthPopup({
-      mallId: config.mall_id,
-      clientId: config.client_id,
-      redirectUri: REDIRECT_URI
-    });
+  const handleDeleteMall = async (mallId) => {
+    if(!window.confirm(`정말 ${mallId} 쇼핑몰을 삭제하시겠습니까?`)) return;
+    try {
+      await deleteCafe24Mall(mallId);
+      setMsg({ type: 'success', text: `${mallId} 삭제 완료` });
+      loadMalls();
+    } catch(e) { setMsg({ type: 'error', text: e.message }); }
+  };
 
+  const handleConnect = (mall) => {
+    setActivePopupMall(mall.mall_id);
+    const popup = openCafe24AuthPopup({ mallId: mall.mall_id, clientId: mall.client_id, redirectUri: REDIRECT_URI });
+    
     const handleMessage = async (event) => {
       if (event.origin !== window.location.origin) return;
       if (event.data?.type === 'CAFE24_AUTH_CODE') {
         window.removeEventListener('message', handleMessage);
         try {
-          await exchangeCafe24Code({
-            code: event.data.code,
-            redirectUri: REDIRECT_URI
-          });
-          setConnectMsg({ type: 'success', text: '카페24 연동 성공! 이제 게시글을 동기화할 수 있습니다.' });
-          await loadSettings();
-          // 게시판 목록도 가져오기
-          try {
-            const { boards: b } = await getCafe24Boards();
-            setBoards(b || []);
-          } catch {}
-        } catch (err) {
-          setConnectMsg({ type: 'error', text: err.message });
-        } finally {
-          setConnecting(false);
-        }
-      } else if (event.data?.type === 'CAFE24_AUTH_ERROR') {
-        window.removeEventListener('message', handleMessage);
-        setConnectMsg({ type: 'error', text: `인증 거부됨: ${event.data.error}` });
-        setConnecting(false);
+          await exchangeCafe24Code({ code: event.data.code, redirectUri: REDIRECT_URI, mallId: mall.mall_id });
+          setMsg({ type: 'success', text: `${mall.mall_id} 계정 연동 성공!` });
+          loadMalls();
+        } catch(e) { setMsg({ type: 'error', text: e.message }); }
       }
     };
-
     window.addEventListener('message', handleMessage);
 
-    // 팝업 닫힘 감지
     const timer = setInterval(() => {
       if (popup?.closed) {
         clearInterval(timer);
         window.removeEventListener('message', handleMessage);
-        if (connecting) {
-          setConnecting(false);
-        }
       }
     }, 1000);
   };
 
-  // 게시글 동기화
-  const handleSync = async () => {
-    setSyncing(true);
-    setSyncResult(null);
+  const handleBoardUpdate = async (mallId, newBoardNo) => {
     try {
-      const result = await syncCafe24Posts(boardNo);
-      setSyncResult({ type: 'success', text: result.message });
-      await loadSettings();
-    } catch (e) {
-      setSyncResult({ type: 'error', text: e.message });
-    } finally {
-      setSyncing(false);
-    }
+      await updateCafe24BoardNo(mallId, newBoardNo);
+      setMsg({ type: 'success', text: `${mallId} 게시판 번호가 업데이트되었습니다.` });
+      loadMalls();
+    } catch(e) { setMsg({ type: 'error', text: e.message }); }
   };
 
-  if (loadingStatus) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
+  const handleSyncAll = async () => {
+    setSyncing(true);
+    setMsg(null);
+    try {
+      let finalMsg = '';
+      for (const mall of malls) {
+        if (!mall.connected) continue;
+        try {
+          const res = await syncCafe24Posts(mall.mall_id, mall.board_no || 1);
+          finalMsg += `[${mall.mall_id}] ${res.message}\n`;
+        } catch(e) { finalMsg += `[${mall.mall_id}] 오류: ${e.message}\n`; }
+      }
+      setMsg({ type: 'info', text: finalMsg || '연동된 쇼핑몰이 없습니다.' });
+      loadMalls();
+    } catch (e) { setMsg({ type: 'error', text: e.message }); }
+    finally { setSyncing(false); }
+  };
+
+  if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}><CircularProgress /></Box>;
 
   return (
-    <Box sx={{ p: 3, maxWidth: 720 }}>
-      <Typography variant="h5" sx={{ mb: 1, fontWeight: 700 }}>
-        🛒 카페24 게시판 연동
-      </Typography>
+    <Box sx={{ p: 3, maxWidth: 900 }}>
+      <Typography variant="h5" sx={{ mb: 1, fontWeight: 700 }}>🛒 다중 카페24 게시판 연동 관리</Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        카페24 쇼핑몰의 게시판(Q&amp;A, 고객문의 등) 게시글을 CRM에서 통합 관리합니다.
+        여러 개의 카페24 쇼핑몰을 등록하고 각 쇼핑몰의 상품/게시판을 CRM 한 곳에서 관리하세요.
       </Typography>
 
-      {/* 연동 상태 */}
-      <Paper variant="outlined" sx={{ p: 2, mb: 3, borderRadius: 2 }}>
-        <Stack direction="row" alignItems="center" spacing={2}>
-          {status?.connected ? (
-            <CheckCircleIcon color="success" />
-          ) : (
-            <LinkOffIcon color="disabled" />
-          )}
-          <Box sx={{ flex: 1 }}>
-            <Typography variant="subtitle1" fontWeight={600}>
-              {status?.connected ? '연동됨' : '연동되지 않음'}
-            </Typography>
-            {status?.connected && (
-              <Typography variant="body2" color="text.secondary">
-                쇼핑몰: <b>{status.mall_id}</b> · 게시판: <b>{boardNo}번</b>
-                {status.last_synced_at && (
-                  <> · 마지막 동기화: <b>{new Date(status.last_synced_at).toLocaleString('ko-KR')}</b></>
-                )}
-              </Typography>
-            )}
-          </Box>
-          {status?.connected && (
-            <Chip label="연결됨" color="success" size="small" icon={<CheckCircleIcon />} />
-          )}
+      {msg && <Alert severity={msg.type} sx={{ mb: 3, whiteSpace: 'pre-wrap' }}>{msg.text}</Alert>}
+
+      <Paper sx={{ p: 3, mb: 4, borderRadius: 2 }}>
+        <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 2 }}>➕ 신규 쇼핑몰 등록하기</Typography>
+        <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+          <TextField size="small" label="Mall ID" value={newMallId} onChange={e=>setNewMallId(e.target.value)} sx={{ flex: 1 }}/>
+          <TextField size="small" label="Client ID" value={newClientId} onChange={e=>setNewClientId(e.target.value)} sx={{ flex: 2 }}/>
+          <TextField size="small" label="Client Secret" type="password" value={newClientSecret} onChange={e=>setNewClientSecret(e.target.value)} sx={{ flex: 2 }}/>
         </Stack>
+        <Button variant="contained" disableElevation onClick={handleAddMall}>쇼핑몰 추가</Button>
       </Paper>
 
-      {/* 설정 입력 */}
-      <Paper elevation={0} sx={{ p: 3, mb: 3, border: '1px solid #e0e0e0', borderRadius: 2 }}>
-        <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 2 }}>
-          🔑 API 설정
-        </Typography>
+      <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 2 }}>📋 등록된 쇼핑몰 목록</Typography>
+      <TableContainer component={Paper} sx={{ mb: 3 }}>
+        <Table size="small">
+          <TableHead sx={{ bgcolor: '#f5f5f5' }}>
+             <TableRow>
+               <TableCell width="20%">쇼핑몰 아이디</TableCell>
+               <TableCell width="15%">연동 상태</TableCell>
+               <TableCell width="25%">동기화할 게시판 번호</TableCell>
+               <TableCell width="20%">마지막 동기화</TableCell>
+               <TableCell width="20%">관리</TableCell>
+             </TableRow>
+          </TableHead>
+          <TableBody>
+            {malls.map(mall => (
+              <TableRow key={mall.mall_id}>
+                <TableCell sx={{ fontWeight: 600 }}>{mall.mall_id}</TableCell>
+                <TableCell>
+                  {mall.connected ? <Chip label="설정됨" color="success" size="small"/> : <Chip label="미설정/만료" color="error" size="small"/>}
+                </TableCell>
+                <TableCell>
+                  <TextField 
+                    size="small" 
+                    defaultValue={mall.board_no || ''} 
+                    onBlur={(e)=>handleBoardUpdate(mall.mall_id, e.target.value)} 
+                    placeholder="예: 6,9"
+                    variant="standard"
+                  />
+                </TableCell>
+                <TableCell sx={{ fontSize: '0.8rem', color: 'text.secondary' }}>
+                  {mall.last_synced_at ? new Date(mall.last_synced_at).toLocaleString('ko-KR') : '-'}
+                </TableCell>
+                <TableCell>
+                  <Stack direction="row" spacing={1}>
+                    <Button 
+                      size="small" 
+                      variant={mall.connected ? "outlined" : "contained"} 
+                      onClick={()=>handleConnect(mall)}
+                      color={mall.connected ? "primary" : "secondary"}
+                    >
+                      {mall.connected ? "재인증" : "연동하기"}
+                    </Button>
+                    <IconButton size="small" onClick={()=>handleDeleteMall(mall.mall_id)} color="error"><DeleteIcon fontSize="small"/></IconButton>
+                  </Stack>
+                </TableCell>
+              </TableRow>
+            ))}
+            {malls.length === 0 && <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3, color:'text.secondary' }}>등록된 쇼핑몰이 없습니다.</TableCell></TableRow>}
+          </TableBody>
+        </Table>
+      </TableContainer>
 
-        <Alert severity="info" sx={{ mb: 2 }}>
-          <Typography variant="body2">
-            <b>카페24 연동 보안 설정 알림:</b><br />
-            현재 카페24 앱 자격 증명(Client ID, Secret Key, Mall ID)은 서버의 안전한 <code>.env</code> 파일로 관리되고 있습니다.<br />
-            하단의 <b>카페24 연결하기</b> 버튼을 클릭하여 본인 쇼핑몰 아이디로 로그인 해 권한을 승인해 주시면 연동이 즉시 완료됩니다.
-          </Typography>
-        </Alert>
-
-        <Stack spacing={2}>
-          <TextField
-            label="동기화할 게시판 번호 (쉼표로 구분)"
-            type="text"
-            value={boardNo}
-            onChange={(e) => setBoardNo(e.target.value)}
-            helperText="여러 게시판 조회 시 쉼표로 구분 (예: 6,9)"
-            fullWidth
-            size="small"
-          />
-
-          {saveMsg && (
-            <Alert severity={saveMsg.type}>{saveMsg.text}</Alert>
-          )}
-
-          <Stack direction="row" spacing={2}>
-            <Button
-              variant="outlined"
-              onClick={handleSaveSettings}
-              disabled={saving}
-              startIcon={saving ? <CircularProgress size={16} /> : null}
-            >
-              설정 저장
-            </Button>
-            <Button
-              variant="contained"
-              startIcon={connecting ? <CircularProgress size={16} color="inherit" /> : <LinkIcon />}
-              onClick={handleConnect}
-              disabled={connecting}
-            >
-              {status?.connected ? '재연동하기' : '카페24 연결하기'}
-            </Button>
-          </Stack>
-
-          {connectMsg && (
-            <Alert severity={connectMsg.type}>{connectMsg.text}</Alert>
-          )}
-        </Stack>
-      </Paper>
-
-      {/* 동기화 */}
-      {status?.connected && (
-        <Paper elevation={0} sx={{ p: 3, border: '1px solid #e0e0e0', borderRadius: 2 }}>
-          <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 2 }}>
-            🔄 게시글 동기화
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            카페24 게시판의 최근 게시글을 CRM 게시판으로 가져옵니다. 이미 가져온 게시글은 자동으로 업데이트됩니다.
-          </Typography>
-
-          {syncResult && (
-            <Alert severity={syncResult.type} sx={{ mb: 2 }}>{syncResult.text}</Alert>
-          )}
-
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={syncing ? <CircularProgress size={16} color="inherit" /> : <SyncIcon />}
-            onClick={handleSync}
-            disabled={syncing}
-          >
-            {syncing ? '동기화 중...' : '지금 동기화'}
-          </Button>
-        </Paper>
+      {malls.length > 0 && (
+         <Button 
+           variant="contained" 
+           size="large" 
+           startIcon={syncing ? <CircularProgress size={20} color="inherit" /> : <SyncIcon />} 
+           onClick={handleSyncAll}
+           disabled={syncing || !malls.some(m=>m.connected)}
+           sx={{ width: '100%', py: 1.5 }}
+         >
+           전체 쇼핑몰 게시판 동기화 실행
+         </Button>
       )}
+
     </Box>
   );
 }

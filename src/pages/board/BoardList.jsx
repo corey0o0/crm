@@ -14,14 +14,14 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { safeRetry, isOffline } from '../../utils/networkUtils';
-import { syncCafe24Posts, getCafe24Status } from '../../utils/cafe24Api';
+import { syncCafe24Posts, getCafe24Malls } from '../../utils/cafe24Api';
 
 function BoardList() {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState(null);
-  const [cafe24Status, setCafe24Status] = useState(null);
+  const [cafe24Malls, setCafe24Malls] = useState([]);
   const [tab, setTab] = useState(0); // 0: 전체, 1: 내부, 2: 카페24
   const navigate = useNavigate();
 
@@ -53,15 +53,24 @@ function BoardList() {
 
   useEffect(() => {
     fetchPosts(tab);
-    getCafe24Status().then(setCafe24Status).catch(() => {});
+    getCafe24Malls().then(res => { if(res.success) setCafe24Malls(res.malls || []); }).catch(() => {});
   }, [tab, fetchPosts]);
 
   const handleSync = async () => {
     setSyncing(true);
     setSyncMsg(null);
     try {
-      const result = await syncCafe24Posts(cafe24Status?.board_no || 1);
-      setSyncMsg({ type: 'success', text: result.message });
+      const activeMalls = cafe24Malls.filter(m => m.connected);
+      if (activeMalls.length === 0) throw new Error('연동된 카페24 쇼핑몰이 없습니다.');
+      
+      let allMsg = '';
+      for (const m of activeMalls) {
+        try {
+          const result = await syncCafe24Posts(m.mall_id, m.board_no || 1);
+          allMsg += `[${m.mall_id}] ${result.message}\n`;
+        } catch(e) { allMsg += `[${m.mall_id}] 실패: ${e.message}\n`; }
+      }
+      setSyncMsg({ type: 'success', text: allMsg });
       await fetchPosts(tab);
     } catch (e) {
       setSyncMsg({ type: 'error', text: e.message });
@@ -88,7 +97,7 @@ function BoardList() {
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
         <Typography variant="h5" fontWeight={700}>게시판</Typography>
         <Stack direction="row" spacing={1}>
-          {cafe24Status?.connected && (
+          {cafe24Malls.some(m => m.connected) ? (
             <Tooltip title="카페24 게시글 가져오기">
               <span>
                 <Button
@@ -98,12 +107,11 @@ function BoardList() {
                   onClick={handleSync}
                   disabled={syncing}
                 >
-                  {syncing ? '동기화 중...' : '카페24 동기화'}
+                  {syncing ? '동기화 중...' : '전체 카페24 동기화'}
                 </Button>
               </span>
             </Tooltip>
-          )}
-          {!cafe24Status?.connected && (
+          ) : (
             <Tooltip title="카페24 연동 설정">
               <Button
                 variant="outlined"
@@ -141,7 +149,7 @@ function BoardList() {
           icon={<StoreIcon fontSize="small" />}
           iconPosition="start"
           label="카페24"
-          disabled={!cafe24Status?.connected && posts.filter(p => p.source === 'cafe24').length === 0}
+          disabled={!cafe24Malls.some(m => m.connected) && posts.filter(p => p.source === 'cafe24').length === 0}
         />
       </Tabs>
 

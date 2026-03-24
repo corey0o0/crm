@@ -48,8 +48,9 @@ function BoardDetail() {
     setReplyMsg(null);
     try {
       await postCafe24Comment({
-        boardNo: post.cafe24_board_no,
-        articleNo: post.cafe24_article_no,
+        mall_id: post.cafe24_mall_id,
+        board_no: post.cafe24_board_no,
+        article_no: post.cafe24_article_no,
         content: replyContent.trim()
       });
       setReplyMsg({ type: 'success', text: '카페24에 답글이 등록되었습니다.' });
