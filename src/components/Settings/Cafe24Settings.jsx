@@ -1,12 +1,33 @@
 import React, { useEffect, useState } from 'react';
 import {
   Box, Typography, Paper, Stack, Button, TextField, CircularProgress,
-  Alert, Divider, Chip, IconButton, Table, TableBody, TableCell, TableContainer, TableHead, TableRow
+  Alert, Chip, IconButton, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tooltip
 } from '@mui/material';
-import { Link as LinkIcon, Sync as SyncIcon, Delete as DeleteIcon, Save as SaveIcon, CheckCircle as CheckCircleIcon, Store as StoreIcon } from '@mui/icons-material';
+import { Sync as SyncIcon, Delete as DeleteIcon, Save as SaveIcon } from '@mui/icons-material';
 import { getCafe24Malls, addCafe24Mall, deleteCafe24Mall, openCafe24AuthPopup, exchangeCafe24Code, syncCafe24Posts, updateCafe24BoardNo } from '../../utils/cafe24Api';
 
 const REDIRECT_URI = window.location.origin + '/cafe24-callback.html';
+
+function BoardNoInput({ mall, onSave }) {
+  const [val, setVal] = useState(mall.board_no || '');
+  return (
+    <Stack direction="row" spacing={1} alignItems="center">
+      <TextField 
+        size="small" 
+        value={val} 
+        onChange={(e) => setVal(e.target.value)} 
+        placeholder="예: 6,9"
+        variant="standard"
+        sx={{ width: '80px' }}
+      />
+      <Tooltip title="게시판 번호 저장">
+        <IconButton size="small" onClick={() => onSave(mall.mall_id, val)} color="primary">
+          <SaveIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+    </Stack>
+  );
+}
 
 function Cafe24Settings() {
   const [malls, setMalls] = useState([]);
@@ -18,7 +39,6 @@ function Cafe24Settings() {
   
   const [msg, setMsg] = useState(null);
   const [syncing, setSyncing] = useState(false);
-  const [activePopupMall, setActivePopupMall] = useState(null);
 
   const loadMalls = async () => {
     setLoading(true);
@@ -58,7 +78,6 @@ function Cafe24Settings() {
   };
 
   const handleConnect = (mall) => {
-    setActivePopupMall(mall.mall_id);
     const popup = openCafe24AuthPopup({ mallId: mall.mall_id, clientId: mall.client_id, redirectUri: REDIRECT_URI });
     
     const handleMessage = async (event) => {
@@ -85,7 +104,7 @@ function Cafe24Settings() {
   const handleBoardUpdate = async (mallId, newBoardNo) => {
     try {
       await updateCafe24BoardNo(mallId, newBoardNo);
-      setMsg({ type: 'success', text: `${mallId} 게시판 번호가 업데이트되었습니다.` });
+      setMsg({ type: 'success', text: `${mallId} 쇼핑몰의 게시판 번호가 성공적으로 저장되었습니다.` });
       loadMalls();
     } catch(e) { setMsg({ type: 'error', text: e.message }); }
   };
@@ -149,13 +168,7 @@ function Cafe24Settings() {
                   {mall.connected ? <Chip label="설정됨" color="success" size="small"/> : <Chip label="미설정/만료" color="error" size="small"/>}
                 </TableCell>
                 <TableCell>
-                  <TextField 
-                    size="small" 
-                    defaultValue={mall.board_no || ''} 
-                    onBlur={(e)=>handleBoardUpdate(mall.mall_id, e.target.value)} 
-                    placeholder="예: 6,9"
-                    variant="standard"
-                  />
+                  <BoardNoInput mall={mall} onSave={handleBoardUpdate} />
                 </TableCell>
                 <TableCell sx={{ fontSize: '0.8rem', color: 'text.secondary' }}>
                   {mall.last_synced_at ? new Date(mall.last_synced_at).toLocaleString('ko-KR') : '-'}
