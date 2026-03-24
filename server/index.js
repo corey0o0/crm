@@ -316,6 +316,7 @@ app.get('/api/cafe24/config', (req, res) => {
  * 환경 변수(.env) 자동 갱신 함수
  */
 function updateEnvFile(key, value) {
+  process.env[key] = value;
   const envPath = path.join(__dirname, '.env');
   let envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : '';
   const regex = new RegExp(`^${key}=.*`, 'm');
@@ -675,7 +676,7 @@ app.get('/api/cafe24/products', async (req, res) => {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
-          'X-Cafe24-Api-Version': '2023-03-01'
+          'X-Cafe24-Api-Version': '2024-06-01'
         }
       }
     );
