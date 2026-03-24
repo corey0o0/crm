@@ -445,7 +445,7 @@ app.get('/api/cafe24/boards', async (req, res) => {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
-          'X-Cafe24-Api-Version': '2024-06-01'
+          'X-Cafe24-Api-Version': '2026-03-01'
         }
       }
     );
@@ -474,7 +474,7 @@ app.get('/api/cafe24/boards/:boardNo/articles', async (req, res) => {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
-          'X-Cafe24-Api-Version': '2024-06-01'
+          'X-Cafe24-Api-Version': '2026-03-01'
         }
       }
     );
@@ -518,7 +518,7 @@ app.post('/api/cafe24/sync', async (req, res) => {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
-            'X-Cafe24-Api-Version': '2024-06-01'
+            'X-Cafe24-Api-Version': '2026-03-01'
           }
         }
       );
@@ -611,7 +611,7 @@ app.post('/api/cafe24/boards/:boardNo/articles/:articleNo/comments', async (req,
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
-          'X-Cafe24-Api-Version': '2024-06-01'
+          'X-Cafe24-Api-Version': '2026-03-01'
         }
       }
     );
@@ -676,7 +676,7 @@ app.get('/api/cafe24/products', async (req, res) => {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
-          'X-Cafe24-Api-Version': '2023-03-01'
+          'X-Cafe24-Api-Version': '2026-03-01'
         }
       }
     );
