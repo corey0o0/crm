@@ -676,14 +676,15 @@ app.get('/api/cafe24/products', async (req, res) => {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
-          'X-Cafe24-Api-Version': '2024-06-01'
+          'X-Cafe24-Api-Version': '2023-03-01'
         }
       }
     );
     res.json({ success: true, products: resp.data.products || [] });
   } catch (error) {
-    console.error('[대시보드] 카페24 상품 조회 실패:', error?.response?.data || error.message);
-    res.status(500).json({ success: false, error: '카페24 제품 목록을 불러올 수 없습니다.' });
+    const errorDetail = error?.response?.data?.error?.message || error?.response?.data?.error || error.message;
+    console.error('[대시보드] 카페24 상품 조회 실패 상세:', errorDetail);
+    res.status(500).json({ success: false, error: `카페24 상품 로드 실패: ${errorDetail}` });
   }
 });
 
