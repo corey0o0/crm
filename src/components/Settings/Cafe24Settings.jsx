@@ -6,7 +6,7 @@ import {
 import { Link as LinkIcon, Sync as SyncIcon, Delete as DeleteIcon, Save as SaveIcon, CheckCircle as CheckCircleIcon, Store as StoreIcon } from '@mui/icons-material';
 import { getCafe24Malls, addCafe24Mall, deleteCafe24Mall, openCafe24AuthPopup, exchangeCafe24Code, syncCafe24Posts, updateCafe24BoardNo } from '../../utils/cafe24Api';
 
-const REDIRECT_URI = window.location.origin + '/settings/cafe24';
+const REDIRECT_URI = window.location.origin + '/cafe24-callback.html';
 
 function Cafe24Settings() {
   const [malls, setMalls] = useState([]);

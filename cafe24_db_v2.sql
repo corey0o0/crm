@@ -12,7 +12,20 @@ UPDATE board_posts
   SET cafe24_mall_id = 'slimpack79' 
   WHERE source = 'cafe24' AND cafe24_mall_id IS NULL;
 
--- 2. cafe24_settings 테이블: 각 쇼핑몰 아이디(mall_id)당 1줄만 존재하도록 보안키(고유 제약조건) 추가
+-- 2. cafe24_settings 테이블 구조 보강 (혹시 생성되지 않은 컬럼이 있을 경우 자동 추가)
+ALTER TABLE cafe24_settings 
+  ADD COLUMN IF NOT EXISTS client_id text,
+  ADD COLUMN IF NOT EXISTS client_secret_encrypted text,
+  ADD COLUMN IF NOT EXISTS access_token text,
+  ADD COLUMN IF NOT EXISTS refresh_token text,
+  ADD COLUMN IF NOT EXISTS token_expires_at timestamptz,
+  ADD COLUMN IF NOT EXISTS board_no varchar(255) DEFAULT '1',
+  ADD COLUMN IF NOT EXISTS last_synced_at timestamptz;
+
+-- 강제로 API 서버(PostgREST)의 스키마 캐시를 즉시 새로고침합니다.
+NOTIFY pgrst, 'reload schema';
+
+-- 3. cafe24_settings 테이블: 각 쇼핑몰 아이디(mall_id)당 1줄만 존재하도록 보안키(고유 제약조건) 추가
 DO $$
 BEGIN
     IF NOT EXISTS (
