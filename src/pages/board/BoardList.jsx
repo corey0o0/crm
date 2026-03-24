@@ -75,18 +75,11 @@ function BoardList() {
     setSyncMsg(null);
   };
 
-  const getSourceChip = (post) => {
+  const getSourceText = (post) => {
     if (post.source === 'cafe24') {
-      return (
-        <Chip
-          label="카페24"
-          size="small"
-          icon={<StoreIcon style={{ fontSize: 12 }} />}
-          sx={{ bgcolor: '#FF6B35', color: 'white', height: 20, fontSize: '0.7rem', ml: 1 }}
-        />
-      );
+      return `카페24 (${post.cafe24_board_no}번)`;
     }
-    return null;
+    return '내부';
   };
 
   return (
@@ -163,9 +156,10 @@ function BoardList() {
             <Table size="small">
               <TableHead>
                 <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                  <TableCell sx={{ fontWeight: 600 }}>제목</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>작성자</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>작성일</TableCell>
+                  <TableCell sx={{ fontWeight: 600, width: '15%' }}>분류</TableCell>
+                  <TableCell sx={{ fontWeight: 600, width: '45%' }}>제목</TableCell>
+                  <TableCell sx={{ fontWeight: 600, width: '20%' }}>작성자</TableCell>
+                  <TableCell sx={{ fontWeight: 600, width: '20%' }}>작성일</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -177,9 +171,20 @@ function BoardList() {
                     onClick={() => navigate(`/board/${p.id}`)}
                   >
                     <TableCell>
+                      <Chip
+                        label={getSourceText(p)}
+                        size="small"
+                        icon={p.source === 'cafe24' ? <StoreIcon style={{ fontSize: 12 }} /> : <ForumIcon style={{ fontSize: 12 }} />}
+                        sx={{ 
+                          bgcolor: p.source === 'cafe24' ? '#FF6B35' : '#e0e0e0', 
+                          color: p.source === 'cafe24' ? 'white' : 'rgba(0,0,0,0.87)', 
+                          height: 22, fontSize: '0.75rem' 
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         {p.title}
-                        {getSourceChip(p)}
                       </Box>
                     </TableCell>
                     <TableCell>
@@ -197,7 +202,7 @@ function BoardList() {
                 ))}
                 {posts.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={3} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                    <TableCell colSpan={4} align="center" sx={{ py: 4, color: 'text.secondary' }}>
                       {tab === 2
                         ? '카페24 게시글이 없습니다. 동기화 버튼을 눌러주세요.'
                         : '게시글이 없습니다.'}
