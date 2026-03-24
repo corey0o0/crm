@@ -51,10 +51,36 @@ function BoardList() {
     }
   }, []);
 
+  const [autoSynced, setAutoSynced] = useState(false);
+
   useEffect(() => {
     fetchPosts(tab);
-    getCafe24Malls().then(res => { if(res.success) setCafe24Malls(res.malls || []); }).catch(() => {});
+    getCafe24Malls().then(res => { 
+      if(res.success) {
+        setCafe24Malls(res.malls || []); 
+      }
+    }).catch(() => {});
   }, [tab, fetchPosts]);
+
+  // 백그라운드 자동 동기화 (최초 진입 시 1회만 조용히 실행)
+  useEffect(() => {
+    const activeMalls = cafe24Malls.filter(m => m.connected);
+    if (activeMalls.length > 0 && !autoSynced) {
+      setAutoSynced(true);
+      // 백그라운드에서 조용히 동기화 실행 후 목록만 새로고침
+      const runAutoSync = async () => {
+        try {
+          for (const m of activeMalls) {
+            await syncCafe24Posts(m.mall_id, m.board_no || 1);
+          }
+          fetchPosts(tab); // 동기화 완료 후 리스트 업데이트
+        } catch (e) {
+          console.error('[Auto Sync Error]', e);
+        }
+      };
+      runAutoSync();
+    }
+  }, [cafe24Malls, autoSynced, fetchPosts, tab]);
 
   const handleSync = async () => {
     setSyncing(true);
