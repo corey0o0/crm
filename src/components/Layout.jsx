@@ -237,9 +237,10 @@ function Layout() {
 
     // 📦 재고 & 물류 관리
     { text: '출고 관리', icon: <LocalShippingIcon />, path: '/shipment', key: 'shipment' },
-    // { text: '주문대기', icon: <ShoppingCartOutlinedIcon />, path: '/pending-orders', key: 'pending_orders' }, // 비활성화됨
+    { text: '주문대기', icon: <ShoppingCartOutlinedIcon />, path: '/pending-orders', key: 'pending_orders' },
     { text: '파츠 관리', icon: <InventoryIcon />, path: '/parts', key: 'parts' },
     { text: '매장 재고 관리', icon: <InventoryIcon />, path: '/stocks', key: 'stocks' },
+    { text: '입출고 관리', icon: <InventoryIcon />, path: '/inventory-management', key: 'inventory_management' },
 
     // 📊 통계 & 분석
     { text: '매출 통계', icon: <BarChartIcon />, path: '/sales/stats', key: 'sales_stats' },

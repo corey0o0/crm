@@ -31,6 +31,7 @@ import StockList from './components/Stock/StockList';
 import ServiceAnalysis from './components/Service/ServiceAnalysis';
 import BrandSettings from './components/Settings/BrandSettings';
 import InventoryLogs from './components/Inventory/InventoryLogs';
+import InventoryManagement from './components/Inventory/InventoryManagement';
 // import RoleManagement from './components/Settings/RoleManagement'; // 제거됨 - 이메일 기반으로 대체
 import BackupManager from './components/Backup/BackupManager';
 // import PermissionRoute from './components/Auth/PermissionRoute'; // 제거됨 - 이메일 기반으로 대체
@@ -186,13 +187,9 @@ function App() {
               <Route path="inventory-logs" element={
                 <InventoryLogs />
               } />
-              <Route
-                path="inventory-management"
-                element={
-                  // 입출고 관리 비활성화: 접근 시 대시보드로 리다이렉트
-                  <Navigate to="/" replace />
-                }
-              />
+              <Route path="inventory-management" element={
+                <InventoryManagement />
+              } />
 
               {/* 권한 설정 - 제거됨 (이메일 기반으로 대체) */}
 

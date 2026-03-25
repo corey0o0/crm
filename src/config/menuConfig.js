@@ -123,9 +123,10 @@ export const MENU_KEYS = {
   SHIPMENT: 'shipment',
   PARTS: 'parts',
   STOCKS: 'stocks',
-  // INVENTORY: 'inventory_management', // 입출고 관리 비활성화
+  INVENTORY: 'inventory_management', // 입출고 관리
   SALES_STATS: 'sales_stats',
   BOARD: 'board',
+  PENDING_ORDERS: 'pending_orders',
   BACKUP: 'backup_management',
   ADMIN_TOOLS: 'admin_tools'
 };
