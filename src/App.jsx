@@ -42,6 +42,7 @@ import BackupManager from './components/Backup/BackupManager';
 import ShipmentList from './pages/shipment/ShipmentList';
 import ShipmentDetail from './pages/shipment/ShipmentDetail';
 import ShipmentForm from './pages/shipment/ShipmentForm';
+import AgencyManagement from './pages/agency/AgencyManagement';
 import AdminTools from './pages/admin/AdminTools';
 import BoardList from './pages/board/BoardList';
 import BoardNew from './pages/board/BoardNew';
@@ -129,6 +130,11 @@ function App() {
               } />
               <Route path="shipments/new" element={
                 <ProductShipment />
+              } />
+
+              {/* 거래처 관리 */}
+              <Route path="agencies" element={
+                <AgencyManagement />
               } />
 
               {/* 새로운 출고 관리 페이지 라우팅 */}

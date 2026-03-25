@@ -53,8 +53,9 @@ import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { supabase } from '../../lib/supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import { sendTelegramNotification } from '../../lib/telegram';
-import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
+import { getErrorMessage, isOffline, safeRetry } from '../../utils/networkUtils';
 import { getSyncedParts, createSyncRelation, deleteSyncRelationById } from '../../utils/partSyncUtils';
+import Barcode from 'react-barcode';
 
 const BRANDS = ['XRB', 'NB', 'COMMON'];
 
@@ -69,13 +70,19 @@ const PartsFormDialog = memo(({
 }) => {
   const [formData, setFormData] = useState({
     name: '',
+    name_en: '',
     brand: '',
     code: '',
+    costPrice: '',
     supplyPrice: '',
+    specialPrice: '',
     price: '',
     barcode: '',
+    memo: '',
     note: '파츠'
   });
+
+  const [showBarcodePreview, setShowBarcodePreview] = useState(false);
 
   // 폼이 열려있는지 추적하여 불필요한 리셋 방지
   const isOpenRef = useRef(open);
@@ -90,11 +97,15 @@ const PartsFormDialog = memo(({
       if (initialData) {
         setFormData({
           name: initialData.name || '',
+          name_en: initialData.name_en || '',
           brand: initialData.brand || '',
           code: initialData.code || '',
+          costPrice: initialData.cost_price?.toString() || '',
           supplyPrice: initialData.supply_price?.toString() || '',
+          specialPrice: initialData.special_price?.toString() || '',
           price: initialData.price?.toString() || '',
           barcode: initialData.barcode || '',
+          memo: initialData.memo || '',
           note: initialData.note || '파츠'
         });
       } else {
@@ -104,11 +115,15 @@ const PartsFormDialog = memo(({
         const suggestedCode = typeof getNextPartCode === 'function' ? getNextPartCode(defaultBrand, defaultCategory) : '';
         setFormData({
           name: '',
+          name_en: '',
           brand: defaultBrand,
           code: suggestedCode,
+          costPrice: '',
           supplyPrice: '',
+          specialPrice: '',
           price: '',
           barcode: '',
+          memo: '',
           note: defaultCategory
         });
       }
@@ -122,7 +137,7 @@ const PartsFormDialog = memo(({
     setFormData(prev => {
       const next = {
         ...prev,
-        [name]: ['price', 'supplyPrice'].includes(name) ? value.replace(/[^0-9]/g, '') : value
+        [name]: ['price', 'supplyPrice', 'costPrice', 'specialPrice'].includes(name) ? value.replace(/[^0-9]/g, '') : value
       };
       const shouldSuggest = (!prev.code || prev.code.trim() === '');
       if ((name === 'brand' || name === 'note') && typeof getNextPartCode === 'function') {
@@ -136,6 +151,41 @@ const PartsFormDialog = memo(({
     });
   }, [getNextPartCode]);
 
+  const handleVatCalc = useCallback((field, type) => {
+    setFormData(prev => {
+      const val = parseInt(prev[field]?.toString().replace(/,/g, '') || '0', 10);
+      if (!val) return prev;
+      let newVal = val;
+      if (type === 'add') {
+        newVal = Math.round(val * 1.1);
+      } else if (type === 'remove') {
+        newVal = Math.round(val / 1.1);
+      }
+      return { ...prev, [field]: newVal.toString() };
+    });
+  }, []);
+
+  const renderVatButtons = (field) => (
+    <Box sx={{ display: 'flex', gap: 1, mt: 0.5, justifyContent: 'flex-end' }}>
+      <Typography 
+        variant="caption" 
+        color="primary" 
+        sx={{ cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+        onClick={() => handleVatCalc(field, 'add')}
+      >
+        VAT 포함
+      </Typography>
+      <Typography 
+        variant="caption" 
+        color="secondary" 
+        sx={{ cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+        onClick={() => handleVatCalc(field, 'remove')}
+      >
+        VAT 제외
+      </Typography>
+    </Box>
+  );
+
   const handleSubmit = useCallback(() => {
     onSubmit(formData);
   }, [formData, onSubmit]);
@@ -144,7 +194,7 @@ const PartsFormDialog = memo(({
     <Dialog
       open={open}
       onClose={onClose}
-      maxWidth="sm"
+      maxWidth="md"
       fullWidth
       transitionDuration={0}
     >
@@ -153,7 +203,7 @@ const PartsFormDialog = memo(({
       </DialogTitle>
       <DialogContent>
         <Grid container spacing={2} sx={{ pt: 2 }}>
-          <Grid item xs={12}>
+          <Grid item xs={12} md={6}>
             <TextField
               select
               fullWidth
@@ -170,7 +220,21 @@ const PartsFormDialog = memo(({
               ))}
             </TextField>
           </Grid>
-          <Grid item xs={12}>
+          <Grid item xs={12} md={6}>
+            <TextField
+              select
+              fullWidth
+              label="구분"
+              name="note"
+              value={formData.note}
+              onChange={handleChange}
+            >
+              {['파츠', '기체', '공임', '기타'].map(opt => (
+                <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+          <Grid item xs={12} md={6}>
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
               <TextField
                 fullWidth
@@ -194,10 +258,39 @@ const PartsFormDialog = memo(({
               </Button>
             </Box>
           </Grid>
-          <Grid item xs={12}>
+          <Grid item xs={12} md={6}>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+              <TextField
+                fullWidth
+                label="바코드"
+                name="barcode"
+                value={formData.barcode}
+                onChange={handleChange}
+              />
+              <Button
+                variant="outlined"
+                sx={{ height: 56, minWidth: 60 }}
+                onClick={() => {
+                  const randomCode = Math.floor(100000000000 + Math.random() * 900000000000).toString();
+                  setFormData(prev => ({ ...prev, barcode: randomCode }));
+                }}
+              >
+                생성
+              </Button>
+              <Button
+                variant="outlined"
+                sx={{ height: 56, minWidth: 60 }}
+                disabled={!formData.barcode}
+                onClick={() => setShowBarcodePreview(true)}
+              >
+                보기
+              </Button>
+            </Box>
+          </Grid>
+          <Grid item xs={12} md={6}>
             <TextField
               fullWidth
-              label="파츠명"
+              label="파츠명 (국문) 필수"
               name="name"
               value={formData.name}
               onChange={handleChange}
@@ -207,51 +300,66 @@ const PartsFormDialog = memo(({
           <Grid item xs={12} md={6}>
             <TextField
               fullWidth
-              label="공급가"
-              name="supplyPrice"
-              value={formData.supplyPrice}
+              label="파츠명 (영문)"
+              name="name_en"
+              value={formData.name_en}
               onChange={handleChange}
-              required
-              InputProps={{
-                endAdornment: <InputAdornment position="end">원</InputAdornment>,
-              }}
             />
           </Grid>
-          <Grid item xs={12} md={6}>
+          <Grid item xs={12} sm={6} md={3}>
             <TextField
               fullWidth
-              label="판매가"
+              label="판매가 (소비자가)"
               name="price"
               value={formData.price}
               onChange={handleChange}
               required
-              InputProps={{
-                endAdornment: <InputAdornment position="end">원</InputAdornment>,
-              }}
+              InputProps={{ endAdornment: <InputAdornment position="end">원</InputAdornment> }}
             />
+            {renderVatButtons('price')}
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <TextField
+              fullWidth
+              label="원가 (매입가)"
+              name="costPrice"
+              value={formData.costPrice}
+              onChange={handleChange}
+              InputProps={{ endAdornment: <InputAdornment position="end">원</InputAdornment> }}
+            />
+            {renderVatButtons('costPrice')}
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <TextField
+              fullWidth
+              label="공급가 (대리점가)"
+              name="supplyPrice"
+              value={formData.supplyPrice}
+              onChange={handleChange}
+              required
+              InputProps={{ endAdornment: <InputAdornment position="end">원</InputAdornment> }}
+            />
+            {renderVatButtons('supplyPrice')}
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <TextField
+              fullWidth
+              label="특별 공급가"
+              name="specialPrice"
+              value={formData.specialPrice}
+              onChange={handleChange}
+              InputProps={{ endAdornment: <InputAdornment position="end">원</InputAdornment> }}
+            />
+            {renderVatButtons('specialPrice')}
           </Grid>
           <Grid item xs={12}>
             <TextField
               fullWidth
-              label="바코드"
-              name="barcode"
-              value={formData.barcode}
+              label="적요"
+              name="memo"
+              value={formData.memo}
               onChange={handleChange}
             />
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <TextField
-              select
-              fullWidth
-              label="구분"
-              name="note"
-              value={formData.note}
-              onChange={handleChange}
-            >
-              {['파츠', '기체', '공임', '기타'].map(opt => (
-                <MenuItem key={opt} value={opt}>{opt}</MenuItem>
-              ))}
-            </TextField>
           </Grid>
         </Grid>
       </DialogContent>
@@ -261,6 +369,23 @@ const PartsFormDialog = memo(({
           {initialData ? '수정' : '등록'}
         </Button>
       </DialogActions>
+
+      {/* 바코드 미리보기 모달 */}
+      <Dialog
+        open={showBarcodePreview}
+        onClose={() => setShowBarcodePreview(false)}
+        maxWidth="xs"
+      >
+        <DialogTitle sx={{ textAlign: 'center' }}>바코드 미리보기</DialogTitle>
+        <DialogContent sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+          {formData.barcode && (
+            <Barcode value={formData.barcode} width={2} height={80} displayValue={true} />
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowBarcodePreview(false)}>닫기</Button>
+        </DialogActions>
+      </Dialog>
     </Dialog>
   );
 });
@@ -544,13 +669,17 @@ function PartsManagement() {
     try {
       const partData = {
         name: formData.name,
+        name_en: formData.name_en || null,
         brand: formData.brand,
         code: formData.code,
-        supply_price: Number(formData.supplyPrice),
-        price: Number(formData.price)
+        cost_price: Number(formData.costPrice || 0),
+        supply_price: Number(formData.supplyPrice || 0),
+        special_price: Number(formData.specialPrice || 0),
+        price: Number(formData.price || 0)
       };
 
       if (formData.barcode) partData.barcode = formData.barcode;
+      if (formData.memo) partData.memo = formData.memo;
       if (formData.note) partData.note = formData.note;
 
       if (selectedPart) {
@@ -641,22 +770,22 @@ function PartsManagement() {
     data.forEach((row, index) => {
       const rowErrors = [];
 
-      if (!row.brand) rowErrors.push('brand');
-      if (!row.name) rowErrors.push('name');
+      const brand = row.brand || row['브랜드'] || '';
+      const name = row.name || row['제품명'] || '';
+      const code = row.code || row['코드'] || '';
+      const name_en = row.name_en || row['영문명'] || '';
+      const cost_price = row.costPrice || row.cost_price || row['원가'] || 0;
+      const supply_price = row.supplyPrice || row.supply_price || row['매입가'] || row['공급가'] || 0;
+      const special_price = row.specialPrice || row.special_price || row['특별공급가'] || 0;
+      const price = row.price || row['판매가'] || 0;
+      const barcode = row.barcode || row['바코드'] || '';
+      const note = row.note || row['구분'] || row['카테고리'] || '';
 
-      if (row.brand && !['XRB', 'NB', 'COMMON'].includes(String(row.brand).toUpperCase())) {
+      if (!brand) rowErrors.push('브랜드');
+      if (!name) rowErrors.push('제품명');
+
+      if (brand && !['XRB', 'NB', 'COMMON', '공용'].includes(String(brand).toUpperCase())) {
         errors.push(`${index + 2}번 행: 브랜드는 XRB, NB 또는 COMMON(공용)만 입력 가능합니다.`);
-        return;
-      }
-
-      if (row.supplyPrice !== undefined && row.supplyPrice !== '' &&
-        isNaN(Number(String(row.supplyPrice).replace(/[^0-9]/g, '')))) {
-        errors.push(`${index + 2}번 행: 공급가는 숫자만 입력 가능합니다.`);
-        return;
-      }
-      if (row.price !== undefined && row.price !== '' &&
-        isNaN(Number(String(row.price).replace(/[^0-9]/g, '')))) {
-        errors.push(`${index + 2}번 행: 판매가는 숫자만 입력 가능합니다.`);
         return;
       }
 
@@ -665,7 +794,18 @@ function PartsManagement() {
         return;
       }
 
-      validData.push(row);
+      validData.push({
+        brand: String(brand).toUpperCase() === '공용' ? 'COMMON' : String(brand).toUpperCase(),
+        code: code ? String(code).trim() : '',
+        name: String(name).trim(),
+        name_en: String(name_en).trim(),
+        cost_price: Number(String(cost_price).replace(/[^0-9]/g, '') || 0),
+        supply_price: Number(String(supply_price).replace(/[^0-9]/g, '') || 0),
+        special_price: Number(String(special_price).replace(/[^0-9]/g, '') || 0),
+        price: Number(String(price).replace(/[^0-9]/g, '') || 0),
+        barcode: barcode ? String(barcode).trim() : null,
+        note: note ? String(note).trim() : null
+      });
     });
 
     return { validData, errors };
@@ -719,20 +859,8 @@ function PartsManagement() {
           return;
         }
 
-        // 1) 기본 포맷 변환 (code는 비어있을 수 있음)
-        const formattedData = validData.map(row => ({
-          brand: String(row.brand).toUpperCase(),
-          code: (row.code !== undefined && row.code !== null) ? String(row.code).trim() : '',
-          name: String(row.name).trim(),
-          supply_price: row.supplyPrice === undefined || row.supplyPrice === ''
-            ? 0
-            : Number(String(row.supplyPrice).replace(/[^0-9]/g, '')),
-          price: row.price === undefined || row.price === ''
-            ? 0
-            : Number(String(row.price).replace(/[^0-9]/g, '')),
-          barcode: row.barcode ? String(row.barcode).trim() : null,
-          note: row.note ? String(row.note).trim() : null
-        }));
+        // 1) 포맷팅 완료된 validData 활용
+        const formattedData = validData;
 
         // 2) 업로드 배치 내에서 고유 코드를 만들기 위한 헬퍼
         const bumpCode = (code) => {
@@ -865,42 +993,42 @@ function PartsManagement() {
   const handleDownloadTemplate = () => {
     const template = [
       {
-        brand: 'XRB',
-        code: 'XL-001',
-        name: '컴프레서',
-        supplyPrice: '100000',
-        price: '150000',
-        barcode: '8801234567890',
-        note: '예시 데이터입니다'
+        '브랜드': 'XRB',
+        '코드': 'XL-001',
+        '제품명': '컴프레서',
+        '영문명': 'Compressor',
+        '원가': 80000,
+        '공급가': 100000,
+        '특별공급가': 95000,
+        '판매가': 150000,
+        '바코드': '8801234567890',
+        '구분': '파츠'
       },
       {
-        brand: 'NB',
-        code: 'NB-001',
-        name: '필터',
-        supplyPrice: '',  // 빈 값 예시
-        price: '0',       // 0 값 예시
-        barcode: '',      // 빈 값 예시
-        note: ''          // 빈 값 예시
-      },
-      {
-        brand: 'COMMON',
-        code: 'COM-001',
-        name: '공용 파츠 예시',
-        supplyPrice: '50000',
-        price: '75000',
-        barcode: '',
-        note: '파츠'
+        '브랜드': 'NB',
+        '코드': 'NB-001',
+        '제품명': '필터',
+        '영문명': '',
+        '원가': 0,
+        '공급가': 0,
+        '특별공급가': 0,
+        '판매가': 0,
+        '바코드': '',
+        '구분': ''
       }
     ];
 
     const headers = [
-      { label: 'brand', key: 'brand' },
-      { label: 'code', key: 'code' },
-      { label: 'name', key: 'name' },
-      { label: 'supplyPrice', key: 'supplyPrice' },
-      { label: 'price', key: 'price' },
-      { label: 'barcode', key: 'barcode' },
-      { label: 'note', key: 'note' }
+      { label: '브랜드', key: '브랜드' },
+      { label: '코드', key: '코드' },
+      { label: '제품명', key: '제품명' },
+      { label: '영문명', key: '영문명' },
+      { label: '원가', key: '원가' },
+      { label: '공급가', key: '공급가' },
+      { label: '특별공급가', key: '특별공급가' },
+      { label: '판매가', key: '판매가' },
+      { label: '바코드', key: '바코드' },
+      { label: '구분', key: '구분' }
     ];
 
     downloadExcel(template, headers, "parts_template.xlsx");
@@ -916,7 +1044,10 @@ function PartsManagement() {
       '브랜드': part.brand || '',
       '코드': part.code || '',
       '제품명': part.name || '',
-      '매입가': Number(part.supply_price) || 0,
+      '영문명': part.name_en || '',
+      '원가': Number(part.cost_price) || 0,
+      '공급가': Number(part.supply_price) || 0,
+      '특별공급가': Number(part.special_price) || 0,
       '판매가': Number(part.price) || 0,
       '재고': Number(part.stock) || 0,
       '바코드': part.barcode || '',
@@ -927,7 +1058,10 @@ function PartsManagement() {
       { label: '브랜드', key: '브랜드' },
       { label: '코드', key: '코드' },
       { label: '제품명', key: '제품명' },
-      { label: '매입가', key: '매입가' },
+      { label: '영문명', key: '영문명' },
+      { label: '원가', key: '원가' },
+      { label: '공급가', key: '공급가' },
+      { label: '특별공급가', key: '특별공급가' },
       { label: '판매가', key: '판매가' },
       { label: '재고', key: '재고' },
       { label: '바코드', key: '바코드' },
@@ -1439,11 +1573,13 @@ function PartsManagement() {
               {renderSortableHeader('code', '코드')}
               {renderSortableHeader('barcode', '바코드')}
               {renderSortableHeader('name', '제품명')}
-              {showSupplyPrice && renderSortableHeader('supply_price', '매입가', 'right')}
+              {showSupplyPrice && renderSortableHeader('cost_price', '매입가(원가)', 'right')}
+              {renderSortableHeader('supply_price', '공급가', 'right')}
+              {showSupplyPrice && renderSortableHeader('special_price', '특별공급가', 'right')}
               {renderSortableHeader('price', '판매가', 'right')}
               {renderSortableHeader('stock', '재고', 'right')}
               {renderSortableHeader('note', '구분')}
-              <TableCell>연동</TableCell>
+              {/* <TableCell>연동</TableCell> */}
               <TableCell align="right">액션</TableCell>
             </TableRow>
           </TableHead>
@@ -1469,9 +1605,18 @@ function PartsManagement() {
                     {part.barcode || '-'}
                   </Typography>
                 </TableCell>
-                <TableCell>{part.name}</TableCell>
-                {showSupplyPrice && <TableCell align="right">{part.supply_price?.toLocaleString()}</TableCell>}
-                <TableCell align="right">{part.price?.toLocaleString()}</TableCell>
+                <TableCell>
+                  {part.name}
+                  {part.name_en && (
+                    <Typography variant="caption" display="block" color="text.secondary">
+                      {part.name_en}
+                    </Typography>
+                  )}
+                </TableCell>
+                {showSupplyPrice && <TableCell align="right">{part.cost_price?.toLocaleString() || '-'}</TableCell>}
+                <TableCell align="right">{part.supply_price?.toLocaleString() || '-'}</TableCell>
+                {showSupplyPrice && <TableCell align="right">{part.special_price?.toLocaleString() || '-'}</TableCell>}
+                <TableCell align="right">{part.price?.toLocaleString() || '-'}</TableCell>
                 <TableCell align="right">{part.stock || 0}</TableCell>
                 <TableCell>
                   <Typography
@@ -1484,6 +1629,7 @@ function PartsManagement() {
                     {part.note || '-'}
                   </Typography>
                 </TableCell>
+                {/* 
                 <TableCell>
                   {syncedPartsMap[part.id] && syncedPartsMap[part.id].length > 0 ? (
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
@@ -1509,6 +1655,7 @@ function PartsManagement() {
                     </Typography>
                   )}
                 </TableCell>
+                */}
                 <TableCell align="right">
                   <IconButton
                     size="small"
@@ -1516,6 +1663,7 @@ function PartsManagement() {
                   >
                     <EditIcon />
                   </IconButton>
+                  {/*
                   <Tooltip title="연동 설정">
                     <IconButton
                       size="small"
@@ -1529,6 +1677,7 @@ function PartsManagement() {
                       <LinkIcon />
                     </IconButton>
                   </Tooltip>
+                  */}
                   <IconButton
                     size="small"
                     onClick={() => handleDelete(part.id)}

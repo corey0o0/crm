@@ -50,4 +50,18 @@ module.exports = function(app) {
     })
   );
   console.log('[Ollama Proxy] Initialized at /__ollama -> http://localhost:11434');
+
+  // Backend API 프록시 (포트 5001)
+  app.use(
+    '/api',
+    createProxyMiddleware({
+      target: 'http://localhost:5001',
+      changeOrigin: true,
+      logLevel: 'debug',
+      onError: (err, req, res) => {
+        console.error('[API Proxy] Error:', err.message);
+      }
+    })
+  );
+  console.log('[API Proxy] Initialized at /api -> http://localhost:5001');
 }; 

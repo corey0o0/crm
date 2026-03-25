@@ -206,6 +206,77 @@ module.exports = function(supabaseAdmin) {
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
+  // 3-2. 주문 동기화 API
+  router.post('/sync/orders/:mall_id', async (req, res) => {
+    try {
+      const { mall_id } = req.params;
+      const { start_date, end_date } = req.body; // e.g. '2023-01-01', '2023-01-31'
+      
+      const token = await getValidToken(mall_id);
+      let totalInserted = 0, totalUpdated = 0, totalSkipped = 0;
+
+      // 파라미터가 없으면 최근 7일 기준으로 설정
+      const today = new Date();
+      const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const queryStart = start_date || lastWeek.toISOString().split('T')[0];
+      const queryEnd = end_date || today.toISOString().split('T')[0];
+
+      // 카페24 API에서 주문 목록 가져오기
+      const response = await axios.get(`https://${mall_id}.cafe24api.com/api/v2/admin/orders`, {
+        params: { start_date: queryStart, end_date: queryEnd, date_type: 'order_date', limit: 100 },
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Cafe24-Api-Version': '2026-03-01' }
+      });
+
+      const orders = response.data.orders || [];
+
+      for (const order of orders) {
+        // 주문한 상품들 배열 만들기
+        let formattedItems = [];
+        if (order.items && order.items.length > 0) {
+          formattedItems = order.items.map(item => ({
+            product_code: item.product_code || item.custom_product_code || '',
+            name: item.product_name,
+            quantity: item.quantity,
+            price: item.product_price,
+            options: item.option_value || ''
+          }));
+        }
+
+        const payload = {
+          mall_id: mall_id,
+          order_id: order.order_id,
+          order_date: order.order_date,
+          total_amount: order.actual_order_amount || order.total_order_price || 0,
+          order_items: formattedItems,
+          status: order.order_status || order.shipping_status || 'unknown',
+          buyer_name: order.buyer ? order.buyer.name : null,
+          buyer_phone: order.buyer ? order.buyer.phone || order.buyer.cellphone : null,
+          synced_at: new Date().toISOString()
+        };
+
+        // DB에 존재하는지 확인
+        const { data: existing } = await supabaseAdmin.from('cafe24_orders')
+          .select('id')
+          .eq('order_id', order.order_id)
+          .maybeSingle();
+
+        let err = null;
+        if (existing) {
+          err = (await supabaseAdmin.from('cafe24_orders').update(payload).eq('id', existing.id)).error;
+          if (err) totalSkipped++; else totalUpdated++;
+        } else {
+          err = (await supabaseAdmin.from('cafe24_orders').insert(payload)).error;
+          if (err) totalSkipped++; else totalInserted++;
+        }
+      }
+
+      res.json({ success: true, message: `주문 동기화 완료: ${totalInserted}개 신규, ${totalUpdated}개 갱신 (기간: ${queryStart} ~ ${queryEnd})` });
+    } catch (e) {
+      console.error('[Cafe24 Order Sync Error]', e.message);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   router.get('/boards/:mall_id', async (req, res) => {
     try {
       const token = await getValidToken(req.params.mall_id);

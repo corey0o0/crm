@@ -302,9 +302,10 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_KEY || ''
 );
 
-app.use('/api/cafe24', require('./cafe24Router')(supabaseAdmin));
+app.use('/api/cafe24', require('./cafe24Router')(supabaseAdmin, process.env.REDIS_URL));
+app.use('/api/agencies', require('./agenciesRouter')(supabaseAdmin));
 
 // 서버 시작
 app.listen(port, () => {
   console.log(`서버가 포트 ${port}에서 실행 중입니다.`);
-}); 
+});
