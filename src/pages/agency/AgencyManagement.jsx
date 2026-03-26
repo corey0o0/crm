@@ -18,6 +18,10 @@ import {
 import axios from 'axios';
 import * as XLSX from 'xlsx';
 
+const api = axios.create({
+  baseURL: process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001'
+});
+
 export default function AgencyManagement() {
   const [agencies, setAgencies] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -36,7 +40,7 @@ export default function AgencyManagement() {
 
   const fetchAgencies = async () => {
     try {
-      const res = await axios.get('/api/agencies');
+      const res = await api.get('/api/agencies');
       if (res.data.success) {
         setAgencies(res.data.data);
       }
@@ -48,7 +52,7 @@ export default function AgencyManagement() {
   const handleDelete = async (id) => {
     if (!window.confirm('선택한 거래처를 삭제하시겠습니까?')) return;
     try {
-      await axios.delete(`/api/agencies/${id}`);
+      await api.delete(`/api/agencies/${id}`);
       fetchAgencies();
       setSelectedItems(prev => prev.filter(item => item !== id));
     } catch (err) {
@@ -61,7 +65,7 @@ export default function AgencyManagement() {
     if (!window.confirm(`선택한 ${selectedItems.length}개 거래처를 삭제하시겠습니까?`)) return;
     
     try {
-      await Promise.all(selectedItems.map(id => axios.delete(`/api/agencies/${id}`)));
+      await Promise.all(selectedItems.map(id => api.delete(`/api/agencies/${id}`)));
       setSelectedItems([]);
       fetchAgencies();
     } catch (err) {
@@ -131,7 +135,7 @@ export default function AgencyManagement() {
           return;
         }
 
-        const res = await axios.post('/api/agencies/bulk', { items });
+        const res = await api.post('/api/agencies/bulk', { items });
         if (res.data.success) {
           alert(`${res.data.count}건의 거래처가 성공적으로 업로드되었습니다.`);
           fetchAgencies();
@@ -413,9 +417,9 @@ function AgencyFormDialog({ open, data, onClose, onSave }) {
     }
     try {
       if (data?.id) {
-        await axios.put(`/api/agencies/${data.id}`, formData);
+        await api.put(`/api/agencies/${data.id}`, formData);
       } else {
-        await axios.post('/api/agencies', formData);
+        await api.post('/api/agencies', formData);
       }
       onSave();
       onClose();
@@ -495,7 +499,7 @@ function BankInfoDialog({ open, data, onClose, onSave }) {
 
   const handleSubmit = async () => {
     try {
-      await axios.put(`/api/agencies/${data.id}`, { transfer_info: bankInfo });
+      await api.put(`/api/agencies/${data.id}`, { transfer_info: bankInfo });
       onSave();
       onClose();
     } catch (err) {

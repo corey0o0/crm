@@ -236,8 +236,8 @@ function Layout() {
     { text: 'A/S 관리', icon: <BuildIcon />, path: '/services', key: 'services' },
 
     // 📦 재고 & 물류 관리
-    { text: '출고 관리', icon: <LocalShippingIcon />, path: '/shipment', key: 'shipment' },
-    { text: '주문대기', icon: <ShoppingCartOutlinedIcon />, path: '/pending-orders', key: 'pending_orders' },
+    { text: '매장출고관리', icon: <LocalShippingIcon />, path: '/shipment', key: 'shipment' },
+    // { text: '주문대기', icon: <ShoppingCartOutlinedIcon />, path: '/pending-orders', key: 'pending_orders' },
     { text: '거래처 관리', icon: <InventoryIcon />, path: '/agencies', key: 'agencies' },
     { text: '파츠 관리', icon: <InventoryIcon />, path: '/parts', key: 'parts' },
     { text: '매장 재고 관리', icon: <InventoryIcon />, path: '/stocks', key: 'stocks' },
@@ -251,7 +251,7 @@ function Layout() {
     { text: '게시판', icon: <MenuBookIcon />, path: '/board', key: 'board' },
 
     // ⚙️ 설정
-    { text: '상품 동기화(비교)', icon: <SyncIcon />, path: '/settings/product-sync', key: 'admin_tools' },
+    // { text: '상품 동기화(비교)', icon: <SyncIcon />, path: '/settings/product-sync', key: 'admin_tools' },
     { text: '관리자 도구', icon: <ScienceIcon />, path: '/admin/tools', key: 'admin_tools' }
   ];
 
