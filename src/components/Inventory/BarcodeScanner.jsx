@@ -142,23 +142,28 @@ const BarcodeScanner = ({ open, onClose, onScan, onError }) => {
             </Alert>
           )}
           
-          <Box
-            ref={videoRef}
-            sx={{
-              width: '100%',
-              maxWidth: 400,
-              height: 300,
-              backgroundColor: '#f5f5f5',
-              border: '2px dashed #ccc',
-              borderRadius: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              mb: 2
-            }}
-          >
+          <Box sx={{ position: 'relative', width: '100%', maxWidth: 400, height: 300, mx: 'auto', mb: 2 }}>
+            <video
+              ref={videoRef}
+              style={{
+                width: '100%',
+                height: '100%',
+                backgroundColor: '#000',
+                border: '2px dashed #ccc',
+                borderRadius: '4px',
+                objectFit: 'cover',
+                display: isScanning ? 'block' : 'none'
+              }}
+              autoPlay
+              playsInline
+              muted
+            />
             {!isScanning && (
-              <Box sx={{ textAlign: 'center' }}>
+              <Box sx={{ 
+                position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                backgroundColor: '#f5f5f5', border: '2px dashed #ccc', borderRadius: 1
+              }}>
                 <QrCodeScannerIcon sx={{ fontSize: 48, color: '#ccc', mb: 1 }} />
                 <Typography variant="body2" color="text.secondary">
                   스캔을 시작하려면 버튼을 클릭하세요
