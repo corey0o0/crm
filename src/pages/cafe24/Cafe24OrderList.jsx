@@ -20,7 +20,25 @@ export default function Cafe24OrderList() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState(null);
-  const [malls, setMalls] = useState([]);
+  const getFormattedDate = (date) => {
+    const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+    return offsetDate.toISOString().split('T')[0];
+  };
+
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return getFormattedDate(d);
+  });
+  const [endDate, setEndDate] = useState(() => getFormattedDate(new Date()));
+
+  const setPeriod = (days) => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - days);
+    setEndDate(getFormattedDate(end));
+    setStartDate(getFormattedDate(start));
+  };
 
   // 매핑 모달 상태
   const [mappingModalOpen, setMappingModalOpen] = useState(false);
@@ -81,9 +99,9 @@ export default function Cafe24OrderList() {
     setSyncing(true);
     setError(null);
     try {
-      // 7일 전부터 오늘까지 동기화 (기본 설정)
+      // 선택된 시작/종료일 기준으로 동기화
       for (const m of malls) {
-        await syncCafe24Orders(m.mall_id, null, null); 
+        await syncCafe24Orders(m.mall_id, startDate, endDate); 
       }
       await fetchOrders();
     } catch (err) {
@@ -122,16 +140,46 @@ export default function Cafe24OrderList() {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3 }}>
         <Typography variant="h5" fontWeight="bold">🛒 예약 및 매장 주문 수집 (Cafe24)</Typography>
-        <Button 
-          variant="contained" 
-          startIcon={syncing ? <CircularProgress size={20} color="inherit" /> : <SyncIcon />} 
-          onClick={handleSync}
-          disabled={syncing}
-        >
-          {syncing ? '동기화 중...' : '주문 동기화 (최근 7일)'}
-        </Button>
+        
+        <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2, p: 2, bgcolor: '#f8f9fa', borderRadius: 1 }}>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <TextField
+              label="시작일"
+              type="date"
+              size="small"
+              InputLabelProps={{ shrink: true }}
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+            <Typography>~</Typography>
+            <TextField
+              label="종료일"
+              type="date"
+              size="small"
+              InputLabelProps={{ shrink: true }}
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+            />
+          </Stack>
+
+          <Stack direction="row" spacing={1}>
+            <Button variant="outlined" size="small" onClick={() => setPeriod(0)}>금일</Button>
+            <Button variant="outlined" size="small" onClick={() => setPeriod(7)}>7일</Button>
+            <Button variant="outlined" size="small" onClick={() => setPeriod(30)}>1개월</Button>
+          </Stack>
+
+          <Button 
+            variant="contained" 
+            startIcon={syncing ? <CircularProgress size={20} color="inherit" /> : <SyncIcon />} 
+            onClick={handleSync}
+            disabled={syncing}
+            sx={{ ml: 'auto' }}
+          >
+            {syncing ? '동기화 중...' : '선택 기간 주문 수집'}
+          </Button>
+        </Box>
       </Box>
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
