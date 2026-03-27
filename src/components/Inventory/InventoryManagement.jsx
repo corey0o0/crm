@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import ExcelJS from 'exceljs';
+import BarcodeInspectTab from './tabs/BarcodeInspectTab';
+import StoreOnlineOutboundTab from './tabs/StoreOnlineOutboundTab';
+import BoxStatusTab from './tabs/BoxStatusTab';
 import {
   Box,
   Grid,
@@ -57,7 +60,7 @@ import LocationManagement from './LocationManagement';
 import BarcodeScanner from './BarcodeScanner';
 import { productApi } from '../../api/productApi';
 import { warehouseApi } from '../../api/warehouseApi';
-import { dealerApi } from '../../api/dealerApi';
+import { agencyApi as dealerApi } from '../../api/agencyApi';
 import { transactionApi } from '../../api/transactionApi';
 import { inventoryApi } from '../../api/inventoryApi';
 import { supabase } from '../../lib/supabaseClient';
@@ -232,7 +235,7 @@ function InventoryManagement() {
       });
       
       setProducts(productsData);
-      console.log(`실제 니어바이크 파츠관리에서 ${productsData.length}개의 상품을 가져왔습니다.`);
+      console.log(`파츠관리에서 ${productsData.length}개의 전체 상품을 가져왔습니다.`);
     } catch (error) {
       console.error('상품 데이터 로딩 실패:', error);
       
@@ -815,7 +818,7 @@ function InventoryManagement() {
         initializeInventory();
       }, 100);
       
-      showSnackbar(`실제 니어바이크 파츠관리에서 최신 상품 데이터를 가져왔습니다. (총 ${latestProducts.length}개)`, 'success');
+      showSnackbar(`파츠관리 모듈에서 최신 전체 상품 데이터를 동기화했습니다. (총 ${latestProducts.length}개)`, 'success');
     } catch (error) {
       console.error('상품 데이터 새로고침 실패:', error);
       showSnackbar('파츠관리 데이터 새로고침에 실패했습니다.', 'error');
@@ -866,6 +869,7 @@ function InventoryManagement() {
         quantity: '',
         fromLocation: '',
         toLocation: '',
+        boxNo: '',
         note: '',
         additionalNote: ''
       }
@@ -881,6 +885,11 @@ function InventoryManagement() {
       if (isOutbound) {
         // 출고: 출발지(창고) 필수, 목적지 필수
         if (!item.fromLocation || !item.toLocation) return true;
+        
+        // 창고 -> 창고 이동 시 박스번호(boxNo) 필수
+        const isToWarehouse = warehouses.find(w => w.id === item.toLocation);
+        if (isToWarehouse && !item.boxNo) return true;
+
         const available = (inventory[item.fromLocation]?.[parseInt(item.productId) || 0]) || 0;
         return (parseInt(item.quantity) || 0) > available;
       }
@@ -914,6 +923,7 @@ function InventoryManagement() {
         fromLocation: isOutbound ? item.fromLocation : (item.fromLocation || '외부'),
         toLocation: item.toLocation,
         date: formData.date,
+        boxNo: item.boxNo || '',
         note: item.note || formData.note,
         additionalNote: item.additionalNote || '',
         createdAt: new Date().toLocaleString(),
@@ -1080,7 +1090,7 @@ function InventoryManagement() {
     setExcelUploadType('');
   };
 
-  // 엑셀 파일 처리 (니어바이크 데이터 형식 지원)
+  // 엑셀 파일 처리 (다중 상품 가로배열 데이터 형식 지원)
   const handleExcelFileUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -1095,7 +1105,7 @@ function InventoryManagement() {
       const worksheet = workbook.getWorksheet(1);
       const data = [];
       
-      // 니어바이크 데이터 형식 감지
+      // 통합 파츠 템플릿(가로) 형식 감지
       let isNearbikeFormat = false;
       let headerRow = 1;
       
@@ -1109,7 +1119,19 @@ function InventoryManagement() {
       });
 
       if (isNearbikeFormat) {
-        // 니어바이크 형식 처리
+        // [업데이트]: 통합 파츠 관리 (가로 형태의 다중 상품 주문서 양식 지원)
+        const headerRowValues = worksheet.getRow(headerRow).values;
+        
+        // 어떤 열이 어떤 상품을 의미하는지 동적으로 식별 (4번째 열부터)
+        // 엑셀은 1-based index 이지만, empty cell 이 있으면 length 가 길 수 있음
+        const dynamicProductColumns = [];
+        for (let i = 4; i < headerRowValues.length; i++) {
+          const colName = headerRowValues[i]?.toString().trim();
+          if (colName) {
+            dynamicProductColumns.push({ col: i, name: colName, code: colName.replace(/\s+/g, '') });
+          }
+        }
+
         worksheet.eachRow((row, rowNumber) => {
           if (rowNumber <= headerRow) return; // 헤더 행 건너뛰기
           
@@ -1120,23 +1142,14 @@ function InventoryManagement() {
           
           if (!orderNumber || orderNumber.toString().trim() === '') return;
           
-          // 상품별 수량 처리 (E열부터)
-          const productColumns = [
-            { col: 4, name: '청담', code: '청담' },
-            { col: 5, name: '레트로 20블랙', code: '레트로20블랙' },
-            { col: 6, name: '레트로 20베이지', code: '레트로20베이지' },
-            { col: 7, name: '카고', code: '카고' },
-            { col: 8, name: '스프린터블랙', code: '스프린터블랙' },
-            { col: 9, name: '스프린터그레이', code: '스프린터그레이' }
-          ];
-          
-          productColumns.forEach(product => {
+          dynamicProductColumns.forEach(product => {
             const quantity = parseInt(rowData[product.col]) || 0;
             if (quantity !== 0) {
               const item = {
-                productCode: product.code,
+                productCode: product.code, // 추후 handleExcelDataSubmit 에서 products와 매칭
                 productName: product.name,
-                quantity: Math.abs(quantity), // 절댓값 사용
+                parsedColName: product.name, 
+                quantity: Math.abs(quantity), 
                 fromLocation: quantity < 0 ? '외부' : 'W001', // 음수면 입고, 양수면 출고
                 toLocation: quantity < 0 ? 'W001' : note || '외부',
                 note: `${orderSource} - ${orderNumber}`,
@@ -1170,7 +1183,7 @@ function InventoryManagement() {
       }
 
       setExcelData(data);
-      const formatType = isNearbikeFormat ? '니어바이크 형식' : '표준 형식';
+      const formatType = isNearbikeFormat ? '다중 파츠 형식' : '표준 형식';
       showSnackbar(`${data.length}개의 상품 데이터를 읽었습니다. (${formatType})`, 'success');
     } catch (error) {
       console.error('엑셀 파일 읽기 오류:', error);
@@ -1192,7 +1205,18 @@ function InventoryManagement() {
     let outboundCount = 0;
 
     excelData.forEach((item, index) => {
-      const product = products.find(p => p.code === item.productCode);
+      const product = products.find(p => {
+        if (p.code === item.productCode) return true;
+        
+        // 파츠 이름으로 매칭 시도 (공백 및 대소문자 무시)
+        const dbNameStr = (p.name || '').replace(/\s+/g, '').toLowerCase();
+        const searchStr = (item.parsedColName || item.productName || item.productCode || '').replace(/\s+/g, '').toLowerCase();
+        
+        if (dbNameStr && searchStr && (dbNameStr === searchStr || dbNameStr.includes(searchStr) || searchStr.includes(dbNameStr))) {
+          return true;
+        }
+        return false;
+      });
       
       if (product) {
         // 출발지/목적지로 입고/출고 판단
@@ -1319,10 +1343,10 @@ function InventoryManagement() {
     });
   };
 
-  // 니어바이크 형식 템플릿 다운로드
+  // 다중 상품 형식 템플릿 다운로드
   const downloadNearbikeTemplate = () => {
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('니어바이크 재고 관리');
+    const worksheet = workbook.addWorksheet('다중_파츠_입출고_관리');
     
     // 헤더 설정 (구글 시트와 동일한 형식)
     worksheet.columns = [
@@ -1388,7 +1412,7 @@ function InventoryManagement() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = '니어바이크_재고관리_템플릿.xlsx';
+      link.download = '통합_파츠_재고관리_템플릿.xlsx';
       link.click();
       window.URL.revokeObjectURL(url);
     });
@@ -1404,6 +1428,7 @@ function InventoryManagement() {
         quantity: '',
         fromLocation: '',
         toLocation: '',
+        boxNo: '',
         note: '',
         additionalNote: ''
       }
@@ -2216,11 +2241,11 @@ function InventoryManagement() {
           <Tab label="대시보드" />
           <Tab label="거래 내역" />
           <Tab label="입출고 통계" />
-          <Tab label="전체보기" />
-          {warehouses.map(w => (
-            <Tab key={`wtab-${w.id}`} label={w.name} />
-          ))}
+          <Tab label="재고 현황" />
           <Tab label="창고/대리점 관리" />
+          {/* <Tab label="바코드 검수" /> */}
+          <Tab label="매장/온라인 출고" />
+          <Tab label="박스 관리" />
         </Tabs>
       </Box>
 
@@ -3197,7 +3222,7 @@ function InventoryManagement() {
         <Box>
           <Card sx={{ p: 2, mb: 2 }}>
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'space-between' }}>
-              <Typography variant="h6">전체보기 (창고 x 상품)</Typography>
+              <Typography variant="h6">재고 현황</Typography>
               <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                 <TextField
                   size="small"
@@ -3235,6 +3260,8 @@ function InventoryManagement() {
               <TableHead>
                 <TableRow>
                   <TableCell sx={{ position: 'sticky', left: 0, zIndex: 3, backgroundColor: 'background.paper', width: 240, maxWidth: 240 }}>상품</TableCell>
+                  <TableCell sx={{ width: 120, maxWidth: 120 }}>바코드</TableCell>
+                  <TableCell sx={{ width: 120, maxWidth: 120 }}>제품코드</TableCell>
                   {warehouses.map(w => (
                     <TableCell key={`wh-col-${w.id}`} align="right" sx={{ width: 120, maxWidth: 140 }}>{w.name}</TableCell>
                   ))}
@@ -3268,8 +3295,10 @@ function InventoryManagement() {
                       return (
                         <TableRow key={`prod-row-${p.id}`} hover>
                           <TableCell sx={{ position: 'sticky', left: 0, zIndex: 2, backgroundColor: 'background.paper', fontWeight: 'bold', width: 240, maxWidth: 240 }}>
-                            {p.name} ({p.code})
+                            {p.name}
                           </TableCell>
+                          <TableCell sx={{ width: 120, maxWidth: 120 }}>{p.barcode || '-'}</TableCell>
+                          <TableCell sx={{ width: 120, maxWidth: 120 }}>{p.code || '-'}</TableCell>
                           {warehouses.map(w => (
                             <TableCell key={`cell-${p.id}-${w.id}`} align="right" sx={{ width: 120, maxWidth: 140 }}>{(inventory[w.id]?.[p.id] || 0).toLocaleString()}</TableCell>
                           ))}
@@ -3284,6 +3313,8 @@ function InventoryManagement() {
                       <TableCell sx={{ position: 'sticky', left: 0, zIndex: 2, backgroundColor: '#e3f2fd', fontWeight: 'bold', width: 240, maxWidth: 240 }}>
                         창고별 총합
                       </TableCell>
+                      <TableCell sx={{ backgroundColor: '#e3f2fd' }}></TableCell>
+                      <TableCell sx={{ backgroundColor: '#e3f2fd' }}></TableCell>
                       {warehouses.map((w, index) => (
                         <TableCell key={`warehouse-total-${w.id}`} align="right" sx={{ width: 120, maxWidth: 140, backgroundColor: '#e3f2fd', fontWeight: 'bold' }}>
                           {warehouseTotals[index].toLocaleString()}
@@ -3301,341 +3332,7 @@ function InventoryManagement() {
         </Box>
       )}
 
-      {/* 동적으로 생성되는 창고별 상세 탭 */}
-      {warehouses.map((w, idx) => (
-        activeTab === 4 + idx && (
-          <Box key={`wtab-content-${w.id}`}>
-            <Card sx={{ p: 2, mb: 2 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Box>
-                  <Typography variant="h6">{w.name} 상세 재고</Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    총 재고 수량: {Object.values(inventory[w.id] || {}).reduce((sum, qty) => sum + qty, 0).toLocaleString()}개
-                  </Typography>
-                </Box>
-                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                  <Button
-                    variant="outlined"
-                    onClick={() => {
-                      try {
-                        const wid = w.id;
-                        const rows = (products || []).map(p => ({
-                          id: p.id,
-                          brand: p.supplier || '',
-                          code: p.code || '',
-                          barcode: p.barcode || '',
-                          name: p.name || '',
-                          stock: inventory[wid]?.[p.id] || 0
-                        }));
-                        const filtered = rows.filter(r => {
-                          const term = warehouseDetailSearch.trim().toLowerCase();
-                          const searchMatch = !term || (
-                            r.name.toLowerCase().includes(term) ||
-                            r.code.toLowerCase().includes(term) ||
-                            r.barcode.toLowerCase().includes(term) ||
-                            r.brand.toLowerCase().includes(term)
-                          );
-                          
-                          // 재고 필터 적용
-                          let stockMatch = true;
-                          if (warehouseDetailFilter === 'inStock') {
-                            stockMatch = r.stock > 0;
-                          } else if (warehouseDetailFilter === 'outOfStock') {
-                            stockMatch = r.stock === 0;
-                          } else if (warehouseDetailFilter === 'below') {
-                            stockMatch = r.stock < (warehouseDetailBelow || 0);
-                          }
-                          
-                          return searchMatch && stockMatch;
-                        });
-                        const header = 'brand,code,barcode,name,stock\n';
-                        const body = filtered.map(r => `${(r.brand||'').toString().replace(/,/g,' ')},${r.code},${r.barcode},${r.name.replace(/,/g,' ')},${r.stock}`).join('\n');
-                        const csv = header + body;
-                        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `${w.name}_상세재고.csv`;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(url);
-                      } catch (err) {
-                        console.error('상세 재고 CSV 다운로드 실패:', err);
-                      }
-                    }}
-                  >
-                    CSV 다운로드
-                  </Button>
-                </Box>
-              </Box>
-              
-              {/* 개선된 검색 및 필터 UI */}
-              <Card sx={{ p: 2, mb: 2 }}>
-                <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <SearchIcon />
-                  상품 검색 및 필터
-                </Typography>
-                
-                <Grid container spacing={2} alignItems="center">
-                  {/* 검색 입력 */}
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      label="상품 검색"
-                      placeholder="브랜드/코드/바코드/제품명으로 검색"
-                      value={warehouseDetailSearch}
-                      onChange={(e) => setWarehouseDetailSearch(e.target.value)}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <SearchIcon />
-                          </InputAdornment>
-                        ),
-                        endAdornment: warehouseDetailSearch && (
-                          <InputAdornment position="end">
-                            <IconButton 
-                              size="small" 
-                              onClick={() => setWarehouseDetailSearch('')}
-                              edge="end"
-                            >
-                              <CloseIcon />
-                            </IconButton>
-                          </InputAdornment>
-                        )
-                      }}
-                    />
-                  </Grid>
-                  
-                  {/* 재고 상태 필터 */}
-                  <Grid item xs={12} md={3}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      select
-                      label="재고 상태"
-                      value={warehouseDetailFilter}
-                      onChange={(e) => setWarehouseDetailFilter(e.target.value)}
-                    >
-                      <MenuItem value="all">전체</MenuItem>
-                      <MenuItem value="inStock">재고 있음</MenuItem>
-                      <MenuItem value="outOfStock">재고 없음</MenuItem>
-                      <MenuItem value="below">N개 미만</MenuItem>
-                    </TextField>
-                  </Grid>
-                  
-                  {/* N개 미만 임계값 입력 */}
-                  {warehouseDetailFilter === 'below' && (
-                    <Grid item xs={12} md={2}>
-                      <TextField
-                        fullWidth
-                        size="small"
-                        type="number"
-                        label="임계값"
-                        value={warehouseDetailBelow}
-                        onChange={(e) => setWarehouseDetailBelow(parseInt(e.target.value) || 0)}
-                        inputProps={{ min: 0 }}
-                      />
-                    </Grid>
-                  )}
-                  
-                  {/* 검색 결과 통계 */}
-                  <Grid item xs={12} md={3}>
-                    <Box sx={{ 
-                      p: 1, 
-                      backgroundColor: '#f5f5f5', 
-                      borderRadius: 1,
-                      textAlign: 'center'
-                    }}>
-                      <Typography variant="body2" color="text.secondary">
-                        검색 결과: {(() => {
-                          const wid = w.id;
-                          const rows = (products || []).map(p => ({
-                            id: p.id,
-                            brand: p.supplier || '',
-                            code: p.code || '',
-                            barcode: p.barcode || '',
-                            name: p.name || '',
-                            stock: inventory[wid]?.[p.id] || 0
-                          }));
-                          const filtered = rows.filter(r => {
-                            const term = warehouseDetailSearch.trim().toLowerCase();
-                            const searchMatch = !term || (
-                              r.name.toLowerCase().includes(term) ||
-                              r.code.toLowerCase().includes(term) ||
-                              r.barcode.toLowerCase().includes(term) ||
-                              r.brand.toLowerCase().includes(term)
-                            );
-                            
-                            let stockMatch = true;
-                            if (warehouseDetailFilter === 'inStock') {
-                              stockMatch = r.stock > 0;
-                            } else if (warehouseDetailFilter === 'outOfStock') {
-                              stockMatch = r.stock === 0;
-                            } else if (warehouseDetailFilter === 'below') {
-                              stockMatch = r.stock < (warehouseDetailBelow || 0);
-                            }
-                            
-                            return searchMatch && stockMatch;
-                          });
-                          return filtered.length;
-                        })()}개
-                      </Typography>
-                    </Box>
-                  </Grid>
-                </Grid>
-              </Card>
-            </Card>
 
-            <TableContainer component={Paper}>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography variant="subtitle2" fontWeight="bold">브랜드</Typography>
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography variant="subtitle2" fontWeight="bold">상품코드</Typography>
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography variant="subtitle2" fontWeight="bold">바코드</Typography>
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography variant="subtitle2" fontWeight="bold">제품명</Typography>
-                      </Box>
-                    </TableCell>
-                    <TableCell align="right">
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'flex-end' }}>
-                        <Typography variant="subtitle2" fontWeight="bold">수량</Typography>
-                      </Box>
-                    </TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {(() => {
-                    const wid = w.id;
-                    const rows = (products || []).map(p => ({
-                      id: p.id,
-                      brand: p.supplier || '',
-                      code: p.code || '',
-                      barcode: p.barcode || '',
-                      name: p.name || '',
-                      stock: inventory[wid]?.[p.id] || 0
-                    }));
-                    const filtered = rows.filter(r => {
-                      const term = warehouseDetailSearch.trim().toLowerCase();
-                      const searchMatch = !term || (
-                        r.name.toLowerCase().includes(term) ||
-                        r.code.toLowerCase().includes(term) ||
-                        r.barcode.toLowerCase().includes(term) ||
-                        r.brand.toLowerCase().includes(term)
-                      );
-                      
-                      // 재고 필터 적용
-                      let stockMatch = true;
-                      if (warehouseDetailFilter === 'inStock') {
-                        stockMatch = r.stock > 0;
-                      } else if (warehouseDetailFilter === 'outOfStock') {
-                        stockMatch = r.stock === 0;
-                      } else if (warehouseDetailFilter === 'below') {
-                        stockMatch = r.stock < (warehouseDetailBelow || 0);
-                      }
-                      
-                      return searchMatch && stockMatch;
-                    }).sort((a, b) => b.stock - a.stock);
-                    
-                    if (filtered.length === 0) {
-                      return (
-                        <TableRow>
-                          <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
-                            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                              <SearchIcon sx={{ fontSize: 48, color: 'text.secondary' }} />
-                              <Typography variant="h6" color="text.secondary">
-                                검색 결과가 없습니다
-                              </Typography>
-                              <Typography variant="body2" color="text.secondary">
-                                다른 검색어나 필터를 시도해보세요
-                              </Typography>
-                            </Box>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    }
-                    
-                    return filtered.map(r => (
-                      <TableRow 
-                        key={r.id} 
-                        hover
-                        sx={{ 
-                          '&:hover': { backgroundColor: '#f5f5f5' },
-                          ...(r.stock === 0 && { backgroundColor: '#ffebee' }),
-                          ...(r.stock > 0 && r.stock < (warehouseDetailBelow || 5) && { backgroundColor: '#fff3e0' })
-                        }}
-                      >
-                        <TableCell>
-                          <Typography variant="body2" fontWeight={r.brand ? 'medium' : 'normal'}>
-                            {r.brand || '-'}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" fontWeight="medium" color="primary">
-                            {r.code}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" fontFamily="monospace">
-                            {r.barcode || '-'}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" fontWeight="medium">
-                            {r.name}
-                          </Typography>
-                        </TableCell>
-                        <TableCell align="right">
-                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
-                            <Typography 
-                              variant="body2" 
-                              fontWeight="bold"
-                              color={r.stock === 0 ? 'error' : r.stock < (warehouseDetailBelow || 5) ? 'warning.main' : 'text.primary'}
-                            >
-                              {r.stock.toLocaleString()}
-                            </Typography>
-                            {r.stock === 0 && (
-                              <Chip 
-                                label="재고없음" 
-                                size="small" 
-                                color="error" 
-                                variant="outlined"
-                              />
-                            )}
-                            {r.stock > 0 && r.stock < (warehouseDetailBelow || 5) && (
-                              <Chip 
-                                label="부족" 
-                                size="small" 
-                                color="warning" 
-                                variant="outlined"
-                              />
-                            )}
-                          </Box>
-                        </TableCell>
-                      </TableRow>
-                    ));
-                  })()}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Box>
-        )
-      ))}
 
       {/* 입출고 등록 다이얼로그 (통합) */}
       <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="lg" fullWidth>
@@ -3680,7 +3377,7 @@ function InventoryManagement() {
             {multipleIoProducts.map((product, index) => (
                 <Box key={product.id} sx={{ mb: 1, p: 1 }}>
                     <Grid container spacing={1} alignItems="center">
-                      <Grid item xs={12} md={3.5}>
+                      <Grid item xs={12} md={3}>
                         <Autocomplete
                           fullWidth
                           options={products}
@@ -3847,14 +3544,20 @@ function InventoryManagement() {
                         placeholder="개별 메모"
                       />
                     </Grid>
-                      <Grid item xs={12} md={1}>
+                      <Grid item xs={12} md={1.5}>
                       <TextField
                         fullWidth
-                        label="추가 메모"
+                        label={
+                          (() => {
+                            const isToWarehouse = warehouses.find(w => w.id === product.toLocation);
+                            return isToWarehouse ? "박스 번호 (필수)" : "박스 번호 (선택)";
+                          })()
+                        }
                         size="small"
-                        value={product.additionalNote || ''}
-                      onChange={(e) => updateIoProductRow(product.id, 'additionalNote', e.target.value)}
-                        placeholder="추가 메모"
+                        required={!!warehouses.find(w => w.id === product.toLocation)}
+                        value={product.boxNo || ''}
+                      onChange={(e) => updateIoProductRow(product.id, 'boxNo', e.target.value)}
+                        placeholder="박스 묶음"
                       />
                     </Grid>
                       <Grid item xs={12} md={0.5}>
@@ -4521,7 +4224,7 @@ function InventoryManagement() {
                   onClick={downloadNearbikeTemplate}
                   startIcon={<DownloadIcon />}
                 >
-                  니어바이크 형식 템플릿
+                  다중 파츠 템플릿 양식
                 </Button>
               </Box>
             </Box>
@@ -4651,7 +4354,7 @@ function InventoryManagement() {
       </Dialog>
 
       {/* 창고/대리점 관리 탭 (마지막) */}
-      {activeTab === 4 + warehouses.length && (
+      {activeTab === 4 && (
         <LocationManagement
           warehouses={warehouses}
           setWarehouses={setWarehouses}
@@ -4827,6 +4530,16 @@ function InventoryManagement() {
           <Button onClick={() => setTableModalOpen(false)}>닫기</Button>
         </DialogActions>
       </Dialog>
+
+      {/* 매장/온라인 출고 탭 */}
+      {activeTab === 5 && (
+        <StoreOnlineOutboundTab />
+      )}
+
+      {/* 박스 관리 탭 */}
+      {activeTab === 6 && (
+        <BoxStatusTab />
+      )}
 
       {/* 바코드 스캐너 */}
       <BarcodeScanner

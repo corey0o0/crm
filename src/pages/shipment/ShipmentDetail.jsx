@@ -44,6 +44,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { useNavigate, useParams } from 'react-router-dom';
 import { format, parseISO, isValid } from 'date-fns';
 import { processShipmentCompletion, processShipmentRevert } from '../../utils/inventoryUtils';
+import { pendingOutboundApi } from '../../api/pendingOutboundApi';
 // import { addShipmentPartsToPendingOrders } from '../../utils/pendingOrderUtils'; // 주문대기 기능 비활성화
 
 function ShipmentDetail() {
@@ -55,8 +56,56 @@ function ShipmentDetail() {
   const [editableParts, setEditableParts] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [addingToQueue, setAddingToQueue] = useState(false);
   const navigate = useNavigate();
   const { id } = useParams();
+
+  const handleAddToPendingOutbounds = async () => {
+    if (shipmentData.status !== '준비중') {
+       alert("출고 상태가 '준비중'일 때만 검수 대기열에 등록할 수 있습니다.");
+       return;
+    }
+    if (!shipmentParts || shipmentParts.length === 0) {
+       alert("출고할 부품/상품 내역이 없습니다.");
+       return;
+    }
+
+    if (!window.confirm("이 출고건을 '매장/온라인 출고' 검수 대기열로 전송하시겠습니까?")) return;
+
+    try {
+      setAddingToQueue(true);
+      const orderData = {
+        order_no: `SHP-${shipmentData.id.slice(0, 8).toUpperCase()}`,
+        type: '일반 출고',
+        source_id: shipmentData.id,
+        status: '대기',
+        items: shipmentParts.map(part => ({
+          part_id: part.part_id,
+          name: part.part_name,
+          code: part.part_code || '',
+          barcode: part.part_code || '',
+          expected_qty: part.quantity
+        }))
+      };
+      
+      await pendingOutboundApi.create(orderData);
+      
+      setSnackbar({
+        open: true,
+        message: '검수 대기열에 등록되었습니다. [입출고관리] - [매장/온라인 출고] 탭에서 확인하세요.',
+        severity: 'success'
+      });
+    } catch (err) {
+      console.error(err);
+      setSnackbar({
+        open: true,
+        message: '대기열 등록 중 오류가 발생했습니다: ' + err.message,
+        severity: 'error'
+      });
+    } finally {
+      setAddingToQueue(false);
+    }
+  };
 
   // Snackbar 상태 추가
   const [snackbar, setSnackbar] = useState({
@@ -1078,6 +1127,15 @@ function ShipmentDetail() {
             </>
           ) : (
             <>
+              <Button
+                variant="contained"
+                color="secondary"
+                onClick={handleAddToPendingOutbounds}
+                disabled={addingToQueue || shipmentData.status !== '준비중'}
+                sx={{ mr: 1, bgcolor: '#9c27b0', '&:hover': { bgcolor: '#7b1fa2' } }}
+              >
+                검수 대기열 등록
+              </Button>
               <Button
                 variant="outlined"
                 color="error"

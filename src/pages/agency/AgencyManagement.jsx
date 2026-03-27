@@ -13,10 +13,12 @@ import {
   FileUpload as FileUploadIcon,
   FileDownload as FileDownloadIcon,
   AccountBalance as BankIcon,
-  Close as CloseIcon
+  Close as CloseIcon,
+  History as HistoryIcon
 } from '@mui/icons-material';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
+import { transactionApi } from '../../api/transactionApi';
 
 const api = axios.create({
   baseURL: process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001'
@@ -30,6 +32,7 @@ export default function AgencyManagement() {
   // Modals
   const [openForm, setOpenForm] = useState(false);
   const [openBankForm, setOpenBankForm] = useState(false);
+  const [openHistory, setOpenHistory] = useState(false);
   const [editData, setEditData] = useState(null);
   
   const fileInputRef = useRef(null);
@@ -353,6 +356,11 @@ export default function AgencyManagement() {
                   </Button>
                 </TableCell>
                 <TableCell align="right">
+                  <Tooltip title="출고/거래 내역">
+                    <IconButton size="small" color="info" onClick={() => { setEditData(row); setOpenHistory(true); }}>
+                      <HistoryIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
                   <IconButton size="small" onClick={() => { setEditData(row); setOpenForm(true); }}>
                     <EditIcon fontSize="small" />
                   </IconButton>
@@ -387,6 +395,13 @@ export default function AgencyManagement() {
         data={editData} 
         onClose={() => setOpenBankForm(false)} 
         onSave={fetchAgencies} 
+      />
+
+      {/* 거래내역 모달 */}
+      <AgencyHistoryDialog
+        open={openHistory}
+        agency={editData}
+        onClose={() => setOpenHistory(false)}
       />
     </Box>
   );
@@ -526,6 +541,127 @@ function BankInfoDialog({ open, data, onClose, onSave }) {
       <DialogActions>
         <Button onClick={onClose}>취소</Button>
         <Button onClick={handleSubmit} variant="contained" color="primary">저장</Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+// ----------------------------------------------------
+// Agency History Component (거래처 출고/거래 내역)
+// ----------------------------------------------------
+function AgencyHistoryDialog({ open, agency, onClose }) {
+  const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 1);
+    return d.toISOString().split('T')[0];
+  });
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+
+  useEffect(() => {
+    if (open && agency) {
+      fetchHistory();
+    } else {
+      setTransactions([]);
+    }
+  }, [open, agency]);
+
+  const fetchHistory = async () => {
+    if (!agency?.id) return;
+    setLoading(true);
+    try {
+      const data = await transactionApi.getByLocation(agency.id);
+      setTransactions(data || []);
+    } catch (err) {
+      console.error('거래처 내역 조회 실패:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredTransactions = transactions.filter(t => 
+    t.date >= startDate && t.date <= endDate
+  );
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <HistoryIcon color="primary" />
+          <Typography variant="h6">{agency?.name} 거래/출고 내역</Typography>
+        </Box>
+      </DialogTitle>
+      <DialogContent dividers sx={{ p: 0, overflowX: 'hidden' }}>
+        <Box sx={{ p: 2, bgcolor: 'grey.50', borderBottom: '1px solid #e0e0e0', display: 'flex', gap: 2, alignItems: 'center' }}>
+          <TextField
+            size="small"
+            type="date"
+            label="시작일"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+          />
+          <Typography color="text.secondary">~</Typography>
+          <TextField
+            size="small"
+            type="date"
+            label="종료일"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+          />
+          <Box sx={{ flexGrow: 1 }} />
+          <Typography variant="body2" color="primary" fontWeight="bold">
+            기간 내 거래 건수: {filteredTransactions.length}건
+          </Typography>
+        </Box>
+        
+        {loading ? (
+          <Box sx={{ p: 4, textAlign: 'center' }}><Typography color="text.secondary">로딩 중...</Typography></Box>
+        ) : filteredTransactions.length === 0 ? (
+          <Box sx={{ p: 4, textAlign: 'center' }}><Typography color="text.secondary">조회된 내역이 없습니다.</Typography></Box>
+        ) : (
+          <TableContainer>
+            <Table size="small" stickyHeader>
+              <TableHead>
+                <TableRow>
+                  <TableCell>날짜</TableCell>
+                  <TableCell>구분</TableCell>
+                  <TableCell>상품명</TableCell>
+                  <TableCell>제품코드</TableCell>
+                  <TableCell align="right">수량</TableCell>
+                  <TableCell>관련 메모</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {filteredTransactions.map((t) => (
+                  <TableRow key={t.id} hover>
+                    <TableCell>{t.date}</TableCell>
+                    <TableCell>
+                      {t.fromLocation === String(agency.id) || t.fromLocation === Number(agency.id) ? (
+                        <Typography variant="body2" color="error">반품/출고</Typography>
+                      ) : (
+                        <Typography variant="body2" color="primary">입고/수신</Typography>
+                      )}
+                    </TableCell>
+                    <TableCell>{t.productName}</TableCell>
+                    <TableCell>{t.productCode || '-'}</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 'bold' }}>{t.quantity}</TableCell>
+                    <TableCell>
+                      <Typography variant="caption" color="text.secondary">
+                        {t.note || '-'} {t.additionalNote ? `(${t.additionalNote})` : ''}
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>닫기</Button>
       </DialogActions>
     </Dialog>
   );

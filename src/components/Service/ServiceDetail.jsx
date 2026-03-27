@@ -66,6 +66,7 @@ import { formatKoreanDateTime } from '../../utils/dateUtils';
 import { format } from 'date-fns';
 import { sendTelegramNotification } from '../../lib/telegram';
 import { processServiceCompletion } from '../../utils/inventoryUtils';
+import { pendingOutboundApi } from '../../api/pendingOutboundApi';
 // import { addServicePartsToPendingOrders } from '../../utils/pendingOrderUtils'; // 주문대기 기능 비활성화
 import {
   uploadFileToGoogleDrive,
@@ -117,7 +118,51 @@ function ServiceDetail() {
     '충전기', '모터', '워런티', '사고-보험', 'E07', 'E09', 'E010'
   ]);
   const [submitting, setSubmitting] = useState(false);
+  const [addingToQueue, setAddingToQueue] = useState(false);
   const [openReceiptDialog, setOpenReceiptDialog] = useState(false);
+
+  const handleAddToPendingOutbounds = async () => {
+    if (!selectedParts || selectedParts.length === 0) {
+       alert("사용된 부품/상품 내역이 없습니다.");
+       return;
+    }
+
+    if (!window.confirm("이 A/S 건을 '매장/온라인 출고' 검수 대기열로 전송하시겠습니까?")) return;
+
+    try {
+      setAddingToQueue(true);
+      const orderData = {
+        order_no: `AS-${id.slice(0, 8).toUpperCase()}`,
+        type: 'A/S 출고',
+        source_id: id,
+        status: '대기',
+        items: selectedParts.map(part => ({
+          part_id: part.part_id || part.id,
+          name: part.part_name || part.name,
+          code: part.part_code || part.code || '',
+          barcode: part.part_code || part.code || '',
+          expected_qty: part.quantity
+        }))
+      };
+      
+      await pendingOutboundApi.create(orderData);
+      
+      setSnackbar({
+        open: true,
+        message: '검수 대기열에 등록되었습니다. [입출고관리] - [매장/온라인 출고] 탭에서 확인하세요.',
+        severity: 'success'
+      });
+    } catch (err) {
+      console.error(err);
+      setSnackbar({
+        open: true,
+        message: '대기열 등록 중 오류가 발생했습니다: ' + err.message,
+        severity: 'error'
+      });
+    } finally {
+      setAddingToQueue(false);
+    }
+  };
 
   // 파일 업로드 관련 상태
   const [uploadingFiles, setUploadingFiles] = useState(false);
@@ -3405,6 +3450,22 @@ function ServiceDetail() {
               </Button>
             </Box>
             <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+              <Button
+                onClick={handleAddToPendingOutbounds}
+                disabled={addingToQueue || isEditing}
+                startIcon={<AddIcon />}
+                sx={{
+                  color: '#9c27b0',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  textTransform: 'none',
+                  '&:hover': {
+                    bgcolor: 'rgba(156, 39, 176, 0.04)'
+                  }
+                }}
+              >
+                검수 대기열 등록
+              </Button>
               <Button
                 onClick={handlePrintEstimate}
                 startIcon={<ReceiptIcon />}

@@ -553,7 +553,7 @@ function LocationManagement({
         </Tabs>
       </Box>
 
-      {/* 니어바이크 파츠 동기화 버튼 */}
+      {/* 전체 파츠 동기화 버튼 */}
       <Box sx={{ mb: 3, display: 'flex', justifyContent: 'flex-end' }}>
         <Button
           variant="outlined"
@@ -563,7 +563,7 @@ function LocationManagement({
           color="primary"
           startIcon={<SyncIcon />}
         >
-          니어바이크 파츠 동기화
+          전체 파츠 동기화
         </Button>
       </Box>
 
@@ -729,30 +729,14 @@ function LocationManagement({
       {activeTab === 1 && (
         <Box>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-            <Typography variant="h6">🏪 대리점 관리</Typography>
+            <Typography variant="h6">🏪 대리점 목록 (거래처 관리 연동)</Typography>
             <Box sx={{ display: 'flex', gap: 1 }}>
               <Button
                 variant="outlined"
-                startIcon={<CloudDownloadIcon />}
-                onClick={downloadDealerTemplate}
-                size="small"
+                color="info"
+                onClick={() => window.location.href = '/agencies'}
               >
-                템플릿 다운로드
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<UploadIcon />}
-                onClick={() => setUploadDialogOpen(true)}
-                size="small"
-              >
-                엑셀 업로드
-              </Button>
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={() => handleOpenDialog('dealer')}
-              >
-                새 대리점 추가
+                거래처 관리로 이동
               </Button>
             </Box>
           </Box>
@@ -762,12 +746,11 @@ function LocationManagement({
               <TableHead>
                 <TableRow>
                   <TableCell>ID</TableCell>
-                  <TableCell>대리점명</TableCell>
-                  <TableCell>지역</TableCell>
+                  <TableCell>대리점명 (상호)</TableCell>
+                  <TableCell>사업자번호</TableCell>
                   <TableCell>연락처</TableCell>
-                  <TableCell>담당자</TableCell>
+                  <TableCell>대표자</TableCell>
                   <TableCell>주소</TableCell>
-                  <TableCell align="center">관리</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -779,14 +762,13 @@ function LocationManagement({
                         등록된 대리점이 없습니다
                       </Typography>
                       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        새 대리점을 추가하여 판매망을 확장하세요
+                        좌측 메뉴의 '거래처 관리'에서 신규 대리점을 추가/관리할 수 있습니다.
                       </Typography>
                       <Button
                         variant="contained"
-                        startIcon={<AddIcon />}
-                        onClick={() => handleOpenDialog('dealer')}
+                        onClick={() => window.location.href = '/agencies'}
                       >
-                        첫 번째 대리점 추가
+                        거래처 관리 바로가기
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -796,26 +778,11 @@ function LocationManagement({
                       <TableCell>
                         <Chip label={dealer.id} size="small" color="secondary" />
                       </TableCell>
-                      <TableCell>{dealer.name}</TableCell>
-                      <TableCell>{dealer.location}</TableCell>
-                      <TableCell>{dealer.phone || '-'}</TableCell>
-                      <TableCell>{dealer.manager || '-'}</TableCell>
+                      <TableCell fontWeight="bold">{dealer.name}</TableCell>
+                      <TableCell>{dealer.business_number || '-'}</TableCell>
+                      <TableCell>{dealer.phone || dealer.mobile || '-'}</TableCell>
+                      <TableCell>{dealer.ceo_name || '-'}</TableCell>
                       <TableCell>{dealer.address || '-'}</TableCell>
-                      <TableCell align="center">
-                        <IconButton 
-                          size="small" 
-                          onClick={() => handleOpenDialog('dealer', dealer)}
-                        >
-                          <EditIcon />
-                        </IconButton>
-                        <IconButton 
-                          size="small" 
-                          color="error"
-                          onClick={() => handleDelete('dealer', dealer.id)}
-                        >
-                          <DeleteIcon />
-                        </IconButton>
-                      </TableCell>
                     </TableRow>
                   ))
                 )}

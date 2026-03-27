@@ -182,5 +182,22 @@ export const transactionApi = {
       console.error('날짜 범위 거래내역 조회 오류:', error);
       throw error;
     }
+  },
+
+  // 특정 창고/대리점의 거래내역 조회
+  async getByLocation(locationId) {
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .or(`from_location.eq.${locationId},to_location.eq.${locationId}`)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return (data || []).map(this._mapRow);
+    } catch (error) {
+      console.error('위치별 거래내역 조회 오류:', error);
+      throw error;
+    }
   }
 };
