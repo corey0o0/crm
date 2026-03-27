@@ -233,7 +233,7 @@ module.exports = function(supabaseAdmin) {
       const { mall_id } = req.params;
       const { start_date, end_date } = req.body; // e.g. '2023-01-01', '2023-01-31'
       
-      const token = await getValidToken(mall_id);
+      let token = await getValidToken(mall_id);
       let totalInserted = 0, totalUpdated = 0, totalSkipped = 0;
 
       // 파라미터가 없으면 최근 7일 기준으로 설정
