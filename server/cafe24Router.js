@@ -302,6 +302,8 @@ module.exports = function(supabaseAdmin) {
               name: item.product_name,
               quantity: item.quantity,
               price: item.product_price,
+              payment_amount: Number(item.payment_amount || 0) || (Number(item.product_price || 0) - Number(item.coupon_discount_price || 0) - Number(item.app_discount_amount || 0)),
+              discount_amount: Number(item.coupon_discount_price || 0) + Number(item.app_discount_amount || 0) + Number(item.additional_discount_price || 0),
               options: item.option_value || '',
               part_id: matchedPartId
             };
