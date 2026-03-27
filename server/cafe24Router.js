@@ -279,6 +279,7 @@ module.exports = function(supabaseAdmin) {
       }
 
       const orders = response.data.orders || [];
+      console.log(`[Cafe24 Sync] Fetched ${orders.length} orders from Cafe24 API (Period: ${queryStart} ~ ${queryEnd})`);
 
       for (const order of orders) {
         // 주문한 상품들 배열 만들기
@@ -311,7 +312,8 @@ module.exports = function(supabaseAdmin) {
           mall_id: mall_id,
           order_id: order.order_id,
           order_date: order.order_date,
-          total_amount: order.actual_order_amount || order.total_order_price || 0,
+          // Cafe24 API v2 return order.actual_order_amount as an object. We want a flat number.
+          total_amount: order.payment_amount || (order.actual_order_amount && order.actual_order_amount.order_price_amount) || order.total_order_price || 0,
           order_items: formattedItems,
           status: order.order_status || order.shipping_status || 'unknown',
           buyer_name: order.buyer ? order.buyer.name : null,
@@ -328,10 +330,20 @@ module.exports = function(supabaseAdmin) {
         let err = null;
         if (existing) {
           err = (await supabaseAdmin.from('cafe24_orders').update(payload).eq('id', existing.id)).error;
-          if (err) totalSkipped++; else totalUpdated++;
+          if (err) {
+            console.error(`[DB Update Error] Order ${order.order_id}:`, err);
+            totalSkipped++;
+          } else {
+            totalUpdated++;
+          }
         } else {
           err = (await supabaseAdmin.from('cafe24_orders').insert(payload)).error;
-          if (err) totalSkipped++; else totalInserted++;
+          if (err) {
+            console.error(`[DB Insert Error] Order ${order.order_id}:`, err);
+            totalSkipped++;
+          } else {
+            totalInserted++;
+          }
         }
       }
 
