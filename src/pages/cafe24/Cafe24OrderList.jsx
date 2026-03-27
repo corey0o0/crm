@@ -184,72 +184,92 @@ export default function Cafe24OrderList() {
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-      <TableContainer component={Paper}>
-        <Table size="small">
+      <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
+        <Table size="small" sx={{ minWidth: 1500, whiteSpace: 'nowrap' }}>
           <TableHead sx={{ bgcolor: '#f5f5f5' }}>
             <TableRow>
-              <TableCell><strong>주문일시</strong></TableCell>
-              <TableCell><strong>쇼핑몰ID</strong></TableCell>
+              <TableCell><strong>수집처</strong></TableCell>
+              <TableCell><strong>쇼핑몰명</strong></TableCell>
               <TableCell><strong>주문번호</strong></TableCell>
-              <TableCell><strong>주문자</strong></TableCell>
-              <TableCell><strong>주문상품</strong></TableCell>
-              <TableCell><strong>상태</strong></TableCell>
-              <TableCell><strong>매칭 상태</strong></TableCell>
+              <TableCell><strong>묶음주문번호</strong></TableCell>
+              <TableCell><strong>결제일자</strong></TableCell>
+              <TableCell><strong>쇼핑몰상품명</strong></TableCell>
+              <TableCell><strong>쇼핑몰품목key</strong></TableCell>
+              <TableCell align="right"><strong>수량</strong></TableCell>
+              <TableCell><strong>주문상태</strong></TableCell>
+              <TableCell align="right"><strong>주문금액</strong></TableCell>
+              <TableCell align="right"><strong>묶음할인금액</strong></TableCell>
+              <TableCell align="right"><strong>실결제금액</strong></TableCell>
+              <TableCell><strong>품목코드(ERP)</strong></TableCell>
+              <TableCell><strong>품목명(ERP)</strong></TableCell>
+              <TableCell><strong>ERP전송여부(판매)</strong></TableCell>
+              <TableCell><strong>상태별처리기능</strong></TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={7} align="center" sx={{ py: 3 }}><CircularProgress /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={16} align="center" sx={{ py: 3 }}><CircularProgress /></TableCell></TableRow>
             ) : orders.length === 0 ? (
-              <TableRow><TableCell colSpan={7} align="center" sx={{ py: 3 }}>데이터가 없습니다.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={16} align="center" sx={{ py: 3 }}>데이터가 없습니다.</TableCell></TableRow>
             ) : (
-              orders.map(order => {
+              orders.reduce((acc, order) => {
                 const items = order.order_items || [];
-                // 매칭 실패 항목 확인 (바코드가 설정되었으나 part_id가 없는 항목 등)
-                // 단순히 옵션품목일 수 있으므로 product_code/custom_product_code가 있는 항목에 대해서만 매칭을 요구
-                const unmappedItems = items.filter(i => !i.part_id && (i.custom_product_code || i.product_code));
-                
-                return (
-                  <TableRow key={order.id} hover>
-                    <TableCell>{formatDate(order.order_date)}</TableCell>
-                    <TableCell>{order.mall_id}</TableCell>
-                    <TableCell sx={{ fontFamily: 'monospace' }}>{order.order_id}</TableCell>
-                    <TableCell>
-                      {order.buyer_name || '-'}<br/>
-                      <Typography variant="caption" color="text.secondary">{order.buyer_phone}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      {items.map((item, idx) => (
-                        <Box key={idx} sx={{ mb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="body2">• {item.name} {item.options ? `[${item.options}]` : ''} - {item.quantity}개</Typography>
-                          {(!item.part_id && (item.custom_product_code || item.product_code)) && (
-                            <Tooltip title="CRM 상품과 매칭되지 않았습니다. 클릭하여 수동 매칭하세요.">
-                              <IconButton size="small" color="warning" onClick={() => openMappingModal(order, item)} sx={{ p: 0.5 }}>
-                                <WarningIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          )}
-                          {item.part_id && (
-                            <Tooltip title="정상 매칭됨">
-                              <LinkIcon fontSize="small" color="success" />
-                            </Tooltip>
-                          )}
-                        </Box>
-                      ))}
-                    </TableCell>
-                    <TableCell>
-                      <Chip label={order.status} size="small" />
-                    </TableCell>
-                    <TableCell>
-                      {unmappedItems.length > 0 ? (
-                        <Chip label={`${unmappedItems.length}건 미매칭`} color="warning" size="small" />
-                      ) : (
-                        <Chip label="매칭 완료" color="success" size="small" />
-                      )}
-                    </TableCell>
-                  </TableRow>
-                )
-              })
+                if (items.length === 0) {
+                  // 빈 주문인 경우 빈 행 하나 추가
+                  acc.push(
+                    <TableRow key={order.id} hover>
+                      <TableCell>카페24</TableCell>
+                      <TableCell>카페24 - {order.mall_id}</TableCell>
+                      <TableCell sx={{ fontFamily: 'monospace' }}>{order.order_id}</TableCell>
+                      <TableCell>-</TableCell>
+                      <TableCell>{formatDate(order.order_date)}</TableCell>
+                      <TableCell colSpan={11} align="center" sx={{ color: 'text.secondary' }}>상품 정보가 없습니다</TableCell>
+                    </TableRow>
+                  );
+                  return acc;
+                }
+
+                items.forEach((item, idx) => {
+                  const matchedPart = item.part_id ? availableParts.find(p => p.id === item.part_id) : null;
+                  const erpCode = matchedPart ? (matchedPart.barcode || matchedPart.code) : '';
+                  const erpName = matchedPart ? matchedPart.name : '';
+                  const needsMapping = !item.part_id && (item.custom_product_code || item.product_code);
+
+                  acc.push(
+                    <TableRow key={`${order.id}-${idx}`} hover>
+                      <TableCell>카페24</TableCell>
+                      <TableCell>카페24 - {order.mall_id}</TableCell>
+                      <TableCell sx={{ fontFamily: 'monospace' }}>{order.order_id}</TableCell>
+                      <TableCell>-</TableCell>
+                      <TableCell>{formatDate(order.order_date)}</TableCell>
+                      <TableCell>{item.name}</TableCell>
+                      <TableCell>{item.options || '-'}</TableCell>
+                      <TableCell align="right">{item.quantity}</TableCell>
+                      <TableCell><Chip label={order.status} size="small" color="primary" variant="outlined" /></TableCell>
+                      <TableCell align="right">{Number(item.price || 0).toLocaleString()}</TableCell>
+                      <TableCell align="right">{Number(item.discount_amount || 0).toLocaleString()}</TableCell>
+                      <TableCell align="right">{(Number(item.payment_amount || 0) || Number(item.price || 0)).toLocaleString()}</TableCell>
+                      <TableCell>
+                        {erpCode || (needsMapping ? <Chip size="small" label="미스매칭" color="warning" /> : '-')}
+                      </TableCell>
+                      <TableCell>
+                        {erpName ? erpName : (
+                          needsMapping ? (
+                            <Button size="small" variant="outlined" color="warning" onClick={() => openMappingModal(order, item)}>
+                              수동 연결
+                            </Button>
+                          ) : '-'
+                        )}
+                      </TableCell>
+                      <TableCell>미전송</TableCell>
+                      <TableCell>
+                        <Button size="small" variant="text">주문확인</Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                });
+                return acc;
+              }, [])
             )}
           </TableBody>
         </Table>
