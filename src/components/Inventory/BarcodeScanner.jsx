@@ -52,9 +52,31 @@ const BarcodeScanner = ({ open, onClose, onScan, onError }) => {
       setIsScanning(true);
       setError(null);
 
-      // 카메라 권한 요청 및 스캔 시작
-      const result = await codeReader.decodeFromVideoDevice(
-        undefined, // 기본 카메라 사용
+      // 브라우저 렌더링 컨텍스트 확인 (https 필수)
+      if (window.isSecureContext === false) {
+        throw new Error("카메라 접근은 HTTPS 환경이나 localhost에서만 가능합니다.");
+      }
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("이 브라우저에서는 카메라 접근 API를 지원하지 않습니다.");
+      }
+
+      // 카메라 디바이스 목록 가져오기 (권한 요청 유도)
+      const devices = await codeReader.listVideoInputDevices();
+      if (!devices || devices.length === 0) {
+        throw new Error("연결된 카메라 디바이스를 찾을 수 없습니다.");
+      }
+      
+      // 후면 카메라 우선 선택 로직
+      let deviceId = devices[0].deviceId;
+      const backCamera = devices.find(device => device.label.toLowerCase().includes('back') || device.label.toLowerCase().includes('후면'));
+      if (backCamera) {
+        deviceId = backCamera.deviceId;
+      }
+
+      // 카메라 스캔 시작
+      codeReader.decodeFromVideoDevice(
+        deviceId,
         videoRef.current,
         (result, err) => {
           if (result) {
@@ -63,15 +85,20 @@ const BarcodeScanner = ({ open, onClose, onScan, onError }) => {
             stopScanning();
             onClose();
           }
-          if (err && !(err instanceof Error)) {
-            // 스캔 중 오류 (일반적으로 무시)
-            console.log('Scanning error:', err);
+          if (err && !(err.name === 'NotFoundException' || err.name === 'ChecksumException' || err.name === 'FormatException')) {
+            // 지속적인 스캔 에러 무시 (바코드 못찾는 에러)
+            // console.log('Scanning exception:', err);
           }
         }
       );
     } catch (err) {
-      setError('카메라에 접근할 수 없습니다. 카메라 권한을 확인해주세요.');
-      console.error('Scanning error:', err);
+      console.error('카메라 접근 에러:', err);
+      let errorMsg = '카메라에 접근할 수 없습니다. 권한을 확인해주세요.';
+      if (err.name === 'NotAllowedError') errorMsg = '카메라 접근이 거부되었습니다. 브라우저 설정에서 권한을 허용해주세요.';
+      else if (err.name === 'NotFoundError') errorMsg = '카메라 장치를 찾을 수 없습니다.';
+      else if (err.message) errorMsg = err.message;
+      
+      setError(errorMsg);
       setIsScanning(false);
     }
   };
