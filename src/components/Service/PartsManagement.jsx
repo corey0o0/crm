@@ -67,7 +67,8 @@ const PartsFormDialog = memo(({
   onSubmit,
   initialData,
   brands,
-  getNextPartCode
+  getNextPartCode,
+  getNextBarcode
 }) => {
   const [formData, setFormData] = useState({
     name: '',
@@ -272,8 +273,13 @@ const PartsFormDialog = memo(({
                 variant="outlined"
                 sx={{ height: 56, minWidth: 60 }}
                 onClick={() => {
-                  const randomCode = Math.floor(100000000000 + Math.random() * 900000000000).toString();
-                  setFormData(prev => ({ ...prev, barcode: randomCode }));
+                  if (typeof getNextBarcode === 'function') {
+                    const newBarcode = getNextBarcode();
+                    setFormData(prev => ({ ...prev, barcode: newBarcode }));
+                  } else {
+                    const randomCode = Math.floor(100000000000 + Math.random() * 900000000000).toString();
+                    setFormData(prev => ({ ...prev, barcode: randomCode }));
+                  }
                 }}
               >
                 생성
@@ -552,6 +558,52 @@ function PartsManagement() {
       // Fallback
       return `${String(brandCode || 'XRB')}-001`;
     }
+  }, [parts]);
+
+  // 다음 바코드 생성기 (EAN-13, 접두사 88092499)
+  const getNextBarcode = useCallback(() => {
+    const prefix = '88092499';
+    // 해당 접두사로 시작하는 13자리 바코드 추출
+    const existingBarcodes = parts
+      .map(p => p.barcode)
+      .filter(b => b && b.startsWith(prefix) && b.length === 13);
+    
+    // 기본적으로 시작할 상품코드 (사용자 요청에 따라 2008 이후인 2009부터 생성되도록 기준 2008 설정)
+    let maxItemNum = 2008;
+    
+    if (existingBarcodes.length > 0) {
+      // 바코드에서 상품코드(4자리) 추출하여 최댓값 구하기
+      // 예: 8809249920085 -> 88092499(8자리) + 2008(4자리) + 5(1자리)
+      const itemNumbers = existingBarcodes.map(b => parseInt(b.substring(8, 12), 10));
+      const currentMax = Math.max(...itemNumbers);
+      if (currentMax > maxItemNum) {
+        maxItemNum = currentMax;
+      }
+    }
+    
+    const nextItemNum = maxItemNum + 1;
+    // 상품코드 4자리 패딩 (예: 2009)
+    const nextItemStr = String(nextItemNum).padStart(4, '0');
+    const base12 = prefix + nextItemStr; // 12자리 기본 번호
+    
+    // EAN-13 체크디짓 계산 루틴
+    let oddSum = 0;
+    let evenSum = 0;
+    for (let i = 0; i < 12; i++) {
+      const digit = parseInt(base12[i], 10);
+      // 인덱스가 짝수면 위치로는 홀수번째 -> 홀수합(1배)
+      // 인덱스가 홀수면 위치로는 짝수번째 -> 짝수합(3배)
+      if (i % 2 === 0) {
+        oddSum += digit;
+      } else {
+        evenSum += digit;
+      }
+    }
+    
+    const totalSum = oddSum + (evenSum * 3);
+    const checkDigit = (10 - (totalSum % 10)) % 10;
+    
+    return base12 + checkDigit.toString();
   }, [parts]);
 
   // [디바운스 적용]
@@ -1725,6 +1777,7 @@ function PartsManagement() {
         initialData={selectedPart}
         brands={brands}
         getNextPartCode={getNextPartCode}
+        getNextBarcode={getNextBarcode}
       />
 
       <Snackbar

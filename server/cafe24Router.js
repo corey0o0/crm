@@ -65,20 +65,41 @@ module.exports = function(supabaseAdmin) {
   // 2. OAuth 토큰 갱신 헬퍼
   async function refreshCafe24Token(mall) {
     const credentials = Buffer.from(`${mall.client_id}:${mall.client_secret_encrypted}`).toString('base64');
-    const resp = await axios.post(
-      `https://${mall.mall_id}.cafe24api.com/api/v2/oauth/token`,
-      `grant_type=refresh_token&refresh_token=${mall.refresh_token}`,
-      { headers: { 'Authorization': `Basic ${credentials}`, 'Content-Type': 'application/x-www-form-urlencoded' } }
-    );
-    const expiresAt = new Date(resp.data.expires_at).toISOString();
-    
-    await supabaseAdmin.from('cafe24_settings').update({
-      access_token: resp.data.access_token,
-      refresh_token: resp.data.refresh_token,
-      token_expires_at: expiresAt
-    }).eq('mall_id', mall.mall_id);
-    
-    return resp.data.access_token;
+    try {
+      const resp = await axios.post(
+        `https://${mall.mall_id}.cafe24api.com/api/v2/oauth/token`,
+        `grant_type=refresh_token&refresh_token=${mall.refresh_token}`,
+        { headers: { 'Authorization': `Basic ${credentials}`, 'Content-Type': 'application/x-www-form-urlencoded' } }
+      );
+      
+      let expiresAt;
+      if (resp.data.expires_at) {
+        // Cafe24 returns expires_at like "YYYY-MM-DDTHH:mm:ss.000" (implicitly KST)
+        // Ensure we parse it correctly or fallback to now + 2 hours
+        expiresAt = new Date(resp.data.expires_at).toISOString();
+      } else {
+        expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+      }
+      
+      await supabaseAdmin.from('cafe24_settings').update({
+        access_token: resp.data.access_token,
+        refresh_token: resp.data.refresh_token,
+        token_expires_at: expiresAt
+      }).eq('mall_id', mall.mall_id);
+      
+      return resp.data.access_token;
+    } catch (e) {
+      console.error('[Cafe24 Refresh Token Error]', e.response?.data || e.message);
+      // If refresh token is expired or invalid, we should clear the token or prompt re-auth
+      if (e.response && (e.response.status === 400 || e.response.status === 401)) {
+        await supabaseAdmin.from('cafe24_settings').update({
+          access_token: null,
+          token_expires_at: null
+        }).eq('mall_id', mall.mall_id);
+        throw new Error(`${mall.mall_id}: 카페24 자동 로그인(리프레시 토큰)이 만료되었습니다. 몰 설정에서 다시 연동해주세요.`);
+      }
+      throw e;
+    }
   }
 
   async function getValidToken(mall_id) {
@@ -235,11 +256,27 @@ module.exports = function(supabaseAdmin) {
         manualCodeToPartIdMap[String(m.cafe24_product_code).trim()] = m.part_id;
       });
 
-      // 카페24 API에서 주문 목록 가져오기
-      const response = await axios.get(`https://${mall_id}.cafe24api.com/api/v2/admin/orders`, {
-        params: { start_date: queryStart, end_date: queryEnd, date_type: 'order_date', limit: 100 },
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Cafe24-Api-Version': '2026-03-01' }
-      });
+      // 카페24 API에서 주문 목록 가져오기 함수
+      const fetchOrders = async (accessToken) => {
+        return await axios.get(`https://${mall_id}.cafe24api.com/api/v2/admin/orders`, {
+          params: { start_date: queryStart, end_date: queryEnd, date_type: 'order_date', limit: 100 },
+          headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json', 'X-Cafe24-Api-Version': '2026-03-01' }
+        });
+      };
+
+      let response;
+      try {
+        response = await fetchOrders(token);
+      } catch (e) {
+        if (e.response && e.response.status === 401) {
+          console.log('[Cafe24 API] 401 Unauthorized - Forcing token refresh...');
+          const { data: mall } = await supabaseAdmin.from('cafe24_settings').select('*').eq('mall_id', mall_id).single();
+          token = await refreshCafe24Token(mall);
+          response = await fetchOrders(token);
+        } else {
+          throw e;
+        }
+      }
 
       const orders = response.data.orders || [];
 
@@ -300,8 +337,9 @@ module.exports = function(supabaseAdmin) {
 
       res.json({ success: true, message: `주문 동기화 완료: ${totalInserted}개 신규, ${totalUpdated}개 갱신 (기간: ${queryStart} ~ ${queryEnd})` });
     } catch (e) {
-      console.error('[Cafe24 Order Sync Error]', e.message);
-      res.status(500).json({ error: e.message });
+      console.error('[Cafe24 Order Sync Error]', e.response?.data || e.message);
+      const errorMessage = e.response?.data?.error?.message || e.message;
+      res.status(500).json({ error: errorMessage });
     }
   });
 
