@@ -128,6 +128,7 @@ export const MENU_KEYS = {
   BOARD: 'board',
   PENDING_ORDERS: 'pending_orders',
   BACKUP: 'backup_management',
-  ADMIN_TOOLS: 'admin_tools'
+  ADMIN_TOOLS: 'admin_tools',
+  CAFE24_ORDERS: 'cafe24_orders'
 };
 

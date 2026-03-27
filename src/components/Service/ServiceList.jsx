@@ -318,13 +318,15 @@ function ServiceList() {
         console.warn('[ServiceList] 재연결 실패 - 계속 시도');
       }
       
-      // 오프라인 상태 체크
+      // 브라우저 오프라인 오작동으로 인한 차단 해제 (우회)
+      /*
       if (isOffline()) {
         console.log('[ServiceList] 오프라인 상태 - 데이터 로딩 건너뛰기');
         setError('오프라인 상태입니다. 인터넷 연결을 확인해주세요.');
         setLoading(false);
         return;
       }
+      */
 
       // 로딩 상태 초기화
       setLoading(true);

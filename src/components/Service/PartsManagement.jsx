@@ -34,7 +34,8 @@ import {
   Select,
   CircularProgress,
   TablePagination,
-  Stack
+  Stack,
+  Chip
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -499,6 +500,9 @@ function PartsManagement() {
   const [syncTargetPart, setSyncTargetPart] = useState(null);
   const [syncSearchTerm, setSyncSearchTerm] = useState('');
   const [syncedPartsMap, setSyncedPartsMap] = useState({}); // partId -> [syncedParts]
+  
+  // Cafe24 연동 상태
+  const [cafe24Links, setCafe24Links] = useState(new Set());
 
   // 다음 상품코드 생성기: 같은 브랜드의 기존 코드 중 숫자 접미사를 증가
   // 다음 상품코드 생성기: 브랜드+카테고리 약어 조합
@@ -621,6 +625,15 @@ function PartsManagement() {
 
       if (error) throw error;
       setParts(data || []);
+      
+      // Cafe24 연동 데이터 가져오기 (매칭된 상품)
+      const { data: cafe24Data, error: cafe24Error } = await safeRetry(async () => {
+        return await supabase.from('cafe24_product_to_part').select('part_id');
+      });
+      if (!cafe24Error && cafe24Data) {
+        setCafe24Links(new Set(cafe24Data.map(d => Number(d.part_id))));
+      }
+
     } catch (err) {
       console.error('Error fetching parts:', err);
 
@@ -1611,6 +1624,9 @@ function PartsManagement() {
                     <Typography variant="caption" display="block" color="text.secondary">
                       {part.name_en}
                     </Typography>
+                  )}
+                  {cafe24Links.has(Number(part.id)) && (
+                    <Chip size="small" label="Cafe24 연동" color="info" sx={{ mt: 0.5, height: 20, fontSize: '0.7rem' }} />
                   )}
                 </TableCell>
                 {showSupplyPrice && <TableCell align="right">{part.cost_price?.toLocaleString() || '-'}</TableCell>}

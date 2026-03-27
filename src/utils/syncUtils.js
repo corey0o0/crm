@@ -75,7 +75,8 @@ export const smartLoad = async (cacheKey, fetchFunction, options = {}) => {
         onCacheHit?.(cachedData);
         return cachedData;
       }
-      throw new Error('오프라인 상태이고 유효한 캐시가 없습니다.');
+      console.warn(`[SyncUtils] 브라우저가 오프라인으로 표시되나 유효한 캐시가 없어 네트워크 요청을 시도합니다: ${cacheKey}`);
+      // throw new Error('오프라인 상태이고 유효한 캐시가 없습니다.');
     }
 
     // 3. 네트워크에서 데이터 가져오기

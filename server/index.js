@@ -5,16 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const pdfParse = require('pdf-parse');
 const CloudmersiveConvertApiClient = require('cloudmersive-convert-api-client');
-const { searchProductOnWebsite, processOrderOnWebsite } = require('./playwrightOrderService');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
-
-// pdf-poppler는 Linux에서 지원 안 됨 → 조건부 로드
-let pdfPoppler = null;
-try {
-  pdfPoppler = require('pdf-poppler');
-} catch (e) {
-  console.warn('[서버] pdf-poppler 로드 실패 (Linux에서는 미지원):', e.message);
-}
 
 const app = express();
 const port = process.env.PORT || 5001;
@@ -175,46 +166,7 @@ async function convertPdfToImageWithCloudmersive(pdfPath) {
   }
 }
 
-// 개선된 PDF를 이미지로 변환하는 함수
-async function convertPdfToImage(pdfPath) {
-  try {
-    console.log('PDF를 이미지로 변환 시작...');
-    
-    // 출력 디렉토리 설정
-    const outputDir = path.dirname(pdfPath);
-    const pdfFileName = path.basename(pdfPath, '.pdf');
-    const outputPrefix = path.join(outputDir, pdfFileName);
-    
-    // PDF 변환 옵션 개선
-    const opts = {
-      format: 'jpeg',      // 출력 형식 (jpeg, png)
-      out_dir: outputDir,  // 출력 디렉토리
-      out_prefix: pdfFileName, // 출력 파일 접두사
-      page: null,          // 모든 페이지 변환
-      scale: 3.0,          // 해상도 스케일 (높일수록 고해상도)
-      density: 400,        // DPI 설정 (높일수록 고해상도)
-      quality: 100,        // JPEG 품질 (1-100)
-    };
-    
-    // PDF를 이미지로 변환 (macOS 전용, Linux 미지원)
-    if (!pdfPoppler) {
-      throw new Error('PDF 변환 기능은 현재 서버 환경에서 지원되지 않습니다.');
-    }
-    await pdfPoppler.convert(pdfPath, opts);
-    
-    // 생성된 이미지 파일 목록 가져오기
-    const imageFiles = fs.readdirSync(outputDir)
-      .filter(file => file.startsWith(pdfFileName) && file.endsWith('.jpg'))
-      .map(file => path.join(outputDir, file))
-      .sort(); // 페이지 순서대로 정렬
-    
-    console.log(`PDF 변환 완료: ${imageFiles.length}개 이미지 생성됨`);
-    return imageFiles;
-  } catch (error) {
-    console.error('PDF 변환 실패:', error);
-    throw error;
-  }
-}
+// 개선된 PDF 변환 로직은 pdf-poppler 삭제로 제거됨
 
 // Multer 에러 처리 미들웨어
 const handleMulterError = (err, req, res, next) => {
@@ -246,50 +198,7 @@ app.get('/api/uploads/:filename', (req, res) => {
   }
 });
 
-// 웹사이트 상품 검색 API
-app.post('/api/orders/search-product', async (req, res) => {
-  try {
-    const { brand, partName, partCode, barcode } = req.body;
-
-    if (!brand || !partName) {
-      return res.status(400).json({ error: '브랜드와 부품명은 필수입니다.' });
-    }
-
-    const result = await searchProductOnWebsite(brand, partName, partCode, barcode);
-    
-    if (result.success) {
-      res.json(result);
-    } else {
-      res.status(500).json({ error: result.message });
-    }
-  } catch (error) {
-    console.error('상품 검색 API 오류:', error);
-    res.status(500).json({ error: `상품 검색 중 오류가 발생했습니다: ${error.message}` });
-  }
-});
-
-// 주문 처리 API
-app.post('/api/orders/process', async (req, res) => {
-  try {
-    const { brand, orderItems } = req.body;
-
-    if (!brand || !orderItems || !Array.isArray(orderItems)) {
-      return res.status(400).json({ error: '브랜드와 주문 항목은 필수입니다.' });
-    }
-
-    const result = await processOrderOnWebsite(brand, orderItems);
-    
-    if (result.success) {
-      res.json(result);
-    } else {
-      res.status(500).json({ error: result.message });
-    }
-  } catch (error) {
-    console.error('주문 처리 API 오류:', error);
-    res.status(500).json({ error: `주문 처리 중 오류가 발생했습니다: ${error.message}` });
-  }
-});
-
+// Playwright 기반 웹사이트 상품 검색 및 자동 주문 API 삭제됨
 // =============================================
 // 카페24 API 프록시 라우트
 // =============================================

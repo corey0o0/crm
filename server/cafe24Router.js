@@ -221,6 +221,20 @@ module.exports = function(supabaseAdmin) {
       const queryStart = start_date || lastWeek.toISOString().split('T')[0];
       const queryEnd = end_date || today.toISOString().split('T')[0];
 
+      // Fetch all barcodes and part_ids from parts table once for quick lookup
+      const { data: partsList } = await supabaseAdmin.from('parts').select('id, barcode').not('barcode', 'is', null);
+      const barcodeToPartIdMap = {};
+      (partsList || []).forEach(p => {
+        if(p.barcode) barcodeToPartIdMap[String(p.barcode).trim()] = p.id;
+      });
+
+      // Fetch manual product mappings
+      const { data: manualMappings } = await supabaseAdmin.from('cafe24_product_to_part').select('cafe24_product_code, part_id').eq('mall_id', mall_id);
+      const manualCodeToPartIdMap = {};
+      (manualMappings || []).forEach(m => {
+        manualCodeToPartIdMap[String(m.cafe24_product_code).trim()] = m.part_id;
+      });
+
       // 카페24 API에서 주문 목록 가져오기
       const response = await axios.get(`https://${mall_id}.cafe24api.com/api/v2/admin/orders`, {
         params: { start_date: queryStart, end_date: queryEnd, date_type: 'order_date', limit: 100 },
@@ -233,13 +247,27 @@ module.exports = function(supabaseAdmin) {
         // 주문한 상품들 배열 만들기
         let formattedItems = [];
         if (order.items && order.items.length > 0) {
-          formattedItems = order.items.map(item => ({
-            product_code: item.product_code || item.custom_product_code || '',
-            name: item.product_name,
-            quantity: item.quantity,
-            price: item.product_price,
-            options: item.option_value || ''
-          }));
+          formattedItems = order.items.map(item => {
+            const code = item.product_code || item.custom_product_code || '';
+            const customCode = item.custom_product_code ? String(item.custom_product_code).trim() : '';
+            
+            let matchedPartId = null;
+            if (customCode && barcodeToPartIdMap[customCode]) {
+              matchedPartId = barcodeToPartIdMap[customCode]; // 1. Barcode match
+            } else if (code && manualCodeToPartIdMap[code]) {
+              matchedPartId = manualCodeToPartIdMap[code]; // 2. Manual match fallback
+            }
+
+            return {
+              product_code: code,
+              custom_product_code: customCode,
+              name: item.product_name,
+              quantity: item.quantity,
+              price: item.product_price,
+              options: item.option_value || '',
+              part_id: matchedPartId
+            };
+          });
         }
 
         const payload = {
@@ -300,6 +328,30 @@ module.exports = function(supabaseAdmin) {
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Cafe24-Api-Version': '2026-03-01' }
       });
       res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // 4. 수동 매핑 추가/수정 API
+  router.post('/mappings', async (req, res) => {
+    try {
+      const { mall_id, cafe24_product_code, part_id } = req.body;
+      if (!mall_id || !cafe24_product_code || !part_id) {
+         return res.status(400).json({ error: '필수 파라미터 누락' });
+      }
+
+      // 기존 매핑 제거 (중복 방지)
+      await supabaseAdmin.from('cafe24_product_to_part').delete()
+        .eq('mall_id', mall_id)
+        .eq('cafe24_product_code', cafe24_product_code);
+
+      const { error: insError } = await supabaseAdmin.from('cafe24_product_to_part').insert({
+        mall_id, cafe24_product_code, part_id
+      });
+      if (insError) throw insError;
+
+      res.json({ success: true, message: '매핑이 저장되었습니다.' });
     } catch (e) {
       res.status(500).json({ error: e.message });
     }

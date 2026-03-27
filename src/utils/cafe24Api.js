@@ -5,9 +5,14 @@
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001';
 
 export async function getCafe24Malls() {
-  const resp = await fetch(`${BACKEND_URL}/api/cafe24/malls`);
-  if (!resp.ok) return { success: false, malls: [] };
-  return resp.json();
+  try {
+    const resp = await fetch(`${BACKEND_URL}/api/cafe24/malls`);
+    if (!resp.ok) return { success: false, malls: [] };
+    return await resp.json();
+  } catch (err) {
+    console.error('Failed to get cafe24 malls:', err);
+    throw new Error('백엔드 서버와 연결할 수 없습니다. (서버 연결 실패)');
+  }
 }
 
 export async function addCafe24Mall({ mall_id, client_id, client_secret }) {
@@ -113,6 +118,34 @@ export async function postCafe24Comment({ mall_id, board_no, article_no, content
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
     throw new Error(err.error || '댓글 작성 실패');
+  }
+  return resp.json();
+}
+
+export async function syncCafe24Orders(mall_id, startDate, endDate) {
+  const resp = await fetch(`${BACKEND_URL}/api/cafe24/sync/orders/${mall_id}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ start_date: startDate, end_date: endDate })
+  });
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error || '주문 동기화 실패');
+  }
+  return resp.json();
+}
+
+export async function addCafe24ProductMapping(mall_id, cafe24_product_code, part_id) {
+  const resp = await fetch(`${BACKEND_URL}/api/cafe24/mappings`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mall_id, cafe24_product_code, part_id })
+  });
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error || '상품 매핑 저장 실패');
   }
   return resp.json();
 }

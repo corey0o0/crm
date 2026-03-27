@@ -52,6 +52,7 @@ import PendingOrderList from './pages/pendingOrders/PendingOrderList';
 import PendingOrderDetail from './pages/pendingOrders/PendingOrderDetail';
 import Cafe24Settings from './components/Settings/Cafe24Settings';
 import ProductComparisonDashboard from './components/Settings/ProductComparisonDashboard';
+import Cafe24OrderList from './pages/cafe24/Cafe24OrderList';
 
 function App() {
   const [session, setSession] = useState(null);
@@ -212,6 +213,11 @@ function App() {
               {/* 카페24 연동 설정 */}
               <Route path="settings/cafe24" element={
                 <Cafe24Settings />
+              } />
+              
+              {/* 카페24 주문 내역 */}
+              <Route path="cafe24/orders" element={
+                <Cafe24OrderList />
               } />
               
               {/* 이카운트 상품 동기화 및 비교 대시보드 */}

@@ -115,7 +115,9 @@ export const getErrorMessage = (error) => {
  * @returns {boolean} 오프라인 여부
  */
 export const isOffline = () => {
-  return !navigator.onLine;
+  // 브라우저의 navigator.onLine이 오작동하여 정상적인 네트워크에서도 
+  // false를 반환하는 문제가 있어, 시스템 전역의 오프라인 차단을 해제합니다.
+  return false;
 };
 
 /**
