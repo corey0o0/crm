@@ -226,8 +226,9 @@ export default function Cafe24OrderList() {
               <TableCell><strong>쇼핑몰상품명</strong></TableCell>
               <TableCell><strong>상품 옵션</strong></TableCell>
               <TableCell align="right"><strong>수량</strong></TableCell>
-              <TableCell><strong>주문상태</strong></TableCell>
+              <TableCell align="right"><strong>상품단가</strong></TableCell>
               <TableCell align="right"><strong>주문금액</strong></TableCell>
+              <TableCell align="right"><strong>상품별할인금액</strong></TableCell>
               <TableCell align="right"><strong>묶음할인금액</strong></TableCell>
               <TableCell align="right"><strong>실결제금액</strong></TableCell>
               <TableCell><strong>품목코드(ERP)</strong></TableCell>
@@ -259,7 +260,7 @@ export default function Cafe24OrderList() {
                         </Box>
                       </TableCell>
                       <TableCell>{formatDate(order.order_date)}</TableCell>
-                      <TableCell colSpan={12} align="center" sx={{ color: 'text.secondary' }}>상품 정보가 없습니다</TableCell>
+                      <TableCell colSpan={13} align="center" sx={{ color: 'text.secondary' }}>상품 정보가 없습니다</TableCell>
                     </TableRow>
                   );
                   return acc;
@@ -285,14 +286,25 @@ export default function Cafe24OrderList() {
                           {order.buyer_id && <Typography variant="caption" color="text.secondary">({order.buyer_id})</Typography>}
                         </Box>
                       </TableCell>
-                      <TableCell>{formatDate(order.order_date)}</TableCell>
+                      <TableCell>
+                        <Box>
+                          <Typography variant="body2">{formatDate(order.order_date)}</Typography>
+                          <Stack direction="row" spacing={0.5} sx={{ mt: 0.5 }}>
+                            <Chip label={getKoStatus(order.status)} size="small" color="primary" variant="outlined" />
+                            {(order.shipping_fee !== undefined && order.shipping_fee !== null) && (
+                              <Chip label={`배송비: ${Number(order.shipping_fee).toLocaleString()}원`} size="small" variant="outlined" sx={{ height: 24 }} />
+                            )}
+                          </Stack>
+                        </Box>
+                      </TableCell>
                       <TableCell>{item.name}</TableCell>
                       <TableCell>{item.options || '-'}</TableCell>
                       <TableCell align="right">{item.quantity}</TableCell>
-                      <TableCell><Chip label={getKoStatus(order.status)} size="small" color="primary" variant="outlined" /></TableCell>
                       <TableCell align="right">{Number(item.price || 0).toLocaleString()}</TableCell>
-                      <TableCell align="right">{Number(item.discount_amount || 0).toLocaleString()}</TableCell>
-                      <TableCell align="right">{(Number(item.payment_amount || 0) || Number(item.price || 0)).toLocaleString()}</TableCell>
+                      <TableCell align="right">{(Number(item.price || 0) * Number(item.quantity || 1)).toLocaleString()}</TableCell>
+                      <TableCell align="right">{Number(item.item_discount || 0).toLocaleString()}</TableCell>
+                      <TableCell align="right">{Number(item.bundle_discount || item.discount_amount || 0).toLocaleString()}</TableCell>
+                      <TableCell align="right">{(Number(item.payment_amount === undefined ? (Number(item.price || 0) * Number(item.quantity || 1)) : item.payment_amount)).toLocaleString()}</TableCell>
                       <TableCell>
                         {erpCode || (needsMapping ? <Chip size="small" label="미스매칭" color="warning" /> : '-')}
                       </TableCell>

@@ -295,14 +295,19 @@ module.exports = function(supabaseAdmin) {
               matchedPartId = manualCodeToPartIdMap[code]; // 2. Manual match fallback
             }
 
+            const itemDiscount = Number(item.app_item_discount_amount || 0) + Number(item.additional_discount_price || 0) + Number(item.set_product_discount_amount || 0);
+            const bundleDiscount = Number(item.coupon_discount_price || 0) + Number(item.shipping_fee_discount_amount || 0);
+
             return {
               product_code: code,
               custom_product_code: customCode,
               name: item.product_name,
               quantity: item.quantity,
               price: item.product_price,
-              payment_amount: Number(item.payment_amount || 0) || (Number(item.product_price || 0) - Number(item.coupon_discount_price || 0) - Number(item.app_discount_amount || 0)),
-              discount_amount: Number(item.coupon_discount_price || 0) + Number(item.app_discount_amount || 0) + Number(item.additional_discount_price || 0),
+              item_discount: itemDiscount,
+              bundle_discount: bundleDiscount,
+              discount_amount: itemDiscount + bundleDiscount,
+              payment_amount: Number(item.payment_amount || 0) || ((Number(item.product_price || 0) * Number(item.quantity || 1)) - itemDiscount - bundleDiscount),
               options: item.option_value || '',
               part_id: matchedPartId
             };
@@ -313,8 +318,8 @@ module.exports = function(supabaseAdmin) {
           mall_id: mall_id,
           order_id: order.order_id,
           order_date: order.order_date,
-          // Cafe24 API v2 return order.actual_order_amount as an object. We want a flat number.
           total_amount: order.payment_amount || (order.actual_order_amount && order.actual_order_amount.order_price_amount) || order.total_order_price || 0,
+          shipping_fee: Number((order.actual_order_amount && order.actual_order_amount.shipping_fee) || 0),
           order_items: formattedItems,
           status: order.order_status || order.shipping_status || 'unknown',
           buyer_id: order.member_id || (order.buyer && order.buyer.member_id) || null,
