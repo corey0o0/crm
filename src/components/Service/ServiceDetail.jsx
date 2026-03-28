@@ -167,7 +167,6 @@ function ServiceDetail() {
   // 파일 업로드 관련 상태
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState([]);
-  const [googleAccessToken, setGoogleAccessToken] = useState(null);
 
   const [confirmDialog, setConfirmDialog] = useState({
     open: false,
@@ -1469,95 +1468,7 @@ function ServiceDetail() {
     }
   }, [formData.brand]);
 
-  // 컴포넌트 마운트 시 localStorage에서 토큰 확인
-  useEffect(() => {
-    const token = localStorage.getItem('google_access_token');
-    if (token) {
-      // 토큰 유효성 검사
-      fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-        .then(response => {
-          if (response.ok) {
-            setGoogleAccessToken(token);
-            console.log('[ServiceDetail] 기존 토큰 로드 완료');
-          } else {
-            // 토큰이 만료되었거나 유효하지 않으면 제거
-            console.warn('[ServiceDetail] 토큰이 유효하지 않습니다. 삭제합니다.');
-            localStorage.removeItem('google_access_token');
-            setGoogleAccessToken(null);
-          }
-        })
-        .catch((error) => {
-          // 네트워크 오류 등은 무시하되, 토큰은 유지 (나중에 다시 시도)
-          console.warn('[ServiceDetail] 토큰 유효성 검사 중 오류:', error);
-        });
-    }
-  }, []);
 
-  // 구글 OAuth 콜백 처리
-  useEffect(() => {
-    const handleGoogleOAuthCallback = () => {
-      const urlParams = new URLSearchParams(window.location.hash.substring(1));
-      const accessToken = urlParams.get('access_token');
-      const error = urlParams.get('error');
-
-      if (error) {
-        console.error('구글 OAuth 오류:', error);
-        setSnackbar({
-          open: true,
-          message: `구글 드라이브 인증 실패: ${error}`,
-          severity: 'error'
-        });
-        return;
-      }
-
-      if (accessToken) {
-        localStorage.setItem('google_access_token', accessToken);
-        setGoogleAccessToken(accessToken);
-
-        // URL에서 토큰 제거
-        window.history.replaceState({}, document.title, window.location.pathname);
-
-        setSnackbar({
-          open: true,
-          message: '구글 드라이브 인증이 완료되었습니다.',
-          severity: 'success'
-        });
-      }
-    };
-
-    // 팝업 창에서 부모 창으로 메시지 전달 처리
-    const handleMessage = (event) => {
-      if (event.origin !== window.location.origin) return;
-
-      if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
-        const { accessToken } = event.data;
-        localStorage.setItem('google_access_token', accessToken);
-        setGoogleAccessToken(accessToken);
-        setSnackbar({
-          open: true,
-          message: '구글 드라이브 인증이 완료되었습니다.',
-          severity: 'success'
-        });
-      } else if (event.data.type === 'GOOGLE_AUTH_ERROR') {
-        setSnackbar({
-          open: true,
-          message: `구글 드라이브 인증 실패: ${event.data.error}`,
-          severity: 'error'
-        });
-      }
-    };
-
-    window.addEventListener('message', handleMessage);
-    handleGoogleOAuthCallback();
-
-    return () => {
-      window.removeEventListener('message', handleMessage);
-    };
-  }, []);
 
   const handleUsageChange = (index, newUsage) => {
     const updatedParts = [...selectedParts];
@@ -1716,104 +1627,7 @@ function ServiceDetail() {
     setCustomerSearchResults([]);
   };
 
-  // 구글 드라이브 액세스 토큰 가져오기
-  const getGoogleAccessToken = async () => {
-    try {
-      // 구글 OAuth 토큰을 localStorage에서 가져오거나 새로 요청
-      const token = localStorage.getItem('google_access_token');
-      if (token) {
-        // 토큰 유효성 검사
-        try {
-          const response = await fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
 
-          if (response.ok) {
-            setGoogleAccessToken(token);
-            return token;
-          } else {
-            // 토큰이 만료되었거나 유효하지 않으면 제거
-            const errorData = await response.json().catch(() => ({}));
-            console.warn('[ServiceDetail] 토큰 유효성 검사 실패:', response.status, errorData);
-            localStorage.removeItem('google_access_token');
-            setGoogleAccessToken(null);
-          }
-        } catch (tokenError) {
-          console.warn('[ServiceDetail] 토큰 유효성 검사 중 오류:', tokenError);
-          // 네트워크 오류는 토큰을 유지하되, 다른 오류는 삭제
-          if (tokenError.name !== 'TypeError' && !tokenError.message.includes('fetch')) {
-            localStorage.removeItem('google_access_token');
-            setGoogleAccessToken(null);
-          }
-        }
-      }
-
-      // 토큰이 없거나 만료되었으면 구글 OAuth 인증 요청
-      // 환경 변수는 window._env_에서 가져오거나 process.env에서 가져옴
-      const processEnvClientId = process.env.REACT_APP_GOOGLE_CLIENT_ID;
-      const windowEnvClientId = typeof window !== 'undefined' && window._env_ && window._env_.REACT_APP_GOOGLE_CLIENT_ID;
-      const clientId = processEnvClientId || windowEnvClientId;
-
-      // 디버깅: 클라이언트 ID 확인
-      console.log('[ServiceDetail] 구글 클라이언트 ID 확인:', {
-        processEnv: processEnvClientId,
-        windowEnv: windowEnvClientId,
-        selected: clientId,
-        allWindowEnvKeys: typeof window !== 'undefined' && window._env_ ? Object.keys(window._env_) : [],
-        windowEnvFull: typeof window !== 'undefined' && window._env_ ? window._env_ : null
-      });
-
-      if (!clientId) {
-        console.error('[ServiceDetail] 구글 클라이언트 ID가 없습니다.');
-        throw new Error('구글 클라이언트 ID가 설정되지 않았습니다. 환경변수 REACT_APP_GOOGLE_CLIENT_ID를 확인하세요.');
-      }
-
-      // 올바른 클라이언트 ID인지 확인
-      const expectedClientId = '858601328382-kpeaafkvvqaepgii0e79riruh8c642ei.apps.googleusercontent.com';
-      if (clientId !== expectedClientId) {
-        console.warn('[ServiceDetail] ⚠️ 잘못된 클라이언트 ID가 사용되고 있습니다!', {
-          current: clientId,
-          expected: expectedClientId
-        });
-      }
-
-      // 팝업 차단을 우회하기 위해 현재 창에서 리다이렉트
-      // redirect_uri는 쿼리 파라미터 없이 통일 (구글 OAuth 요구사항)
-      const redirectUri = `${window.location.origin}/google-auth-callback.html`;
-      // 현재 경로를 state 파라미터에 담아서 전달 (리다이렉트 후 복귀를 위해)
-      const state = encodeURIComponent(window.location.pathname);
-      const authUrl = `https://accounts.google.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=https://www.googleapis.com/auth/drive.file&response_type=token&access_type=offline&state=${state}`;
-
-      console.log('[ServiceDetail] 인증 URL 생성:', authUrl);
-
-      setSnackbar({
-        open: true,
-        message: '구글 드라이브 인증이 필요합니다. 잠시 후 인증 페이지로 이동합니다.',
-        severity: 'info'
-      });
-
-      // 현재 창에서 인증 페이지로 이동
-      // 리다이렉트되므로 Promise는 resolve되지 않음
-      setTimeout(() => {
-        window.location.href = authUrl;
-      }, 2000);
-
-      // 리다이렉트가 발생하므로 여기까지 오지 않음
-      // Promise를 영원히 pending 상태로 유지
-      return new Promise(() => { });
-
-    } catch (error) {
-      // 실제 에러인 경우에만 throw
-      if (!error.message.includes('인증 페이지로 이동')) {
-        console.error('구글 액세스 토큰 가져오기 실패:', error);
-        throw error;
-      }
-      // 인증 페이지로 이동하는 경우는 에러가 아님
-      return new Promise(() => { });
-    }
-  };
 
   // 파일 업로드 핸들러
   const handleFileUpload = async (event) => {
@@ -1849,81 +1663,27 @@ function ServiceDetail() {
     try {
       setUploadingFiles(true);
 
-      // 구글 액세스 토큰 확인
-      let accessToken = googleAccessToken;
-
-      // 상태에 토큰이 없으면 localStorage에서 확인
-      if (!accessToken) {
-        const storedToken = localStorage.getItem('google_access_token');
-        if (storedToken) {
-          // 토큰 유효성 검사
-          try {
-            const response = await fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
-              headers: {
-                'Authorization': `Bearer ${storedToken}`
-              }
-            });
-
-            if (response.ok) {
-              accessToken = storedToken;
-              setGoogleAccessToken(storedToken);
-            } else {
-              // 토큰이 만료되었거나 유효하지 않으면 제거
-              const errorData = await response.json().catch(() => ({}));
-              console.warn('[ServiceDetail] 파일 업로드: 토큰 유효성 검사 실패:', response.status, errorData);
-              localStorage.removeItem('google_access_token');
-              setGoogleAccessToken(null);
-            }
-          } catch (tokenError) {
-            console.warn('[ServiceDetail] 파일 업로드: 토큰 유효성 검사 중 오류:', tokenError);
-            // 네트워크 오류가 아닌 경우에만 토큰 삭제
-            if (tokenError.name !== 'TypeError' && !tokenError.message.includes('fetch')) {
-              localStorage.removeItem('google_access_token');
-              setGoogleAccessToken(null);
-            }
-          }
-        }
-      }
-
-      // 여전히 토큰이 없으면 인증 요청
-      if (!accessToken) {
-        // 인증 페이지로 이동 (getGoogleAccessToken이 리다이렉트함)
-        try {
-          await getGoogleAccessToken();
-        } catch (error) {
-          // 인증 페이지로 이동하는 경우는 정상 플로우이므로 에러로 처리하지 않음
-          if (!error.message || !error.message.includes('인증 페이지로 이동')) {
-            throw error;
-          }
-        }
-        // 리다이렉트되므로 여기까지 오지 않음
-        return;
-      }
-
-      // 업로드 루트/서브 폴더 설정 (환경변수 활용)
-      const rootFolderId = process.env.REACT_APP_GOOGLE_DRIVE_ROOT_FOLDER_ID ||
-        (typeof window !== 'undefined' && window._env_ && window._env_.REACT_APP_GOOGLE_DRIVE_ROOT_FOLDER_ID) ||
-        null;
+      // 업로드 서브 폴더 설정 (환경변수 활용)
       const subFolderName = process.env.REACT_APP_GOOGLE_DRIVE_SUBFOLDER ||
         (typeof window !== 'undefined' && window._env_ && window._env_.REACT_APP_GOOGLE_DRIVE_SUBFOLDER) ||
         'upload_crm';
 
-      // 루트 폴더ID 하위에 서브폴더(upload_crm)를 생성/탐색
-      const subRootFolder = await findOrCreateFolder(subFolderName, rootFolderId, accessToken);
+      // 서브폴더(upload_crm)를 생성/탐색
+      const subRootFolder = await findOrCreateFolder(subFolderName, null, null);
 
       // 서비스별 하위 폴더 생성 (upload_crm/AS_...)
       const serviceFolderName = `AS_${formData.customer_name}_${formData.product_name}_${id}`;
-      const serviceFolder = await findOrCreateFolder(serviceFolderName, subRootFolder?.id || rootFolderId, accessToken);
+      const serviceFolder = await findOrCreateFolder(serviceFolderName, subRootFolder?.id, null);
 
       const uploadResults = [];
 
       for (const file of files) {
         try {
           // 파일 업로드
-          const uploadResult = await uploadFileToGoogleDrive(file, serviceFolder.id, accessToken);
+          const uploadResult = await uploadFileToGoogleDrive(file, serviceFolder.id, null);
 
           // 파일 공유 설정 (링크로 접근 가능하도록)
-          await shareGoogleDriveFile(uploadResult.id, accessToken, 'reader', 'anyone');
+          await shareGoogleDriveFile(uploadResult.id, null, 'reader', 'anyone');
 
           uploadResults.push({
             id: uploadResult.id,
@@ -1999,12 +1759,6 @@ function ServiceDetail() {
       }
 
     } catch (error) {
-      // 인증 페이지로 이동하는 경우는 정상 플로우이므로 에러로 처리하지 않음
-      if (error.message && error.message.includes('인증 페이지로 이동')) {
-        // 리다이렉트가 발생하므로 여기까지 오지 않지만, 혹시 모를 경우를 대비
-        return;
-      }
-
       console.error('파일 업로드 실패:', error);
       setSnackbar({
         open: true,
@@ -2035,16 +1789,14 @@ function ServiceDetail() {
         console.log('[ServiceDetail] DB 파일 정보 삭제 완료:', dbId);
       }
 
-      // 구글 드라이브에서 파일 삭제 (선택적)
-      if (googleAccessToken) {
-        try {
-          const { deleteGoogleDriveFile } = await import('../../utils/cloudflareR2Utils');
-          await deleteGoogleDriveFile(fileId, googleAccessToken);
-          console.log('[ServiceDetail] 구글 드라이브 파일 삭제 완료:', fileId);
-        } catch (driveError) {
-          console.warn('[ServiceDetail] 구글 드라이브 파일 삭제 실패 (무시):', driveError);
-          // 구글 드라이브 삭제 실패는 무시 (DB에서는 이미 삭제됨)
-        }
+      // Cloudflare R2에서 파일 삭제
+      try {
+        const { deleteGoogleDriveFile } = await import('../../utils/cloudflareR2Utils');
+        await deleteGoogleDriveFile(fileId, null);
+        console.log('[ServiceDetail] 파일 보관소(R2) 삭제 완료:', fileId);
+      } catch (driveError) {
+        console.warn('[ServiceDetail] 파일 보관소(R2) 삭제 실패 (무시):', driveError);
+        // 삭제 실패는 무시 (DB에서는 이미 삭제됨)
       }
 
       // 로컬 상태에서 제거
@@ -3340,7 +3092,7 @@ function ServiceDetail() {
                     </Button>
                   </label>
                   <Typography variant="caption" color="text.secondary" sx={{ ml: 2 }}>
-                    구글 드라이브에 자동으로 업로드됩니다
+                    첨부된 파일은 클라우드 보관소에 자동으로 업로드됩니다 (이미지는 자동 리사이즈됩니다)
                   </Typography>
                 </Box>
 
