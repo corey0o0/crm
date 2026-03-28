@@ -10,7 +10,10 @@ import {
   Link,
   Divider
 } from '@mui/material';
-import { uploadToGoogleDrive, getFileLink, initializeGoogleAPI } from '../../lib/googleDriveConfig';
+import { uploadToGoogleDrive, getGoogleDrivePreviewUrl } from '../../utils/cloudflareR2Utils';
+
+const initializeGoogleAPI = async () => true;
+const getFileLink = async (id) => getGoogleDrivePreviewUrl(id);
 
 function GoogleDriveTest() {
   const [file, setFile] = useState(null);

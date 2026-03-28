@@ -73,7 +73,7 @@ import {
   findOrCreateFolder,
   shareGoogleDriveFile,
   getGoogleDrivePreviewUrl
-} from '../../utils/googleDriveUtils';
+} from '../../utils/cloudflareR2Utils';
 
 // PDF worker 설정
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
@@ -2036,7 +2036,7 @@ function ServiceDetail() {
       // 구글 드라이브에서 파일 삭제 (선택적)
       if (googleAccessToken) {
         try {
-          const { deleteGoogleDriveFile } = await import('../../utils/googleDriveUtils');
+          const { deleteGoogleDriveFile } = await import('../../utils/cloudflareR2Utils');
           await deleteGoogleDriveFile(fileId, googleAccessToken);
           console.log('[ServiceDetail] 구글 드라이브 파일 삭제 완료:', fileId);
         } catch (driveError) {

@@ -69,7 +69,7 @@ import {
   findOrCreateFolder, 
   shareGoogleDriveFile,
   deleteGoogleDriveFile 
-} from '../../utils/googleDriveUtils';
+} from '../../utils/cloudflareR2Utils';
 import imageCompression from 'browser-image-compression';
 
 // 접수방법과 배송방법 옵션

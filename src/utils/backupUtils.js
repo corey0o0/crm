@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabaseClient';
 import { initializeGoogleAPI, getAccessToken } from '../lib/googleDriveConfig';
-import { uploadFileToGoogleDrive, findOrCreateFolder } from './googleDriveUtils';
+import { uploadFileToGoogleDrive, findOrCreateFolder } from './cloudflareR2Utils';
 
 /**
  * 복원 순서: 외래 키 의존성을 고려한 순서

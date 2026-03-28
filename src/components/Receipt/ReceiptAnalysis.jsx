@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Box, Button, CircularProgress, Typography } from '@mui/material';
 import { supabase } from '../../lib/supabaseClient';
-import { uploadToGoogleDrive } from '../../lib/googleDriveConfig';
+import { uploadToGoogleDrive } from '../../utils/cloudflareR2Utils';
 
 function ReceiptAnalysis() {
   const [loading, setLoading] = useState(false);
