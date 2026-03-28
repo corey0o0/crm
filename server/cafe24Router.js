@@ -278,9 +278,10 @@ module.exports = function(supabaseAdmin) {
       }
 
       const orders = response.data.orders || [];
-      console.log(`[Cafe24 Sync] Fetched ${orders.length} orders from Cafe24 API (Period: ${queryStart} ~ ${queryEnd})`);
+      const validOrders = orders.filter(o => o.order_status !== 'N00');
+      console.log(`[Cafe24 Sync] Fetched ${orders.length} orders from Cafe24 API, processing ${validOrders.length} valid orders (filtered out 'N00' unpaid orders)`);
 
-      for (const order of orders) {
+      for (const order of validOrders) {
         // 주문한 상품들 배열 만들기
         let formattedItems = [];
         if (order.items && order.items.length > 0) {
