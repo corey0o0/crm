@@ -287,7 +287,7 @@ module.exports = function(supabaseAdmin) {
         if (order.items && order.items.length > 0) {
           formattedItems = order.items.map(item => {
             const code = item.product_code || item.custom_product_code || '';
-            const customCode = item.custom_product_code ? String(item.custom_product_code).trim() : '';
+            const customCode = (item.custom_item_code || item.custom_product_code) ? String(item.custom_item_code || item.custom_product_code).trim() : '';
             
             let matchedPartId = null;
             if (customCode && barcodeToPartIdMap[customCode]) {
@@ -318,8 +318,11 @@ module.exports = function(supabaseAdmin) {
           total_amount: order.payment_amount || (order.actual_order_amount && order.actual_order_amount.order_price_amount) || order.total_order_price || 0,
           order_items: formattedItems,
           status: order.order_status || order.shipping_status || 'unknown',
+          buyer_id: order.member_id || (order.buyer && order.buyer.member_id) || null,
+          buyer_group_no: (order.buyer && order.buyer.member_group_no) ? String(order.buyer.member_group_no) : null,
           buyer_name: order.buyer ? order.buyer.name : null,
           buyer_phone: order.buyer ? order.buyer.phone || order.buyer.cellphone : null,
+          shipping_message: (order.receivers && order.receivers[0]) ? order.receivers[0].shipping_message : null,
           synced_at: new Date().toISOString()
         };
 

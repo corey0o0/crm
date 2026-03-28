@@ -3,7 +3,7 @@ import { Box, Tabs, Tab, Typography, Paper, Container } from '@mui/material';
 import SystemHealthCheck from '../../components/Test/SystemHealthCheck';
 import TelegramTest from '../../components/Test/TelegramTest';
 import GoogleDriveTest from '../../components/Test/GoogleDriveTest';
-import Cafe24Settings from '../../components/Settings/Cafe24Settings';
+
 import BackupManager from '../../components/Backup/BackupManager';
 
 function TabPanel(props) {
@@ -58,8 +58,7 @@ export default function AdminTools() {
                         <Tab label="시스템 상태 점검" {...a11yProps(0)} />
                         <Tab label="텔레그램 테스트" {...a11yProps(1)} />
                         <Tab label="구글 드라이브 테스트" {...a11yProps(2)} />
-                        <Tab label="카페24 연동 관리" {...a11yProps(3)} />
-                        <Tab label="데이터 백업/복원" {...a11yProps(4)} />
+                        <Tab label="데이터 백업/복원" {...a11yProps(3)} />
                     </Tabs>
                 </Box>
                 <TabPanel value={value} index={0}>
@@ -72,11 +71,6 @@ export default function AdminTools() {
                     <GoogleDriveTest />
                 </TabPanel>
                 <TabPanel value={value} index={3}>
-                    <Box sx={{ mt: -3 }}>
-                        <Cafe24Settings />
-                    </Box>
-                </TabPanel>
-                <TabPanel value={value} index={4}>
                     <Box sx={{ mt: -3 }}>
                         <BackupManager />
                     </Box>

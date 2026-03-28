@@ -2,11 +2,20 @@ import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Paper, Button, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Chip, CircularProgress, Alert, Stack, Dialog, DialogTitle,
-  DialogContent, DialogActions, Autocomplete, TextField
+  DialogContent, DialogActions, Autocomplete, TextField, Tabs, Tab, Select, MenuItem, FormControl, InputLabel
 } from '@mui/material';
 import { Sync as SyncIcon } from '@mui/icons-material';
+import Cafe24Settings from '../../components/Settings/Cafe24Settings';
 import { supabase } from '../../lib/supabaseClient';
 import { getCafe24Malls, syncCafe24Orders, addCafe24ProductMapping } from '../../utils/cafe24Api';
+
+const STATUS_KO = {
+  'N00': '입금대기', 'N10': '상품준비중', 'N20': '배송보류', 'N21': '배송대기',
+  'N22': '배송중', 'N30': '배송완료', 'N40': '자동배송완료', 'C00': '취소접수',
+  'C10': '취소처리중', 'C40': '취소완료', 'E00': '교환접수', 'E10': '교환처리중',
+  'E40': '교환완료', 'R00': '반품접수', 'R10': '반품처리중', 'R40': '반품완료'
+};
+const getKoStatus = (status) => STATUS_KO[status] || status;
 
 // 날짜 포맷팅 헬퍼
 function formatDate(dateStr) {
@@ -21,6 +30,8 @@ export default function Cafe24OrderList() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState(null);
+  const [tabValue, setTabValue] = useState(0);
+  const [selectedMall, setSelectedMall] = useState('all');
   const getFormattedDate = (date) => {
     const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
     return offsetDate.toISOString().split('T')[0];
@@ -141,12 +152,30 @@ export default function Cafe24OrderList() {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3 }}>
-        <Typography variant="h5" fontWeight="bold">🛒 예약 및 매장 주문 수집 (Cafe24)</Typography>
-        
-        <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2, p: 2, bgcolor: '#f8f9fa', borderRadius: 1 }}>
-          <Stack direction="row" spacing={1} alignItems="center">
-            <TextField
+      <Typography variant="h5" fontWeight="bold" sx={{ mb: 2 }}>🛒 온라인주문관리</Typography>
+
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+        <Tabs value={tabValue} onChange={(e, val) => setTabValue(val)}>
+          <Tab label="주문 내역" />
+          <Tab label="카페24 연동 관리" />
+        </Tabs>
+      </Box>
+
+      <div role="tabpanel" hidden={tabValue !== 0}>
+        {tabValue === 0 && (
+          <>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2, p: 2, bgcolor: '#f8f9fa', borderRadius: 1 }}>
+                <FormControl size="small" sx={{ minWidth: 150, bgcolor: 'white' }}>
+                  <InputLabel>쇼핑몰 선택</InputLabel>
+                  <Select value={selectedMall} label="쇼핑몰 선택" onChange={e => setSelectedMall(e.target.value)}>
+                    <MenuItem value="all">전체 쇼핑몰</MenuItem>
+                    {malls.map(m => <MenuItem key={m.mall_id} value={m.mall_id}>{m.mall_id === 'slimpack79' ? '엑스라이더(slimpack79)' : m.mall_id === 'nearbike' ? '니어바이크(nearbike)' : m.mall_id}</MenuItem>)}
+                  </Select>
+                </FormControl>
+
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <TextField
               label="시작일"
               type="date"
               size="small"
@@ -192,10 +221,10 @@ export default function Cafe24OrderList() {
               <TableCell><strong>수집처</strong></TableCell>
               <TableCell><strong>쇼핑몰명</strong></TableCell>
               <TableCell><strong>주문번호</strong></TableCell>
-              <TableCell><strong>묶음주문번호</strong></TableCell>
+              <TableCell><strong>주문자(ID)</strong></TableCell>
               <TableCell><strong>결제일자</strong></TableCell>
               <TableCell><strong>쇼핑몰상품명</strong></TableCell>
-              <TableCell><strong>쇼핑몰품목key</strong></TableCell>
+              <TableCell><strong>상품 옵션</strong></TableCell>
               <TableCell align="right"><strong>수량</strong></TableCell>
               <TableCell><strong>주문상태</strong></TableCell>
               <TableCell align="right"><strong>주문금액</strong></TableCell>
@@ -203,7 +232,8 @@ export default function Cafe24OrderList() {
               <TableCell align="right"><strong>실결제금액</strong></TableCell>
               <TableCell><strong>품목코드(ERP)</strong></TableCell>
               <TableCell><strong>품목명(ERP)</strong></TableCell>
-              <TableCell><strong>ERP전송여부(판매)</strong></TableCell>
+              <TableCell><strong>배송메시지</strong></TableCell>
+              <TableCell><strong>판매전송</strong></TableCell>
               <TableCell><strong>상태별처리기능</strong></TableCell>
             </TableRow>
           </TableHead>
@@ -213,7 +243,7 @@ export default function Cafe24OrderList() {
             ) : orders.length === 0 ? (
               <TableRow><TableCell colSpan={16} align="center" sx={{ py: 3 }}>데이터가 없습니다.</TableCell></TableRow>
             ) : (
-              orders.reduce((acc, order) => {
+              orders.filter(order => selectedMall === 'all' || order.mall_id === selectedMall).reduce((acc, order) => {
                 const items = order.order_items || [];
                 if (items.length === 0) {
                   // 빈 주문인 경우 빈 행 하나 추가
@@ -222,9 +252,14 @@ export default function Cafe24OrderList() {
                       <TableCell>카페24</TableCell>
                       <TableCell>카페24 - {order.mall_id}</TableCell>
                       <TableCell sx={{ fontFamily: 'monospace' }}>{order.order_id}</TableCell>
-                      <TableCell>-</TableCell>
+                      <TableCell>
+                        <Box>
+                          <Typography variant="body2">{order.buyer_name || '비회원'}</Typography>
+                          {order.buyer_id && <Typography variant="caption" color="text.secondary">({order.buyer_id})</Typography>}
+                        </Box>
+                      </TableCell>
                       <TableCell>{formatDate(order.order_date)}</TableCell>
-                      <TableCell colSpan={11} align="center" sx={{ color: 'text.secondary' }}>상품 정보가 없습니다</TableCell>
+                      <TableCell colSpan={12} align="center" sx={{ color: 'text.secondary' }}>상품 정보가 없습니다</TableCell>
                     </TableRow>
                   );
                   return acc;
@@ -241,12 +276,20 @@ export default function Cafe24OrderList() {
                       <TableCell>카페24</TableCell>
                       <TableCell>카페24 - {order.mall_id}</TableCell>
                       <TableCell sx={{ fontFamily: 'monospace' }}>{order.order_id}</TableCell>
-                      <TableCell>-</TableCell>
+                      <TableCell>
+                        <Box>
+                          <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            {order.buyer_name || '비회원'}
+                            {order.buyer_group_no && order.buyer_group_no !== '1' && <Chip size="small" label={`그룹:${order.buyer_group_no}`} sx={{ height: 16, fontSize: '0.65rem' }}/>}
+                          </Typography>
+                          {order.buyer_id && <Typography variant="caption" color="text.secondary">({order.buyer_id})</Typography>}
+                        </Box>
+                      </TableCell>
                       <TableCell>{formatDate(order.order_date)}</TableCell>
                       <TableCell>{item.name}</TableCell>
                       <TableCell>{item.options || '-'}</TableCell>
                       <TableCell align="right">{item.quantity}</TableCell>
-                      <TableCell><Chip label={order.status} size="small" color="primary" variant="outlined" /></TableCell>
+                      <TableCell><Chip label={getKoStatus(order.status)} size="small" color="primary" variant="outlined" /></TableCell>
                       <TableCell align="right">{Number(item.price || 0).toLocaleString()}</TableCell>
                       <TableCell align="right">{Number(item.discount_amount || 0).toLocaleString()}</TableCell>
                       <TableCell align="right">{(Number(item.payment_amount || 0) || Number(item.price || 0)).toLocaleString()}</TableCell>
@@ -262,6 +305,9 @@ export default function Cafe24OrderList() {
                           ) : '-'
                         )}
                       </TableCell>
+                      <TableCell sx={{ maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={order.shipping_message}>
+                        {order.shipping_message || '-'}
+                      </TableCell>
                       <TableCell>미전송</TableCell>
                       <TableCell>
                         <Button size="small" variant="text">주문확인</Button>
@@ -275,6 +321,15 @@ export default function Cafe24OrderList() {
           </TableBody>
         </Table>
       </TableContainer>
+          </>
+        )}
+      </div>
+
+      <div role="tabpanel" hidden={tabValue !== 1}>
+        {tabValue === 1 && (
+          <Cafe24Settings />
+        )}
+      </div>
 
       {/* 수동 매칭 모달 */}
       <Dialog open={mappingModalOpen} onClose={() => setMappingModalOpen(false)} maxWidth="sm" fullWidth>
