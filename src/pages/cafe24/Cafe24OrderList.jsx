@@ -17,6 +17,15 @@ const STATUS_KO = {
 };
 const getKoStatus = (status) => STATUS_KO[status] || status;
 
+const MEMBER_GROUPS = {
+  '1': '일반회원',
+  '2': 'VIP',
+  '3': 'TEAM X-RIDER',
+  '4': '사업자회원',
+  '5': '엑스라이더',
+};
+const getGroupName = (no) => MEMBER_GROUPS[no] || `그룹:${no}`;
+
 // 날짜 포맷팅 헬퍼
 function formatDate(dateStr) {
   if (!dateStr) return '-';
@@ -281,7 +290,7 @@ export default function Cafe24OrderList() {
                         <Box>
                           <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             {order.buyer_name || '비회원'}
-                            {order.buyer_group_no && order.buyer_group_no !== '1' && <Chip size="small" label={`그룹:${order.buyer_group_no}`} sx={{ height: 16, fontSize: '0.65rem' }}/>}
+                            {order.buyer_group_no && order.buyer_group_no !== '1' && <Chip size="small" label={getGroupName(order.buyer_group_no)} sx={{ height: 16, fontSize: '0.65rem' }} color={order.buyer_group_no === '4' ? 'success' : order.buyer_group_no === '2' ? 'secondary' : 'warning'}/>}
                           </Typography>
                           {order.buyer_id && <Typography variant="caption" color="text.secondary">({order.buyer_id})</Typography>}
                         </Box>
