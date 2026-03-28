@@ -240,6 +240,7 @@ export default function Cafe24OrderList() {
               <TableCell align="right"><strong>상품별할인금액</strong></TableCell>
               <TableCell align="right"><strong>묶음할인금액</strong></TableCell>
               <TableCell align="right"><strong>실결제금액</strong></TableCell>
+              <TableCell align="right"><strong>배송비</strong></TableCell>
               <TableCell><strong>품목코드(ERP)</strong></TableCell>
               <TableCell><strong>품목명(ERP)</strong></TableCell>
               <TableCell><strong>배송메시지</strong></TableCell>
@@ -269,7 +270,7 @@ export default function Cafe24OrderList() {
                         </Box>
                       </TableCell>
                       <TableCell>{formatDate(order.order_date)}</TableCell>
-                      <TableCell colSpan={13} align="center" sx={{ color: 'text.secondary' }}>상품 정보가 없습니다</TableCell>
+                      <TableCell colSpan={14} align="center" sx={{ color: 'text.secondary' }}>상품 정보가 없습니다</TableCell>
                     </TableRow>
                   );
                   return acc;
@@ -300,9 +301,6 @@ export default function Cafe24OrderList() {
                           <Typography variant="body2">{formatDate(order.order_date)}</Typography>
                           <Stack direction="row" spacing={0.5} sx={{ mt: 0.5 }}>
                             <Chip label={getKoStatus(order.status)} size="small" color="primary" variant="outlined" />
-                            {(order.shipping_fee !== undefined && order.shipping_fee !== null) && (
-                              <Chip label={`배송비: ${Number(order.shipping_fee).toLocaleString()}원`} size="small" variant="outlined" sx={{ height: 24 }} />
-                            )}
                           </Stack>
                         </Box>
                       </TableCell>
@@ -314,6 +312,7 @@ export default function Cafe24OrderList() {
                       <TableCell align="right">{Number(item.item_discount || 0).toLocaleString()}</TableCell>
                       <TableCell align="right">{Number(item.bundle_discount || item.discount_amount || 0).toLocaleString()}</TableCell>
                       <TableCell align="right">{(Number(item.payment_amount === undefined ? (Number(item.price || 0) * Number(item.quantity || 1)) : item.payment_amount)).toLocaleString()}</TableCell>
+                      <TableCell align="right">{Number(order.shipping_fee || 0).toLocaleString()}</TableCell>
                       <TableCell>
                         {erpCode || (needsMapping ? <Chip size="small" label="미스매칭" color="warning" /> : '-')}
                       </TableCell>
