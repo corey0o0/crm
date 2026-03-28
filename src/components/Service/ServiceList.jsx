@@ -620,11 +620,15 @@ function ServiceList() {
         if (isNumeric) {
           // 숫자인 경우: A/S ID 정확 검색 또는 전화번호 부분 검색 (하이픈 포함/제거 모두 검색)
           // 전화번호는 원본 검색어와 하이픈 제거한 버전 모두 검색
-          query = query.or(`id.eq.${cleanSearchTerm},customer_phone.ilike.%${originalSearchTerm}%,customer_phone.ilike.%${cleanSearchTerm}%`);
+          const safeOriginal = originalSearchTerm.replace(/"/g, '');
+          const safeClean = cleanSearchTerm.replace(/"/g, '');
+          query = query.or(`id.eq.${cleanSearchTerm},customer_phone.ilike."%${safeOriginal}%",customer_phone.ilike."%${safeClean}%"`);
         } else {
           // 문자열인 경우: 고객명과 전화번호 검색 (하이픈 포함/제거 모두 검색)
           // 전화번호는 원본 검색어와 하이픈 제거한 버전 모두 검색
-          query = query.or(`customer_name.ilike.%${originalSearchTerm}%,customer_phone.ilike.%${originalSearchTerm}%,customer_phone.ilike.%${cleanSearchTerm}%`);
+          const safeOriginal = originalSearchTerm.replace(/"/g, '');
+          const safeClean = cleanSearchTerm.replace(/"/g, '');
+          query = query.or(`customer_name.ilike."%${safeOriginal}%",customer_phone.ilike."%${safeOriginal}%",customer_phone.ilike."%${safeClean}%"`);
         }
       } else if (searchParams.searchTerm && searchParams.searchTerm.length < 2) {
         console.log('Search term too short, ignoring:', searchParams.searchTerm);
@@ -699,7 +703,10 @@ function ServiceList() {
         console.log('태그 단어 검색 시작:', searchParams.selectedTags);
         
         // 각 태그 단어에 대해 OR 조건으로 검색
-        const tagConditions = searchParams.selectedTags.map(tag => `tag_name.ilike.%${tag}%`).join(',');
+        const tagConditions = searchParams.selectedTags.map(tag => {
+          const safeTag = tag.replace(/"/g, '');
+          return `tag_name.ilike."%${safeTag}%"`;
+        }).join(',');
         
         const { data: tagRows, error: tagQueryError } = await supabase
           .from('service_tags')
@@ -833,10 +840,14 @@ function ServiceList() {
           
           if (isNumeric) {
             // 숫자인 경우: A/S ID 정확 검색 또는 전화번호 부분 검색 (하이픈 포함/제거 모두 검색)
-            simpleQuery = simpleQuery.or(`id.eq.${cleanSearchTerm},customer_phone.ilike.%${originalSearchTerm}%,customer_phone.ilike.%${cleanSearchTerm}%`);
+            const safeOriginal = originalSearchTerm.replace(/"/g, '');
+            const safeClean = cleanSearchTerm.replace(/"/g, '');
+            simpleQuery = simpleQuery.or(`id.eq.${cleanSearchTerm},customer_phone.ilike."%${safeOriginal}%",customer_phone.ilike."%${safeClean}%"`);
           } else {
             // 문자열인 경우: 고객명과 전화번호 검색 (하이픈 포함/제거 모두 검색)
-            simpleQuery = simpleQuery.or(`customer_name.ilike.%${originalSearchTerm}%,customer_phone.ilike.%${originalSearchTerm}%,customer_phone.ilike.%${cleanSearchTerm}%`);
+            const safeOriginal = originalSearchTerm.replace(/"/g, '');
+            const safeClean = cleanSearchTerm.replace(/"/g, '');
+            simpleQuery = simpleQuery.or(`customer_name.ilike."%${safeOriginal}%",customer_phone.ilike."%${safeOriginal}%",customer_phone.ilike."%${safeClean}%"`);
           }
           console.log('[ServiceList] 검색어 필터 적용 완료');
         }

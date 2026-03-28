@@ -175,7 +175,8 @@ export const fetchServices = async (options = {}) => {
   }
 
   if (searchTerm) {
-    filters.push(`or=(customer_name.ilike.*${encodeURIComponent(searchTerm)}*,product_name.ilike.*${encodeURIComponent(searchTerm)}*,phone.ilike.*${encodeURIComponent(searchTerm)}*)`);
+    const safeTerm = searchTerm.replace(/"/g, '');
+    filters.push(`or=(customer_name.ilike."*${encodeURIComponent(safeTerm)}*",product_name.ilike."*${encodeURIComponent(safeTerm)}*",phone.ilike."*${encodeURIComponent(safeTerm)}*")`);
   }
 
   if (statusFilter) {
@@ -219,7 +220,8 @@ export const countServices = async (options = {}) => {
   }
 
   if (searchTerm) {
-    filters.push(`or=(customer_name.ilike.*${encodeURIComponent(searchTerm)}*,product_name.ilike.*${encodeURIComponent(searchTerm)}*,phone.ilike.*${encodeURIComponent(searchTerm)}*)`);
+    const safeTerm = searchTerm.replace(/"/g, '');
+    filters.push(`or=(customer_name.ilike."*${encodeURIComponent(safeTerm)}*",product_name.ilike."*${encodeURIComponent(safeTerm)}*",phone.ilike."*${encodeURIComponent(safeTerm)}*")`);
   }
 
   if (statusFilter) {

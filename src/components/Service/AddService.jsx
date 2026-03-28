@@ -1748,19 +1748,22 @@ function AddService() {
       
       let serviceQuery, shipmentQuery;
       
+      const safeSearchTerm = searchTerm.replace(/"/g, '');
+      const safeCleanSearchTerm = cleanSearchTerm.replace(/"/g, '');
+
       if (isPhoneSearch) {
         // 전화번호 검색: 하이픈 있는/없는 형태 모두 검색
         serviceQuery = supabase
           .from('services')
           .select('customer_name, customer_phone, customer_address, brand, product_name, seller')
-          .or(`customer_phone.ilike.%${cleanSearchTerm}%,customer_phone.ilike.%${searchTerm}%`)
+          .or(`customer_phone.ilike."%${safeCleanSearchTerm}%",customer_phone.ilike."%${safeSearchTerm}%"`)
           .order('created_at', { ascending: false })
           .abortSignal(signal);
           
         shipmentQuery = supabase
           .from('shipments')
           .select('customer_name, customer_phone, customer_address, brand, product_name')
-          .or(`customer_phone.ilike.%${cleanSearchTerm}%,customer_phone.ilike.%${searchTerm}%`)
+          .or(`customer_phone.ilike."%${safeCleanSearchTerm}%",customer_phone.ilike."%${safeSearchTerm}%"`)
           .order('created_at', { ascending: false })
           .abortSignal(signal);
       } else {
@@ -1768,14 +1771,14 @@ function AddService() {
         serviceQuery = supabase
           .from('services')
           .select('customer_name, customer_phone, customer_address, brand, product_name, seller')
-          .or(`customer_name.ilike.%${searchTerm}%,customer_phone.ilike.%${cleanSearchTerm}%,customer_phone.ilike.%${searchTerm}%`)
+          .or(`customer_name.ilike."%${safeSearchTerm}%",customer_phone.ilike."%${safeCleanSearchTerm}%",customer_phone.ilike."%${safeSearchTerm}%"`)
           .order('created_at', { ascending: false })
           .abortSignal(signal);
           
         shipmentQuery = supabase
           .from('shipments')
           .select('customer_name, customer_phone, customer_address, brand, product_name')
-          .or(`customer_name.ilike.%${searchTerm}%,customer_phone.ilike.%${cleanSearchTerm}%,customer_phone.ilike.%${searchTerm}%`)
+          .or(`customer_name.ilike."%${safeSearchTerm}%",customer_phone.ilike."%${safeCleanSearchTerm}%",customer_phone.ilike."%${safeSearchTerm}%"`)
           .order('created_at', { ascending: false })
           .abortSignal(signal);
       }

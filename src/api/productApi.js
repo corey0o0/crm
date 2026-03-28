@@ -93,7 +93,8 @@ export const productApi = {
   // 상품 검색 (parts: name/code/note 검색)
   search: async (searchTerm) => {
     try {
-      let filterExpr = `name.ilike.%${searchTerm}%,code.ilike.%${searchTerm}%,note.ilike.%${searchTerm}%`;
+      const safeTerm = searchTerm.replace(/"/g, '');
+      let filterExpr = `name.ilike."%${safeTerm}%",code.ilike."%${safeTerm}%",note.ilike."%${safeTerm}%"`;
       let query = supabase
         .from(PARTS_TABLE)
         .select('id, code, barcode, name, price, brand, note')
