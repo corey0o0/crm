@@ -309,8 +309,8 @@ export default function Cafe24OrderList() {
                       <TableCell align="right">{(Number(item.price || 0) * Number(item.quantity || 1)).toLocaleString()}</TableCell>
                       <TableCell align="right">{Number(item.item_discount || 0).toLocaleString()}</TableCell>
                       <TableCell align="right">{Number(item.bundle_discount || item.discount_amount || 0).toLocaleString()}</TableCell>
-                      <TableCell align="right">{(Number(item.payment_amount === undefined ? (Number(item.price || 0) * Number(item.quantity || 1)) : item.payment_amount)).toLocaleString()}</TableCell>
-                      <TableCell align="right">{Number(order.shipping_fee || 0).toLocaleString()}</TableCell>
+                      <TableCell align="right">{((Number(item.payment_amount === undefined ? (Number(item.price || 0) * Number(item.quantity || 1)) : item.payment_amount)) + (idx === 0 ? Number(order.shipping_fee || 0) : 0)).toLocaleString()}</TableCell>
+                      <TableCell align="right">{idx === 0 ? Number(order.shipping_fee || 0).toLocaleString() : '-'}</TableCell>
                       <TableCell>
                         {erpCode || (needsMapping ? <Chip size="small" label="미스매칭" color="warning" /> : '-')}
                       </TableCell>
