@@ -259,7 +259,7 @@ module.exports = function(supabaseAdmin) {
       // 카페24 API에서 주문 목록 가져오기 함수
       const fetchOrders = async (accessToken) => {
         return await axios.get(`https://${mall_id}.cafe24api.com/api/v2/admin/orders`, {
-          params: { start_date: queryStart, end_date: queryEnd, date_type: 'order_date', limit: 100 },
+          params: { start_date: queryStart, end_date: queryEnd, date_type: 'order_date', limit: 100, embed: 'items' },
           headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json', 'X-Cafe24-Api-Version': '2026-03-01' }
         });
       };
