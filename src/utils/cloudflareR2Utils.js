@@ -9,6 +9,7 @@ const initR2Client = () => {
   return new S3Client({
     region: "auto",
     endpoint: process.env.REACT_APP_R2_ENDPOINT,
+    forcePathStyle: true, // Cloudflare R2 필수 옵션
     credentials: {
       accessKeyId: process.env.REACT_APP_R2_ACCESS_KEY_ID,
       secretAccessKey: process.env.REACT_APP_R2_SECRET_ACCESS_KEY,
