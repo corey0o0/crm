@@ -83,7 +83,9 @@ CREATE TRIGGER update_cafe24_product_to_part_updated_at
   BEFORE UPDATE ON cafe24_product_to_part
   FOR EACH ROW EXECUTE FUNCTION update_cafe24_product_mapping_updated_at_column();
 
--- 4. 주문자 아이디 및 배송메시지 컬럼 추가
+-- 4. 주문자 아이디, 그룹, 인증여부, 배송메시지, 배송비 컬럼 추가
 ALTER TABLE public.cafe24_orders ADD COLUMN IF NOT EXISTS buyer_id text;
 ALTER TABLE public.cafe24_orders ADD COLUMN IF NOT EXISTS buyer_group_no text;
+ALTER TABLE public.cafe24_orders ADD COLUMN IF NOT EXISTS member_authentication text;
 ALTER TABLE public.cafe24_orders ADD COLUMN IF NOT EXISTS shipping_message text;
+ALTER TABLE public.cafe24_orders ADD COLUMN IF NOT EXISTS shipping_fee numeric(12, 2) DEFAULT 0;

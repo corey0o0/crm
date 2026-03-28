@@ -325,7 +325,8 @@ module.exports = function(supabaseAdmin) {
           status: order.order_status || order.shipping_status || 'unknown',
           buyer_id: order.member_id || (order.buyer && order.buyer.member_id) || null,
           buyer_group_no: (order.buyer && order.buyer.member_group_no) ? String(order.buyer.member_group_no) : null,
-          buyer_name: order.buyer ? order.buyer.name : null,
+          member_authentication: order.member_authentication || null,
+          buyer_name: (order.buyer && order.buyer.name) ? order.buyer.name : (order.billing_name || null),
           buyer_phone: order.buyer ? order.buyer.phone || order.buyer.cellphone : null,
           shipping_message: (order.receivers && order.receivers[0]) ? order.receivers[0].shipping_message : null,
           synced_at: new Date().toISOString()
