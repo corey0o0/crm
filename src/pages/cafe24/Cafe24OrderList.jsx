@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Paper, Button, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Chip, CircularProgress, Alert, Stack, Dialog, DialogTitle,
-  DialogContent, DialogActions, Autocomplete, TextField, IconButton, Tooltip
+  DialogContent, DialogActions, Autocomplete, TextField
 } from '@mui/material';
-import { Sync as SyncIcon, Warning as WarningIcon, Link as LinkIcon } from '@mui/icons-material';
+import { Sync as SyncIcon } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
 import { getCafe24Malls, syncCafe24Orders, addCafe24ProductMapping } from '../../utils/cafe24Api';
 
@@ -17,6 +17,7 @@ function formatDate(dateStr) {
 
 export default function Cafe24OrderList() {
   const [orders, setOrders] = useState([]);
+  const [malls, setMalls] = useState([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState(null);
