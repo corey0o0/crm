@@ -3,7 +3,7 @@ import {
   Box, Typography, Paper, Button, TextField, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, IconButton,
   Checkbox, Dialog, DialogTitle, DialogContent, DialogActions,
-  Grid, InputAdornment, Tooltip
+  Grid, InputAdornment, Tooltip, Chip
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -298,6 +298,7 @@ export default function AgencyManagement() {
               <TableCell>거래처코드</TableCell>
               <TableCell>거래처명</TableCell>
               <TableCell>대표자명</TableCell>
+              <TableCell align="center">카페24 연동 ID</TableCell>
               <TableCell>주소</TableCell>
               <TableCell>전화</TableCell>
               <TableCell>모바일</TableCell>
@@ -322,6 +323,9 @@ export default function AgencyManagement() {
                 <TableCell>{row.business_number}</TableCell>
                 <TableCell sx={{ fontWeight: 'medium' }}>{row.name}</TableCell>
                 <TableCell>{row.ceo_name}</TableCell>
+                <TableCell align="center">
+                  {row.cafe24_member_id ? <Chip label={row.cafe24_member_id} size="small" color="info" variant="outlined" /> : '-'}
+                </TableCell>
                 <TableCell>
                   <Tooltip title={row.address || '주소 없음'}>
                     <Typography 
@@ -416,7 +420,7 @@ function AgencyFormDialog({ open, data, onClose, onSave }) {
   useEffect(() => {
     if (open) {
       setFormData(data || {
-        business_number: '', name: '', ceo_name: '', address: '', email: '', business_type: '', business_category: '', phone: '', mobile: '', keywords: '', memo: ''
+        business_number: '', name: '', ceo_name: '', address: '', email: '', business_type: '', business_category: '', phone: '', mobile: '', keywords: '', memo: '', cafe24_member_id: ''
       });
     }
   }, [open, data]);
@@ -452,9 +456,12 @@ function AgencyFormDialog({ open, data, onClose, onSave }) {
             <TextField size="small" fullWidth label="거래처코드 (사업자번호 등)" name="business_number" value={formData.business_number || ''} onChange={handleChange} />
           </Grid>
           <Grid item xs={12} sm={6}>
-            <TextField size="small" fullWidth label="거래처명" name="name" required value={formData.name || ''} onChange={handleChange} />
+            <TextField size="small" fullWidth label="카페24 연동 ID" name="cafe24_member_id" value={formData.cafe24_member_id || ''} onChange={handleChange} placeholder="mall_id" />
           </Grid>
 
+          <Grid item xs={12} sm={6}>
+            <TextField size="small" fullWidth label="거래처명" name="name" required value={formData.name || ''} onChange={handleChange} />
+          </Grid>
           <Grid item xs={12} sm={6}>
             <TextField size="small" fullWidth label="대표자명" name="ceo_name" value={formData.ceo_name || ''} onChange={handleChange} />
           </Grid>

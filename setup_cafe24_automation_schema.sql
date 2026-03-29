@@ -34,9 +34,10 @@ CREATE POLICY "Allow authenticated access to cafe24_orders"
   USING (true)
   WITH CHECK (true);
 
--- 1. cafe24_orders 테이블 필드 추가 (재고 차감 완료 여부)
+-- 1. cafe24_orders 테이블 필드 추가 (재고 차감 및 적립금 사용액)
 -- 기존에 생성된 테이블일 경우를 대비해 ADD COLUMN
 ALTER TABLE public.cafe24_orders ADD COLUMN IF NOT EXISTS inventory_deducted BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.cafe24_orders ADD COLUMN IF NOT EXISTS used_points numeric(12, 2) DEFAULT 0;
 
 -- 2. inventory_logs 제약 조건 업데이트
 -- 기존 데이터 중 제약조건을 벗어나는 값(예: 입고, 취소 등)이 있을 수 있으므로 
@@ -83,9 +84,18 @@ CREATE TRIGGER update_cafe24_product_to_part_updated_at
   BEFORE UPDATE ON cafe24_product_to_part
   FOR EACH ROW EXECUTE FUNCTION update_cafe24_product_mapping_updated_at_column();
 
--- 4. 주문자 아이디, 그룹, 인증여부, 배송메시지, 배송비 컬럼 추가
+-- 4. 주문자 식별 및 특별고객 자동 연동용 컬럼 추가
 ALTER TABLE public.cafe24_orders ADD COLUMN IF NOT EXISTS buyer_id text;
 ALTER TABLE public.cafe24_orders ADD COLUMN IF NOT EXISTS buyer_group_no text;
 ALTER TABLE public.cafe24_orders ADD COLUMN IF NOT EXISTS member_authentication text;
 ALTER TABLE public.cafe24_orders ADD COLUMN IF NOT EXISTS shipping_message text;
 ALTER TABLE public.cafe24_orders ADD COLUMN IF NOT EXISTS shipping_fee numeric(12, 2) DEFAULT 0;
+ALTER TABLE public.cafe24_orders ADD COLUMN IF NOT EXISTS is_deleted boolean DEFAULT false;
+ALTER TABLE public.cafe24_orders ADD COLUMN IF NOT EXISTS is_transferred boolean DEFAULT false;
+ALTER TABLE public.cafe24_orders ADD COLUMN IF NOT EXISTS agency_id uuid REFERENCES public.agencies(id) ON DELETE SET NULL;
+
+-- 5. 거래처(Agency) 관리 테이블에 카페24 연동 ID 컬럼 추가
+ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS cafe24_member_id text;
+
+-- 6. 파츠 테이블에 사진 URL (Cloudflare R2) 연동 컬럼 추가
+ALTER TABLE public.parts ADD COLUMN IF NOT EXISTS image_url text;

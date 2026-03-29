@@ -256,6 +256,13 @@ module.exports = function(supabaseAdmin) {
         manualCodeToPartIdMap[String(m.cafe24_product_code).trim()] = m.part_id;
       });
 
+      // Fetch agencies mapped to cafe24 member IDs
+      const { data: agenciesList } = await supabaseAdmin.from('agencies').select('id, cafe24_member_id').not('cafe24_member_id', 'is', null).neq('cafe24_member_id', '');
+      const cafe24ToAgencyMap = {};
+      (agenciesList || []).forEach(a => {
+        if (a.cafe24_member_id) cafe24ToAgencyMap[String(a.cafe24_member_id).trim()] = a.id;
+      });
+
       const fetchOrders = async (accessToken) => {
         return await axios.get(`https://${mall_id}.cafe24api.com/api/v2/admin/orders`, {
           params: { start_date: queryStart, end_date: queryEnd, date_type: 'order_date', limit: 100, embed: 'items,buyer,receivers' },
@@ -315,15 +322,26 @@ module.exports = function(supabaseAdmin) {
           });
         }
 
+        const total_amount = order.payment_amount || (order.actual_order_amount && order.actual_order_amount.order_price_amount) || order.total_order_price || 0;
+        const shipping_fee = Number((order.actual_order_amount && order.actual_order_amount.shipping_fee) || 0);
+
+        let items_payment_sum = 0;
+        if (formattedItems && formattedItems.length > 0) {
+          items_payment_sum = formattedItems.reduce((acc, item) => acc + Number(item.payment_amount || 0), 0);
+        }
+        const used_points = Math.max(0, items_payment_sum + shipping_fee - Number(total_amount));
+
         const payload = {
           mall_id: mall_id,
           order_id: order.order_id,
           order_date: order.order_date,
-          total_amount: order.payment_amount || (order.actual_order_amount && order.actual_order_amount.order_price_amount) || order.total_order_price || 0,
-          shipping_fee: Number((order.actual_order_amount && order.actual_order_amount.shipping_fee) || 0),
+          total_amount: total_amount,
+          shipping_fee: shipping_fee,
+          used_points: used_points,
           order_items: formattedItems,
           status: order.order_status || order.shipping_status || 'unknown',
           buyer_id: order.member_id || (order.buyer && order.buyer.member_id) || null,
+          agency_id: cafe24ToAgencyMap[String(order.member_id || (order.buyer && order.buyer.member_id) || '').trim()] || null,
           buyer_group_no: (order.buyer && order.buyer.member_group_no) ? String(order.buyer.member_group_no) : null,
           member_authentication: order.member_authentication || null,
           buyer_name: (order.buyer && order.buyer.name) ? order.buyer.name : (order.billing_name || null),
@@ -414,6 +432,122 @@ module.exports = function(supabaseAdmin) {
 
       res.json({ success: true, message: '매핑이 저장되었습니다.' });
     } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // 5. 선택된 주문 출고(매출) 전송 API
+  router.post('/transfer/orders', async (req, res) => {
+    try {
+      const { orderIds } = req.body;
+      if (!orderIds || !orderIds.length) {
+        return res.status(400).json({ error: '주문 ID가 제공되지 않았습니다.' });
+      }
+
+      // 1. 주문 목록 가져오기
+      const { data: orders, error: fetchErr } = await supabaseAdmin
+        .from('cafe24_orders')
+        .select('*')
+        .in('id', orderIds)
+        .eq('is_transferred', false);
+
+      if (fetchErr) throw fetchErr;
+      if (!orders || orders.length === 0) {
+        return res.json({ success: true, message: '전송할 유효한 주문이 없습니다.' });
+      }
+
+      let transferCount = 0;
+
+      // 2. 각 주문별로 출고(매출) 및 거래처 장부 생성
+      for (const order of orders) {
+        const orderDateStr = order.order_date ? new Date(order.order_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+        const items = order.order_items || [];
+        
+        let totalQuantity = 0;
+        let totalPrice = 0;
+        let itemNames = [];
+        let brandName = 'XRB'; // Default, could be extracted from items
+
+        items.forEach(item => {
+          totalQuantity += Number(item.quantity || 1);
+          totalPrice += Number(item.payment_amount || (Number(item.price || 0) * Number(item.quantity || 1)));
+          itemNames.push(item.name);
+          if (item.name && item.name.includes('NB')) brandName = 'NB';
+        });
+
+        // 배송비 더하기
+        totalPrice += Number(order.shipping_fee || 0);
+
+        const productName = itemNames.length > 1 ? `${itemNames[0]} 외 ${itemNames.length - 1}건` : (itemNames[0] || '상품 없음');
+
+        // 출고(shipments) 생성 
+        const { data: shipmentData, error: shipErr } = await supabaseAdmin.from('shipments').insert({
+          shipment_date: orderDateStr,
+          customer_name: order.buyer_name || '비회원',
+          customer_phone: order.buyer_id || '',
+          customer_address: order.shipping_message || '',
+          product_name: productName,
+          quantity: totalQuantity,
+          delivery_method: '택배',
+          tracking_number: order.order_id,
+          status: '배송중',
+          note: `[판매처: 카페24-${order.mall_id}] ${order.order_id}`,
+          brand: brandName,
+          price: totalPrice,
+          sales_channel: order.mall_id === 'slimpack79' ? '스마트스토어' : '공홈', // Rough mapping
+          order_date: order.order_date
+        }).select().single();
+
+        if (shipErr) {
+          console.error(`[Transfer Error] Shipment creation failed for ${order.id}:`, shipErr);
+          continue; // 스킵하고 다음 주문 처리
+        }
+
+        // 출고 상세 품목(shipment_parts) 생성
+        if (items.length > 0) {
+          const partsToInsert = items.map(item => {
+            const qty = Number(item.quantity || 1);
+            const amt = Number(item.payment_amount || (Number(item.price || 0) * qty));
+            return {
+              shipment_id: shipmentData.id,
+              part_name: item.name,
+              part_code: item.custom_product_code || item.product_code || '',
+              quantity: qty,
+              price: qty > 0 ? amt / qty : 0,
+              total_price: amt,
+              part_category: '기타' // 카페24에선 구분 어려움
+            };
+          });
+
+          await supabaseAdmin.from('shipment_parts').insert(partsToInsert);
+        }
+
+        // 거래처 장부(transactions) 생성 (agency_id 가 있는 경우 B2B 자동 연계)
+        if (order.agency_id) {
+          await supabaseAdmin.from('transactions').insert({
+            group_id: order.agency_id,
+            type: 'out', // 매출(출고)
+            product_id: null,
+            product_name: productName,
+            product_code: order.order_id,
+            product_supplier: 'NEARBIKE',
+            quantity: totalQuantity,
+            to_location: String(order.agency_id),
+            from_location: 'NEARBIKE',
+            date: orderDateStr,
+            note: `[카페24 B2B 자동전송] 주문: ${order.order_id}`,
+            is_grouped: false
+          });
+        }
+
+        // 상태 업데이트
+        await supabaseAdmin.from('cafe24_orders').update({ is_transferred: true }).eq('id', order.id);
+        transferCount++;
+      }
+
+      res.json({ success: true, message: `${transferCount}건 전송 완료` });
+    } catch (e) {
+      console.error('[Transfer Error]', e);
       res.status(500).json({ error: e.message });
     }
   });

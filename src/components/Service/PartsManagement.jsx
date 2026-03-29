@@ -35,7 +35,8 @@ import {
   CircularProgress,
   TablePagination,
   Stack,
-  Chip
+  Chip,
+  Avatar
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -57,6 +58,8 @@ import { sendTelegramNotification } from '../../lib/telegram';
 import { getErrorMessage, isOffline, safeRetry } from '../../utils/networkUtils';
 import { getSyncedParts, createSyncRelation, deleteSyncRelationById } from '../../utils/partSyncUtils';
 import Barcode from 'react-barcode';
+import { uploadFileToGoogleDrive as uploadToR2 } from '../../utils/cloudflareR2Utils';
+import { CloudUpload as CloudUploadIcon } from '@mui/icons-material';
 
 const BRANDS = ['XRB', 'NB', 'COMMON'];
 
@@ -81,10 +84,13 @@ const PartsFormDialog = memo(({
     price: '',
     barcode: '',
     memo: '',
-    note: '파츠'
+    note: '파츠',
+    image_url: ''
   });
 
   const [showBarcodePreview, setShowBarcodePreview] = useState(false);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState('');
 
   // 폼이 열려있는지 추적하여 불필요한 리셋 방지
   const isOpenRef = useRef(open);
@@ -96,6 +102,7 @@ const PartsFormDialog = memo(({
     const dataChanged = initialData !== prevInitialDataRef.current;
 
     if (justOpened || (open && dataChanged)) {
+      setImageFile(null);
       if (initialData) {
         setFormData({
           name: initialData.name || '',
@@ -108,8 +115,10 @@ const PartsFormDialog = memo(({
           price: initialData.price?.toString() || '',
           barcode: initialData.barcode || '',
           memo: initialData.memo || '',
-          note: initialData.note || '파츠'
+          note: initialData.note || '파츠',
+          image_url: initialData.image_url || ''
         });
+        setImagePreview(initialData.image_url || '');
       } else {
         const defaultBrand = brands[0] || '';
         const defaultCategory = '파츠';
@@ -126,8 +135,10 @@ const PartsFormDialog = memo(({
           price: '',
           barcode: '',
           memo: '',
-          note: defaultCategory
+          note: defaultCategory,
+          image_url: ''
         });
+        setImagePreview('');
       }
     }
     isOpenRef.current = open;
@@ -189,8 +200,16 @@ const PartsFormDialog = memo(({
   );
 
   const handleSubmit = useCallback(() => {
-    onSubmit(formData);
-  }, [formData, onSubmit]);
+    onSubmit(formData, imageFile);
+  }, [formData, imageFile, onSubmit]);
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setImageFile(file);
+      setImagePreview(URL.createObjectURL(file));
+    }
+  };
 
   return (
     <Dialog
@@ -303,6 +322,40 @@ const PartsFormDialog = memo(({
               onChange={handleChange}
               required
             />
+          </Grid>
+          {/* 이미지 업로드 영역 */}
+          <Grid item xs={12}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#f5f5f5', p: 1.5, borderRadius: 1 }}>
+              <Avatar
+                src={imagePreview}
+                variant="rounded"
+                sx={{ width: 80, height: 80, bgcolor: 'background.paper', border: '1px solid #ddd' }}
+              >
+                {!imagePreview && <Box sx={{ fontSize: '0.7rem', color: '#999' }}>이미지 없음</Box>}
+              </Avatar>
+              <Box>
+                <input
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  id="parts-image-upload"
+                  type="file"
+                  onChange={handleImageChange}
+                />
+                <label htmlFor="parts-image-upload">
+                  <Button variant="outlined" component="span" size="small" startIcon={<CloudUploadIcon />}>
+                    이미지 업로드
+                  </Button>
+                </label>
+                <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>
+                  추천 크기: 300x300픽셀 (최대 1장)
+                </Typography>
+                {imagePreview && (
+                  <Button size="small" color="error" onClick={() => { setImageFile(null); setImagePreview(''); setFormData(prev => ({...prev, image_url: ''})); }} sx={{ mt: 0.5, p: 0, minWidth: 'auto', textTransform: 'none' }}>
+                    등록된 이미지 삭제
+                  </Button>
+                )}
+              </Box>
+            </Box>
           </Grid>
           <Grid item xs={12} md={6}>
             <TextField
@@ -730,8 +783,17 @@ function PartsManagement() {
     setSelectedPart(null);
   }, []);
 
-  const handleSubmit = useCallback(async (formData) => {
+  const handleSubmit = useCallback(async (formData, imageFile) => {
     try {
+      let finalImageUrl = formData.image_url;
+
+      // 이미지가 새로 업로드된 경우
+      if (imageFile) {
+        showSnackbar('이미지를 클라우드에 업로드 중입니다...', 'info');
+        const uploadResult = await uploadToR2(imageFile, 'parts');
+        finalImageUrl = uploadResult.url;
+      }
+
       const partData = {
         name: formData.name,
         name_en: formData.name_en || null,
@@ -740,7 +802,8 @@ function PartsManagement() {
         cost_price: Number(formData.costPrice || 0),
         supply_price: Number(formData.supplyPrice || 0),
         special_price: Number(formData.specialPrice || 0),
-        price: Number(formData.price || 0)
+        price: Number(formData.price || 0),
+        image_url: finalImageUrl
       };
 
       if (formData.barcode) partData.barcode = formData.barcode;
@@ -1634,6 +1697,7 @@ function PartsManagement() {
                   onChange={handleSelectAll}
                 />
               </TableCell>
+              <TableCell>이미지</TableCell>
               {renderSortableHeader('brand', '브랜드')}
               {renderSortableHeader('code', '코드')}
               {renderSortableHeader('barcode', '바코드')}
@@ -1656,6 +1720,11 @@ function PartsManagement() {
                     checked={selectedItems.includes(part.id)}
                     onChange={() => handleSelectItem(part.id)}
                   />
+                </TableCell>
+                <TableCell>
+                  <Avatar src={part.image_url} alt={part.name} variant="rounded" sx={{ width: 40, height: 40, bgcolor: 'transparent', border: '1px solid #ddd' }}>
+                    <Box sx={{ fontSize: '0.4rem', color: '#999' }}>No img</Box>
+                  </Avatar>
                 </TableCell>
                 <TableCell>{part.brand}</TableCell>
                 <TableCell>{part.code}</TableCell>

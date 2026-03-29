@@ -122,6 +122,7 @@ function SalesStats() {
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [currentPeriod, setCurrentPeriod] = useState(null);
   const partsPriceMapRef = useRef(new Map());
+  const [cafe24Stats, setCafe24Stats] = useState({ totalPayment: 0, orderCount: 0, list: [] });
 
   // 개발 모드 전용 디버그 로그
   const ENABLE_DEBUG_LOGS = false;
@@ -890,6 +891,28 @@ function SalesStats() {
         totalCustomerSales: newTotalCustomerSales,
         totalLaborSalesOnly: dailyTotalLaborSalesOnly,        // 일별 공임 매출
       });
+
+      // 온라인(Cafe24) 매출 조회 (탭 표시용)
+      try {
+        const { data: cafe24Orders, error: cafe24Error } = await supabase
+          .from('cafe24_orders')
+          .select('*')
+          .gte('order_date', startDateTime)
+          .lte('order_date', endDateTime)
+          .eq('is_deleted', false);
+
+        if (!cafe24Error && cafe24Orders) {
+          let cTotal = 0;
+          cafe24Orders.forEach(o => { cTotal += Number(o.payment_amount || 0); });
+          setCafe24Stats({ 
+            totalPayment: cTotal, 
+            orderCount: cafe24Orders.length, 
+            list: cafe24Orders.sort((a,b)=>new Date(b.order_date)-new Date(a.order_date)) 
+          });
+        }
+      } catch (e) {
+        console.error('Cafe24 주문 관리 통계 집계 에러:', e);
+      }
 
       // 디버깅을 위한 상세 로그
       debugLog('매출 데이터 집계 완료 (A/S 포함):', sortedSalesData);
@@ -2366,6 +2389,7 @@ function SalesStats() {
             <Tab label="주별 통계" />
             <Tab label="매출 유형별" />
             <Tab label="부품 상세" />
+            <Tab label="온라인 통계(Cafe24)" />
           </Tabs>
 
           <Box sx={{ p: 3 }}>
@@ -2664,7 +2688,7 @@ function SalesStats() {
                   </ResponsiveContainer>
                 </Box>
               </>
-            ) : (
+            ) : tabValue === 5 ? (
               // 부품 상세 (tabValue === 5)
               <>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
@@ -2680,7 +2704,71 @@ function SalesStats() {
                 </Box>
                 {renderPartsDetail()}
               </>
-            )}
+            ) : tabValue === 6 ? (
+              <Box>
+                <Typography variant="h6" gutterBottom>
+                  온라인 주문 통계 (Cafe24)
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={6}>
+                    <Card>
+                      <CardContent>
+                        <Typography color="text.secondary" gutterBottom>총 주문 금액 (결제액 기준)</Typography>
+                        <Typography variant="h4" color="primary">{formatCurrency(cafe24Stats.totalPayment)}</Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Card>
+                      <CardContent>
+                        <Typography color="text.secondary" gutterBottom>총 주문 건수</Typography>
+                        <Typography variant="h4" color="secondary">{cafe24Stats.orderCount}건</Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                </Grid>
+                <Box sx={{ mt: 3 }}>
+                   <Typography variant="subtitle1" gutterBottom>해당 기간 주문 리스트 (최대 50건)</Typography>
+                   <TableContainer component={Paper} elevation={0} variant="outlined">
+                     <Table size="small">
+                       <TableHead>
+                         <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                           <TableCell>주문일</TableCell>
+                           <TableCell>주문번호</TableCell>
+                           <TableCell>주문자</TableCell>
+                           <TableCell>상품명</TableCell>
+                           <TableCell align="right">결제액</TableCell>
+                         </TableRow>
+                       </TableHead>
+                       <TableBody>
+                         {cafe24Stats.list.length > 0 ? cafe24Stats.list.slice(0, 50).map((o) => (
+                           <TableRow key={o.order_id} hover>
+                             <TableCell>{format(new Date(o.order_date), 'yyyy-MM-dd HH:mm')}</TableCell>
+                             <TableCell>{o.order_id}</TableCell>
+                             <TableCell>{o.buyer_name || o.buyer_id}</TableCell>
+                             <TableCell sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                               {(() => {
+                                 try {
+                                   const items = typeof o.items === 'string' ? JSON.parse(o.items) : o.items;
+                                   return items?.[0]?.product_name || '상품 정보 없음';
+                                 } catch(e) { return '상품 정보 없음'; }
+                               })()}
+                             </TableCell>
+                             <TableCell align="right">{formatCurrency(o.payment_amount)}</TableCell>
+                           </TableRow>
+                         )) : (
+                           <TableRow>
+                             <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
+                               해당 기간에 주문 내역이 없습니다.
+                             </TableCell>
+                           </TableRow>
+                         )}
+                       </TableBody>
+                     </Table>
+                   </TableContainer>
+                </Box>
+              </Box>
+            ) : null}
           </Box>
         </Paper>
         {/* 판매처 상세 내역 모달 */}

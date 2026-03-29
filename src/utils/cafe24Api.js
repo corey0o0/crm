@@ -150,3 +150,17 @@ export async function addCafe24ProductMapping(mall_id, cafe24_product_code, part
   }
   return resp.json();
 }
+
+export async function transferCafe24Orders(orderIds) {
+  const resp = await fetch(`${BACKEND_URL}/api/cafe24/transfer/orders`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orderIds })
+  });
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error || '판매 전송 실패');
+  }
+  return resp.json();
+}
