@@ -43,10 +43,16 @@ export const uploadFileToGoogleDrive = async (file, folderPrefix = null, accessT
   const fileName = `${Date.now()}_${safeName}`;
   const key = (folderPrefix && folderPrefix !== "root") ? `${folderPrefix}/${fileName}` : `uploads/${fileName}`;
 
+  let fileBody = file;
+  if (file instanceof File || file instanceof Blob) {
+    const arrayBuffer = await file.arrayBuffer();
+    fileBody = new Uint8Array(arrayBuffer);
+  }
+
   const params = {
     Bucket: "crm-img", // 고정 버킷
     Key: key,
-    Body: file,
+    Body: fileBody,
     ContentType: file.type || "application/octet-stream",
   };
 
