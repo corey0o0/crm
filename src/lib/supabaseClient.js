@@ -29,7 +29,8 @@ export const createSupabaseClient = () => {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
-      detectSessionInUrl: true
+      detectSessionInUrl: true,
+      multiTab: false // 크로스 탭 동기화를 끄고 navigator.locks 데드락을 원천 차단
     }
   });
 };

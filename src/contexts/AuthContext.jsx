@@ -59,23 +59,11 @@ export const AuthProvider = ({ children }) => {
         if (mounted) setLoading(false);
       } catch (error) {
         console.error('[AuthContext] 세션 초기화 오류:', error);
-        
-        // 오류가 발생하면 5초 후 강제로 로딩을 풉니다 (빈 화면 방지)
-        setTimeout(() => {
-          if (mounted) setLoading(false);
-        }, 5000);
+        if (mounted) setLoading(false);
       }
     };
 
     initSession();
-
-    // 혹시라도 getSession()이 무한정 응답이 없는 경우를 대비한 안전 장치 (7초 경과 시 강제로 렌더링)
-    const initFallbackTimer = setTimeout(() => {
-      if (mounted) {
-        console.warn('[AuthContext] 세션 확인 지연 발생: 강제 로딩 해제');
-        setLoading(false);
-      }
-    }, 7000);
 
     // 세션 변경 이벤트 감지 (initSession 바깥으로 분리)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -106,7 +94,6 @@ export const AuthProvider = ({ children }) => {
 
     return () => {
       mounted = false;
-      clearTimeout(initFallbackTimer);
       if (subscription) subscription.unsubscribe();
     };
   }, []);
