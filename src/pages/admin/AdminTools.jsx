@@ -5,6 +5,7 @@ import TelegramTest from '../../components/Test/TelegramTest';
 import GoogleDriveTest from '../../components/Test/GoogleDriveTest';
 
 import BackupManager from '../../components/Backup/BackupManager';
+import UserMenuSettings from '../../components/Settings/UserMenuSettings';
 
 function TabPanel(props) {
     const { children, value, index, ...other } = props;
@@ -59,6 +60,7 @@ export default function AdminTools() {
                         <Tab label="텔레그램 테스트" {...a11yProps(1)} />
                         <Tab label="구글 드라이브 테스트" {...a11yProps(2)} />
                         <Tab label="데이터 백업/복원" {...a11yProps(3)} />
+                        <Tab label="사용자 권한 관리" {...a11yProps(4)} />
                     </Tabs>
                 </Box>
                 <TabPanel value={value} index={0}>
@@ -74,6 +76,9 @@ export default function AdminTools() {
                     <Box sx={{ mt: -3 }}>
                         <BackupManager />
                     </Box>
+                </TabPanel>
+                <TabPanel value={value} index={4}>
+                    <UserMenuSettings />
                 </TabPanel>
             </Paper>
         </Container>

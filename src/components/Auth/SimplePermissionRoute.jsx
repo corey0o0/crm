@@ -8,7 +8,7 @@ import { hasMenuAccess } from '../../config/menuConfig';
  * DB 쿼리 없이 이메일로만 체크 (빠름!)
  */
 function SimplePermissionRoute({ children, requiredKey }) {
-  const { user, loading } = useAuth();
+  const { user, loading, userMenuPermissions } = useAuth();
 
   // 로딩 중일 때는 아무것도 렌더링하지 않음
   if (loading) {
@@ -20,8 +20,8 @@ function SimplePermissionRoute({ children, requiredKey }) {
     return <Navigate to="/login" />;
   }
 
-  // 권한 체크 (이메일 기반, DB 쿼리 없음!)
-  if (requiredKey && !hasMenuAccess(user.email, requiredKey)) {
+  // 권한 체크 (이메일 및 동적 권한 기반)
+  if (requiredKey && !hasMenuAccess(user.email, requiredKey, userMenuPermissions)) {
     // 권한 없으면 대시보드로 리다이렉트
     return <Navigate to="/" />;
   }

@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { getAppSetting } from '../api/settingsApi';
 
 const AuthContext = createContext({});
 
@@ -9,6 +10,20 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [userMenuPermissions, setUserMenuPermissions] = useState({});
+
+  const loadMenuPermissions = async () => {
+    try {
+      const { data } = await getAppSetting('user_menu_permissions');
+      if (data) {
+        setUserMenuPermissions(data);
+      } else {
+        setUserMenuPermissions({});
+      }
+    } catch (err) {
+      console.error('[AuthContext] 메뉴 권한 로드 오류:', err);
+    }
+  };
 
   useEffect(() => {
     // 초기 세션 확인
@@ -17,6 +32,11 @@ export const AuthProvider = ({ children }) => {
         const { data: { session } } = await supabase.auth.getSession();
         setSession(session);
         setUser(session?.user || null);
+        
+        if (session?.user) {
+          await loadMenuPermissions();
+        }
+        
         setLoading(false);
 
         // 세션 변경 이벤트 감지
@@ -27,11 +47,16 @@ export const AuthProvider = ({ children }) => {
           if (event === 'SIGNED_OUT') {
             setSession(null);
             setUser(null);
+            setUserMenuPermissions({});
             return;
           }
           
           setSession(session);
           setUser(session?.user || null);
+          
+          if (session?.user) {
+            await loadMenuPermissions();
+          }
         });
 
         return () => {
@@ -66,6 +91,7 @@ export const AuthProvider = ({ children }) => {
       // 로컬 상태 먼저 클리어
       setUser(null);
       setSession(null);
+      setUserMenuPermissions({});
       
       // Supabase 로그아웃
       const { error } = await supabase.auth.signOut({ scope: 'local' });
@@ -88,6 +114,8 @@ export const AuthProvider = ({ children }) => {
     user,
     session,
     loading,
+    userMenuPermissions,
+    refreshMenuPermissions: loadMenuPermissions,
     signIn,
     signOut
   };
@@ -97,4 +125,4 @@ export const AuthProvider = ({ children }) => {
       {!loading && children}
     </AuthContext.Provider>
   );
-}; 
+};

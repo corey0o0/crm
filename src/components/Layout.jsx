@@ -134,7 +134,7 @@ function Layout() {
   const [dailyServices, setDailyServices] = useState([]);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [syncStatus, setSyncStatus] = useState({});
-  const { user } = useAuth();
+  const { user, userMenuPermissions } = useAuth();
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -256,8 +256,8 @@ function Layout() {
     { text: '관리자 도구', icon: <ScienceIcon />, path: '/admin/tools', key: 'admin_tools' }
   ];
 
-  // 이메일 기반 메뉴 필터링 (DB 쿼리 없음!)
-  const userMenuKeys = getUserMenuKeys(user?.email);
+  // 이메일 및 DB 설정 기반 메뉴 필터링
+  const userMenuKeys = getUserMenuKeys(user?.email, userMenuPermissions);
   const menuItems = userMenuKeys === 'all'
     ? allMenuItems
     : allMenuItems.filter(item => userMenuKeys.includes(item.key));
