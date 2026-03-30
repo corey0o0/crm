@@ -3,7 +3,7 @@ import {
   Box, Typography, Paper, Button, TextField, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, IconButton,
   Checkbox, Dialog, DialogTitle, DialogContent, DialogActions,
-  Grid, InputAdornment, Tooltip, Chip
+  Grid, InputAdornment, Tooltip, Chip, MenuItem, Select, FormControl, InputLabel
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -695,12 +695,22 @@ function AgencyHistoryDialog({ open, agency, onClose }) {
 function AgencyCafe24OrdersDialog({ open, agency, onClose }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedMall, setSelectedMall] = useState('all');
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 1); // Default to last 1 month
+    return d.toISOString().split('T')[0];
+  });
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
     if (open && agency) {
       fetchOrders();
     } else {
       setOrders([]);
+      setSearchTerm('');
+      setSelectedMall('all');
     }
   }, [open, agency]);
 
@@ -728,8 +738,29 @@ function AgencyCafe24OrdersDialog({ open, agency, onClose }) {
     }
   };
 
+  const uniqueMalls = Array.from(new Set(orders.map(o => o.mall_id).filter(Boolean)));
+
+  const filteredOrders = orders.filter(o => {
+    const orderDate = o.order_date;
+    if (orderDate) {
+      if (startDate && orderDate < startDate) return false;
+      if (endDate && orderDate > `${endDate}T23:59:59`) return false;
+    }
+    if (selectedMall !== 'all' && o.mall_id !== selectedMall) return false;
+    
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      const items = o.order_items || [];
+      const mainProduct = items.length > 0 ? items[0].name.toLowerCase() : '';
+      if (!o.order_id?.toLowerCase().includes(term) && !mainProduct.includes(term)) {
+        return false;
+      }
+    }
+    return true;
+  });
+
   // 총 매출액(결제금액)은 '판매전송(is_transferred)'이 완료된 건만 합산합니다.
-  const totalAmount = orders.reduce((sum, order) => {
+  const totalAmount = filteredOrders.reduce((sum, order) => {
     if (order.is_transferred) {
       return sum + Number(order.total_amount || 0);
     }
@@ -744,19 +775,73 @@ function AgencyCafe24OrdersDialog({ open, agency, onClose }) {
         </Box>
       </DialogTitle>
       <DialogContent dividers sx={{ p: 0, overflowX: 'hidden' }}>
-        <Box sx={{ p: 2, bgcolor: 'grey.50', borderBottom: '1px solid #e0e0e0', display: 'flex', gap: 3, alignItems: 'center' }}>
-          <Typography variant="body2" color="primary" fontWeight="bold">
-            총 주문 건수: {orders.length}건
-          </Typography>
-          <Typography variant="body2" color="secondary" fontWeight="bold">
-            총 결제 금액(매출): {totalAmount.toLocaleString()}원
-          </Typography>
+        <Box sx={{ p: 2, bgcolor: 'grey.50', borderBottom: '1px solid #e0e0e0', display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
+          <TextField
+            size="small"
+            type="date"
+            label="시작일"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+          />
+          <Typography color="text.secondary">~</Typography>
+          <TextField
+            size="small"
+            type="date"
+            label="종료일"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+          />
+          <FormControl size="small" sx={{ minWidth: 120 }}>
+            <InputLabel>쇼핑몰</InputLabel>
+            <Select
+              value={selectedMall}
+              label="쇼핑몰"
+              onChange={(e) => setSelectedMall(e.target.value)}
+            >
+              <MenuItem value="all">전체</MenuItem>
+              {uniqueMalls.map(mall => (
+                <MenuItem key={mall} value={mall}>{mall}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <TextField
+            size="small"
+            placeholder="주문번호, 상품명 검색"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+              endAdornment: searchTerm && (
+                <InputAdornment position="end">
+                  <IconButton size="small" onClick={() => setSearchTerm('')}>
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              )
+            }}
+            sx={{ width: 250 }}
+          />
+          <Box sx={{ flexGrow: 1 }} />
+          <Box sx={{ display: 'flex', gap: 3 }}>
+            <Typography variant="body2" color="primary" fontWeight="bold">
+              총 {filteredOrders.length}건
+            </Typography>
+            <Typography variant="body2" color="secondary" fontWeight="bold">
+              매출: {totalAmount.toLocaleString()}원
+            </Typography>
+          </Box>
         </Box>
         
         {loading ? (
           <Box sx={{ p: 4, textAlign: 'center' }}><Typography color="text.secondary">조회 중...</Typography></Box>
-        ) : orders.length === 0 ? (
-          <Box sx={{ p: 4, textAlign: 'center' }}><Typography color="text.secondary">연동된 카페24 주문 내역이 없습니다.</Typography></Box>
+        ) : filteredOrders.length === 0 ? (
+          <Box sx={{ p: 4, textAlign: 'center' }}><Typography color="text.secondary">조건에 맞는 내역이 없습니다.</Typography></Box>
         ) : (
           <TableContainer>
             <Table size="small" stickyHeader>
@@ -771,7 +856,7 @@ function AgencyCafe24OrdersDialog({ open, agency, onClose }) {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {orders.map((o) => {
+                {filteredOrders.map((o) => {
                   const items = o.order_items || [];
                   const mainProduct = items.length > 0 ? items[0].name + (items.length > 1 ? ` 외 ${items.length - 1}건` : '') : '상품 정보 없음';
                   const d = new Date(o.order_date);
@@ -792,6 +877,16 @@ function AgencyCafe24OrdersDialog({ open, agency, onClose }) {
                     </TableRow>
                   );
                 })}
+                {filteredOrders.length > 0 && (
+                  <TableRow sx={{ bgcolor: 'grey.100' }}>
+                    <TableCell colSpan={5} align="center" sx={{ fontWeight: 'bold' }}>
+                      총계 (판매전송 완료건)
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 'bold', color: 'secondary.main' }}>
+                      {totalAmount.toLocaleString()}원
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </TableContainer>

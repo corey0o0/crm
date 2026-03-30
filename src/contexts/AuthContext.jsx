@@ -145,7 +145,11 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {loading ? (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', flexDirection: 'column' }}>
+          <div style={{ padding: '20px', fontSize: '1.2rem' }}>앱 데이터를 로딩 중입니다... (10초 이상 지속되면 새로고침 해주세요)</div>
+        </div>
+      ) : children}
     </AuthContext.Provider>
   );
 };
