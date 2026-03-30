@@ -22,7 +22,6 @@ import ServiceStatistics from './components/Statistics/ServiceStatistics';
 import PartsManagement from './components/Service/PartsManagement';
 import ProductShipment from './components/Product/ProductShipment';
 import ReceiptScanner from './components/Receipt/ReceiptScanner';
-import GoogleDriveTest from './components/Test/GoogleDriveTest';
 import SystemHealthCheck from './components/Test/SystemHealthCheck';
 import TelegramTest from './components/Test/TelegramTest';
 import ServiceStats from './components/Stats/ServiceStats';
@@ -154,9 +153,6 @@ function App() {
 
               <Route path="receipts" element={
                 <ReceiptScanner />
-              } />
-              <Route path="google-drive-test" element={
-                <GoogleDriveTest />
               } />
               <Route path="system-health-check" element={
                 <SystemHealthCheck />

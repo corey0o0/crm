@@ -43,18 +43,10 @@ export const uploadFileToGoogleDrive = async (file, folderPrefix = null, accessT
   const fileName = `${Date.now()}_${safeName}`;
   const key = (folderPrefix && folderPrefix !== "root") ? `${folderPrefix}/${fileName}` : `uploads/${fileName}`;
 
-  // 브라우저의 File 객체를 그대로 넣으면 AWS SDK v3 버그(readableStream.getReader is not a function)가
-  // 발생할 수 있으므로 ArrayBuffer(Uint8Array) 타입으로 변환해서 전송합니다.
-  let fileBody = file;
-  if (file instanceof File || file instanceof Blob) {
-    const arrayBuffer = await file.arrayBuffer();
-    fileBody = new Uint8Array(arrayBuffer);
-  }
-
   const params = {
     Bucket: "crm-img", // 고정 버킷
     Key: key,
-    Body: fileBody,
+    Body: file,
     ContentType: file.type || "application/octet-stream",
   };
 
@@ -74,7 +66,11 @@ export const uploadFileToGoogleDrive = async (file, folderPrefix = null, accessT
       name: file.name
     };
   } catch (error) {
-    console.error("R2 업로드 오류:", error);
+    console.error("R2 업로드 오류 상세:", error);
+    if (error.name === 'TypeError' || error.message === 'Failed to fetch' || (error.$metadata && error.$metadata.attempts)) {
+      console.warn("⚠️ 클라우드플레어 R2 CORS 설정이 누락되었을 수 있습니다. Cloudflare 대시보드에서 버킷의 CORS 설정을 확인해주세요.");
+      throw new Error("네트워크 오류 또는 CORS 설정 문제입니다. R2 버킷의 CORS 설정을 확인하세요.");
+    }
     throw error;
   }
 };
