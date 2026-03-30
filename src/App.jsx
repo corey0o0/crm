@@ -6,7 +6,7 @@ import Layout from './components/Layout';
 import Login from './components/Auth/Login';
 import { useEffect, useState } from 'react';
 import { supabase } from './lib/supabaseClient';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import theme from './theme';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import { setupStorage } from './lib/setupStorage';
@@ -53,21 +53,8 @@ import Cafe24Settings from './components/Settings/Cafe24Settings';
 import ProductComparisonDashboard from './components/Settings/ProductComparisonDashboard';
 import Cafe24OrderList from './pages/cafe24/Cafe24OrderList';
 
-function App() {
-  const [session, setSession] = useState(null);
-  const [storageInitialized, setStorageInitialized] = useState(false);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-    }).catch(err => console.warn('[App] getSession prevented:', err));
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+function AppRouter() {
+  const { session } = useAuth();
 
   // 스토리지 버킷 초기화
   useEffect(() => {
@@ -82,169 +69,91 @@ function App() {
       }
     };
 
-    initializeApp();
-  }, []);
+    if (session) {
+      initializeApp();
+    }
+  }, [session]);
 
+  return (
+    <Router
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true
+      }}
+    >
+      <Routes>
+        <Route path="/login" element={!session ? <Login /> : <Navigate to="/" />} />
+        <Route path="/" element={session ? <Layout /> : <Navigate to="/login" />}>
+          <Route index element={<Dashboard />} />
+          <Route path="customers" element={<CustomerManagement />} />
+          <Route path="services" element={<ServiceList />} />
+          <Route path="services/:id" element={<ServiceDetail />} />
+          <Route path="add-service" element={<AddService />} />
+          <Route path="service-statistics" element={<ServiceStatistics />} />
+          <Route path="parts" element={<PartsManagement />} />
+
+          {/* 기존 출고 관리 페이지 */}
+          <Route path="shipments" element={<ProductShipment />} />
+          <Route path="shipments/:id" element={<ProductShipment />} />
+          <Route path="shipments/new" element={<ProductShipment />} />
+
+          {/* 거래처 관리 */}
+          <Route path="agencies" element={<AgencyManagement />} />
+
+          {/* 새로운 출고 관리 페이지 라우팅 */}
+          <Route path="shipment" element={<ShipmentList />} />
+          <Route path="shipment/new" element={<ShipmentForm />} />
+          <Route path="shipment/edit/:id" element={<ShipmentForm />} />
+          <Route path="shipment/:id" element={<ShipmentDetail />} />
+
+          <Route path="receipts" element={<ReceiptScanner />} />
+          <Route path="system-health-check" element={<SystemHealthCheck />} />
+          <Route path="telegram-test" element={<TelegramTest />} />
+          <Route path="service" element={<ServiceList />} />
+          <Route path="service/add" element={<AddService />} />
+          <Route path="service/stats" element={<ServiceStats />} />
+          <Route path="service/analysis" element={<ServiceAnalysis />} />
+          <Route path="service/:id" element={<ServiceDetail />} />
+          <Route path="sales/stats" element={<SalesStats />} />
+          <Route path="stocks" element={<StockList />} />
+          <Route path="stats/service" element={<ServiceStats />} />
+          <Route path="brand-settings" element={<BrandSettings />} />
+          <Route path="inventory-logs" element={<InventoryLogs />} />
+          <Route path="inventory-management" element={<InventoryManagement />} />
+          
+          {/* 데이터 백업/복원 */}
+          <Route path="backup" element={<BackupManager />} />
+
+          {/* 관리자 도구 */}
+          <Route path="admin/tools" element={<AdminTools />} />
+
+          {/* 카페24 연동 설정 */}
+          <Route path="settings/cafe24" element={<Cafe24Settings />} />
+          <Route path="cafe24/orders" element={<Cafe24OrderList />} />
+          <Route path="settings/product-sync" element={<ProductComparisonDashboard />} />
+
+          {/* 게시판 */}
+          <Route path="board" element={<BoardList />} />
+          <Route path="board/new" element={<BoardNew />} />
+          <Route path="board/:id" element={<BoardDetail />} />
+          <Route path="board/:id/edit" element={<BoardEdit />} />
+
+          {/* 주문대기 */}
+          <Route path="pending-orders" element={<PendingOrderList />} />
+          <Route path="pending-orders/:id" element={<PendingOrderDetail />} />
+        </Route>
+      </Routes>
+    </Router>
+  );
+}
+
+function App() {
   return (
     <AuthProvider>
       <ThemeProvider theme={theme}>
         <CssBaseline />
         <DebugPanel />
-        <Router
-          future={{
-            v7_startTransition: true,
-            v7_relativeSplatPath: true
-          }}
-        >
-          <Routes>
-            <Route path="/login" element={!session ? <Login /> : <Navigate to="/" />} />
-            <Route path="/" element={session ? <Layout /> : <Navigate to="/login" />}>
-              <Route index element={
-                <Dashboard />
-              } />
-              <Route path="customers" element={
-                <CustomerManagement />
-              } />
-              <Route path="services" element={
-                <ServiceList />
-              } />
-              <Route path="services/:id" element={
-                <ServiceDetail />
-              } />
-              <Route path="add-service" element={
-                <AddService />
-              } />
-              <Route path="service-statistics" element={
-                <ServiceStatistics />
-              } />
-              <Route path="parts" element={
-                <PartsManagement />
-              } />
-
-              {/* 기존 출고 관리 페이지 */}
-              <Route path="shipments" element={
-                <ProductShipment />
-              } />
-              <Route path="shipments/:id" element={
-                <ProductShipment />
-              } />
-              <Route path="shipments/new" element={
-                <ProductShipment />
-              } />
-
-              {/* 거래처 관리 */}
-              <Route path="agencies" element={
-                <AgencyManagement />
-              } />
-
-              {/* 새로운 출고 관리 페이지 라우팅 */}
-              <Route path="shipment" element={
-                <ShipmentList />
-              } />
-              <Route path="shipment/new" element={
-                <ShipmentForm />
-              } />
-              <Route path="shipment/edit/:id" element={
-                <ShipmentForm />
-              } />
-              <Route path="shipment/:id" element={
-                <ShipmentDetail />
-              } />
-
-              <Route path="receipts" element={
-                <ReceiptScanner />
-              } />
-              <Route path="system-health-check" element={
-                <SystemHealthCheck />
-              } />
-              <Route path="telegram-test" element={
-                <TelegramTest />
-              } />
-              <Route path="service" element={
-                <ServiceList />
-              } />
-              <Route path="service/add" element={
-                <AddService />
-              } />
-              <Route path="service/stats" element={
-                <ServiceStats />
-              } />
-              <Route path="service/analysis" element={
-                <ServiceAnalysis />
-              } />
-              <Route path="service/:id" element={
-                <ServiceDetail />
-              } />
-              <Route path="sales/stats" element={
-                <SalesStats />
-              } />
-              <Route path="stocks" element={
-                <StockList />
-              } />
-              <Route path="stats/service" element={
-                <ServiceStats />
-              } />
-              <Route path="brand-settings" element={
-                <BrandSettings />
-              } />
-              <Route path="inventory-logs" element={
-                <InventoryLogs />
-              } />
-              <Route path="inventory-management" element={
-                <InventoryManagement />
-              } />
-
-              {/* 권한 설정 - 제거됨 (이메일 기반으로 대체) */}
-
-              {/* 데이터 백업/복원 */}
-              <Route path="backup" element={
-                <BackupManager />
-              } />
-
-              {/* 관리자 도구 */}
-              <Route path="admin/tools" element={
-                <AdminTools />
-              } />
-
-              {/* 카페24 연동 설정 */}
-              <Route path="settings/cafe24" element={
-                <Cafe24Settings />
-              } />
-              
-              {/* 카페24 주문 내역 */}
-              <Route path="cafe24/orders" element={
-                <Cafe24OrderList />
-              } />
-              
-              {/* 이카운트 상품 동기화 및 비교 대시보드 */}
-              <Route path="settings/product-sync" element={
-                <ProductComparisonDashboard />
-              } />
-
-              {/* 게시판 */}
-              <Route path="board" element={
-                <BoardList />
-              } />
-              <Route path="board/new" element={
-                <BoardNew />
-              } />
-              <Route path="board/:id" element={
-                <BoardDetail />
-              } />
-              <Route path="board/:id/edit" element={
-                <BoardEdit />
-              } />
-
-              {/* 주문대기 */}
-              <Route path="pending-orders" element={
-                <PendingOrderList />
-              } />
-              <Route path="pending-orders/:id" element={
-                <PendingOrderDetail />
-              } />
-            </Route>
-          </Routes>
-        </Router>
+        <AppRouter />
       </ThemeProvider>
     </AuthProvider>
   );
