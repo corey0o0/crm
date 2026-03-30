@@ -66,7 +66,7 @@ export const AuthProvider = ({ children }) => {
     initSession();
 
     // 세션 변경 이벤트 감지 (initSession 바깥으로 분리)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log(`[AuthContext] Auth event: ${event}`);
       if (!mounted) return;
       
@@ -82,8 +82,12 @@ export const AuthProvider = ({ children }) => {
       setUser(session?.user || null);
       
       // INITIAL_SESSION은 initSession에서 처리하므로, 여기서는 SIGNED_IN 등에서만 권한을 다시 로드합니다.
+      // ⚠️ 데드락 경고: onAuthStateChange 내부에서 await supabase.from() 등을 호출하면 절대 안됩니다.
+      // gotrue-js 내부 락이 걸린 상태에서 PostgREST 쿼리가 세션을 대기하게 되어 영원한 무한 대기(Deadlock)에 빠집니다.
       if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
-        await loadMenuPermissions();
+        setTimeout(() => {
+          loadMenuPermissions();
+        }, 0);
       }
       
       // 세션 갱신 이벤트 등 주요 상태 변경 시 로딩을 강제로 풉니다 (무한 로딩 방지)
