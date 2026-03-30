@@ -30,20 +30,6 @@ export const createSupabaseClient = () => {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true
-    },
-    global: {
-      fetch: (url, options = {}) => {
-        // 모든 요청에 3초 타임아웃 적용 (빠른 응답 없으면 즉시 새로고침)
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000);
-        
-        return fetch(url, {
-          ...options,
-          signal: controller.signal
-        }).finally(() => {
-          clearTimeout(timeoutId);
-        });
-      }
     }
   });
 };
