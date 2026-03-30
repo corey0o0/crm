@@ -32,7 +32,7 @@ import SendIcon from '@mui/icons-material/Send';
 import QuillEditor from './common/QuillEditor';
 
 function Dashboard() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, session, loading: authLoading } = useAuth();
   
   // 메모 타입 (개인/공유)
   const [memoType, setMemoType] = useState('shared');
@@ -74,24 +74,12 @@ function Dashboard() {
   const [error, setError] = useState(null);
   const [telegramResult, setTelegramResult] = useState({ open: false, message: '', success: true });
 
-  // 초기 사용자 세션 확인 (자동 재로그인 제거)
-  useEffect(() => {
-    const checkSession = async () => {
-      try {
-        await supabase.auth.getSession();
-      } catch (err) {
-        console.error('세션 확인 중 오류:', err);
-      }
-    };
-
-    checkSession();
-  }, [authLoading]);
+  // 초기 세션 확인 로직은 AuthContext에서 중앙 처리하므로 제거 (동시 다발적인 Web Lock 충돌 방지)
 
   // 개인 메모 불러오기
   useEffect(() => {
     const fetchPersonalMemos = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
         const userId = user?.id || session?.user?.id;
         
         if (!userId) {
@@ -196,7 +184,6 @@ function Dashboard() {
           const supabaseUrlForShared = process.env.REACT_APP_SUPABASE_URL;
           const supabaseKeyForShared = process.env.REACT_APP_SUPABASE_ANON_KEY;
           const sharedFetchUrl = `${supabaseUrlForShared}/rest/v1/shared_memos?select=*&limit=1`;
-          const { data: { session } } = await supabase.auth.getSession();
           const accessToken = session?.access_token;
           
           const response = await fetch(sharedFetchUrl, {
@@ -247,7 +234,6 @@ function Dashboard() {
           
           try {
             // REST API로 초기 레코드 생성 (사용자 액세스 토큰 사용: RLS 통과)
-            const { data: { session } } = await supabase.auth.getSession();
             const accessToken = session?.access_token;
             const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
             const supabaseKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
