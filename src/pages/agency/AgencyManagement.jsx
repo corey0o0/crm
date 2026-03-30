@@ -14,11 +14,13 @@ import {
   FileDownload as FileDownloadIcon,
   AccountBalance as BankIcon,
   Close as CloseIcon,
-  History as HistoryIcon
+  History as HistoryIcon,
+  ShoppingCart as ShoppingCartIcon
 } from '@mui/icons-material';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
 import { transactionApi } from '../../api/transactionApi';
+import { supabase } from '../../lib/supabaseClient';
 
 const api = axios.create({
   baseURL: process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001'
@@ -33,6 +35,7 @@ export default function AgencyManagement() {
   const [openForm, setOpenForm] = useState(false);
   const [openBankForm, setOpenBankForm] = useState(false);
   const [openHistory, setOpenHistory] = useState(false);
+  const [openCafe24Orders, setOpenCafe24Orders] = useState(false);
   const [editData, setEditData] = useState(null);
   
   const fileInputRef = useRef(null);
@@ -360,6 +363,11 @@ export default function AgencyManagement() {
                   </Button>
                 </TableCell>
                 <TableCell align="right">
+                  <Tooltip title="연동된 카페24 주문 내역">
+                    <IconButton size="small" color="secondary" onClick={() => { setEditData(row); setOpenCafe24Orders(true); }}>
+                      <ShoppingCartIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
                   <Tooltip title="출고/거래 내역">
                     <IconButton size="small" color="info" onClick={() => { setEditData(row); setOpenHistory(true); }}>
                       <HistoryIcon fontSize="small" />
@@ -406,6 +414,13 @@ export default function AgencyManagement() {
         open={openHistory}
         agency={editData}
         onClose={() => setOpenHistory(false)}
+      />
+
+      {/* 카페24 주문 내역 모달 */}
+      <AgencyCafe24OrdersDialog
+        open={openCafe24Orders}
+        agency={editData}
+        onClose={() => setOpenCafe24Orders(false)}
       />
     </Box>
   );
@@ -662,6 +677,121 @@ function AgencyHistoryDialog({ open, agency, onClose }) {
                     </TableCell>
                   </TableRow>
                 ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>닫기</Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+// ----------------------------------------------------
+// Agency Cafe24 Orders Component (카페24 연동 주문 내역)
+// ----------------------------------------------------
+function AgencyCafe24OrdersDialog({ open, agency, onClose }) {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (open && agency) {
+      fetchOrders();
+    } else {
+      setOrders([]);
+    }
+  }, [open, agency]);
+
+  const fetchOrders = async () => {
+    if (!agency?.id && !agency?.cafe24_member_id) return;
+    setLoading(true);
+    try {
+      let query = supabase.from('cafe24_orders').select('*').neq('is_deleted', true).order('order_date', { ascending: false });
+      
+      const conditions = [];
+      if (agency.id) conditions.push(`agency_id.eq.${agency.id}`);
+      if (agency.cafe24_member_id) conditions.push(`buyer_id.eq.${agency.cafe24_member_id}`);
+      
+      if (conditions.length > 0) {
+        query = query.or(conditions.join(','));
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      setOrders(data || []);
+    } catch (err) {
+      console.error('카페24 연동 주문 조회 실패:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 총 매출액(결제금액)은 '판매전송(is_transferred)'이 완료된 건만 합산합니다.
+  const totalAmount = orders.reduce((sum, order) => {
+    if (order.is_transferred) {
+      return sum + Number(order.total_amount || 0);
+    }
+    return sum;
+  }, 0);
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography variant="h6">{agency?.name} 연동 카페24 주문 내역</Typography>
+        </Box>
+      </DialogTitle>
+      <DialogContent dividers sx={{ p: 0, overflowX: 'hidden' }}>
+        <Box sx={{ p: 2, bgcolor: 'grey.50', borderBottom: '1px solid #e0e0e0', display: 'flex', gap: 3, alignItems: 'center' }}>
+          <Typography variant="body2" color="primary" fontWeight="bold">
+            총 주문 건수: {orders.length}건
+          </Typography>
+          <Typography variant="body2" color="secondary" fontWeight="bold">
+            총 결제 금액(매출): {totalAmount.toLocaleString()}원
+          </Typography>
+        </Box>
+        
+        {loading ? (
+          <Box sx={{ p: 4, textAlign: 'center' }}><Typography color="text.secondary">조회 중...</Typography></Box>
+        ) : orders.length === 0 ? (
+          <Box sx={{ p: 4, textAlign: 'center' }}><Typography color="text.secondary">연동된 카페24 주문 내역이 없습니다.</Typography></Box>
+        ) : (
+          <TableContainer>
+            <Table size="small" stickyHeader>
+              <TableHead>
+                <TableRow>
+                  <TableCell>주문일시</TableCell>
+                  <TableCell>주문번호</TableCell>
+                  <TableCell>쇼핑몰</TableCell>
+                  <TableCell>상태</TableCell>
+                  <TableCell>대표 상품명</TableCell>
+                  <TableCell align="right">주문금액</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {orders.map((o) => {
+                  const items = o.order_items || [];
+                  const mainProduct = items.length > 0 ? items[0].name + (items.length > 1 ? ` 외 ${items.length - 1}건` : '') : '상품 정보 없음';
+                  const d = new Date(o.order_date);
+                  const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                  
+                  return (
+                    <TableRow key={o.id} hover>
+                      <TableCell>{dateStr}</TableCell>
+                      <TableCell sx={{ fontFamily: 'monospace' }}>{o.order_id}</TableCell>
+                      <TableCell>{o.mall_id}</TableCell>
+                      <TableCell>
+                        <Chip size="small" label={o.status || '-'} variant="outlined" />
+                      </TableCell>
+                      <TableCell sx={{ maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={mainProduct}>
+                        {mainProduct}
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 'bold' }}>{Number(o.total_amount || 0).toLocaleString()}원</TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </TableContainer>

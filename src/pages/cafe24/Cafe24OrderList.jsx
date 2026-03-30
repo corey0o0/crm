@@ -2,27 +2,33 @@ import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Paper, Button, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Chip, CircularProgress, Alert, Stack, Dialog, DialogTitle,
-  DialogContent, DialogActions, Autocomplete, TextField, Tabs, Tab, Select, MenuItem, FormControl, InputLabel, Checkbox
+  DialogContent, DialogActions, Autocomplete, TextField, Tabs, Tab, Select, MenuItem, FormControl, InputLabel, Checkbox, IconButton, Tooltip, InputAdornment
 } from '@mui/material';
-import { Sync as SyncIcon } from '@mui/icons-material';
+import { Sync as SyncIcon, PersonAdd as PersonAddIcon, Search as SearchIcon } from '@mui/icons-material';
 import Cafe24Settings from '../../components/Settings/Cafe24Settings';
 import { supabase } from '../../lib/supabaseClient';
 import { getCafe24Malls, syncCafe24Orders, addCafe24ProductMapping, transferCafe24Orders } from '../../utils/cafe24Api';
+import { agencyApi } from '../../api/agencyApi';
 
 const STATUS_KO = {
-  'N00': '입금대기', 'N10': '상품준비중', 'N20': '배송보류', 'N21': '배송대기',
-  'N22': '배송중', 'N30': '배송완료', 'N40': '자동배송완료', 'C00': '취소접수',
-  'C10': '취소처리중', 'C40': '취소완료', 'E00': '교환접수', 'E10': '교환처리중',
-  'E40': '교환완료', 'R00': '반품접수', 'R10': '반품처리중', 'R40': '반품완료'
+  'N00': '입금전', 'N10': '상품준비중', 'N20': '배송보류', 'N21': '배송준비중',
+  'N22': '배송중', 'N30': '배송완료', 'N40': '구매확정', 'N50': '구매확정',
+  'C00': '취소접수', 'C10': '취소처리중', 'C40': '취소처리', 
+  'E00': '교환접수', 'E10': '교환처리중', 'E40': '교환처리', 
+  'R00': '반품접수', 'R10': '반품처리중', 'R40': '반품처리',
+  // 배송 등 영문자 단일 상태 보완
+  'M': '배송준비중', 'T': '배송중', 'F': '배송완료', 'W': '배송보류',
+  'C': '취소처리', 'E': '교환처리', 'R': '반품처리', 'null': '상태없음'
 };
-const getKoStatus = (status) => STATUS_KO[status] || status;
+const getKoStatus = (status) => STATUS_KO[String(status).trim()] || status;
 const getBadgeColor = (status) => {
   if (!status) return 'default';
-  if (status.startsWith('C')) return 'error'; // 취소 (빨간색)
-  if (status.startsWith('R')) return 'warning'; // 반품/환불 (주황색)
-  if (status.startsWith('E')) return 'secondary'; // 교환 (보라색/Secondary)
-  if (status === 'N30' || status === 'N40') return 'success'; // 완료
-  return 'primary'; // 배송중 등 기본 단계
+  const s = String(status).trim();
+  if (s.startsWith('C')) return 'error';
+  if (s.startsWith('R')) return 'warning';
+  if (s.startsWith('E')) return 'secondary';
+  if (s === 'N30' || s === 'N40' || s === 'N50' || s === 'F') return 'success';
+  return 'primary';
 };
 
 const MEMBER_GROUPS = {
@@ -47,6 +53,8 @@ export default function Cafe24OrderList() {
   const [tabValue, setTabValue] = useState(0);
   const [selectedMall, setSelectedMall] = useState('all');
   const [selectedOrders, setSelectedOrders] = useState([]);
+  const [transferFilter, setTransferFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const getFormattedDate = (date) => {
     const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
     return offsetDate.toISOString().split('T')[0];
@@ -74,11 +82,28 @@ export default function Cafe24OrderList() {
   const [selectedPart, setSelectedPart] = useState(null);
   const [mappingSaving, setMappingSaving] = useState(false);
 
+  // 거래처 연동 상태
+  const [agencies, setAgencies] = useState([]);
+  const [agencyMatchModalOpen, setAgencyMatchModalOpen] = useState(false);
+  const [selectedOrderForAgencyMatch, setSelectedOrderForAgencyMatch] = useState(null);
+  const [selectedAgency, setSelectedAgency] = useState(null);
+  const [agencyMatchSaving, setAgencyMatchSaving] = useState(false);
+
   useEffect(() => {
     fetchMalls();
     fetchOrders();
     fetchParts();
+    fetchAgencies();
   }, []);
+
+  const fetchAgencies = async () => {
+    try {
+      const data = await agencyApi.getAll();
+      setAgencies(data || []);
+    } catch (err) {
+      console.error('거래처 목록 불러오기 실패:', err);
+    }
+  };
 
   const fetchMalls = async () => {
     try {
@@ -127,8 +152,12 @@ export default function Cafe24OrderList() {
     setSyncing(true);
     setError(null);
     try {
-      // 선택된 시작/종료일 기준으로 동기화
-      for (const m of malls) {
+      // 선택된 쇼핑몰만 동기화하도록 변경. all인 경우 전체.
+      const syncMalls = selectedMall === 'all' 
+        ? malls 
+        : malls.filter(m => m.mall_id === selectedMall);
+
+      for (const m of syncMalls) {
         await syncCafe24Orders(m.mall_id, startDate, endDate); 
       }
       await fetchOrders();
@@ -139,9 +168,27 @@ export default function Cafe24OrderList() {
     }
   };
 
+  const filteredOrders = orders.filter(order => {
+    if (selectedMall !== 'all' && order.mall_id !== selectedMall) return false;
+    if (transferFilter === 'transferred' && !order.is_transferred) return false;
+    if (transferFilter === 'not_transferred' && order.is_transferred) return false;
+    
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchOrderId = String(order.order_id || '').toLowerCase().includes(q);
+      const matchBuyerName = String(order.buyer_name || '').toLowerCase().includes(q);
+      const matchBuyerId = String(order.buyer_id || '').toLowerCase().includes(q);
+      const items = order.order_items || [];
+      const matchProduct = items.some(item => String(item.name || '').toLowerCase().includes(q) || String(item.product_code || '').toLowerCase().includes(q));
+      
+      if (!matchOrderId && !matchBuyerName && !matchBuyerId && !matchProduct) return false;
+    }
+    return true;
+  });
+
   const handleSelectAllClick = (event) => {
     if (event.target.checked) {
-      const newSelecteds = orders.filter(order => selectedMall === 'all' || order.mall_id === selectedMall).map(n => n.id);
+      const newSelecteds = filteredOrders.map(n => n.id);
       setSelectedOrders(newSelecteds);
       return;
     }
@@ -237,6 +284,44 @@ export default function Cafe24OrderList() {
     }
   };
 
+  const handleOpenAgencyMatchModal = (order) => {
+    setSelectedOrderForAgencyMatch(order);
+    const existing = order.agency_id ? agencies.find(a => a.id === order.agency_id) : null;
+    setSelectedAgency(existing || null);
+    setAgencyMatchModalOpen(true);
+  };
+
+  const handleSaveAgencyMatch = async () => {
+    if (!selectedOrderForAgencyMatch || !selectedAgency) return;
+    setAgencyMatchSaving(true);
+    try {
+      // 1. 거래처에 카페24 연동 ID 등록
+      await agencyApi.update(selectedAgency.id, {
+        cafe24_member_id: selectedOrderForAgencyMatch.buyer_id
+      });
+      
+      // 2. 이 사용자(buyer_id)의 모든 기존 주문을 새로운 일괄 업데이트
+      const { error: updateErr } = await supabase
+        .from('cafe24_orders')
+        .update({ agency_id: selectedAgency.id })
+        .eq('buyer_id', selectedOrderForAgencyMatch.buyer_id);
+        
+      if (updateErr) throw updateErr;
+
+      alert('거래처 매칭이 완료되었으며, 이 주문자의 기존 주문들도 모두 업데이트되었습니다.');
+      setAgencyMatchModalOpen(false);
+      
+      // 목록 갱신
+      fetchOrders();
+      fetchAgencies();
+    } catch (err) {
+      console.error(err);
+      alert('매칭 저장 중 오류가 발생했습니다.');
+    } finally {
+      setAgencyMatchSaving(false);
+    }
+  };
+
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h5" fontWeight="bold" sx={{ mb: 2 }}>온라인주문관리</Typography>
@@ -252,6 +337,7 @@ export default function Cafe24OrderList() {
         {tabValue === 0 && (
           <>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3 }}>
+              {/* 첫 번째 줄: 필터 및 일반 설정 */}
               <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2, p: 2, bgcolor: '#f8f9fa', borderRadius: 1 }}>
                 <FormControl size="small" sx={{ minWidth: 150, bgcolor: 'white' }}>
                   <InputLabel>쇼핑몰 선택</InputLabel>
@@ -261,54 +347,70 @@ export default function Cafe24OrderList() {
                   </Select>
                 </FormControl>
 
+                <FormControl size="small" sx={{ minWidth: 150, bgcolor: 'white' }}>
+                  <InputLabel>판매전송 상태</InputLabel>
+                  <Select value={transferFilter} label="판매전송 상태" onChange={e => setTransferFilter(e.target.value)}>
+                    <MenuItem value="all">전체 내역</MenuItem>
+                    <MenuItem value="not_transferred">미전송 내역 (수집됨)</MenuItem>
+                    <MenuItem value="transferred">매출반영(전송) 완료</MenuItem>
+                  </Select>
+                </FormControl>
+
+                <TextField
+                  size="small"
+                  label="통합 검색 (주문번호, 이름, 상품명 등)"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>
+                  }}
+                  sx={{ width: 300, bgcolor: 'white' }}
+                />
+
+                <Box sx={{ flexGrow: 1 }} />
+
                 <Stack direction="row" spacing={1} alignItems="center">
-                  <TextField
-              label="시작일"
-              type="date"
-              size="small"
-              InputLabelProps={{ shrink: true }}
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-            />
-            <Typography>~</Typography>
-            <TextField
-              label="종료일"
-              type="date"
-              size="small"
-              InputLabelProps={{ shrink: true }}
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-            />
-          </Stack>
+                  <TextField type="date" size="small" InputLabelProps={{ shrink: true }} value={startDate} onChange={(e) => setStartDate(e.target.value)} sx={{ width: 130 }} />
+                  <Typography>~</Typography>
+                  <TextField type="date" size="small" InputLabelProps={{ shrink: true }} value={endDate} onChange={(e) => setEndDate(e.target.value)} sx={{ width: 130 }} />
+                </Stack>
+                <Button variant="outlined" size="small" onClick={() => setPeriod(0)}>금일</Button>
+                <Button variant="outlined" size="small" onClick={() => setPeriod(7)}>7일</Button>
+                
+                <Button 
+                  variant="outlined" 
+                  color="secondary"
+                  startIcon={syncing ? <CircularProgress size={20} color="inherit" /> : <SyncIcon />} 
+                  onClick={handleSync}
+                  disabled={syncing}
+                  sx={{ ml: 1 }}
+                >
+                  {syncing ? '수집 중...' : (selectedMall === 'all' ? '전체 쇼핑몰 대량 수집' : '선택된 쇼핑몰 주문 수집')}
+                </Button>
+              </Box>
 
-          <Stack direction="row" spacing={1}>
-            <Button variant="outlined" size="small" onClick={() => setPeriod(0)}>금일</Button>
-            <Button variant="outlined" size="small" onClick={() => setPeriod(7)}>7일</Button>
-            <Button variant="outlined" size="small" onClick={() => setPeriod(30)}>1개월</Button>
-          </Stack>
-
-          <Button 
-            variant="contained" 
-            startIcon={syncing ? <CircularProgress size={20} color="inherit" /> : <SyncIcon />} 
-            onClick={handleSync}
-            disabled={syncing}
-            sx={{ ml: 'auto' }}
-          >
-            {syncing ? '동기화 중...' : '선택 기간 주문 수집'}
-          </Button>
-
-          {selectedOrders.length > 0 && (
-            <Stack direction="row" spacing={1} sx={{ ml: 2, borderLeft: 1, borderColor: 'divider', pl: 2 }}>
-              <Button size="small" variant="contained" color="error" onClick={handleDeleteSelected}>
-                선택 삭제
-              </Button>
-              <Button size="small" variant="contained" color="primary" onClick={handleSalesTransfer}>
-                판매 전송
-              </Button>
-            </Stack>
-          )}
-        </Box>
-      </Box>
+              {/* 두 번째 줄: 실행 액션 관리들 */}
+              <Box sx={{ display: 'flex', alignItems: 'center', p: 1.5, bgcolor: '#e3f2fd', borderRadius: 1 }}>
+                <Typography variant="body2" sx={{ mr: 2, fontWeight: 'bold', color: '#1565c0' }}>
+                  총 {filteredOrders.length}건 검색됨 {selectedOrders.length > 0 && `(현재 ${selectedOrders.length}건 선택됨)`}
+                </Typography>
+                
+                {selectedOrders.length > 0 ? (
+                  <Stack direction="row" spacing={2} sx={{ ml: 'auto' }}>
+                    <Button size="small" variant="outlined" color="error" onClick={handleDeleteSelected}>
+                      선택 주문 일괄 삭제
+                    </Button>
+                    <Button size="medium" variant="contained" color="primary" onClick={handleSalesTransfer}>
+                      선택 항목 판매 반영(전송)하기
+                    </Button>
+                  </Stack>
+                ) : (
+                  <Typography variant="caption" sx={{ ml: 'auto', color: 'text.secondary' }}>
+                    주문을 체크하면 '판매 반영(매출 연동)' 및 삭제 메뉴가 활성화됩니다.
+                  </Typography>
+                )}
+              </Box>
+            </Box>
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
@@ -318,8 +420,8 @@ export default function Cafe24OrderList() {
             <TableRow>
               <TableCell padding="checkbox">
                 <Checkbox
-                  indeterminate={selectedOrders.length > 0 && selectedOrders.length < orders.length}
-                  checked={orders.length > 0 && selectedOrders.length === orders.length}
+                  indeterminate={selectedOrders.length > 0 && selectedOrders.length < filteredOrders.length}
+                  checked={filteredOrders.length > 0 && selectedOrders.length === filteredOrders.length}
                   onChange={handleSelectAllClick}
                 />
               </TableCell>
@@ -348,10 +450,10 @@ export default function Cafe24OrderList() {
           <TableBody>
             {loading ? (
               <TableRow><TableCell colSpan={16} align="center" sx={{ py: 3 }}><CircularProgress /></TableCell></TableRow>
-            ) : orders.length === 0 ? (
-              <TableRow><TableCell colSpan={16} align="center" sx={{ py: 3 }}>데이터가 없습니다.</TableCell></TableRow>
+            ) : filteredOrders.length === 0 ? (
+              <TableRow><TableCell colSpan={16} align="center" sx={{ py: 3 }}>수집·필터 조건에 맞는 주문 데이터가 없습니다.</TableCell></TableRow>
             ) : (
-              orders.filter(order => selectedMall === 'all' || order.mall_id === selectedMall).reduce((acc, order) => {
+              filteredOrders.reduce((acc, order) => {
                 const items = order.order_items || [];
                 if (items.length === 0) {
                   // 빈 주문인 경우 빈 행 하나 추가
@@ -413,7 +515,19 @@ export default function Cafe24OrderList() {
                               {order.buyer_group_no && order.buyer_group_no !== '1' && <Chip size="small" label={getGroupName(order.buyer_group_no)} sx={{ height: 16, fontSize: '0.65rem' }} color={order.buyer_group_no === '12' ? 'success' : order.buyer_group_no === '15' ? 'warning' : 'default'}/>}
                               {order.member_authentication === 'B' && <Chip size="small" label="특별관리" color="error" sx={{ height: 16, fontSize: '0.65rem' }} />}
                             </Typography>
-                            {order.buyer_id && <Typography variant="caption" color="text.secondary" component="div">({order.buyer_id})</Typography>}
+                            {order.buyer_id && (
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                                <Typography variant="caption" color="text.secondary">({order.buyer_id})</Typography>
+                                {order.agency_id && agencies.find(a => a.id === order.agency_id) ? (
+                                  <Chip size="small" label={agencies.find(a => a.id === order.agency_id).name} color="info" sx={{ height: 18, fontSize: '0.7rem' }} />
+                                ) : null}
+                                <Tooltip title="거래처 수동 매칭">
+                                  <IconButton size="small" sx={{ padding: 0.2 }} onClick={() => handleOpenAgencyMatchModal(order)}>
+                                    <PersonAddIcon fontSize="small" color="action" />
+                                  </IconButton>
+                                </Tooltip>
+                              </Box>
+                            )}
                           </Box>
                         </TableCell>
                       )}
@@ -517,6 +631,43 @@ export default function Cafe24OrderList() {
             disabled={!selectedPart || mappingSaving}
           >
             {mappingSaving ? '저장중...' : '매핑 저장'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 주문자 - 거래처 수동 매칭 모달 */}
+      <Dialog open={agencyMatchModalOpen} onClose={() => setAgencyMatchModalOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>주문자 - 거래처 수동 매칭</DialogTitle>
+        <DialogContent dividers>
+          <Alert severity="info" sx={{ mb: 3 }}>
+            카페24 주문자 <b>"{selectedOrderForAgencyMatch?.buyer_name || '비회원'}"</b> (ID: {selectedOrderForAgencyMatch?.buyer_id}) 의 정보를 CRM 거래처와 연결합니다.<br /><br />
+            저장 시 이 거래처에 연동 ID가 등록되며, 이 주문자 ID의 과거 주문 내역들도 자동으로 이 거래처로 일괄 변경됩니다.
+          </Alert>
+
+          <Autocomplete
+            options={agencies}
+            getOptionLabel={(option) => `${option.name} ${option.business_number ? `(${option.business_number})` : ''}`}
+            value={selectedAgency}
+            onChange={(event, newValue) => setSelectedAgency(newValue)}
+            renderInput={(params) => <TextField {...params} label="거래처 검색" />}
+            renderOption={(props, option) => (
+              <li {...props}>
+                <Box>
+                  <Typography variant="body1">{option.name}</Typography>
+                  <Typography variant="caption" color="text.secondary">사업자번호: {option.business_number || '없음'} | 연동ID: {option.cafe24_member_id || '미연동'}</Typography>
+                </Box>
+              </li>
+            )}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAgencyMatchModalOpen(false)}>취소</Button>
+          <Button 
+            variant="contained" 
+            onClick={handleSaveAgencyMatch} 
+            disabled={!selectedAgency || agencyMatchSaving}
+          >
+            {agencyMatchSaving ? '저장중...' : '매칭 및 일괄 업데이트'}
           </Button>
         </DialogActions>
       </Dialog>

@@ -1451,6 +1451,30 @@ function InventoryManagement() {
 
   // (통합됨) 출고 전용 행 관리 함수 제거, 통합 함수 사용
 
+  // 거래 유형 판별
+  const getTransactionTypeInfo = useCallback((tx) => {
+    if (!tx) return { label: '알 수 없음', color: 'default' };
+    const actualTx = tx.items && tx.items.length > 0 ? tx.items[0] : tx;
+    const fromLoc = actualTx.fromLocation;
+    const toLoc = actualTx.toLocation;
+    
+    const isW = (id) => warehouses.some(w => w.id === id);
+    const isD = (id) => dealers.some(d => d.id === id);
+    const isExt = (id) => !id || id === '외부' || id === 'none';
+
+    if (actualTx.type === 'in') {
+      if (isExt(fromLoc)) return { label: '수입', color: 'primary' };
+      if (isW(fromLoc) && isW(toLoc)) return { label: '창고이동', color: 'info' };
+      if (isD(fromLoc)) return { label: '반품입고', color: 'primary' };
+      return { label: '입고', color: 'primary' };
+    } else {
+      if (isW(fromLoc) && isW(toLoc)) return { label: '창고이동', color: 'info' };
+      if (isD(toLoc)) return { label: '거래처출고', color: 'warning' };
+      if (isExt(toLoc)) return { label: '출고(외부)', color: 'secondary' };
+      return { label: '출고', color: 'secondary' };
+    }
+  }, [warehouses, dealers]);
+
   // 재고 현황 계산
   const getInventorySummary = () => {
     const summary = {};
@@ -2405,9 +2429,9 @@ function InventoryManagement() {
                           <TableCell>{tx.date}</TableCell>
                           <TableCell>
                             <Chip 
-                              label={tx.type === 'in' ? '입고' : '출고'} 
+                              label={getTransactionTypeInfo(tx).label} 
                               size="small"
-                              color={tx.type === 'in' ? 'primary' : 'secondary'}
+                              color={getTransactionTypeInfo(tx).color}
                             />
                           </TableCell>
                           <TableCell>{product?.name || '알 수 없음'}</TableCell>
@@ -2645,7 +2669,7 @@ function InventoryManagement() {
                       <TableRow key={group.id} hover>
                         <TableCell>{group.date}</TableCell>
                         <TableCell>
-                          <Chip label={group.type === 'in' ? '입고' : '출고'} size="small" color={group.type === 'in' ? 'primary' : 'secondary'} />
+                          <Chip label={getTransactionTypeInfo(group).label} size="small" color={getTransactionTypeInfo(group).color} />
                         </TableCell>
                         <TableCell>
                           {group.items.length === 1 ? group.items[0].productName : `${group.items.length}개 상품`}
@@ -3639,7 +3663,7 @@ function InventoryManagement() {
                 // 그룹화된 거래 상세
                 <Box>
                   <Typography variant="h6" gutterBottom>
-                    {selectedTransaction.type === 'in' ? '입고' : '출고'} 상세 내역 ({editMode ? editProducts.length : selectedTransaction.items.length}개 상품)
+                    {getTransactionTypeInfo(selectedTransaction).label} 상세 내역 ({editMode ? editProducts.length : selectedTransaction.items.length}개 상품)
                   </Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
                     거래 날짜: {selectedTransaction.date} | 처리 시간: {selectedTransaction.createdAt}
@@ -4091,9 +4115,9 @@ function InventoryManagement() {
                               <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                                 <Typography variant="body2" color="text.secondary">거래 유형:</Typography>
                                 <Chip 
-                                  label={selectedTransaction.type === 'in' ? '입고' : '출고'} 
+                                  label={getTransactionTypeInfo(selectedTransaction).label} 
                                   size="small"
-                                  color={selectedTransaction.type === 'in' ? 'primary' : 'secondary'}
+                                  color={getTransactionTypeInfo(selectedTransaction).color}
                                 />
                               </Box>
                               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -4426,9 +4450,9 @@ function InventoryManagement() {
                       <TableRow key={idx}>
                         <TableCell>
                           <Chip 
-                            label={tx.type === 'in' ? '입고' : '출고'} 
+                            label={getTransactionTypeInfo(tx).label} 
                             size="small"
-                            color={tx.type === 'in' ? 'primary' : 'secondary'}
+                            color={getTransactionTypeInfo(tx).color}
                           />
                         </TableCell>
                         <TableCell>{product?.name || tx.productName || '알 수 없음'}</TableCell>
@@ -4507,9 +4531,9 @@ function InventoryManagement() {
                           </TableCell>
                           <TableCell>
                             <Chip 
-                              label={tx.type === 'in' ? '입고' : '출고'} 
+                              label={getTransactionTypeInfo(tx).label} 
                               size="small"
-                              color={tx.type === 'in' ? 'primary' : 'secondary'}
+                              color={getTransactionTypeInfo(tx).color}
                             />
                           </TableCell>
                           <TableCell>{product?.name || '알 수 없음'}</TableCell>
