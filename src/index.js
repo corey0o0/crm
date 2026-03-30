@@ -5,6 +5,7 @@ import App from './App';
 import reportWebVitals from './reportWebVitals';
 import { StyledEngineProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // 개발 환경에서 ReactQuill의 findDOMNode 경고만 무시
 if (process.env.NODE_ENV === 'development') {
@@ -70,10 +71,12 @@ const initApp = async () => {
     
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(
-      <StyledEngineProvider injectFirst>
-        <CssBaseline />
-        <App />
-      </StyledEngineProvider>
+      <ErrorBoundary>
+        <StyledEngineProvider injectFirst>
+          <CssBaseline />
+          <App />
+        </StyledEngineProvider>
+      </ErrorBoundary>
     );
   } catch (error) {
     console.error('[App Init] 앱 초기화 실패:', error);
