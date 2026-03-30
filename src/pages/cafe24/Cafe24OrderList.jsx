@@ -54,6 +54,7 @@ export default function Cafe24OrderList() {
   const [selectedMall, setSelectedMall] = useState('all');
   const [selectedOrders, setSelectedOrders] = useState([]);
   const [transferFilter, setTransferFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const getFormattedDate = (date) => {
     const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -73,6 +74,13 @@ export default function Cafe24OrderList() {
     start.setDate(end.getDate() - days);
     setEndDate(getFormattedDate(end));
     setStartDate(getFormattedDate(start));
+  };
+
+  const setYesterday = () => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    setStartDate(getFormattedDate(yesterday));
+    setEndDate(getFormattedDate(yesterday));
   };
 
   // 매핑 모달 상태
@@ -172,6 +180,7 @@ export default function Cafe24OrderList() {
     if (selectedMall !== 'all' && order.mall_id !== selectedMall) return false;
     if (transferFilter === 'transferred' && !order.is_transferred) return false;
     if (transferFilter === 'not_transferred' && order.is_transferred) return false;
+    if (statusFilter !== 'all' && getKoStatus(order.status) !== statusFilter) return false;
     
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -337,15 +346,27 @@ export default function Cafe24OrderList() {
         {tabValue === 0 && (
           <>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3 }}>
+              {/* 쇼핑몰 탭 (Sub-Tabs) */}
+              <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+                <Tabs 
+                  value={selectedMall} 
+                  onChange={(e, val) => setSelectedMall(val)} 
+                  variant="scrollable"
+                  scrollButtons="auto"
+                >
+                  <Tab label="전체 쇼핑몰" value="all" />
+                  {malls.map(m => (
+                    <Tab 
+                      key={m.mall_id} 
+                      value={m.mall_id} 
+                      label={m.mall_id === 'slimpack79' ? '엑스라이더(slimpack79)' : m.mall_id === 'nearbike' ? '니어바이크(nearbike)' : m.mall_id} 
+                    />
+                  ))}
+                </Tabs>
+              </Box>
+
               {/* 첫 번째 줄: 필터 및 일반 설정 */}
               <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2, p: 2, bgcolor: '#f8f9fa', borderRadius: 1 }}>
-                <FormControl size="small" sx={{ minWidth: 150, bgcolor: 'white' }}>
-                  <InputLabel>쇼핑몰 선택</InputLabel>
-                  <Select value={selectedMall} label="쇼핑몰 선택" onChange={e => setSelectedMall(e.target.value)}>
-                    <MenuItem value="all">전체 쇼핑몰</MenuItem>
-                    {malls.map(m => <MenuItem key={m.mall_id} value={m.mall_id}>{m.mall_id === 'slimpack79' ? '엑스라이더(slimpack79)' : m.mall_id === 'nearbike' ? '니어바이크(nearbike)' : m.mall_id}</MenuItem>)}
-                  </Select>
-                </FormControl>
 
                 <FormControl size="small" sx={{ minWidth: 150, bgcolor: 'white' }}>
                   <InputLabel>판매전송 상태</InputLabel>
@@ -353,6 +374,16 @@ export default function Cafe24OrderList() {
                     <MenuItem value="all">전체 내역</MenuItem>
                     <MenuItem value="not_transferred">미전송 내역 (수집됨)</MenuItem>
                     <MenuItem value="transferred">매출반영(전송) 완료</MenuItem>
+                  </Select>
+                </FormControl>
+
+                <FormControl size="small" sx={{ minWidth: 150, bgcolor: 'white' }}>
+                  <InputLabel>주문 상태</InputLabel>
+                  <Select value={statusFilter} label="주문 상태" onChange={e => setStatusFilter(e.target.value)}>
+                    <MenuItem value="all">모든 상태</MenuItem>
+                    {[...new Set(orders.map(o => getKoStatus(o.status)))].filter(Boolean).sort().map(label => (
+                      <MenuItem key={label} value={label}>{label}</MenuItem>
+                    ))}
                   </Select>
                 </FormControl>
 
@@ -375,7 +406,9 @@ export default function Cafe24OrderList() {
                   <TextField type="date" size="small" InputLabelProps={{ shrink: true }} value={endDate} onChange={(e) => setEndDate(e.target.value)} sx={{ width: 130 }} />
                 </Stack>
                 <Button variant="outlined" size="small" onClick={() => setPeriod(0)}>금일</Button>
-                <Button variant="outlined" size="small" onClick={() => setPeriod(7)}>7일</Button>
+                <Button variant="outlined" size="small" onClick={setYesterday}>전일</Button>
+                <Button variant="outlined" size="small" onClick={() => setPeriod(7)}>일주일</Button>
+                <Button variant="outlined" size="small" onClick={() => setPeriod(30)}>1개월</Button>
                 
                 <Button 
                   variant="outlined" 

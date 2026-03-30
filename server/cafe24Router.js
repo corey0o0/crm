@@ -322,7 +322,13 @@ module.exports = function(supabaseAdmin) {
           });
         }
 
-        const total_amount = order.payment_amount || (order.actual_order_amount && order.actual_order_amount.order_price_amount) || order.total_order_price || 0;
+        const pg_payment = Number(order.payment_amount || 0);
+        const actual_deposit = Number(order.deposit || (order.actual_order_amount && order.actual_order_amount.deposit) || 0);
+        
+        // 예치금은 결제수단(현금)과 동일하게 취급되어 매출(total_amount)에 포함
+        const total_amount = pg_payment > 0 
+          ? (pg_payment + actual_deposit) 
+          : ((order.actual_order_amount && order.actual_order_amount.order_price_amount) || order.total_order_price || 0);
         const shipping_fee = Number((order.actual_order_amount && order.actual_order_amount.shipping_fee) || 0);
 
         let items_payment_sum = 0;
