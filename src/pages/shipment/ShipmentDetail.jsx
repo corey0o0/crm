@@ -444,19 +444,13 @@ function ShipmentDetail() {
 
       // === [검수 락 (관리자 바이패스)] ===
       if (newStatus === '출고완료' && previousStatus !== '출고완료' && !isMaster) {
-        let isCheongdam = true; // 기본적으로 청담 혹은 필수검수 대상이라 가정
-        if (shipmentData.warehouse_id) {
-          const { data: wData } = await supabase.from('warehouses').select('name').eq('id', shipmentData.warehouse_id).single();
-          isCheongdam = wData && wData.name.includes('청담');
-        }
-
-        if (isCheongdam) {
-           const { data: po } = await supabase.from('pending_outbounds').select('status').eq('source_id', id).maybeSingle();
-           if (!po || po.status !== '완료') {
-             alert('청담 창고 출고건은 반드시 [매장/온라인 출고] 탭에서 검수를 완료(' + (po?po.status:'미등록') + ')해야만 출고 확정(완료) 처리가 가능합니다. (일반 계정 제한)');
-             setSaving(false);
-             return;
-           }
+        // 출고 창고 지정 기능이 제거되었으므로, 모든 일반 계정 출고 건은 
+        // 매장/온라인 출고 탭을 통해 검수 프로세스를 거쳐야만 출고 확정이 가능하도록 기본 설정됨.
+        const { data: po } = await supabase.from('pending_outbounds').select('status').eq('source_id', id).maybeSingle();
+        if (!po || po.status !== '완료') {
+          alert('출고 확정 시 반드시 [매장/온라인 출고] 탭에서 검수를 완료(' + (po?po.status:'미등록') + ')해야만 확정 처리가 가능합니다. (일반 계정 제한)');
+          setSaving(false);
+          return;
         }
       }
       // ===================================

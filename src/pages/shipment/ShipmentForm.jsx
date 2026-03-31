@@ -148,10 +148,7 @@ function ShipmentForm() {
       
       // 새 출고 등록 시 기본 창고(청담) 설정
       if (!isEditMode && data) {
-         const cd = data.find(w => w.name.includes('청담'));
-         if (cd) {
-            setShipmentData(prev => ({ ...prev, warehouse_id: cd.id }));
-         }
+         // 기본 창고 설정 기능 임시 비활성화
       }
     } catch (e) {
       console.error('창고 로딩 에러:', e);
@@ -585,7 +582,7 @@ function ShipmentForm() {
         product_code: selectedParts[0]?.part_code || '',
         quantity: totalQuantity,
         price: totalPrice,
-        warehouse_id: shipmentData.warehouse_id || null, // 창고 지정
+        // warehouse_id: shipmentData.warehouse_id || null, // 창고 지정 임시 비활성화
         updated_at: new Date().toISOString()
       };
 
@@ -629,7 +626,7 @@ function ShipmentForm() {
           quantity: part.quantity || 1,
           price: part.price || 0,
           total_price: part.totalPrice || calculateTotal(part),
-          warehouse_id: shipmentData.warehouse_id || null, // 파츠에도 출고 창고 지정
+          // warehouse_id: shipmentData.warehouse_id || null, // 파츠에도 출고 창고 지정 임시 비활성화
           created_at: new Date().toISOString()
         }));
 
@@ -1372,23 +1369,6 @@ function ShipmentForm() {
               >
                 <MenuItem value="XRB">X-RIDER</MenuItem>
                 <MenuItem value="NB">NEARBIKE</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={12} md={3}>
-            <FormControl fullWidth>
-              <InputLabel>출고 창고(필수)</InputLabel>
-              <Select
-                name="warehouse_id"
-                value={shipmentData.warehouse_id || ''}
-                onChange={handleChange}
-                label="출고 창고(필수)"
-                required
-              >
-                <MenuItem value="" disabled><em>선택해주세요</em></MenuItem>
-                {warehouses.map(w => (
-                   <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>
-                ))}
               </Select>
             </FormControl>
           </Grid>
