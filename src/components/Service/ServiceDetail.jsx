@@ -104,8 +104,7 @@ function ServiceDetail() {
     status: '',
     delivery_method: '',
     seller: '',
-    writer: '',
-    warehouse_id: ''
+    writer: ''
   });
   const [openPartsDialog, setOpenPartsDialog] = useState(false);
   const [selectedParts, setSelectedParts] = useState([]);
@@ -553,8 +552,7 @@ function ServiceDetail() {
         completion_time: completionTime,
         service_parts: serviceData.service_parts || [],
         writer: serviceData.writer || '관리자',
-        mileage: mileage,
-        warehouse_id: serviceData.warehouse_id || ''
+        mileage: mileage
       });
 
       console.log('Loaded reception data:', {
@@ -623,8 +621,7 @@ function ServiceDetail() {
             completion_time: completionTime,
             service_parts: serviceData.service_parts || [],
             writer: serviceData.writer || '관리자',
-            mileage: mileage,
-            warehouse_id: serviceData.warehouse_id || ''
+            mileage: mileage
           },
           selectedParts: selectedParts.map(part => ({
             id: part.id,
@@ -647,8 +644,7 @@ function ServiceDetail() {
             completion_time: completionTime,
             service_parts: serviceData.service_parts || [],
             writer: serviceData.writer || '관리자',
-            mileage: mileage,
-            warehouse_id: serviceData.warehouse_id || ''
+            mileage: mileage
           },
           selectedParts: [],
           tags: serviceData.service_tags ? serviceData.service_tags.map(t => t.tag_name).sort() : [],
@@ -812,7 +808,7 @@ function ServiceDetail() {
         mileage: formData.mileage,
         writer: formData.writer,
         reception_type: formData.reception_type,
-        warehouse_id: formData.warehouse_id || null, // 창고 반영
+        // warehouse_id: formData.warehouse_id || null, // 창고 반영 삭제
         updated_at: new Date().toISOString()
       };
 
@@ -845,7 +841,7 @@ function ServiceDetail() {
           quantity: part.quantity,
           price: part.price,
           usage: part.usage || 'A/S',
-          warehouse_id: formData.warehouse_id || null // 파츠에도 창고 반영
+        //  warehouse_id: formData.warehouse_id || null // 파츠에도 창고 반영 삭제
         }));
 
         const { error: insertPartsError } = await supabase
@@ -2875,23 +2871,7 @@ function ServiceDetail() {
                           <MenuItem value="NB">NEARBIKE</MenuItem>
                         </TextField>
                       </Grid>
-                      <Grid item xs={12}>
-                        <TextField
-                          select
-                          fullWidth
-                          size="small"
-                          name="warehouse_id"
-                          label="A/S 처리 창고(필수)"
-                          value={formData.warehouse_id || ''}
-                          onChange={handleChange}
-                          required
-                        >
-                          <MenuItem value="" disabled><em>선택해주세요</em></MenuItem>
-                          {warehouses.map(w => (
-                            <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>
-                          ))}
-                        </TextField>
-                      </Grid>
+                      
                       <Grid item xs={12}>
                         <Autocomplete
                           freeSolo

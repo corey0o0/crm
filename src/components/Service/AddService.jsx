@@ -116,8 +116,7 @@ function AddService() {
     note: '',
     writer: '',
     seller: '',
-    status: '접수',
-    warehouse_id: ''
+    status: '접수'
   });
   const [tags, setTags] = useState([]);
   const [snackbar, setSnackbar] = useState({
@@ -437,16 +436,7 @@ function AddService() {
       const { data } = await supabase.from('warehouses').select('*').order('name');
       setWarehouses(data || []);
       if (data) {
-         const cd = data.find(w => w.name.includes('청담'));
-         if (cd && !formData.warehouse_id) {
-            setFormData(prev => ({ ...prev, warehouse_id: cd.id }));
-            setInitialData(prev => {
-              if (prev && prev.formData) {
-                return { ...prev, formData: { ...prev.formData, warehouse_id: cd.id } };
-              }
-              return prev;
-            });
-         }
+         // 창고 자동 선택 로직 임시 비활성화
       }
     } catch (e) {
       console.error('창고 로딩 에러:', e);
@@ -883,7 +873,7 @@ function AddService() {
         seller: formData.seller,
         receipt_link: receiptLink,
         writer: formData.writer || '관리자',
-        warehouse_id: formData.warehouse_id || null, // A/S 처리 창고 지정
+        // warehouse_id: formData.warehouse_id || null, // A/S 처리 창고 지정 임시 비활성화
         updated_at: new Date().toISOString()
       };
 
@@ -953,7 +943,7 @@ function AddService() {
           quantity: part.quantity,
           price: part.price,
           usage: part.usage || 'A/S',
-          warehouse_id: formData.warehouse_id || null
+        //  warehouse_id: formData.warehouse_id || null
         }));
         const { error: partsError } = await supabase.from('service_parts').insert(partsToInsert);
         if (partsError) {
@@ -2698,29 +2688,7 @@ function AddService() {
                           <MenuItem value="NB">NEARBIKE</MenuItem>
                         </TextField>
                       </Grid>
-                      <Grid item xs={12}>
-                        <TextField
-                          select
-                          fullWidth
-                          size="small"
-                          name="warehouse_id"
-                          label="A/S 처리 창고(필수)"
-                          value={formData.warehouse_id || ''}
-                          onChange={(e) => setFormData(prev => ({ ...prev, warehouse_id: e.target.value }))}
-                          required
-                          sx={{
-                            '& .MuiOutlinedInput-root': {
-                              borderRadius: 1,
-                              bgcolor: '#f9fafb'
-                            }
-                          }}
-                        >
-                          <MenuItem value="" disabled><em>선택해주세요</em></MenuItem>
-                          {warehouses.map(w => (
-                            <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>
-                          ))}
-                        </TextField>
-                      </Grid>
+                      
                       <Grid item xs={12}>
                         <Autocomplete
                           freeSolo

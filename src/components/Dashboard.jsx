@@ -180,28 +180,10 @@ function Dashboard() {
         
         // 스마트 데이터 로딩 (캐시 우선, 네트워크 백업)
         const sharedMemos = await smartLoad('shared_memos', async () => {
-          // 네트워크에서 데이터 가져오기
-          const supabaseUrlForShared = process.env.REACT_APP_SUPABASE_URL;
-          const supabaseKeyForShared = process.env.REACT_APP_SUPABASE_ANON_KEY;
-          const sharedFetchUrl = `${supabaseUrlForShared}/rest/v1/shared_memos?select=*&limit=1`;
-          const accessToken = session?.access_token;
-          
-          const response = await fetch(sharedFetchUrl, {
-            method: 'GET',
-            headers: {
-              'apikey': supabaseKeyForShared,
-              // 인증 토큰을 우선 사용해 RLS를 통과하도록 함
-              'Authorization': `Bearer ${accessToken ?? supabaseKeyForShared}`,
-              'Content-Type': 'application/json',
-              'Prefer': 'return=representation'
-            }
-          });
-          
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-          }
-          
-          return await response.json();
+          // 네트워크에서 데이터 가져오기 (Supabase 클라이언트가 자체적으로 최신 토큰을 관리함)
+          const { data, error } = await supabase.from('shared_memos').select('*').limit(1);
+          if (error) throw new Error(`HTTP 401/가져오기 실패: ${error.message}`);
+          return data || [];
         }, {
           ttl: 2 * 60 * 1000, // 2분 TTL
           fallbackToCache: true,
@@ -233,40 +215,17 @@ function Dashboard() {
           console.log('[Dashboard] 공유 메모가 없어서 초기 레코드 생성 중...');
           
           try {
-            // REST API로 초기 레코드 생성 (사용자 액세스 토큰 사용: RLS 통과)
-            const accessToken = session?.access_token;
-            const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
-            const supabaseKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
-            
-            console.log('[Dashboard] POST 요청 시작:', `${supabaseUrl}/rest/v1/shared_memos`);
-            const postController = new AbortController();
-            const postTimeout = setTimeout(() => postController.abort(), 12000);
-            let response = await fetch(`${supabaseUrl}/rest/v1/shared_memos`, {
-              method: 'POST',
-              headers: {
-                'apikey': supabaseKey,
-                // 사용자 토큰을 사용해 RLS 삽입 정책을 통과
-                'Authorization': `Bearer ${accessToken ?? supabaseKey}`,
-                'Content-Type': 'application/json',
-                'Prefer': 'return=representation'
-              },
-              body: JSON.stringify({
-                memo1: '',
-                memo2: '',
-                memo3: '',
-                memo_name_1: '공유 메모 1',
-                memo_name_2: '공유 메모 2',
-                memo_name_3: '공유 메모 3'
-              }),
-              signal: postController.signal
-            });
+            // 초기 레코드 생성 (Supabase 클라이언트 사용: 최신 사용자 액세스 토큰으로 RLS 통과)
+            const { data: newMemo, error } = await supabase.from('shared_memos').insert({
+              memo1: '',
+              memo2: '',
+              memo3: '',
+              memo_name_1: '공유 메모 1',
+              memo_name_2: '공유 메모 2',
+              memo_name_3: '공유 메모 3'
+            }).select();
 
-            clearTimeout(postTimeout);
-
-            console.log('[Dashboard] POST 응답 상태:', response.status);
-            
-            if (response.ok) {
-              const newMemo = await response.json();
+            if (!error && newMemo) {
               console.log('[Dashboard] 공유 메모 초기 레코드 생성 완료:', newMemo);
               
               // 생성된 메모로 상태 설정
@@ -277,8 +236,7 @@ function Dashboard() {
               ]);
               setSharedMemoNames(['공유 메모 1', '공유 메모 2', '공유 메모 3']);
             } else {
-              const errorText = await response.text();
-              console.error('[Dashboard] 공유 메모 초기 레코드 생성 실패:', response.status, errorText);
+              console.error('[Dashboard] 공유 메모 초기 레코드 생성 실패:', error?.message);
               // 실패 시 기존 상태 유지 (초기화하지 않음)
             }
           } catch (createError) {
