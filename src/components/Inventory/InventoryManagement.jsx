@@ -212,7 +212,7 @@ function InventoryManagement() {
     }
   }, [warehouses, dealers, products, transactions]);
 
-  // 상품 데이터 가져오기 (파츠관리와 연동)
+  // 상품 데이터 가져오기 (상품관리와 연동)
   const fetchProducts = async () => {
     try {
       // 오프라인 상태 체크
@@ -235,13 +235,13 @@ function InventoryManagement() {
       });
       
       setProducts(productsData);
-      console.log(`파츠관리에서 ${productsData.length}개의 전체 상품을 가져왔습니다.`);
+      console.log(`상품관리에서 ${productsData.length}개의 전체 상품을 가져왔습니다.`);
     } catch (error) {
       console.error('상품 데이터 로딩 실패:', error);
       
       // 스마트 오류 처리
       const errorMessage = getErrorMessage(error);
-      showSnackbar(`파츠관리에서 상품 데이터를 불러오는데 실패했습니다: ${errorMessage}`, 'error');
+      showSnackbar(`상품관리에서 상품 데이터를 불러오는데 실패했습니다: ${errorMessage}`, 'error');
     } finally {
       setLoading(false);
     }
@@ -806,7 +806,7 @@ function InventoryManagement() {
     });
   };
 
-  // 파츠관리 상품 데이터 새로고침
+  // 상품관리 상품 데이터 새로고침
   const refreshProductsFromPartsManagement = async () => {
     try {
       setLoading(true);
@@ -818,10 +818,10 @@ function InventoryManagement() {
         initializeInventory();
       }, 100);
       
-      showSnackbar(`파츠관리 모듈에서 최신 전체 상품 데이터를 동기화했습니다. (총 ${latestProducts.length}개)`, 'success');
+      showSnackbar(`상품관리 모듈에서 최신 전체 상품 데이터를 동기화했습니다. (총 ${latestProducts.length}개)`, 'success');
     } catch (error) {
       console.error('상품 데이터 새로고침 실패:', error);
-      showSnackbar('파츠관리 데이터 새로고침에 실패했습니다.', 'error');
+      showSnackbar('상품관리 데이터 새로고침에 실패했습니다.', 'error');
     } finally {
       setLoading(false);
     }
@@ -1119,7 +1119,7 @@ function InventoryManagement() {
       });
 
       if (isNearbikeFormat) {
-        // [업데이트]: 통합 파츠 관리 (가로 형태의 다중 상품 주문서 양식 지원)
+        // [업데이트]: 통합 상품 관리 (가로 형태의 다중 상품 주문서 양식 지원)
         const headerRowValues = worksheet.getRow(headerRow).values;
         
         // 어떤 열이 어떤 상품을 의미하는지 동적으로 식별 (4번째 열부터)

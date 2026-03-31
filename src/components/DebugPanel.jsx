@@ -68,12 +68,12 @@ const DebugPanel = () => {
       queueMicrotask(() => {
         setLogs(prev => {
           const newLogs = [logEntry, ...prev].slice(0, 100); // 최대 100개만 유지
+          
+          const currentErrors = newLogs.filter(log => log.level === 'error').length;
+          setErrorCount(currentErrors);
+          
           return newLogs;
         });
-
-        if (level === 'error') {
-          setErrorCount(prev => prev + 1);
-        }
       });
     };
 
@@ -84,6 +84,17 @@ const DebugPanel = () => {
 
     console.error = (...args) => {
       originalError(...args);
+      
+      // ReactQuill의 findDOMNode 경고는 디버그 패널에 표시하지 않음
+      try {
+        const firstArg = args && args[0];
+        if (typeof firstArg === 'string' && firstArg.includes('findDOMNode is deprecated')) {
+          return;
+        }
+      } catch (_) {
+        // no-op
+      }
+      
       addLog('error', args);
     };
 
@@ -171,13 +182,12 @@ const DebugPanel = () => {
 
   return (
     <>
-      {/* 디버그 버튼 - 오른쪽 사이드에 항상 표시 */}
+      {/* 디버그 버튼 - 우측 하단에 항상 표시 */}
       <Box
         sx={{
           position: 'fixed',
-          top: '50%',
+          bottom: 24,
           right: 0,
-          transform: 'translateY(-50%)',
           zIndex: 10000,
           display: 'flex',
           flexDirection: 'column',
@@ -189,8 +199,8 @@ const DebugPanel = () => {
           sx={{
             bgcolor: errorCount > 0 ? 'error.main' : 'primary.main',
             color: 'white',
-            width: 56,
-            height: 56,
+            width: 40,
+            height: 40,
             borderRadius: '8px 0 0 8px',
             boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
             '&:hover': {
@@ -201,9 +211,9 @@ const DebugPanel = () => {
           }}
         >
           {errorCount > 0 ? (
-            <ErrorIcon sx={{ fontSize: 28 }} />
+            <ErrorIcon sx={{ fontSize: 20 }} />
           ) : (
-            <BugReportIcon sx={{ fontSize: 28 }} />
+            <BugReportIcon sx={{ fontSize: 20 }} />
           )}
           {errorCount > 0 && (
             <Chip
@@ -212,12 +222,13 @@ const DebugPanel = () => {
               color="error"
               sx={{
                 position: 'absolute',
-                top: -8,
-                right: -8,
-                height: 20,
-                minWidth: 20,
-                fontSize: '0.7rem',
-                fontWeight: 'bold'
+                top: -6,
+                right: -6,
+                height: 16,
+                minWidth: 16,
+                fontSize: '0.6rem',
+                fontWeight: 'bold',
+                px: 0.5
               }}
             />
           )}
@@ -266,23 +277,23 @@ const DebugPanel = () => {
             sx={{ mb: 2 }}
           />
 
-          {/* 환경 변수 정보 */}
-          <Paper sx={{ p: 2, mb: 2, bgcolor: 'grey.100', maxHeight: 200, overflow: 'auto' }}>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>환경 변수 상태</Typography>
-            <Typography variant="body2" component="pre" sx={{ fontSize: '0.75rem' }}>
-              {typeof window !== 'undefined' && window._env_
-                ? JSON.stringify({
-                  keys: Object.keys(window._env_),
-                  hasSupabaseUrl: !!window._env_.REACT_APP_SUPABASE_URL,
-                  hasSupabaseKey: !!window._env_.REACT_APP_SUPABASE_ANON_KEY,
-                  supabaseUrl: window._env_.REACT_APP_SUPABASE_URL?.substring(0, 30) + '...' || '없음'
-                }, null, 2)
-                : '환경 변수 없음'}
-            </Typography>
-          </Paper>
-
           {/* 로그 목록 */}
           <Box sx={{ flex: 1, overflow: 'auto' }}>
+            {/* 환경 변수 정보 (스크롤 영역 내부로 이동하여 상단 고정 해제) */}
+            <Paper sx={{ p: 2, mb: 2, bgcolor: 'grey.100', flexShrink: 0 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>환경 변수 상태</Typography>
+              <Typography variant="body2" component="pre" sx={{ fontSize: '0.75rem', overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>
+                {typeof window !== 'undefined' && window._env_
+                  ? JSON.stringify({
+                    keys: Object.keys(window._env_),
+                    hasSupabaseUrl: !!window._env_.REACT_APP_SUPABASE_URL,
+                    hasSupabaseKey: !!window._env_.REACT_APP_SUPABASE_ANON_KEY,
+                    supabaseUrl: window._env_.REACT_APP_SUPABASE_URL?.substring(0, 30) + '...' || '없음'
+                  }, null, 2)
+                  : '환경 변수 없음'}
+              </Typography>
+            </Paper>
+
             <List dense>
               {filteredLogs.length === 0 ? (
                 <ListItem>

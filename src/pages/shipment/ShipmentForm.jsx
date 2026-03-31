@@ -109,6 +109,9 @@ function ShipmentForm() {
   const [searchTerm, setSearchTerm] = useState('');
   const [allParts, setAllParts] = useState([]);
 
+  // 창고 상태 추가
+  const [warehouses, setWarehouses] = useState([]);
+
   // 엑셀 업로드 관련 상태 추가
   const [excelUploadDialog, setExcelUploadDialog] = useState(false);
   const [uploadedData, setUploadedData] = useState([]);
@@ -136,6 +139,24 @@ function ShipmentForm() {
 
   // 임시 저장
   const [hasTempData, setHasTempData] = useState(false);
+
+  // 창고 목록 불러오기
+  const fetchWarehouses = async () => {
+    try {
+      const { data } = await supabase.from('warehouses').select('*').order('name');
+      setWarehouses(data || []);
+      
+      // 새 출고 등록 시 기본 창고(청담) 설정
+      if (!isEditMode && data) {
+         const cd = data.find(w => w.name.includes('청담'));
+         if (cd) {
+            setShipmentData(prev => ({ ...prev, warehouse_id: cd.id }));
+         }
+      }
+    } catch (e) {
+      console.error('창고 로딩 에러:', e);
+    }
+  };
 
   // 변경사항 감지 함수
   const checkForChanges = useCallback(() => {
@@ -288,6 +309,7 @@ function ShipmentForm() {
       fetchShipmentData();
     }
     fetchAllParts();
+    fetchWarehouses();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -563,6 +585,7 @@ function ShipmentForm() {
         product_code: selectedParts[0]?.part_code || '',
         quantity: totalQuantity,
         price: totalPrice,
+        warehouse_id: shipmentData.warehouse_id || null, // 창고 지정
         updated_at: new Date().toISOString()
       };
 
@@ -606,6 +629,7 @@ function ShipmentForm() {
           quantity: part.quantity || 1,
           price: part.price || 0,
           total_price: part.totalPrice || calculateTotal(part),
+          warehouse_id: shipmentData.warehouse_id || null, // 파츠에도 출고 창고 지정
           created_at: new Date().toISOString()
         }));
 
@@ -701,7 +725,7 @@ function ShipmentForm() {
       let partsExists = selectedParts.length > 0;
       let priceUpdated = 0;
 
-      // 기존에 분리된 부품이 있는 경우, 각 부품에 대해 파츠 관리에서 가격 정보 업데이트 시도
+      // 기존에 분리된 부품이 있는 경우, 각 부품에 대해 상품 관리에서 가격 정보 업데이트 시도
       if (partsExists) {
         const updatedParts = [];
 
@@ -733,14 +757,14 @@ function ShipmentForm() {
             }
           }
 
-          // 파츠 관리에서 해당 부품을 찾았다면 가격 업데이트
+          // 상품 관리에서 해당 부품을 찾았다면 가격 업데이트
           if (foundPart) {
             // 가격이 다른 경우에만 업데이트 카운트 증가
             if (foundPart.price !== updatedPart.price) {
               priceUpdated++;
             }
 
-            // 파츠 관리의 코드와 가격 적용
+            // 상품 관리의 코드와 가격 적용
             updatedPart.part_code = foundPart.code || updatedPart.part_code;
             updatedPart.price = foundPart.price || 0;
             updatedPart.totalPrice = foundPart.price * (updatedPart.quantity || 1);
@@ -785,7 +809,7 @@ function ShipmentForm() {
 
         setSnackbar({
           open: true,
-          message: `${priceUpdated}개 제품의 가격 정보가 파츠 관리 기준으로 업데이트되었습니다.`,
+          message: `${priceUpdated}개 제품의 가격 정보가 상품 관리 기준으로 업데이트되었습니다.`,
           severity: 'success'
         });
 
@@ -812,7 +836,7 @@ function ShipmentForm() {
           let price = 0;
           let partCode = '';
 
-          // 파츠 관리 시스템에서 매칭되는 제품 검색 - 이름이 정확히 일치하는 항목 우선
+          // 상품 관리 시스템에서 매칭되는 제품 검색 - 이름이 정확히 일치하는 항목 우선
           let partFromDB = null;
 
           // 1. 정확한 이름으로 검색 (정확히 일치하는 제품 먼저 찾기)
@@ -840,7 +864,7 @@ function ShipmentForm() {
           }
 
           if (partFromDB) {
-            // 파츠 관리에 설정된 구분 확인
+            // 상품 관리에 설정된 구분 확인
             if (partFromDB.note) {
               const note = partFromDB.note.toLowerCase();
               if (note.includes('파츠') || note.includes('part') || note.includes('부품')) {
@@ -854,7 +878,7 @@ function ShipmentForm() {
               }
             }
 
-            // 파츠 관리 시스템에서 코드 패턴으로 카테고리 추정
+            // 상품 관리 시스템에서 코드 패턴으로 카테고리 추정
             if (partFromDB.code) {
               const code = partFromDB.code.toUpperCase();
               if (code.startsWith('XRBP-') || code.startsWith('NBP-') || code.includes('PART')) {
@@ -866,7 +890,7 @@ function ShipmentForm() {
               }
             }
 
-            // 파츠 관리의 가격 사용 (중요: 항상 파츠 관리의 가격 우선 적용)
+            // 상품 관리의 가격 사용 (중요: 항상 상품 관리의 가격 우선 적용)
             price = partFromDB.price || 0;
             partCode = partFromDB.code || '';
             partsUpdated++;
@@ -894,7 +918,7 @@ function ShipmentForm() {
 
         setSnackbar({
           open: true,
-          message: `${newParts.length}개의 제품으로 분리하여 분석했습니다.${partsUpdated}개의 제품 가격과 구분이 파츠 관리 기준으로 업데이트되었습니다.`,
+          message: `${newParts.length}개의 제품으로 분리하여 분석했습니다.${partsUpdated}개의 제품 가격과 구분이 상품 관리 기준으로 업데이트되었습니다.`,
           severity: 'success'
         });
       } else {
@@ -914,7 +938,7 @@ function ShipmentForm() {
           }
         }
 
-        // 3. 파츠 관리 시스템에서 매칭되는 제품 검색 - 이름이 정확히 일치하는 항목 우선
+        // 3. 상품 관리 시스템에서 매칭되는 제품 검색 - 이름이 정확히 일치하는 항목 우선
         let partFromDB = null;
 
         // 1. 정확한 이름으로 검색 (정확히 일치하는 제품 먼저 찾기)
@@ -955,12 +979,12 @@ function ShipmentForm() {
             }
           }
 
-          // 파츠 관리의 코드와 가격 사용 (중요: 항상 파츠 관리의 가격 우선 적용)
+          // 상품 관리의 코드와 가격 사용 (중요: 항상 상품 관리의 가격 우선 적용)
           partCode = partFromDB.code || partCode;
           price = partFromDB.price || 0;
           updatedFromDB = true;
         } else {
-          // 파츠 관리에서 찾지 못한 경우 기존 가격 사용
+          // 상품 관리에서 찾지 못한 경우 기존 가격 사용
           price = shipment.price ? (shipment.price / (shipment.quantity || 1)) : 0;
         }
 
@@ -981,7 +1005,7 @@ function ShipmentForm() {
         setSnackbar({
           open: true,
           message: updatedFromDB
-            ? '제품 정보가 파츠 관리 기준으로 업데이트되었습니다.'
+            ? '제품 정보가 상품 관리 기준으로 업데이트되었습니다.'
             : '제품 정보가 성공적으로 분석되었습니다.',
           severity: 'success'
         });
@@ -1337,12 +1361,12 @@ function ShipmentForm() {
       <Paper sx={{ p: 3, mb: 3 }}>
         <Typography variant="h6" gutterBottom>기본 정보</Typography>
         <Grid container spacing={2}>
-          <Grid item xs={12} md={4}>
+          <Grid item xs={12} md={3}>
             <FormControl fullWidth>
               <InputLabel>브랜드</InputLabel>
               <Select
                 name="brand"
-                value={shipmentData.brand}
+                value={shipmentData.brand || 'XRB'}
                 onChange={handleChange}
                 label="브랜드"
               >
@@ -1351,24 +1375,41 @@ function ShipmentForm() {
               </Select>
             </FormControl>
           </Grid>
+          <Grid item xs={12} md={3}>
+            <FormControl fullWidth>
+              <InputLabel>출고 창고(필수)</InputLabel>
+              <Select
+                name="warehouse_id"
+                value={shipmentData.warehouse_id || ''}
+                onChange={handleChange}
+                label="출고 창고(필수)"
+                required
+              >
+                <MenuItem value="" disabled><em>선택해주세요</em></MenuItem>
+                {warehouses.map(w => (
+                   <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
 
-          <Grid item xs={12} md={4}>
+          <Grid item xs={12} md={3}>
             <TextField
               fullWidth
               label="고객명"
               name="customer_name"
-              value={shipmentData.customer_name}
+              value={shipmentData.customer_name || ''}
               onChange={handleChange}
               required
             />
           </Grid>
 
-          <Grid item xs={12} md={4}>
+          <Grid item xs={12} md={3}>
             <TextField
               fullWidth
               label="연락처"
               name="customer_phone"
-              value={shipmentData.customer_phone}
+              value={shipmentData.customer_phone || ''}
               onChange={handleChange}
               required
             />

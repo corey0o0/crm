@@ -1494,7 +1494,7 @@ function PartsManagement() {
     <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
       <Typography variant="h5" sx={{ mb: 3, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
         <AddIcon />
-        파츠 관리
+        상품 관리
       </Typography>
       <Box sx={{ mt: 3, mb: 3 }}>
         {/* 상단 액션 버튼 영역 */}
@@ -1706,7 +1706,6 @@ function PartsManagement() {
               {renderSortableHeader('supply_price', '공급가', 'right')}
               {showSupplyPrice && renderSortableHeader('special_price', '특별공급가', 'right')}
               {renderSortableHeader('price', '판매가', 'right')}
-              {renderSortableHeader('stock', '재고', 'right')}
               {renderSortableHeader('note', '구분')}
               {/* <TableCell>연동</TableCell> */}
               <TableCell align="right">액션</TableCell>
@@ -1754,7 +1753,6 @@ function PartsManagement() {
                 <TableCell align="right">{part.supply_price?.toLocaleString() || '-'}</TableCell>
                 {showSupplyPrice && <TableCell align="right">{part.special_price?.toLocaleString() || '-'}</TableCell>}
                 <TableCell align="right">{part.price?.toLocaleString() || '-'}</TableCell>
-                <TableCell align="right">{part.stock || 0}</TableCell>
                 <TableCell>
                   <Typography
                     sx={{
@@ -1958,7 +1956,7 @@ function PartsManagement() {
                     <Box key={sp.relationId} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, p: 1, bgcolor: 'action.hover', borderRadius: 1 }}>
                       <LinkIcon color="primary" />
                       <Typography variant="body2">
-                        {sp.part.name} ({sp.part.code}, {sp.part.brand}) - 재고: {sp.part.stock || 0}
+                        {sp.part.name} ({sp.part.code}, {sp.part.brand})
                       </Typography>
                       <IconButton
                         size="small"
@@ -1997,7 +1995,6 @@ function PartsManagement() {
                       <TableCell>브랜드</TableCell>
                       <TableCell>코드</TableCell>
                       <TableCell>파츠명</TableCell>
-                      <TableCell align="right">재고</TableCell>
                       <TableCell align="right">액션</TableCell>
                     </TableRow>
                   </TableHead>
@@ -2014,7 +2011,6 @@ function PartsManagement() {
                           <TableCell>{part.brand}</TableCell>
                           <TableCell>{part.code}</TableCell>
                           <TableCell>{part.name}</TableCell>
-                          <TableCell align="right">{part.stock || 0}</TableCell>
                           <TableCell align="right">
                             <Button
                               size="small"

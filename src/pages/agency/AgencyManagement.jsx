@@ -3,7 +3,7 @@ import {
   Box, Typography, Paper, Button, TextField, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, IconButton,
   Checkbox, Dialog, DialogTitle, DialogContent, DialogActions,
-  Grid, InputAdornment, Tooltip, Chip, MenuItem, Select, FormControl, InputLabel
+  Grid, InputAdornment, Tooltip, Chip, MenuItem, Select, FormControl, InputLabel, TablePagination
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -15,7 +15,8 @@ import {
   AccountBalance as BankIcon,
   Close as CloseIcon,
   History as HistoryIcon,
-  ShoppingCart as ShoppingCartIcon
+  ShoppingCart as ShoppingCartIcon,
+  LocationOn as LocationOnIcon
 } from '@mui/icons-material';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
@@ -38,7 +39,14 @@ export default function AgencyManagement() {
   const [openCafe24Orders, setOpenCafe24Orders] = useState(false);
   const [editData, setEditData] = useState(null);
   
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(20);
+
   const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    setPage(0);
+  }, [searchTerm]);
 
   useEffect(() => {
     fetchAgencies();
@@ -199,6 +207,8 @@ export default function AgencyManagement() {
     (v.keywords && v.keywords.includes(searchTerm))
   );
 
+  const paginatedData = filteredData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+
   return (
     <Box sx={{ p: 3, maxWidth: 1400, margin: '0 auto' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3, alignItems: 'flex-start' }}>
@@ -283,7 +293,16 @@ export default function AgencyManagement() {
       </Paper>
 
       <TableContainer component={Paper}>
-        <Table size="small">
+        <Table size="small" sx={{
+          '& .MuiTableCell-root': {
+            fontSize: '0.95rem',
+            padding: '10px 16px'
+          },
+          '& .MuiTableHead-root .MuiTableCell-root': {
+            fontWeight: 600,
+            fontSize: '0.95rem'
+          }
+        }}>
           <TableHead sx={{ bgcolor: 'grey.50' }}>
             <TableRow>
               <TableCell padding="checkbox">
@@ -299,19 +318,17 @@ export default function AgencyManagement() {
                 />
               </TableCell>
               <TableCell>거래처코드</TableCell>
-              <TableCell>거래처명</TableCell>
-              <TableCell>대표자명</TableCell>
+              <TableCell>거래처명 (주소)</TableCell>
+              <TableCell>대표자명 (연락처)</TableCell>
               <TableCell align="center">카페24 연동 ID</TableCell>
-              <TableCell>주소</TableCell>
-              <TableCell>전화</TableCell>
-              <TableCell>모바일</TableCell>
-              <TableCell>적요</TableCell>
-              <TableCell align="center">이체정보</TableCell>
+              <TableCell>검색 키워드</TableCell>
+              <TableCell align="center">네이버맵(적요)</TableCell>
+              {/* <TableCell align="center">이체정보</TableCell> */}
               <TableCell align="right">액션</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {filteredData.map(row => (
+            {paginatedData.map(row => (
               <TableRow key={row.id} hover>
                 <TableCell padding="checkbox">
                   <Checkbox
@@ -324,31 +341,46 @@ export default function AgencyManagement() {
                   />
                 </TableCell>
                 <TableCell>{row.business_number}</TableCell>
-                <TableCell sx={{ fontWeight: 'medium' }}>{row.name}</TableCell>
-                <TableCell>{row.ceo_name}</TableCell>
+                <TableCell>
+                  <Typography sx={{ fontWeight: 'bold', fontSize: '1rem' }}>{row.name}</Typography>
+                  {row.address && (
+                    <Tooltip title={row.address}>
+                      <Typography color="text.secondary" sx={{ fontSize: '0.85rem', display: '-webkit-box', mt: 0.5, maxWidth: 250, WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.3 }}>
+                        {row.address}
+                      </Typography>
+                    </Tooltip>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <Typography sx={{ fontSize: '0.95rem', fontWeight: 'bold' }}>{row.ceo_name || '-'}</Typography>
+                  {(row.phone || row.mobile || row.email) && (
+                    <Box sx={{ mt: 0.5, display: 'flex', flexDirection: 'column', gap: 0.3 }}>
+                      {row.phone && <Typography color="text.secondary" sx={{ fontSize: '0.85rem', lineHeight: 1.2 }}>T: {row.phone}</Typography>}
+                      {row.mobile && <Typography color="text.secondary" sx={{ fontSize: '0.85rem', lineHeight: 1.2 }}>M: {row.mobile}</Typography>}
+                      {row.email && <Typography color="text.secondary" sx={{ fontSize: '0.85rem', lineHeight: 1.2 }}>E: {row.email}</Typography>}
+                    </Box>
+                  )}
+                </TableCell>
                 <TableCell align="center">
                   {row.cafe24_member_id ? <Chip label={row.cafe24_member_id} size="small" color="info" variant="outlined" /> : '-'}
                 </TableCell>
-                <TableCell>
-                  <Tooltip title={row.address || '주소 없음'}>
-                    <Typography 
-                      variant="caption" 
-                      sx={{ 
-                        display: '-webkit-box', 
-                        WebkitLineClamp: 2, 
-                        WebkitBoxOrient: 'vertical', 
-                        overflow: 'hidden',
-                        maxWidth: 150
-                      }}
-                    >
-                      {row.address || '-'}
-                    </Typography>
-                  </Tooltip>
-                </TableCell>
-                <TableCell>{row.phone}</TableCell>
-                <TableCell>{row.mobile}</TableCell>
-                <TableCell>{row.memo}</TableCell>
+                <TableCell>{row.keywords}</TableCell>
                 <TableCell align="center">
+                  {row.memo && row.memo.includes('http') ? (
+                    <Tooltip title="네이버 지도 보기">
+                      <IconButton size="small" color="primary" onClick={() => window.open(row.memo, '_blank')}>
+                        <LocationOnIcon />
+                      </IconButton>
+                    </Tooltip>
+                  ) : (
+                    <Tooltip title={row.memo ? `적요: ${row.memo}` : "지도 링크 없음"}>
+                      <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center' }}>
+                        <LocationOnIcon sx={{ color: 'action.disabled', fontSize: '1.25rem' }} />
+                      </Box>
+                    </Tooltip>
+                  )}
+                </TableCell>
+                {/* <TableCell align="center">
                   <Button 
                     size="small" 
                     variant={row.transfer_info?.bank ? "contained" : "outlined"}
@@ -361,7 +393,7 @@ export default function AgencyManagement() {
                   >
                     {row.transfer_info?.bank ? '수정' : '등록'}
                   </Button>
-                </TableCell>
+                </TableCell> */}
                 <TableCell align="right">
                   <Tooltip title="연동된 카페24 주문 내역">
                     <IconButton size="small" color="secondary" onClick={() => { setEditData(row); setOpenCafe24Orders(true); }}>
@@ -392,6 +424,20 @@ export default function AgencyManagement() {
           </TableBody>
         </Table>
       </TableContainer>
+
+      <TablePagination
+        component="div"
+        count={filteredData.length}
+        page={page}
+        onPageChange={(e, p) => setPage(p)}
+        rowsPerPage={rowsPerPage}
+        onRowsPerPageChange={(e) => {
+          setRowsPerPage(parseInt(e.target.value, 10));
+          setPage(0);
+        }}
+        rowsPerPageOptions={[20, 50, 100]}
+        labelRowsPerPage="페이지당 행:"
+      />
 
       {/* 기본 폼 모달 */}
       <AgencyFormDialog 

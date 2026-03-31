@@ -45,6 +45,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { format, parseISO, isValid } from 'date-fns';
 import { processShipmentCompletion, processShipmentRevert } from '../../utils/inventoryUtils';
 import { pendingOutboundApi } from '../../api/pendingOutboundApi';
+import { useAuth } from '../../contexts/AuthContext';
+import { MASTER_ACCOUNTS } from '../../config/menuConfig';
 // import { addShipmentPartsToPendingOrders } from '../../utils/pendingOrderUtils'; // 주문대기 기능 비활성화
 
 function ShipmentDetail() {
@@ -59,6 +61,8 @@ function ShipmentDetail() {
   const [addingToQueue, setAddingToQueue] = useState(false);
   const navigate = useNavigate();
   const { id } = useParams();
+  const { user } = useAuth();
+  const isMaster = user?.email && MASTER_ACCOUNTS.includes(user.email);
 
   const handleAddToPendingOutbounds = async () => {
     if (shipmentData.status !== '준비중') {
@@ -437,6 +441,25 @@ function ShipmentDetail() {
     setSaving(true);
     try {
       const previousStatus = shipmentData.status;
+
+      // === [검수 락 (관리자 바이패스)] ===
+      if (newStatus === '출고완료' && previousStatus !== '출고완료' && !isMaster) {
+        let isCheongdam = true; // 기본적으로 청담 혹은 필수검수 대상이라 가정
+        if (shipmentData.warehouse_id) {
+          const { data: wData } = await supabase.from('warehouses').select('name').eq('id', shipmentData.warehouse_id).single();
+          isCheongdam = wData && wData.name.includes('청담');
+        }
+
+        if (isCheongdam) {
+           const { data: po } = await supabase.from('pending_outbounds').select('status').eq('source_id', id).maybeSingle();
+           if (!po || po.status !== '완료') {
+             alert('청담 창고 출고건은 반드시 [매장/온라인 출고] 탭에서 검수를 완료(' + (po?po.status:'미등록') + ')해야만 출고 확정(완료) 처리가 가능합니다. (일반 계정 제한)');
+             setSaving(false);
+             return;
+           }
+        }
+      }
+      // ===================================
 
       // 브랜드 코드 확인 (출고 정보에서 브랜드 추정)
       let brandCode = 'XRB'; // 기본값

@@ -151,11 +151,11 @@ export async function addCafe24ProductMapping(mall_id, cafe24_product_code, part
   return resp.json();
 }
 
-export async function transferCafe24Orders(orderIds) {
+export async function transferCafe24Orders(orderIds, warehouseConfig = {}) {
   const resp = await fetch(`${BACKEND_URL}/api/cafe24/transfer/orders`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ orderIds })
+    body: JSON.stringify({ orderIds, warehouseConfig })
   });
 
   if (!resp.ok) {

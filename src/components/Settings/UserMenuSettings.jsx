@@ -34,7 +34,7 @@ const AVAILABLE_PERMISSIONS = [
   { key: 'shipment', label: '출고(매장) 관리' },
   { key: 'cafe24_orders', label: '온라인주문 관리' },
   { key: 'agencies', label: '거래처 관리' },
-  { key: 'parts', label: '파츠 관리' },
+  { key: 'parts', label: '상품 관리' },
   { key: 'stocks', label: '매장 재고 관리' },
   { key: 'inventory_management', label: '입출고 관리' },
   { key: 'sales_stats', label: '매출 통계' },

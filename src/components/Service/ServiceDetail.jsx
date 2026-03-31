@@ -104,7 +104,8 @@ function ServiceDetail() {
     status: '',
     delivery_method: '',
     seller: '',
-    writer: ''
+    writer: '',
+    warehouse_id: ''
   });
   const [openPartsDialog, setOpenPartsDialog] = useState(false);
   const [selectedParts, setSelectedParts] = useState([]);
@@ -193,6 +194,23 @@ function ServiceDetail() {
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [brand, setBrand] = useState('');
+
+  // 창고 상태 추가
+  const [warehouses, setWarehouses] = useState([]);
+
+  // 창고 목록 불러오기
+  const fetchWarehouses = async () => {
+    try {
+      const { data } = await supabase.from('warehouses').select('*').order('name');
+      setWarehouses(data || []);
+    } catch (e) {
+      console.error('창고 로딩 에러:', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchWarehouses();
+  }, []);
 
   // 변경사항 감지를 위한 상태 추가
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -535,7 +553,8 @@ function ServiceDetail() {
         completion_time: completionTime,
         service_parts: serviceData.service_parts || [],
         writer: serviceData.writer || '관리자',
-        mileage: mileage
+        mileage: mileage,
+        warehouse_id: serviceData.warehouse_id || ''
       });
 
       console.log('Loaded reception data:', {
@@ -604,7 +623,8 @@ function ServiceDetail() {
             completion_time: completionTime,
             service_parts: serviceData.service_parts || [],
             writer: serviceData.writer || '관리자',
-            mileage: mileage
+            mileage: mileage,
+            warehouse_id: serviceData.warehouse_id || ''
           },
           selectedParts: selectedParts.map(part => ({
             id: part.id,
@@ -627,7 +647,8 @@ function ServiceDetail() {
             completion_time: completionTime,
             service_parts: serviceData.service_parts || [],
             writer: serviceData.writer || '관리자',
-            mileage: mileage
+            mileage: mileage,
+            warehouse_id: serviceData.warehouse_id || ''
           },
           selectedParts: [],
           tags: serviceData.service_tags ? serviceData.service_tags.map(t => t.tag_name).sort() : [],
@@ -791,6 +812,7 @@ function ServiceDetail() {
         mileage: formData.mileage,
         writer: formData.writer,
         reception_type: formData.reception_type,
+        warehouse_id: formData.warehouse_id || null, // 창고 반영
         updated_at: new Date().toISOString()
       };
 
@@ -822,7 +844,8 @@ function ServiceDetail() {
           part_id: part.id,
           quantity: part.quantity,
           price: part.price,
-          usage: part.usage || 'A/S'
+          usage: part.usage || 'A/S',
+          warehouse_id: formData.warehouse_id || null // 파츠에도 창고 반영
         }));
 
         const { error: insertPartsError } = await supabase
@@ -2850,6 +2873,23 @@ function ServiceDetail() {
                         >
                           <MenuItem value="XRB">X-RIDER</MenuItem>
                           <MenuItem value="NB">NEARBIKE</MenuItem>
+                        </TextField>
+                      </Grid>
+                      <Grid item xs={12}>
+                        <TextField
+                          select
+                          fullWidth
+                          size="small"
+                          name="warehouse_id"
+                          label="A/S 처리 창고(필수)"
+                          value={formData.warehouse_id || ''}
+                          onChange={handleChange}
+                          required
+                        >
+                          <MenuItem value="" disabled><em>선택해주세요</em></MenuItem>
+                          {warehouses.map(w => (
+                            <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>
+                          ))}
                         </TextField>
                       </Grid>
                       <Grid item xs={12}>

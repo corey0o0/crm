@@ -1130,7 +1130,7 @@ function ShipmentList() {
             // 카테고리 추정
             let category = '기체'; // 기본값
 
-            // 파츠 관리 시스템에서 매칭되는 제품 검색
+            // 상품 관리 시스템에서 매칭되는 제품 검색
             let partFromDB = null;
             try {
               const { data: matchingParts } = await supabase
@@ -1143,7 +1143,7 @@ function ShipmentList() {
               if (matchingParts && matchingParts.length > 0) {
                 partFromDB = matchingParts[0];
 
-                // 파츠 관리에 설정된 구분 확인
+                // 상품 관리에 설정된 구분 확인
                 if (partFromDB.note) {
                   const note = partFromDB.note.toLowerCase();
                   if (note.includes('파츠') || note.includes('part') || note.includes('부품')) {

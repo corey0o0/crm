@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Paper, Button, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Chip, CircularProgress, Alert, Stack, Dialog, DialogTitle,
-  DialogContent, DialogActions, Autocomplete, TextField, Tabs, Tab, Select, MenuItem, FormControl, InputLabel, Checkbox, IconButton, Tooltip, InputAdornment
+  DialogContent, DialogActions, Autocomplete, TextField, Tabs, Tab, Select, MenuItem, FormControl, InputLabel, Checkbox, IconButton, Tooltip, InputAdornment, TablePagination, ToggleButton, ToggleButtonGroup
 } from '@mui/material';
 import { Sync as SyncIcon, PersonAdd as PersonAddIcon, Search as SearchIcon } from '@mui/icons-material';
 import Cafe24Settings from '../../components/Settings/Cafe24Settings';
 import { supabase } from '../../lib/supabaseClient';
 import { getCafe24Malls, syncCafe24Orders, addCafe24ProductMapping, transferCafe24Orders } from '../../utils/cafe24Api';
 import { agencyApi } from '../../api/agencyApi';
+import { warehouseApi } from '../../api/warehouseApi';
 
 const STATUS_KO = {
   'N00': '입금전', 'N10': '상품준비중', 'N20': '배송보류', 'N21': '배송준비중',
@@ -50,12 +51,24 @@ export default function Cafe24OrderList() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState(null);
+  const [warehouses, setWarehouses] = useState([]);
+  const [warehouseConfig, setWarehouseConfig] = useState({});
+  const [batchWarehouse, setBatchWarehouse] = useState('');
   const [tabValue, setTabValue] = useState(0);
   const [selectedMall, setSelectedMall] = useState('all');
   const [selectedOrders, setSelectedOrders] = useState([]);
   const [transferFilter, setTransferFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [badgeFilter, setBadgeFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(20);
+
+  useEffect(() => {
+    setPage(0);
+  }, [selectedMall, transferFilter, statusFilter, searchQuery]);
+
   const getFormattedDate = (date) => {
     const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
     return offsetDate.toISOString().split('T')[0];
@@ -102,7 +115,41 @@ export default function Cafe24OrderList() {
     fetchOrders();
     fetchParts();
     fetchAgencies();
+    fetchWarehouses();
   }, []);
+
+  useEffect(() => {
+    if (warehouses.length > 0 && orders.length > 0) {
+      const defaultWh = warehouses.find(w => w.name.includes('청담'));
+      if (!defaultWh) return;
+      
+      setWarehouseConfig(prev => {
+        let changed = false;
+        const next = { ...prev };
+        orders.forEach(order => {
+          if (order.is_transferred) return;
+          const items = order.order_items || [];
+          if (!next[order.id]) {
+            next[order.id] = {};
+          }
+          items.forEach((_, idx) => {
+            if (!next[order.id][idx]) {
+              next[order.id][idx] = defaultWh.id;
+              changed = true;
+            }
+          });
+        });
+        return changed ? next : prev;
+      });
+    }
+  }, [warehouses, orders]);
+
+  const fetchWarehouses = async () => {
+    try {
+      const data = await warehouseApi.getAll();
+      setWarehouses(data || []);
+    } catch(e) { console.error('fetch wh err', e) }
+  };
 
   const fetchAgencies = async () => {
     try {
@@ -176,12 +223,15 @@ export default function Cafe24OrderList() {
     }
   };
 
-  const filteredOrders = orders.filter(order => {
+  const baseFilteredOrders = orders.filter(order => {
     if (selectedMall !== 'all' && order.mall_id !== selectedMall) return false;
-    if (transferFilter === 'transferred' && !order.is_transferred) return false;
-    if (transferFilter === 'not_transferred' && order.is_transferred) return false;
     if (statusFilter !== 'all' && getKoStatus(order.status) !== statusFilter) return false;
     
+    // 뱃지 필터링
+    if (badgeFilter === 'special' && order.member_authentication !== 'B') return false;
+    if (badgeFilter === 'xrider' && order.buyer_group_no !== '15') return false;
+    if (badgeFilter === 'normal' && (order.member_authentication === 'B' || order.buyer_group_no === '15')) return false;
+
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       const matchOrderId = String(order.order_id || '').toLowerCase().includes(q);
@@ -192,6 +242,18 @@ export default function Cafe24OrderList() {
       
       if (!matchOrderId && !matchBuyerName && !matchBuyerId && !matchProduct) return false;
     }
+    return true;
+  });
+
+  const transferCounts = {
+    all: baseFilteredOrders.length,
+    not_transferred: baseFilteredOrders.filter(o => !o.is_transferred).length,
+    transferred: baseFilteredOrders.filter(o => o.is_transferred).length,
+  };
+
+  const filteredOrders = baseFilteredOrders.filter(order => {
+    if (transferFilter === 'transferred' && !order.is_transferred) return false;
+    if (transferFilter === 'not_transferred' && order.is_transferred) return false;
     return true;
   });
 
@@ -242,6 +304,31 @@ export default function Cafe24OrderList() {
     }
   };
 
+  const handleBatchApplyWarehouse = () => {
+    if (!batchWarehouse) {
+      alert('일괄 적용할 창고를 선택해주세요.');
+      return;
+    }
+    if (!selectedOrders.length) {
+      alert('창고를 일괄 지정할 주문을 먼저 체크해주세요.');
+      return;
+    }
+    setWarehouseConfig(prev => {
+      const next = { ...prev };
+      selectedOrders.forEach(orderId => {
+        const order = orders.find(o => o.id === orderId);
+        if (order && !order.is_transferred) {
+          if (!next[orderId]) next[orderId] = {};
+          (order.order_items || []).forEach((_, idx) => {
+             next[orderId][idx] = batchWarehouse;
+          });
+        }
+      });
+      return next;
+    });
+    alert('체크된 주문의 모든 품목에 출고 창고가 일괄 지정되었습니다.');
+  };
+
   const handleSalesTransfer = async () => {
     if (!selectedOrders.length) return;
     const ordersToTransfer = orders.filter(o => selectedOrders.includes(o.id) && !o.is_transferred);
@@ -251,13 +338,68 @@ export default function Cafe24OrderList() {
       return;
     }
 
-    if (!window.confirm(`${ordersToTransfer.length}건의 주문을 매출(출고) 내역으로 전송하시겠습니까?`)) return;
+    let missingWarehouse = false;
+    for (const order of ordersToTransfer) {
+      const items = order.order_items || [];
+      for (let i = 0; i < items.length; i++) {
+        if (!warehouseConfig[order.id] || !warehouseConfig[order.id][i]) {
+          missingWarehouse = true;
+          break;
+        }
+      }
+      if (missingWarehouse) break;
+    }
+
+    if (missingWarehouse) {
+      alert('🔴 창고(출고처)가 지정되지 않은 항목이 있습니다.\n전송할 모든 주문의 품목 끝에 있는 [출고창고]를 지정해주세요.');
+      return;
+    }
+
+    if (!window.confirm(`${ordersToTransfer.length}건의 주문을 분할 전송(매출/출고 등록 및 재고 차감)하시겠습니까?`)) return;
 
     try {
       setLoading(true);
-      await transferCafe24Orders(ordersToTransfer.map(o => o.id));
+      await transferCafe24Orders(ordersToTransfer.map(o => o.id), warehouseConfig);
       alert('전송이 완료되었습니다.');
       setSelectedOrders([]);
+      setWarehouseConfig(prev => {
+        const next = { ...prev };
+        ordersToTransfer.forEach(o => delete next[o.id]);
+        return next;
+      });
+      fetchOrders();
+    } catch (err) {
+      console.error(err);
+      alert(`전송 실패: ${err.message}`);
+      setLoading(false);
+    }
+  };
+
+  const handleSingleSalesTransfer = async (order) => {
+    if (order.is_transferred) return;
+    const items = order.order_items || [];
+    let missingWarehouse = false;
+    for (let i = 0; i < items.length; i++) {
+      if (!warehouseConfig[order.id] || !warehouseConfig[order.id][i]) {
+        missingWarehouse = true;
+        break;
+      }
+    }
+    if (missingWarehouse) {
+      alert('🔴 창고(출고처)가 지정되지 않은 항목이 있습니다.\n해당 주문의 품목에 있는 [출고창고]를 모두 지정해주세요.');
+      return;
+    }
+    if (!window.confirm(`주문(Cafe24 ID: ${order.order_id})을 전송(매출/출고 등록 및 재고 차감)하시겠습니까?`)) return;
+
+    try {
+      setLoading(true);
+      await transferCafe24Orders([order.id], warehouseConfig);
+      alert('전송이 완료되었습니다.');
+      setWarehouseConfig(prev => {
+        const next = { ...prev };
+        delete next[order.id];
+        return next;
+      });
       fetchOrders();
     } catch (err) {
       console.error(err);
@@ -368,14 +510,24 @@ export default function Cafe24OrderList() {
               {/* 첫 번째 줄: 필터 및 일반 설정 */}
               <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2, p: 2, bgcolor: '#f8f9fa', borderRadius: 1 }}>
 
-                <FormControl size="small" sx={{ minWidth: 150, bgcolor: 'white' }}>
-                  <InputLabel>판매전송 상태</InputLabel>
-                  <Select value={transferFilter} label="판매전송 상태" onChange={e => setTransferFilter(e.target.value)}>
-                    <MenuItem value="all">전체 내역</MenuItem>
-                    <MenuItem value="not_transferred">미전송 내역 (수집됨)</MenuItem>
-                    <MenuItem value="transferred">매출반영(전송) 완료</MenuItem>
-                  </Select>
-                </FormControl>
+                <ToggleButtonGroup
+                  color="primary"
+                  value={transferFilter}
+                  exclusive
+                  onChange={(e, val) => { if (val) setTransferFilter(val); }}
+                  size="small"
+                  sx={{ bgcolor: 'white', height: 40 }}
+                >
+                  <ToggleButton value="all" sx={{ px: 2 }}>
+                    전체 내역 <Chip label={transferCounts.all} size="small" sx={{ ml: 1, height: 20, fontSize: '0.75rem' }} color={transferFilter === 'all' ? "primary" : "default"} />
+                  </ToggleButton>
+                  <ToggleButton value="not_transferred" sx={{ px: 2 }}>
+                    미전송 <Chip label={transferCounts.not_transferred} size="small" sx={{ ml: 1, height: 20, fontSize: '0.75rem' }} color={transferFilter === 'not_transferred' ? "warning" : "default"} />
+                  </ToggleButton>
+                  <ToggleButton value="transferred" sx={{ px: 2 }}>
+                    전송완료 <Chip label={transferCounts.transferred} size="small" sx={{ ml: 1, height: 20, fontSize: '0.75rem' }} color={transferFilter === 'transferred' ? "success" : "default"} />
+                  </ToggleButton>
+                </ToggleButtonGroup>
 
                 <FormControl size="small" sx={{ minWidth: 150, bgcolor: 'white' }}>
                   <InputLabel>주문 상태</InputLabel>
@@ -384,6 +536,16 @@ export default function Cafe24OrderList() {
                     {[...new Set(orders.map(o => getKoStatus(o.status)))].filter(Boolean).sort().map(label => (
                       <MenuItem key={label} value={label}>{label}</MenuItem>
                     ))}
+                  </Select>
+                </FormControl>
+
+                <FormControl size="small" sx={{ minWidth: 120, bgcolor: 'white' }}>
+                  <InputLabel>고객 분류</InputLabel>
+                  <Select value={badgeFilter} label="고객 분류" onChange={e => setBadgeFilter(e.target.value)}>
+                    <MenuItem value="all">모든 고객</MenuItem>
+                    <MenuItem value="special">특별관리(B)</MenuItem>
+                    <MenuItem value="xrider">엑스라이더</MenuItem>
+                    <MenuItem value="normal">기타/일반</MenuItem>
                   </Select>
                 </FormControl>
 
@@ -429,12 +591,27 @@ export default function Cafe24OrderList() {
                 </Typography>
                 
                 {selectedOrders.length > 0 ? (
-                  <Stack direction="row" spacing={2} sx={{ ml: 'auto' }}>
+                  <Stack direction="row" spacing={2} sx={{ ml: 'auto', alignItems: 'center' }}>
+                    <FormControl size="small" sx={{ minWidth: 140, bgcolor: 'white' }}>
+                      <InputLabel>선택 일괄 창고지정</InputLabel>
+                      <Select 
+                        value={batchWarehouse} 
+                        onChange={e => setBatchWarehouse(e.target.value)}
+                        label="선택 일괄 창고지정"
+                      >
+                        <MenuItem value=""><em>미선택</em></MenuItem>
+                        {warehouses.map(w => <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>)}
+                      </Select>
+                    </FormControl>
+                    <Button size="small" variant="contained" color="secondary" onClick={handleBatchApplyWarehouse}>
+                      일괄적용
+                    </Button>
+                    <Box sx={{ width: 1, height: 30, bgcolor: 'divider', mx: 1 }} />
                     <Button size="small" variant="outlined" color="error" onClick={handleDeleteSelected}>
-                      선택 주문 일괄 삭제
+                      삭제
                     </Button>
                     <Button size="medium" variant="contained" color="primary" onClick={handleSalesTransfer}>
-                      선택 항목 판매 반영(전송)하기
+                      판매 반영(전송)
                     </Button>
                   </Stack>
                 ) : (
@@ -448,7 +625,19 @@ export default function Cafe24OrderList() {
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
       <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
-        <Table size="small" sx={{ minWidth: 1500, whiteSpace: 'nowrap' }}>
+        <Table size="small" sx={{ 
+          minWidth: 1500, 
+          whiteSpace: 'nowrap',
+          '& .MuiTableCell-root': {
+            fontSize: '0.85rem',
+            padding: '3px 6px',
+            lineHeight: 1.2
+          },
+          '& .MuiTableHead-root .MuiTableCell-root': {
+            fontWeight: 600,
+            fontSize: '0.85rem'
+          }
+        }}>
           <TableHead sx={{ bgcolor: '#f5f5f5' }}>
             <TableRow>
               <TableCell padding="checkbox">
@@ -458,26 +647,24 @@ export default function Cafe24OrderList() {
                   onChange={handleSelectAllClick}
                 />
               </TableCell>
-              <TableCell><strong>수집처</strong></TableCell>
               <TableCell><strong>쇼핑몰명</strong></TableCell>
-              <TableCell><strong>주문번호</strong></TableCell>
+              <TableCell><strong>주문번호(일시/상태)</strong></TableCell>
               <TableCell><strong>주문자(ID)</strong></TableCell>
-              <TableCell><strong>주문일시 (상태)</strong></TableCell>
-              <TableCell><strong>쇼핑몰상품명</strong></TableCell>
-              <TableCell><strong>상품 옵션</strong></TableCell>
+              <TableCell><strong>쇼핑몰상품명(옵션)</strong></TableCell>
               <TableCell align="right"><strong>수량</strong></TableCell>
-              <TableCell align="right"><strong>상품단가</strong></TableCell>
-              <TableCell align="right"><strong>주문금액</strong></TableCell>
-              <TableCell align="right"><strong>상품별할인금액</strong></TableCell>
-              <TableCell align="right"><strong>묶음할인금액</strong></TableCell>
-              <TableCell align="right"><strong>실결제금액</strong></TableCell>
+              <TableCell align="right"><strong>단가</strong></TableCell>
+              <TableCell align="right"><strong>주문액</strong></TableCell>
+              <TableCell align="right"><strong>상품할인</strong></TableCell>
+              <TableCell align="right"><strong>묶음할인</strong></TableCell>
+              <TableCell align="right"><strong>실결제액</strong></TableCell>
               <TableCell align="right"><strong>배송비</strong></TableCell>
-              <TableCell align="right"><strong>전체할인/적립금</strong></TableCell>
+              <TableCell align="right"><strong>할인/적립금</strong></TableCell>
+              <TableCell align="right"><strong>총결제액</strong></TableCell>
               <TableCell><strong>품목코드(ERP)</strong></TableCell>
               <TableCell><strong>품목명(ERP)</strong></TableCell>
               <TableCell><strong>배송메시지</strong></TableCell>
+              <TableCell><strong>출고창고(필수)</strong></TableCell>
               <TableCell><strong>판매전송</strong></TableCell>
-              <TableCell><strong>상태별처리기능</strong></TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -486,7 +673,7 @@ export default function Cafe24OrderList() {
             ) : filteredOrders.length === 0 ? (
               <TableRow><TableCell colSpan={16} align="center" sx={{ py: 3 }}>수집·필터 조건에 맞는 주문 데이터가 없습니다.</TableCell></TableRow>
             ) : (
-              filteredOrders.reduce((acc, order) => {
+              filteredOrders.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).reduce((acc, order) => {
                 const items = order.order_items || [];
                 if (items.length === 0) {
                   // 빈 주문인 경우 빈 행 하나 추가
@@ -509,7 +696,7 @@ export default function Cafe24OrderList() {
                         </Box>
                       </TableCell>
                       <TableCell>{formatDate(order.order_date)}</TableCell>
-                      <TableCell colSpan={14} align="center" sx={{ color: 'text.secondary' }}>상품 정보가 없습니다</TableCell>
+                      <TableCell colSpan={13} align="center" sx={{ color: 'text.secondary' }}>상품 정보가 없습니다</TableCell>
                     </TableRow>
                   );
                   return acc;
@@ -537,45 +724,52 @@ export default function Cafe24OrderList() {
                           />
                         </TableCell>
                       )}
-                      {idx === 0 && <TableCell rowSpan={items.length}>카페24</TableCell>}
                       {idx === 0 && <TableCell rowSpan={items.length}>카페24 - {order.mall_id}</TableCell>}
-                      {idx === 0 && <TableCell rowSpan={items.length} sx={{ fontFamily: 'monospace' }}>{order.order_id}</TableCell>}
+                      {idx === 0 && (
+                        <TableCell rowSpan={items.length}>
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                            <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 500 }}>{order.order_id}</Typography>
+                            <Typography variant="caption" color="text.secondary">{formatDate(order.order_date)}</Typography>
+                            <Box>
+                              <Chip label={getKoStatus(order.status)} size="small" color={getBadgeColor(order.status)} variant={order.status.startsWith('N') ? 'outlined' : 'filled'} sx={{ height: 18, fontSize: '0.7rem' }} />
+                            </Box>
+                          </Box>
+                        </TableCell>
+                      )}
                       {idx === 0 && (
                         <TableCell rowSpan={items.length}>
                           <Box>
+                            {((order.buyer_group_no && order.buyer_group_no !== '1' && order.buyer_group_no !== '12') || order.member_authentication === 'B') && (
+                              <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mb: 0.5 }}>
+                                {order.buyer_group_no && order.buyer_group_no !== '1' && order.buyer_group_no !== '12' && <Chip size="small" label={getGroupName(order.buyer_group_no)} sx={{ height: 16, fontSize: '0.65rem' }} color={order.buyer_group_no === '15' ? 'warning' : 'default'}/>}
+                                {order.member_authentication === 'B' && <Chip size="small" label="특별관리" color="error" sx={{ height: 16, fontSize: '0.65rem' }} />}
+                              </Box>
+                            )}
                             <Typography variant="body2" component="div" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                               {order.buyer_name || '비회원'}
-                              {order.buyer_group_no && order.buyer_group_no !== '1' && <Chip size="small" label={getGroupName(order.buyer_group_no)} sx={{ height: 16, fontSize: '0.65rem' }} color={order.buyer_group_no === '12' ? 'success' : order.buyer_group_no === '15' ? 'warning' : 'default'}/>}
-                              {order.member_authentication === 'B' && <Chip size="small" label="특별관리" color="error" sx={{ height: 16, fontSize: '0.65rem' }} />}
                             </Typography>
                             {order.buyer_id && (
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 0.5 }}>
                                 <Typography variant="caption" color="text.secondary">({order.buyer_id})</Typography>
-                                {order.agency_id && agencies.find(a => a.id === order.agency_id) ? (
-                                  <Chip size="small" label={agencies.find(a => a.id === order.agency_id).name} color="info" sx={{ height: 18, fontSize: '0.7rem' }} />
-                                ) : null}
-                                <Tooltip title="거래처 수동 매칭">
-                                  <IconButton size="small" sx={{ padding: 0.2 }} onClick={() => handleOpenAgencyMatchModal(order)}>
-                                    <PersonAddIcon fontSize="small" color="action" />
-                                  </IconButton>
-                                </Tooltip>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  {order.agency_id && agencies.find(a => a.id === order.agency_id) ? (
+                                    <Chip size="small" label={agencies.find(a => a.id === order.agency_id).name} color="info" sx={{ height: 18, fontSize: '0.7rem' }} />
+                                  ) : null}
+                                  <Tooltip title="거래처 수동 매칭">
+                                    <IconButton size="small" sx={{ padding: 0.2 }} onClick={() => handleOpenAgencyMatchModal(order)}>
+                                      <PersonAddIcon fontSize="small" color="action" />
+                                    </IconButton>
+                                  </Tooltip>
+                                </Box>
                               </Box>
                             )}
                           </Box>
                         </TableCell>
                       )}
-                      {idx === 0 && (
-                        <TableCell rowSpan={items.length}>
-                          <Box>
-                            <Typography variant="body2">{formatDate(order.order_date)}</Typography>
-                            <Stack direction="row" spacing={0.5} sx={{ mt: 0.5 }}>
-                              <Chip label={getKoStatus(order.status)} size="small" color={getBadgeColor(order.status)} variant={order.status.startsWith('N') ? 'outlined' : 'filled'} />
-                            </Stack>
-                          </Box>
-                        </TableCell>
-                      )}
-                      <TableCell>{item.name}</TableCell>
-                      <TableCell>{item.options || '-'}</TableCell>
+                      <TableCell>
+                        <Typography variant="body2">{item.name}</Typography>
+                        {item.options && <Typography variant="caption" color="text.secondary" display="block">{item.options}</Typography>}
+                      </TableCell>
                       <TableCell align="right">{item.quantity}</TableCell>
                       <TableCell align="right">{Number(item.price || 0).toLocaleString()}</TableCell>
                       <TableCell align="right">{(Number(item.price || 0) * Number(item.quantity || 1)).toLocaleString()}</TableCell>
@@ -584,11 +778,19 @@ export default function Cafe24OrderList() {
                       <TableCell align="right">{((Number(item.payment_amount === undefined ? (Number(item.price || 0) * Number(item.quantity || 1)) : item.payment_amount)) + (idx === 0 ? Number(order.shipping_fee || 0) : 0)).toLocaleString()}</TableCell>
                       {idx === 0 && <TableCell align="right" rowSpan={items.length}>{Number(order.shipping_fee || 0).toLocaleString()}</TableCell>}
                       {idx === 0 && <TableCell align="right" rowSpan={items.length}>{displayUsedPoints > 0 ? `-${displayUsedPoints.toLocaleString()}` : '0'}</TableCell>}
+                      {idx === 0 && <TableCell align="right" rowSpan={items.length}><strong>{Number(order.actual_payment_amount !== undefined && order.actual_payment_amount !== null ? order.actual_payment_amount : (order.total_amount || 0)).toLocaleString()}</strong></TableCell>}
                       <TableCell>
                         {erpCode || (needsMapping ? <Chip size="small" label="미스매칭" color="warning" /> : '-')}
                       </TableCell>
                       <TableCell>
-                        {erpName ? erpName : (
+                        {erpName ? (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'nowrap' }}>
+                            {erpName}
+                            <IconButton size="small" onClick={() => openMappingModal(order, item)} title="매칭 변경">
+                              <SyncIcon fontSize="small" color="action" />
+                            </IconButton>
+                          </Box>
+                        ) : (
                           needsMapping ? (
                             <Button size="small" variant="outlined" color="warning" onClick={() => openMappingModal(order, item)}>
                               수동 연결
@@ -601,14 +803,33 @@ export default function Cafe24OrderList() {
                           {order.shipping_message || '-'}
                         </TableCell>
                       )}
+                      <TableCell>
+                        <FormControl size="small" fullWidth sx={{ minWidth: 100 }} error={!order.is_transferred && !(warehouseConfig[order.id] && warehouseConfig[order.id][idx])}>
+                           <Select 
+                              value={(warehouseConfig[order.id] && warehouseConfig[order.id][idx]) || ''}
+                              onChange={e => setWarehouseConfig(prev => ({
+                                ...prev,
+                                [order.id]: {
+                                  ...(prev[order.id] || {}),
+                                  [idx]: e.target.value
+                                }
+                              }))}
+                              displayEmpty
+                              disabled={order.is_transferred}
+                              sx={{ fontSize: '0.8rem', height: 28 }}
+                           >
+                             <MenuItem value="" disabled><em>선택안됨</em></MenuItem>
+                             {warehouses.map(w => <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>)}
+                           </Select>
+                        </FormControl>
+                      </TableCell>
                       {idx === 0 && (
                         <TableCell rowSpan={items.length}>
-                          {order.is_transferred ? <Chip size="small" label="완료" color="success" /> : '미전송'}
-                        </TableCell>
-                      )}
-                      {idx === 0 && (
-                        <TableCell rowSpan={items.length}>
-                          <Button size="small" variant="text">주문확인</Button>
+                          {order.is_transferred ? (
+                            <Chip size="small" label="완료" color="success" />
+                          ) : (
+                            <Button size="small" variant="contained" color="primary" onClick={() => handleSingleSalesTransfer(order)}>판매반영</Button>
+                          )}
                         </TableCell>
                       )}
                     </TableRow>
@@ -620,6 +841,20 @@ export default function Cafe24OrderList() {
           </TableBody>
         </Table>
       </TableContainer>
+      
+      <TablePagination
+        component="div"
+        count={filteredOrders.length}
+        page={page}
+        onPageChange={(e, p) => setPage(p)}
+        rowsPerPage={rowsPerPage}
+        onRowsPerPageChange={(e) => {
+          setRowsPerPage(parseInt(e.target.value, 10));
+          setPage(0);
+        }}
+        rowsPerPageOptions={[20, 50, 100]}
+        labelRowsPerPage="페이지당 행:"
+      />
           </>
         )}
       </div>

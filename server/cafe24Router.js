@@ -285,8 +285,9 @@ module.exports = function(supabaseAdmin) {
       }
 
       const orders = response.data.orders || [];
-      const validOrders = orders.filter(o => o.order_status !== 'N00');
-      console.log(`[Cafe24 Sync] Fetched ${orders.length} orders from Cafe24 API, processing ${validOrders.length} valid orders (filtered out 'N00' unpaid orders)`);
+      const excludedStatuses = ['N00', 'N30', 'F'];
+      const validOrders = orders.filter(o => !excludedStatuses.includes(o.order_status));
+      console.log(`[Cafe24 Sync] Fetched ${orders.length} orders from Cafe24 API, processing ${validOrders.length} valid orders (filtered out unpaid/completed orders)`);
 
       for (const order of validOrders) {
         // 주문한 상품들 배열 만들기
@@ -442,15 +443,20 @@ module.exports = function(supabaseAdmin) {
     }
   });
 
-  // 5. 선택된 주문 출고(매출) 전송 API
+  // 5. 선택된 주문 출고(매출) 분할 전송 API (다중 창고 대응)
   router.post('/transfer/orders', async (req, res) => {
     try {
-      const { orderIds } = req.body;
+      const { orderIds, warehouseConfig } = req.body;
       if (!orderIds || !orderIds.length) {
         return res.status(400).json({ error: '주문 ID가 제공되지 않았습니다.' });
       }
 
-      // 1. 주문 목록 가져오기
+      // 1. 창고 정보 조회 (청담 판별용)
+      const { data: warehouses } = await supabaseAdmin.from('warehouses').select('id, name');
+      const warehouseMap = {};
+      (warehouses || []).forEach(w => { warehouseMap[w.id] = w.name; });
+
+      // 2. 주문 목록 가져오기
       const { data: orders, error: fetchErr } = await supabaseAdmin
         .from('cafe24_orders')
         .select('*')
@@ -464,80 +470,173 @@ module.exports = function(supabaseAdmin) {
 
       let transferCount = 0;
 
-      // 2. 각 주문별로 출고(매출) 및 거래처 장부 생성
+      // 3. 각 주문별로 출고(매출) 분할 생성
       for (const order of orders) {
         const orderDateStr = order.order_date ? new Date(order.order_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
         const items = order.order_items || [];
         
-        let totalQuantity = 0;
-        let totalPrice = 0;
-        let itemNames = [];
-        let brandName = 'XRB'; // Default, could be extracted from items
+        // 창고별로 아이템 그룹화
+        const itemsByWarehouse = {};
+        
+        items.forEach((item, index) => {
+          let wid = null;
+          if (warehouseConfig && warehouseConfig[order.id] && warehouseConfig[order.id][index]) {
+            wid = warehouseConfig[order.id][index];
+          }
+          if (!wid) wid = 'DEFAULT';
 
-        items.forEach(item => {
-          totalQuantity += Number(item.quantity || 1);
-          totalPrice += Number(item.payment_amount || (Number(item.price || 0) * Number(item.quantity || 1)));
-          itemNames.push(item.name);
-          if (item.name && item.name.includes('NB')) brandName = 'NB';
+          if (!itemsByWarehouse[wid]) itemsByWarehouse[wid] = [];
+          itemsByWarehouse[wid].push(item);
         });
 
-        // 배송비 더하기
-        totalPrice += Number(order.shipping_fee || 0);
+        const warehouseIds = Object.keys(itemsByWarehouse);
 
-        const productName = itemNames.length > 1 ? `${itemNames[0]} 외 ${itemNames.length - 1}건` : (itemNames[0] || '상품 없음');
+        for (const wid of warehouseIds) {
+          const wItems = itemsByWarehouse[wid];
+          const wName = warehouseMap[wid] || '기본창고';
+          const isCheongdam = wName.includes('청담');
+          
+          let totalQuantity = 0;
+          let totalPrice = 0;
+          let itemNames = [];
+          let brandName = 'XRB';
 
-        // 출고(shipments) 생성 
-        const { data: shipmentData, error: shipErr } = await supabaseAdmin.from('shipments').insert({
-          shipment_date: orderDateStr,
-          customer_name: order.buyer_name || '비회원',
-          customer_phone: order.buyer_id || '',
-          customer_address: order.shipping_message || '',
-          product_name: productName,
-          quantity: totalQuantity,
-          delivery_method: '택배',
-          tracking_number: order.order_id,
-          status: '배송중',
-          note: `[판매처: 카페24-${order.mall_id}] ${order.order_id}`,
-          brand: brandName,
-          price: totalPrice,
-          sales_channel: order.mall_id === 'slimpack79' ? '스마트스토어' : '공홈', // Rough mapping
-          order_date: order.order_date
-        }).select().single();
-
-        if (shipErr) {
-          console.error(`[Transfer Error] Shipment creation failed for ${order.id}:`, shipErr);
-          continue; // 스킵하고 다음 주문 처리
-        }
-
-        // 출고 상세 품목(shipment_parts) 생성
-        if (items.length > 0) {
-          const partsToInsert = items.map(item => {
-            const qty = Number(item.quantity || 1);
-            const amt = Number(item.payment_amount || (Number(item.price || 0) * qty));
-            return {
-              shipment_id: shipmentData.id,
-              part_name: item.name,
-              part_code: item.custom_product_code || item.product_code || '',
-              quantity: qty,
-              price: qty > 0 ? amt / qty : 0,
-              total_price: amt,
-              part_category: '기타' // 카페24에선 구분 어려움
-            };
+          wItems.forEach(item => {
+            totalQuantity += Number(item.quantity || 1);
+            totalPrice += Number(item.payment_amount || (Number(item.price || 0) * Number(item.quantity || 1)));
+            itemNames.push(item.name);
+            if (item.name && item.name.includes('NB')) brandName = 'NB';
           });
 
-          await supabaseAdmin.from('shipment_parts').insert(partsToInsert);
-        }
+          // 배송비는 한 주문에서 첫 번째 분할 출고건에만 부과 (중복 방지)
+          if (warehouseIds.indexOf(wid) === 0) {
+            totalPrice += Number(order.shipping_fee || 0);
+          }
 
-        // 거래처 장부(transactions) 생성 (agency_id 가 있는 경우 B2B 자동 연계)
+          const productName = itemNames.length > 1 ? `${itemNames[0]} 외 ${itemNames.length - 1}건` : (itemNames[0] || '상품 없음');
+
+          // 청담 창고이면 '준비중(검수대기)', 그 외면 '출고완료'
+          const shipmentStatus = isCheongdam ? '준비중' : '출고완료';
+
+          // 출고(shipments) 생성 
+          const { data: shipmentData, error: shipErr } = await supabaseAdmin.from('shipments').insert({
+            shipment_date: orderDateStr,
+            customer_name: order.buyer_name || '비회원',
+            customer_phone: order.buyer_id || '',
+            customer_address: order.shipping_message || '',
+            product_name: productName,
+            quantity: totalQuantity,
+            delivery_method: '택배',
+            tracking_number: order.order_id,
+            status: shipmentStatus,
+            note: `[판매처: 카페24-${order.mall_id}] ${order.order_id} (출고처:${wName})`,
+            brand: brandName,
+            price: totalPrice,
+            sales_channel: order.mall_id === 'slimpack79' ? '스마트스토어' : '공홈',
+            order_date: order.order_date,
+            warehouse_id: wid !== 'DEFAULT' ? wid : null
+          }).select().single();
+
+          if (shipErr) {
+            console.error(`[Transfer Error] Shipment creation failed for ${order.id}:`, shipErr);
+            continue; 
+          }
+
+          // 출고 상세 품목(shipment_parts) 생성
+          if (wItems.length > 0) {
+            const partsToInsert = wItems.map(item => {
+              const qty = Number(item.quantity || 1);
+              const amt = Number(item.payment_amount || (Number(item.price || 0) * qty));
+              return {
+                shipment_id: shipmentData.id,
+                warehouse_id: wid !== 'DEFAULT' ? wid : null,
+                part_name: item.name,
+                part_code: item.custom_product_code || item.product_code || '',
+                quantity: qty,
+                price: qty > 0 ? amt / qty : 0,
+                total_price: amt,
+                part_category: '기타'
+              };
+            });
+
+            await supabaseAdmin.from('shipment_parts').insert(partsToInsert);
+          }
+
+          // ** 기타 창고인 경우 재고 즉시 차감 로직 **
+          if (!isCheongdam && wid !== 'DEFAULT') {
+            try {
+              for (const item of wItems) {
+                // 수동 매핑된 part_id를 찾기
+                let mappedPartId = item.part_id;
+                
+                // 만약 part_id가 직접 들어오지 않았다면 (보통 들어와야 함), DB에서 다시 한 번 조회 시도
+                if (!mappedPartId) {
+                  const pCode = item.custom_product_code || item.product_code || '';
+                  if (pCode) {
+                    const { data: pData } = await supabaseAdmin.from('parts').select('id').eq('code', pCode).maybeSingle();
+                    if (pData) mappedPartId = pData.id;
+                  }
+                }
+
+                if (mappedPartId) {
+                  // 현재 재고 조회
+                  const { data: currentInv } = await supabaseAdmin.from('inventory')
+                    .select('quantity')
+                    .eq('warehouse_id', wid)
+                    .eq('product_id', mappedPartId)
+                    .maybeSingle();
+                  
+                  const prevQty = currentInv ? currentInv.quantity : 0;
+                  const newQty = prevQty - Number(item.quantity || 1); // 0 미만으로 떨어져도 마이너스 표기 허용 (또는 Math.max 적용 가능)
+
+                  // 재고 차감 (UPSERT)
+                  await supabaseAdmin.from('inventory').upsert({
+                     warehouse_id: wid,
+                     product_id: mappedPartId,
+                     quantity: newQty,
+                     updated_at: new Date().toISOString()
+                  }, { onConflict: 'warehouse_id,product_id' });
+
+                  // inventory_logs 기록
+                  await supabaseAdmin.from('inventory_logs').insert({
+                     warehouse_id: wid,
+                     part_id: mappedPartId,
+                     part_name: item.name,
+                     part_code: item.custom_product_code || item.product_code || '',
+                     change_type: 'shipment_complete',
+                     quantity_change: -(Number(item.quantity || 1)),
+                     previous_quantity: prevQty,
+                     new_quantity: newQty,
+                     reference_id: shipmentData.id,
+                     reference_type: 'shipment',
+                     notes: `온라인 주문 즉시 재고 차감 (주문번호: ${order.order_id})`
+                  });
+                }
+              }
+            } catch (invErr) {
+              console.error(`[Inventory Transfer Error] order: ${order.id}`, invErr);
+            }
+          }
+        } // end of warehouse split
+
+        // 거래처 장부(transactions) 생성
         if (order.agency_id) {
+          let totalQty = 0; let totalPrc = 0; let itemNames = [];
+          items.forEach(item => {
+            totalQty += Number(item.quantity || 1);
+            totalPrc += Number(item.payment_amount || (Number(item.price || 0) * Number(item.quantity || 1)));
+            itemNames.push(item.name);
+          });
+          const summaryName = itemNames.length > 1 ? `${itemNames[0]} 외 ${itemNames.length - 1}건` : (itemNames[0] || '상품 없음');
+
           await supabaseAdmin.from('transactions').insert({
             group_id: order.agency_id,
-            type: 'out', // 매출(출고)
+            type: 'out',
             product_id: null,
-            product_name: productName,
+            product_name: summaryName,
             product_code: order.order_id,
             product_supplier: 'NEARBIKE',
-            quantity: totalQuantity,
+            quantity: totalQty,
             to_location: String(order.agency_id),
             from_location: 'NEARBIKE',
             date: orderDateStr,
@@ -551,7 +650,7 @@ module.exports = function(supabaseAdmin) {
         transferCount++;
       }
 
-      res.json({ success: true, message: `${transferCount}건 전송 완료` });
+      res.json({ success: true, message: `${transferCount}건 분할 전송(출고/차감) 완료` });
     } catch (e) {
       console.error('[Transfer Error]', e);
       res.status(500).json({ error: e.message });
