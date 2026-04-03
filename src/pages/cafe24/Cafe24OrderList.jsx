@@ -7,7 +7,7 @@ import {
 import { Sync as SyncIcon, PersonAdd as PersonAddIcon, Search as SearchIcon } from '@mui/icons-material';
 import Cafe24Settings from '../../components/Settings/Cafe24Settings';
 import { supabase } from '../../lib/supabaseClient';
-import { getCafe24Malls, syncCafe24Orders, addCafe24ProductMapping, transferCafe24Orders } from '../../utils/cafe24Api';
+import { getCafe24Malls, syncCafe24Orders, addCafe24ProductMapping, transferCafe24Orders, cancelSalesTransfer } from '../../utils/cafe24Api';
 import { agencyApi } from '../../api/agencyApi';
 import { warehouseApi } from '../../api/warehouseApi';
 
@@ -102,6 +102,10 @@ export default function Cafe24OrderList() {
   const [availableParts, setAvailableParts] = useState([]);
   const [selectedPart, setSelectedPart] = useState(null);
   const [mappingSaving, setMappingSaving] = useState(false);
+
+  // 커스텀 알림창 상태
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, title: '', message: '', onConfirm: null });
+  const [alertDialog, setAlertDialog] = useState({ open: false, title: '알림', message: '' });
 
   // 거래처 연동 상태
   const [agencies, setAgencies] = useState([]);
@@ -334,7 +338,7 @@ export default function Cafe24OrderList() {
     const ordersToTransfer = orders.filter(o => selectedOrders.includes(o.id) && !o.is_transferred);
     
     if (ordersToTransfer.length === 0) {
-      alert('선택한 주문 중 판매 전송 가능한 건이 없습니다. (이미 전송 완료된 건 제외)');
+      setAlertDialog({ open: true, title: '알림', message: '선택한 주문 중 판매 전송 가능한 건이 없습니다. (이미 전송 완료된 건 제외)' });
       return;
     }
 
@@ -351,28 +355,33 @@ export default function Cafe24OrderList() {
     }
 
     if (missingWarehouse) {
-      alert('🔴 창고(출고처)가 지정되지 않은 항목이 있습니다.\n전송할 모든 주문의 품목 끝에 있는 [출고창고]를 지정해주세요.');
+      setAlertDialog({ open: true, title: '주의', message: '🔴 창고(출고처)가 지정되지 않은 항목이 있습니다.\n전송할 모든 주문의 품목 끝에 있는 [출고창고]를 지정해주세요.' });
       return;
     }
 
-    if (!window.confirm(`${ordersToTransfer.length}건의 주문을 분할 전송(매출/출고 등록 및 재고 차감)하시겠습니까?`)) return;
-
-    try {
-      setLoading(true);
-      await transferCafe24Orders(ordersToTransfer.map(o => o.id), warehouseConfig);
-      alert('전송이 완료되었습니다.');
-      setSelectedOrders([]);
-      setWarehouseConfig(prev => {
-        const next = { ...prev };
-        ordersToTransfer.forEach(o => delete next[o.id]);
-        return next;
-      });
-      fetchOrders();
-    } catch (err) {
-      console.error(err);
-      alert(`전송 실패: ${err.message}`);
-      setLoading(false);
-    }
+    setConfirmDialog({
+      open: true,
+      title: '판매 반영(전송)',
+      message: `${ordersToTransfer.length}건의 주문을 분할 전송(매출/출고 등록 및 재고 차감)하시겠습니까?`,
+      onConfirm: async () => {
+        try {
+          setLoading(true);
+          await transferCafe24Orders(ordersToTransfer.map(o => o.id), warehouseConfig);
+          setAlertDialog({ open: true, title: '성공', message: '전송이 완료되었습니다.' });
+          setSelectedOrders([]);
+          setWarehouseConfig(prev => {
+            const next = { ...prev };
+            ordersToTransfer.forEach(o => delete next[o.id]);
+            return next;
+          });
+          fetchOrders();
+        } catch (err) {
+          console.error(err);
+          setAlertDialog({ open: true, title: '전송 실패', message: err.message });
+          setLoading(false);
+        }
+      }
+    });
   };
 
   const handleSingleSalesTransfer = async (order) => {
@@ -386,26 +395,65 @@ export default function Cafe24OrderList() {
       }
     }
     if (missingWarehouse) {
-      alert('🔴 창고(출고처)가 지정되지 않은 항목이 있습니다.\n해당 주문의 품목에 있는 [출고창고]를 모두 지정해주세요.');
+      setAlertDialog({ open: true, title: '주의', message: '🔴 창고(출고처)가 지정되지 않은 항목이 있습니다.\n해당 주문의 품목에 있는 [출고창고]를 모두 지정해주세요.' });
       return;
     }
-    if (!window.confirm(`주문(Cafe24 ID: ${order.order_id})을 전송(매출/출고 등록 및 재고 차감)하시겠습니까?`)) return;
+    
+    setConfirmDialog({
+      open: true,
+      title: '개별 판매 전송',
+      message: `주문(Cafe24 ID: ${order.order_id})을 전송(매출/출고 등록 및 재고 차감)하시겠습니까?`,
+      onConfirm: async () => {
+        try {
+          setLoading(true);
+          await transferCafe24Orders([order.id], warehouseConfig);
+          setAlertDialog({ open: true, title: '성공', message: '전송이 완료되었습니다.' });
+          setWarehouseConfig(prev => {
+            const next = { ...prev };
+            delete next[order.id];
+            return next;
+          });
+          fetchOrders();
+        } catch (err) {
+          console.error(err);
+          setAlertDialog({ open: true, title: '전송 실패', message: err.message });
+        } finally {
+          setLoading(false);
+        }
+      }
+    });
+  };
 
-    try {
-      setLoading(true);
-      await transferCafe24Orders([order.id], warehouseConfig);
-      alert('전송이 완료되었습니다.');
-      setWarehouseConfig(prev => {
-        const next = { ...prev };
-        delete next[order.id];
-        return next;
-      });
-      fetchOrders();
-    } catch (err) {
-      console.error(err);
-      alert(`전송 실패: ${err.message}`);
-      setLoading(false);
+  const handleCancelTransfer = async () => {
+    if (!selectedOrders.length) return;
+    const ordersToCancel = orders.filter(o => selectedOrders.includes(o.id) && o.is_transferred);
+    
+    if (ordersToCancel.length === 0) {
+      setAlertDialog({ open: true, title: '알림', message: '선택한 주문 중 판매 반영(전송)이 완료된 주문이 없습니다.' });
+      return;
     }
+
+    setConfirmDialog({
+      open: true,
+      title: '판매 반영 취소',
+      message: `선택한 ${ordersToCancel.length}건의 주문에 대해 판매 반영 및 모든 입출고 내역/통계를 취소하시겠습니까?\n(청담 창고에서 이미 검수 완료된 건은 자동 제외됩니다.)`,
+      onConfirm: async () => {
+        setLoading(true);
+        try {
+          const orderIds = ordersToCancel.map(o => o.id);
+          const res = await cancelSalesTransfer(orderIds);
+          setAlertDialog({ open: true, title: '취소 성공', message: res.message || '판매 전송 취소가 완료되었습니다.' });
+          // 선택 해제
+          setSelectedOrders(prev => prev.filter(id => !orderIds.includes(id)));
+          fetchOrders();
+        } catch (err) {
+          console.error(err);
+          setAlertDialog({ open: true, title: '취소 실패', message: err.message });
+        } finally {
+          setLoading(false);
+        }
+      }
+    });
   };
 
   const openMappingModal = (order, item) => {
@@ -610,6 +658,9 @@ export default function Cafe24OrderList() {
                     <Button size="small" variant="outlined" color="error" onClick={handleDeleteSelected}>
                       삭제
                     </Button>
+                    <Button size="medium" variant="contained" color="error" onClick={handleCancelTransfer}>
+                      판매 반영 취소
+                    </Button>
                     <Button size="medium" variant="contained" color="primary" onClick={handleSalesTransfer}>
                       판매 반영(전송)
                     </Button>
@@ -628,6 +679,8 @@ export default function Cafe24OrderList() {
         <Table size="small" sx={{ 
           minWidth: 1500, 
           whiteSpace: 'nowrap',
+          border: '1px solid rgba(224, 224, 224, 1)',
+          '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' },
           '& .MuiTableCell-root': {
             fontSize: '0.85rem',
             padding: '3px 6px',
@@ -936,6 +989,40 @@ export default function Cafe24OrderList() {
             disabled={!selectedAgency || agencyMatchSaving}
           >
             {agencyMatchSaving ? '저장중...' : '매칭 및 일괄 업데이트'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 커스텀 Alert/Confirm Dialog */}
+      <Dialog open={alertDialog.open} onClose={() => setAlertDialog({ ...alertDialog, open: false })} maxWidth="xs" fullWidth>
+        <DialogTitle>{alertDialog.title}</DialogTitle>
+        <DialogContent dividers>
+          <Typography sx={{ whiteSpace: 'pre-wrap' }}>{alertDialog.message}</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAlertDialog({ ...alertDialog, open: false })} variant="contained">
+            확인
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={confirmDialog.open} onClose={() => setConfirmDialog({ ...confirmDialog, open: false })} maxWidth="xs" fullWidth>
+        <DialogTitle>{confirmDialog.title}</DialogTitle>
+        <DialogContent dividers>
+          <Typography sx={{ whiteSpace: 'pre-wrap' }}>{confirmDialog.message}</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmDialog({ ...confirmDialog, open: false })}>
+            취소
+          </Button>
+          <Button 
+            onClick={() => {
+              setConfirmDialog({ ...confirmDialog, open: false });
+              if (confirmDialog.onConfirm) confirmDialog.onConfirm();
+            }} 
+            variant="contained" color="primary"
+          >
+            확인
           </Button>
         </DialogActions>
       </Dialog>

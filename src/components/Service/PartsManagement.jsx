@@ -1688,7 +1688,7 @@ function PartsManagement() {
 
       {/* 테이블 영역 */}
       <TableContainer component={Paper}>
-        <Table size="small">
+        <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
           <TableHead>
             <TableRow>
               <TableCell padding="checkbox">
@@ -1989,7 +1989,7 @@ function PartsManagement() {
 
               {/* 연동 가능한 파츠 목록 */}
               <TableContainer sx={{ maxHeight: 400 }}>
-                <Table size="small" stickyHeader>
+                <Table size="small" stickyHeader sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                   <TableHead>
                     <TableRow>
                       <TableCell>브랜드</TableCell>

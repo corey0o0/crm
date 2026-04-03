@@ -194,7 +194,7 @@ function BarcodeInspectTab() {
           <Paper sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
             <Typography variant="h6" fontWeight="bold" sx={{ mb: 2 }}>실시간 검수 대조표</Typography>
             <TableContainer sx={{ flexGrow: 1 }}>
-              <Table size="small">
+              <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                 <TableHead sx={{ bgcolor: 'grey.100' }}>
                   <TableRow>
                     <TableCell>상품명</TableCell>

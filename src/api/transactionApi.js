@@ -19,7 +19,8 @@ export const transactionApi = {
       note: row.note ?? null,
       additionalNote: row.additional_note ?? null,
       createdAt: row.created_at ?? null,
-      isGrouped: row.is_grouped ?? false
+      isGrouped: row.is_grouped ?? false,
+      status: row.status ?? '완료'
     };
   },
   // 모든 거래내역 조회
@@ -54,7 +55,8 @@ export const transactionApi = {
         date: transaction.date,
         note: transaction.note ?? null,
         additional_note: transaction.additionalNote ?? null,
-        is_grouped: transaction.isGrouped ?? false
+        is_grouped: transaction.isGrouped ?? false,
+        status: transaction.status ?? '완료'
       };
       const { data, error } = await supabase
         .from('transactions')
@@ -86,7 +88,8 @@ export const transactionApi = {
         date: t.date,
         note: t.note ?? null,
         additional_note: t.additionalNote ?? null,
-        is_grouped: t.isGrouped ?? false
+        is_grouped: t.isGrouped ?? false,
+        status: t.status ?? '완료'
       }));
       const { data, error } = await supabase
         .from('transactions')
@@ -117,7 +120,8 @@ export const transactionApi = {
         date: updates.date,
         note: updates.note ?? null,
         additional_note: updates.additionalNote ?? null,
-        is_grouped: updates.isGrouped ?? false
+        is_grouped: updates.isGrouped ?? false,
+        status: updates.status ?? '완료'
       };
       const { data, error } = await supabase
         .from('transactions')

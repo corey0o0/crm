@@ -12,8 +12,13 @@ import {
 } from '@mui/icons-material';
 import BarcodeScanner from '../BarcodeScanner';
 import { pendingOutboundApi } from '../../../api/pendingOutboundApi';
+import { useAuth } from '../../../contexts/AuthContext';
+import { MASTER_ACCOUNTS } from '../../../config/menuConfig';
 
 function StoreOnlineOutboundTab() {
+  const { user } = useAuth();
+  const isAdmin = user && MASTER_ACCOUNTS.includes(user.email);
+
   const [orders, setOrders] = useState([]);
   const [selectedOrders, setSelectedOrders] = useState([]);
   const [scanInput, setScanInput] = useState('');
@@ -139,6 +144,32 @@ function StoreOnlineOutboundTab() {
       }
       
       alert(`출고가 확정되었습니다.`);
+      const completedIds = selectedOrders.map(o => o.id);
+      setOrders(orders.filter(o => !completedIds.includes(o.id)));
+      setSelectedOrders([]);
+    } catch (error) {
+      console.error(error);
+      showAlert('error', '출고 확정 중 오류가 발생했습니다.');
+    }
+  };
+
+  const handleAdminBypassConfirm = async () => {
+    if (selectedOrders.length === 0) return;
+    
+    if (!window.confirm(`[관리자] 선택된 ${selectedOrders.length}건의 출고를 검수 없이 즉시 확정하시겠습니까?`)) return;
+
+    try {
+      const forceCompletedOrders = selectedOrders.map(order => ({
+        ...order,
+        items: order.items.map(i => ({ ...i, scanned: i.expected }))
+      }));
+
+      for (const order of forceCompletedOrders) {
+        await pendingOutboundApi.updateScannedItems(order.items);
+        await pendingOutboundApi.updateStatus(order.id, '완료');
+      }
+      
+      showAlert('success', `[관리자 권한] 출고가 강제 확정되었습니다.`);
       const completedIds = selectedOrders.map(o => o.id);
       setOrders(orders.filter(o => !completedIds.includes(o.id)));
       setSelectedOrders([]);
@@ -332,7 +363,7 @@ function StoreOnlineOutboundTab() {
                   <Paper sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
                     <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 2 }}>검수 대상 통합 품목 리스트</Typography>
                     <TableContainer sx={{ flexGrow: 1 }}>
-                      <Table size="small">
+                      <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                         <TableHead sx={{ bgcolor: 'grey.100' }}>
                           <TableRow>
                             <TableCell>상품명</TableCell>
@@ -374,6 +405,11 @@ function StoreOnlineOutboundTab() {
                     
                     <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #eee', display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
                       <Button variant="outlined" onClick={() => setSelectedOrders([])}>선택 취소</Button>
+                      {isAdmin && (
+                        <Button variant="contained" color="warning" size="large" onClick={handleAdminBypassConfirm}>
+                          [관리자] 선택건 강제 출고 (검수패스)
+                        </Button>
+                      )}
                       <Button variant="contained" color="primary" size="large" onClick={handleConfirm} disabled={totalScanned === 0}>
                         선택건 출고 확정
                       </Button>

@@ -901,7 +901,7 @@ function CustomerList({ refreshTrigger, onRefresh }) {
       ) : (
         // 데스크톱: 테이블 형태로 표시
         <TableContainer component={Paper}>
-          <Table sx={{ '& .MuiTableCell-root': { fontSize: '1rem' } }}>
+          <Table sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' }, '& .MuiTableCell-root': { fontSize: '0.9rem' } }}>
             <TableHead>
               <TableRow>
                 <TableCell sx={{ fontWeight: 'bold' }}>이름</TableCell>
@@ -977,7 +977,7 @@ function CustomerList({ refreshTrigger, onRefresh }) {
                           <Chip
                             label={
                               <>
-                                <span style={{fontWeight:700, fontSize:'0.9rem'}}>A/S</span> <span style={{fontWeight:700, fontSize:'1.1rem'}}>{customer.serviceCount.XRB + customer.serviceCount.NB || 0}</span>
+                                <span style={{fontWeight:700, fontSize:'0.8rem'}}>A/S</span> <span style={{fontWeight:700, fontSize:'1rem'}}>{customer.serviceCount.XRB + customer.serviceCount.NB || 0}</span>
                               </>
                             }
                             size="small"
@@ -996,7 +996,7 @@ function CustomerList({ refreshTrigger, onRefresh }) {
                           <Chip
                             label={
                               <>
-                                <span style={{fontWeight:700, fontSize:'0.9rem'}}>출고</span> <span style={{fontWeight:700, fontSize:'1.1rem'}}>{customer.shipmentCount || 0}</span>
+                                <span style={{fontWeight:700, fontSize:'0.8rem'}}>출고</span> <span style={{fontWeight:700, fontSize:'1rem'}}>{customer.shipmentCount || 0}</span>
                               </>
                             }
                             size="small"
@@ -1147,7 +1147,7 @@ function CustomerList({ refreshTrigger, onRefresh }) {
               {activeTab === 'service' && (
                 <Box>
                   {serviceHistory.length > 0 ? (
-                    <Table size="small">
+                    <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                       <TableHead>
                         <TableRow>
                           <TableCell>접수일</TableCell>
@@ -1203,7 +1203,7 @@ function CustomerList({ refreshTrigger, onRefresh }) {
               {activeTab === 'shipment' && (
                 <Box>
                   {shipmentHistory.length > 0 ? (
-                    <Table size="small">
+                    <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                       <TableHead>
                         <TableRow>
                           <TableCell>출고일</TableCell>

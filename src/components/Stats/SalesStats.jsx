@@ -1362,7 +1362,7 @@ function SalesStats() {
                   {format(parseISO(date), 'MM월 dd일 (EEE)', { locale: ko })} - A/S
                 </Typography>
                 <TableContainer component={Paper} variant="outlined">
-                  <Table size="small">
+                  <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                     <TableHead>
                       <TableRow sx={{ backgroundColor: 'grey.100' }}>
                         <TableCell sx={{ whiteSpace: 'nowrap', fontWeight: 'bold' }}>A/S ID</TableCell>
@@ -1484,7 +1484,7 @@ function SalesStats() {
                 {format(parseISO(date), 'MM월 dd일 (EEE)', { locale: ko })} - 출고
               </Typography>
               <TableContainer component={Paper} variant="outlined">
-                <Table size="small">
+                <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                   <TableHead>
                     <TableRow sx={{ backgroundColor: 'grey.100' }}>
                       <TableCell sx={{ whiteSpace: 'nowrap', fontWeight: 'bold' }}>출고 ID</TableCell>
@@ -2223,7 +2223,7 @@ function SalesStats() {
                       <Box key={`brand-top-${group.brand}`} sx={{ mb: 2 }}>
                         <Typography variant="subtitle2" sx={{ mb: 1 }}>{group.brand}</Typography>
                         <TableContainer>
-                          <Table size="small">
+                          <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                             <TableHead>
                               <TableRow>
                                 <TableCell width="60">순위</TableCell>
@@ -2258,7 +2258,7 @@ function SalesStats() {
                         : [];
                       return (
                         <TableContainer>
-                          <Table size="small">
+                          <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                             <TableHead>
                               <TableRow>
                                 <TableCell width="60">순위</TableCell>
@@ -2314,7 +2314,7 @@ function SalesStats() {
                       <Box key={`brand-svc-${group.brand}`} sx={{ mb: 2 }}>
                         <Typography variant="subtitle2" sx={{ mb: 1 }}>{group.brand}</Typography>
                         <TableContainer>
-                          <Table size="small">
+                          <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                             <TableHead>
                               <TableRow>
                                 <TableCell width="60">순위</TableCell>
@@ -2348,7 +2348,7 @@ function SalesStats() {
                         : [];
                       return (
                         <TableContainer>
-                          <Table size="small">
+                          <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                             <TableHead>
                               <TableRow>
                                 <TableCell width="60">순위</TableCell>
@@ -2730,7 +2730,7 @@ function SalesStats() {
                 <Box sx={{ mt: 3 }}>
                    <Typography variant="subtitle1" gutterBottom>해당 기간 주문 리스트 (최대 50건)</Typography>
                    <TableContainer component={Paper} elevation={0} variant="outlined">
-                     <Table size="small">
+                     <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                        <TableHead>
                          <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                            <TableCell>주문일</TableCell>
@@ -2787,7 +2787,7 @@ function SalesStats() {
           <DialogContent sx={{ pt: 3 }}>
             {selectedChannelStats && (
               <TableContainer component={Paper} elevation={0} variant="outlined">
-                <Table size="small">
+                <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                   <TableHead>
                     <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                       <TableCell>순위</TableCell>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import DebugPanel from './DebugPanel';
 import {
   Box,
   Drawer,
@@ -377,6 +378,9 @@ function Layout() {
               </Typography>
             </Box>
           </Box>
+
+          {/* 디버그 버튼 (마스터 계정 전용) */}
+          <DebugPanel />
 
           {/* 연결 상태 아이콘 */}
           <Box sx={{ display: 'flex', alignItems: 'center' }}>

@@ -10,7 +10,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import theme from './theme';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import { setupStorage } from './lib/setupStorage';
-import DebugPanel from './components/DebugPanel';
+// DebugPanel import removed from App.jsx
 
 // 컴포넌트 import
 import Dashboard from './components/Dashboard';
@@ -152,7 +152,6 @@ function App() {
     <AuthProvider>
       <ThemeProvider theme={theme}>
         <CssBaseline />
-        <DebugPanel />
         <AppRouter />
       </ThemeProvider>
     </AuthProvider>

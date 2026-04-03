@@ -33,7 +33,8 @@ import {
   Autocomplete,
   Pagination,
   InputAdornment,
-  Popover
+  Popover,
+  Checkbox
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -98,6 +99,44 @@ function InventoryManagement() {
   // 표보기 클릭된 거래 모달 상태
   const [tableModalOpen, setTableModalOpen] = useState(false);
   const [selectedTableTransactions, setSelectedTableTransactions] = useState([]);
+  
+  const [selectedTransactions, setSelectedTransactions] = useState([]);
+  
+  const handleDeleteSelectedTransactions = async () => {
+    if (selectedTransactions.length === 0) return;
+    if (!window.confirm(`선택한 ${selectedTransactions.length}개의 거래내역을 삭제하시겠습니까?`)) return;
+    try {
+      const allTxIdsToDelete = [];
+      for (const groupId of selectedTransactions) {
+        // Find group in transactions
+        const group = transactions.find(t => t.id === groupId);
+        if (group && group.items) {
+          const itemIds = group.items.map(item => item.id);
+          allTxIdsToDelete.push(...itemIds);
+        } else {
+          allTxIdsToDelete.push(groupId);
+        }
+      }
+      
+      for (const id of allTxIdsToDelete) {
+        await transactionApi.delete(id);
+      }
+      
+      const updatedTransactions = await transactionApi.getAll();
+      setTransactions(updatedTransactions);
+      setSelectedTransactions([]);
+      
+      setTimeout(() => {
+        recalculateInventoryFromTransactions();
+      }, 100);
+      
+      showSnackbar(`선택한 거래내역이 삭제되었습니다.`, 'success');
+    } catch (error) {
+      console.error('거래내역 선택 삭제 실패:', error);
+      showSnackbar('거래내역 삭제에 실패했습니다.', 'error');
+    }
+  };
+
   // 표보기 마우스 오버 팝오버 상태
   const [hoverAnchorEl, setHoverAnchorEl] = useState(null);
   const [hoverTransactions, setHoverTransactions] = useState([]);
@@ -113,6 +152,7 @@ function InventoryManagement() {
   const [dialogType, setDialogType] = useState(''); // 'in' | 'out'
   const [transactions, setTransactions] = useState([]);
   const [inventory, setInventory] = useState({});
+  const [pendingInventory, setPendingInventory] = useState({});
   const [loading, setLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({
     open: false,
@@ -380,18 +420,29 @@ function InventoryManagement() {
 
       // 2) 베이스 인벤토리 생성 (연동 창고는 상품 재고, 독립 창고는 0)
       const recalculatedInventory = {};
+      const recalculatedPendingInventory = {};
       warehouses.forEach(warehouse => {
         recalculatedInventory[warehouse.id] = {};
+        recalculatedPendingInventory[warehouse.id] = {};
         products.forEach(product => {
           recalculatedInventory[warehouse.id][product.id] = warehouse.syncWithProductStock
             ? (product.stock || 0)
             : 0;
+          recalculatedPendingInventory[warehouse.id][product.id] = 0;
         });
       });
 
       // 3) 거래내역을 날짜순으로 적용하여 재고 재계산
       const sorted = [...latestTransactions].sort((a, b) => new Date(a.date) - new Date(b.date));
       sorted.forEach(transaction => {
+        // 출고 대기 수량 집계 (type='out' && status='대기')
+        if (transaction.type === 'out' && transaction.status === '대기') {
+          if (warehouses.find(w => w.id === transaction.fromLocation)) {
+            if (!recalculatedPendingInventory[transaction.fromLocation]) recalculatedPendingInventory[transaction.fromLocation] = {};
+            if (!recalculatedPendingInventory[transaction.fromLocation][transaction.productId]) recalculatedPendingInventory[transaction.fromLocation][transaction.productId] = 0;
+            recalculatedPendingInventory[transaction.fromLocation][transaction.productId] += transaction.quantity;
+          }
+        }
         if (transaction.type === 'in') {
           // 목적지가 창고인 경우 증가
           if (warehouses.find(w => w.id === transaction.toLocation)) {
@@ -433,6 +484,7 @@ function InventoryManagement() {
 
       // 4) 로컬 상태 업데이트
       setInventory(recalculatedInventory);
+      setPendingInventory(recalculatedPendingInventory);
       setTransactions(sorted);
 
       // 5) 서버에 일괄 반영 (0 포함하여 완전 동기화)
@@ -451,18 +503,19 @@ function InventoryManagement() {
       console.error('재고 재계산 실패:', error);
       // 서버 실패 시 기존 방식으로 재계산
       const recalculatedInventory = {};
+      const recalculatedPendingInventory = {};
       
       // 창고별 재고 초기화
       warehouses.forEach(warehouse => {
         recalculatedInventory[warehouse.id] = {};
+        recalculatedPendingInventory[warehouse.id] = {};
         products.forEach(product => {
           if (warehouse.syncWithProductStock) {
-            // 창고 A(연동 창고)는 실제 상품 재고 사용
             recalculatedInventory[warehouse.id][product.id] = product.stock || 0;
           } else {
-            // 독립 창고는 0으로 초기화
             recalculatedInventory[warehouse.id][product.id] = 0;
           }
+          recalculatedPendingInventory[warehouse.id][product.id] = 0;
         });
       });
 
@@ -470,6 +523,13 @@ function InventoryManagement() {
       const sortedTransactions = [...transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
       
       sortedTransactions.forEach(transaction => {
+        if (transaction.type === 'out' && transaction.status === '대기') {
+          if (warehouses.find(w => w.id === transaction.fromLocation)) {
+            if (!recalculatedPendingInventory[transaction.fromLocation]) recalculatedPendingInventory[transaction.fromLocation] = {};
+            if (!recalculatedPendingInventory[transaction.fromLocation][transaction.productId]) recalculatedPendingInventory[transaction.fromLocation][transaction.productId] = 0;
+            recalculatedPendingInventory[transaction.fromLocation][transaction.productId] += transaction.quantity;
+          }
+        }
         if (transaction.type === 'in') {
           // 입고 처리
           if (warehouses.find(w => w.id === transaction.toLocation)) {
@@ -512,6 +572,7 @@ function InventoryManagement() {
       });
 
       setInventory(recalculatedInventory);
+      setPendingInventory(recalculatedPendingInventory);
       console.log('거래내역을 기반으로 창고 재고를 재계산했습니다.');
     }
   };
@@ -1589,7 +1650,7 @@ function InventoryManagement() {
       const yearKey = getDateKey(t.date, 'year');
 
       // →대리점 (출고)
-      if (t.type === 'out' && stats[t.toLocation]) {
+      if (t.type === 'out' && t.status !== '대기' && stats[t.toLocation]) {
         const s = stats[t.toLocation];
         s.outTotalQuantity += t.quantity;
         s.outTransactions += 1;
@@ -1676,7 +1737,7 @@ function InventoryManagement() {
       if (dateTo && t.date > dateTo) return;
       
       // 출고: 출발지가 창고인 경우
-      if (t.type === 'out' && stats[t.fromLocation]) {
+      if (t.type === 'out' && t.status !== '대기' && stats[t.fromLocation]) {
         const s = stats[t.fromLocation];
         const txDate = new Date(t.date);
         s.outTotalQuantity += t.quantity;
@@ -1767,7 +1828,7 @@ function InventoryManagement() {
     const dateTo = dealerStatsFilter.dateTo;
     
     transactions.forEach(t => {
-      if (t.type === 'out') {
+      if (t.type === 'out' && t.status !== '대기') {
         // 날짜 필터 적용
         if (dateFrom && t.date < dateFrom) return;
         if (dateTo && t.date > dateTo) return;
@@ -1887,7 +1948,7 @@ function InventoryManagement() {
       }
       
       // 출고: 출발지가 창고인 경우
-      if (warehouseIds.has(tx.fromLocation)) {
+      if (warehouseIds.has(tx.fromLocation) && tx.status !== '대기') {
         const wid = tx.fromLocation; const pid = tx.productId;
         acc[wid] = acc[wid] || {}; acc[wid][pid] = acc[wid][pid] || {}; acc[wid][pid][key] = acc[wid][pid][key] || { inQty: 0, outQty: 0 };
         acc[wid][pid][key].outQty += Number(tx.quantity) || 0;
@@ -2261,15 +2322,27 @@ function InventoryManagement() {
 
       {/* 탭 메뉴 */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs value={activeTab} onChange={handleTabChange} variant="scrollable" scrollButtons allowScrollButtonsMobile>
+        <Tabs 
+          value={activeTab} 
+          onChange={handleTabChange} 
+          variant="scrollable" 
+          scrollButtons 
+          allowScrollButtonsMobile
+          sx={{
+            '& .MuiTab-root': {
+              fontSize: '1.05rem',
+              fontWeight: 600,
+              px: { xs: 2, sm: 3 }
+            }
+          }}
+        >
           <Tab label="대시보드" />
           <Tab label="거래 내역" />
-          <Tab label="입출고 통계" />
-          <Tab label="재고 현황" />
-          <Tab label="창고/대리점 관리" />
-          {/* <Tab label="바코드 검수" /> */}
           <Tab label="매장/온라인 출고" />
+          <Tab label="재고 현황" />
           <Tab label="박스 관리" />
+          <Tab label="입출고 통계" />
+          <Tab label="창고/대리점 관리" />
         </Tabs>
       </Box>
 
@@ -2401,7 +2474,7 @@ function InventoryManagement() {
             </Typography>
             {dashboardStats.recent.length > 0 ? (
               <TableContainer>
-                <Table size="small">
+                <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                   <TableHead>
                     <TableRow>
                       <TableCell>날짜</TableCell>
@@ -2635,7 +2708,14 @@ function InventoryManagement() {
           </Card>
 
           {/* 거래 내역 보기 전환 및 렌더 */}
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+            <Box>
+              {transactionViewMode === 'list' && selectedTransactions.length > 0 && (
+                <Button size="small" variant="outlined" color="error" onClick={handleDeleteSelectedTransactions}>
+                  선택 삭제 ({selectedTransactions.length})
+                </Button>
+              )}
+            </Box>
             <Box sx={{ display: 'inline-flex', border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
               <Button size="small" variant={transactionViewMode === 'list' ? 'contained' : 'text'} onClick={() => setTransactionViewMode('list')}>리스트 보기</Button>
               <Button size="small" variant={transactionViewMode === 'table' ? 'contained' : 'text'} onClick={() => setTransactionViewMode('table')}>표 보기</Button>
@@ -2648,8 +2728,18 @@ function InventoryManagement() {
               <Table>
                 <TableHead>
                   <TableRow>
+                    <TableCell padding="checkbox">
+                      <Checkbox
+                        checked={paginatedTransactions.length > 0 && selectedTransactions.length === paginatedTransactions.length}
+                        onChange={(e) => {
+                          if (e.target.checked) setSelectedTransactions(paginatedTransactions.map(t => t.id));
+                          else setSelectedTransactions([]);
+                        }}
+                      />
+                    </TableCell>
                     <TableCell>날짜</TableCell>
                     <TableCell>유형</TableCell>
+                    <TableCell align="center">상태</TableCell>
                     <TableCell>상품</TableCell>
                     <TableCell align="center">품목수</TableCell>
                     <TableCell align="center">수량</TableCell>
@@ -2662,14 +2752,31 @@ function InventoryManagement() {
                 <TableBody>
                   {paginatedTransactions.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} align="center">검색 결과가 없습니다.</TableCell>
+                      <TableCell colSpan={10} align="center">검색 결과가 없습니다.</TableCell>
                     </TableRow>
                   ) : (
                     paginatedTransactions.map((group) => (
                       <TableRow key={group.id} hover>
+                        <TableCell padding="checkbox">
+                          <Checkbox
+                            checked={selectedTransactions.includes(group.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) setSelectedTransactions(prev => [...prev, group.id]);
+                              else setSelectedTransactions(prev => prev.filter(id => id !== group.id));
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </TableCell>
                         <TableCell>{group.date}</TableCell>
                         <TableCell>
                           <Chip label={getTransactionTypeInfo(group).label} size="small" color={getTransactionTypeInfo(group).color} />
+                        </TableCell>
+                        <TableCell align="center">
+                          {group.items[0]?.status === '대기' ? (
+                            <Chip label="출고대기" size="small" color="warning" variant="outlined" />
+                          ) : (
+                            <Chip label="완료" size="small" color="success" variant="outlined" />
+                          )}
                         </TableCell>
                         <TableCell>
                           {group.items.length === 1 ? group.items[0].productName : `${group.items.length}개 상품`}
@@ -2686,7 +2793,6 @@ function InventoryManagement() {
                         <TableCell align="center">
                           <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
                             <Button size="small" variant="outlined" onClick={(e) => { e.stopPropagation(); openTransactionDetail(group); }}>상세</Button>
-                            <Button size="small" variant="outlined" color="error" onClick={async (e) => { e.stopPropagation(); if (window.confirm('이 거래내역을 삭제하시겠습니까?')) { try { const itemIds = group.items.map(item => item.id); for (const id of itemIds) { await transactionApi.delete(id); } const updatedTransactions = await transactionApi.getAll(); setTransactions(updatedTransactions); setTimeout(() => { recalculateInventoryFromTransactions(); }, 100); showSnackbar('거래내역이 삭제되었습니다.', 'success'); } catch (error) { console.error('거래내역 삭제 실패:', error); showSnackbar('거래내역 삭제에 실패했습니다.', 'error'); } } }}>삭제</Button>
                           </Box>
                         </TableCell>
                       </TableRow>
@@ -2821,6 +2927,20 @@ function InventoryManagement() {
                                     );
                                   })}
                                 </TableRow>
+                                {/* 출고 대기 잔량 행 */}
+                                <TableRow sx={{ backgroundColor: 'action.hover' }}>
+                                  <TableCell sx={{ backgroundColor: 'action.hover', fontWeight: 'bold', color: 'var(--mui-palette-warning-main, #ed6c02)' }}>출고 대기</TableCell>
+                                  {productCols.map(p => {
+                                    const pendingOut = pendingInventory[wid]?.[p.id] || 0;
+                                    return (
+                                      <TableCell key={`pending-${wid}-${p.id}`} align="right" sx={{ backgroundColor: 'action.hover', fontWeight: 'bold', fontSize: '0.95rem' }}>
+                                        <span style={{ fontWeight: 'bold', color: pendingOut > 0 ? 'var(--mui-palette-warning-main, #ed6c02)' : 'var(--mui-palette-text-secondary, #666)' }}>
+                                          {pendingOut.toLocaleString()}
+                                        </span>
+                                      </TableCell>
+                                    );
+                                  })}
+                                </TableRow>
                               </TableBody>
                             </Table>
                           </TableContainer>
@@ -2835,7 +2955,7 @@ function InventoryManagement() {
         </Box>
       )}
 
-        {activeTab === 2 && (
+        {activeTab === 5 && (
           <Box>
             {/* 입출고 통계 필터 */}
             <Card sx={{ p: 1.5, mb: 1.5 }}>
@@ -2947,7 +3067,7 @@ function InventoryManagement() {
                 총 이동 수령 (총 입고량) - {totalInboundStats.totalQuantity.toLocaleString()}개 ({totalInboundStats.totalTransactions}건)
               </Typography>
               <TableContainer>
-                <Table size="small">
+                <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                   <TableHead>
                     <TableRow>
                       <TableCell sx={{ py: 0.5 }}>기간</TableCell>
@@ -2986,7 +3106,7 @@ function InventoryManagement() {
                 <Card sx={{ p: 1.5 }}>
                   <Typography variant="subtitle1" gutterBottom sx={{ mb: 1, fontWeight: 'bold' }}>창고별 출고량</Typography>
                   <TableContainer>
-                    <Table size="small">
+                    <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                       <TableHead>
                         <TableRow>
                           <TableCell sx={{ py: 0.5 }}>창고명</TableCell>
@@ -3029,7 +3149,7 @@ function InventoryManagement() {
                 <Card sx={{ p: 1.5 }}>
                   <Typography variant="subtitle1" gutterBottom sx={{ mb: 1, fontWeight: 'bold' }}>모델별 출고량</Typography>
                   <TableContainer>
-                    <Table size="small">
+                    <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                       <TableHead>
                         <TableRow>
                           <TableCell sx={{ py: 0.5 }}>제품명</TableCell>
@@ -3080,7 +3200,7 @@ function InventoryManagement() {
             <Card sx={{ p: 1.5 }}>
               <Typography variant="subtitle1" gutterBottom sx={{ mb: 1, fontWeight: 'bold' }}>지점별 입출고 통계</Typography>
               <TableContainer>
-                <Table size="small">
+                <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                   <TableHead>
                     <TableRow>
                       <TableCell sx={{ py: 0.5 }}>대리점명</TableCell>
@@ -3199,7 +3319,7 @@ function InventoryManagement() {
                             <Typography variant="body2" fontWeight="bold" gutterBottom sx={{ mb: 0.5 }}>
                               {stat.name} ({stat.location})
                             </Typography>
-                            <Table size="small">
+                            <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                               <TableHead>
                                 <TableRow>
                                   <TableCell sx={{ py: 0.3, px: 1 }}>기간</TableCell>
@@ -3280,7 +3400,7 @@ function InventoryManagement() {
           </Card>
 
           <TableContainer component={Paper} sx={{ width: '100%', maxHeight: 600, overflowX: 'hidden', overflowY: 'auto' }}>
-            <Table size="small" stickyHeader sx={{ width: '100%', tableLayout: 'fixed', '& th, & td': { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }}>
+            <Table size="small" stickyHeader sx={{ width: '100%', tableLayout: 'fixed', border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', border: '1px solid rgba(224, 224, 224, 1)' } }}>
               <TableHead>
                 <TableRow>
                   <TableCell sx={{ position: 'sticky', left: 0, zIndex: 3, backgroundColor: 'background.paper', width: 240, maxWidth: 240 }}>상품</TableCell>
@@ -4308,7 +4428,7 @@ function InventoryManagement() {
                   📊 업로드된 데이터 미리보기 ({excelData.length}개 상품)
                 </Typography>
                 <TableContainer component={Paper} sx={{ maxHeight: 300 }}>
-                  <Table stickyHeader size="small">
+                  <Table stickyHeader size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                     <TableHead>
                       <TableRow>
                         <TableCell>상품코드</TableCell>
@@ -4378,7 +4498,7 @@ function InventoryManagement() {
       </Dialog>
 
       {/* 창고/대리점 관리 탭 (마지막) */}
-      {activeTab === 4 && (
+      {activeTab === 6 && (
         <LocationManagement
           warehouses={warehouses}
           setWarehouses={setWarehouses}
@@ -4425,7 +4545,7 @@ function InventoryManagement() {
               {hoverTransactions[0].date} - {hoverTransactions.length}건의 거래
             </Typography>
             <TableContainer>
-              <Table size="small">
+              <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                 <TableHead>
                   <TableRow>
                     <TableCell>유형</TableCell>
@@ -4497,7 +4617,7 @@ function InventoryManagement() {
                 {selectedTableTransactions[0].date} - {selectedTableTransactions.length}건의 거래
               </Typography>
               <TableContainer component={Paper}>
-                <Table size="small">
+                <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                   <TableHead>
                     <TableRow>
                       <TableCell>시간</TableCell>
@@ -4556,12 +4676,12 @@ function InventoryManagement() {
       </Dialog>
 
       {/* 매장/온라인 출고 탭 */}
-      {activeTab === 5 && (
+      {activeTab === 2 && (
         <StoreOnlineOutboundTab />
       )}
 
       {/* 박스 관리 탭 */}
-      {activeTab === 6 && (
+      {activeTab === 4 && (
         <BoxStatusTab />
       )}
 

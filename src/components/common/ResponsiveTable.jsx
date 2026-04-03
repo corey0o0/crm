@@ -43,7 +43,7 @@ function ResponsiveTable({ columns, data, renderMobileCard, onRowClick, rowSx = 
 
   return (
     <TableContainer component={Paper}>
-      <Table>
+      <Table sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
         <TableHead>
           <TableRow>
             {columns.map((column) => (

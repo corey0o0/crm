@@ -164,3 +164,17 @@ export async function transferCafe24Orders(orderIds, warehouseConfig = {}) {
   }
   return resp.json();
 }
+
+export async function cancelSalesTransfer(orderIds) {
+  const resp = await fetch(`${BACKEND_URL}/api/cafe24/transfer/cancel`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orderIds })
+  });
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error || '판매 전송 취소 실패');
+  }
+  return resp.json();
+}

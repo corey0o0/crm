@@ -55,7 +55,7 @@ function BoxStatusTab() {
         <CardContent>
           <Typography variant="h6" fontWeight="bold" sx={{ mb: 2 }}><BoxIcon color="primary" sx={{ mr: 1, verticalAlign: 'middle' }} />박스 목록 ({filteredBoxes.length}건)</Typography>
           <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #e0e0e0' }}>
-            <Table size="small">
+            <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
               <TableHead sx={{ bgcolor: '#f5f5f5' }}>
                 <TableRow>
                   <TableCell>박스 번호</TableCell>
@@ -84,7 +84,7 @@ function BoxStatusTab() {
         <Dialog open={detailOpen} onClose={handleCloseDetail} maxWidth="sm" fullWidth>
           <DialogTitle>박스 상세 정보 [{selectedBox.id}]</DialogTitle>
           <DialogContent dividers>
-            <Table size="small"><TableHead><TableRow><TableCell>SKU</TableCell><TableCell>수량</TableCell></TableRow></TableHead><TableBody>
+            <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}><TableHead><TableRow><TableCell>SKU</TableCell><TableCell>수량</TableCell></TableRow></TableHead><TableBody>
               {selectedBox.items.map((item, idx) => (<TableRow key={idx}><TableCell>{item.sku}</TableCell><TableCell>{item.qty}</TableCell></TableRow>))}
             </TableBody></Table>
           </DialogContent>

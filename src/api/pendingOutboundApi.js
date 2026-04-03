@@ -58,12 +58,29 @@ export const pendingOutboundApi = {
   // 상태 변경 (검수 완료 후 출고 등)
   async updateStatus(id, status) {
     try {
+      // Fetch the transaction_ids first
+      const { data: po } = await supabase
+        .from('pending_outbounds')
+        .select('transaction_ids')
+        .eq('id', id)
+        .single();
+
       const { error } = await supabase
         .from('pending_outbounds')
         .update({ status, updated_at: new Date().toISOString() })
         .eq('id', id);
 
       if (error) throw error;
+
+      // Update linked transactions to '완료' if they exist
+      if (status === '완료' && po && po.transaction_ids && po.transaction_ids.length > 0) {
+        const { error: txErr } = await supabase
+          .from('transactions')
+          .update({ status: '완료' })
+          .in('id', po.transaction_ids);
+        if (txErr) console.error('Failed to update linked transactions:', txErr);
+      }
+
       return true;
     } catch (error) {
       console.error('Error updating pending outbound status:', error);

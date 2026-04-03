@@ -1215,7 +1215,7 @@ function StockList() {
       ) : (
         <>
         <TableContainer component={Paper}>
-          <Table size="small">
+          <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
             <TableHead>
               <TableRow>
                   <TableCell padding="checkbox">
@@ -1443,7 +1443,7 @@ function StockList() {
         </DialogTitle>
         <DialogContent>
           <TableContainer>
-            <Table size="small">
+            <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
               <TableHead>
                 <TableRow>
                   <TableCell>일자</TableCell>
@@ -1542,7 +1542,7 @@ function StockList() {
             </Box>
           ) : (
             <TableContainer>
-              <Table size="small">
+              <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                 <TableHead>
                   <TableRow>
                     <TableCell>일자</TableCell>
@@ -1627,7 +1627,7 @@ function StockList() {
           </Box>
           
           <TableContainer sx={{ maxHeight: 400 }}>
-            <Table size="small">
+            <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
               <TableHead>
                 <TableRow>
                   <TableCell>브랜드</TableCell>

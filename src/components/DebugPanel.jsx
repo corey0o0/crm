@@ -182,16 +182,12 @@ const DebugPanel = () => {
 
   return (
     <>
-      {/* 디버그 버튼 - 우측 하단에 항상 표시 */}
+      {/* 디버그 버튼 (Layout에 포함될 것을 가정하여 인라인 렌더링) */}
       <Box
         sx={{
-          position: 'fixed',
-          bottom: 24,
-          right: 0,
-          zIndex: 10000,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center'
+          display: 'inline-flex',
+          alignItems: 'center',
+          mr: 1
         }}
       >
         <IconButton
@@ -199,9 +195,9 @@ const DebugPanel = () => {
           sx={{
             bgcolor: errorCount > 0 ? 'error.main' : 'primary.main',
             color: 'white',
-            width: 40,
-            height: 40,
-            borderRadius: '8px 0 0 8px',
+            width: 36,
+            height: 36,
+            borderRadius: '50%',
             boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
             '&:hover': {
               bgcolor: errorCount > 0 ? 'error.dark' : 'primary.dark',

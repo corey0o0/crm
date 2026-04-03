@@ -294,6 +294,8 @@ export default function AgencyManagement() {
 
       <TableContainer component={Paper}>
         <Table size="small" sx={{
+          border: '1px solid rgba(224, 224, 224, 1)',
+          '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' },
           '& .MuiTableCell-root': {
             fontSize: '0.95rem',
             padding: '10px 16px'
@@ -691,7 +693,7 @@ function AgencyHistoryDialog({ open, agency, onClose }) {
           <Box sx={{ p: 4, textAlign: 'center' }}><Typography color="text.secondary">조회된 내역이 없습니다.</Typography></Box>
         ) : (
           <TableContainer>
-            <Table size="small" stickyHeader>
+            <Table size="small" stickyHeader sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
               <TableHead>
                 <TableRow>
                   <TableCell>날짜</TableCell>
@@ -890,7 +892,7 @@ function AgencyCafe24OrdersDialog({ open, agency, onClose }) {
           <Box sx={{ p: 4, textAlign: 'center' }}><Typography color="text.secondary">조건에 맞는 내역이 없습니다.</Typography></Box>
         ) : (
           <TableContainer>
-            <Table size="small" stickyHeader>
+            <Table size="small" stickyHeader sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
               <TableHead>
                 <TableRow>
                   <TableCell>주문일시</TableCell>
