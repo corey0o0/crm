@@ -762,7 +762,7 @@ function Dashboard() {
       // HTML 태그 제거하고 순수 텍스트만 추출
       const plainText = stripHtml(content);
       const message = `[${memoName}]\n${plainText}`;
-      await sendTelegramNotification({ message });
+      await sendTelegramNotification({ message }, { eventType: 'dashboard_memo' });
       setTelegramResult({ open: true, message: '텔레그램 전송 성공!', success: true });
     } catch (e) {
       setTelegramResult({ open: true, message: '텔레그램 전송 실패', success: false });

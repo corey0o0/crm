@@ -901,15 +901,14 @@ function ServiceDetail() {
 
       // 텔레그램 알림 전송 (처리 상태 변경 시에만)
       const statusChanged = initialStatus !== null && initialStatus !== formData.status;
-      if (notificationSuccess && statusChanged) { // DB 알림 등록 성공 시에만 텔레그램 전송
+      if (notificationSuccess && statusChanged) {
         try {
           await sendTelegramNotification({
             message: `A/S 상태 변경 (접수번호: ${id}) - 상태: ${initialStatus} → ${formData.status}, 고객: ${formData.customer_name}, 연락처: ${formData.customer_phone}`,
             link: `/service/${id}`
-          });
+          }, { eventType: 'service_edit' });
         } catch (telegramError) {
           console.error('A/S 상태 변경 텔레그램 알림 전송 중 오류:', telegramError);
-          // 텔레그램 전송 실패는 notificationSuccess 상태에 영향을 주지 않거나, 별도 처리 가능
         }
       }
 
@@ -1178,6 +1177,12 @@ function ServiceDetail() {
             .eq('service_id', id);
 
           if (deletePartsError) throw deletePartsError;
+
+          const { error: txError } = await supabase
+            .from('transactions')
+            .delete()
+            .eq('group_id', id);
+          if (txError) console.error("Error deleting related transactions:", txError);
 
           const { error: deleteServiceError } = await supabase
             .from('services')

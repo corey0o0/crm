@@ -62,6 +62,57 @@ module.exports = function(supabaseAdmin) {
     }
   });
 
+  // 1-2. 재고 비교 API (신규)
+  router.get('/inventory/compare/:mall_id', async (req, res) => {
+    try {
+      const mallId = req.params.mall_id;
+      const { data: mallSet } = await supabaseAdmin.from('cafe24_settings').select('*').eq('mall_id', mallId).single();
+      if (!mallSet || !mallSet.access_token) return res.status(400).json({ error: '쇼핑몰 미연동 혹은 토큰 없음' });
+
+      let allVariants = [];
+      let offset = 0;
+      let limit = 100;
+      
+      while (true) {
+        const resp = await axios.get(`https://${mallId}.cafe24api.com/api/v2/admin/products?embed=variants&limit=${limit}&offset=${offset}`, {
+          headers: {
+            'Authorization': `Bearer ${mallSet.access_token}`,
+            'Content-Type': 'application/json',
+            'X-Cafe24-Api-Version': '2026-03-01'
+          }
+        });
+        
+        const products = resp.data.products || [];
+        if (products.length === 0) break;
+        
+        products.forEach(p => {
+           if (p.variants) {
+             p.variants.forEach(v => {
+                if (v.custom_variant_code) {
+                  allVariants.push({
+                     product_no: p.product_no,
+                     product_name: p.product_name,
+                     variant_code: v.variant_code,
+                     custom_variant_code: v.custom_variant_code,
+                     quantity: v.use_inventory === 'T' ? parseInt(v.quantity || v.stock_quantity || 0) : null,
+                     use_inventory: v.use_inventory === 'T',
+                     display: v.display === 'T'
+                  });
+                }
+             });
+           }
+        });
+        offset += limit;
+      }
+
+      // 프론트엔드에서 바코드 기반 및 창고별 매칭을 수행할 수 있도록 전체 데이터를 그대로 반환
+      res.json({ success: true, cafe24Variants: allVariants });
+    } catch (e) {
+      console.error('Cafe24 Inventory Compare Error:', e.response ? e.response.data : e.message);
+      res.status(500).json({ error: '카페24 재고 데이터 수집 실패: ' + (e.response?.data?.error?.message || e.message) });
+    }
+  });
+
   // 2. OAuth 토큰 갱신 헬퍼
   async function refreshCafe24Token(mall) {
     const credentials = Buffer.from(`${mall.client_id}:${mall.client_secret_encrypted}`).toString('base64');

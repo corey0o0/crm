@@ -127,6 +127,31 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
           console.error('재고 로그 기록 실패:', logError);
         }
 
+        // 트랜잭션 (입출고 관리) 기록 추가
+        const { error: txError } = await supabase
+          .from('transactions')
+          .insert({
+            group_id: referenceId, // shipmentId or serviceId as String
+            type: isRevert ? 'in' : 'out', // 복구 시 입고, 차감 시 출고
+            product_id: part.part_id,
+            product_name: part.part_name,
+            product_code: part.part_code,
+            product_supplier: brandCode || 'NEARBIKE',
+            quantity: Math.abs(quantityChange), // 항상 양수로 기록
+            from_location: isRevert ? '외부(취소/환불)' : (part.warehouse_id || defaultWarehouseId),
+            to_location: isRevert ? (part.warehouse_id || defaultWarehouseId) : '외부(고객)',
+            date: new Date().toISOString().split('T')[0],
+            note: isRevert 
+              ? `${referenceType === 'shipment' ? '[매장출고 취소]' : '[A/S 취소]'} 재고 복구 (Ref: ${referenceId})`
+              : `${referenceType === 'shipment' ? '[매장출고 완료]' : '[A/S 완료]'} 재고 차감 (Ref: ${referenceId})`,
+            is_grouped: true,
+            status: '완료' // 확정 후 처리이므로 항상 완료
+          });
+          
+        if (txError) {
+          console.error('입출고 거래내역(transactions) 기록 실패:', txError);
+        }
+
         results.push({
           part_id: part.part_id,
           part_name: part.part_name,

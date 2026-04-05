@@ -643,16 +643,17 @@ function ShipmentForm() {
         severity: 'success'
       });
 
-      // 텔레그램 알림 전송 (신규 등록 시에만)
-      if (!isEditMode && shipmentId) {
+      // 텔레그램 알림 전송 (신규/수정 분기 처리)
+      if (shipmentId) {
         try {
+          const eventType = isEditMode ? 'shipment_edit' : 'shipment_add';
+          const title = isEditMode ? '출고 정보 수정' : '출고 등록';
           await sendTelegramNotification({
-            message: `출고 등록(ID: ${shipmentId}) - 고객: ${shipmentData.customer_name}, 연락처: ${shipmentData.customer_phone}, 제품: ${combinedProductName} `,
-            link: `/ shipment / ${shipmentId} `
-          });
+            message: `${title}(ID: ${shipmentId}) - 고객: ${shipmentData.customer_name}, 연락처: ${shipmentData.customer_phone}, 제품: ${combinedProductName}`,
+            link: `/shipment/${shipmentId}`
+          }, { eventType });
         } catch (telegramError) {
-          console.error('출고 등록 텔레그램 알림 전송 중 오류:', telegramError);
-          // 텔레그램 전송 실패는 사용자에게 표시하지 않음 (선택적)
+          console.error('출고 텔레그램 알림 전송 중 오류:', telegramError);
         }
       }
 

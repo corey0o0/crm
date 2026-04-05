@@ -5,6 +5,7 @@ import TelegramTest from '../../components/Test/TelegramTest';
 
 import BackupManager from '../../components/Backup/BackupManager';
 import UserMenuSettings from '../../components/Settings/UserMenuSettings';
+import TelegramSettings from '../../components/Settings/TelegramSettings';
 
 function TabPanel(props) {
     const { children, value, index, ...other } = props;
@@ -57,8 +58,9 @@ export default function AdminTools() {
                     >
                         <Tab label="시스템 상태 점검" {...a11yProps(0)} />
                         <Tab label="텔레그램 테스트" {...a11yProps(1)} />
-                        <Tab label="데이터 백업/복원" {...a11yProps(2)} />
-                        <Tab label="사용자 권한 관리" {...a11yProps(3)} />
+                        <Tab label="텔레그램 알림 관리" {...a11yProps(2)} />
+                        <Tab label="데이터 백업/복원" {...a11yProps(3)} />
+                        <Tab label="사용자 권한 관리" {...a11yProps(4)} />
                     </Tabs>
                 </Box>
                 <TabPanel value={value} index={0}>
@@ -68,11 +70,14 @@ export default function AdminTools() {
                     <TelegramTest />
                 </TabPanel>
                 <TabPanel value={value} index={2}>
+                    <TelegramSettings />
+                </TabPanel>
+                <TabPanel value={value} index={3}>
                     <Box sx={{ mt: -3 }}>
                         <BackupManager />
                     </Box>
                 </TabPanel>
-                <TabPanel value={value} index={3}>
+                <TabPanel value={value} index={4}>
                     <UserMenuSettings />
                 </TabPanel>
             </Paper>

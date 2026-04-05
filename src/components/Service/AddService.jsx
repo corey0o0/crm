@@ -180,6 +180,47 @@ function AddService() {
   });
   
   // 고객 이전 기록 관련 상태
+  const [isSimpleSale, setIsSimpleSale] = useState(false);
+
+  const handleSimpleSaleToggle = (e) => {
+    const checked = e.target.checked;
+    setIsSimpleSale(checked);
+    if (checked) {
+      handleStatusChange('처리중');
+      setFormData(prev => ({
+        ...prev,
+        customer_name: '판매건',
+        customer_phone: '000',
+        product_name: selectedParts.map(p => p.name).join(', '),
+        symptom: '단순 판매건',
+        solution: '판매 완료',
+        status: '처리중'
+      }));
+      setStatus('처리중');
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        customer_name: '',
+        customer_phone: '',
+        product_name: '',
+        symptom: '',
+        solution: '',
+        status: '접수'
+      }));
+      setStatus('접수');
+    }
+  };
+
+  // 단순 판매 등록 모드일 때 선택된 부품이 변경되면 제품명 자동 업데이트
+  useEffect(() => {
+    if (isSimpleSale) {
+      setFormData(prev => ({
+        ...prev,
+        product_name: selectedParts.map(p => p.name).join(', ')
+      }));
+    }
+  }, [selectedParts, isSimpleSale]);
+
   const [customerHistoryOpen, setCustomerHistoryOpen] = useState(false);
   const [customerHistoryData, setCustomerHistoryData] = useState([]);
   const [customerHistoryLoading, setCustomerHistoryLoading] = useState(false);
@@ -815,7 +856,7 @@ function AddService() {
             try {
               await sendTelegramNotification({
                 message: `A/S 등록 (접수번호: ${service.id}) - 고객: ${service.customer_name || '정보없음'}, 연락처: ${service.customer_phone || '정보없음'}`
-              });
+              }, { eventType: 'service_add' });
             } catch (telegramError) {
               console.error('엑셀 업로드 A/S 텔레그램 알림 전송 중 오류:', telegramError);
             }
@@ -1021,7 +1062,7 @@ function AddService() {
         try {
           await sendTelegramNotification({
             message: `A/S 등록 (접수번호: ${insertedService.id}) - 고객: ${formData.customer_name}, 연락처: ${formData.customer_phone}`
-          });
+          }, { eventType: 'service_add' });
         } catch (telegramError) {
           console.error('A/S 등록 텔레그램 알림 전송 중 오류:', telegramError);
           // 텔레그램 전송 실패 시 스낵바 메시지 변경 또는 추가 로깅 가능
@@ -2299,7 +2340,18 @@ function AddService() {
           }}>
             A/S 신규 등록
           </Typography>
-          
+          <FormControlLabel
+            control={
+              <Checkbox 
+                checked={isSimpleSale} 
+                onChange={handleSimpleSaleToggle} 
+                color="primary" 
+              />
+            }
+            label="단순 판매 등록 (증상입력 생략 및 즉시 완료처리)"
+            sx={{ ml: 2, flexGrow: 1 }}
+          />
+
           {/* 자동저장 상태 표시 */}
           {autoSave.lastSaved && (
             <Chip
@@ -2802,7 +2854,7 @@ function AddService() {
                   <Grid item xs={12}>
                     <TextField
                       fullWidth
-                      required
+                      required={!isSimpleSale}
                       multiline
                       minRows={5}
                       maxRows={15}

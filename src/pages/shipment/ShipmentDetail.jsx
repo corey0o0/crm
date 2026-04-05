@@ -395,6 +395,15 @@ function ShipmentDetail() {
         });
       }
 
+      const { error: txError } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('group_id', id);
+
+      if (txError) {
+        console.error("Error deleting related transactions:", txError);
+      }
+
       const { error } = await supabase
         .from('shipments')
         .delete()

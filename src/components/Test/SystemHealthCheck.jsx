@@ -555,9 +555,11 @@ const SystemHealthCheck = () => {
           </Typography>
           <Box>
             <Tooltip title="결과 다운로드">
-              <IconButton onClick={downloadResults} disabled={!results || Object.keys(results).length === 0}>
-                <DownloadIcon />
-              </IconButton>
+              <span>
+                <IconButton onClick={downloadResults} disabled={!results || Object.keys(results).length === 0}>
+                  <DownloadIcon />
+                </IconButton>
+              </span>
             </Tooltip>
             <Button
               variant="contained"

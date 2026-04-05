@@ -424,6 +424,69 @@ export default function Cafe24OrderList() {
     });
   };
 
+  const handleIgnoreOrders = async () => {
+    if (!selectedOrders.length) return;
+    const ordersToIgnore = orders.filter(o => selectedOrders.includes(o.id) && !o.is_transferred);
+    
+    if (ordersToIgnore.length === 0) {
+      setAlertDialog({ open: true, title: '알림', message: '선택한 주문 중 제외할 미전송 건이 없습니다.' });
+      return;
+    }
+
+    setConfirmDialog({
+      open: true,
+      title: '판매 반영 예외 처리 (무시)',
+      message: `선택한 ${ordersToIgnore.length}건을 매출 및 재고 변동 없이 [전송 완료] 처리하여 리스트에서 넘기시겠습니까? \\n(실제 재고는 차감되지 않습니다.)`,
+      onConfirm: async () => {
+        try {
+          setLoading(true);
+          const { error } = await supabase
+            .from('cafe24_orders')
+            .update({ is_transferred: true }) // 실제론 전송을 안하고 상태만 넘김
+            .in('id', ordersToIgnore.map(o => o.id));
+          if (error) throw error;
+          
+          setAlertDialog({ open: true, title: '처리 완료', message: '선택 항목이 반영 예외(완료) 처리되었습니다.' });
+          setSelectedOrders([]);
+          fetchOrders();
+        } catch (err) {
+          console.error(err);
+          setAlertDialog({ open: true, title: '처리 실패', message: err.message });
+        } finally {
+          setLoading(false);
+        }
+      }
+    });
+  };
+
+  const handleSingleIgnoreOrder = async (order) => {
+    if (order.is_transferred) return;
+    
+    setConfirmDialog({
+      open: true,
+      title: '판매 반영 예외 처리 (무시)',
+      message: `주문(Cafe24 ID: ${order.order_id})을 매출 및 재고 변동 없이 [전송 완료] 처리하여 리스트에서 넘기시겠습니까? \\n(실제 재고는 차감되지 않습니다.)`,
+      onConfirm: async () => {
+        try {
+          setLoading(true);
+          const { error } = await supabase
+            .from('cafe24_orders')
+            .update({ is_transferred: true })
+            .eq('id', order.id);
+          if (error) throw error;
+          
+          setAlertDialog({ open: true, title: '처리 완료', message: '반영 예외(완료) 처리되었습니다.' });
+          fetchOrders();
+        } catch (err) {
+          console.error(err);
+          setAlertDialog({ open: true, title: '처리 실패', message: err.message });
+        } finally {
+          setLoading(false);
+        }
+      }
+    });
+  };
+
   const handleCancelTransfer = async () => {
     if (!selectedOrders.length) return;
     const ordersToCancel = orders.filter(o => selectedOrders.includes(o.id) && o.is_transferred);
@@ -436,7 +499,7 @@ export default function Cafe24OrderList() {
     setConfirmDialog({
       open: true,
       title: '판매 반영 취소',
-      message: `선택한 ${ordersToCancel.length}건의 주문에 대해 판매 반영 및 모든 입출고 내역/통계를 취소하시겠습니까?\n(청담 창고에서 이미 검수 완료된 건은 자동 제외됩니다.)`,
+      message: `선택한 ${ordersToCancel.length}건의 주문에 대해 판매 반영 및 모든 입출고 내역/통계를 취소하시겠습니까?\\n(청담 창고에서 이미 검수 완료된 건은 자동 제외됩니다.)`,
       onConfirm: async () => {
         setLoading(true);
         try {
@@ -445,6 +508,29 @@ export default function Cafe24OrderList() {
           setAlertDialog({ open: true, title: '취소 성공', message: res.message || '판매 전송 취소가 완료되었습니다.' });
           // 선택 해제
           setSelectedOrders(prev => prev.filter(id => !orderIds.includes(id)));
+          fetchOrders();
+        } catch (err) {
+          console.error(err);
+          setAlertDialog({ open: true, title: '취소 실패', message: err.message });
+        } finally {
+          setLoading(false);
+        }
+      }
+    });
+  };
+
+  const handleSingleCancelTransfer = async (order) => {
+    if (!order.is_transferred) return;
+    
+    setConfirmDialog({
+      open: true,
+      title: '판매 반영 취소',
+      message: `주문(Cafe24 ID: ${order.order_id})의 판매 반영 내역(입출고 등)을 취소하고 미전송 상태로 되돌리시겠습니까?\\n(청담 창고에서 이미 검수 완료된 건은 초기화할 수 없습니다.)`,
+      onConfirm: async () => {
+        setLoading(true);
+        try {
+          const res = await cancelSalesTransfer([order.id]);
+          setAlertDialog({ open: true, title: '취소 성공', message: res.message || '판매 전송 취소가 완료되었습니다.' });
           fetchOrders();
         } catch (err) {
           console.error(err);
@@ -660,6 +746,9 @@ export default function Cafe24OrderList() {
                     </Button>
                     <Button size="medium" variant="contained" color="error" onClick={handleCancelTransfer}>
                       판매 반영 취소
+                    </Button>
+                    <Button size="medium" variant="outlined" color="warning" onClick={handleIgnoreOrders}>
+                      판매 반영 예외(무시)
                     </Button>
                     <Button size="medium" variant="contained" color="primary" onClick={handleSalesTransfer}>
                       판매 반영(전송)
@@ -877,11 +966,19 @@ export default function Cafe24OrderList() {
                         </FormControl>
                       </TableCell>
                       {idx === 0 && (
-                        <TableCell rowSpan={items.length}>
+                        <TableCell rowSpan={items.length} align="center">
                           {order.is_transferred ? (
-                            <Chip size="small" label="완료" color="success" />
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'center' }}>
+                              <Chip size="small" label="완료" color="success" />
+                              <Button size="small" variant="text" color="error" onClick={() => handleSingleCancelTransfer(order)} sx={{ fontSize: '0.7rem', padding: '2px 4px', minWidth: 'auto' }}>
+                                반영취소
+                              </Button>
+                            </Box>
                           ) : (
-                            <Button size="small" variant="contained" color="primary" onClick={() => handleSingleSalesTransfer(order)}>판매반영</Button>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                              <Button size="small" variant="contained" color="primary" onClick={() => handleSingleSalesTransfer(order)}>판매반영</Button>
+                              <Button size="small" variant="outlined" color="warning" onClick={() => handleSingleIgnoreOrder(order)}>반영무시</Button>
+                            </Box>
                           )}
                         </TableCell>
                       )}

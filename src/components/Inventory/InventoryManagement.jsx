@@ -3,6 +3,7 @@ import ExcelJS from 'exceljs';
 import BarcodeInspectTab from './tabs/BarcodeInspectTab';
 import StoreOnlineOutboundTab from './tabs/StoreOnlineOutboundTab';
 import BoxStatusTab from './tabs/BoxStatusTab';
+import Cafe24InventoryReconciliation from './Cafe24InventoryReconciliation';
 import {
   Box,
   Grid,
@@ -68,6 +69,17 @@ import { supabase } from '../../lib/supabaseClient';
 import { fetchFromSupabase } from '../../utils/restApiUtils';
 import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
 
+// 창고 및 대리점 코드를 숨기고 이름만 표시하는 유틸리티
+const formatLocationName = (locationId, warehouses, dealers) => {
+  if (!locationId || locationId === '외부') return '외부';
+  const warehouse = warehouses.find(w => w.id === locationId);
+  if (warehouse) return warehouse.name;
+  const dealer = dealers.find(d => d.id === locationId);
+  if (dealer) return dealer.name;
+  // 문자열 자체에 코드가 괄호로 포함된 경우 제거 (예: 청담 반포 (W002) -> 청담 반포)
+  return String(locationId).replace(/\s*\([A-Za-z0-9_-]+\)$/, '').trim();
+};
+
 function InventoryManagement() {
   const [activeTab, setActiveTab] = useState(0);
   const [openDialog, setOpenDialog] = useState(false);
@@ -106,20 +118,17 @@ function InventoryManagement() {
     if (selectedTransactions.length === 0) return;
     if (!window.confirm(`선택한 ${selectedTransactions.length}개의 거래내역을 삭제하시겠습니까?`)) return;
     try {
-      const allTxIdsToDelete = [];
-      for (const groupId of selectedTransactions) {
-        // Find group in transactions
-        const group = transactions.find(t => t.id === groupId);
-        if (group && group.items) {
-          const itemIds = group.items.map(item => item.id);
-          allTxIdsToDelete.push(...itemIds);
+      for (const selectedId of selectedTransactions) {
+        // 그룹 ID인지 단일 내역 ID인지 확인 (selectedId가 문자열일 수 있으므로 형변환 비교)
+        const itemsInGroup = transactions.filter(t => t.groupId != null && String(t.groupId) === String(selectedId));
+        
+        if (itemsInGroup.length > 0) {
+          // 그룹 거래인 경우 일괄 삭제 API 활용
+          await transactionApi.deleteByGroupId(selectedId);
         } else {
-          allTxIdsToDelete.push(groupId);
+          // 단일 거래인 경우
+          await transactionApi.delete(selectedId);
         }
-      }
-      
-      for (const id of allTxIdsToDelete) {
-        await transactionApi.delete(id);
       }
       
       const updatedTransactions = await transactionApi.getAll();
@@ -947,9 +956,9 @@ function InventoryManagement() {
         // 출고: 출발지(창고) 필수, 목적지 필수
         if (!item.fromLocation || !item.toLocation) return true;
         
-        // 창고 -> 창고 이동 시 박스번호(boxNo) 필수
+        // 박스번호(boxNo)는 이제 선택 사항으로 변경됨
         const isToWarehouse = warehouses.find(w => w.id === item.toLocation);
-        if (isToWarehouse && !item.boxNo) return true;
+        // if (isToWarehouse && !item.boxNo) return true;
 
         const available = (inventory[item.fromLocation]?.[parseInt(item.productId) || 0]) || 0;
         return (parseInt(item.quantity) || 0) > available;
@@ -2343,6 +2352,7 @@ function InventoryManagement() {
           <Tab label="박스 관리" />
           <Tab label="입출고 통계" />
           <Tab label="창고/대리점 관리" />
+          <Tab label="카페24 재고 비교" />
         </Tabs>
       </Box>
 
@@ -2488,14 +2498,8 @@ function InventoryManagement() {
                   <TableBody>
                     {dashboardStats.recent.map((tx) => {
                       const product = products.find(p => p.id === tx.productId);
-                      const fromLocation = tx.fromLocation === '외부' ? '외부' : 
-                        warehouses.find(w => w.id === tx.fromLocation)?.name || 
-                        dealers.find(d => d.id === tx.fromLocation)?.name || 
-                        tx.fromLocation;
-                      const toLocation = 
-                        warehouses.find(w => w.id === tx.toLocation)?.name || 
-                        dealers.find(d => d.id === tx.toLocation)?.name || 
-                        tx.toLocation;
+                      const fromLocation = formatLocationName(tx.fromLocation, warehouses, dealers);
+                      const toLocation = formatLocationName(tx.toLocation, warehouses, dealers);
                       
                       return (
                         <TableRow key={tx.id} hover>
@@ -2784,10 +2788,10 @@ function InventoryManagement() {
                         <TableCell align="center">{group.items.length}</TableCell>
                         <TableCell align="center">{group.items.length === 1 ? group.items[0].quantity : group.items.reduce((sum, item) => sum + item.quantity, 0)}</TableCell>
                         <TableCell sx={{ fontWeight: 700 }}>
-                          {group.items.length === 1 ? (() => { const srcId = group.items[0].fromLocation; if (!srcId || srcId === '외부') return '외부'; const w = warehouses.find(w => w.id === srcId); if (w) return `${w.name} (${w.id})`; const d = dealers.find(d => d.id === srcId); if (d) return `${d.name} (${d.id})`; return srcId; })() : (() => { const fromLocations = [...new Set(group.items.map(item => item.fromLocation))]; if (fromLocations.length === 1) { const srcId = fromLocations[0]; if (!srcId || srcId === '외부') return '외부'; const w = warehouses.find(w => w.id === srcId); if (w) return `${w.name} (${w.id})`; const d = dealers.find(d => d.id === srcId); if (d) return `${d.name} (${d.id})`; return srcId; } return '다양'; })()}
+                          {group.items.length === 1 ? formatLocationName(group.items[0].fromLocation, warehouses, dealers) : (() => { const fromLocs = [...new Set(group.items.map(item => formatLocationName(item.fromLocation, warehouses, dealers)))]; return fromLocs.length === 1 ? fromLocs[0] : '다양'; })()}
                         </TableCell>
                         <TableCell sx={{ fontWeight: 700 }}>
-                          {group.items.length === 1 ? (() => { const destId = group.items[0].toLocation; const w = warehouses.find(w => w.id === destId); if (w) return `${w.name} (${w.id})`; const d = dealers.find(d => d.id === destId); if (d) return `${d.name} (${d.id})`; return destId; })() : (() => { const toLocations = [...new Set(group.items.map(item => item.toLocation))]; if (toLocations.length === 1) { const destId = toLocations[0]; const w = warehouses.find(w => w.id === destId); if (w) return `${w.name} (${w.id})`; const d = dealers.find(d => d.id === destId); if (d) return `${d.name} (${d.id})`; return destId; } return '다양'; })()}
+                          {group.items.length === 1 ? formatLocationName(group.items[0].toLocation, warehouses, dealers) : (() => { const toLocs = [...new Set(group.items.map(item => formatLocationName(item.toLocation, warehouses, dealers)))]; return toLocs.length === 1 ? toLocs[0] : '다양'; })()}
                         </TableCell>
                         <TableCell sx={{ fontWeight: 700 }}>{group.items.length === 1 ? (group.items[0].note || '-') : (group.note || '다중 상품')}</TableCell>
                         <TableCell align="center">
@@ -2868,7 +2872,7 @@ function InventoryManagement() {
                                     const toSet = new Set();
                                     dayTransactions.forEach(tx => {
                                       if (tx.fromLocation && tx.fromLocation !== wid) {
-                                        const loc = tx.fromLocation === '외부' ? '외부' : (warehouses.find(w => w.id === tx.fromLocation)?.name || dealers.find(d => d.id === tx.fromLocation)?.name || tx.fromLocation);
+                                        const loc = formatLocationName(tx.fromLocation, warehouses, dealers);
                                         fromSet.add(loc);
                                       }
                                       if (tx.toLocation && tx.toLocation !== wid) {
@@ -4558,14 +4562,8 @@ function InventoryManagement() {
                 <TableBody>
                   {hoverTransactions.slice(0, 10).map((tx, idx) => {
                     const product = products.find(p => p.id === tx.productId);
-                    const fromLocation = tx.fromLocation === '외부' ? '외부' : 
-                      warehouses.find(w => w.id === tx.fromLocation)?.name || 
-                      dealers.find(d => d.id === tx.fromLocation)?.name || 
-                      tx.fromLocation;
-                    const toLocation = 
-                      warehouses.find(w => w.id === tx.toLocation)?.name || 
-                      dealers.find(d => d.id === tx.toLocation)?.name || 
-                      tx.toLocation;
+                    const fromLocation = formatLocationName(tx.fromLocation, warehouses, dealers);
+                    const toLocation = formatLocationName(tx.toLocation, warehouses, dealers);
                     return (
                       <TableRow key={idx}>
                         <TableCell>
@@ -4632,14 +4630,8 @@ function InventoryManagement() {
                   <TableBody>
                     {selectedTableTransactions.map((tx) => {
                       const product = products.find(p => p.id === tx.productId);
-                      const fromLocation = tx.fromLocation === '외부' ? '외부' : 
-                        warehouses.find(w => w.id === tx.fromLocation)?.name || 
-                        dealers.find(d => d.id === tx.fromLocation)?.name || 
-                        tx.fromLocation;
-                      const toLocation = 
-                        warehouses.find(w => w.id === tx.toLocation)?.name || 
-                        dealers.find(d => d.id === tx.toLocation)?.name || 
-                        tx.toLocation;
+                      const fromLocation = formatLocationName(tx.fromLocation, warehouses, dealers);
+                      const toLocation = formatLocationName(tx.toLocation, warehouses, dealers);
                       
                       return (
                         <TableRow key={tx.id} hover>
@@ -4683,6 +4675,15 @@ function InventoryManagement() {
       {/* 박스 관리 탭 */}
       {activeTab === 4 && (
         <BoxStatusTab />
+      )}
+
+      {/* 카페24 재고 비교 탭 */}
+      {activeTab === 7 && (
+        <Cafe24InventoryReconciliation 
+          products={products}
+          warehouses={warehouses}
+          recalculatedInventory={inventory}
+        />
       )}
 
       {/* 바코드 스캐너 */}

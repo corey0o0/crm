@@ -178,3 +178,12 @@ export async function cancelSalesTransfer(orderIds) {
   }
   return resp.json();
 }
+
+export async function compareCafe24Inventory(mall_id) {
+  const resp = await fetch(`${BACKEND_URL}/api/cafe24/inventory/compare/${mall_id}`);
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error || '재고 비교 실패');
+  }
+  return resp.json();
+}
