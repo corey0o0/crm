@@ -2,17 +2,21 @@ import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client
 
 // S3 클라이언트 초기화
 const initR2Client = () => {
-  if (!process.env.REACT_APP_R2_ACCESS_KEY_ID) {
-    console.warn("R2 설정이 .env 파일에 누락되었습니다.");
+  const accessKey = window._env_?.REACT_APP_R2_ACCESS_KEY_ID || process.env.REACT_APP_R2_ACCESS_KEY_ID;
+  const secretKey = window._env_?.REACT_APP_R2_SECRET_ACCESS_KEY || process.env.REACT_APP_R2_SECRET_ACCESS_KEY;
+  const endpoint = window._env_?.REACT_APP_R2_ENDPOINT || process.env.REACT_APP_R2_ENDPOINT;
+
+  if (!accessKey) {
+    console.warn("R2 설정이 환경 변수에 누락되었습니다.");
     return null;
   }
   return new S3Client({
     region: "auto",
-    endpoint: process.env.REACT_APP_R2_ENDPOINT,
+    endpoint: endpoint,
     forcePathStyle: true, // Cloudflare R2 필수 옵션
     credentials: {
-      accessKeyId: process.env.REACT_APP_R2_ACCESS_KEY_ID,
-      secretAccessKey: process.env.REACT_APP_R2_SECRET_ACCESS_KEY,
+      accessKeyId: accessKey,
+      secretAccessKey: secretKey,
     },
   });
 };
@@ -60,7 +64,8 @@ export const uploadFileToGoogleDrive = async (file, folderPrefix = null, accessT
     console.log(`Cloudflare R2 파일 업로드 시작: ${key}`);
     await r2Client.send(new PutObjectCommand(params));
     
-    const publicUrl = `${process.env.REACT_APP_R2_PUBLIC_URL}/${key}`;
+    const r2PublicUrl = window._env_?.REACT_APP_R2_PUBLIC_URL || process.env.REACT_APP_R2_PUBLIC_URL;
+    const publicUrl = `${r2PublicUrl}/${key}`;
     console.log("R2 업로드 완료:", publicUrl);
     
     // 기존 구글 드라이브 응답 구조를 유지하여 컴포넌트 수정을 최소화합니다.
@@ -101,16 +106,19 @@ export const deleteGoogleDriveFile = async (fileKey, accessToken = null) => {
  * getGoogleDriveFileInfo 대체제 (R2에서는 URL만 만들어서 반환)
  */
 export const getGoogleDriveFileInfo = async (fileKey, accessToken = null) => {
-   const publicUrl = `${process.env.REACT_APP_R2_PUBLIC_URL}/${fileKey}`;
+   const r2PublicUrl = window._env_?.REACT_APP_R2_PUBLIC_URL || process.env.REACT_APP_R2_PUBLIC_URL;
+   const publicUrl = `${r2PublicUrl}/${fileKey}`;
    return { id: fileKey, webViewLink: publicUrl };
 };
 
 export const getGoogleDriveDownloadUrl = (fileKey) => {
-    return `${process.env.REACT_APP_R2_PUBLIC_URL}/${fileKey}`;
+    const r2PublicUrl = window._env_?.REACT_APP_R2_PUBLIC_URL || process.env.REACT_APP_R2_PUBLIC_URL;
+    return `${r2PublicUrl}/${fileKey}`;
 };
 
 export const getGoogleDrivePreviewUrl = (fileKey) => {
-    return `${process.env.REACT_APP_R2_PUBLIC_URL}/${fileKey}`;
+    const r2PublicUrl = window._env_?.REACT_APP_R2_PUBLIC_URL || process.env.REACT_APP_R2_PUBLIC_URL;
+    return `${r2PublicUrl}/${fileKey}`;
 };
 
 /**

@@ -6,11 +6,7 @@ import {
 } from '@mui/material';
 import { Search as SearchIcon, Visibility as VisibilityIcon, Inventory as BoxIcon } from '@mui/icons-material';
 
-const DUMMY_BOXES = [
-  { id: '20260327-NB-001', location: 'A 창고 (광주)', status: '보관중', date: '2026-03-27', items: [
-    { sku: 'NB-FRAME-001', name: '리어바이크 프레임 A', qty: 10 }
-  ]}
-];
+const DUMMY_BOXES = [];
 
 function BoxStatusTab() {
   const [boxes, setBoxes] = useState(DUMMY_BOXES);

@@ -91,6 +91,7 @@ const PartsFormDialog = memo(({
   const [showBarcodePreview, setShowBarcodePreview] = useState(false);
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState('');
+  const [enlargedImage, setEnlargedImage] = useState(null);
 
   // 폼이 열려있는지 추적하여 불필요한 리셋 방지
   const isOpenRef = useRef(open);
@@ -203,16 +204,73 @@ const PartsFormDialog = memo(({
     onSubmit(formData, imageFile);
   }, [formData, imageFile, onSubmit]);
 
-  const handleImageChange = (e) => {
+  const compressImage = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          
+          if (width > height) {
+            if (width > 300) {
+              height = Math.round(height * (300 / width));
+              width = 300;
+            }
+          } else {
+            if (height > 300) {
+              width = Math.round(width * (300 / height));
+              height = 300;
+            }
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          canvas.toBlob((blob) => {
+            if (blob) {
+              const compressedFile = new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() });
+              resolve({ file: compressedFile, dataUrl: canvas.toDataURL('image/jpeg') });
+            } else {
+              reject(new Error('Canvas to Blob failed'));
+            }
+          }, 'image/jpeg', 0.85);
+        };
+        img.onerror = reject;
+        img.src = event.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleImageChange = async (e) => {
     const file = e.target.files[0];
     if (file) {
-      setImageFile(file);
-      setImagePreview(URL.createObjectURL(file));
+      if (file.type.startsWith('image/')) {
+        try {
+          const { file: compressedFile, dataUrl } = await compressImage(file);
+          setImageFile(compressedFile);
+          setImagePreview(dataUrl);
+        } catch (err) {
+          console.error('Image compression error:', err);
+          setImageFile(file); // fallback
+          setImagePreview(URL.createObjectURL(file));
+        }
+      } else {
+        setImageFile(file);
+        setImagePreview(URL.createObjectURL(file));
+      }
     }
   };
 
   return (
-    <Dialog
+    <>
+      <Dialog
       open={open}
       onClose={onClose}
       maxWidth="md"
@@ -329,7 +387,8 @@ const PartsFormDialog = memo(({
               <Avatar
                 src={imagePreview}
                 variant="rounded"
-                sx={{ width: 80, height: 80, bgcolor: 'background.paper', border: '1px solid #ddd' }}
+                sx={{ width: 80, height: 80, bgcolor: 'background.paper', border: '1px solid #ddd', cursor: imagePreview ? 'pointer' : 'default' }}
+                onClick={() => imagePreview && setEnlargedImage(imagePreview)}
               >
                 {!imagePreview && <Box sx={{ fontSize: '0.7rem', color: '#999' }}>이미지 없음</Box>}
               </Avatar>
@@ -446,7 +505,21 @@ const PartsFormDialog = memo(({
           <Button onClick={() => setShowBarcodePreview(false)}>닫기</Button>
         </DialogActions>
       </Dialog>
-    </Dialog>
+      </Dialog>
+      
+      {/* 이미지 확대 모달 (PartForm용) */}
+      <Dialog open={!!enlargedImage} onClose={() => setEnlargedImage(null)} maxWidth="md">
+        <DialogContent sx={{ p: 1, position: 'relative', bgcolor: 'transparent', textAlign: 'center' }}>
+          <IconButton 
+            onClick={() => setEnlargedImage(null)} 
+            sx={{ position: 'absolute', top: 8, right: 8, bgcolor: 'rgba(0,0,0,0.5)', color: 'white', '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' } }}
+          >
+            <CloseIcon />
+          </IconButton>
+          <img src={enlargedImage} alt="Enlarged" style={{ maxWidth: '100%', height: 'auto', display: 'block', maxHeight: '80vh', objectFit: 'contain', margin: '0 auto' }} />
+        </DialogContent>
+      </Dialog>
+    </>
   );
 });
 
@@ -525,6 +598,7 @@ function useDebounce(value, delay) {
 function PartsManagement() {
   const [parts, setParts] = useState([]);
   const [openDialog, setOpenDialog] = useState(false);
+  const [enlargedImage, setEnlargedImage] = useState(null);
   const [selectedPart, setSelectedPart] = useState(null);
   const [selectedBrand, setSelectedBrand] = useState('XRB');
   const [snackbar, setSnackbar] = useState({
@@ -1721,7 +1795,7 @@ function PartsManagement() {
                   />
                 </TableCell>
                 <TableCell>
-                  <Avatar src={part.image_url} alt={part.name} variant="rounded" sx={{ width: 40, height: 40, bgcolor: 'transparent', border: '1px solid #ddd' }}>
+                  <Avatar src={part.image_url} alt={part.name} variant="rounded" sx={{ width: 40, height: 40, bgcolor: 'transparent', border: '1px solid #ddd', cursor: part.image_url ? 'pointer' : 'default' }} onClick={() => part.image_url && setEnlargedImage(part.image_url)}>
                     <Box sx={{ fontSize: '0.4rem', color: '#999' }}>No img</Box>
                   </Avatar>
                 </TableCell>
@@ -2039,6 +2113,18 @@ function PartsManagement() {
         </DialogActions>
       </Dialog>
 
+      {/* 이미지 확대 모달 (리스트용) */}
+      <Dialog open={!!enlargedImage} onClose={() => setEnlargedImage(null)} maxWidth="md">
+        <DialogContent sx={{ p: 1, position: 'relative', bgcolor: 'transparent', textAlign: 'center' }}>
+          <IconButton 
+            onClick={() => setEnlargedImage(null)} 
+            sx={{ position: 'absolute', top: 8, right: 8, bgcolor: 'rgba(0,0,0,0.5)', color: 'white', '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' } }}
+          >
+            <CloseIcon />
+          </IconButton>
+          <img src={enlargedImage} alt="Enlarged" style={{ maxWidth: '100%', height: 'auto', display: 'block', maxHeight: '80vh', objectFit: 'contain', margin: '0 auto' }} />
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 }
