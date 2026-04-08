@@ -72,7 +72,8 @@ import {
   uploadFileToGoogleDrive,
   findOrCreateFolder,
   shareGoogleDriveFile,
-  getGoogleDrivePreviewUrl
+  getGoogleDrivePreviewUrl,
+  getFixedR2Url
 } from '../../utils/cloudflareR2Utils';
 
 // PDF worker 설정
