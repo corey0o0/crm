@@ -36,6 +36,12 @@ export const findOrCreateFolder = async (folderName, parentFolderId = null, acce
   return { id: `${prefix}${folderName}` };
 };
 
+const getR2PublicUrl = () => {
+    return window._env_?.REACT_APP_R2_PUBLIC_URL || 
+           process.env.REACT_APP_R2_PUBLIC_URL || 
+           'https://pub-27aaa3bc54074d938a076a095676c921.r2.dev';
+};
+
 /**
  * 구글 드라이브 uploadFileToGoogleDrive의 Drop-in 대체제
  */
@@ -64,7 +70,7 @@ export const uploadFileToGoogleDrive = async (file, folderPrefix = null, accessT
     console.log(`Cloudflare R2 파일 업로드 시작: ${key}`);
     await r2Client.send(new PutObjectCommand(params));
     
-    const r2PublicUrl = window._env_?.REACT_APP_R2_PUBLIC_URL || process.env.REACT_APP_R2_PUBLIC_URL;
+    const r2PublicUrl = getR2PublicUrl();
     const publicUrl = `${r2PublicUrl}/${key}`;
     console.log("R2 업로드 완료:", publicUrl);
     
@@ -106,18 +112,18 @@ export const deleteGoogleDriveFile = async (fileKey, accessToken = null) => {
  * getGoogleDriveFileInfo 대체제 (R2에서는 URL만 만들어서 반환)
  */
 export const getGoogleDriveFileInfo = async (fileKey, accessToken = null) => {
-   const r2PublicUrl = window._env_?.REACT_APP_R2_PUBLIC_URL || process.env.REACT_APP_R2_PUBLIC_URL;
+   const r2PublicUrl = getR2PublicUrl();
    const publicUrl = `${r2PublicUrl}/${fileKey}`;
    return { id: fileKey, webViewLink: publicUrl };
 };
 
 export const getGoogleDriveDownloadUrl = (fileKey) => {
-    const r2PublicUrl = window._env_?.REACT_APP_R2_PUBLIC_URL || process.env.REACT_APP_R2_PUBLIC_URL;
+    const r2PublicUrl = getR2PublicUrl();
     return `${r2PublicUrl}/${fileKey}`;
 };
 
 export const getGoogleDrivePreviewUrl = (fileKey) => {
-    const r2PublicUrl = window._env_?.REACT_APP_R2_PUBLIC_URL || process.env.REACT_APP_R2_PUBLIC_URL;
+    const r2PublicUrl = getR2PublicUrl();
     return `${r2PublicUrl}/${fileKey}`;
 };
 
@@ -137,4 +143,18 @@ export const uploadToGoogleDrive = async (file, fileName) => {
         uploadFile = new File([file], fileName, { type: file.type });
     }
     return await uploadFileToGoogleDrive(uploadFile, "receipts");
+};
+
+export const getFixedR2Url = (url) => {
+    if (!url) return url;
+    let fixedUrl = url;
+    if (fixedUrl.startsWith('undefined/')) {
+        const r2Url = getR2PublicUrl();
+        fixedUrl = fixedUrl.replace('undefined/', `${r2Url}/`);
+    }
+    // 이전에 환경변수 미적용으로 인해 DB에 하드코딩된 폴더명이 들어갔을 경우, Cloudflare에서 %RE 에러(400)가 발생하므로 강제 인코딩
+    if (fixedUrl.includes('%REACT_APP_GOOGLE_DRIVE_SUBFOLDER%')) {
+        fixedUrl = fixedUrl.replace(/%REACT_APP_GOOGLE_DRIVE_SUBFOLDER%/g, '%25REACT_APP_GOOGLE_DRIVE_SUBFOLDER%25');
+    }
+    return fixedUrl;
 };

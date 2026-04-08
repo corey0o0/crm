@@ -3142,7 +3142,7 @@ function ServiceDetail() {
                             <TableRow key={file.id}>
                               <TableCell>
                                 <Link
-                                  href={file.webViewLink}
+                                  href={getFixedR2Url(file.webViewLink)}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   sx={{ textDecoration: 'none' }}
@@ -3159,7 +3159,7 @@ function ServiceDetail() {
                               <TableCell align="center">
                                 <IconButton
                                   size="small"
-                                  onClick={() => handlePreview(file.webViewLink)}
+                                  onClick={() => handlePreview(getFixedR2Url(file.webViewLink))}
                                   title="미리보기"
                                   sx={{ mr: 1 }}
                                 >
