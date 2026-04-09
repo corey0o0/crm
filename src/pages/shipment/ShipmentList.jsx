@@ -149,7 +149,7 @@ function ShipmentList() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [hasActiveSearch, setHasActiveSearch] = useState(false);
 
-  // 브랜드별 준비중+배송중 건수
+  // 브랜드별 준비중+출고대기 건수
   const [brandCounts, setBrandCounts] = useState({
     XRB: 0,
     NB: 0
@@ -193,7 +193,7 @@ function ShipmentList() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBrand, dateFilter, statusFilter, sellerFilter]);
 
-  // 브랜드별 준비중+배송중 건수 조회
+  // 브랜드별 준비중+출고대기 건수 조회
   const fetchBrandCounts = async () => {
     try {
       const [xrbCount, nbCount] = await Promise.all([
@@ -893,7 +893,7 @@ function ShipmentList() {
         return 'info';
       case '출고완료':
         return 'success';
-      case '배송중':
+      case '출고대기':
         return 'warning';
       default:
         return 'default';
@@ -1024,8 +1024,29 @@ function ShipmentList() {
           await supabase
             .from('shipment_parts')
             .insert(partsData);
+
+          // 추가: 입출고 관리(transactions)에 기록 (단, 현재 재고(inventory)에는 영향을 주지 않으므로 trigger 없음)
+          const transactionData = groupData.products.map(product => ({
+            group_id: shipmentId,
+            type: 'out',
+            product_id: null, // 과거 데이터라 정확한 part_id 매칭이 안될 수 있음, 이름/코드로 기록
+            product_name: product.name,
+            product_code: product.code || '',
+            product_supplier: selectedBrand || 'NEARBIKE',
+            quantity: product.quantity,
+            from_location: 'DEFAULT', // 이카운트 이전 데이터용 가상 창고
+            to_location: '외부(고객)',
+            date: groupData.orderDate || new Date().toISOString().split('T')[0],
+            note: `[이카운트 이전] ${groupData.customer.name}`,
+            is_grouped: groupData.products.length > 1,
+            status: '완료' // 완료 처리하여 입출고 내역에 표시
+          }));
+
+          if (transactionData.length > 0) {
+            await supabase.from('transactions').insert(transactionData);
+          }
         } catch (partsError) {
-          console.error('제품 상세 정보 저장 중 오류:', partsError);
+          console.error('제품 상세 정보/기록장 저장 중 오류:', partsError);
           // 오류가 있어도 진행
         }
 
@@ -1718,7 +1739,7 @@ function ShipmentList() {
                 >
                   <MenuItem value="all">전체 상태</MenuItem>
                   <MenuItem value="준비중">준비중</MenuItem>
-                  <MenuItem value="배송중">배송중</MenuItem>
+                  <MenuItem value="출고대기">출고대기</MenuItem>
                   <MenuItem value="출고완료">출고완료</MenuItem>
                 </Select>
               </FormControl>

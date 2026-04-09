@@ -336,9 +336,9 @@ module.exports = function(supabaseAdmin) {
       }
 
       const orders = response.data.orders || [];
-      const excludedStatuses = ['N00', 'N30', 'F'];
+      const excludedStatuses = ['N00', 'F']; // N30(배송완료/발송완료) 수집 허용 처리
       const validOrders = orders.filter(o => !excludedStatuses.includes(o.order_status));
-      console.log(`[Cafe24 Sync] Fetched ${orders.length} orders from Cafe24 API, processing ${validOrders.length} valid orders (filtered out unpaid/completed orders)`);
+      console.log(`[Cafe24 Sync] Fetched ${orders.length} orders from Cafe24 API, processing ${validOrders.length} valid orders`);
 
       for (const order of validOrders) {
         // 주문한 상품들 배열 만들기
@@ -566,8 +566,8 @@ module.exports = function(supabaseAdmin) {
 
           const productName = itemNames.length > 1 ? `${itemNames[0]} 외 ${itemNames.length - 1}건` : (itemNames[0] || '상품 없음');
 
-          // 청담 창고이면 '대기', 그 외면 '완료' (transactions 반영 기준)
-          const transactionStatus = isCheongdam ? '대기' : '완료';
+          // 항상 '완료' (즉시 출고) 처리
+          const transactionStatus = '완료';
 
           const transactionsToInsert = [];
           for (const item of wItems) {
@@ -603,33 +603,11 @@ module.exports = function(supabaseAdmin) {
             const { data: insertedTxs, error: txErr } = await supabaseAdmin.from('transactions').insert(transactionsToInsert).select();
             if (txErr) console.error('[Transaction Insert Error]', txErr);
 
-            // 청담 창고이면 pending_outbounds (출고 대기열) 생성
-            if (isCheongdam && insertedTxs && insertedTxs.length > 0) {
-               const { data: poHeader, error: poErr } = await supabaseAdmin.from('pending_outbounds').insert({
-                 order_no: order.order_id,
-                 type: '온라인주문',
-                 status: '대기',
-                 transaction_ids: insertedTxs.map(t => t.id)
-               }).select().single();
-
-               if (!poErr && poHeader) {
-                 const poItems = insertedTxs.map(tx => ({
-                   pending_id: poHeader.id,
-                   name: tx.product_name,
-                   code: tx.product_code,
-                   expected_qty: tx.quantity,
-                   scanned_qty: 0,
-                   part_id: tx.product_id
-                 }));
-                 await supabaseAdmin.from('pending_outbound_items').insert(poItems);
-               } else {
-                 console.error('[Pending Outbound Header Insert Error]', poErr);
-               }
-            }
+            // 대기(pending_outbounds) 절차 생략하고 바로 재고 차감만 수행
           }
 
-          // ** 기타 창고인 경우 재고 즉시 차감 로직 **
-          if (!isCheongdam && wid !== 'DEFAULT') {
+          // ** 모든 창고에 대해 재고 즉시 차감 로직 실행 **
+          if (wid !== 'DEFAULT') {
             try {
               for (const item of wItems) {
                 let mappedPartId = item.part_id;

@@ -100,7 +100,8 @@ function ShipmentForm() {
     delivery_method: '택배',
     tracking_number: '',
     note: '',
-    sales_channel: '공홈'
+    sales_channel: '공홈',
+    warehouse_id: ''
   });
 
   const [selectedParts, setSelectedParts] = useState([]);
@@ -148,7 +149,10 @@ function ShipmentForm() {
       
       // 새 출고 등록 시 기본 창고(청담) 설정
       if (!isEditMode && data) {
-         // 기본 창고 설정 기능 임시 비활성화
+         const cheongdam = data.find(w => w.name.includes('청담'));
+         if (cheongdam) {
+           setShipmentData(prev => ({ ...prev, warehouse_id: cheongdam.id }));
+         }
       }
     } catch (e) {
       console.error('창고 로딩 에러:', e);
@@ -582,7 +586,7 @@ function ShipmentForm() {
         product_code: selectedParts[0]?.part_code || '',
         quantity: totalQuantity,
         price: totalPrice,
-        // warehouse_id: shipmentData.warehouse_id || null, // 창고 지정 임시 비활성화
+        warehouse_id: shipmentData.warehouse_id || null, // 창고 지정 복구
         updated_at: new Date().toISOString()
       };
 
@@ -626,7 +630,7 @@ function ShipmentForm() {
           quantity: part.quantity || 1,
           price: part.price || 0,
           total_price: part.totalPrice || calculateTotal(part),
-          // warehouse_id: shipmentData.warehouse_id || null, // 파츠에도 출고 창고 지정 임시 비활성화
+          warehouse_id: shipmentData.warehouse_id || null, // 출고 창고 지정 복구
           created_at: new Date().toISOString()
         }));
 
@@ -635,6 +639,36 @@ function ShipmentForm() {
           .insert(partsData);
         if (insertPartsError) throw new Error(`부품 정보 저장 중 오류: ${insertPartsError.message} `);
       }
+
+      // ==== 매장/일반 출고 재고 차감 (수불부 동기화) ====
+      if (shipmentId && shipmentSaveData.status === '완료') {
+        // 기존 transactions 삭제 (중복 생성 방지 - 수정 시 대비)
+        await supabase.from('transactions').delete().eq('group_id', shipmentId);
+        
+        const transactionsToInsert = selectedParts.map(part => {
+          return {
+            group_id: shipmentId,
+            type: 'out',
+            product_id: part.part_id || part.id, // 부품 고유 ID
+            product_name: part.part_name,
+            product_code: part.part_code || '',
+            quantity: part.quantity || 1,
+            from_location: shipmentData.warehouse_id || 'DEFAULT', // 선택한 출고 창고
+            date: shipmentData.shipment_date || new Date().toISOString().split('T')[0],
+            note: `[일반 출고] ${shipmentData.customer_name}`,
+            status: '완료' // 확정 시 바로 차감
+          };
+        });
+
+        if (transactionsToInsert.length > 0) {
+          const { error: txErr } = await supabase.from('transactions').insert(transactionsToInsert);
+          if (txErr) console.error('[Transaction Insert Error in Shipment]:', txErr);
+        }
+      } else if (shipmentId && shipmentSaveData.status !== '완료') {
+        // 완료가 아니면 출고 취소/대기라는 의미이므로 거래 내역 삭제
+        await supabase.from('transactions').delete().eq('group_id', shipmentId);
+      }
+      // ==== 재고 차감 끝 ====
 
       // 등록 성공 후 알림 추가
       setSnackbar({
@@ -1444,6 +1478,25 @@ function ShipmentForm() {
 
           <Grid item xs={12} md={4}>
             <FormControl fullWidth>
+              <InputLabel>출고 창고</InputLabel>
+              <Select
+                name="warehouse_id"
+                value={shipmentData.warehouse_id || ''}
+                onChange={handleChange}
+                label="출고 창고"
+              >
+                <MenuItem value="">
+                  <em>선택 안함</em>
+                </MenuItem>
+                {warehouses.map(w => (
+                  <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+
+          <Grid item xs={12} md={4}>
+            <FormControl fullWidth>
               <InputLabel>배송 방법</InputLabel>
               <Select
                 name="delivery_method"
@@ -1485,7 +1538,7 @@ function ShipmentForm() {
                 label="상태"
               >
                 <MenuItem value="준비중">준비중</MenuItem>
-                <MenuItem value="배송중">배송중</MenuItem>
+                <MenuItem value="출고대기">출고대기</MenuItem>
                 <MenuItem value="출고완료">출고완료</MenuItem>
               </Select>
             </FormControl>

@@ -517,7 +517,7 @@ function ProductShipment() {
         return 'info';
       case '출고완료':
         return 'success';
-      case '배송중':
+      case '출고대기':
         return 'warning';
       default:
         return 'default';
@@ -2352,12 +2352,12 @@ function ProductShipment() {
   const getRowStyle = (row) => ({
     backgroundColor: 
       row.status === '준비중' ? alpha('#42a5f5', 0.05) : // 연한 파란색
-      row.status === '배송중' ? alpha('#ff9800', 0.05) : // 연한 주황색
+      row.status === '출고대기' ? alpha('#ff9800', 0.05) : // 연한 주황색
       row.status === '출고완료' ? alpha('#4caf50', 0.05) : // 연한 녹색
       'transparent',
     borderLeft: 
       row.status === '준비중' ? `4px solid ${alpha('#42a5f5', 0.7)}` : // 파란색
-      row.status === '배송중' ? `4px solid ${alpha('#ff9800', 0.7)}` : // 주황색
+      row.status === '출고대기' ? `4px solid ${alpha('#ff9800', 0.7)}` : // 주황색
       row.status === '출고완료' ? `4px solid ${alpha('#4caf50', 0.7)}` : // 녹색
       '4px solid transparent',
   });
@@ -2594,7 +2594,7 @@ function ProductShipment() {
           >
             <MenuItem value="all">전체 상태</MenuItem>
             <MenuItem value="준비중">준비중</MenuItem>
-            <MenuItem value="배송중">배송중</MenuItem>
+            <MenuItem value="출고대기">출고대기</MenuItem>
             <MenuItem value="출고완료">출고완료</MenuItem>
           </TextField>
 
@@ -3073,11 +3073,11 @@ function ProductShipment() {
                   준비중
                 </Button>
                 <Button
-                  onClick={() => handleChange({ target: { name: 'status', value: '배송중' } })}
-                  color={selectedShipment.status === '배송중' ? 'warning' : 'inherit'}
-                  variant={selectedShipment.status === '배송중' ? 'contained' : 'outlined'}
+                  onClick={() => handleChange({ target: { name: 'status', value: '출고대기' } })}
+                  color={selectedShipment.status === '출고대기' ? 'warning' : 'inherit'}
+                  variant={selectedShipment.status === '출고대기' ? 'contained' : 'outlined'}
                 >
-                  배송중
+                  출고대기
                 </Button>
                 <Button
                   onClick={() => handleChange({ target: { name: 'status', value: '출고완료' } })}

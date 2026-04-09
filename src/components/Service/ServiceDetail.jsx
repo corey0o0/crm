@@ -38,6 +38,7 @@ import {
   InputLabel,
   Select,
   Checkbox,
+  Switch,
   FormControlLabel
 } from '@mui/material';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -197,6 +198,7 @@ function ServiceDetail() {
 
   // 창고 상태 추가
   const [warehouses, setWarehouses] = useState([]);
+  const [isInspectionEnabled, setIsInspectionEnabled] = useState(true);
 
   // 창고 목록 불러오기
   const fetchWarehouses = async () => {
@@ -774,6 +776,32 @@ function ServiceDetail() {
     return String(date.getHours()).padStart(2, '0');
   };
 
+  const handleAddToInspectionQueue = async () => {
+    if (!selectedParts || selectedParts.length === 0) {
+      setSnackbar({ open: true, message: '사용 부품을 먼저 추가해주세요.', severity: 'warning' });
+      return;
+    }
+    await handleStatusChange('부품준비');
+    setSnackbar({ open: true, message: '검수 대기열(부품준비)에 추가되었습니다.', severity: 'success' });
+  };
+
+  const handleCompleteInspection = async () => {
+    try {
+      setAddingToQueue(true);
+      const inventoryResult = await processServiceCompletion(id, formData.brand);
+      if (inventoryResult.success) {
+        await handleStatusChange('처리중');
+        setSnackbar({ open: true, message: '부품 검수가 완료되어 재고가 차감되었으며, 상태가 처리중으로 변경되었습니다.', severity: 'success' });
+      } else {
+        setSnackbar({ open: true, message: '재고 차감 오류: ' + inventoryResult.message, severity: 'error' });
+      }
+    } catch(e) {
+      setSnackbar({ open: true, message: '오류 발생: ' + e.message, severity: 'error' });
+    } finally {
+      setAddingToQueue(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
@@ -1097,6 +1125,8 @@ function ServiceDetail() {
     switch (status) {
       case '접수':
         return 'info';
+      case '부품준비':
+        return 'secondary';
       case '처리중':
         return 'warning';
       case '완료':
@@ -1110,6 +1140,7 @@ function ServiceDetail() {
     marginLeft: '8px',
     backgroundColor: isSelected ? (
       formData.status === '접수' ? '#1976d2' :
+        formData.status === '부품준비' ? '#9c27b0' :
         formData.status === '처리중' ? '#ed6c02' :
           formData.status === '완료' ? '#2e7d32' : '#3182f6'
     ) : '#f2f4f6',
@@ -1117,6 +1148,7 @@ function ServiceDetail() {
     '&:hover': {
       backgroundColor: isSelected ? (
         formData.status === '접수' ? '#1565c0' :
+          formData.status === '부품준비' ? '#7b1fa2' :
           formData.status === '처리중' ? '#d65f02' :
             formData.status === '완료' ? '#1e5e20' : '#1b64da'
       ) : '#e5e8eb'
@@ -2252,7 +2284,7 @@ function ServiceDetail() {
       }}>
         사용 부품
       </Typography>
-      <Box sx={{ mb: 1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, gap: 2 }}>
         <FormControlLabel
           control={
             <Checkbox
@@ -2262,6 +2294,16 @@ function ServiceDetail() {
             />
           }
           label="가격 수정"
+        />
+        <FormControlLabel
+          control={
+            <Switch
+              checked={isInspectionEnabled}
+              onChange={e => setIsInspectionEnabled(e.target.checked)}
+              color="secondary"
+            />
+          }
+          label="검수과정 사용"
         />
       </Box>
       <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
@@ -2292,6 +2334,16 @@ function ServiceDetail() {
           >
             영수증으로 부품 추가
           </Button>
+          {isInspectionEnabled && formData.status !== '완료' && formData.status !== '처리중' && (
+            <Button
+              variant="contained"
+              color="secondary"
+              onClick={handleAddToInspectionQueue}
+              sx={{ bgcolor: '#9c27b0', '&:hover': { bgcolor: '#7b1fa2' }, ml: 2 }}
+            >
+              검수 대기열 추가
+            </Button>
+          )}
         </Box>
         <Box sx={{ flex: 1 }}>
           <TextField
@@ -2764,6 +2816,27 @@ function ServiceDetail() {
                         >
                           접수
                         </Button>
+                        <Button
+                          variant={formData.status === '부품준비' ? 'contained' : 'outlined'}
+                          onClick={() => handleStatusChange('부품준비')}
+                          sx={{ 
+                            ...buttonStyle(formData.status === '부품준비'),
+                            ...(formData.status === '부품준비' ? { bgcolor: '#9c27b0', '&:hover': { bgcolor: '#7b1fa2' } } : { color: '#9c27b0', borderColor: '#9c27b0' })
+                          }}
+                        >
+                          부품준비
+                        </Button>
+                        {formData.status === '부품준비' && (
+                          <Button
+                            variant="contained"
+                            color="success"
+                            onClick={handleCompleteInspection}
+                            disabled={addingToQueue}
+                            sx={{ ml: 1 }}
+                          >
+                            검수 완료(재고차감)
+                          </Button>
+                        )}
                         <Button
                           variant={formData.status === '처리중' ? 'contained' : 'outlined'}
                           onClick={() => handleStatusChange('처리중')}

@@ -483,9 +483,9 @@ function ShipmentDetail() {
         updated_at: new Date().toISOString()
       };
 
-      // 배송중/출고완료로 변경 시 출고일도 현재 시점으로 업데이트
-      // (요청사항: 출고상태가 '배송중' 또는 '출고완료'로 변경되면 출고일을 현재 날짜로 설정)
-      if (newStatus === '출고완료' || newStatus === '배송중') {
+      // 출고대기/출고완료로 변경 시 출고일도 현재 시점으로 업데이트
+      // (요청사항: 출고상태가 '출고대기' 또는 '출고완료'로 변경되면 출고일을 현재 날짜로 설정)
+      if (newStatus === '출고완료' || newStatus === '출고대기') {
         updateData.shipment_date = new Date().toISOString().split('T')[0];
       }
 
@@ -890,7 +890,7 @@ function ShipmentDetail() {
         return 'info';
       case '출고완료':
         return 'success';
-      case '배송중':
+      case '출고대기':
         return 'warning';
       default:
         return 'default';
@@ -1216,7 +1216,7 @@ function ShipmentDetail() {
                   disabled={saving}
                 >
                   <MenuItem value="준비중">준비중</MenuItem>
-                  <MenuItem value="배송중">배송중</MenuItem>
+                  <MenuItem value="출고대기">출고대기</MenuItem>
                   <MenuItem value="출고완료">출고완료</MenuItem>
                 </Select>
               </FormControl>

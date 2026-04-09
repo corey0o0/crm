@@ -3986,7 +3986,9 @@ function ServiceList() {
                 onChange={handleServiceChange}
               >
                 <MenuItem value="접수">접수</MenuItem>
-                <MenuItem value="처리중">처리중</MenuItem>
+                <MenuItem value="부품준비">부품준비</MenuItem>
+                  <MenuItem value="부품준비">부품준비</MenuItem>
+                  <MenuItem value="처리중">처리중</MenuItem>
                 <MenuItem value="부분완료">부분완료</MenuItem>
                 <MenuItem value="완료">완료</MenuItem>
               </TextField>
