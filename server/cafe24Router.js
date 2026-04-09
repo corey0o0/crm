@@ -278,163 +278,181 @@ module.exports = function(supabaseAdmin) {
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
-  // 3-2. 주문 동기화 API
-  router.post('/sync/orders/:mall_id', async (req, res) => {
-    try {
-      const { mall_id } = req.params;
-      const { start_date, end_date } = req.body; // e.g. '2023-01-01', '2023-01-31'
-      
-      let token = await getValidToken(mall_id);
-      let totalInserted = 0, totalUpdated = 0, totalSkipped = 0;
+  // 백그라운드용 코어 수집 함수
+  router.syncCafe24OrdersCore = async (mall_id, start_date, end_date) => {
+    let token = await getValidToken(mall_id);
+    let totalInserted = 0, totalUpdated = 0, totalSkipped = 0;
 
-      // 파라미터가 없으면 최근 7일 기준으로 설정
-      const today = new Date();
-      const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-      const queryStart = start_date || lastWeek.toISOString().split('T')[0];
-      const queryEnd = end_date || today.toISOString().split('T')[0];
+    // 파라미터가 없으면 최근 7일 기준으로 설정
+    const today = new Date();
+    const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const queryStart = start_date || lastWeek.toISOString().split('T')[0];
+    const queryEnd = end_date || today.toISOString().split('T')[0];
 
-      // Fetch all barcodes and part_ids from parts table once for quick lookup
-      const { data: partsList } = await supabaseAdmin.from('parts').select('id, barcode').not('barcode', 'is', null);
-      const barcodeToPartIdMap = {};
-      (partsList || []).forEach(p => {
-        if(p.barcode) barcodeToPartIdMap[String(p.barcode).trim()] = p.id;
+    // Fetch all barcodes and part_ids from parts table once for quick lookup
+    const { data: partsList } = await supabaseAdmin.from('parts').select('id, barcode').not('barcode', 'is', null);
+    const barcodeToPartIdMap = {};
+    (partsList || []).forEach(p => {
+      if(p.barcode) barcodeToPartIdMap[String(p.barcode).trim()] = p.id;
+    });
+
+    // Fetch manual product mappings
+    const { data: manualMappings } = await supabaseAdmin.from('cafe24_product_to_part').select('cafe24_product_code, part_id').eq('mall_id', mall_id);
+    const manualCodeToPartIdMap = {};
+    (manualMappings || []).forEach(m => {
+      manualCodeToPartIdMap[String(m.cafe24_product_code).trim()] = m.part_id;
+    });
+
+    // Fetch agencies mapped to cafe24 member IDs
+    const { data: agenciesList } = await supabaseAdmin.from('agencies').select('id, cafe24_member_id').not('cafe24_member_id', 'is', null).neq('cafe24_member_id', '');
+    const cafe24ToAgencyMap = {};
+    (agenciesList || []).forEach(a => {
+      if (a.cafe24_member_id) cafe24ToAgencyMap[String(a.cafe24_member_id).trim()] = a.id;
+    });
+
+    const fetchOrders = async (accessToken, currentOffset) => {
+      return await axios.get(`https://${mall_id}.cafe24api.com/api/v2/admin/orders`, {
+        params: { start_date: queryStart, end_date: queryEnd, date_type: 'order_date', limit: 100, offset: currentOffset, embed: 'items,buyer,receivers' },
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json', 'X-Cafe24-Api-Version': '2026-03-01' }
       });
+    };
 
-      // Fetch manual product mappings
-      const { data: manualMappings } = await supabaseAdmin.from('cafe24_product_to_part').select('cafe24_product_code, part_id').eq('mall_id', mall_id);
-      const manualCodeToPartIdMap = {};
-      (manualMappings || []).forEach(m => {
-        manualCodeToPartIdMap[String(m.cafe24_product_code).trim()] = m.part_id;
-      });
+    let tokenForRequest = token;
+    let allOrders = [];
+    let currentOffset = 0;
+    const limit = 100;
 
-      // Fetch agencies mapped to cafe24 member IDs
-      const { data: agenciesList } = await supabaseAdmin.from('agencies').select('id, cafe24_member_id').not('cafe24_member_id', 'is', null).neq('cafe24_member_id', '');
-      const cafe24ToAgencyMap = {};
-      (agenciesList || []).forEach(a => {
-        if (a.cafe24_member_id) cafe24ToAgencyMap[String(a.cafe24_member_id).trim()] = a.id;
-      });
-
-      const fetchOrders = async (accessToken) => {
-        return await axios.get(`https://${mall_id}.cafe24api.com/api/v2/admin/orders`, {
-          params: { start_date: queryStart, end_date: queryEnd, date_type: 'order_date', limit: 100, embed: 'items,buyer,receivers' },
-          headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json', 'X-Cafe24-Api-Version': '2026-03-01' }
-        });
-      };
-
+    while (true) {
       let response;
       try {
-        response = await fetchOrders(token);
+        response = await fetchOrders(tokenForRequest, currentOffset);
       } catch (e) {
         if (e.response && e.response.status === 401) {
           console.log('[Cafe24 API] 401 Unauthorized - Forcing token refresh...');
           const { data: mall } = await supabaseAdmin.from('cafe24_settings').select('*').eq('mall_id', mall_id).single();
-          token = await refreshCafe24Token(mall);
-          response = await fetchOrders(token);
+          tokenForRequest = await refreshCafe24Token(mall);
+          response = await fetchOrders(tokenForRequest, currentOffset);
         } else {
           throw e;
         }
       }
 
-      const orders = response.data.orders || [];
-      const excludedStatuses = ['N00', 'F']; // N30(배송완료/발송완료) 수집 허용 처리
-      const validOrders = orders.filter(o => !excludedStatuses.includes(o.order_status));
-      console.log(`[Cafe24 Sync] Fetched ${orders.length} orders from Cafe24 API, processing ${validOrders.length} valid orders`);
+      const batchOrders = response.data.orders || [];
+      allOrders = allOrders.concat(batchOrders);
+      if (batchOrders.length < limit) break;
+      currentOffset += limit;
+    }
 
-      for (const order of validOrders) {
-        // 주문한 상품들 배열 만들기
-        let formattedItems = [];
-        if (order.items && order.items.length > 0) {
-          formattedItems = order.items.map(item => {
-            const code = item.product_code || item.custom_product_code || '';
-            const customCode = (item.custom_item_code || item.custom_product_code) ? String(item.custom_item_code || item.custom_product_code).trim() : '';
-            
-            let matchedPartId = null;
-            if (customCode && barcodeToPartIdMap[customCode]) {
-              matchedPartId = barcodeToPartIdMap[customCode]; // 1. Barcode match
-            } else if (code && manualCodeToPartIdMap[code]) {
-              matchedPartId = manualCodeToPartIdMap[code]; // 2. Manual match fallback
-            }
+    const excludedStatuses = ['N00', 'F']; // N30(배송완료/발송완료) 수집 허용 처리
+    const validOrders = allOrders.filter(o => !excludedStatuses.includes(o.order_status));
+    console.log(`[Cafe24 Sync] Fetched ${allOrders.length} orders from Cafe24 API, processing ${validOrders.length} valid orders`);
 
-            const itemDiscount = Number(item.app_item_discount_amount || 0) + Number(item.additional_discount_price || 0) + Number(item.set_product_discount_amount || 0);
-            const bundleDiscount = Number(item.coupon_discount_price || 0) + Number(item.shipping_fee_discount_amount || 0);
-
-            return {
-              product_code: code,
-              custom_product_code: customCode,
-              name: item.product_name,
-              quantity: item.quantity,
-              price: item.product_price,
-              item_discount: itemDiscount,
-              bundle_discount: bundleDiscount,
-              discount_amount: itemDiscount + bundleDiscount,
-              payment_amount: Number(item.payment_amount || 0) || ((Number(item.product_price || 0) * Number(item.quantity || 1)) - itemDiscount - bundleDiscount),
-              options: item.option_value || '',
-              part_id: matchedPartId
-            };
-          });
-        }
-
-        const pg_payment = Number(order.payment_amount || 0);
-        const actual_deposit = Number(order.deposit || (order.actual_order_amount && order.actual_order_amount.deposit) || 0);
-        
-        // 예치금은 결제수단(현금)과 동일하게 취급되어 매출(total_amount)에 포함
-        const total_amount = pg_payment > 0 
-          ? (pg_payment + actual_deposit) 
-          : ((order.actual_order_amount && order.actual_order_amount.order_price_amount) || order.total_order_price || 0);
-        const shipping_fee = Number((order.actual_order_amount && order.actual_order_amount.shipping_fee) || 0);
-
-        let items_payment_sum = 0;
-        if (formattedItems && formattedItems.length > 0) {
-          items_payment_sum = formattedItems.reduce((acc, item) => acc + Number(item.payment_amount || 0), 0);
-        }
-        const used_points = Math.max(0, items_payment_sum + shipping_fee - Number(total_amount));
-
-        const payload = {
-          mall_id: mall_id,
-          order_id: order.order_id,
-          order_date: order.order_date,
-          total_amount: total_amount,
-          shipping_fee: shipping_fee,
-          used_points: used_points,
-          order_items: formattedItems,
-          status: order.order_status || order.shipping_status || 'unknown',
-          buyer_id: order.member_id || (order.buyer && order.buyer.member_id) || null,
-          agency_id: cafe24ToAgencyMap[String(order.member_id || (order.buyer && order.buyer.member_id) || '').trim()] || null,
-          buyer_group_no: (order.buyer && order.buyer.member_group_no) ? String(order.buyer.member_group_no) : null,
-          member_authentication: order.member_authentication || null,
-          buyer_name: (order.buyer && order.buyer.name) ? order.buyer.name : (order.billing_name || null),
-          buyer_phone: order.buyer ? order.buyer.phone || order.buyer.cellphone : null,
-          shipping_message: (order.receivers && order.receivers[0]) ? order.receivers[0].shipping_message : null,
-          synced_at: new Date().toISOString()
-        };
-
-        // DB에 존재하는지 확인
-        const { data: existing } = await supabaseAdmin.from('cafe24_orders')
-          .select('id')
-          .eq('order_id', order.order_id)
-          .maybeSingle();
-
-        let err = null;
-        if (existing) {
-          err = (await supabaseAdmin.from('cafe24_orders').update(payload).eq('id', existing.id)).error;
-          if (err) {
-            console.error(`[DB Update Error] Order ${order.order_id}:`, err);
-            totalSkipped++;
-          } else {
-            totalUpdated++;
+    for (const order of validOrders) {
+      // 주문한 상품들 배열 만들기
+      let formattedItems = [];
+      if (order.items && order.items.length > 0) {
+        formattedItems = order.items.map(item => {
+          const code = item.product_code || item.custom_product_code || '';
+          const customCode = (item.custom_item_code || item.custom_product_code) ? String(item.custom_item_code || item.custom_product_code).trim() : '';
+          
+          let matchedPartId = null;
+          if (customCode && barcodeToPartIdMap[customCode]) {
+            matchedPartId = barcodeToPartIdMap[customCode]; // 1. Barcode match
+          } else if (code && manualCodeToPartIdMap[code]) {
+            matchedPartId = manualCodeToPartIdMap[code]; // 2. Manual match fallback
           }
-        } else {
-          err = (await supabaseAdmin.from('cafe24_orders').insert(payload)).error;
-          if (err) {
-            console.error(`[DB Insert Error] Order ${order.order_id}:`, err);
-            totalSkipped++;
-          } else {
-            totalInserted++;
-          }
-        }
+
+          const itemDiscount = Number(item.app_item_discount_amount || 0) + Number(item.additional_discount_price || 0) + Number(item.set_product_discount_amount || 0);
+          const bundleDiscount = Number(item.coupon_discount_price || 0) + Number(item.shipping_fee_discount_amount || 0);
+
+          return {
+            product_code: code,
+            custom_product_code: customCode,
+            name: item.product_name,
+            quantity: item.quantity,
+            price: item.product_price,
+            item_discount: itemDiscount,
+            bundle_discount: bundleDiscount,
+            discount_amount: itemDiscount + bundleDiscount,
+            payment_amount: Number(item.payment_amount || 0) || ((Number(item.product_price || 0) * Number(item.quantity || 1)) - itemDiscount - bundleDiscount),
+            options: item.option_value || '',
+            part_id: matchedPartId
+          };
+        });
       }
 
-      res.json({ success: true, message: `주문 동기화 완료: ${totalInserted}개 신규, ${totalUpdated}개 갱신 (기간: ${queryStart} ~ ${queryEnd})` });
+      const pg_payment = Number(order.payment_amount || 0);
+      const actual_deposit = Number(order.deposit || (order.actual_order_amount && order.actual_order_amount.deposit) || 0);
+      
+      // 예치금은 결제수단(현금)과 동일하게 취급되어 매출(total_amount)에 포함
+      const total_amount = pg_payment > 0 
+        ? (pg_payment + actual_deposit) 
+        : ((order.actual_order_amount && order.actual_order_amount.order_price_amount) || order.total_order_price || 0);
+      const shipping_fee = Number((order.actual_order_amount && order.actual_order_amount.shipping_fee) || 0);
+
+      let items_payment_sum = 0;
+      if (formattedItems && formattedItems.length > 0) {
+        items_payment_sum = formattedItems.reduce((acc, item) => acc + Number(item.payment_amount || 0), 0);
+      }
+      const used_points = Math.max(0, items_payment_sum + shipping_fee - Number(total_amount));
+
+      const payload = {
+        mall_id: mall_id,
+        order_id: order.order_id,
+        order_date: order.order_date,
+        total_amount: total_amount,
+        shipping_fee: shipping_fee,
+        used_points: used_points,
+        order_items: formattedItems,
+        status: order.order_status || order.shipping_status || 'unknown',
+        buyer_id: order.member_id || (order.buyer && order.buyer.member_id) || null,
+        agency_id: cafe24ToAgencyMap[String(order.member_id || (order.buyer && order.buyer.member_id) || '').trim()] || null,
+        buyer_group_no: (order.buyer && order.buyer.member_group_no) ? String(order.buyer.member_group_no) : null,
+        member_authentication: order.member_authentication || null,
+        buyer_name: (order.buyer && order.buyer.name) ? order.buyer.name : (order.billing_name || null),
+        buyer_phone: order.buyer ? order.buyer.phone || order.buyer.cellphone : null,
+        shipping_message: (order.receivers && order.receivers[0]) ? order.receivers[0].shipping_message : null,
+        synced_at: new Date().toISOString()
+      };
+
+      // DB에 존재하는지 확인
+      const { data: existing } = await supabaseAdmin.from('cafe24_orders')
+        .select('id')
+        .eq('order_id', order.order_id)
+        .maybeSingle();
+
+      let err = null;
+      if (existing) {
+        err = (await supabaseAdmin.from('cafe24_orders').update(payload).eq('id', existing.id)).error;
+        if (err) {
+          console.error(`[DB Update Error] Order ${order.order_id}:`, err);
+          totalSkipped++;
+        } else {
+          totalUpdated++;
+        }
+      } else {
+        err = (await supabaseAdmin.from('cafe24_orders').insert(payload)).error;
+        if (err) {
+          console.error(`[DB Insert Error] Order ${order.order_id}:`, err);
+          totalSkipped++;
+        } else {
+          totalInserted++;
+        }
+      }
+    }
+    
+    return { totalInserted, totalUpdated, totalSkipped, queryStart, queryEnd };
+  };
+
+  // 3-2. 주문 수동 동기화 API
+  router.post('/sync/orders/:mall_id', async (req, res) => {
+    try {
+      const { mall_id } = req.params;
+      const { start_date, end_date } = req.body;
+      
+      const result = await router.syncCafe24OrdersCore(mall_id, start_date, end_date);
+      
+      res.json({ success: true, message: `주문 동기화 완료: ${result.totalInserted}개 신규, ${result.totalUpdated}개 갱신 (기간: ${result.queryStart} ~ ${result.queryEnd})` });
     } catch (e) {
       console.error('[Cafe24 Order Sync Error]', e.response?.data || e.message);
       const errorMessage = e.response?.data?.error?.message || e.message;
@@ -572,22 +590,30 @@ module.exports = function(supabaseAdmin) {
           const transactionsToInsert = [];
           for (const item of wItems) {
             let mappedPartId = item.part_id;
+            let productSupplier = 'NEARBIKE';
+            
             if (!mappedPartId) {
               const pCode = item.custom_product_code || item.product_code || '';
               if (pCode) {
-                const { data: pData } = await supabaseAdmin.from('parts').select('id').eq('code', pCode).maybeSingle();
-                if (pData) mappedPartId = pData.id;
+                const { data: pData } = await supabaseAdmin.from('parts').select('id, supplier').eq('code', pCode).maybeSingle();
+                if (pData) {
+                  mappedPartId = pData.id;
+                  if (pData.supplier) productSupplier = pData.supplier;
+                }
               }
+            } else {
+              const { data: pData } = await supabaseAdmin.from('parts').select('supplier').eq('id', mappedPartId).maybeSingle();
+              if (pData && pData.supplier) productSupplier = pData.supplier;
             }
 
             if (mappedPartId) {
-               transactionsToInsert.push({
-                 group_id: order.agency_id || String(order.order_id),
+                transactionsToInsert.push({
+                 group_id: order.agency_id && !isNaN(order.agency_id) ? Number(order.agency_id) : null,
                  type: 'out',
                  product_id: mappedPartId,
                  product_name: item.name,
                  product_code: item.custom_product_code || item.product_code || '',
-                 product_supplier: 'NEARBIKE',
+                 product_supplier: productSupplier,
                  quantity: Number(item.quantity || 1),
                  to_location: String(order.agency_id || 'B2C'),
                  from_location: wid !== 'DEFAULT' ? wid : 'NEARBIKE',
@@ -637,7 +663,6 @@ module.exports = function(supabaseAdmin) {
                   }, { onConflict: 'warehouse_id,product_id' });
 
                   await supabaseAdmin.from('inventory_logs').insert({
-                     warehouse_id: wid,
                      part_id: mappedPartId,
                      part_name: item.name,
                      part_code: item.custom_product_code || item.product_code || '',

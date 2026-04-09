@@ -239,7 +239,15 @@ function ShipmentDetail() {
   };
 
   // 수정 시작 함수
-  const handleStartEdit = () => {
+  const handleStartEdit = async () => {
+    if (shipmentData?.status === '출고완료') {
+      const confirmEdit = window.confirm("이미 출고 완료된 건입니다. 부품을 수정하기 위해서는 안전한 재고 연동을 위해 상태가 '출고대기'로 우선 변경되며, 현재 차감된 재고가 창고로 다시 복구됩니다.\n진행하시겠습니까?");
+      if (!confirmEdit) return;
+      
+      // 안전한 수정을 위해 강제로 출고대기 상태로 돌림 (내부적으로 재고 원상복구 진행됨)
+      await handleStatusChange('출고대기');
+    }
+
     // 현재 부품 데이터를 편집 가능한 상태로 복사
     setEditableParts([...shipmentParts]);
     setIsEditing(true);

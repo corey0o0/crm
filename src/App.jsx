@@ -26,6 +26,7 @@ import SystemHealthCheck from './components/Test/SystemHealthCheck';
 import TelegramTest from './components/Test/TelegramTest';
 import ServiceStats from './components/Stats/ServiceStats';
 import SalesStats from './components/Stats/SalesStats';
+import OnlineStats from './components/Stats/OnlineStats';
 import StockList from './components/Stock/StockList';
 import ServiceAnalysis from './components/Service/ServiceAnalysis';
 import BrandSettings from './components/Settings/BrandSettings';
@@ -41,6 +42,7 @@ import BackupManager from './components/Backup/BackupManager';
 import ShipmentList from './pages/shipment/ShipmentList';
 import ShipmentDetail from './pages/shipment/ShipmentDetail';
 import ShipmentForm from './pages/shipment/ShipmentForm';
+import SalesEntry from './pages/sales/SalesEntry';
 import AgencyManagement from './pages/agency/AgencyManagement';
 import AdminTools from './pages/admin/AdminTools';
 import BoardList from './pages/board/BoardList';
@@ -115,6 +117,7 @@ function AppRouter() {
           <Route path="service/analysis" element={<ServiceAnalysis />} />
           <Route path="service/:id" element={<ServiceDetail />} />
           <Route path="sales/stats" element={<SalesStats />} />
+          <Route path="online/stats" element={<OnlineStats />} />
           <Route path="stocks" element={<StockList />} />
           <Route path="stats/service" element={<ServiceStats />} />
           <Route path="brand-settings" element={<BrandSettings />} />
@@ -138,7 +141,8 @@ function AppRouter() {
           <Route path="board/:id" element={<BoardDetail />} />
           <Route path="board/:id/edit" element={<BoardEdit />} />
 
-          {/* 주문대기 */}
+          {/* 출고/판매 관리 */}
+          <Route path="sales/entry" element={<SalesEntry />} />
           <Route path="pending-orders" element={<PendingOrderList />} />
           <Route path="pending-orders/:id" element={<PendingOrderDetail />} />
         </Route>

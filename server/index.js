@@ -211,8 +211,14 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_KEY || ''
 );
 
-app.use('/api/cafe24', require('./cafe24Router')(supabaseAdmin, process.env.REDIS_URL));
+// 카페24 라우터 초기화
+const cafe24Router = require('./cafe24Router')(supabaseAdmin, process.env.REDIS_URL);
+
+app.use('/api/cafe24', cafe24Router);
 app.use('/api/agencies', require('./agenciesRouter')(supabaseAdmin));
+
+// 백그라운드 스케줄러 실행
+require('./cronJobs')(supabaseAdmin, cafe24Router);
 
 // 서버 시작
 app.listen(port, () => {

@@ -25,7 +25,8 @@ import {
   Paper,
   Chip,
   Tooltip,
-  CircularProgress
+  CircularProgress,
+  Collapse
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -55,7 +56,9 @@ import {
   Logout as LogoutIcon,
   ShoppingCartOutlined as ShoppingCartOutlinedIcon,
   Science as ScienceIcon,
-  Store as StoreIcon
+  Store as StoreIcon,
+  ExpandLess,
+  ExpandMore
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
@@ -136,6 +139,16 @@ function Layout() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [syncStatus, setSyncStatus] = useState({});
   const { user, userMenuPermissions } = useAuth();
+  const [openSubMenus, setOpenSubMenus] = useState({});
+
+  const handleMenuClick = (item) => {
+    if (item.children) {
+      setOpenSubMenus(prev => ({ ...prev, [item.key]: !prev[item.key] }));
+    } else {
+      navigate(item.path);
+      if (isMobile) setOpen(false);
+    }
+  };
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -230,23 +243,49 @@ function Layout() {
     // 📊 대시보드
     { text: '대시보드', icon: <DashboardIcon />, path: '/', key: 'dashboard' },
 
-    // 👥 CRM & 고객 관리
-    { text: '고객 관리', icon: <PeopleIcon />, path: '/customers', key: 'customers' },
+    // ⚙️ 기초등록
+    {
+      text: '기초등록',
+      icon: <MenuBookIcon />,
+      path: '',
+      key: 'basic_registrations',
+      children: [
+        { text: '상품 관리', icon: <InventoryIcon />, path: '/parts', key: 'parts' },
+        { text: '거래처 관리', icon: <InventoryIcon />, path: '/agencies', key: 'agencies' },
+        { text: '고객 관리', icon: <PeopleIcon />, path: '/customers', key: 'customers' },
+      ]
+    },
 
     // 🔧 서비스 관리
     { text: 'A/S 관리', icon: <BuildIcon />, path: '/services', key: 'services' },
 
     // 📦 재고 & 물류 관리
-    { text: '매장출고관리', icon: <LocalShippingIcon />, path: '/shipment', key: 'shipment' },
+    { 
+      text: '판매 관리', 
+      icon: <ShoppingCartOutlinedIcon />, 
+      path: '', 
+      key: 'sales',
+      children: [
+        { text: '매장출고관리', icon: <LocalShippingIcon />, path: '/shipment', key: 'shipment' },
+        { text: '온라인주문관리', icon: <ShoppingCartOutlinedIcon />, path: '/cafe24/orders', key: 'cafe24_orders' },
+        { text: '수기 판매 등록', icon: <LocalShippingIcon />, path: '/sales/entry', key: 'sales_entry' }
+      ]
+    },
     // { text: '주문대기', icon: <ShoppingCartOutlinedIcon />, path: '/pending-orders', key: 'pending_orders' },
-    { text: '온라인주문관리', icon: <ShoppingCartOutlinedIcon />, path: '/cafe24/orders', key: 'cafe24_orders' },
-    { text: '거래처 관리', icon: <InventoryIcon />, path: '/agencies', key: 'agencies' },
-    { text: '상품 관리', icon: <InventoryIcon />, path: '/parts', key: 'parts' },
     { text: '매장 재고 관리', icon: <InventoryIcon />, path: '/stocks', key: 'stocks' },
     { text: '입출고 관리', icon: <InventoryIcon />, path: '/inventory-management', key: 'inventory_management' },
 
     // 📊 통계 & 분석
-    { text: '매출 통계', icon: <BarChartIcon />, path: '/sales/stats', key: 'sales_stats' },
+    { 
+      text: '통계', 
+      icon: <BarChartIcon />, 
+      path: '', 
+      key: 'stats',
+      children: [
+        { text: '매출 통계', icon: <BarChartIcon />, path: '/sales/stats', key: 'sales_stats' },
+        { text: '온라인 통계', icon: <BarChartIcon />, path: '/online/stats', key: 'online_stats' }
+      ]
+    },
     // { text: 'A/S 분석', icon: <AnalyticsIcon />, path: '/service/analysis', key: 'service_analysis' },
 
     // 💬 커뮤니티
@@ -275,13 +314,6 @@ function Layout() {
     }
   };
 
-  // 모바일에서 메뉴 클릭시 자동으로 드로어 닫기
-  const handleMenuClick = (path) => {
-    navigate(path);
-    if (isMobile) {
-      setOpen(false);
-    }
-  };
 
   const handleOpenEkuraExcel = () => {
     window.open('https://docs.google.com/spreadsheets/d/1VPMcM_qRly_lKsx0wt54QjpRStolIhk9G_QPKJDOP-U/edit?gid=0#gid=0', '_blank');
@@ -547,41 +579,63 @@ function Layout() {
           </DrawerHeader>
           <Divider />
           <List>
-            {menuItems.map((item) => (
-              <ListItem
-                button
-                key={item.text}
-                onClick={() => handleMenuClick(item.path)}
-                selected={location.pathname === item.path}
-                sx={{
-                  '&.Mui-selected': {
-                    backgroundColor: 'primary.main',
-                    color: 'white',
-                    '&:hover': {
-                      backgroundColor: 'primary.dark',
-                    },
-                    '& .MuiListItemIcon-root': {
+            {menuItems.map((item) => {
+              const isOpen = item.children && openSubMenus[item.key];
+              return (
+              <Box key={item.key || item.text} sx={{ mb: 0.5, bgcolor: isOpen ? 'rgba(0, 0, 0, 0.03)' : 'transparent', borderRadius: isOpen ? '8px' : '0px', mx: isOpen ? 0.5 : 0, py: isOpen ? 0.5 : 0 }}>
+                <ListItem
+                  button
+                  onClick={() => handleMenuClick(item)}
+                  selected={!item.children && location.pathname === item.path}
+                  sx={{
+                    '&.Mui-selected': {
+                      backgroundColor: 'primary.main',
                       color: 'white',
+                      '&:hover': { backgroundColor: 'primary.dark' },
+                      '& .MuiListItemIcon-root': { color: 'white' },
                     },
-                  },
-                  borderRadius: '4px',
-                  mx: 1,
-                  mb: 0.5
-                }}
-              >
-                <ListItemIcon>{item.icon}</ListItemIcon>
-                <ListItemText
-                  primary={item.text}
-                  primaryTypographyProps={{
-                    fontWeight: location.pathname === item.path ? 700 : 400,
-                    sx: {
-                      wordBreak: 'keep-all',
-                      whiteSpace: 'normal'
-                    }
+                    borderRadius: '4px', mx: 1, mb: 0
                   }}
-                />
-              </ListItem>
-            ))}
+                >
+                  <ListItemIcon>{item.icon}</ListItemIcon>
+                  <ListItemText
+                    primary={item.text}
+                    primaryTypographyProps={{
+                      fontWeight: (!item.children && location.pathname === item.path) ? 700 : 400,
+                      sx: { wordBreak: 'keep-all', whiteSpace: 'normal', color: isOpen ? 'primary.main' : 'inherit' }
+                    }}
+                  />
+                  {item.children ? (isOpen ? <ExpandLess color="primary" /> : <ExpandMore />) : null}
+                </ListItem>
+                {item.children && (
+                  <Collapse in={isOpen} timeout="auto" unmountOnExit>
+                    <List component="div" disablePadding>
+                      {item.children.map((child) => (
+                        <ListItem
+                          button
+                          key={child.key || child.text}
+                          onClick={() => handleMenuClick(child)}
+                          selected={location.pathname === child.path}
+                          sx={{
+                            pl: 4,
+                            '&.Mui-selected': {
+                              backgroundColor: 'primary.main',
+                              color: 'white',
+                              '&:hover': { backgroundColor: 'primary.dark' },
+                              '& .MuiListItemIcon-root': { color: 'white' },
+                            },
+                            borderRadius: '4px', mx: 1, mt: 0.5
+                          }}
+                        >
+                          <ListItemIcon sx={{ minWidth: 40 }}>{child.icon}</ListItemIcon>
+                          <ListItemText primary={child.text} primaryTypographyProps={{ fontSize: '0.9rem', fontWeight: location.pathname === child.path ? 700 : 400 }} />
+                        </ListItem>
+                      ))}
+                    </List>
+                  </Collapse>
+                )}
+              </Box>
+            )})}
           </List>
         </SwipeableDrawer>
       ) : (
@@ -607,41 +661,63 @@ function Layout() {
           </DrawerHeader>
           <Divider />
           <List>
-            {menuItems.map((item) => (
-              <ListItem
-                button
-                key={item.text}
-                onClick={() => handleMenuClick(item.path)}
-                selected={location.pathname === item.path}
-                sx={{
-                  '&.Mui-selected': {
-                    backgroundColor: 'primary.main',
-                    color: 'white',
-                    '&:hover': {
-                      backgroundColor: 'primary.dark',
-                    },
-                    '& .MuiListItemIcon-root': {
+            {menuItems.map((item) => {
+              const isOpen = item.children && openSubMenus[item.key];
+              return (
+              <Box key={item.key || item.text} sx={{ mb: 0.5, bgcolor: isOpen ? 'rgba(0, 0, 0, 0.03)' : 'transparent', borderRadius: isOpen ? '8px' : '0px', mx: isOpen ? 0.5 : 0, py: isOpen ? 0.5 : 0 }}>
+                <ListItem
+                  button
+                  onClick={() => handleMenuClick(item)}
+                  selected={!item.children && location.pathname === item.path}
+                  sx={{
+                    '&.Mui-selected': {
+                      backgroundColor: 'primary.main',
                       color: 'white',
+                      '&:hover': { backgroundColor: 'primary.dark' },
+                      '& .MuiListItemIcon-root': { color: 'white' },
                     },
-                  },
-                  borderRadius: '4px',
-                  mx: 1,
-                  mb: 0.5
-                }}
-              >
-                <ListItemIcon>{item.icon}</ListItemIcon>
-                <ListItemText
-                  primary={item.text}
-                  primaryTypographyProps={{
-                    fontWeight: location.pathname === item.path ? 700 : 400,
-                    sx: {
-                      wordBreak: 'keep-all',
-                      whiteSpace: 'normal'
-                    }
+                    borderRadius: '4px', mx: 1, mb: 0
                   }}
-                />
-              </ListItem>
-            ))}
+                >
+                  <ListItemIcon>{item.icon}</ListItemIcon>
+                  <ListItemText
+                    primary={item.text}
+                    primaryTypographyProps={{
+                      fontWeight: (!item.children && location.pathname === item.path) ? 700 : 400,
+                      sx: { wordBreak: 'keep-all', whiteSpace: 'normal', color: isOpen ? 'primary.main' : 'inherit' }
+                    }}
+                  />
+                  {item.children ? (isOpen ? <ExpandLess color="primary" /> : <ExpandMore />) : null}
+                </ListItem>
+                {item.children && (
+                  <Collapse in={isOpen} timeout="auto" unmountOnExit>
+                    <List component="div" disablePadding>
+                      {item.children.map((child) => (
+                        <ListItem
+                          button
+                          key={child.key || child.text}
+                          onClick={() => handleMenuClick(child)}
+                          selected={location.pathname === child.path}
+                          sx={{
+                            pl: 4,
+                            '&.Mui-selected': {
+                              backgroundColor: 'primary.main',
+                              color: 'white',
+                              '&:hover': { backgroundColor: 'primary.dark' },
+                              '& .MuiListItemIcon-root': { color: 'white' },
+                            },
+                            borderRadius: '4px', mx: 1, mt: 0.5
+                          }}
+                        >
+                          <ListItemIcon sx={{ minWidth: 40 }}>{child.icon}</ListItemIcon>
+                          <ListItemText primary={child.text} primaryTypographyProps={{ fontSize: '0.9rem', fontWeight: location.pathname === child.path ? 700 : 400 }} />
+                        </ListItem>
+                      ))}
+                    </List>
+                  </Collapse>
+                )}
+              </Box>
+            )})}
           </List>
         </Drawer>
       )}

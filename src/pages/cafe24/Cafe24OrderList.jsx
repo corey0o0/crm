@@ -61,7 +61,8 @@ export default function Cafe24OrderList() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [badgeFilter, setBadgeFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  
+  const [showPriceDetails, setShowPriceDetails] = useState(false);
+
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(20);
 
@@ -232,9 +233,10 @@ export default function Cafe24OrderList() {
     if (statusFilter !== 'all' && getKoStatus(order.status) !== statusFilter) return false;
     
     // 뱃지 필터링
+    const groupNo = String(order.buyer_group_no || '').trim();
     if (badgeFilter === 'special' && order.member_authentication !== 'B') return false;
-    if (badgeFilter === 'xrider' && order.buyer_group_no !== '15') return false;
-    if (badgeFilter === 'normal' && (order.member_authentication === 'B' || order.buyer_group_no === '15')) return false;
+    if (badgeFilter === 'xrider' && groupNo !== '15') return false;
+    if (badgeFilter === 'normal' && (order.member_authentication === 'B' || groupNo === '15')) return false;
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -359,6 +361,23 @@ export default function Cafe24OrderList() {
       return;
     }
 
+    let hasUnmappedItems = false;
+    for (const order of ordersToTransfer) {
+      const items = order.order_items || [];
+      for (const item of items) {
+        if (!item.part_id && (item.custom_product_code || item.product_code)) {
+          hasUnmappedItems = true;
+          break;
+        }
+      }
+      if (hasUnmappedItems) break;
+    }
+
+    if (hasUnmappedItems) {
+      setAlertDialog({ open: true, title: '매핑 누락', message: '🔴 품목코드가 미스매칭(수동 연결 필요) 상태인 항목이 포함되어 있습니다.\n해당 품목의 [수동 연결] 버튼을 눌러 먼저 ERP 품목과 매핑을 완료해주세요.' });
+      return;
+    }
+
     setConfirmDialog({
       open: true,
       title: '판매 반영(전송)',
@@ -396,6 +415,12 @@ export default function Cafe24OrderList() {
     }
     if (missingWarehouse) {
       setAlertDialog({ open: true, title: '주의', message: '🔴 창고(출고처)가 지정되지 않은 항목이 있습니다.\n해당 주문의 품목에 있는 [출고창고]를 모두 지정해주세요.' });
+      return;
+    }
+
+    const hasUnmappedItem = items.some(item => !item.part_id && (item.custom_product_code || item.product_code));
+    if (hasUnmappedItem) {
+      setAlertDialog({ open: true, title: '매핑 누락', message: '🔴 품목코드가 미스매칭(수동 연결 필요) 상태인 항목이 있습니다.\n해당 품목의 [수동 연결] 버튼을 눌러 먼저 ERP 품목과 매핑을 완료해주세요.' });
       return;
     }
     
@@ -673,15 +698,30 @@ export default function Cafe24OrderList() {
                   </Select>
                 </FormControl>
 
-                <FormControl size="small" sx={{ minWidth: 120, bgcolor: 'white' }}>
-                  <InputLabel>고객 분류</InputLabel>
-                  <Select value={badgeFilter} label="고객 분류" onChange={e => setBadgeFilter(e.target.value)}>
-                    <MenuItem value="all">모든 고객</MenuItem>
-                    <MenuItem value="special">특별관리(B)</MenuItem>
-                    <MenuItem value="xrider">엑스라이더</MenuItem>
-                    <MenuItem value="normal">기타/일반</MenuItem>
-                  </Select>
-                </FormControl>
+                <ToggleButtonGroup
+                  color="info"
+                  value={badgeFilter}
+                  exclusive
+                  onChange={(e, val) => { if (val) setBadgeFilter(val); }}
+                  size="small"
+                  sx={{ bgcolor: 'white', height: 40 }}
+                >
+                  <ToggleButton value="all" sx={{ px: 2 }}>전체 등급</ToggleButton>
+                  <ToggleButton value="normal" sx={{ px: 2 }}>일반회원</ToggleButton>
+                  <ToggleButton value="special" sx={{ px: 2 }}>특별관리(B)</ToggleButton>
+                  <ToggleButton value="xrider" sx={{ px: 2 }}>엑스라이더</ToggleButton>
+                </ToggleButtonGroup>
+
+                <ToggleButton
+                  value="check"
+                  selected={showPriceDetails}
+                  onChange={() => setShowPriceDetails(!showPriceDetails)}
+                  color="secondary"
+                  size="small"
+                  sx={{ bgcolor: 'white', height: 40, px: 2 }}
+                >
+                  금액 상세 {showPriceDetails ? '접기' : '펼침'}
+                </ToggleButton>
 
                 <TextField
                   size="small"
@@ -794,10 +834,10 @@ export default function Cafe24OrderList() {
               <TableCell><strong>주문자(ID)</strong></TableCell>
               <TableCell><strong>쇼핑몰상품명(옵션)</strong></TableCell>
               <TableCell align="right"><strong>수량</strong></TableCell>
-              <TableCell align="right"><strong>단가</strong></TableCell>
-              <TableCell align="right"><strong>주문액</strong></TableCell>
-              <TableCell align="right"><strong>상품할인</strong></TableCell>
-              <TableCell align="right"><strong>묶음할인</strong></TableCell>
+              {showPriceDetails && <TableCell align="right"><strong>단가</strong></TableCell>}
+              {showPriceDetails && <TableCell align="right"><strong>주문액</strong></TableCell>}
+              {showPriceDetails && <TableCell align="right"><strong>상품할인</strong></TableCell>}
+              {showPriceDetails && <TableCell align="right"><strong>묶음할인</strong></TableCell>}
               <TableCell align="right"><strong>실결제액</strong></TableCell>
               <TableCell align="right"><strong>배송비</strong></TableCell>
               <TableCell align="right"><strong>할인/적립금</strong></TableCell>
@@ -881,12 +921,18 @@ export default function Cafe24OrderList() {
                       {idx === 0 && (
                         <TableCell rowSpan={items.length}>
                           <Box>
-                            {((order.buyer_group_no && order.buyer_group_no !== '1' && order.buyer_group_no !== '12') || order.member_authentication === 'B') && (
-                              <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mb: 0.5 }}>
-                                {order.buyer_group_no && order.buyer_group_no !== '1' && order.buyer_group_no !== '12' && <Chip size="small" label={getGroupName(order.buyer_group_no)} sx={{ height: 16, fontSize: '0.65rem' }} color={order.buyer_group_no === '15' ? 'warning' : 'default'}/>}
-                                {order.member_authentication === 'B' && <Chip size="small" label="특별관리" color="error" sx={{ height: 16, fontSize: '0.65rem' }} />}
-                              </Box>
-                            )}
+                            {(() => {
+                               const bgNo = String(order.buyer_group_no || '').trim();
+                               const hasSpecial = order.member_authentication === 'B';
+                               const hasGroupBadge = bgNo && bgNo !== '1' && bgNo !== '12';
+                               if (!hasSpecial && !hasGroupBadge) return null;
+                               return (
+                                  <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mb: 0.5 }}>
+                                    {hasGroupBadge && <Chip size="small" label={getGroupName(bgNo)} sx={{ height: 16, fontSize: '0.65rem' }} color={bgNo === '15' ? 'warning' : 'default'}/>}
+                                    {hasSpecial && <Chip size="small" label="특별관리" color="error" sx={{ height: 16, fontSize: '0.65rem' }} />}
+                                  </Box>
+                               );
+                            })()}
                             <Typography variant="body2" component="div" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                               {order.buyer_name || '비회원'}
                             </Typography>
@@ -913,10 +959,10 @@ export default function Cafe24OrderList() {
                         {item.options && <Typography variant="caption" color="text.secondary" display="block">{item.options}</Typography>}
                       </TableCell>
                       <TableCell align="right">{item.quantity}</TableCell>
-                      <TableCell align="right">{Number(item.price || 0).toLocaleString()}</TableCell>
-                      <TableCell align="right">{(Number(item.price || 0) * Number(item.quantity || 1)).toLocaleString()}</TableCell>
-                      <TableCell align="right">{Number(item.item_discount || 0).toLocaleString()}</TableCell>
-                      <TableCell align="right">{Number(item.bundle_discount || item.discount_amount || 0).toLocaleString()}</TableCell>
+                      {showPriceDetails && <TableCell align="right">{Number(item.price || 0).toLocaleString()}</TableCell>}
+                      {showPriceDetails && <TableCell align="right">{(Number(item.price || 0) * Number(item.quantity || 1)).toLocaleString()}</TableCell>}
+                      {showPriceDetails && <TableCell align="right">{Number(item.item_discount || 0).toLocaleString()}</TableCell>}
+                      {showPriceDetails && <TableCell align="right">{Number(item.bundle_discount || item.discount_amount || 0).toLocaleString()}</TableCell>}
                       <TableCell align="right">{((Number(item.payment_amount === undefined ? (Number(item.price || 0) * Number(item.quantity || 1)) : item.payment_amount)) + (idx === 0 ? Number(order.shipping_fee || 0) : 0)).toLocaleString()}</TableCell>
                       {idx === 0 && <TableCell align="right" rowSpan={items.length}>{Number(order.shipping_fee || 0).toLocaleString()}</TableCell>}
                       {idx === 0 && <TableCell align="right" rowSpan={items.length}>{displayUsedPoints > 0 ? `-${displayUsedPoints.toLocaleString()}` : '0'}</TableCell>}
@@ -1027,17 +1073,21 @@ export default function Cafe24OrderList() {
           <Autocomplete
             options={availableParts}
             getOptionLabel={(option) => `${option.name} (${option.barcode || option.code})`}
+            isOptionEqualToValue={(option, value) => option.id === value?.id}
             value={selectedPart}
             onChange={(event, newValue) => setSelectedPart(newValue)}
             renderInput={(params) => <TextField {...params} label="CRM 부품 검색 (이름 또는 바코드)" />}
-            renderOption={(props, option) => (
-              <li {...props}>
-                <Box>
-                  <Typography variant="body1">{option.name}</Typography>
-                  <Typography variant="caption" color="text.secondary">바코드: {option.barcode || '없음'} | 코드: {option.code}</Typography>
-                </Box>
-              </li>
-            )}
+            renderOption={(props, option) => {
+              const { key, ...otherProps } = props;
+              return (
+                <li key={option.id || key} {...otherProps}>
+                  <Box>
+                    <Typography variant="body1">{option.name}</Typography>
+                    <Typography variant="caption" color="text.secondary">바코드: {option.barcode || '없음'} | 코드: {option.code}</Typography>
+                  </Box>
+                </li>
+              );
+            }}
           />
 
         </DialogContent>
@@ -1065,17 +1115,21 @@ export default function Cafe24OrderList() {
           <Autocomplete
             options={agencies}
             getOptionLabel={(option) => `${option.name} ${option.business_number ? `(${option.business_number})` : ''}`}
+            isOptionEqualToValue={(option, value) => option.id === value?.id}
             value={selectedAgency}
             onChange={(event, newValue) => setSelectedAgency(newValue)}
             renderInput={(params) => <TextField {...params} label="거래처 검색" />}
-            renderOption={(props, option) => (
-              <li {...props}>
-                <Box>
-                  <Typography variant="body1">{option.name}</Typography>
-                  <Typography variant="caption" color="text.secondary">사업자번호: {option.business_number || '없음'} | 연동ID: {option.cafe24_member_id || '미연동'}</Typography>
-                </Box>
-              </li>
-            )}
+            renderOption={(props, option) => {
+              const { key, ...otherProps } = props;
+              return (
+                <li key={option.id || key} {...otherProps}>
+                  <Box>
+                    <Typography variant="body1">{option.name}</Typography>
+                    <Typography variant="caption" color="text.secondary">사업자번호: {option.business_number || '없음'} | 연동ID: {option.cafe24_member_id || '미연동'}</Typography>
+                  </Box>
+                </li>
+              );
+            }}
           />
         </DialogContent>
         <DialogActions>

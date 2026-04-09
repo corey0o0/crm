@@ -3422,7 +3422,7 @@ function InventoryManagement() {
                   let rows = (products || []).filter(p => !term || p.name.toLowerCase().includes(term) || p.code.toLowerCase().includes(term));
                   rows = rows.filter(p => {
                     const stocks = warehouses.map(w => (inventory[w.id]?.[p.id] || 0));
-                    const anyStock = stocks.some(q => q > 0);
+                    const anyStock = stocks.some(q => q !== 0);
                     if (overallStockFilter === 'inStock') return anyStock;
                     if (overallStockFilter === 'outOfStock') return !anyStock;
                     return true;
@@ -3982,7 +3982,7 @@ function InventoryManagement() {
                           <TableRow>
                             <TableCell>상품명</TableCell>
                             <TableCell>브랜드</TableCell>
-                            <TableCell>코드</TableCell>
+                            <TableCell>바코드</TableCell>
                             <TableCell align="center">수량</TableCell>
                             <TableCell>출발지</TableCell>
                             <TableCell>목적지</TableCell>
@@ -4001,9 +4001,9 @@ function InventoryManagement() {
                                   const srcId = item.fromLocation;
                                   if (!srcId || srcId === '외부') return '외부';
                                   const w = warehouses.find(w => w.id === srcId);
-                                  if (w) return `${w.name} (${w.id})`;
+                                  if (w) return w.name;
                                   const d = dealers.find(d => d.id === srcId);
-                                  if (d) return `${d.name} (${d.id})`;
+                                  if (d) return d.name;
                                   return srcId;
                                 })()}
                               </TableCell>
@@ -4011,9 +4011,9 @@ function InventoryManagement() {
                                 {(() => {
                                   const destId = item.toLocation;
                                   const w = warehouses.find(w => w.id === destId);
-                                  if (w) return `${w.name} (${w.id})`;
+                                  if (w) return w.name;
                                   const d = dealers.find(d => d.id === destId);
-                                  if (d) return `${d.name} (${d.id})`;
+                                  if (d) return d.name;
                                   return destId;
                                 })()}
                               </TableCell>

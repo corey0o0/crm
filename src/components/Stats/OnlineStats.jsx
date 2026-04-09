@@ -1,0 +1,399 @@
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabaseClient';
+import {
+  Box,
+  Paper,
+  Typography,
+  Grid,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Button,
+  CircularProgress,
+  Card,
+  CardContent,
+  Container,
+  ButtonGroup,
+  TextField
+} from '@mui/material';
+
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
+import { ko } from 'date-fns/locale';
+import { format, startOfMonth, endOfMonth, parseISO, startOfYear, endOfYear, getMonth } from 'date-fns';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer
+} from 'recharts';
+
+function OnlineStats() {
+  const [loading, setLoading] = useState(true);
+  const [startDate, setStartDate] = useState(startOfMonth(new Date()));
+  const [endDate, setEndDate] = useState(endOfMonth(new Date()));
+  const [stats, setStats] = useState({ totalPayment: 0, orderCount: 0, list: [], agencyStats: {}, brandStats: {} });
+  const [monthlyStats, setMonthlyStats] = useState([]);
+  
+  const currentMonth = getMonth(new Date());
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+
+  // 연도 선택 핸들러
+  const handleYearSelect = (year) => {
+    setSelectedYear(year);
+    const newStartDate = startOfYear(new Date(year, 0, 1));
+    const newEndDate = endOfYear(new Date(year, 11, 31));
+    setStartDate(newStartDate);
+    setEndDate(newEndDate);
+    setSelectedMonth(null);
+    fetchData(newStartDate, newEndDate);
+  };
+
+  // 월 선택 핸들러
+  const handleMonthSelect = (monthIndex) => {
+    const newDate = new Date(selectedYear, monthIndex, 1);
+    const newStartDate = startOfMonth(newDate);
+    const newEndDate = endOfMonth(newDate);
+    setSelectedMonth(monthIndex);
+    setStartDate(newStartDate);
+    setEndDate(newEndDate);
+    fetchData(newStartDate, newEndDate);
+  };
+
+  const formatDateToStartOfDay = (date) => format(date, 'yyyy-MM-dd') + ' 00:00:00';
+  const formatDateToEndOfDay = (date) => format(date, 'yyyy-MM-dd') + ' 23:59:59';
+
+  const fetchData = async (qStart, qEnd) => {
+    setLoading(true);
+    try {
+      const startDateTime = formatDateToStartOfDay(qStart || startDate);
+      const endDateTime = formatDateToEndOfDay(qEnd || endDate);
+
+      const yearStart = formatDateToStartOfDay(startOfYear(qStart || startDate));
+      const yearEnd = formatDateToEndOfDay(endOfYear(qStart || startDate));
+
+      const [
+        { data: cafe24Orders, error },
+        { data: agenciesData },
+        { data: partsData },
+        { data: chartDataRaw }
+      ] = await Promise.all([
+        supabase.from('cafe24_orders').select('*').gte('order_date', startDateTime).lte('order_date', endDateTime).eq('is_deleted', false).eq('is_transferred', true),
+        supabase.from('agencies').select('id, name'),
+        supabase.from('parts').select('id, supplier, category, price'),
+        supabase.from('cafe24_orders').select('order_date, total_amount').gte('order_date', yearStart).lte('order_date', yearEnd).eq('is_deleted', false).eq('is_transferred', true)
+      ]);
+
+      if (error) throw error;
+
+      if (cafe24Orders) {
+        let total = 0;
+        const agencyStats = {};
+        const brandStats = {};
+        const agencyMap = {};
+        agenciesData?.forEach(a => { agencyMap[a.id] = a.name; });
+        const partMap = {};
+        partsData?.forEach(p => { partMap[p.id] = p; });
+
+        cafe24Orders.forEach(o => {
+          const amt = Number(o.total_amount || 0);
+          total += amt;
+
+          const agName = o.agency_id ? (agencyMap[o.agency_id] || `미등록 대리점`) : '일반 주문';
+          if (!agencyStats[agName]) agencyStats[agName] = { amount: 0, count: 0 };
+          agencyStats[agName].amount += amt;
+          agencyStats[agName].count += 1;
+
+          if (o.order_items && Array.isArray(o.order_items)) {
+             o.order_items.forEach(item => {
+               if (item.part_id && partMap[item.part_id]) {
+                  const p = partMap[item.part_id];
+                  const sup = p.supplier || '기타 브랜드';
+                  if (!brandStats[sup]) brandStats[sup] = { airframe: 0, parts: 0, airframeAmount: 0, partsAmount: 0 };
+                  
+                  const qty = Number(item.quantity || 1);
+                  const unitPrice = Number(item.product_price || item.price || p.price || 0);
+                  const amount = qty * unitPrice;
+
+                  if (p.category === '기체') {
+                     brandStats[sup].airframe += qty;
+                     brandStats[sup].airframeAmount += amount;
+                  } else {
+                     brandStats[sup].parts += qty;
+                     brandStats[sup].partsAmount += amount;
+                  }
+               }
+             });
+          }
+        });
+
+        setStats({
+          totalPayment: total,
+          orderCount: cafe24Orders.length,
+          list: cafe24Orders.sort((a, b) => new Date(b.order_date).getTime() - new Date(a.order_date).getTime()),
+          agencyStats,
+          brandStats
+        });
+
+        const monthlyMap = {};
+        for (let i = 1; i <= 12; i++) monthlyMap[i] = { month: `${i}월`, sales: 0 };
+        if (chartDataRaw) {
+          chartDataRaw.forEach(o => {
+            const m = new Date(o.order_date).getMonth() + 1;
+            monthlyMap[m].sales += Number(o.total_amount || 0);
+          });
+        }
+        setMonthlyStats(Object.values(monthlyMap));
+      }
+    } catch (err) {
+      console.error('온라인 통계 집계 에러:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const formatCurrency = (value) => {
+    return new Intl.NumberFormat('ko-KR', {
+      style: 'currency',
+      currency: 'KRW'
+    }).format(value);
+  };
+
+  return (
+    <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h5" component="h2" sx={{ fontWeight: 'bold' }}>
+          온라인 주문 통계 (Cafe24)
+        </Typography>
+      </Box>
+
+      <Paper sx={{ p: 3, mb: 3, borderRadius: 2 }}>
+        <Grid container spacing={2} alignItems="center">
+          <Grid item xs={12} md={8}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
+                  <DatePicker
+                    label="시작일"
+                    value={startDate}
+                    onChange={(newValue) => {
+                      setStartDate(newValue);
+                      setSelectedMonth(null);
+                    }}
+                    renderInput={(params) => <TextField {...params} size="small" sx={{ width: 150 }} />}
+                  />
+                  <Typography>~</Typography>
+                  <DatePicker
+                    label="종료일"
+                    value={endDate}
+                    onChange={(newValue) => {
+                      setEndDate(newValue);
+                      setSelectedMonth(null);
+                    }}
+                    renderInput={(params) => <TextField {...params} size="small" sx={{ width: 150 }} />}
+                  />
+                </LocalizationProvider>
+                <Button variant="contained" onClick={() => fetchData()} disabled={loading} startIcon={<RefreshIcon />}>
+                  조회
+                </Button>
+              </Box>
+
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                <ButtonGroup variant="outlined" size="small">
+                  {[2023, 2024, 2025, 2026].map(year => (
+                    <Button
+                      key={year}
+                      onClick={() => handleYearSelect(year)}
+                      variant={selectedYear === year ? 'contained' : 'outlined'}
+                    >
+                      {year}년
+                    </Button>
+                  ))}
+                </ButtonGroup>
+                <ButtonGroup variant="outlined" size="small" sx={{ flexWrap: 'wrap' }}>
+                  {[...Array(12)].map((_, i) => (
+                    <Button
+                      key={i}
+                      onClick={() => handleMonthSelect(i)}
+                      variant={selectedMonth === i ? 'contained' : 'outlined'}
+                    >
+                      {i + 1}월
+                    </Button>
+                  ))}
+                </ButtonGroup>
+              </Box>
+            </Box>
+          </Grid>
+        </Grid>
+      </Paper>
+
+      {loading ? (
+        <Box display="flex" justifyContent="center" my={5}>
+          <CircularProgress />
+        </Box>
+      ) : (
+        <>
+          <Grid container spacing={3} sx={{ mb: 4 }}>
+            <Grid item xs={12} md={6}>
+              <Card sx={{ borderLeft: 4, borderColor: 'primary.main', height: '100%', borderRadius: 2 }}>
+                <CardContent sx={{ p: 3 }}>
+                  <Typography color="textSecondary" gutterBottom variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                    총 주문 금액 (결제액 기준 / 완료 건)
+                  </Typography>
+                  <Typography variant="h4" color="primary" sx={{ fontWeight: 'bold' }}>
+                    {formatCurrency(stats.totalPayment)}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <Card sx={{ borderLeft: 4, borderColor: 'secondary.main', height: '100%', borderRadius: 2 }}>
+                <CardContent sx={{ p: 3 }}>
+                  <Typography color="textSecondary" gutterBottom variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                    반영 완료 주문 건수
+                  </Typography>
+                  <Typography variant="h4" color="secondary" sx={{ fontWeight: 'bold' }}>
+                    {stats.orderCount.toLocaleString()}건
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+
+          <Paper sx={{ p: 3, mb: 4, borderRadius: 2 }}>
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>월별 총 매출 추이 (해당 연도)</Typography>
+            <Box sx={{ width: '100%', height: 300 }}>
+              <ResponsiveContainer>
+                 <BarChart data={monthlyStats} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" />
+                    <YAxis tickFormatter={(val) => `${val / 10000}만`} />
+                    <Tooltip formatter={(value) => [formatCurrency(value), '온라인 매출액']} />
+                    <Bar dataKey="sales" name="매출액" fill="#2196f3" radius={[4, 4, 0, 0]} />
+                 </BarChart>
+              </ResponsiveContainer>
+            </Box>
+          </Paper>
+
+          <Grid container spacing={3} sx={{ mb: 4 }}>
+            <Grid item xs={12} md={6}>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>대리점별 매출</Typography>
+              <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
+                <Table size="small">
+                  <TableHead sx={{ bgcolor: 'grey.100' }}>
+                    <TableRow>
+                      <TableCell>대리점명</TableCell>
+                      <TableCell align="right">주문 건수</TableCell>
+                      <TableCell align="right">총 주문 금액</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {Object.entries(stats.agencyStats || {}).length > 0 ? (
+                      Object.entries(stats.agencyStats)
+                        .sort((a, b) => b[1].amount - a[1].amount)
+                        .map(([agencyName, data]) => (
+                          <TableRow key={agencyName} hover>
+                            <TableCell>{agencyName}</TableCell>
+                            <TableCell align="right">{data.count}건</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(data.amount)}</TableCell>
+                          </TableRow>
+                        ))
+                    ) : (
+                      <TableRow><TableCell colSpan={3} align="center">데이터가 없습니다.</TableCell></TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Grid>
+
+            <Grid item xs={12} md={6}>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>브랜드별 제품 출고 현황</Typography>
+              <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
+                <Table size="small">
+                  <TableHead sx={{ bgcolor: 'grey.100' }}>
+                    <TableRow>
+                      <TableCell>브랜드명</TableCell>
+                      <TableCell align="right">기체 판매 대수</TableCell>
+                      <TableCell align="right">기체 판매 금액</TableCell>
+                      <TableCell align="right">파츠 판매 금액</TableCell>
+                      <TableCell align="right">총 합계</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {Object.entries(stats.brandStats || {}).length > 0 ? (
+                      Object.entries(stats.brandStats)
+                        .sort((a, b) => (b[1].airframeAmount + b[1].partsAmount) - (a[1].airframeAmount + a[1].partsAmount))
+                        .map(([brandName, data]) => (
+                          <TableRow key={brandName} hover>
+                            <TableCell>{brandName}</TableCell>
+                            <TableCell align="right" sx={{ color: 'primary.main', fontWeight: data.airframe > 0 ? 'bold' : 'normal' }}>
+                              {data.airframe}대
+                            </TableCell>
+                            <TableCell align="right">{formatCurrency(data.airframeAmount)}</TableCell>
+                            <TableCell align="right">{formatCurrency(data.partsAmount)}</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(data.airframeAmount + data.partsAmount)}</TableCell>
+                          </TableRow>
+                        ))
+                    ) : (
+                      <TableRow><TableCell colSpan={5} align="center">데이터가 없습니다.</TableCell></TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Grid>
+          </Grid>
+
+          <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>해당 기간 주문 리스트 (최신순)</Typography>
+          <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
+            <Table size="small">
+              <TableHead sx={{ bgcolor: 'grey.100' }}>
+                <TableRow>
+                  <TableCell>주문일</TableCell>
+                  <TableCell>주문번호</TableCell>
+                  <TableCell>주문자</TableCell>
+                  <TableCell>주문상품</TableCell>
+                  <TableCell align="right">결제액</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {stats.list.length > 0 ? (
+                  stats.list.map((o) => (
+                    <TableRow key={o.id} hover>
+                      <TableCell>{format(new Date(o.order_date), 'yyyy-MM-dd HH:mm')}</TableCell>
+                      <TableCell>{o.order_id}</TableCell>
+                      <TableCell>{o.buyer_name}</TableCell>
+                      <TableCell>{o.order_items ? o.order_items.map(i => i.name).join(', ') : '상품 정보 없음'}</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(o.total_amount || 0)}</TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
+                      해당 기간에 판매 반영된 주문이 없습니다.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </>
+      )}
+    </Container>
+  );
+}
+
+export default OnlineStats;
