@@ -297,10 +297,26 @@ function Layout() {
   ];
 
   // 이메일 및 DB 설정 기반 메뉴 필터링
+  const getFilteredMenu = (items, keys) => {
+    if (keys === 'all') return items;
+    
+    return items.reduce((acc, item) => {
+      if (item.children) {
+        const filteredChildren = item.children.filter(child => keys.includes(child.key));
+        if (filteredChildren.length > 0) {
+          acc.push({ ...item, children: filteredChildren });
+        }
+      } else {
+        if (keys.includes(item.key)) {
+          acc.push(item);
+        }
+      }
+      return acc;
+    }, []);
+  };
+
   const userMenuKeys = getUserMenuKeys(user?.email, userMenuPermissions);
-  const menuItems = userMenuKeys === 'all'
-    ? allMenuItems
-    : allMenuItems.filter(item => userMenuKeys.includes(item.key));
+  const menuItems = getFilteredMenu(allMenuItems, userMenuKeys);
 
   const handleDrawerToggle = () => {
     setOpen(!open);

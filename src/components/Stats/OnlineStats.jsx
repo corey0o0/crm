@@ -100,6 +100,7 @@ function OnlineStats() {
         let total = 0;
         const agencyStats = {};
         const brandStats = {};
+        const generalProductStats = {};
         const agencyMap = {};
         agenciesData?.forEach(a => { agencyMap[a.id] = a.name; });
         const partMap = {};
@@ -132,6 +133,15 @@ function OnlineStats() {
                      brandStats[sup].parts += qty;
                      brandStats[sup].partsAmount += amount;
                   }
+
+                  // 일반 고객(B2C) 주문인 경우 상품별로 분리하여 집계
+                  if (!o.agency_id) {
+                     if (!generalProductStats[p.id]) {
+                       generalProductStats[p.id] = { name: p.name, category: p.category, quantity: 0, amount: 0 };
+                     }
+                     generalProductStats[p.id].quantity += qty;
+                     generalProductStats[p.id].amount += amount;
+                  }
                }
              });
           }
@@ -142,7 +152,8 @@ function OnlineStats() {
           orderCount: cafe24Orders.length,
           list: cafe24Orders.sort((a, b) => new Date(b.order_date).getTime() - new Date(a.order_date).getTime()),
           agencyStats,
-          brandStats
+          brandStats,
+          generalProductStats
         });
 
         const monthlyMap = {};
@@ -356,6 +367,49 @@ function OnlineStats() {
               </TableContainer>
             </Grid>
           </Grid>
+
+          <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>일반 고객(B2C) 상품별 매출 현황</Typography>
+          <TableContainer component={Paper} sx={{ borderRadius: 2, mb: 4, maxHeight: 400 }}>
+            <Table size="small" stickyHeader>
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ bgcolor: 'grey.100' }}>분류</TableCell>
+                  <TableCell sx={{ bgcolor: 'grey.100' }}>상품명</TableCell>
+                  <TableCell align="right" sx={{ bgcolor: 'grey.100' }}>판매 수량</TableCell>
+                  <TableCell align="right" sx={{ bgcolor: 'grey.100' }}>판매 금액 합계</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {Object.entries(stats.generalProductStats || {}).length > 0 ? (
+                  Object.entries(stats.generalProductStats)
+                    .sort((a, b) => b[1].amount - a[1].amount)
+                    .map(([partId, data]) => (
+                      <TableRow key={partId} hover>
+                        <TableCell>
+                           <Box sx={{ 
+                              display: 'inline-block', 
+                              px: 1, 
+                              py: 0.5, 
+                              bgcolor: data.category === '기체' ? 'primary.light' : 'secondary.light', 
+                              color: data.category === '기체' ? 'primary.dark' : 'secondary.dark',
+                              borderRadius: 1, 
+                              fontSize: '0.75rem',
+                              fontWeight: 'bold'
+                           }}>
+                             {data.category || '기타'}
+                           </Box>
+                        </TableCell>
+                        <TableCell>{data.name}</TableCell>
+                        <TableCell align="right">{data.quantity}개</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(data.amount)}</TableCell>
+                      </TableRow>
+                    ))
+                ) : (
+                  <TableRow><TableCell colSpan={4} align="center" sx={{ py: 3 }}>일반 고객 주문 데이터가 없습니다.</TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
 
           <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>해당 기간 주문 리스트 (최신순)</Typography>
           <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
