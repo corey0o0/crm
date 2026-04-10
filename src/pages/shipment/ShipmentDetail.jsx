@@ -240,12 +240,12 @@ function ShipmentDetail() {
 
   // 수정 시작 함수
   const handleStartEdit = async () => {
-    if (shipmentData?.status === '출고완료') {
-      const confirmEdit = window.confirm("이미 출고 완료된 건입니다. 부품을 수정하기 위해서는 안전한 재고 연동을 위해 상태가 '출고대기'로 우선 변경되며, 현재 차감된 재고가 창고로 다시 복구됩니다.\n진행하시겠습니까?");
+    if (['출고완료', '출고대기'].includes(shipmentData?.status)) {
+      const confirmEdit = window.confirm("이미 재고가 차감 처리된 건입니다. 부품을 수정하기 위해서는 안전한 재고 연동을 위해 상태가 '준비중'으로 우선 변경되며, 현재 차감된 재고가 창고로 다시 복구됩니다.\n진행하시겠습니까?");
       if (!confirmEdit) return;
       
-      // 안전한 수정을 위해 강제로 출고대기 상태로 돌림 (내부적으로 재고 원상복구 진행됨)
-      await handleStatusChange('출고대기');
+      // 안전한 수정을 위해 강제로 준비중 상태로 돌림 (내부적으로 재고 원상복구 진행됨)
+      await handleStatusChange('준비중');
     }
 
     // 현재 부품 데이터를 편집 가능한 상태로 복사
@@ -460,7 +460,7 @@ function ShipmentDetail() {
       const previousStatus = shipmentData.status;
 
       // === [검수 락 (관리자 바이패스)] ===
-      if (newStatus === '출고완료' && previousStatus !== '출고완료' && !isMaster) {
+      if (['출고완료', '출고대기'].includes(newStatus) && !['출고완료', '출고대기'].includes(previousStatus) && !isMaster) {
         // 출고 창고 지정 기능이 제거되었으므로, 모든 일반 계정 출고 건은 
         // 매장/온라인 출고 탭을 통해 검수 프로세스를 거쳐야만 출고 확정이 가능하도록 기본 설정됨.
         const { data: po } = await supabase.from('pending_outbounds').select('status').eq('source_id', id).maybeSingle();
@@ -510,9 +510,9 @@ function ShipmentDetail() {
       let pendingOrderMessage = '';
 
       // 재고 처리 로직
-      if (newStatus === '출고완료' && previousStatus !== '출고완료') {
-        // 출고완료로 변경: 재고 차감
-        console.log(`출고 완료 처리 시작 - 출고ID: ${id}, 브랜드: ${brandCode}`);
+      if (['출고완료', '출고대기'].includes(newStatus) && !['출고완료', '출고대기'].includes(previousStatus)) {
+        // 출고 처리로 변경: 재고 차감
+        console.log(`출고 차감 처리 시작 - 출고ID: ${id}, 브랜드: ${brandCode}`);
 
         const inventoryResult = await processShipmentCompletion(id, brandCode);
 
@@ -545,8 +545,8 @@ function ShipmentDetail() {
         //   console.error('주문대기 추가 중 예외:', pendingOrderError);
         //   pendingOrderMessage = `, 주문대기 추가 실패: ${pendingOrderError.message}`;
         // }
-      } else if (previousStatus === '출고완료' && newStatus !== '출고완료') {
-        // 출고완료에서 다른 상태로 변경: 재고 복구
+      } else if (['출고완료', '출고대기'].includes(previousStatus) && !['출고완료', '출고대기'].includes(newStatus)) {
+        // 출고 상태에서 일반 상태로 변경: 재고 복구
         console.log(`출고 상태 복구 처리 시작 - 출고ID: ${id}, 브랜드: ${brandCode}`);
 
         const inventoryResult = await processShipmentRevert(id, brandCode);
