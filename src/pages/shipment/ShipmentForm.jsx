@@ -641,7 +641,7 @@ function ShipmentForm() {
       }
 
       // ==== 매장/일반 출고 재고 차감 (수불부 동기화) ====
-      if (shipmentId && ['출고완료', '출고대기'].includes(shipmentSaveData.status)) {
+      if (shipmentId && shipmentSaveData.status === '출고완료') {
         // 기존 transactions 삭제 (중복 생성 방지 - 수정 시 대비)
         await supabase.from('transactions').delete().eq('group_id', shipmentId);
         
@@ -664,7 +664,7 @@ function ShipmentForm() {
           const { error: txErr } = await supabase.from('transactions').insert(transactionsToInsert);
           if (txErr) console.error('[Transaction Insert Error in Shipment]:', txErr);
         }
-      } else if (shipmentId && !['출고완료', '출고대기'].includes(shipmentSaveData.status)) {
+      } else if (shipmentId && shipmentSaveData.status !== '출고완료') {
         // 출고완료/대기가 아니면 (준비중 등) 출고 취소/대기라는 의미이므로 거래 내역 삭제
         await supabase.from('transactions').delete().eq('group_id', shipmentId);
       }

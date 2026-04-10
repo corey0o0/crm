@@ -149,9 +149,14 @@ function ServiceDetail() {
       
       await pendingOutboundApi.create(orderData);
       
+      // 상태를 '부품준비'로 자동 업데이트
+      await supabase.from('services').update({ status: '부품준비' }).eq('id', id);
+      setFormData(prev => ({ ...prev, status: '부품준비' }));
+      setInitialStatus('부품준비');
+      
       setSnackbar({
         open: true,
-        message: '검수 대기열에 등록되었습니다. [입출고관리] - [매장/온라인 출고] 탭에서 확인하세요.',
+        message: '검수 대기열에 등록되었으며, 상태가 [부품준비]로 변경되었습니다.',
         severity: 'success'
       });
     } catch (err) {

@@ -94,9 +94,13 @@ function ShipmentDetail() {
       
       await pendingOutboundApi.create(orderData);
       
+      // 검수 대기열 등록에 성공하면, 출고서의 상태도 '출고대기'로 자동 변경
+      await supabase.from('shipments').update({ status: '출고대기' }).eq('id', id);
+      setShipmentData(prev => ({ ...prev, status: '출고대기' }));
+      
       setSnackbar({
         open: true,
-        message: '검수 대기열에 등록되었습니다. [입출고관리] - [매장/온라인 출고] 탭에서 확인하세요.',
+        message: '검수 대기열에 등록되었으며, 출고대기로 상태가 변경되었습니다.',
         severity: 'success'
       });
     } catch (err) {
@@ -240,7 +244,7 @@ function ShipmentDetail() {
 
   // 수정 시작 함수
   const handleStartEdit = async () => {
-    if (['출고완료', '출고대기'].includes(shipmentData?.status)) {
+    if (shipmentData?.status === '출고완료') {
       const confirmEdit = window.confirm("이미 재고가 차감 처리된 건입니다. 부품을 수정하기 위해서는 안전한 재고 연동을 위해 상태가 '준비중'으로 우선 변경되며, 현재 차감된 재고가 창고로 다시 복구됩니다.\n진행하시겠습니까?");
       if (!confirmEdit) return;
       
@@ -510,7 +514,7 @@ function ShipmentDetail() {
       let pendingOrderMessage = '';
 
       // 재고 처리 로직
-      if (['출고완료', '출고대기'].includes(newStatus) && !['출고완료', '출고대기'].includes(previousStatus)) {
+      if (newStatus === '출고완료' && previousStatus !== '출고완료') {
         // 출고 처리로 변경: 재고 차감
         console.log(`출고 차감 처리 시작 - 출고ID: ${id}, 브랜드: ${brandCode}`);
 
@@ -545,7 +549,7 @@ function ShipmentDetail() {
         //   console.error('주문대기 추가 중 예외:', pendingOrderError);
         //   pendingOrderMessage = `, 주문대기 추가 실패: ${pendingOrderError.message}`;
         // }
-      } else if (['출고완료', '출고대기'].includes(previousStatus) && !['출고완료', '출고대기'].includes(newStatus)) {
+      } else if (previousStatus === '출고완료' && newStatus !== '출고완료') {
         // 출고 상태에서 일반 상태로 변경: 재고 복구
         console.log(`출고 상태 복구 처리 시작 - 출고ID: ${id}, 브랜드: ${brandCode}`);
 
