@@ -586,7 +586,7 @@ function ShipmentForm() {
         product_code: selectedParts[0]?.part_code || '',
         quantity: totalQuantity,
         price: totalPrice,
-        warehouse_id: shipmentData.warehouse_id || null, // 창고 지정 복구
+        // warehouse_id: shipmentData.warehouse_id || null, // DB 스키마에 없으므로 payload에서 제외
         updated_at: new Date().toISOString()
       };
 
@@ -630,7 +630,7 @@ function ShipmentForm() {
           quantity: part.quantity || 1,
           price: part.price || 0,
           total_price: part.totalPrice || calculateTotal(part),
-          warehouse_id: shipmentData.warehouse_id || null, // 출고 창고 지정 복구
+          // warehouse_id: shipmentData.warehouse_id || null, // DB 스키마에 없으므로 payload에서 제외
           created_at: new Date().toISOString()
         }));
 
