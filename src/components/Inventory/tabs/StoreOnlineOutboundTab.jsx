@@ -12,6 +12,8 @@ import {
 } from '@mui/icons-material';
 import BarcodeScanner from '../BarcodeScanner';
 import { pendingOutboundApi } from '../../../api/pendingOutboundApi';
+import { supabase } from '../../../lib/supabaseClient';
+import { processShipmentCompletion, processServiceCompletion } from '../../../utils/inventoryUtils';
 import { useAuth } from '../../../contexts/AuthContext';
 import { MASTER_ACCOUNTS } from '../../../config/menuConfig';
 
@@ -35,6 +37,7 @@ function StoreOnlineOutboundTab() {
         id: d.id,
         orderNo: d.order_no,
         type: d.type,
+        source_id: d.source_id,
         date: new Date(d.created_at).toLocaleString(),
         status: d.status,
         items: (d.items || []).map(i => ({
@@ -141,6 +144,25 @@ function StoreOnlineOutboundTab() {
       for (const order of selectedOrders) {
         await pendingOutboundApi.updateScannedItems(order.items);
         await pendingOutboundApi.updateStatus(order.id, '완료');
+        
+        if (order.source_id) {
+          const firstCode = order.items[0]?.code;
+          const guessedBrand = (firstCode && (firstCode.startsWith('NB') || firstCode.includes('NEARBIKE'))) ? 'NB' : 'XRB';
+
+          if (order.type.includes('A/S')) {
+            const { data: prevService } = await supabase.from('services').select('status').eq('id', order.source_id).single();
+            await supabase.from('services').update({ status: '완료' }).eq('id', order.source_id);
+            if (prevService && prevService.status !== '완료') {
+              await processServiceCompletion(order.source_id, guessedBrand);
+            }
+          } else if (order.type.includes('출고')) {
+            const { data: prevShipment } = await supabase.from('shipments').select('status').eq('id', order.source_id).single();
+            await supabase.from('shipments').update({ status: '출고완료' }).eq('id', order.source_id);
+            if (prevShipment && !['출고완료', '출고대기'].includes(prevShipment.status)) {
+              await processShipmentCompletion(order.source_id, guessedBrand);
+            }
+          }
+        }
       }
       
       alert(`출고가 확정되었습니다.`);
@@ -167,6 +189,25 @@ function StoreOnlineOutboundTab() {
       for (const order of forceCompletedOrders) {
         await pendingOutboundApi.updateScannedItems(order.items);
         await pendingOutboundApi.updateStatus(order.id, '완료');
+        
+        if (order.source_id) {
+          const firstCode = order.items[0]?.code;
+          const guessedBrand = (firstCode && (firstCode.startsWith('NB') || firstCode.includes('NEARBIKE'))) ? 'NB' : 'XRB';
+
+          if (order.type.includes('A/S')) {
+            const { data: prevService } = await supabase.from('services').select('status').eq('id', order.source_id).single();
+            await supabase.from('services').update({ status: '완료' }).eq('id', order.source_id);
+            if (prevService && prevService.status !== '완료') {
+              await processServiceCompletion(order.source_id, guessedBrand);
+            }
+          } else if (order.type.includes('출고')) {
+            const { data: prevShipment } = await supabase.from('shipments').select('status').eq('id', order.source_id).single();
+            await supabase.from('shipments').update({ status: '출고완료' }).eq('id', order.source_id);
+            if (prevShipment && !['출고완료', '출고대기'].includes(prevShipment.status)) {
+              await processShipmentCompletion(order.source_id, guessedBrand);
+            }
+          }
+        }
       }
       
       showAlert('success', `[관리자 권한] 출고가 강제 확정되었습니다.`);
