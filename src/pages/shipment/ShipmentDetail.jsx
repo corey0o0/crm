@@ -1501,11 +1501,12 @@ function ShipmentDetail() {
                         <TableCell sx={{ fontWeight: 700, width: 80 }}>수량</TableCell>
                         <TableCell sx={{ fontWeight: 700, width: 100 }}>단가</TableCell>
                         <TableCell sx={{ fontWeight: 700, width: 120 }}>합계</TableCell>
+                          <TableCell sx={{ fontWeight: 700, width: 100, textAlign: 'center' }}>작업</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
                       {sortedParts.map((part, idx) => (
-                        <TableRow key={idx}>
+                        <TableRow key={idx} sx={part.note && part.note.includes('[반품완료]') ? { opacity: 0.5, textDecoration: 'line-through' } : {}}>
                           <TableCell>{part.part_name}</TableCell>
                           <TableCell>{part.part_code}</TableCell>
                           <TableCell>
@@ -1525,17 +1526,17 @@ function ShipmentDetail() {
                       ))}
                       {/* 총합계 */}
                       <TableRow>
-                        <TableCell colSpan={3} align="right" sx={{ fontWeight: 700, bgcolor: '#e9ecef' }}>
+                        <TableCell colSpan={4} align="right" sx={{ fontWeight: 700, bgcolor: '#e9ecef' }}>
                           총 합계
                         </TableCell>
                         <TableCell sx={{ fontWeight: 700, bgcolor: '#e9ecef' }}>
-                          {shipmentParts.reduce((sum, p) => sum + (p.quantity || 0), 0)}개
+                          {shipmentParts.reduce((sum, p) => p.note && p.note.includes('[반품완료]') ? sum : sum + (p.quantity || 0), 0)}개
                         </TableCell>
                         <TableCell sx={{ fontWeight: 700, bgcolor: '#e9ecef' }}>
                           -
                         </TableCell>
                         <TableCell sx={{ fontWeight: 700, bgcolor: '#e9ecef' }}>
-                          {shipmentParts.reduce((sum, p) => sum + (p.price * p.quantity), 0).toLocaleString()}원
+                          {shipmentParts.reduce((sum, p) => p.note && p.note.includes('[반품완료]') ? sum : sum + (p.price * p.quantity), 0).toLocaleString()}원
                         </TableCell>
                       </TableRow>
                     </TableBody>

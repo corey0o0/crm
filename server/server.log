@@ -1,0 +1,99 @@
+[Cron] 백그라운드 스케줄러(cronJobs)가 활성화되었습니다. (주기: 매시간 0분)
+서버가 포트 5001에서 실행 중입니다.
+[Cron Job] 카페24 주문 자동 수집 스케줄러를 시작합니다.
+[Cron Job] slimpack79 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] Fetched 72 orders from Cafe24 API, processing 72 valid orders
+[Cron Job] slimpack79 수집 완료: 신규 2건, 갱신 70건
+[Cron Job] nearbike 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] Fetched 11 orders from Cafe24 API, processing 11 valid orders
+[Cron Job] nearbike 수집 완료: 신규 0건, 갱신 11건
+[Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
+[Cron Job] 카페24 주문 자동 수집 스케줄러를 시작합니다.
+[Cron Job] nearbike 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] Fetched 11 orders from Cafe24 API, processing 11 valid orders
+[Cron Job] nearbike 수집 완료: 신규 0건, 갱신 11건
+[Cron Job] slimpack79 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] Fetched 72 orders from Cafe24 API, processing 72 valid orders
+[Cron Job] slimpack79 수집 완료: 신규 0건, 갱신 72건
+[Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
+[Cron Job] 카페24 주문 자동 수집 스케줄러를 시작합니다.
+[Cron Job] nearbike 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] Fetched 11 orders from Cafe24 API, processing 11 valid orders
+[Cron Job] nearbike 수집 완료: 신규 0건, 갱신 11건
+[Cron Job] slimpack79 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] Fetched 75 orders from Cafe24 API, processing 75 valid orders
+[Cron Job] slimpack79 수집 완료: 신규 0건, 갱신 75건
+[Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
+[Cron Job] 카페24 주문 자동 수집 스케줄러를 시작합니다.
+[Cron Job] slimpack79 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] Fetched 77 orders from Cafe24 API, processing 77 valid orders
+[Cron Job] slimpack79 수집 완료: 신규 1건, 갱신 76건
+[Cron Job] nearbike 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] Fetched 11 orders from Cafe24 API, processing 11 valid orders
+[Cron Job] nearbike 수집 완료: 신규 0건, 갱신 11건
+[Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
+[Cron Job] 카페24 주문 자동 수집 스케줄러를 시작합니다.
+[Cron Job] slimpack79 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] Fetched 79 orders from Cafe24 API, processing 79 valid orders
+[Cron Job] slimpack79 수집 완료: 신규 2건, 갱신 77건
+[Cron Job] nearbike 몰의 주문 수집을 진행합니다...
+[Cafe24 API] 401 Unauthorized - Forcing token refresh...
+[Cafe24 Sync] Fetched 11 orders from Cafe24 API, processing 11 valid orders
+[Cron Job] nearbike 수집 완료: 신규 0건, 갱신 11건
+[Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
+[Cron Job] 카페24 주문 자동 수집 스케줄러를 시작합니다.
+[Cron Job] slimpack79 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] Fetched 85 orders from Cafe24 API, processing 85 valid orders
+[Cron Job] slimpack79 수집 완료: 신규 6건, 갱신 79건
+[Cron Job] nearbike 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] Fetched 11 orders from Cafe24 API, processing 11 valid orders
+[Cron Job] nearbike 수집 완료: 신규 0건, 갱신 11건
+[Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
+[Cron Job] 카페24 주문 자동 수집 스케줄러를 시작합니다.
+[Cron Job] slimpack79 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] Fetched 86 orders from Cafe24 API, processing 86 valid orders
+[Cron Job] slimpack79 수집 완료: 신규 0건, 갱신 86건
+[Cron Job] nearbike 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] Fetched 11 orders from Cafe24 API, processing 11 valid orders
+[Cron Job] nearbike 수집 완료: 신규 0건, 갱신 11건
+[Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
+[Cron Job] 카페24 주문 자동 수집 스케줄러를 시작합니다.
+[Cron Job] slimpack79 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] Fetched 90 orders from Cafe24 API, processing 90 valid orders
+[Cron Job] slimpack79 수집 완료: 신규 4건, 갱신 86건
+[Cron Job] nearbike 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] Fetched 12 orders from Cafe24 API, processing 12 valid orders
+[Cron Job] nearbike 수집 완료: 신규 1건, 갱신 11건
+[Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
+[Cron Job] 카페24 주문 자동 수집 스케줄러를 시작합니다.
+[Cron Job] slimpack79 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] Fetched 94 orders from Cafe24 API, processing 94 valid orders
+[Cron Job] slimpack79 수집 완료: 신규 4건, 갱신 90건
+[Cron Job] nearbike 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] Fetched 12 orders from Cafe24 API, processing 12 valid orders
+[Cron Job] nearbike 수집 완료: 신규 0건, 갱신 12건
+[Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
+[Cron Job] 카페24 주문 자동 수집 스케줄러를 시작합니다.
+[Cron Job] slimpack79 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] Fetched 96 orders from Cafe24 API, processing 96 valid orders
+[Cron Job] slimpack79 수집 완료: 신규 2건, 갱신 94건
+[Cron Job] nearbike 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] Fetched 12 orders from Cafe24 API, processing 12 valid orders
+[Cron Job] nearbike 수집 완료: 신규 0건, 갱신 12건
+[Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
+[Cron Job] 카페24 주문 자동 수집 스케줄러를 시작합니다.
+[Cron Job] slimpack79 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] Fetched 100 orders from Cafe24 API, processing 100 valid orders
+[Cron Job] slimpack79 수집 완료: 신규 4건, 갱신 96건
+[Cron Job] nearbike 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] Fetched 12 orders from Cafe24 API, processing 12 valid orders
+[Cron Job] nearbike 수집 완료: 신규 0건, 갱신 12건
+[Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
+[Cron Job] 카페24 주문 자동 수집 스케줄러를 시작합니다.
+[Cron Job] slimpack79 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] Fetched 102 orders from Cafe24 API, processing 102 valid orders
+[Cron Job] slimpack79 수집 완료: 신규 2건, 갱신 100건
+[Cron Job] nearbike 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] Fetched 12 orders from Cafe24 API, processing 12 valid orders
+[Cron Job] nearbike 수집 완료: 신규 0건, 갱신 12건
+[Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.

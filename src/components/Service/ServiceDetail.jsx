@@ -66,7 +66,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import { formatKoreanDateTime } from '../../utils/dateUtils';
 import { format } from 'date-fns';
 import { sendTelegramNotification } from '../../lib/telegram';
-import { processServiceCompletion } from '../../utils/inventoryUtils';
+import { processServiceCompletion, processPartialReturn } from '../../utils/inventoryUtils';
 import { pendingOutboundApi } from '../../api/pendingOutboundApi';
 // import { addServicePartsToPendingOrders } from '../../utils/pendingOrderUtils'; // 주문대기 기능 비활성화
 import {
@@ -1126,6 +1126,26 @@ function ServiceDetail() {
     setSelectedParts(prev => prev.filter(part => part.id !== partId));
   };
 
+  const isDeducted = ['완료', '부품확정'].includes(formData?.status);
+
+  const handleReturnPart = async (part) => {
+    if (!window.confirm(`'${part.name}' 부품을 창고로 다시 반품(재입고) 처리하시겠습니까?`)) return;
+    try {
+      setSnackbar({ open: true, message: '반품 처리 중...', severity: 'info' });
+      const res = await processPartialReturn('service', id, part.id, part.quantity, formData.brand_code);
+      if (!res.success && !res.skipped) throw new Error(res.message);
+      
+      setSelectedParts(prev => prev.map(p => 
+        p.id === part.id ? { ...p, usage: (p.usage || '') + ' [반품완료]' } : p
+      ));
+      
+      setSnackbar({ open: true, message: '부품 반품(재입고) 처리가 완료되었습니다.', severity: 'success' });
+    } catch (err) {
+      console.error(err);
+      setSnackbar({ open: true, message: '반품 처리 중 오류가 발생했습니다: ' + err.message, severity: 'error' });
+    }
+  };
+
   const getStatusColor = (status) => {
     switch (status) {
       case '접수':
@@ -2114,7 +2134,7 @@ function ServiceDetail() {
           </div>
 
           <div class="estimate-amount">
-            견적금액: 일금 ${selectedParts.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 1), 0).toLocaleString()}원 (￦${selectedParts.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 1), 0).toLocaleString()}) ※ 부가세포함
+            견적금액: 일금 ${selectedParts.reduce((sum, p) => p.usage && p.usage.includes('[반품완료]') ? sum : sum + (p.price || 0) * (p.quantity || 1), 0).toLocaleString()}원 (￦${selectedParts.reduce((sum, p) => p.usage && p.usage.includes('[반품완료]') ? sum : sum + (p.price || 0) * (p.quantity || 1), 0).toLocaleString()}) ※ 부가세포함
           </div>
 
           <table>
@@ -2141,7 +2161,7 @@ function ServiceDetail() {
     }).join('')}
               <tr class="total-row">
                 <td colspan="3" style="text-align:center;">합계</td>
-                <td class="amount-cell">${selectedParts.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 1), 0).toLocaleString()}</td>
+                <td class="amount-cell">${selectedParts.reduce((sum, p) => p.usage && p.usage.includes('[반품완료]') ? sum : sum + (p.price || 0) * (p.quantity || 1), 0).toLocaleString()}</td>
               </tr>
             </tbody>
           </table>
@@ -2413,7 +2433,7 @@ function ServiceDetail() {
           </TableHead>
           <TableBody>
             {selectedParts.map((part, index) => (
-              <TableRow key={part.id}>
+              <TableRow key={part.id} sx={part.usage && part.usage.includes(\'[반품완료]\') ? { opacity: 0.5, textDecoration: \'line-through\' } : {}}>
                 <TableCell>{part.name}</TableCell>
                 <TableCell>{part.code}</TableCell>
                 <TableCell align="right">

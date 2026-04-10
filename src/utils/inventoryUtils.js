@@ -424,3 +424,70 @@ export const processServiceRevert = async (serviceId, brandCode) => {
     return { success: false, message: err.message, errors: [err.message] };
   }
 };
+export const processPartialReturn = async (sourceType, orderId, recordId, quantity, brandCode) => {
+  try {
+    const brandSettings = await getBrandSettings(brandCode);
+    if (!brandSettings.auto_inventory_deduction) return { success: true, skipped: true };
+
+    const { data: fw } = await supabase.from('warehouses').select('id').ilike('name', '%청담%').maybeSingle();
+    const warehouseId = fw ? fw.id : null;
+    if (!warehouseId) throw new Error('기본 창고 정보 없음');
+
+    const tableName = sourceType === 'shipment' ? 'shipment_parts' : 'service_parts';
+
+    let partInfo;
+    if (sourceType === 'shipment') {
+      const { data, error } = await supabase.from(tableName).select('*').eq('id', recordId).single();
+      if (error || !data) throw new Error('출고 부품을 찾을 수 없음');
+      partInfo = data;
+    } else {
+      const { data, error } = await supabase.from(tableName).select('*, parts(name, code)').eq('id', recordId).single();
+      if (error || !data) throw new Error('A/S 부품을 찾을 수 없음');
+      partInfo = data;
+    }
+
+    let finalPartId = null;
+    let finalCode = partInfo.parts?.code || partInfo.part_code || 'Unknown';
+    let finalName = partInfo.parts?.name || partInfo.part_name || 'Unknown';
+
+    if (sourceType === 'shipment') {
+       if (partInfo.part_code) {
+         const { data: searchRes } = await supabase.from('parts').select('id').eq('code', partInfo.part_code).limit(1).maybeSingle();
+         if (searchRes) finalPartId = searchRes.id;
+       }
+       if (!finalPartId && partInfo.part_name) {
+         const { data: searchRes2 } = await supabase.from('parts').select('id').eq('name', partInfo.part_name).limit(1).maybeSingle();
+         if (searchRes2) finalPartId = searchRes2.id;
+       }
+    } else {
+       finalPartId = partInfo.part_id;
+    }
+
+    if (!finalPartId) throw new Error('실제 재고 부품 ID를 찾을 수 없습니다.');
+
+    const result = await processInventory(
+      warehouseId,
+      [{ part_id: finalPartId, quantity: quantity, part_name: finalName, part_code: finalCode }],
+      brandCode,
+      orderId,
+      sourceType,
+      sourceType === 'shipment' ? 'shipment_cancel' : 'service_cancel',
+      true // isRevert = true -> 창고로 다시 입고(+)
+    );
+
+    if (!result.success) throw new Error(result.message);
+
+    // 테이블 마킹
+    if (sourceType === 'shipment') {
+      const newNote = partInfo.note ? partInfo.note + ' [반품완료]' : '[반품완료]';
+      await supabase.from('shipment_parts').update({ note: newNote }).eq('id', recordId);
+    } else {
+      const newUsage = partInfo.usage ? partInfo.usage + ' [반품완료]' : '[반품완료]';
+      await supabase.from('service_parts').update({ usage: newUsage }).eq('id', recordId);
+    }
+
+    return { success: true };
+  } catch (err) {
+    return { success: false, message: err.message, errors: [err.message] };
+  }
+};
