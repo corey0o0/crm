@@ -105,5 +105,21 @@ export const pendingOutboundApi = {
       console.error('Error updating scanned items:', error);
       throw error;
     }
+  },
+
+  // 대기열 삭제 (취소)
+  async delete(id) {
+    try {
+      const { error } = await supabase
+        .from('pending_outbounds')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Error deleting pending outbound:', error);
+      throw error;
+    }
   }
 };

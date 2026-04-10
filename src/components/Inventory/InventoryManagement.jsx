@@ -58,6 +58,7 @@ import {
   ArrowDownward as ArrowDownwardIcon,
   QrCodeScanner as QrCodeScannerIcon
 } from '@mui/icons-material';
+import { useLocation } from 'react-router-dom';
 import LocationManagement from './LocationManagement';
 import BarcodeScanner from './BarcodeScanner';
 import { productApi } from '../../api/productApi';
@@ -227,6 +228,22 @@ function InventoryManagement() {
   
   // 드래그 앤 드롭 상태
   const [isDragOver, setIsDragOver] = useState(false);
+
+  const location = useLocation();
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tabParam = params.get('tab');
+    if (tabParam === 'outbound_scan') {
+      setActiveTab(2); // 매장/온라인 출고 탭
+    } else if (tabParam === 'inventory_status') {
+      setActiveTab(3); // 재고 현황 탭
+    } else if (tabParam === 'inventory_stats') {
+      setActiveTab(5); // 입출고 통계 탭
+    } else if (!tabParam) {
+      setActiveTab(0); // 기본 대시보드 탭
+    }
+  }, [location.search]);
 
   useEffect(() => {
     // API 호출을 병렬로 실행하여 초기 로딩 속도 개선

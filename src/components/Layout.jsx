@@ -57,6 +57,7 @@ import {
   ShoppingCartOutlined as ShoppingCartOutlinedIcon,
   Science as ScienceIcon,
   Store as StoreIcon,
+  Forum as ForumIcon,
   ExpandLess,
   ExpandMore
 } from '@mui/icons-material';
@@ -256,8 +257,7 @@ function Layout() {
       ]
     },
 
-    // 🔧 서비스 관리
-    { text: 'A/S 관리', icon: <BuildIcon />, path: '/services', key: 'services' },
+    // 🔧 서비스 관리 (이동됨)
 
     // 📦 재고 & 물류 관리
     { 
@@ -266,15 +266,26 @@ function Layout() {
       path: '', 
       key: 'sales',
       children: [
+        { text: 'A/S 관리', icon: <BuildIcon />, path: '/services', key: 'services' },
         { text: '매장출고관리', icon: <LocalShippingIcon />, path: '/shipment', key: 'shipment' },
         { text: '온라인주문관리', icon: <ShoppingCartOutlinedIcon />, path: '/cafe24/orders', key: 'cafe24_orders' },
+        { text: '출고 대기', icon: <CalendarTodayIcon />, path: '/inventory-management?tab=outbound_scan', key: 'outbound_scan' },
         { text: '수기 판매 등록', icon: <LocalShippingIcon />, path: '/sales/entry', key: 'sales_entry' }
       ]
     },
     // { text: '주문대기', icon: <ShoppingCartOutlinedIcon />, path: '/pending-orders', key: 'pending_orders' },
-    { text: '매장 재고 관리', icon: <InventoryIcon />, path: '/stocks', key: 'stocks' },
-    { text: '입출고 관리', icon: <InventoryIcon />, path: '/inventory-management', key: 'inventory_management' },
-
+    { 
+      text: '재고관리', 
+      icon: <InventoryIcon />, 
+      path: '', 
+      key: 'inventory_group',
+      children: [
+        { text: '매장 재고 관리', icon: <InventoryIcon />, path: '/stocks', key: 'stocks' },
+        { text: '입출고 관리', icon: <InventoryIcon />, path: '/inventory-management', key: 'inventory_management' },
+        { text: '재고 현황', icon: <AssessmentIcon />, path: '/inventory-management?tab=inventory_status', key: 'inventory_status' },
+        { text: '입출고 통계', icon: <AnalyticsIcon />, path: '/inventory-management?tab=inventory_stats', key: 'inventory_stats' }
+      ]
+    },
     // 📊 통계 & 분석
     { 
       text: '통계', 
@@ -289,7 +300,16 @@ function Layout() {
     // { text: 'A/S 분석', icon: <AnalyticsIcon />, path: '/service/analysis', key: 'service_analysis' },
 
     // 💬 커뮤니티
-    { text: '게시판', icon: <MenuBookIcon />, path: '/board', key: 'board' },
+    { 
+      text: '게시판', 
+      icon: <MenuBookIcon />, 
+      path: '', 
+      key: 'board_group',
+      children: [
+        { text: '내부 게시판', icon: <ForumIcon />, path: '/board?tab=internal', key: 'board_internal' },
+        { text: '카페24 게시판', icon: <StoreIcon />, path: '/board?tab=cafe24', key: 'board_cafe24' }
+      ]
+    },
 
     // ⚙️ 설정
     // { text: '상품 동기화(비교)', icon: <SyncIcon />, path: '/settings/product-sync', key: 'admin_tools' },

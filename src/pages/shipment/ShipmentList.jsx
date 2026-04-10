@@ -891,10 +891,13 @@ function ShipmentList() {
     switch (status) {
       case '준비중':
         return 'info';
-      case '출고완료':
-        return 'success';
+      case '부품준비':
+        return 'secondary';
+      case '검수완료':
       case '출고대기':
         return 'warning';
+      case '출고완료':
+        return 'success';
       default:
         return 'default';
     }
@@ -1739,6 +1742,8 @@ function ShipmentList() {
                 >
                   <MenuItem value="all">전체 상태</MenuItem>
                   <MenuItem value="준비중">준비중</MenuItem>
+                  <MenuItem value="부품준비">부품준비</MenuItem>
+                  <MenuItem value="검수완료">검수완료</MenuItem>
                   <MenuItem value="출고대기">출고대기</MenuItem>
                   <MenuItem value="출고완료">출고완료</MenuItem>
                 </Select>

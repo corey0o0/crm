@@ -36,10 +36,15 @@ const AVAILABLE_PERMISSIONS = [
   { key: 'agencies', label: '거래처 관리' },
   { key: 'parts', label: '상품 관리' },
   { key: 'stocks', label: '매장 재고 관리' },
+  { key: 'inventory_group', label: '재고관리 메뉴 전체' },
   { key: 'inventory_management', label: '입출고 관리' },
+  { key: 'inventory_status', label: '재고 현황' },
+  { key: 'inventory_stats', label: '입출고 통계' },
   { key: 'sales_stats', label: '매출 통계' },
   { key: 'service_analysis', label: 'A/S 분석' },
-  { key: 'board', label: '게시판' },
+  { key: 'board_group', label: '게시판 메뉴 전체' },
+  { key: 'board_internal', label: '내부 게시판' },
+  { key: 'board_cafe24', label: '카페24 게시판' },
   { key: 'admin_tools', label: '관리자 도구' }
 ];
 

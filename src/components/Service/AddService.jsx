@@ -2778,13 +2778,16 @@ function AddService() {
                               }))}
                             />
                           )}
-                          renderOption={(props, option) => (
-                            <li {...props}>
-                              <Typography noWrap>
-                                {option}
-                              </Typography>
-                            </li>
-                          )}
+                          renderOption={(props, option) => {
+                            const { key, ...otherProps } = props;
+                            return (
+                              <li key={key} {...otherProps}>
+                                <Typography noWrap>
+                                  {option}
+                                </Typography>
+                              </li>
+                            );
+                          }}
                         />
                       </Grid>
                       <Grid item xs={12}>

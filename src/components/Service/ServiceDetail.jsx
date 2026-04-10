@@ -124,21 +124,26 @@ function ServiceDetail() {
   const [openReceiptDialog, setOpenReceiptDialog] = useState(false);
 
   const handleAddToPendingOutbounds = async () => {
-    if (!selectedParts || selectedParts.length === 0) {
-       alert("사용된 부품/상품 내역이 없습니다.");
-       return;
+    const partsToInspect = selectedParts.filter(part => !part.record_id && !(part.usage && part.usage.includes('[반품완료]')));
+
+    if (partsToInspect.length === 0) {
+      alert("검수 대기열에 추가할 새 부품이 없습니다. (이미 저장된 부품만 존재합니다)");
+      return;
     }
 
-    if (!window.confirm("이 A/S 건을 '매장/온라인 출고' 검수 대기열로 전송하시겠습니까?")) return;
+    if (!window.confirm("새로 추가된 부품을 검수 대기열로 전송하시겠습니까? (현재 작성중인 내용이 자동으로 저장됩니다.)")) return;
 
     try {
       setAddingToQueue(true);
+
+      await handleSubmit(null, { status: '부품준비' });
+
       const orderData = {
-        order_no: `AS-${id.slice(0, 8).toUpperCase()}`,
+        order_no: `AS-${id.slice(0, 8).toUpperCase()}-${Date.now().toString().slice(-4)}`, // 식별을 위해 타임스탬프 추가
         type: 'A/S 출고',
         source_id: id,
         status: '대기',
-        items: selectedParts.map(part => ({
+        items: partsToInspect.map(part => ({
           part_id: part.part_id || part.id,
           name: part.part_name || part.name,
           code: part.part_code || part.code || '',
@@ -149,14 +154,12 @@ function ServiceDetail() {
       
       await pendingOutboundApi.create(orderData);
       
-      // 상태를 '부품준비'로 자동 업데이트
-      await supabase.from('services').update({ status: '부품준비' }).eq('id', id);
       setFormData(prev => ({ ...prev, status: '부품준비' }));
       setInitialStatus('부품준비');
       
       setSnackbar({
         open: true,
-        message: '검수 대기열에 등록되었으며, 상태가 [부품준비]로 변경되었습니다.',
+        message: '자동 저장 및 검수 대기열 등록이 완료되었습니다.',
         severity: 'success'
       });
     } catch (err) {
@@ -610,6 +613,7 @@ function ServiceDetail() {
           const part = partsData.find(p => p.id === sp.part_id);
           return {
             ...part,
+            record_id: sp.id,
             quantity: sp.quantity,
             price: sp.price,
             usage: sp.usage || 'A/S',
@@ -807,8 +811,8 @@ function ServiceDetail() {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (e, overrideData = {}) => {
+    if (e) e.preventDefault();
     setSubmitting(true);
     setIsFormSubmitted(true); // 폼 제출 상태로 변경
 
@@ -842,7 +846,7 @@ function ServiceDetail() {
         mileage: formData.mileage,
         writer: formData.writer,
         reception_type: formData.reception_type,
-        // warehouse_id: formData.warehouse_id || null, // 창고 반영 삭제
+        ...overrideData,
         updated_at: new Date().toISOString()
       };
 
@@ -1126,13 +1130,13 @@ function ServiceDetail() {
     setSelectedParts(prev => prev.filter(part => part.id !== partId));
   };
 
-  const isDeducted = ['완료', '부품확정'].includes(formData?.status);
+  const isDeducted = ['처리중', '완료', '수령대기', '결제대기', '수령완료', '출고완료', '취소'].includes(formData?.status);
 
   const handleReturnPart = async (part) => {
     if (!window.confirm(`'${part.name}' 부품을 창고로 다시 반품(재입고) 처리하시겠습니까?`)) return;
     try {
       setSnackbar({ open: true, message: '반품 처리 중...', severity: 'info' });
-      const res = await processPartialReturn('service', id, part.id, part.quantity, formData.brand_code);
+      const res = await processPartialReturn('service', id, part.record_id || part.id, part.quantity, formData.brand_code);
       if (!res.success && !res.skipped) throw new Error(res.message);
       
       setSelectedParts(prev => prev.map(p => 
@@ -2359,16 +2363,6 @@ function ServiceDetail() {
           >
             영수증으로 부품 추가
           </Button>
-          {isInspectionEnabled && formData.status !== '완료' && formData.status !== '처리중' && (
-            <Button
-              variant="contained"
-              color="secondary"
-              onClick={handleAddToInspectionQueue}
-              sx={{ bgcolor: '#9c27b0', '&:hover': { bgcolor: '#7b1fa2' }, ml: 2 }}
-            >
-              검수 대기열 추가
-            </Button>
-          )}
         </Box>
         <Box sx={{ flex: 1 }}>
           <TextField
@@ -2433,7 +2427,7 @@ function ServiceDetail() {
           </TableHead>
           <TableBody>
             {selectedParts.map((part, index) => (
-              <TableRow key={part.id} sx={part.usage && part.usage.includes(\'[반품완료]\') ? { opacity: 0.5, textDecoration: \'line-through\' } : {}}>
+              <TableRow key={part.id} sx={part.usage && part.usage.includes('[반품완료]') ? { opacity: 0.5, textDecoration: 'line-through' } : {}}>
                 <TableCell>{part.name}</TableCell>
                 <TableCell>{part.code}</TableCell>
                 <TableCell align="right">
@@ -2523,13 +2517,27 @@ function ServiceDetail() {
                   </Select>
                 </TableCell>
                 <TableCell align="center">
-                  <IconButton
-                    size="small"
-                    onClick={() => handleRemovePart(part.id)}
-                    color="error"
-                  >
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
+                  {(!isDeducted || !part.record_id) ? (
+                    <IconButton
+                      size="small"
+                      onClick={() => handleRemovePart(part.id)}
+                      color="error"
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  ) : (
+                    !(part.usage && part.usage.includes('[반품완료]')) && (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        color="secondary"
+                        onClick={() => handleReturnPart(part)}
+                        sx={{ whiteSpace: 'nowrap', minWidth: 'auto', p: 0.5 }}
+                      >
+                        반품
+                      </Button>
+                    )
+                  )}
                 </TableCell>
               </TableRow>
             ))}
@@ -2834,34 +2842,52 @@ function ServiceDetail() {
                   <Grid item xs={12}>
                     <Box sx={{ display: 'flex', gap: 1, mb: 2, alignItems: 'center', justifyContent: 'space-between' }}>
                       <Box sx={{ display: 'flex', gap: 1 }}>
-                        <Button
-                          variant={formData.status === '접수' ? 'contained' : 'outlined'}
-                          onClick={() => handleStatusChange('접수')}
-                          sx={buttonStyle(formData.status === '접수')}
-                        >
-                          접수
-                        </Button>
-                        <Button
-                          variant={formData.status === '부품준비' ? 'contained' : 'outlined'}
-                          onClick={() => handleStatusChange('부품준비')}
-                          sx={{ 
-                            ...buttonStyle(formData.status === '부품준비'),
-                            ...(formData.status === '부품준비' ? { bgcolor: '#9c27b0', '&:hover': { bgcolor: '#7b1fa2' } } : { color: '#9c27b0', borderColor: '#9c27b0' })
-                          }}
-                        >
-                          부품준비
-                        </Button>
-                        {formData.status === '부품준비' && (
-                          <Button
-                            variant="contained"
-                            color="success"
-                            onClick={handleCompleteInspection}
-                            disabled={addingToQueue}
-                            sx={{ ml: 1 }}
-                          >
-                            검수 완료(재고차감)
-                          </Button>
-                        )}
+                        {(() => {
+                          const isInspectionCompleted = ['처리중', '완료', '수령대기', '결제대기', '수령완료', '출고완료', '취소'].includes(formData.status);
+                          return (
+                            <>
+                              <Button
+                                variant={formData.status === '접수' ? 'contained' : 'outlined'}
+                                onClick={() => handleStatusChange('접수')}
+                                sx={buttonStyle(formData.status === '접수')}
+                                disabled={isInspectionCompleted}
+                              >
+                                접수
+                              </Button>
+                              {isInspectionCompleted ? (
+                                <Button
+                                  variant="contained"
+                                  color="inherit"
+                                  disableElevation
+                                  disabled={true}
+                                  sx={{
+                                    ...buttonStyle(true),
+                                    bgcolor: '#e0e0e0', 
+                                    color: '#9e9e9e',
+                                    pointerEvents: 'none'
+                                  }}
+                                >
+                                  검수 완료
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant={formData.status === '부품준비' ? "contained" : "outlined"}
+                                  onClick={() => {
+                                    if (formData.status !== '부품준비') {
+                                      handleStatusChange('부품준비');
+                                    }
+                                  }}
+                                  sx={{ 
+                                    ...buttonStyle(formData.status === '부품준비'),
+                                    ...(formData.status !== '부품준비' ? { color: '#9c27b0', borderColor: '#9c27b0' } : {})
+                                  }}
+                                >
+                                  부품준비
+                                </Button>
+                              )}
+                            </>
+                          );
+                        })()}
                         <Button
                           variant={formData.status === '처리중' ? 'contained' : 'outlined'}
                           onClick={() => handleStatusChange('처리중')}
@@ -3012,13 +3038,16 @@ function ServiceDetail() {
                               }))}
                             />
                           )}
-                          renderOption={(props, option) => (
-                            <li {...props}>
-                              <Typography noWrap>
-                                {option}
-                              </Typography>
-                            </li>
-                          )}
+                          renderOption={(props, option) => {
+                            const { key, ...otherProps } = props;
+                            return (
+                              <li key={key} {...otherProps}>
+                                <Typography noWrap>
+                                  {option}
+                                </Typography>
+                              </li>
+                            );
+                          }}
                         />
                       </Grid>
                       <Grid item xs={12}>
@@ -3300,8 +3329,9 @@ function ServiceDetail() {
               <Button
                 onClick={handleDelete}
                 startIcon={<DeleteIcon />}
+                disabled={['처리중', '완료', '수령대기', '결제대기', '수령완료', '출고완료', '취소'].includes(formData?.status)}
                 sx={{
-                  color: '#dc3545',
+                  color: ['처리중', '완료', '수령대기', '결제대기', '수령완료', '출고완료', '취소'].includes(formData?.status) ? '#9e9e9e' : '#dc3545',
                   fontSize: '0.95rem',
                   fontWeight: 600,
                   textTransform: 'none',

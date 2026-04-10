@@ -12,7 +12,7 @@ import {
   Forum as ForumIcon,
   AllInbox as AllIcon
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { safeRetry, isOffline } from '../../utils/networkUtils';
 import { syncCafe24Posts, getCafe24Malls } from '../../utils/cafe24Api';
 
@@ -24,6 +24,15 @@ function BoardList() {
   const [cafe24Malls, setCafe24Malls] = useState([]);
   const [tab, setTab] = useState(0); // 0: 전체, 1: 내부, 2: 카페24
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tabParam = params.get('tab');
+    if (tabParam === 'internal') setTab(1);
+    else if (tabParam === 'cafe24') setTab(2);
+    else setTab(0);
+  }, [location.search]);
 
   const fetchPosts = useCallback(async (tabIndex = 0) => {
     try {
@@ -35,7 +44,7 @@ function BoardList() {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (tabIndex === 1) query = query.eq('source', 'internal').or('source.is.null');
+      if (tabIndex === 1) query = query.or('source.eq.internal,source.is.null');
       else if (tabIndex === 2) query = query.eq('source', 'cafe24');
 
       const { data, error } = await safeRetry(async () => query, {

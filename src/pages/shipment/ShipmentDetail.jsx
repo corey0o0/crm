@@ -43,7 +43,7 @@ import {
 import { supabase } from '../../lib/supabaseClient';
 import { useNavigate, useParams } from 'react-router-dom';
 import { format, parseISO, isValid } from 'date-fns';
-import { processShipmentCompletion, processShipmentRevert } from '../../utils/inventoryUtils';
+import { processShipmentCompletion, processShipmentRevert, processPartialReturn } from '../../utils/inventoryUtils';
 import { pendingOutboundApi } from '../../api/pendingOutboundApi';
 import { useAuth } from '../../contexts/AuthContext';
 import { MASTER_ACCOUNTS } from '../../config/menuConfig';
@@ -94,13 +94,13 @@ function ShipmentDetail() {
       
       await pendingOutboundApi.create(orderData);
       
-      // 검수 대기열 등록에 성공하면, 출고서의 상태도 '출고대기'로 자동 변경
-      await supabase.from('shipments').update({ status: '출고대기' }).eq('id', id);
-      setShipmentData(prev => ({ ...prev, status: '출고대기' }));
+      // 검수 대기열 등록에 성공하면, 출고서의 상태도 '부품준비'로 자동 변경
+      await supabase.from('shipments').update({ status: '부품준비' }).eq('id', id);
+      setShipmentData(prev => ({ ...prev, status: '부품준비' }));
       
       setSnackbar({
         open: true,
-        message: '검수 대기열에 등록되었으며, 출고대기로 상태가 변경되었습니다.',
+        message: '검수 대기열에 등록되었으며, 부품준비 상태로 변경되었습니다.',
         severity: 'success'
       });
     } catch (err) {
@@ -295,6 +295,32 @@ function ShipmentDetail() {
   // 제품 삭제 함수
   const handleRemovePart = (partId) => {
     setEditableParts(prev => prev.filter(part => part.id !== partId));
+  };
+
+  const handleReturnPart = async (part) => {
+    if (!window.confirm(`'${part.part_name}' 부품을 창고로 다시 반품(재입고) 처리하시겠습니까?`)) return;
+    try {
+      setSnackbar({ open: true, message: '반품 처리 중...', severity: 'info' });
+      
+      let brandCode = 'XRB';
+      if (shipmentData?.product_code && (shipmentData.product_code.startsWith('NB') || shipmentData.product_code.includes('NEARBIKE'))) {
+        brandCode = 'NB';
+      } else if (shipmentParts.length > 0 && shipmentParts[0]?.part_code?.startsWith('NB')) {
+        brandCode = 'NB';
+      }
+
+      const res = await processPartialReturn('shipment', id, part.id, part.quantity, brandCode);
+      if (!res.success && !res.skipped) throw new Error(res.message);
+      
+      setShipmentParts(prev => prev.map(p => 
+        p.id === part.id ? { ...p, note: (p.note || '') + ' [반품완료]' } : p
+      ));
+      
+      setSnackbar({ open: true, message: '부품 반품(재입고) 처리가 완료되었습니다.', severity: 'success' });
+    } catch (err) {
+      console.error(err);
+      setSnackbar({ open: true, message: '반품 처리 중 오류가 발생했습니다: ' + err.message, severity: 'error' });
+    }
   };
 
   // 변경 사항 저장 함수
@@ -900,10 +926,13 @@ function ShipmentDetail() {
     switch (status) {
       case '준비중':
         return 'info';
-      case '출고완료':
-        return 'success';
+      case '부품준비':
+        return 'secondary';
+      case '검수완료':
       case '출고대기':
         return 'warning';
+      case '출고완료':
+        return 'success';
       default:
         return 'default';
     }
@@ -1228,6 +1257,8 @@ function ShipmentDetail() {
                   disabled={saving}
                 >
                   <MenuItem value="준비중">준비중</MenuItem>
+                  <MenuItem value="부품준비">부품준비</MenuItem>
+                  <MenuItem value="검수완료">검수완료</MenuItem>
                   <MenuItem value="출고대기">출고대기</MenuItem>
                   <MenuItem value="출고완료">출고완료</MenuItem>
                 </Select>
@@ -1501,7 +1532,7 @@ function ShipmentDetail() {
                         <TableCell sx={{ fontWeight: 700, width: 80 }}>수량</TableCell>
                         <TableCell sx={{ fontWeight: 700, width: 100 }}>단가</TableCell>
                         <TableCell sx={{ fontWeight: 700, width: 120 }}>합계</TableCell>
-                          <TableCell sx={{ fontWeight: 700, width: 100, textAlign: 'center' }}>작업</TableCell>
+                        <TableCell sx={{ fontWeight: 700, width: 100, textAlign: 'center' }}>작업</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -1521,6 +1552,19 @@ function ShipmentDetail() {
                           <TableCell>{part.price?.toLocaleString()}원</TableCell>
                           <TableCell sx={{ fontWeight: 600 }}>
                             {(part.price * part.quantity)?.toLocaleString()}원
+                          </TableCell>
+                          <TableCell align="center">
+                            {shipmentData?.status === '출고완료' && !(part.note && part.note.includes('[반품완료]')) && (
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                color="secondary"
+                                onClick={() => handleReturnPart(part)}
+                                sx={{ whiteSpace: 'nowrap', minWidth: 'auto', p: 0.5 }}
+                              >
+                                반품
+                              </Button>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}

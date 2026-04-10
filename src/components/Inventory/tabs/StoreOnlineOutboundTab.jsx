@@ -2,13 +2,17 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   Box, Grid, Card, CardContent, Typography, TextField, Button, Table, TableBody, 
   TableCell, TableContainer, TableHead, TableRow, Paper, Divider, List, 
-  ListItemButton, Chip, LinearProgress, Checkbox
+  ListItemButton, Chip, LinearProgress, Checkbox, IconButton
 } from '@mui/material';
 import {
   QrCodeScanner as QrCodeScannerIcon,
   CheckCircle as CheckCircleIcon,
   Warning as WarningIcon,
-  Error as ErrorIcon
+  Error as ErrorIcon,
+  Sync as SyncIcon,
+  PlayArrow as PlayArrowIcon,
+  AdminPanelSettings as AdminPanelSettingsIcon,
+  Delete as DeleteIcon
 } from '@mui/icons-material';
 import BarcodeScanner from '../BarcodeScanner';
 import { pendingOutboundApi } from '../../../api/pendingOutboundApi';
@@ -151,13 +155,13 @@ function StoreOnlineOutboundTab() {
 
           if (order.type.includes('A/S')) {
             const { data: prevService } = await supabase.from('services').select('status').eq('id', order.source_id).single();
-            await supabase.from('services').update({ status: '완료' }).eq('id', order.source_id);
-            if (prevService && prevService.status !== '완료') {
+            await supabase.from('services').update({ status: '처리중' }).eq('id', order.source_id);
+            if (prevService && prevService.status !== '완료' && prevService.status !== '처리중') {
               await processServiceCompletion(order.source_id, guessedBrand);
             }
           } else if (order.type.includes('출고')) {
             const { data: prevShipment } = await supabase.from('shipments').select('status').eq('id', order.source_id).single();
-            await supabase.from('shipments').update({ status: '출고완료' }).eq('id', order.source_id);
+            await supabase.from('shipments').update({ status: '출고대기' }).eq('id', order.source_id);
             if (prevShipment && !['출고완료', '출고대기'].includes(prevShipment.status)) {
               await processShipmentCompletion(order.source_id, guessedBrand);
             }
@@ -196,13 +200,13 @@ function StoreOnlineOutboundTab() {
 
           if (order.type.includes('A/S')) {
             const { data: prevService } = await supabase.from('services').select('status').eq('id', order.source_id).single();
-            await supabase.from('services').update({ status: '완료' }).eq('id', order.source_id);
-            if (prevService && prevService.status !== '완료') {
+            await supabase.from('services').update({ status: '처리중' }).eq('id', order.source_id);
+            if (prevService && prevService.status !== '완료' && prevService.status !== '처리중') {
               await processServiceCompletion(order.source_id, guessedBrand);
             }
           } else if (order.type.includes('출고')) {
             const { data: prevShipment } = await supabase.from('shipments').select('status').eq('id', order.source_id).single();
-            await supabase.from('shipments').update({ status: '출고완료' }).eq('id', order.source_id);
+            await supabase.from('shipments').update({ status: '출고대기' }).eq('id', order.source_id);
             if (prevShipment && !['출고완료', '출고대기'].includes(prevShipment.status)) {
               await processShipmentCompletion(order.source_id, guessedBrand);
             }
@@ -213,10 +217,28 @@ function StoreOnlineOutboundTab() {
       showAlert('success', `[관리자 권한] 출고가 강제 확정되었습니다.`);
       const completedIds = selectedOrders.map(o => o.id);
       setOrders(orders.filter(o => !completedIds.includes(o.id)));
-      setSelectedOrders([]);
     } catch (error) {
       console.error(error);
       showAlert('error', '출고 확정 중 오류가 발생했습니다.');
+    }
+  };
+
+  const handleCancelOrder = async (e, order) => {
+    e.stopPropagation();
+    if (!window.confirm(`'${order.orderNo}' 대기열을 완전히 취소하고 삭제하시겠습니까? (이후 다시 등록할 수 있습니다)`)) return;
+
+    try {
+      await pendingOutboundApi.delete(order.id);
+
+      // A/S 이면 상태를 원래의 상태로 롤백해야할까? 
+      // 이전에 부품준비(대기큐 진입) 였음. 단순히 대기열만 취소하면, 부품준비 상태로 남으므로 사용자가 다시 언제든 대기열 등록 버튼을 누를 수 있음 (의도된 동작 구조)
+
+      setOrders(orders.filter(o => o.id !== order.id));
+      setSelectedOrders(selectedOrders.filter(o => o.id !== order.id));
+      showAlert('success', '해당 대기열이 취소 및 삭제되었습니다.');
+    } catch (error) {
+      console.error(error);
+      showAlert('error', '대기열 취소 중 오류가 발생했습니다.');
     }
   };
 
@@ -290,7 +312,17 @@ function StoreOnlineOutboundTab() {
                           />
                           <Typography variant="caption" color="text.secondary">{order.date}</Typography>
                         </Box>
-                        <Typography variant="body1" fontWeight="bold">{order.orderNo}</Typography>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Typography variant="body1" fontWeight="bold">{order.orderNo}</Typography>
+                          <IconButton 
+                            size="small" 
+                            color="error" 
+                            onClick={(e) => handleCancelOrder(e, order)}
+                            sx={{ p: 0.5 }}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Box>
                         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>품목: {order.items.length}종 / 총 수량: {order.items.reduce((a,c)=>a+c.expected_qty || c.expected, 0)}개</Typography>
                       </Box>
                     </ListItemButton>

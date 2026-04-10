@@ -529,7 +529,8 @@ function ShipmentForm() {
     const requiredFields = [
       { field: 'customer_name', label: '고객명' },
       { field: 'customer_phone', label: '연락처' },
-      { field: 'shipment_date', label: '출고일' }
+      { field: 'shipment_date', label: '출고일' },
+      { field: 'warehouse_id', label: '출고 창고' }
     ];
 
     const missingFields = requiredFields.filter(({ field }) => !shipmentData[field]);
@@ -586,7 +587,7 @@ function ShipmentForm() {
         product_code: selectedParts[0]?.part_code || '',
         quantity: totalQuantity,
         price: totalPrice,
-        // warehouse_id: shipmentData.warehouse_id || null, // DB 스키마에 없으므로 payload에서 제외
+        warehouse_id: shipmentData.warehouse_id, // 이제 필수로 들어감
         updated_at: new Date().toISOString()
       };
 
@@ -630,7 +631,7 @@ function ShipmentForm() {
           quantity: part.quantity || 1,
           price: part.price || 0,
           total_price: part.totalPrice || calculateTotal(part),
-          // warehouse_id: shipmentData.warehouse_id || null, // DB 스키마에 없으므로 payload에서 제외
+          warehouse_id: shipmentData.warehouse_id, // 이제 필수로 들어감
           created_at: new Date().toISOString()
         }));
 
@@ -1484,9 +1485,10 @@ function ShipmentForm() {
                 value={shipmentData.warehouse_id || ''}
                 onChange={handleChange}
                 label="출고 창고"
+                required
               >
-                <MenuItem value="">
-                  <em>선택 안함</em>
+                <MenuItem value="" disabled>
+                  <em>창고를 선택하세요</em>
                 </MenuItem>
                 {warehouses.map(w => (
                   <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>

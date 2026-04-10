@@ -97,3 +97,12 @@
 [Cafe24 Sync] Fetched 12 orders from Cafe24 API, processing 12 valid orders
 [Cron Job] nearbike 수집 완료: 신규 0건, 갱신 12건
 [Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
+[Cron Job] 카페24 주문 자동 수집 스케줄러를 시작합니다.
+[Cron Job] slimpack79 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] Fetched 102 orders from Cafe24 API, processing 102 valid orders
+[Cron Job] slimpack79 수집 완료: 신규 0건, 갱신 102건
+[Cron Job] nearbike 몰의 주문 수집을 진행합니다...
+[Cafe24 API] 401 Unauthorized - Forcing token refresh...
+[Cafe24 Sync] Fetched 12 orders from Cafe24 API, processing 12 valid orders
+[Cron Job] nearbike 수집 완료: 신규 0건, 갱신 12건
+[Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.

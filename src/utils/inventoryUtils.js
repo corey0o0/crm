@@ -50,7 +50,43 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
     const errors = [];
 
     for (const part of parts) {
-      if (!part.part_id) continue;
+      if (!part.part_id) {
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(referenceId));
+        const txGroupId = isUUID ? null : parseInt(referenceId, 10);
+        
+        const quantityChange = isRevert ? part.quantity : -part.quantity;
+        // 트랜잭션만 기록
+        const { error: txError } = await supabase.from('transactions').insert({
+          group_id: isNaN(txGroupId) ? null : txGroupId,
+          type: isRevert ? 'in' : 'out',
+          product_id: null,
+          product_name: part.part_name,
+          product_code: part.part_code,
+          product_supplier: brandCode || 'NEARBIKE',
+          quantity: Math.abs(quantityChange),
+          from_location: isRevert ? '외부(취소/환불)' : (part.warehouse_id || defaultWarehouseId),
+          to_location: isRevert ? (part.warehouse_id || defaultWarehouseId) : '외부(고객)',
+          date: new Date().toISOString().split('T')[0],
+          note: isRevert 
+            ? `${referenceType === 'shipment' ? '[매장출고 취소]' : '[A/S 취소]'} 단순 기록 (Ref: ${referenceId})`
+            : `${referenceType === 'shipment' ? '[매장출고 완료]' : '[A/S 완료]'} 단순 기록 (Ref: ${referenceId})`,
+          is_grouped: true,
+          status: '완료'
+        });
+        if (txError) console.error('입출고 거래내역(미등록 부품) 기록 실패:', txError);
+        
+        results.push({
+          part_id: null,
+          part_name: part.part_name,
+          previous_quantity: 0,
+          new_quantity: 0,
+          changed_quantity: Math.abs(quantityChange),
+          change_type: isRevert ? 'restored' : 'deducted',
+          success: true,
+          synced_parts_count: 0
+        });
+        continue;
+      }
 
       try {
         // 현재 창고 재고 조회
@@ -103,11 +139,13 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
           continue;
         }
 
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(referenceId));
+        console.log(`[processInventory] isUUID check for referenceId '${referenceId}':`, isUUID);
+
         // 재고 로그 기록
         const { error: logError } = await supabase
           .from('inventory_logs')
           .insert({
-            warehouse_id: part.warehouse_id || defaultWarehouseId,
             part_id: part.part_id, // 이제 null이 아니라 실제 id를 넣어야 history 추적 가능 (외래키 제약조건 문제 해결됨)
             part_name: part.part_name,
             part_code: part.part_code,
@@ -116,7 +154,7 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
             quantity_change: quantityChange,
             previous_quantity: previousQuantity,
             new_quantity: newQuantity,
-            reference_id: referenceId,
+            reference_id: isUUID ? referenceId : null,
             reference_type: referenceType,
             notes: isRevert 
               ? `${referenceType === 'shipment' ? '출고' : 'A/S'} 상태 되돌림으로 인한 재고 복구${syncedParts.length > 0 ? ` (연동 파츠 ${syncedParts.length}개 포함)` : ''}`
@@ -128,10 +166,11 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
         }
 
         // 트랜잭션 (입출고 관리) 기록 추가
+        const txGroupId = isUUID ? null : parseInt(referenceId, 10);
         const { error: txError } = await supabase
           .from('transactions')
           .insert({
-            group_id: referenceId, // shipmentId or serviceId as String
+            group_id: isNaN(txGroupId) ? null : txGroupId, // shipmentId or serviceId
             type: isRevert ? 'in' : 'out', // 복구 시 입고, 차감 시 출고
             product_id: part.part_id,
             product_name: part.part_name,
@@ -195,10 +234,10 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
  */
 export const processShipmentCompletion = async (shipmentId, brandCode) => {
   try {
-    const brandSettings = await getBrandSettings(brandCode);
-    if (!brandSettings.auto_inventory_deduction) {
-      return { success: true, message: '자동 재고 차감 비활성화', skipped: true };
-    }
+    // const brandSettings = await getBrandSettings(brandCode);
+    // if (!brandSettings.auto_inventory_deduction) {
+    //   return { success: true, message: '자동 재고 차감 비활성화', skipped: true };
+    // }
 
     // shipments에서 정보 확인
     const { data: shipment, error: shipErr } = await supabase
@@ -247,6 +286,14 @@ export const processShipmentCompletion = async (shipmentId, brandCode) => {
           quantity: sp.quantity,
           warehouse_id: warehouseId
         });
+      } else {
+        parts.push({
+          part_id: null,
+          part_name: sp.part_name,
+          part_code: sp.part_code,
+          quantity: sp.quantity,
+          warehouse_id: warehouseId
+        });
       }
     }
 
@@ -279,8 +326,8 @@ export const processShipmentCompletion = async (shipmentId, brandCode) => {
  */
 export const processShipmentRevert = async (shipmentId, brandCode) => {
   try {
-    const brandSettings = await getBrandSettings(brandCode);
-    if (!brandSettings.auto_inventory_deduction) return { success: true, skipped: true };
+    // const brandSettings = await getBrandSettings(brandCode);
+    // if (!brandSettings.auto_inventory_deduction) return { success: true, skipped: true };
 
     const { data: shipment, error: shipErr } = await supabase
        .from('shipments')
@@ -304,9 +351,11 @@ export const processShipmentRevert = async (shipmentId, brandCode) => {
       
       if (foundParts && foundParts.length > 0) {
         parts.push({ part_id: foundParts[0].id, part_name: sp.part_name, part_code: sp.part_code, quantity: sp.quantity, warehouse_id: warehouseId });
+      } else {
+        parts.push({ part_id: null, part_name: sp.part_name, part_code: sp.part_code, quantity: sp.quantity, warehouse_id: warehouseId });
       }
     }
-
+    
     if (parts.length === 0) return { success: false, message: '부품 매칭 실패' };
 
     const result = await processInventory(warehouseId, parts, brandCode, shipmentId, 'shipment', 'shipment_revert', true);
@@ -321,8 +370,8 @@ export const processShipmentRevert = async (shipmentId, brandCode) => {
  */
 export const processServiceCompletion = async (serviceId, brandCode) => {
   try {
-    const brandSettings = await getBrandSettings(brandCode);
-    if (!brandSettings.auto_inventory_deduction) return { success: true, skipped: true };
+    // const brandSettings = await getBrandSettings(brandCode);
+    // if (!brandSettings.auto_inventory_deduction) return { success: true, skipped: true };
 
     
     const { data: service, error: srvErr } = await supabase.from('services').select('id').eq('id', serviceId).single();
@@ -400,10 +449,10 @@ export const processServiceCompletion = async (serviceId, brandCode) => {
  */
 export const processServiceRevert = async (serviceId, brandCode) => {
   try {
-    const brandSettings = await getBrandSettings(brandCode);
-    if (!brandSettings.auto_inventory_deduction) return { success: true, skipped: true };
+    // const brandSettings = await getBrandSettings(brandCode);
+    // if (!brandSettings.auto_inventory_deduction) return { success: true, skipped: true };
 
-    const { data: service } = await supabase.from('services').select('id').eq('id', serviceId).single();
+    await supabase.from('services').select('id').eq('id', serviceId).single(); // validate existence
     let warehouseId = null;
     if (!warehouseId) {
        const { data: fw } = await supabase.from('warehouses').select('id').ilike('name', '%청담%').maybeSingle();
@@ -426,8 +475,8 @@ export const processServiceRevert = async (serviceId, brandCode) => {
 };
 export const processPartialReturn = async (sourceType, orderId, recordId, quantity, brandCode) => {
   try {
-    const brandSettings = await getBrandSettings(brandCode);
-    if (!brandSettings.auto_inventory_deduction) return { success: true, skipped: true };
+    // const brandSettings = await getBrandSettings(brandCode);
+    // if (!brandSettings.auto_inventory_deduction) return { success: true, skipped: true };
 
     const { data: fw } = await supabase.from('warehouses').select('id').ilike('name', '%청담%').maybeSingle();
     const warehouseId = fw ? fw.id : null;

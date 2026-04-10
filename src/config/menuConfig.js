@@ -67,10 +67,16 @@ export const MENU_KEYS = {
   STOCKS: 'stocks',
   INVENTORY: 'inventory_management', // 입출고 관리
   SALES_STATS: 'sales_stats',
-  BOARD: 'board',
+  BOARD_GROUP: 'board_group',
+  BOARD_INTERNAL: 'board_internal',
+  BOARD_CAFE24: 'board_cafe24',
   PENDING_ORDERS: 'pending_orders',
   BACKUP: 'backup_management',
   ADMIN_TOOLS: 'admin_tools',
-  CAFE24_ORDERS: 'cafe24_orders'
+  CAFE24_ORDERS: 'cafe24_orders',
+  OUTBOUND_SCAN: 'outbound_scan',
+  INVENTORY_GROUP: 'inventory_group',
+  INVENTORY_STATUS: 'inventory_status',
+  INVENTORY_STATS: 'inventory_stats'
 };
 

@@ -765,14 +765,29 @@ function PartsManagement() {
   // 연동된 파츠 정보 로드
   useEffect(() => {
     const loadSyncedParts = async () => {
-      const map = {};
-      for (const part of parts) {
-        const synced = await getSyncedParts(part.id);
-        if (synced.length > 0) {
-          map[part.id] = synced;
-        }
+      try {
+        const { getAllSyncRelations } = await import('../../utils/partSyncUtils');
+        const relations = await getAllSyncRelations();
+        const map = {};
+        
+        relations.forEach(rel => {
+          if (!map[rel.part_id_1]) map[rel.part_id_1] = [];
+          map[rel.part_id_1].push({
+            relationId: rel.id,
+            part: rel.parts_2
+          });
+          
+          if (!map[rel.part_id_2]) map[rel.part_id_2] = [];
+          map[rel.part_id_2].push({
+            relationId: rel.id,
+            part: rel.parts_1
+          });
+        });
+        
+        setSyncedPartsMap(map);
+      } catch (err) {
+        console.error('연동 파츠 로딩 실패:', err);
       }
-      setSyncedPartsMap(map);
     };
 
     if (parts.length > 0) {
