@@ -200,22 +200,23 @@ export const processShipmentCompletion = async (shipmentId, brandCode) => {
       return { success: true, message: '자동 재고 차감 비활성화', skipped: true };
     }
 
-    // shipments에서 warehouse_id 확인
+    // shipments에서 정보 확인
     const { data: shipment, error: shipErr } = await supabase
        .from('shipments')
-       .select('warehouse_id, status, customer_name')
+       .select('status, customer_name')
        .eq('id', shipmentId)
        .single();
     
     if (shipErr || !shipment) throw new Error('출고 정보를 찾을 수 없습니다.');
-    if (!shipment.warehouse_id) throw new Error('출고에 지정된 창고(warehouse_id) 정보가 없어 재고 차감이 불가능합니다.');
+    
+    // 기본 창고(청담) 설정
+    const { data: fw } = await supabase.from('warehouses').select('id').ilike('name', '%청담%').maybeSingle();
+    const warehouseId = fw ? fw.id : null;
+    if (!warehouseId) throw new Error('출고에 지정할 기준 창고(청담) 정보를 찾을 수 없습니다.');
 
-    const warehouseId = shipment.warehouse_id;
-
-    // 출고 부품 목록 조회
     const { data: shipmentParts, error } = await supabase
       .from('shipment_parts')
-      .select('part_name, part_code, quantity, part_category, warehouse_id')
+      .select('part_name, part_code, quantity, part_category')
       .eq('shipment_id', shipmentId);
 
     if (error) throw new Error(`출고 부품 조회 실패: ${error.message}`);
@@ -244,7 +245,7 @@ export const processShipmentCompletion = async (shipmentId, brandCode) => {
           part_name: sp.part_name,
           part_code: sp.part_code,
           quantity: sp.quantity,
-          warehouse_id: sp.warehouse_id
+          warehouse_id: warehouseId
         });
       }
     }
@@ -283,14 +284,16 @@ export const processShipmentRevert = async (shipmentId, brandCode) => {
 
     const { data: shipment, error: shipErr } = await supabase
        .from('shipments')
-       .select('warehouse_id')
+       .select('id')
        .eq('id', shipmentId)
        .single();
-    if (shipErr || !shipment || !shipment.warehouse_id) throw new Error('창고 정보 없음');
+    if (shipErr || !shipment) throw new Error('출고 정보 없음');
 
-    const warehouseId = shipment.warehouse_id;
+    const { data: fw } = await supabase.from('warehouses').select('id').ilike('name', '%청담%').maybeSingle();
+    const warehouseId = fw ? fw.id : null;
+    if (!warehouseId) throw new Error('기본 창고 정보 없음');
 
-    const { data: shipmentParts } = await supabase.from('shipment_parts').select('part_name, part_code, quantity, warehouse_id').eq('shipment_id', shipmentId);
+    const { data: shipmentParts } = await supabase.from('shipment_parts').select('part_name, part_code, quantity').eq('shipment_id', shipmentId);
     if (!shipmentParts || shipmentParts.length === 0) return { success: true, results: [] };
 
     const parts = [];
@@ -300,7 +303,7 @@ export const processShipmentRevert = async (shipmentId, brandCode) => {
       if ((!foundParts || foundParts.length === 0) && sp.part_name) foundParts = (await supabase.from('parts').select('id').eq('name', sp.part_name).limit(1)).data;
       
       if (foundParts && foundParts.length > 0) {
-        parts.push({ part_id: foundParts[0].id, part_name: sp.part_name, part_code: sp.part_code, quantity: sp.quantity, warehouse_id: sp.warehouse_id });
+        parts.push({ part_id: foundParts[0].id, part_name: sp.part_name, part_code: sp.part_code, quantity: sp.quantity, warehouse_id: warehouseId });
       }
     }
 
@@ -322,11 +325,11 @@ export const processServiceCompletion = async (serviceId, brandCode) => {
     if (!brandSettings.auto_inventory_deduction) return { success: true, skipped: true };
 
     
-    const { data: service, error: srvErr } = await supabase.from('services').select('warehouse_id').eq('id', serviceId).single();
+    const { data: service, error: srvErr } = await supabase.from('services').select('id').eq('id', serviceId).single();
     if (srvErr || !service) throw new Error('A/S를 찾을 수 없음');
     
-    // A/S에 창고 정보가 없다면 기본을 찾거나 오류 발생 (수동지정 필요)
-    let warehouseId = service.warehouse_id;
+    // A/S에 창고 정보가 없으므로 기본(청담) 창고 할당
+    let warehouseId = null;
     if (!warehouseId) {
       const { data: fw } = await supabase.from('warehouses').select('id').ilike('name', '%청담%').maybeSingle();
       warehouseId = fw ? fw.id : null;
@@ -378,11 +381,11 @@ export const processServiceCompletion = async (serviceId, brandCode) => {
     // --- END ROLLBACK LOGIC ---
 
 
-    const { data: serviceParts, error } = await supabase.from('service_parts').select('part_id, quantity, warehouse_id, parts(name, code)').eq('service_id', serviceId);
+    const { data: serviceParts, error } = await supabase.from('service_parts').select('part_id, quantity, parts(name, code)').eq('service_id', serviceId);
     if (error || !serviceParts || serviceParts.length === 0) return { success: true, results: [] };
 
     const parts = serviceParts.map(sp => ({
-      part_id: sp.part_id, part_name: sp.parts?.name || 'Unknown', part_code: sp.parts?.code || 'Unknown', quantity: sp.quantity, warehouse_id: sp.warehouse_id
+      part_id: sp.part_id, part_name: sp.parts?.name || 'Unknown', part_code: sp.parts?.code || 'Unknown', quantity: sp.quantity, warehouse_id: warehouseId
     }));
 
     const result = await processInventory(warehouseId, parts, brandCode, serviceId, 'service', 'service_complete', false);
@@ -400,15 +403,15 @@ export const processServiceRevert = async (serviceId, brandCode) => {
     const brandSettings = await getBrandSettings(brandCode);
     if (!brandSettings.auto_inventory_deduction) return { success: true, skipped: true };
 
-    const { data: service } = await supabase.from('services').select('warehouse_id').eq('id', serviceId).single();
-    let warehouseId = service?.warehouse_id;
+    const { data: service } = await supabase.from('services').select('id').eq('id', serviceId).single();
+    let warehouseId = null;
     if (!warehouseId) {
        const { data: fw } = await supabase.from('warehouses').select('id').ilike('name', '%청담%').maybeSingle();
        warehouseId = fw ? fw.id : null;
        if(!warehouseId) throw new Error('창고 미지정');
     }
 
-    const { data: serviceParts } = await supabase.from('service_parts').select('part_id, quantity, warehouse_id, parts(name, code)').eq('service_id', serviceId);
+    const { data: serviceParts } = await supabase.from('service_parts').select('part_id, quantity, parts(name, code)').eq('service_id', serviceId);
     if (!serviceParts || serviceParts.length === 0) return { success: true, results: [] };
 
     const parts = serviceParts.map(sp => ({
