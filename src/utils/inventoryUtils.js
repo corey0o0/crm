@@ -143,7 +143,7 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
         const { error: logError } = await supabase
           .from('inventory_logs')
           .insert({
-            part_id: part.part_id, // 이제 null이 아니라 실제 id를 넣어야 history 추적 가능 (외래키 제약조건 문제 해결됨)
+            part_id: null, // 외래키/타입(uuid) 충돌 방지를 위해 임시 null 처리 (향후 DB 타입 변경 필요)
             part_name: part.part_name,
             part_code: part.part_code,
             brand_code: brandCode,
