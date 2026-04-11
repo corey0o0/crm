@@ -298,7 +298,15 @@ function ShipmentDetail() {
   };
 
   const handleReturnPart = async (part) => {
-    if (!window.confirm(`'${part.part_name}' 부품을 창고로 다시 반품(재입고) 처리하시겠습니까?`)) return;
+    const qtyStr = window.prompt(`'${part.part_name}' 총 ${part.quantity}개 중 반품(재입고)할 수량을 입력하세요:`, part.quantity);
+    if (qtyStr === null) return; // 취소
+
+    const qty = parseInt(qtyStr, 10);
+    if (isNaN(qty) || qty <= 0 || qty > part.quantity) {
+      alert(`잘못된 수량입니다. 1에서 ${part.quantity} 사이의 숫자를 입력해주세요.`);
+      return;
+    }
+
     try {
       setSnackbar({ open: true, message: '반품 처리 중...', severity: 'info' });
       
@@ -309,11 +317,13 @@ function ShipmentDetail() {
         brandCode = 'NB';
       }
 
-      const res = await processPartialReturn('shipment', id, part.id, part.quantity, brandCode);
+      const res = await processPartialReturn('shipment', id, part.id, qty, brandCode);
       if (!res.success && !res.skipped) throw new Error(res.message);
       
+      const newNoteSuffix = qty === part.quantity ? '[반품완료]' : `[부분반품:${qty}개]`;
+
       setShipmentParts(prev => prev.map(p => 
-        p.id === part.id ? { ...p, note: (p.note || '') + ' [반품완료]' } : p
+        p.id === part.id ? { ...p, note: (p.note ? p.note + ' ' : '') + newNoteSuffix } : p
       ));
       
       setSnackbar({ open: true, message: '부품 반품(재입고) 처리가 완료되었습니다.', severity: 'success' });
@@ -417,6 +427,15 @@ function ShipmentDetail() {
 
   // 출고 삭제 함수
   const handleDeleteShipment = async () => {
+    if (!isMaster && ['부품준비', '검수완료', '출고대기', '출고완료'].includes(shipmentData.status)) {
+      setSnackbar({
+        open: true,
+        message: '검수가 진행된 건은 보안을 위해 직접 삭제할 수 없습니다. (취소 필요 시 마스터 또는 관리자 문의)',
+        severity: 'error'
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       const { error: deletePartsError } = await supabase
@@ -1208,7 +1227,9 @@ function ShipmentDetail() {
                 color="error"
                 startIcon={<DeleteIcon />}
                 onClick={handleOpenConfirmDialog}
+                disabled={['부품준비', '검수완료', '출고대기', '출고완료'].includes(shipmentData.status) && !isMaster}
                 sx={{ mr: 1 }}
+                title={['부품준비', '검수완료', '출고대기', '출고완료'].includes(shipmentData.status) && !isMaster ? "검수가 진행된 건은 삭제할 수 없습니다." : ""}
               >
                 삭제
               </Button>
@@ -1256,11 +1277,21 @@ function ShipmentDetail() {
                   label="상태 변경"
                   disabled={saving}
                 >
-                  <MenuItem value="준비중">준비중</MenuItem>
-                  <MenuItem value="부품준비">부품준비</MenuItem>
-                  <MenuItem value="검수완료">검수완료</MenuItem>
-                  <MenuItem value="출고대기">출고대기</MenuItem>
-                  <MenuItem value="출고완료">출고완료</MenuItem>
+                  {(() => {
+                    const STATUS_ORDER = { '준비중': 0, '부품준비': 1, '검수완료': 2, '출고대기': 3, '출고완료': 4 };
+                    const currentOrder = STATUS_ORDER[shipmentData.status] ?? 0;
+                    const items = ['준비중', '부품준비', '검수완료', '출고대기', '출고완료'];
+                    
+                    return items.map(status => {
+                      // 마스터 권한이 아니면 이전 상태로 되돌릴 수 없음
+                      const isDisabled = !isMaster && STATUS_ORDER[status] < currentOrder;
+                      return (
+                        <MenuItem key={status} value={status} disabled={isDisabled}>
+                          {status} {isDisabled ? '(변경 불가)' : ''}
+                        </MenuItem>
+                      );
+                    });
+                  })()}
                 </Select>
               </FormControl>
             )}

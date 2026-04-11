@@ -139,9 +139,6 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
           continue;
         }
 
-        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(referenceId));
-        console.log(`[processInventory] isUUID check for referenceId '${referenceId}':`, isUUID);
-
         // 재고 로그 기록
         const { error: logError } = await supabase
           .from('inventory_logs')
@@ -154,7 +151,7 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
             quantity_change: quantityChange,
             previous_quantity: previousQuantity,
             new_quantity: newQuantity,
-            reference_id: isUUID ? referenceId : null,
+            reference_id: referenceId,
             reference_type: referenceType,
             notes: isRevert 
               ? `${referenceType === 'shipment' ? '출고' : 'A/S'} 상태 되돌림으로 인한 재고 복구${syncedParts.length > 0 ? ` (연동 파츠 ${syncedParts.length}개 포함)` : ''}`
@@ -166,11 +163,10 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
         }
 
         // 트랜잭션 (입출고 관리) 기록 추가
-        const txGroupId = isUUID ? null : parseInt(referenceId, 10);
         const { error: txError } = await supabase
           .from('transactions')
           .insert({
-            group_id: isNaN(txGroupId) ? null : txGroupId, // shipmentId or serviceId
+            group_id: referenceId, // shipmentId or serviceId
             type: isRevert ? 'in' : 'out', // 복구 시 입고, 차감 시 출고
             product_id: part.part_id,
             product_name: part.part_name,
@@ -526,12 +522,15 @@ export const processPartialReturn = async (sourceType, orderId, recordId, quanti
 
     if (!result.success) throw new Error(result.message);
 
+    const isPartial = quantity < partInfo.quantity;
+    const noteSuffix = isPartial ? `[부분반품:${quantity}개]` : '[반품완료]';
+
     // 테이블 마킹
     if (sourceType === 'shipment') {
-      const newNote = partInfo.note ? partInfo.note + ' [반품완료]' : '[반품완료]';
+      const newNote = partInfo.note ? partInfo.note + ' ' + noteSuffix : noteSuffix;
       await supabase.from('shipment_parts').update({ note: newNote }).eq('id', recordId);
     } else {
-      const newUsage = partInfo.usage ? partInfo.usage + ' [반품완료]' : '[반품완료]';
+      const newUsage = partInfo.usage ? partInfo.usage + ' ' + noteSuffix : noteSuffix;
       await supabase.from('service_parts').update({ usage: newUsage }).eq('id', recordId);
     }
 

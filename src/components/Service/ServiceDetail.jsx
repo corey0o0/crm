@@ -1133,14 +1133,24 @@ function ServiceDetail() {
   const isDeducted = ['처리중', '완료', '수령대기', '결제대기', '수령완료', '출고완료', '취소'].includes(formData?.status);
 
   const handleReturnPart = async (part) => {
-    if (!window.confirm(`'${part.name}' 부품을 창고로 다시 반품(재입고) 처리하시겠습니까?`)) return;
+    const qtyStr = window.prompt(`'${part.name}' 총 ${part.quantity}개 중 반품(재입고)할 수량을 입력하세요:`, part.quantity);
+    if (qtyStr === null) return; // 취소
+
+    const qty = parseInt(qtyStr, 10);
+    if (isNaN(qty) || qty <= 0 || qty > part.quantity) {
+      alert(`잘못된 수량입니다. 1에서 ${part.quantity} 사이의 숫자를 입력해주세요.`);
+      return;
+    }
+
     try {
       setSnackbar({ open: true, message: '반품 처리 중...', severity: 'info' });
-      const res = await processPartialReturn('service', id, part.record_id || part.id, part.quantity, formData.brand_code);
+      const res = await processPartialReturn('service', id, part.record_id || part.id, qty, formData.brand_code);
       if (!res.success && !res.skipped) throw new Error(res.message);
       
+      const newUsageSuffix = qty === part.quantity ? '[반품완료]' : `[부분반품:${qty}개]`;
+
       setSelectedParts(prev => prev.map(p => 
-        p.id === part.id ? { ...p, usage: (p.usage || '') + ' [반품완료]' } : p
+        p.id === part.id ? { ...p, usage: (p.usage ? p.usage + ' ' : '') + newUsageSuffix } : p
       ));
       
       setSnackbar({ open: true, message: '부품 반품(재입고) 처리가 완료되었습니다.', severity: 'success' });

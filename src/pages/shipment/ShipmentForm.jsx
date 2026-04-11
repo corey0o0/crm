@@ -39,6 +39,8 @@ import {
 } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
+import { MASTER_ACCOUNTS } from '../../config/menuConfig';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -129,6 +131,8 @@ function ShipmentForm() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEditMode = !!id;
+  const { user } = useAuth();
+  const isMaster = MASTER_ACCOUNTS.includes(user?.email);
 
   // 검색을 위한 상태 수정
   const [isSearching, setIsSearching] = useState(false);
@@ -1535,13 +1539,24 @@ function ShipmentForm() {
               <InputLabel>상태</InputLabel>
               <Select
                 name="status"
-                value={shipmentData.status}
+                value={shipmentData.status || '준비중'}
                 onChange={handleChange}
                 label="상태"
               >
-                <MenuItem value="준비중">준비중</MenuItem>
-                <MenuItem value="출고대기">출고대기</MenuItem>
-                <MenuItem value="출고완료">출고완료</MenuItem>
+                {(() => {
+                  const STATUS_ORDER = { '준비중': 0, '부품준비': 1, '검수완료': 2, '출고대기': 3, '출고완료': 4 };
+                  const currentOrder = STATUS_ORDER[shipmentData.status] ?? 0;
+                  const items = ['준비중', '부품준비', '검수완료', '출고대기', '출고완료'];
+                  
+                  return items.map(status => {
+                    const isDisabled = !isMaster && STATUS_ORDER[status] < currentOrder;
+                    return (
+                      <MenuItem key={status} value={status} disabled={isDisabled}>
+                        {status} {isDisabled ? '(변경 불가)' : ''}
+                      </MenuItem>
+                    );
+                  });
+                })()}
               </Select>
             </FormControl>
           </Grid>
