@@ -7,6 +7,7 @@ import CustomerHistoryDialog from './CustomerHistoryDialog';
 import CustomerSearchModal from './CustomerSearchModal';
 import PartsSelectionDialog from './PartsSelectionDialog';
 import useAutoSave from '../../hooks/useAutoSave';
+import { processServiceCompletion } from '../../utils/inventoryUtils';
 import {
   Box,
   Button,
@@ -194,7 +195,7 @@ function AddService() {
         customer_phone: '000',
         product_name: selectedParts.map(p => p.name).join(', '),
         symptom: '단순 판매건',
-        solution: '판매 완료',
+        solution: '',
         status: '처리중'
       }));
       setStatus('처리중');
@@ -991,6 +992,19 @@ function AddService() {
         if (partsError) {
           console.error('Parts insert error:', partsError);
           throw new Error(`사용 부품 등록 중 오류: ${partsError.message}`);
+        }
+      }
+
+      // 상태가 '완료'인 상태로 신규 등록 시 재고 차감 즉시 실행
+      if (formData.status === '완료') {
+        try {
+          console.log(`[AddService] A/S 완료 처리 시작 - 서비스ID: ${insertedService.id}, 브랜드: ${formData.brand}`);
+          const inventoryResult = await processServiceCompletion(insertedService.id, formData.brand);
+          if (!inventoryResult.success) {
+            console.error('재고 차감 오류:', inventoryResult.message);
+          }
+        } catch (invErr) {
+          console.error('재고 차감 중 예외:', invErr);
         }
       }
 
@@ -2353,7 +2367,7 @@ function AddService() {
                 color="primary" 
               />
             }
-            label="단순 판매 등록 (증상입력 생략 및 즉시 완료처리)"
+            label="단순 판매 등록 (증상입력 생략 및 처리중 상태로 전환)"
             sx={{ ml: 2, flexGrow: 1 }}
           />
 
