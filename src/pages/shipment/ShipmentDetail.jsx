@@ -28,7 +28,9 @@ import {
   Select,
   MenuItem,
   FormControl,
-  InputLabel
+  InputLabel,
+  Switch,
+  FormControlLabel
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -59,6 +61,8 @@ function ShipmentDetail() {
   const [isEditing, setIsEditing] = useState(false);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [addingToQueue, setAddingToQueue] = useState(false);
+  const [partInputValue, setPartInputValue] = useState('');
+  const [isInspectionEnabled, setIsInspectionEnabled] = useState(false);
   const navigate = useNavigate();
   const { id } = useParams();
   const { user } = useAuth();
@@ -508,8 +512,8 @@ function ShipmentDetail() {
     try {
       const previousStatus = shipmentData.status;
 
-      // === [검수 락 (관리자 바이패스)] ===
-      if (['출고완료', '출고대기'].includes(newStatus) && !['출고완료', '출고대기'].includes(previousStatus) && !isMaster) {
+      // === [검수 락 (관리자 바이패스 및 토글 체크)] ===
+      if (isInspectionEnabled && ['출고완료', '출고대기'].includes(newStatus) && !['출고완료', '출고대기'].includes(previousStatus) && !isMaster) {
         // 출고 창고 지정 기능이 제거되었으므로, 모든 일반 계정 출고 건은 
         // 매장/온라인 출고 탭을 통해 검수 프로세스를 거쳐야만 출고 확정이 가능하도록 기본 설정됨.
         const { data: po } = await supabase.from('pending_outbounds').select('status').eq('source_id', id).maybeSingle();
@@ -1213,15 +1217,28 @@ function ShipmentDetail() {
             </>
           ) : (
             <>
-              <Button
-                variant="contained"
-                color="secondary"
-                onClick={handleAddToPendingOutbounds}
-                disabled={addingToQueue || shipmentData.status !== '준비중'}
-                sx={{ mr: 1, bgcolor: '#9c27b0', '&:hover': { bgcolor: '#7b1fa2' } }}
-              >
-                검수 대기열 등록
-              </Button>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={isInspectionEnabled}
+                    onChange={(e) => setIsInspectionEnabled(e.target.checked)}
+                    color="secondary"
+                  />
+                }
+                label="검수과정 사용"
+                sx={{ mr: 2 }}
+              />
+              {isInspectionEnabled && (
+                <Button
+                  variant="contained"
+                  color="secondary"
+                  onClick={handleAddToPendingOutbounds}
+                  disabled={addingToQueue || shipmentData.status !== '준비중'}
+                  sx={{ mr: 1, bgcolor: '#9c27b0', '&:hover': { bgcolor: '#7b1fa2' } }}
+                >
+                  검수 대기열 등록
+                </Button>
+              )}
               <Button
                 variant="outlined"
                 color="error"
