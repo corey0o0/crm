@@ -61,7 +61,6 @@ function ShipmentDetail() {
   const [isEditing, setIsEditing] = useState(false);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [addingToQueue, setAddingToQueue] = useState(false);
-  const [partInputValue, setPartInputValue] = useState('');
   const [isInspectionEnabled, setIsInspectionEnabled] = useState(false);
   const navigate = useNavigate();
   const { id } = useParams();
