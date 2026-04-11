@@ -283,10 +283,10 @@ module.exports = function(supabaseAdmin) {
     let token = await getValidToken(mall_id);
     let totalInserted = 0, totalUpdated = 0, totalSkipped = 0;
 
-    // 파라미터가 없으면 최근 7일 기준으로 설정
+    // 파라미터가 없으면 최근 3일 기준으로 설정
     const today = new Date();
-    const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const queryStart = start_date || lastWeek.toISOString().split('T')[0];
+    const lastPoint = new Date(today.getTime() - 3 * 24 * 60 * 60 * 1000);
+    const queryStart = start_date || lastPoint.toISOString().split('T')[0];
     const queryEnd = end_date || today.toISOString().split('T')[0];
 
     // Fetch all barcodes and part_ids from parts table once for quick lookup

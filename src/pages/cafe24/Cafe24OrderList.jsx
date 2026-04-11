@@ -77,7 +77,7 @@ export default function Cafe24OrderList() {
 
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
-    d.setDate(d.getDate() - 7);
+    d.setDate(d.getDate() - 3);
     return getFormattedDate(d);
   });
   const [endDate, setEndDate] = useState(() => getFormattedDate(new Date()));
