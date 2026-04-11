@@ -77,6 +77,9 @@ export const MENU_KEYS = {
   OUTBOUND_SCAN: 'outbound_scan',
   INVENTORY_GROUP: 'inventory_group',
   INVENTORY_STATUS: 'inventory_status',
-  INVENTORY_STATS: 'inventory_stats'
+  INVENTORY_STATS: 'inventory_stats',
+  SALES: 'sales',
+  SALES_ENTRY: 'sales_entry',
+  ONLINE_STATS: 'online_stats'
 };
 

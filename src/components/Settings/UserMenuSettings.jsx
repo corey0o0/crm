@@ -33,6 +33,8 @@ const AVAILABLE_PERMISSIONS = [
   { key: 'services', label: 'A/S 관리' },
   { key: 'shipment', label: '출고(매장) 관리' },
   { key: 'cafe24_orders', label: '온라인주문 관리' },
+  { key: 'outbound_scan', label: '출고 대기' },
+  { key: 'sales_entry', label: '수기 판매 등록' },
   { key: 'agencies', label: '거래처 관리' },
   { key: 'parts', label: '상품 관리' },
   { key: 'stocks', label: '매장 재고 관리' },
@@ -41,6 +43,7 @@ const AVAILABLE_PERMISSIONS = [
   { key: 'inventory_status', label: '재고 현황' },
   { key: 'inventory_stats', label: '입출고 통계' },
   { key: 'sales_stats', label: '매출 통계' },
+  { key: 'online_stats', label: '온라인 통계' },
   { key: 'service_analysis', label: 'A/S 분석' },
   { key: 'board_group', label: '게시판 메뉴 전체' },
   { key: 'board_internal', label: '내부 게시판' },
@@ -201,6 +204,7 @@ export default function UserMenuSettings() {
                           )}
                         </Box>
                       }
+                      secondaryTypographyProps={{ component: 'div' }}
                     />
                     <ListItemSecondaryAction>
                       <IconButton edge="end" onClick={() => handleOpenDialog(email)} sx={{ mr: 1 }} color="primary">
