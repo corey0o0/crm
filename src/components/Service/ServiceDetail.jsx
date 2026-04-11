@@ -2562,7 +2562,7 @@ function ServiceDetail() {
                         variant="outlined"
                         color="secondary"
                         onClick={() => handleReturnPart(part)}
-                        sx={{ whiteSpace: 'nowrap', minWidth: 'auto', p: 0.5 }}
+                        sx={{ whiteSpace: 'nowrap', minWidth: '70px', px: 1.5, py: 0.5 }}
                       >
                         반품
                       </Button>
