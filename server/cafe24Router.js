@@ -347,6 +347,8 @@ module.exports = function(supabaseAdmin) {
     const validOrders = allOrders.filter(o => !excludedStatuses.includes(o.order_status));
     console.log(`[Cafe24 Sync] Fetched ${allOrders.length} orders from Cafe24 API, processing ${validOrders.length} valid orders`);
 
+    const payloads = [];
+
     for (const order of validOrders) {
       // 주문한 상품들 배열 만들기
       let formattedItems = [];
@@ -384,7 +386,6 @@ module.exports = function(supabaseAdmin) {
       const pg_payment = Number(order.payment_amount || 0);
       const actual_deposit = Number(order.deposit || (order.actual_order_amount && order.actual_order_amount.deposit) || 0);
       
-      // 예치금은 결제수단(현금)과 동일하게 취급되어 매출(total_amount)에 포함
       const total_amount = pg_payment > 0 
         ? (pg_payment + actual_deposit) 
         : ((order.actual_order_amount && order.actual_order_amount.order_price_amount) || order.total_order_price || 0);
@@ -414,30 +415,37 @@ module.exports = function(supabaseAdmin) {
         shipping_message: (order.receivers && order.receivers[0]) ? order.receivers[0].shipping_message : null,
         synced_at: new Date().toISOString()
       };
+      
+      payloads.push(payload);
+    }
 
-      // DB에 존재하는지 확인
-      const { data: existing } = await supabaseAdmin.from('cafe24_orders')
-        .select('id')
-        .eq('order_id', order.order_id)
-        .maybeSingle();
+    // 1. 기존 DB에 있던 주문 식별을 위한 사전 일괄 조회 (통계 기록용)
+    const orderIds = payloads.map(p => p.order_id);
+    const existingOrderIds = new Set();
+    const FETCH_CHUNK = 200;
+    for (let i = 0; i < orderIds.length; i += FETCH_CHUNK) {
+      const chunk = orderIds.slice(i, i + FETCH_CHUNK);
+      const { data } = await supabaseAdmin.from('cafe24_orders').select('order_id').in('order_id', chunk);
+      if (data) data.forEach(row => existingOrderIds.add(row.order_id));
+    }
 
-      let err = null;
-      if (existing) {
-        err = (await supabaseAdmin.from('cafe24_orders').update(payload).eq('id', existing.id)).error;
-        if (err) {
-          console.error(`[DB Update Error] Order ${order.order_id}:`, err);
-          totalSkipped++;
-        } else {
-          totalUpdated++;
-        }
-      } else {
-        err = (await supabaseAdmin.from('cafe24_orders').insert(payload)).error;
-        if (err) {
-          console.error(`[DB Insert Error] Order ${order.order_id}:`, err);
-          totalSkipped++;
-        } else {
-          totalInserted++;
-        }
+    // 통계 계산
+    payloads.forEach(p => {
+      if (existingOrderIds.has(p.order_id)) totalUpdated++;
+      else totalInserted++;
+    });
+
+    // 2. 벌크 업서트 (일괄 저장 및 업데이트)
+    const UPSERT_CHUNK = 200;
+    for (let i = 0; i < payloads.length; i += UPSERT_CHUNK) {
+      const chunk = payloads.slice(i, i + UPSERT_CHUNK);
+      const { error: upsertErr } = await supabaseAdmin.from('cafe24_orders').upsert(chunk, { onConflict: 'order_id' });
+      
+      if (upsertErr) {
+        console.error(`[Bulk Upsert Error] Chunk starting at ${i}:`, upsertErr);
+        totalSkipped += chunk.length;
+        if (existingOrderIds.has(chunk[0].order_id)) totalUpdated -= chunk.length;
+        else totalInserted -= chunk.length;
       }
     }
     
