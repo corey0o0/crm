@@ -248,8 +248,7 @@ const PartsFormDialog = memo(({
     });
   };
 
-  const handleImageChange = async (e) => {
-    const file = e.target.files[0];
+  const processImageFile = async (file) => {
     if (file) {
       if (file.type.startsWith('image/')) {
         try {
@@ -268,6 +267,26 @@ const PartsFormDialog = memo(({
     }
   };
 
+  const handleImageChange = (e) => {
+    processImageFile(e.target.files[0]);
+  };
+
+  const handlePaste = (e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        const file = items[i].getAsFile();
+        if (file) {
+          // Prevent default only if an image was caught so we don't break text pasting
+          e.preventDefault(); 
+          processImageFile(file);
+        }
+        break;
+      }
+    }
+  };
+
   return (
     <>
       <Dialog
@@ -276,6 +295,7 @@ const PartsFormDialog = memo(({
       maxWidth="md"
       fullWidth
       transitionDuration={0}
+      onPaste={handlePaste}
     >
       <DialogTitle>
         {initialData ? '파츠 수정' : '파츠 등록'}
@@ -406,7 +426,8 @@ const PartsFormDialog = memo(({
                   </Button>
                 </label>
                 <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>
-                  추천 크기: 300x300픽셀 (최대 1장)
+                  추천 크기: 300x300픽셀 (최대 1장) <br/>
+                  (이 창 어디서나 <b>Ctrl+V / Cmd+V</b>로 클립보드 붙여넣기 가능)
                 </Typography>
                 {imagePreview && (
                   <Button size="small" color="error" onClick={() => { setImageFile(null); setImagePreview(''); setFormData(prev => ({...prev, image_url: ''})); }} sx={{ mt: 0.5, p: 0, minWidth: 'auto', textTransform: 'none' }}>

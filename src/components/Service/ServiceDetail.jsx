@@ -206,7 +206,7 @@ function ServiceDetail() {
 
   // 창고 상태 추가
   const [warehouses, setWarehouses] = useState([]);
-  const [isInspectionEnabled, setIsInspectionEnabled] = useState(true);
+  const [isInspectionEnabled, setIsInspectionEnabled] = useState(false);
 
   // 창고 목록 불러오기
   const fetchWarehouses = async () => {
@@ -1725,6 +1725,26 @@ function ServiceDetail() {
 
 
 
+  // 클립보드 붙여넣기 핸들러
+  const handlePaste = (e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    const pastedFiles = [];
+    for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+            const file = items[i].getAsFile();
+            if (file) pastedFiles.push(file);
+        }
+    }
+
+    if (pastedFiles.length > 0) {
+        // Prevent default only if an image was caught so we don't break text pasting
+        e.preventDefault(); 
+        handleFileUpload({ target: { files: pastedFiles, value: '' } });
+    }
+  };
+
   // 파일 업로드 핸들러
   const handleFileUpload = async (event) => {
     const files = Array.from(event.target.files);
@@ -2680,7 +2700,7 @@ function ServiceDetail() {
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko} key={componentKey}>
-      <Box component="form" onSubmit={handleSubmit} sx={{ mt: 3, mx: 'auto', width: '95%', maxWidth: 1400 }}>
+      <Box component="form" onSubmit={handleSubmit} onPaste={handlePaste} sx={{ mt: 3, mx: 'auto', width: '95%', maxWidth: 1400 }}>
         <Box sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
           <Button
             onClick={handleBack}
@@ -3254,8 +3274,8 @@ function ServiceDetail() {
                       {uploadingFiles ? '업로드 중...' : '파일 추가 (사진/영상/문서)'}
                     </Button>
                   </label>
-                  <Typography variant="caption" color="text.secondary" sx={{ ml: 2 }}>
-                    첨부된 파일은 클라우드 보관소에 자동으로 업로드됩니다 (이미지는 자동 리사이즈됩니다)
+                  <Typography variant="caption" color="text.secondary" sx={{ ml: 2, display: 'block' }}>
+                    첨부된 파일은 클라우드 보관소에 자동으로 업로드됩니다. (이 창 어디서나 <b>Ctrl+V / Cmd+V</b>로 클립보드 붙여넣기 가능)
                   </Typography>
                 </Box>
 
