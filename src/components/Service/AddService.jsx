@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
 import { readExcelFile } from '../../utils/excelUtils';
@@ -93,6 +93,7 @@ const TEMP_KEY = 'addServiceTemp';
 
 function AddService() {
   const navigate = useNavigate();
+  const submitActionRef = useRef('list');
   const location = useLocation();
   const [selectedBrand, setSelectedBrand] = useState('XRB');
   const [submitting, setSubmitting] = useState(false);
@@ -1092,7 +1093,11 @@ function AddService() {
       console.log('[AddService] 등록 성공 - 자동저장 데이터 삭제');
 
       setTimeout(() => {
-        navigate('/services');
+        if (submitActionRef.current === 'detail') {
+          navigate(`/services/${insertedService.id}`);
+        } else {
+          navigate('/services');
+        }
       }, 1500);
 
     } catch (error) {
@@ -3304,8 +3309,28 @@ function AddService() {
               </Button>
               <Button 
                 type="submit"
+                variant="outlined"
+                disabled={submitting}
+                onClick={() => { submitActionRef.current = 'list'; }}
+                sx={{
+                  color: '#3182f6',
+                  borderColor: '#3182f6',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  textTransform: 'none',
+                  px: 4,
+                  '&:hover': {
+                    bgcolor: 'rgba(49, 130, 246, 0.04)'
+                  }
+                }}
+              >
+                저장/목록
+              </Button>
+              <Button 
+                type="submit"
                 variant="contained"
                 disabled={submitting}
+                onClick={() => { submitActionRef.current = 'detail'; }}
                 sx={{
                   bgcolor: '#3182f6',
                   fontSize: '0.95rem',
@@ -3317,7 +3342,7 @@ function AddService() {
                   }
                 }}
               >
-                등록
+                저장/계속
               </Button>
             </Box>
           </Box>

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -129,6 +129,7 @@ function ShipmentForm() {
   });
 
   const navigate = useNavigate();
+  const submitActionRef = useRef('list');
   const { id } = useParams();
   const isEditMode = !!id;
   const { user } = useAuth();
@@ -700,7 +701,11 @@ function ShipmentForm() {
       setHasUnsavedChanges(false);
 
       setTimeout(() => {
-        navigate('/shipment');
+        if (submitActionRef.current === 'detail' && shipmentId) {
+          navigate(`/shipment/${shipmentId}`);
+        } else {
+          navigate('/shipment');
+        }
       }, 1500);
 
     } catch (error) {
@@ -1349,14 +1354,23 @@ function ShipmentForm() {
         </Typography>
         <Box>
           {isEditMode ? (
-            <Button
-              variant="contained"
-              startIcon={<SaveIcon />}
-              onClick={handleSubmit}
-              disabled={saving || analyzing}
-            >
-              {saving ? '저장 중...' : '저장'}
-            </Button>
+            <>
+              <Button
+                variant="outlined"
+                onClick={() => { submitActionRef.current = 'list'; handleSubmit(); }}
+                disabled={saving || analyzing}
+                sx={{ mr: 1 }}
+              >
+                저장/목록
+              </Button>
+              <Button
+                variant="contained"
+                onClick={() => { submitActionRef.current = 'detail'; handleSubmit(); }}
+                disabled={saving || analyzing}
+              >
+                {saving ? '저장 중...' : '저장/계속'}
+              </Button>
+            </>
           ) : (
             <>
               <Button
@@ -1383,12 +1397,19 @@ function ShipmentForm() {
                 />
               </Button>
               <Button
+                variant="outlined"
+                onClick={() => { submitActionRef.current = 'list'; handleSubmit(); }}
+                disabled={saving || analyzing}
+                sx={{ mr: 1 }}
+              >
+                저장/목록
+              </Button>
+              <Button
                 variant="contained"
-                startIcon={<SaveIcon />}
-                onClick={handleSubmit}
+                onClick={() => { submitActionRef.current = 'detail'; handleSubmit(); }}
                 disabled={saving || analyzing}
               >
-                {saving ? '저장 중...' : '저장'}
+                {saving ? '저장 중...' : '저장/계속'}
               </Button>
             </>
           )}

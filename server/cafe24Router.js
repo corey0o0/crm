@@ -296,8 +296,8 @@ module.exports = function(supabaseAdmin) {
       if(p.barcode) barcodeToPartIdMap[String(p.barcode).trim()] = p.id;
     });
 
-    // Fetch manual product mappings
-    const { data: manualMappings } = await supabaseAdmin.from('cafe24_product_to_part').select('cafe24_product_code, part_id').eq('mall_id', mall_id);
+    // Fetch manual product mappings (전체 브랜드 글로벌 기준 매칭 적용)
+    const { data: manualMappings } = await supabaseAdmin.from('cafe24_product_to_part').select('cafe24_product_code, part_id');
     const manualCodeToPartIdMap = {};
     (manualMappings || []).forEach(m => {
       manualCodeToPartIdMap[String(m.cafe24_product_code).trim()] = m.part_id;
