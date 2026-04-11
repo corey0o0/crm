@@ -343,6 +343,51 @@ module.exports = function(supabaseAdmin) {
       currentOffset += limit;
     }
 
+    // 미완료된 과거 주문들도 상태 갱신을 위해 추가 조회
+    try {
+      const { data: incompleteDbOrders } = await supabaseAdmin
+        .from('cafe24_orders')
+        .select('order_id')
+        .eq('mall_id', mall_id)
+        .in('status', ['N10', 'N20', 'N21', 'N22', 'N30', 'M', 'T', 'W', 'unknown']);
+
+      if (incompleteDbOrders && incompleteDbOrders.length > 0) {
+        const alreadyFetchedOrderIds = new Set(allOrders.map(o => o.order_id));
+        const orderIdsToFetch = incompleteDbOrders
+          .map(o => o.order_id)
+          .filter(id => !alreadyFetchedOrderIds.has(id));
+
+        if (orderIdsToFetch.length > 0) {
+          console.log(`[Cafe24 Sync] API로 과거 미완료 주문 ${orderIdsToFetch.length}건 추가 상태 조회 시도...`);
+          for (let i = 0; i < orderIdsToFetch.length; i += 100) {
+            const chunkIds = orderIdsToFetch.slice(i, i + 100).join(',');
+            const fetchOldOrders = async (token) => {
+               return await axios.get(`https://${mall_id}.cafe24api.com/api/v2/admin/orders`, {
+                 params: { order_id: chunkIds, embed: 'items,buyer,receivers' },
+                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Cafe24-Api-Version': '2026-03-01' }
+               });
+            };
+            
+            let res;
+            try {
+              res = await fetchOldOrders(tokenForRequest);
+            } catch (e) {
+              if (e.response && e.response.status === 401) {
+                const { data: mall } = await supabaseAdmin.from('cafe24_settings').select('*').eq('mall_id', mall_id).single();
+                tokenForRequest = await refreshCafe24Token(mall);
+                res = await fetchOldOrders(tokenForRequest);
+              } else { throw e; }
+            }
+            if (res.data && res.data.orders) {
+               allOrders = allOrders.concat(res.data.orders);
+            }
+          }
+        }
+      }
+    } catch (oldOrderErr) {
+      console.error('[Cafe24 Sync] 과거 미완료 주문 조회 중 오류 (수집은 계속진행):', oldOrderErr.message);
+    }
+
     const excludedStatuses = ['N00', 'F']; // N30(배송완료/발송완료) 수집 허용 처리
     const validOrders = allOrders.filter(o => !excludedStatuses.includes(o.order_status));
     console.log(`[Cafe24 Sync] Fetched ${allOrders.length} orders from Cafe24 API, processing ${validOrders.length} valid orders`);
