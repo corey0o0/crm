@@ -405,7 +405,9 @@ module.exports = function(supabaseAdmin) {
         shipping_fee: shipping_fee,
         used_points: used_points,
         order_items: formattedItems,
-        status: order.order_status || order.shipping_status || 'unknown',
+        status: (order.items && order.items.length > 0 && order.items.some(i => i.order_status === 'N40' || i.order_status === 'N50')) 
+                ? 'N40' 
+                : ((order.items && order.items.length > 0 && order.items[0].order_status) || order.order_status || order.shipping_status || 'unknown'),
         buyer_id: order.member_id || (order.buyer && order.buyer.member_id) || null,
         agency_id: cafe24ToAgencyMap[String(order.member_id || (order.buyer && order.buyer.member_id) || '').trim()] || null,
         buyer_group_no: (order.buyer && order.buyer.member_group_no) ? String(order.buyer.member_group_no) : null,
