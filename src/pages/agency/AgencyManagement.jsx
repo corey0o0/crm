@@ -54,10 +54,9 @@ export default function AgencyManagement() {
 
   const fetchAgencies = async () => {
     try {
-      const res = await api.get('/api/agencies');
-      if (res.data.success) {
-        setAgencies(res.data.data);
-      }
+      const { data, error } = await supabase.from('agencies').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      setAgencies(data || []);
     } catch (err) {
       console.error('Failed to load agencies:', err);
     }
@@ -66,11 +65,12 @@ export default function AgencyManagement() {
   const handleDelete = async (id) => {
     if (!window.confirm('선택한 거래처를 삭제하시겠습니까?')) return;
     try {
-      await api.delete(`/api/agencies/${id}`);
+      const { error } = await supabase.from('agencies').delete().eq('id', id);
+      if (error) throw error;
       fetchAgencies();
       setSelectedItems(prev => prev.filter(item => item !== id));
     } catch (err) {
-      alert('삭제 실패했습니다.');
+      alert('삭제 실패했습니다: ' + err.message);
     }
   };
 
@@ -79,11 +79,12 @@ export default function AgencyManagement() {
     if (!window.confirm(`선택한 ${selectedItems.length}개 거래처를 삭제하시겠습니까?`)) return;
     
     try {
-      await Promise.all(selectedItems.map(id => api.delete(`/api/agencies/${id}`)));
+      const { error } = await supabase.from('agencies').delete().in('id', selectedItems);
+      if (error) throw error;
       setSelectedItems([]);
       fetchAgencies();
     } catch (err) {
-      alert('삭제 중 오류가 발생했습니다.');
+      alert('삭제 중 오류가 발생했습니다: ' + err.message);
     }
   };
 
@@ -149,11 +150,15 @@ export default function AgencyManagement() {
           return;
         }
 
-        const res = await api.post('/api/agencies/bulk', { items });
-        if (res.data.success) {
-          alert(`${res.data.count}건의 거래처가 성공적으로 업로드되었습니다.`);
-          fetchAgencies();
-        }
+        const { data: upsertData, error: upsertError } = await supabase
+          .from('agencies')
+          .upsert(items, { onConflict: 'business_number' })
+          .select();
+        
+        if (upsertError) throw upsertError;
+
+        alert(`거래처 정보가 성공적으로 업로드되었습니다.`);
+        fetchAgencies();
       } catch (err) {
         console.error('Excel upload error:', err);
         alert('엑셀 업로드 중 오류가 발생했습니다. 파일 형식을 확인해주세요.');
@@ -498,15 +503,23 @@ function AgencyFormDialog({ open, data, onClose, onSave }) {
       return;
     }
     try {
+      // Remove id from formData before updating
+      const payload = { ...formData };
+      delete payload.id;
+      delete payload.created_at;
+      delete payload.updated_at;
+
       if (data?.id) {
-        await api.put(`/api/agencies/${data.id}`, formData);
+        const { error } = await supabase.from('agencies').update(payload).eq('id', data.id);
+        if (error) throw error;
       } else {
-        await api.post('/api/agencies', formData);
+        const { error } = await supabase.from('agencies').insert([payload]);
+        if (error) throw error;
       }
       onSave();
       onClose();
     } catch (err) {
-      alert('저장 실패: ' + (err.response?.data?.message || err.message));
+      alert('저장 실패: ' + err.message);
     }
   };
 
@@ -584,11 +597,12 @@ function BankInfoDialog({ open, data, onClose, onSave }) {
 
   const handleSubmit = async () => {
     try {
-      await api.put(`/api/agencies/${data.id}`, { transfer_info: bankInfo });
+      const { error } = await supabase.from('agencies').update({ transfer_info: bankInfo }).eq('id', data.id);
+      if (error) throw error;
       onSave();
       onClose();
     } catch (err) {
-      alert('이체정보 저장 실패: ' + (err.response?.data?.message || err.message));
+      alert('이체정보 저장 실패: ' + err.message);
     }
   };
 
