@@ -6,6 +6,7 @@ import ReceiptScanner from '../Receipt/ReceiptScanner';
 import CustomerHistoryDialog from './CustomerHistoryDialog';
 import CustomerSearchModal from './CustomerSearchModal';
 import PartsSelectionDialog from './PartsSelectionDialog';
+import ECountBulkUploader from './ECountBulkUploader';
 import useAutoSave from '../../hooks/useAutoSave';
 import { processServiceCompletion } from '../../utils/inventoryUtils';
 import {
@@ -2338,12 +2339,15 @@ function AddService() {
               variant="outlined" 
               color="error"
               onClick={clearTempData}
-              sx={{ ml: 1, minWidth: 120 }}
+              sx={{ ml: 1, mr: 2, minWidth: 120 }}
             >
               임시 데이터 삭제
             </Button>
           </>
         )}
+        <Box sx={{ ml: 'auto' }}>
+          <ECountBulkUploader onUploadSuccess={() => window.location.reload()} />
+        </Box>
       </Box>
 
       <Paper sx={{ p: 4, borderRadius: 3, boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)', bgcolor: '#ffffff' }}>
