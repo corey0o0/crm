@@ -3502,7 +3502,7 @@ function ServiceList() {
               maxWidth: { xs: '100%', md: 200 }
             }}
             size="small"
-            label="처리내역 검색"
+            label="문의&처리내역 검색"
             InputProps={{
               endAdornment: solutionSearchTerm ? (
                 <InputAdornment position="end">
@@ -3510,7 +3510,7 @@ function ServiceList() {
                     edge="end"
                     onClick={() => setSolutionSearchTerm('')}
                     size="small"
-                    aria-label="처리내역 검색어 초기화"
+                    aria-label="문의&처리내역 검색어 초기화"
                     sx={{ color: 'gray' }}
                   >
                     <CloseIcon fontSize="small" />
