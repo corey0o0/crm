@@ -2,16 +2,18 @@
  * 카페24 다중 몰 연동 API 유틸리티
  */
 
+import { supabase } from '../lib/supabaseClient';
+
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001';
 
 export async function getCafe24Malls() {
   try {
-    const resp = await fetch(`${BACKEND_URL}/api/cafe24/malls`);
-    if (!resp.ok) return { success: false, malls: [] };
-    return await resp.json();
+    const { data: malls, error } = await supabase.from('cafe24_malls').select('*');
+    if (error) throw error;
+    return { success: true, malls: malls || [] };
   } catch (err) {
-    console.error('Failed to get cafe24 malls:', err);
-    throw new Error('백엔드 서버와 연결할 수 없습니다. (서버 연결 실패)');
+    console.error('Failed to get cafe24 malls from Supabase:', err);
+    return { success: false, malls: [] };
   }
 }
 
