@@ -8,9 +8,23 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001'
 
 export async function getCafe24Malls() {
   try {
-    const { data: malls, error } = await supabase.from('cafe24_malls').select('*');
+    const { data, error } = await supabase.from('cafe24_settings').select('*').order('created_at', { ascending: true });
     if (error) throw error;
-    return { success: true, malls: malls || [] };
+    
+    const malls = (data || []).map(m => {
+      const tokenExpired = m.token_expires_at ? new Date(m.token_expires_at) < new Date() : true;
+      return {
+        mall_id: m.mall_id,
+        client_id: m.client_id,
+        client_secret: m.client_secret, // keep for frontend if needed
+        connected: !!m.access_token && !tokenExpired,
+        board_no: m.board_no,
+        last_synced_at: m.last_synced_at,
+        token_expired: tokenExpired
+      };
+    });
+    
+    return { success: true, malls };
   } catch (err) {
     console.error('Failed to get cafe24 malls from Supabase:', err);
     return { success: false, malls: [] };
