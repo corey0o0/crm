@@ -648,10 +648,11 @@ function ServiceList() {
         query = query.ilike('product_name', `%${searchParams.modelSearchTerm}%`);
       }
 
-      // 처리내역 검색 필터링
+      // 처리내역 및 문의내용 검색 필터링
       if (searchParams.solutionSearchTerm && searchParams.solutionSearchTerm.length >= 2) {
-        console.log('Applying solution search filter for term:', searchParams.solutionSearchTerm);
-        query = query.ilike('solution', `%${searchParams.solutionSearchTerm}%`);
+        console.log('Applying solution & symptom search filter for term:', searchParams.solutionSearchTerm);
+        const safeTerm = searchParams.solutionSearchTerm.replace(/"/g, '');
+        query = query.or(`solution.ilike."%${safeTerm}%",symptom.ilike."%${safeTerm}%"`);
       }
       
       // 날짜 필터링 (상태 필터링 전에 확인하여 완료일자 검색 시 상태 필터 자동 적용)
@@ -791,11 +792,12 @@ function ServiceList() {
           console.log('[ServiceList] 기종 필터 적용 완료');
         }
         
-        // 처리내역 검색 필터링
+        // 처리내역 및 문의내용 검색 필터링
         if (searchParams.solutionSearchTerm && searchParams.solutionSearchTerm.length >= 2) {
-          console.log('[ServiceList] 처리내역 필터 적용 중:', searchParams.solutionSearchTerm);
-          simpleQuery = simpleQuery.ilike('solution', `%${searchParams.solutionSearchTerm}%`);
-          console.log('[ServiceList] 처리내역 필터 적용 완료');
+          console.log('[ServiceList] 처리내역/문의내용 필터 적용 중:', searchParams.solutionSearchTerm);
+          const safeTerm = searchParams.solutionSearchTerm.replace(/"/g, '');
+          simpleQuery = simpleQuery.or(`solution.ilike."%${safeTerm}%",symptom.ilike."%${safeTerm}%"`);
+          console.log('[ServiceList] 처리내역/문의내용 필터 적용 완료');
         }
         
         // 날짜 필터링
