@@ -207,9 +207,12 @@ export default function AgencyManagement() {
   };
 
   const filteredData = agencies.filter(v => 
-    v.name.includes(searchTerm) || 
+    (v.name && v.name.includes(searchTerm)) || 
     (v.business_number && v.business_number.includes(searchTerm)) ||
-    (v.keywords && v.keywords.includes(searchTerm))
+    (v.keywords && v.keywords.includes(searchTerm)) ||
+    (v.ceo_name && v.ceo_name.includes(searchTerm)) ||
+    (v.phone && v.phone.includes(searchTerm)) ||
+    (v.mobile && v.mobile.includes(searchTerm))
   );
 
   const paginatedData = filteredData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
