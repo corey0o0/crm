@@ -960,10 +960,8 @@ function ServiceDetail() {
           const inventoryResult = await processServiceCompletion(id, formData.brand);
 
           if (inventoryResult.success) {
-            if (inventoryResult.skipped) {
-              inventoryMessage = ` ${inventoryResult.message}`;
-            } else {
-              inventoryMessage = ` ${inventoryResult.message}`;
+            if (inventoryResult.message) {
+              inventoryMessage = ` (${inventoryResult.message})`;
             }
           } else {
             inventoryMessage = ` 하지만 재고 차감 중 오류 발생: ${inventoryResult.message}`;
