@@ -225,7 +225,7 @@ function Dashboard() {
               memo_name_3: '공유 메모 3'
             }).select();
 
-            if (!error && newMemo) {
+            if (!error && newMemo && newMemo.length > 0) {
               console.log('[Dashboard] 공유 메모 초기 레코드 생성 완료:', newMemo);
               
               // 생성된 메모로 상태 설정
@@ -237,7 +237,29 @@ function Dashboard() {
               setSharedMemoNames(['공유 메모 1', '공유 메모 2', '공유 메모 3']);
             } else {
               console.error('[Dashboard] 공유 메모 초기 레코드 생성 실패:', error?.message);
-              // 실패 시 기존 상태 유지 (초기화하지 않음)
+              
+              // 중복 생성 제약 조건에 걸렸을 경우(이미 레코드가 존재함), 직접 다시 조회
+              console.log('[Dashboard] DB에서 직접 기존 공유 메모 다시 조회...');
+              const { data: existingBackup } = await supabase.from('shared_memos').select('*').limit(1);
+              
+              if (existingBackup && existingBackup.length > 0) {
+                const smCopy = existingBackup[0];
+                setSharedMemoList([
+                  { content: smCopy.memo1 || '', lastSaved: smCopy.updated_at, hasChanges: false, saving: false },
+                  { content: smCopy.memo2 || '', lastSaved: smCopy.updated_at, hasChanges: false, saving: false },
+                  { content: smCopy.memo3 || '', lastSaved: smCopy.updated_at, hasChanges: false, saving: false }
+                ]);
+                setSharedMemoNames([
+                  smCopy.memo_name_1 || '공유 메모 1',
+                  smCopy.memo_name_2 || '공유 메모 2', 
+                  smCopy.memo_name_3 || '공유 메모 3'
+                ]);
+                
+                // 캐시가 잘못되어 있을 수 있으므로 무효화
+                try {
+                  localStorage.removeItem('crm_cache_shared_memos');
+                } catch (e) {}
+              }
             }
           } catch (createError) {
             console.error('[Dashboard] 공유 메모 생성 중 오류:', createError);
