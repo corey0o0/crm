@@ -163,6 +163,7 @@ export const fetchServices = async (options = {}) => {
     statusFilter = '',
     page = 0,
     pageSize = 50,
+    offset,
     signal = null
   } = options;
 
@@ -188,14 +189,14 @@ export const fetchServices = async (options = {}) => {
   }
 
   // 페이지네이션
-  const offset = page * pageSize;
+  const actualOffset = offset !== undefined ? offset : page * pageSize;
 
   return fetchFromSupabase('services', {
     select: '*,service_tags(tag_name),service_parts(id,part_id,quantity,price,usage,parts(name,code))',
     filter: filter,
     order: 'reception_date.desc',
     limit: pageSize,
-    offset: offset,
+    offset: actualOffset,
     signal
   });
 };

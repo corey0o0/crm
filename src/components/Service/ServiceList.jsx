@@ -491,9 +491,10 @@ function ServiceList() {
       setIsLoadingNextChunk(true);
       
       const CHUNK_SIZE = 100;
-      const page = Math.floor(startOffset / CHUNK_SIZE);
+      // const page = Math.floor(startOffset / CHUNK_SIZE);
+      // We pass offset explicitly to avoid pagination bugs.
       
-      console.log(`Loading next chunk: page ${page}, offset ${startOffset}`);
+      console.log(`Loading next chunk: offset ${startOffset}, size ${CHUNK_SIZE}`);
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 8000);
@@ -502,7 +503,7 @@ function ServiceList() {
         selectedBrand,
         searchTerm: '',
         statusFilter: '',
-        page: page,
+        offset: startOffset,
         pageSize: CHUNK_SIZE,
         signal: controller.signal
       });
@@ -550,8 +551,9 @@ function ServiceList() {
       return;
     }
     
-    // 현재 페이지에 표시할 데이터가 있는지 확인
-    const maxPage = Math.max(0, Math.ceil(filteredServices.length / rowsPerPage) - 1);
+    // 현재 데이터 총량 혹은 필터링된 총량 기준으로 유효한 페이지만 허용
+    const dataCount = hasActiveSearch ? filteredServices.length : Math.max(filteredServices.length, totalExpected);
+    const maxPage = Math.max(0, Math.ceil(dataCount / rowsPerPage) - 1);
     const validPage = Math.min(newPage, maxPage);
     
     setPage(validPage);
