@@ -1,4 +1,1 @@
-[서버] pdf-poppler 로드 실패 (Linux에서는 미지원): Cannot find module 'pdf-poppler'
-Require stack:
-- /Users/weird/Desktop/Work/AS/crm-app/server/index.js
-서버가 포트 5001에서 실행 중입니다.
+nohup: node: No such file or directory

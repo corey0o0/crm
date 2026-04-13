@@ -224,7 +224,16 @@ function ExcelBatchUpload({ agencies, parts, setSnackbar }) {
     if (!file) return;
     try {
       const parsed = await readExcelFile(file);
-      setData(parsed);
+      // 헤더 안의 띄어쓰기를 모두 제거하여 유연한 매칭 지원
+      const normalized = parsed.map(row => {
+        const newRow = {};
+        for (let key in row) {
+          const cleanKey = key.replace(/\s+/g, '');
+          newRow[cleanKey] = row[key];
+        }
+        return newRow;
+      });
+      setData(normalized);
     } catch (err) {
       setSnackbar({ open: true, message: '엑셀 파싱 실패', severity: 'error' });
     }
@@ -235,22 +244,26 @@ function ExcelBatchUpload({ agencies, parts, setSnackbar }) {
     setIsProcessing(true);
     let successCount = 0;
     try {
-      for (const row of data) {
-         // Expecting columns: 주문일자, 주문자, 대리점명, 상품명, 매칭부품코드, 수량, 판매가, 메모
+         // 공백 제거된 정규화 키를 바탕으로 다양한 헤더명 대응
+         const orderDate = row['주문일자'] || row['주문일시'] || row['주문일'] || row['결제일'] || format(new Date(), 'yyyy-MM-dd');
+         const customer = row['주문자'] || row['대리점명'] || row['고객명'] || row['대리점'] || row['수령인'] || '공홈';
+         const pName = row['상품명'] || row['품목명'] || row['부품명'];
          const pcode = row['매칭부품코드'] || row['부품코드'] || row['상품코드'];
-         const matchedPart = parts.find(p => p.code === pcode) || parts.find(p => p.name === row['상품명']);
-         if (!matchedPart && !row['상품명']) continue; // Skip totally empty rows
+         
+         const matchedPart = parts.find(p => p.code === pcode) || parts.find(p => p.name === pName);
+         if (!matchedPart && !pName) continue;
 
-         const qty = Number(row['수량'] || 1);
-         const price = Number(row['판매가'] || row['결제액'] || matchedPart?.price || 0);
+         const qty = Number(row['수량'] || row['주문수량'] || 1);
+         let priceStr = row['판매가'] || row['결제금액'] || row['결제액'] || row['상품구매금액'];
+         if (typeof priceStr === 'string') priceStr = priceStr.replace(/,/g, '');
+         const price = Number(priceStr || matchedPart?.price || 0);
          const total = qty * price;
-         const agName = row['대리점명'] || row['대리점'] || '공홈';
 
          const { data: newShp, error } = await supabase.from('shipments').insert([{
-           brand: 'XRB', order_date: row['주문일자'] || format(new Date(), 'yyyy-MM-dd'),
-           shipment_date: row['주문일자'] || format(new Date(), 'yyyy-MM-dd'),
-           status: '완료', customer_name: row['주문자'] || row['고객명'] || agName,
-           sales_channel: agName, product_name: matchedPart?.name || row['상품명'],
+           brand: 'XRB', order_date: orderDate,
+           shipment_date: orderDate,
+           status: '완료', customer_name: customer,
+           sales_channel: customer, product_name: matchedPart?.name || pName,
            quantity: qty, price: total, note: row['메모'] || '[엑셀일괄등록]'
          }]).select();
 
@@ -262,7 +275,7 @@ function ExcelBatchUpload({ agencies, parts, setSnackbar }) {
            }]);
            await supabase.from('transactions').insert([{
               group_id: sid, type: 'out', product_id: matchedPart.id, product_name: matchedPart.name, quantity: qty, from_location: 'DEFAULT', 
-              date: row['주문일자'] || format(new Date(), 'yyyy-MM-dd'), status: '완료', note: '[엑셀등록]'
+              date: orderDate, status: '완료', note: '[엑셀등록]'
            }]);
          }
       }
@@ -301,16 +314,25 @@ function ExcelBatchUpload({ agencies, parts, setSnackbar }) {
                </TableRow>
              </TableHead>
              <TableBody>
-               {data.slice(0, 30).map((row, i) => (
-                 <TableRow key={i}>
-                   <TableCell>{row['주문일자'] || '-'}</TableCell>
-                   <TableCell>{row['주문자'] || row['대리점명'] || '-'}</TableCell>
-                   <TableCell>{row['매칭부품코드'] || row['부품코드'] || '-'}</TableCell>
-                   <TableCell>{row['상품명']}</TableCell>
-                   <TableCell align="right">{row['수량']}</TableCell>
-                   <TableCell align="right">{row['판매가']}</TableCell>
-                 </TableRow>
-               ))}
+               {data.slice(0, 30).map((row, i) => {
+                 const orderDate = row['주문일자'] || row['주문일시'] || row['주문일'] || row['결제일'] || '-';
+                 const customer = row['주문자'] || row['대리점명'] || row['고객명'] || row['대리점'] || row['수령인'] || '-';
+                 const pcode = row['매칭부품코드'] || row['부품코드'] || row['상품코드'] || '-';
+                 const pName = row['상품명'] || row['품목명'] || row['부품명'] || '-';
+                 const qty = row['수량'] || row['주문수량'] || '-';
+                 const price = row['판매가'] || row['결제금액'] || row['상품구매금액'] || '-';
+                 
+                 return (
+                   <TableRow key={i}>
+                     <TableCell>{orderDate}</TableCell>
+                     <TableCell>{customer}</TableCell>
+                     <TableCell>{pcode}</TableCell>
+                     <TableCell>{pName}</TableCell>
+                     <TableCell align="right">{qty}</TableCell>
+                     <TableCell align="right">{price}</TableCell>
+                   </TableRow>
+                 );
+               })}
                {data.length > 30 && <TableRow><TableCell colSpan={6} align="center">... 외 {data.length - 30}건</TableCell></TableRow>}
                {data.length === 0 && <TableRow><TableCell colSpan={6} align="center" sx={{ py: 3 }}>미리보기가 여기에 표시됩니다.</TableCell></TableRow>}
              </TableBody>
