@@ -787,7 +787,13 @@ function AgencyCafe24OrdersDialog({ open, agency, onClose }) {
       
       const conditions = [];
       if (agency.id) conditions.push(`agency_id.eq.${agency.id}`);
-      if (agency.cafe24_member_id) conditions.push(`buyer_id.eq.${agency.cafe24_member_id}`);
+      if (agency.cafe24_member_id) {
+        const ids = agency.cafe24_member_id.split(',').map(id => id.trim()).filter(Boolean);
+        if (ids.length > 0) {
+          const listStr = ids.map(id => `"${id}"`).join(',');
+          conditions.push(`buyer_id.in.(${listStr})`);
+        }
+      }
       
       if (conditions.length > 0) {
         query = query.or(conditions.join(','));

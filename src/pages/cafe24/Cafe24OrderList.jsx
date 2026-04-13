@@ -605,9 +605,18 @@ export default function Cafe24OrderList() {
     if (!selectedOrderForAgencyMatch || !selectedAgency) return;
     setAgencyMatchSaving(true);
     try {
-      // 1. 거래처에 카페24 연동 ID 등록
+      // 1. 거래처에 카페24 연동 ID 등록 (여러 아이디를 쉼표로 관리)
+      const existingIds = selectedAgency.cafe24_member_id ? selectedAgency.cafe24_member_id.split(',').map(s => s.trim()).filter(Boolean) : [];
+      let newCafe24MemberId = selectedAgency.cafe24_member_id || '';
+      
+      if (!existingIds.includes(selectedOrderForAgencyMatch.buyer_id)) {
+        newCafe24MemberId = newCafe24MemberId 
+          ? `${newCafe24MemberId}, ${selectedOrderForAgencyMatch.buyer_id}` 
+          : selectedOrderForAgencyMatch.buyer_id;
+      }
+      
       await agencyApi.update(selectedAgency.id, {
-        cafe24_member_id: selectedOrderForAgencyMatch.buyer_id
+        cafe24_member_id: newCafe24MemberId
       });
       
       // 2. 이 사용자(buyer_id)의 모든 기존 주문을 새로운 일괄 업데이트

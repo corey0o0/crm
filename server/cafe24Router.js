@@ -307,7 +307,11 @@ module.exports = function(supabaseAdmin) {
     const { data: agenciesList } = await supabaseAdmin.from('agencies').select('id, cafe24_member_id').not('cafe24_member_id', 'is', null).neq('cafe24_member_id', '');
     const cafe24ToAgencyMap = {};
     (agenciesList || []).forEach(a => {
-      if (a.cafe24_member_id) cafe24ToAgencyMap[String(a.cafe24_member_id).trim()] = a.id;
+      if (a.cafe24_member_id) {
+        a.cafe24_member_id.split(',').forEach(id => {
+          if (id.trim()) cafe24ToAgencyMap[id.trim()] = a.id;
+        });
+      }
     });
 
     const fetchOrders = async (accessToken, currentOffset) => {
