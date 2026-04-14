@@ -3,7 +3,7 @@ import {
   Box, Typography, Paper, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, IconButton, Chip, TextField,
   Select, MenuItem, FormControl, InputLabel, Button, Dialog, DialogTitle,
-  DialogContent, DialogActions, Grid
+  DialogContent, DialogActions, Grid, TablePagination
 } from '@mui/material';
 import { Delete as DeleteIcon, Assessment as AssessmentIcon } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
@@ -23,6 +23,11 @@ function SalesHistory() {
   const [deleteDialog, setDeleteDialog] = useState(false);
   const [editDialog, setEditDialog] = useState(false);
   const [editForm, setEditForm] = useState({ customer_name: '', sales_channel: '', price: 0, note: '' });
+  
+  // Pagination State
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(20);
+  
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -31,32 +36,65 @@ function SalesHistory() {
 
   const fetchSales = async () => {
     setLoading(true);
-    let query = supabase
+    let shipQuery = supabase
       .from('shipments')
       .select(`
         id, order_date, customer_name, price, sales_channel, status, note,
-        shipment_parts (
-          part_name, quantity, price, total_price
-        )
+        shipment_parts ( part_name, quantity, price, total_price )
       `)
-      .order('order_date', { ascending: false });
+      .in('status', ['출고완료', '완료'])
+      .order('order_date', { ascending: false })
+      .limit(500);
 
-    if (startDate) {
-      query = query.gte('order_date', format(startDate, 'yyyy-MM-dd'));
-    }
-    if (endDate) {
-      query = query.lte('order_date', format(endDate, 'yyyy-MM-dd') + 'T23:59:59');
-    }
+    if (startDate) shipQuery = shipQuery.gte('order_date', format(startDate, 'yyyy-MM-dd'));
+    if (endDate) shipQuery = shipQuery.lte('order_date', format(endDate, 'yyyy-MM-dd') + 'T23:59:59');
 
-    query = query.limit(500);
+    let asQuery = supabase
+      .from('services')
+      .select(`
+        id, reception_date, completion_date, customer_name, total_cost, status, note,
+        service_parts ( quantity, parts(name) ),
+        agencies(name)
+      `)
+      .in('status', ['완료', '수령대기', '결제대기', '수령완료', '출고완료'])
+      .order('completion_date', { ascending: false })
+      .limit(500);
 
-    const { data, error } = await query;
-    if (error) console.error(error);
-    else {
-      // Filter out pure internal moves if necessary, keeping actual 'Sales'
-      const onlySales = (data || []).filter(item => item.status === '출고완료' || item.status === '완료');
-      setSales(onlySales);
-    }
+    // services uses completion_date as the primary date for 'sales'
+    if (startDate) asQuery = asQuery.gte('completion_date', format(startDate, 'yyyy-MM-dd'));
+    if (endDate) asQuery = asQuery.lte('completion_date', format(endDate, 'yyyy-MM-dd') + 'T23:59:59');
+
+    const [shipRes, asRes] = await Promise.all([shipQuery, asQuery]);
+
+    if (shipRes.error) console.error('Ship fetch error:', shipRes.error);
+    if (asRes.error && asRes.error.code !== 'PGRST200') console.error('A/S fetch error:', asRes.error);
+
+    const mappedShipments = (shipRes.data || []).map(s => ({
+      _type: 'shipment',
+      id: s.id,
+      date_val: s.order_date || Date.now(),
+      customer_name: s.customer_name,
+      price: s.price,
+      sales_channel: s.sales_channel,
+      status: s.status,
+      note: s.note,
+      parts_list: s.shipment_parts?.map(p => ({ name: p.part_name, quantity: p.quantity })) || []
+    }));
+
+    const mappedAs = (asRes.data || []).map(s => ({
+      _type: 'service',
+      id: s.id,
+      date_val: s.completion_date || s.reception_date || Date.now(),
+      customer_name: s.customer_name,
+      price: s.total_cost || 0,
+      sales_channel: (s.agencies && s.agencies.name) ? s.agencies.name : 'A/S센터',
+      status: s.status,
+      note: s.note ? `[A/S] ${s.note}` : '[A/S건]',
+      parts_list: s.service_parts?.map(p => ({ name: p.parts?.name || '알 수 없음', quantity: p.quantity })) || []
+    }));
+
+    const combined = [...mappedShipments, ...mappedAs].sort((a, b) => new Date(b.date_val) - new Date(a.date_val));
+    setSales(combined);
     setLoading(false);
   };
 
@@ -67,7 +105,9 @@ function SalesHistory() {
   );
 
   const totalRevenue = filteredSales.reduce((acc, curr) => acc + Number(curr.price || 0), 0);
-  const totalItems = filteredSales.reduce((acc, curr) => acc + (curr.shipment_parts?.length || 0), 0);
+  const totalItems = filteredSales.reduce((acc, curr) => acc + (curr.parts_list?.length || 0), 0);
+  
+  const paginatedSales = filteredSales.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
   const handleDeleteClick = (sale) => {
     setSelectedSale(sale);
@@ -77,9 +117,11 @@ function SalesHistory() {
   const handleDeleteConfirm = async () => {
     if (!selectedSale) return;
     try {
-      // Delete shipment (this cascades to shipment_parts if set, but we also should reverse transactions if needed)
-      // Because this is a CRM and user asked for simple delete, we mimic ShipmentList.jsx's delete behavior
-      await supabase.from('shipments').delete().eq('id', selectedSale.id);
+      if (selectedSale._type === 'shipment') {
+        await supabase.from('shipments').delete().eq('id', selectedSale.id);
+      } else {
+        await supabase.from('services').delete().eq('id', selectedSale.id);
+      }
       fetchSales();
       setDeleteDialog(false);
     } catch (err) {
@@ -100,12 +142,21 @@ function SalesHistory() {
 
   const handleEditSave = async () => {
     try {
-      const { error } = await supabase.from('shipments').update({
-        customer_name: editForm.customer_name,
-        sales_channel: editForm.sales_channel,
-        price: Number(editForm.price),
-        note: editForm.note
-      }).eq('id', selectedSale.id);
+      const tableName = selectedSale._type === 'shipment' ? 'shipments' : 'services';
+      const payload = selectedSale._type === 'shipment' 
+        ? {
+            customer_name: editForm.customer_name,
+            sales_channel: editForm.sales_channel,
+            price: Number(editForm.price),
+            note: editForm.note
+          }
+        : {
+            customer_name: editForm.customer_name,
+            total_cost: Number(editForm.price),
+            note: editForm.note
+          };
+
+      const { error } = await supabase.from(tableName).update(payload).eq('id', selectedSale.id);
 
       if (error) throw error;
 
@@ -191,24 +242,24 @@ function SalesHistory() {
           <TableBody>
             {loading ? (
               <TableRow><TableCell colSpan={7} align="center" sx={{ py: 5 }}>로딩 중...</TableCell></TableRow>
-            ) : filteredSales.length === 0 ? (
+            ) : paginatedSales.length === 0 ? (
               <TableRow><TableCell colSpan={7} align="center" sx={{ py: 5 }}>조회된 판매 내역이 없습니다.</TableCell></TableRow>
             ) : (
-              filteredSales.map((sale) => (
-                <TableRow key={sale.id} hover onClick={() => handleRowClick(sale)} sx={{ cursor: 'pointer' }}>
-                  <TableCell>{format(new Date(sale.order_date || Date.now()), 'yyyy-MM-dd')}</TableCell>
+              paginatedSales.map((sale) => (
+                <TableRow key={sale.id + sale._type} hover onClick={() => handleRowClick(sale)} sx={{ cursor: 'pointer' }}>
+                  <TableCell>{format(new Date(sale.date_val), 'yyyy-MM-dd')}</TableCell>
                   <TableCell>
-                    <Chip size="small" label={sale.note?.includes('A/S') ? 'A/S건' : '매장출고'} color={sale.note?.includes('A/S') ? 'warning' : 'primary'} variant="outlined" />
+                    <Chip size="small" label={sale._type === 'service' || sale.note?.includes('A/S') ? 'A/S건' : '매장출고'} color={sale._type === 'service' || sale.note?.includes('A/S') ? 'warning' : 'primary'} variant="outlined" />
                   </TableCell>
                   <TableCell>{sale.sales_channel || '공홈/기타'}</TableCell>
                   <TableCell>
-                    {sale.note?.match(/창고명:\s*([^,\n]+)/) ? sale.note.match(/창고명:\s*([^,\n]+)/)[1] : '-'}
+                    {sale.note && sale.note.match(/창고명:\s*([^,\n]+)/) ? sale.note.match(/창고명:\s*([^,\n]+)/)[1] : '-'}
                   </TableCell>
                   <TableCell sx={{ fontWeight: 'bold' }}>{sale.customer_name}</TableCell>
                   <TableCell>
-                    {sale.shipment_parts?.map((part, idx) => (
+                    {sale.parts_list?.map((part, idx) => (
                       <Typography key={idx} variant="body2" color="textSecondary">
-                        • {part.part_name} x {part.quantity}
+                        • {part.name} x {part.quantity}
                       </Typography>
                     ))}
                   </TableCell>
@@ -226,6 +277,19 @@ function SalesHistory() {
           </TableBody>
         </Table>
       </TableContainer>
+
+      <TablePagination
+        component="div"
+        count={filteredSales.length}
+        page={page}
+        onPageChange={(e, p) => setPage(p)}
+        rowsPerPage={rowsPerPage}
+        onRowsPerPageChange={(e) => {
+          setRowsPerPage(parseInt(e.target.value, 10));
+          setPage(0);
+        }}
+        labelRowsPerPage="페이지당 행:"
+      />
 
       {/* 삭제 경고 팝업 */}
       <Dialog open={deleteDialog} onClose={() => setDeleteDialog(false)}>
@@ -250,7 +314,7 @@ function SalesHistory() {
             <TextField label="판매처(어디서)" value={editForm.sales_channel} onChange={(e) => setEditForm({...editForm, sales_channel: e.target.value})} fullWidth />
             <TextField label="금액" type="number" value={editForm.price} onChange={(e) => setEditForm({...editForm, price: e.target.value})} fullWidth />
             <TextField label="메모(어떻게/창고명 등)" value={editForm.note} onChange={(e) => setEditForm({...editForm, note: e.target.value})} fullWidth multiline rows={2} />
-            <Button variant="outlined" color="primary" onClick={() => navigate(`/shipment/${selectedSale?.id}`)} sx={{ mt: 1 }}>
+            <Button variant="outlined" color="primary" onClick={() => navigate(selectedSale?._type === 'service' ? `/services/${selectedSale.id}` : `/shipment/${selectedSale?.id}`)} sx={{ mt: 1 }}>
               품목(재고) 수정 및 반품은 여기를 클릭하세요. ➔
             </Button>
           </Box>
