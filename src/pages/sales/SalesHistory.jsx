@@ -26,7 +26,7 @@ function SalesHistory() {
     let query = supabase
       .from('shipments')
       .select(`
-        id, order_date, buyer_name, total_amount, source, status,
+        id, order_date, customer_name, price, sales_channel, status,
         shipment_parts (
           part_name, quantity, price, total_price
         )
@@ -48,11 +48,11 @@ function SalesHistory() {
   };
 
   const filteredSales = sales.filter(s =>
-    (s.buyer_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (s.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (s.id || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const totalRevenue = filteredSales.reduce((acc, curr) => acc + Number(curr.total_amount || 0), 0);
+  const totalRevenue = filteredSales.reduce((acc, curr) => acc + Number(curr.price || 0), 0);
   const totalItems = filteredSales.reduce((acc, curr) => acc + (curr.shipment_parts?.length || 0), 0);
 
   const handleDeleteClick = (sale) => {
@@ -145,9 +145,9 @@ function SalesHistory() {
                 <TableRow key={sale.id} hover>
                   <TableCell>{sale.id}</TableCell>
                   <TableCell>{format(new Date(sale.order_date || Date.now()), 'yyyy-MM-dd')}</TableCell>
-                  <TableCell>{sale.buyer_name}</TableCell>
+                  <TableCell>{sale.customer_name}</TableCell>
                   <TableCell>
-                    <Chip size="small" label={sale.source || '공홈/기타'} color="primary" variant="outlined" />
+                    <Chip size="small" label={sale.sales_channel || '공홈/기타'} color="primary" variant="outlined" />
                   </TableCell>
                   <TableCell>
                     {sale.shipment_parts?.map((part, idx) => (
@@ -157,7 +157,7 @@ function SalesHistory() {
                     ))}
                   </TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                    {Number(sale.total_amount).toLocaleString()}원
+                    {Number(sale.price).toLocaleString()}원
                   </TableCell>
                   <TableCell align="center">
                     <IconButton size="small" color="error" onClick={() => handleDeleteClick(sale)}>
