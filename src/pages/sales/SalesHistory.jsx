@@ -8,34 +8,43 @@ import {
 import { Delete as DeleteIcon, Assessment as AssessmentIcon } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
 import { format } from 'date-fns';
+import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { ko } from 'date-fns/locale';
 
 function SalesHistory() {
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [datePeriod, setDatePeriod] = useState('all');
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
   const [deleteDialog, setDeleteDialog] = useState(false);
   const [selectedSale, setSelectedSale] = useState(null);
 
   useEffect(() => {
     fetchSales();
-  }, [datePeriod]);
+  }, []);
 
   const fetchSales = async () => {
     setLoading(true);
     let query = supabase
       .from('shipments')
       .select(`
-        id, order_date, customer_name, price, sales_channel, status,
+        id, order_date, customer_name, price, sales_channel, status, note,
         shipment_parts (
           part_name, quantity, price, total_price
         )
       `)
       .order('order_date', { ascending: false });
 
-    // Date filtering can be expanded here based on `datePeriod`
-    // Defaulting to 150 items for status viewing
-    query = query.limit(150);
+    if (startDate) {
+      query = query.gte('order_date', format(startDate, 'yyyy-MM-dd'));
+    }
+    if (endDate) {
+      query = query.lte('order_date', format(endDate, 'yyyy-MM-dd') + 'T23:59:59');
+    }
+
+    query = query.limit(500);
 
     const { data, error } = await query;
     if (error) console.error(error);
@@ -49,7 +58,8 @@ function SalesHistory() {
 
   const filteredSales = sales.filter(s =>
     (s.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (s.id || '').toLowerCase().includes(searchTerm.toLowerCase())
+    (s.sales_channel || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (s.note || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const totalRevenue = filteredSales.reduce((acc, curr) => acc + Number(curr.price || 0), 0);
@@ -101,24 +111,32 @@ function SalesHistory() {
       </Grid>
 
       <Paper sx={{ p: 2, mb: 3 }}>
-        <Box display="flex" gap={2}>
+        <Box display="flex" gap={2} alignItems="center">
           <TextField 
-            label="고객명/주문번호 검색" 
+            label="고객/경로/메모 검색" 
             variant="outlined" 
             size="small" 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            sx={{ width: 300 }}
+            sx={{ width: 250 }}
           />
-          <FormControl size="small" sx={{ width: 150 }}>
-            <InputLabel>기간 설정</InputLabel>
-            <Select value={datePeriod} onChange={(e) => setDatePeriod(e.target.value)} label="기간 설정">
-              <MenuItem value="all">전체</MenuItem>
-              <MenuItem value="month">최근 1개월</MenuItem>
-              <MenuItem value="week">최근 1주일</MenuItem>
-            </Select>
-          </FormControl>
+          <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
+            <DatePicker
+              label="시작일"
+              value={startDate}
+              onChange={(newValue) => setStartDate(newValue)}
+              slotProps={{ textField: { size: 'small', sx: { width: 150 } } }}
+            />
+            <Typography>~</Typography>
+            <DatePicker
+              label="종료일"
+              value={endDate}
+              onChange={(newValue) => setEndDate(newValue)}
+              slotProps={{ textField: { size: 'small', sx: { width: 150 } } }}
+            />
+          </LocalizationProvider>
           <Button variant="contained" onClick={fetchSales}>검색/새로고침</Button>
+          <Button variant="outlined" color="secondary" onClick={() => { setStartDate(null); setEndDate(null); setSearchTerm(''); }}>초기화</Button>
         </Box>
       </Paper>
 
@@ -126,10 +144,10 @@ function SalesHistory() {
         <Table size="small">
           <TableHead>
             <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-              <TableCell>주문 번호</TableCell>
               <TableCell>판매 일자</TableCell>
-              <TableCell>구매자/거래처</TableCell>
-              <TableCell>경로(분류)</TableCell>
+              <TableCell>판매처 (어디서)</TableCell>
+              <TableCell>메모 (어떻게)</TableCell>
+              <TableCell>고객명 (누구에게)</TableCell>
               <TableCell>판매 품목 리스트</TableCell>
               <TableCell align="right">총 결제액</TableCell>
               <TableCell align="center">관리</TableCell>
@@ -143,12 +161,14 @@ function SalesHistory() {
             ) : (
               filteredSales.map((sale) => (
                 <TableRow key={sale.id} hover>
-                  <TableCell>{sale.id}</TableCell>
                   <TableCell>{format(new Date(sale.order_date || Date.now()), 'yyyy-MM-dd')}</TableCell>
-                  <TableCell>{sale.customer_name}</TableCell>
                   <TableCell>
                     <Chip size="small" label={sale.sales_channel || '공홈/기타'} color="primary" variant="outlined" />
                   </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" color="textSecondary">{sale.note || '-'}</Typography>
+                  </TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>{sale.customer_name}</TableCell>
                   <TableCell>
                     {sale.shipment_parts?.map((part, idx) => (
                       <Typography key={idx} variant="body2" color="textSecondary">
