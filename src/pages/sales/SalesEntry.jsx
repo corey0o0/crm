@@ -247,16 +247,16 @@ function ExcelBatchUpload({ agencies, parts, setSnackbar }) {
     try {
       for (const row of data) {
          // 공백 제거된 정규화 키를 바탕으로 다양한 헤더명 대응
-         const orderDate = row['주문일자'] || row['주문일시'] || row['주문일'] || row['결제일'] || format(new Date(), 'yyyy-MM-dd');
-         const customer = row['주문자'] || row['대리점명'] || row['고객명'] || row['대리점'] || row['수령인'] || '공홈';
+         const orderDate = row['주문일자'] || row['주문일시'] || row['주문일'] || row['결제일'] || row['일자'] || row['전표일자'] || format(new Date(), 'yyyy-MM-dd');
+         const customer = row['주문자'] || row['대리점명'] || row['고객명'] || row['대리점'] || row['수령인'] || row['거래처명'] || row['거래처'] || '공홈';
          const pName = row['상품명'] || row['품목명'] || row['부품명'];
-         const pcode = row['매칭부품코드'] || row['부품코드'] || row['상품코드'];
+         const pcode = row['매칭부품코드'] || row['부품코드'] || row['상품코드'] || row['품목코드'];
          
          const matchedPart = parts.find(p => p.code === pcode) || parts.find(p => p.name === pName);
          if (!matchedPart && !pName) continue;
 
          const qty = Number(row['수량'] || row['주문수량'] || 1);
-         let priceStr = row['판매가'] || row['결제금액'] || row['결제액'] || row['상품구매금액'];
+         let priceStr = row['판매가'] || row['결제금액'] || row['결제액'] || row['상품구매금액'] || row['합계금액'] || row['단가'] || row['실판매가'];
          if (typeof priceStr === 'string') priceStr = priceStr.replace(/,/g, '');
          const price = Number(priceStr || matchedPart?.price || 0);
          const total = qty * price;
@@ -317,12 +317,12 @@ function ExcelBatchUpload({ agencies, parts, setSnackbar }) {
              </TableHead>
              <TableBody>
                {data.slice(0, 30).map((row, i) => {
-                 const orderDate = row['주문일자'] || row['주문일시'] || row['주문일'] || row['결제일'] || '-';
-                 const customer = row['주문자'] || row['대리점명'] || row['고객명'] || row['대리점'] || row['수령인'] || '-';
-                 const pcode = row['매칭부품코드'] || row['부품코드'] || row['상품코드'] || '-';
+                 const orderDate = row['주문일자'] || row['주문일시'] || row['주문일'] || row['결제일'] || row['일자'] || row['전표일자'] || '-';
+                 const customer = row['주문자'] || row['대리점명'] || row['고객명'] || row['대리점'] || row['수령인'] || row['거래처명'] || row['거래처'] || '-';
+                 const pcode = row['매칭부품코드'] || row['부품코드'] || row['상품코드'] || row['품목코드'] || '-';
                  const pName = row['상품명'] || row['품목명'] || row['부품명'] || '-';
                  const qty = row['수량'] || row['주문수량'] || '-';
-                 const price = row['판매가'] || row['결제금액'] || row['상품구매금액'] || '-';
+                 const price = row['판매가'] || row['결제금액'] || row['상품구매금액'] || row['합계금액'] || row['단가'] || row['실판매가'] || '-';
                  
                  return (
                    <TableRow key={i}>
