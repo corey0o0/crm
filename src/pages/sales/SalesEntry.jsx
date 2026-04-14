@@ -247,9 +247,9 @@ function ExcelBatchUpload({ agencies, parts, setSnackbar }) {
     try {
       for (const row of data) {
          // 공백 제거된 정규화 키를 바탕으로 다양한 헤더명 대응
-         const orderDate = row['주문일자'] || row['주문일시'] || row['주문일'] || row['결제일'] || row['일자'] || row['전표일자'] || format(new Date(), 'yyyy-MM-dd');
+         const orderDate = row['주문일자'] || row['주문일시'] || row['주문일'] || row['결제일'] || row['일자'] || row['전표일자'] || row['일자-No.'] || format(new Date(), 'yyyy-MM-dd');
          const customer = row['주문자'] || row['대리점명'] || row['고객명'] || row['대리점'] || row['수령인'] || row['거래처명'] || row['거래처'] || '공홈';
-         const pName = row['상품명'] || row['품목명'] || row['부품명'];
+         const pName = row['상품명'] || row['품목명'] || row['부품명'] || row['품목명(규격)'] || row['품목명(요약)'];
          const pcode = row['매칭부품코드'] || row['부품코드'] || row['상품코드'] || row['품목코드'];
          
          const matchedPart = parts.find(p => p.code === pcode) || parts.find(p => p.name === pName);
@@ -317,10 +317,10 @@ function ExcelBatchUpload({ agencies, parts, setSnackbar }) {
              </TableHead>
              <TableBody>
                {data.slice(0, 30).map((row, i) => {
-                 const orderDate = row['주문일자'] || row['주문일시'] || row['주문일'] || row['결제일'] || row['일자'] || row['전표일자'] || '-';
+                 const orderDate = row['주문일자'] || row['주문일시'] || row['주문일'] || row['결제일'] || row['일자'] || row['전표일자'] || row['일자-No.'] || '-';
                  const customer = row['주문자'] || row['대리점명'] || row['고객명'] || row['대리점'] || row['수령인'] || row['거래처명'] || row['거래처'] || '-';
                  const pcode = row['매칭부품코드'] || row['부품코드'] || row['상품코드'] || row['품목코드'] || '-';
-                 const pName = row['상품명'] || row['품목명'] || row['부품명'] || '-';
+                 const pName = row['상품명'] || row['품목명'] || row['부품명'] || row['품목명(규격)'] || row['품목명(요약)'] || '-';
                  const qty = row['수량'] || row['주문수량'] || '-';
                  const price = row['판매가'] || row['결제금액'] || row['상품구매금액'] || row['합계금액'] || row['단가'] || row['실판매가'] || '-';
                  
