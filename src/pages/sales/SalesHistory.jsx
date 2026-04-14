@@ -5,12 +5,12 @@ import {
   Select, MenuItem, FormControl, InputLabel, Button, Dialog, DialogTitle,
   DialogContent, DialogActions, Grid
 } from '@mui/material';
-import { Delete as DeleteIcon, Assessment as AssessmentIcon } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
 import { format } from 'date-fns';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ko } from 'date-fns/locale';
+import { useNavigate } from 'react-router-dom';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 
 function SalesHistory() {
   const [sales, setSales] = useState([]);
@@ -18,8 +18,10 @@ function SalesHistory() {
   const [searchTerm, setSearchTerm] = useState('');
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
-  const [deleteDialog, setDeleteDialog] = useState(false);
   const [selectedSale, setSelectedSale] = useState(null);
+  const [editDialog, setEditDialog] = useState(false);
+  const [editForm, setEditForm] = useState({ customer_name: '', sales_channel: '', price: 0, note: '' });
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchSales();
@@ -80,6 +82,36 @@ function SalesHistory() {
       setDeleteDialog(false);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleRowClick = (sale) => {
+    setSelectedSale(sale);
+    setEditForm({
+      customer_name: sale.customer_name || '',
+      sales_channel: sale.sales_channel || '',
+      price: sale.price || 0,
+      note: sale.note || ''
+    });
+    setEditDialog(true);
+  };
+
+  const handleEditSave = async () => {
+    try {
+      const { error } = await supabase.from('shipments').update({
+        customer_name: editForm.customer_name,
+        sales_channel: editForm.sales_channel,
+        price: Number(editForm.price),
+        note: editForm.note
+      }).eq('id', selectedSale.id);
+
+      if (error) throw error;
+
+      setEditDialog(false);
+      fetchSales(); // Refresh
+    } catch (err) {
+      console.error(err);
+      alert('수정 중 오류가 발생했습니다.');
     }
   };
 
@@ -161,7 +193,7 @@ function SalesHistory() {
               <TableRow><TableCell colSpan={7} align="center" sx={{ py: 5 }}>조회된 판매 내역이 없습니다.</TableCell></TableRow>
             ) : (
               filteredSales.map((sale) => (
-                <TableRow key={sale.id} hover>
+                <TableRow key={sale.id} hover onClick={() => handleRowClick(sale)} sx={{ cursor: 'pointer' }}>
                   <TableCell>{format(new Date(sale.order_date || Date.now()), 'yyyy-MM-dd')}</TableCell>
                   <TableCell>
                     <Chip size="small" label={sale.note?.includes('A/S') ? 'A/S건' : '매장출고'} color={sale.note?.includes('A/S') ? 'warning' : 'primary'} variant="outlined" />
@@ -181,7 +213,7 @@ function SalesHistory() {
                   <TableCell align="right" sx={{ fontWeight: 'bold' }}>
                     {Number(sale.price).toLocaleString()}원
                   </TableCell>
-                  <TableCell align="center">
+                  <TableCell align="center" onClick={(e) => e.stopPropagation()}>
                     <IconButton size="small" color="error" onClick={() => handleDeleteClick(sale)}>
                       <DeleteIcon fontSize="small" />
                     </IconButton>
@@ -204,6 +236,26 @@ function SalesHistory() {
         <DialogActions>
           <Button onClick={() => setDeleteDialog(false)}>취소</Button>
           <Button color="error" variant="contained" onClick={handleDeleteConfirm}>삭제하기</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 기본 정보 수정 모달 */}
+      <Dialog open={editDialog} onClose={() => setEditDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>판매 정보 수정</DialogTitle>
+        <DialogContent>
+          <Box display="flex" flexDirection="column" gap={2} mt={1}>
+            <TextField label="고객명(누구에게)" value={editForm.customer_name} onChange={(e) => setEditForm({...editForm, customer_name: e.target.value})} fullWidth />
+            <TextField label="판매처(어디서)" value={editForm.sales_channel} onChange={(e) => setEditForm({...editForm, sales_channel: e.target.value})} fullWidth />
+            <TextField label="금액" type="number" value={editForm.price} onChange={(e) => setEditForm({...editForm, price: e.target.value})} fullWidth />
+            <TextField label="메모(어떻게/창고명 등)" value={editForm.note} onChange={(e) => setEditForm({...editForm, note: e.target.value})} fullWidth multiline rows={2} />
+            <Button variant="outlined" color="primary" onClick={() => navigate(`/shipment/${selectedSale?.id}`)} sx={{ mt: 1 }}>
+              품목(재고) 수정 및 반품은 여기를 클릭하세요. ➔
+            </Button>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditDialog(false)}>취소</Button>
+          <Button color="primary" variant="contained" onClick={handleEditSave}>기본 정보 저장</Button>
         </DialogActions>
       </Dialog>
     </Box>
