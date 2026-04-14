@@ -244,6 +244,7 @@ function ExcelBatchUpload({ agencies, parts, setSnackbar }) {
     setIsProcessing(true);
     let successCount = 0;
     try {
+      for (const row of data) {
          // 공백 제거된 정규화 키를 바탕으로 다양한 헤더명 대응
          const orderDate = row['주문일자'] || row['주문일시'] || row['주문일'] || row['결제일'] || format(new Date(), 'yyyy-MM-dd');
          const customer = row['주문자'] || row['대리점명'] || row['고객명'] || row['대리점'] || row['수령인'] || '공홈';

@@ -30,6 +30,7 @@ import MuiAlert from '@mui/material/Alert';
 import Tooltip from '@mui/material/Tooltip';
 import SendIcon from '@mui/icons-material/Send';
 import QuillEditor from './common/QuillEditor';
+import DOMPurify from 'dompurify';
 
 function Dashboard() {
   const { user, session, loading: authLoading } = useAuth();
@@ -766,9 +767,9 @@ function Dashboard() {
   // HTML을 텍스트로 변환하는 함수
   const stripHtml = (html) => {
     if (!html) return '';
-    // 임시 div 요소를 생성하여 HTML 파싱
+    // 임시 div 요소를 생성하여 HTML 파싱 (스크립트 실행 방지를 위해 먼저 정제)
     const tmp = document.createElement('div');
-    tmp.innerHTML = html;
+    tmp.innerHTML = DOMPurify.sanitize(html);
     // 텍스트만 추출하고 줄바꿈 보존
     return tmp.textContent || tmp.innerText || '';
   };
