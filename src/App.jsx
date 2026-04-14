@@ -43,6 +43,7 @@ import ShipmentList from './pages/shipment/ShipmentList';
 import ShipmentDetail from './pages/shipment/ShipmentDetail';
 import ShipmentForm from './pages/shipment/ShipmentForm';
 import SalesEntry from './pages/sales/SalesEntry';
+import SalesHistory from './pages/sales/SalesHistory';
 import AgencyManagement from './pages/agency/AgencyManagement';
 import AdminTools from './pages/admin/AdminTools';
 import BoardList from './pages/board/BoardList';
@@ -143,6 +144,7 @@ function AppRouter() {
 
           {/* 출고/판매 관리 */}
           <Route path="sales/entry" element={<SalesEntry />} />
+          <Route path="sales/history" element={<SalesHistory />} />
           <Route path="pending-orders" element={<PendingOrderList />} />
           <Route path="pending-orders/:id" element={<PendingOrderDetail />} />
         </Route>

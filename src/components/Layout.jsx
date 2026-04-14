@@ -270,7 +270,8 @@ function Layout() {
         { text: '매장출고관리', icon: <LocalShippingIcon />, path: '/shipment', key: 'shipment' },
         { text: '온라인주문관리', icon: <ShoppingCartOutlinedIcon />, path: '/cafe24/orders', key: 'cafe24_orders' },
         { text: '출고 대기', icon: <CalendarTodayIcon />, path: '/inventory-management?tab=outbound_scan', key: 'outbound_scan' },
-        { text: '수기 판매 등록', icon: <LocalShippingIcon />, path: '/sales/entry', key: 'sales_entry' }
+        { text: '수기 판매 등록', icon: <LocalShippingIcon />, path: '/sales/entry', key: 'sales_entry' },
+        { text: '판매 현황', icon: <HistoryIcon />, path: '/sales/history', key: 'sales_history' }
       ]
     },
     // { text: '주문대기', icon: <ShoppingCartOutlinedIcon />, path: '/pending-orders', key: 'pending_orders' },
