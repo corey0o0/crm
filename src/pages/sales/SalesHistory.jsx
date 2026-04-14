@@ -33,6 +33,9 @@ function SalesHistory() {
         id, order_date, customer_name, price, sales_channel, status, note,
         shipment_parts (
           part_name, quantity, price, total_price
+        ),
+        transactions (
+          from_location
         )
       `)
       .order('order_date', { ascending: false });
@@ -145,11 +148,12 @@ function SalesHistory() {
           <TableHead>
             <TableRow sx={{ bgcolor: '#f5f5f5' }}>
               <TableCell>판매 일자</TableCell>
-              <TableCell>판매처 (어디서)</TableCell>
-              <TableCell>메모 (어떻게)</TableCell>
-              <TableCell>고객명 (누구에게)</TableCell>
-              <TableCell>판매 품목 리스트</TableCell>
-              <TableCell align="right">총 결제액</TableCell>
+              <TableCell>구분 (A/S건/매장출고)</TableCell>
+              <TableCell>판매처</TableCell>
+              <TableCell>창고</TableCell>
+              <TableCell>고객명</TableCell>
+              <TableCell>상품명</TableCell>
+              <TableCell align="right">금액</TableCell>
               <TableCell align="center">관리</TableCell>
             </TableRow>
           </TableHead>
@@ -163,10 +167,13 @@ function SalesHistory() {
                 <TableRow key={sale.id} hover>
                   <TableCell>{format(new Date(sale.order_date || Date.now()), 'yyyy-MM-dd')}</TableCell>
                   <TableCell>
-                    <Chip size="small" label={sale.sales_channel || '공홈/기타'} color="primary" variant="outlined" />
+                    <Chip size="small" label={sale.note?.includes('A/S') ? 'A/S건' : '매장출고'} color={sale.note?.includes('A/S') ? 'warning' : 'primary'} variant="outlined" />
                   </TableCell>
+                  <TableCell>{sale.sales_channel || '공홈/기타'}</TableCell>
                   <TableCell>
-                    <Typography variant="body2" color="textSecondary">{sale.note || '-'}</Typography>
+                    {sale.transactions && sale.transactions.length > 0 
+                      ? sale.transactions[0].from_location 
+                      : (sale.note?.match(/창고명:\s*([^,\n]+)/) ? sale.note.match(/창고명:\s*([^,\n]+)/)[1] : '-')}
                   </TableCell>
                   <TableCell sx={{ fontWeight: 'bold' }}>{sale.customer_name}</TableCell>
                   <TableCell>
