@@ -5,6 +5,7 @@ import {
   Select, MenuItem, FormControl, InputLabel, Button, Dialog, DialogTitle,
   DialogContent, DialogActions, Grid
 } from '@mui/material';
+import { Delete as DeleteIcon, Assessment as AssessmentIcon } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
 import { format } from 'date-fns';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
@@ -19,6 +20,7 @@ function SalesHistory() {
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
   const [selectedSale, setSelectedSale] = useState(null);
+  const [deleteDialog, setDeleteDialog] = useState(false);
   const [editDialog, setEditDialog] = useState(false);
   const [editForm, setEditForm] = useState({ customer_name: '', sales_channel: '', price: 0, note: '' });
   const navigate = useNavigate();
