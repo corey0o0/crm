@@ -33,9 +33,6 @@ function SalesHistory() {
         id, order_date, customer_name, price, sales_channel, status, note,
         shipment_parts (
           part_name, quantity, price, total_price
-        ),
-        transactions (
-          from_location
         )
       `)
       .order('order_date', { ascending: false });
@@ -171,9 +168,7 @@ function SalesHistory() {
                   </TableCell>
                   <TableCell>{sale.sales_channel || '공홈/기타'}</TableCell>
                   <TableCell>
-                    {sale.transactions && sale.transactions.length > 0 
-                      ? sale.transactions[0].from_location 
-                      : (sale.note?.match(/창고명:\s*([^,\n]+)/) ? sale.note.match(/창고명:\s*([^,\n]+)/)[1] : '-')}
+                    {sale.note?.match(/창고명:\s*([^,\n]+)/) ? sale.note.match(/창고명:\s*([^,\n]+)/)[1] : '-'}
                   </TableCell>
                   <TableCell sx={{ fontWeight: 'bold' }}>{sale.customer_name}</TableCell>
                   <TableCell>
