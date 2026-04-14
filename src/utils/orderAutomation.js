@@ -11,8 +11,8 @@ import {
 const BRAND_CONFIG = {
   XRB: {
     url: 'https://www.xrider.co.kr',
-    loginId: 'xrideras',
-    password: 'cjfdls28gh',
+    loginId: process.env.REACT_APP_ORDER_LOGIN_ID || '',
+    password: process.env.REACT_APP_ORDER_PASSWORD || '',
     selectors: {
       loginButton: 'button[type="submit"]',
       searchInput: 'input[type="search"], input[name="search"]',
@@ -26,8 +26,8 @@ const BRAND_CONFIG = {
   },
   NB: {
     url: 'https://www.nearbike.co.kr',
-    loginId: 'xrideras',
-    password: 'cjfdls28gh',
+    loginId: process.env.REACT_APP_ORDER_LOGIN_ID || '',
+    password: process.env.REACT_APP_ORDER_PASSWORD || '',
     selectors: {
       loginButton: 'button[type="submit"]',
       searchInput: 'input[type="search"], input[name="search"]',

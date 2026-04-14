@@ -3,8 +3,24 @@ const express = require('express');
 module.exports = (supabaseAdmin) => {
   const router = express.Router();
 
+  // JWT 인증 검증 미들웨어
+  const requireAuth = async (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, message: '인증 토큰이 제공되지 않았습니다.' });
+    }
+    const token = authHeader.split(' ')[1];
+    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+    
+    if (error || !user) {
+      return res.status(401).json({ success: false, message: '유효하지 않거나 만료된 토큰입니다.' });
+    }
+    req.user = user;
+    next();
+  };
+
   // GET /api/agencies - List all agencies
-  router.get('/', async (req, res) => {
+  router.get('/', requireAuth, async (req, res) => {
     try {
       const { data, error } = await supabaseAdmin
         .from('agencies')
@@ -20,7 +36,7 @@ module.exports = (supabaseAdmin) => {
   });
 
   // POST /api/agencies - Create single agency
-  router.post('/', async (req, res) => {
+  router.post('/', requireAuth, async (req, res) => {
     try {
       const agencyData = req.body;
       const { data, error } = await supabaseAdmin
@@ -38,7 +54,7 @@ module.exports = (supabaseAdmin) => {
   });
 
   // PUT /api/agencies/:id - Update agency
-  router.put('/:id', async (req, res) => {
+  router.put('/:id', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       const agencyData = req.body;
@@ -59,7 +75,7 @@ module.exports = (supabaseAdmin) => {
   });
 
   // DELETE /api/agencies/:id - Delete agency
-  router.delete('/:id', async (req, res) => {
+  router.delete('/:id', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       const { error } = await supabaseAdmin
@@ -76,7 +92,7 @@ module.exports = (supabaseAdmin) => {
   });
 
   // POST /api/agencies/bulk - Bulk UPSERT for Excel Upload
-  router.post('/bulk', async (req, res) => {
+  router.post('/bulk', requireAuth, async (req, res) => {
     try {
       const { items } = req.body; // Array of agency objects
       if (!items || !items.length) {

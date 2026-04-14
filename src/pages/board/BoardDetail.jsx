@@ -14,6 +14,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
 import { postCafe24Comment } from '../../utils/cafe24Api';
+import DOMPurify from 'dompurify';
 
 function BoardDetail() {
   const { id } = useParams();
@@ -166,7 +167,7 @@ function BoardDetail() {
             '& img': { maxWidth: '100%', borderRadius: 1 },
             lineHeight: 1.8
           }}
-          dangerouslySetInnerHTML={{ __html: post.content }}
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content) }}
         />
       </Paper>
 

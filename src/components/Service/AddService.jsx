@@ -6,7 +6,6 @@ import ReceiptScanner from '../Receipt/ReceiptScanner';
 import CustomerHistoryDialog from './CustomerHistoryDialog';
 import CustomerSearchModal from './CustomerSearchModal';
 import PartsSelectionDialog from './PartsSelectionDialog';
-import ECountBulkUploader from './ECountBulkUploader';
 import useAutoSave from '../../hooks/useAutoSave';
 import { processServiceCompletion } from '../../utils/inventoryUtils';
 import {
@@ -2345,9 +2344,6 @@ function AddService() {
             </Button>
           </>
         )}
-        <Box sx={{ ml: 'auto' }}>
-          <ECountBulkUploader onUploadSuccess={() => window.location.reload()} />
-        </Box>
       </Box>
 
       <Paper sx={{ p: 4, borderRadius: 3, boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)', bgcolor: '#ffffff' }}>
