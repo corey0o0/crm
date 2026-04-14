@@ -1784,7 +1784,7 @@ function SalesStats() {
     <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
       <Box sx={{ p: 3, maxWidth: 1400, mx: 'auto' }}>
         <Typography variant="h5" sx={{ mb: 3, fontWeight: 600 }}>
-          매출 통계
+          매장 매출 통계
         </Typography>
 
         {/* 안내 문구 추가 */}
@@ -2532,7 +2532,7 @@ function SalesStats() {
               // 월별 통계
               <>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                  <Typography variant="h6">월별 매출 통계</Typography>
+                  <Typography variant="h6">월별 매장 매출 통계</Typography>
                 </Box>
                 <TableContainer>
                   <Table>
@@ -2573,7 +2573,7 @@ function SalesStats() {
               // 주별 통계
               <>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                  <Typography variant="h6">주별 매출 통계</Typography>
+                  <Typography variant="h6">주별 매장 매출 통계</Typography>
                 </Box>
                 <TableContainer>
                   <Table>

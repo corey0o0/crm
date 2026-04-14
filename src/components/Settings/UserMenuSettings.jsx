@@ -42,7 +42,7 @@ const AVAILABLE_PERMISSIONS = [
   { key: 'inventory_management', label: '입출고 관리' },
   { key: 'inventory_status', label: '재고 현황' },
   { key: 'inventory_stats', label: '입출고 통계' },
-  { key: 'sales_stats', label: '매출 통계' },
+  { key: 'sales_stats', label: '매장 매출 통계' },
   { key: 'online_stats', label: '온라인 통계' },
   { key: 'service_analysis', label: 'A/S 분석' },
   { key: 'board_group', label: '게시판 메뉴 전체' },
