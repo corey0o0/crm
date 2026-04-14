@@ -307,6 +307,7 @@ function ExcelBatchUpload({ agencies, parts, setSnackbar }) {
           <Table stickyHeader size="small">
              <TableHead>
                <TableRow>
+                 <TableCell>상태</TableCell>
                  <TableCell>주문일자</TableCell>
                  <TableCell>주문자/대리점</TableCell>
                  <TableCell>부품코드</TableCell>
@@ -319,24 +320,35 @@ function ExcelBatchUpload({ agencies, parts, setSnackbar }) {
                {data.slice(0, 30).map((row, i) => {
                  const orderDate = row['주문일자'] || row['주문일시'] || row['주문일'] || row['결제일'] || row['일자'] || row['전표일자'] || row['일자-No.'] || '-';
                  const customer = row['주문자'] || row['대리점명'] || row['고객명'] || row['대리점'] || row['수령인'] || row['거래처명'] || row['거래처'] || '-';
-                 const pcode = row['매칭부품코드'] || row['부품코드'] || row['상품코드'] || row['품목코드'] || row['바코드'] || '-';
-                 const pName = row['상품명'] || row['품목명'] || row['부품명'] || row['품목명(규격)'] || row['품목명(요약)'] || '-';
+                 
+                 const pcodeRaw = row['매칭부품코드'] || row['부품코드'] || row['상품코드'] || row['품목코드'] || row['바코드'];
+                 const pNameRaw = row['상품명'] || row['품목명'] || row['부품명'] || row['품목명(규격)'] || row['품목명(요약)'];
+                 const matchedPart = parts.find(p => p.code === pcodeRaw || (p.barcode && p.barcode === String(pcodeRaw))) || parts.find(p => p.name === pNameRaw);
+                 const isMatch = !!matchedPart;
+
+                 const pcode = pcodeRaw || '-';
+                 const pName = pNameRaw || '-';
                  const qty = row['수량'] || row['주문수량'] || '-';
                  const price = row['판매가'] || row['결제금액'] || row['상품구매금액'] || row['합계금액'] || row['단가'] || row['실판매가'] || '-';
                  
                  return (
-                   <TableRow key={i}>
+                   <TableRow key={i} sx={{ backgroundColor: isMatch ? 'inherit' : '#fff0f0' }}>
+                     <TableCell>
+                       {isMatch ? '✅ 가능' : '❌ 불가'}
+                     </TableCell>
                      <TableCell>{orderDate}</TableCell>
                      <TableCell>{customer}</TableCell>
                      <TableCell>{pcode}</TableCell>
-                     <TableCell>{pName}</TableCell>
+                     <TableCell sx={{ color: isMatch ? 'inherit' : 'error.main', fontWeight: isMatch ? 'normal' : 'bold' }}>
+                        {pName}
+                     </TableCell>
                      <TableCell align="right">{qty}</TableCell>
                      <TableCell align="right">{price}</TableCell>
                    </TableRow>
                  );
                })}
-               {data.length > 30 && <TableRow><TableCell colSpan={6} align="center">... 외 {data.length - 30}건</TableCell></TableRow>}
-               {data.length === 0 && <TableRow><TableCell colSpan={6} align="center" sx={{ py: 3 }}>미리보기가 여기에 표시됩니다.</TableCell></TableRow>}
+               {data.length > 30 && <TableRow><TableCell colSpan={7} align="center">... 외 {data.length - 30}건</TableCell></TableRow>}
+               {data.length === 0 && <TableRow><TableCell colSpan={7} align="center" sx={{ py: 3 }}>미리보기가 여기에 표시됩니다.</TableCell></TableRow>}
              </TableBody>
           </Table>
         </TableContainer>
