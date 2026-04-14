@@ -4,8 +4,8 @@ import {
   Box, Typography, Button, Paper, Tabs, Tab, Container,
   Grid, TextField, CircularProgress, Snackbar, Alert,
   TableContainer, Table, TableHead, TableRow, TableCell, TableBody,
-  IconButton, Select, MenuItem, FormControl, InputLabel, Chip
-} from '@mui/material';
+  IconButton, Select, MenuItem, FormControl, InputLabel, Chip,
+  Dialog, DialogTitle, DialogContent, DialogActions, Autocomplete
 import { Delete as DeleteIcon, CloudUpload as CloudUploadIcon, Add as AddIcon } from '@mui/icons-material';
 import { readExcelFile } from '../../utils/excelUtils';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
@@ -218,13 +218,15 @@ function SingleEntryForm({ agencies, parts, setSnackbar }) {
 function ExcelBatchUpload({ agencies, parts, setSnackbar }) {
   const [data, setData] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [mappingDialog, setMappingDialog] = useState(false);
+  const [missingParts, setMissingParts] = useState([]);
+  const [mappingChoices, setMappingChoices] = useState({});
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     try {
       const parsed = await readExcelFile(file);
-      // 헤더 안의 띄어쓰기를 모두 제거하여 유연한 매칭 지원
       const normalized = parsed.map(row => {
         const newRow = {};
         for (let key in row) {
@@ -233,26 +235,49 @@ function ExcelBatchUpload({ agencies, parts, setSnackbar }) {
         }
         return newRow;
       });
-      console.log('📌 [엑셀 헤더 디버깅] 정제된 첫 번째 행의 키 목록:', Object.keys(normalized[0] || {}));
       setData(normalized);
     } catch (err) {
       setSnackbar({ open: true, message: '엑셀 파싱 실패', severity: 'error' });
     }
   };
 
-  const uploadBatch = async () => {
+  const handlePreUpload = () => {
+    if (data.length === 0) return;
+    const missing = new Set();
+    for (const row of data) {
+       const pcodeRaw = row['매칭부품코드'] || row['부품코드'] || row['상품코드'] || row['품목코드'] || row['바코드'];
+       const pNameRaw = row['상품명'] || row['품목명'] || row['부품명'] || row['품목명(규격)'] || row['품목명(요약)'];
+
+       const matchedPart = parts.find(p => p.code === pcodeRaw || (p.barcode && p.barcode === String(pcodeRaw))) || parts.find(p => p.name === pNameRaw);
+       if (!matchedPart && pNameRaw) {
+          missing.add(pNameRaw);
+       }
+    }
+
+    if (missing.size > 0) {
+      setMissingParts(Array.from(missing));
+      setMappingDialog(true);
+    } else {
+      uploadBatch({});
+    }
+  };
+
+  const uploadBatch = async (maps = mappingChoices) => {
     if (data.length === 0) return;
     setIsProcessing(true);
+    setMappingDialog(false);
     let successCount = 0;
     try {
       for (const row of data) {
-         // 공백 제거된 정규화 키를 바탕으로 다양한 헤더명 대응
          const orderDate = row['주문일자'] || row['주문일시'] || row['주문일'] || row['결제일'] || row['일자'] || row['전표일자'] || row['일자-No.'] || format(new Date(), 'yyyy-MM-dd');
          const customer = row['주문자'] || row['대리점명'] || row['고객명'] || row['대리점'] || row['수령인'] || row['거래처명'] || row['거래처'] || '공홈';
          const pName = row['상품명'] || row['품목명'] || row['부품명'] || row['품목명(규격)'] || row['품목명(요약)'];
          const pcode = row['매칭부품코드'] || row['부품코드'] || row['상품코드'] || row['품목코드'] || row['바코드'];
          
-         const matchedPart = parts.find(p => p.code === pcode || (p.barcode && p.barcode === String(pcode))) || parts.find(p => p.name === pName);
+         const matchedPart = parts.find(p => p.code === pcode || (p.barcode && p.barcode === String(pcode))) 
+           || parts.find(p => p.name === pName)
+           || (maps[pName] ? parts.find(p => p.id === maps[pName].id) : null);
+
          if (!matchedPart && !pName) continue;
 
          const qty = Number(row['수량'] || row['주문수량'] || 1);
@@ -323,7 +348,9 @@ function ExcelBatchUpload({ agencies, parts, setSnackbar }) {
                  
                  const pcodeRaw = row['매칭부품코드'] || row['부품코드'] || row['상품코드'] || row['품목코드'] || row['바코드'];
                  const pNameRaw = row['상품명'] || row['품목명'] || row['부품명'] || row['품목명(규격)'] || row['품목명(요약)'];
-                 const matchedPart = parts.find(p => p.code === pcodeRaw || (p.barcode && p.barcode === String(pcodeRaw))) || parts.find(p => p.name === pNameRaw);
+                 const matchedPart = parts.find(p => p.code === pcodeRaw || (p.barcode && p.barcode === String(pcodeRaw))) 
+                   || parts.find(p => p.name === pNameRaw)
+                   || (mappingChoices[pNameRaw] ? parts.find(p => p.id === mappingChoices[pNameRaw].id) : null);
                  const isMatch = !!matchedPart;
 
                  const pcode = pcodeRaw || '-';
@@ -350,13 +377,42 @@ function ExcelBatchUpload({ agencies, parts, setSnackbar }) {
                {data.length > 30 && <TableRow><TableCell colSpan={7} align="center">... 외 {data.length - 30}건</TableCell></TableRow>}
                {data.length === 0 && <TableRow><TableCell colSpan={7} align="center" sx={{ py: 3 }}>미리보기가 여기에 표시됩니다.</TableCell></TableRow>}
              </TableBody>
-          </Table>
+           </Table>
         </TableContainer>
-        <Box mt={2} display="flex" justifyContent="flex-end">
-           <Button variant="contained" color="primary" disabled={data.length === 0 || isProcessing} onClick={uploadBatch}>
-              {isProcessing ? '업로드 중...' : `${data.length}건 전체 등록하기`}
-           </Button>
-        </Box>
+
+        {/* 수동 매칭 팝업 */}
+        <Dialog open={mappingDialog} maxWidth="md" fullWidth onClose={() => setMappingDialog(false)}>
+          <DialogTitle>수동 매칭이 필요한 항목</DialogTitle>
+          <DialogContent dividers>
+            <Typography variant="body2" sx={{ mb: 3 }} color="textSecondary">
+              다음 항목들은 자동으로 부품을 찾지 못했습니다. 올바른 부품으로 선택해주시거나, 재고 차감이 필요 없으실 경우 "선택 안 함"으로 비워두시면 텍스트 이력으로만 기록됩니다.
+            </Typography>
+            {missingParts.map((rawName, idx) => (
+              <Box key={idx} sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <Typography sx={{ width: '40%', fontWeight: 'bold' }}>{rawName}</Typography>
+                <Autocomplete
+                  sx={{ width: '60%' }}
+                  options={parts}
+                  getOptionLabel={o => `${o.name} (${o.code})`}
+                  value={mappingChoices[rawName] || null}
+                  onChange={(e, val) => setMappingChoices(prev => ({ ...prev, [rawName]: val }))}
+                  renderInput={(params) => <TextField {...params} label="부품 연결" size="small" />}
+                  isOptionEqualToValue={(o, v) => o.id === v.id}
+                />
+              </Box>
+            ))}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setMappingDialog(false)}>취소</Button>
+            <Button 
+              variant="contained" 
+              onClick={() => uploadBatch(mappingChoices)}
+              disabled={isProcessing}
+            >
+              매칭 정보로 업로드 실행
+            </Button>
+          </DialogActions>
+        </Dialog>
     </Paper>
   );
 }
