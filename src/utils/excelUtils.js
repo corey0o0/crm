@@ -132,10 +132,25 @@ export const readExcelFile = async (file, options = {}) => {
     const jsonData = [];
     const headers = [];
 
-    // 헤더 행 처리 (기본적으로 첫 번째 행)
-    const headerRowNumber = options.headerRow || 1;
-    const headerRow = worksheet.getRow(headerRowNumber);
+    // 1~5행을 스캔하여 '주문' 또는 유효한 컬럼명이 가장 많은 행을 헤더로 자동 추정 (플랫폼별 타이틀 행 무시)
+    let headerRowNumber = options.headerRow || 1;
+    let maxHeaders = 0;
+    
+    if (!options.headerRow) {
+      for (let r = 1; r <= Math.min(5, worksheet.rowCount); r++) {
+        let count = 0;
+        let pRow = worksheet.getRow(r);
+        pRow.eachCell((cell) => {
+          if (cell.value && cell.value.toString().trim() !== '') count++;
+        });
+        if (count > maxHeaders) {
+          maxHeaders = count;
+          headerRowNumber = r;
+        }
+      }
+    }
 
+    const headerRow = worksheet.getRow(headerRowNumber);
     headerRow.eachCell((cell, colNumber) => {
       headers[colNumber] = cell.value ? cell.value.toString().trim() : `Column${colNumber}`;
     });

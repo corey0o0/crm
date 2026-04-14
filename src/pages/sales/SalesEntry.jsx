@@ -233,6 +233,7 @@ function ExcelBatchUpload({ agencies, parts, setSnackbar }) {
         }
         return newRow;
       });
+      console.log('📌 [엑셀 헤더 디버깅] 정제된 첫 번째 행의 키 목록:', Object.keys(normalized[0] || {}));
       setData(normalized);
     } catch (err) {
       setSnackbar({ open: true, message: '엑셀 파싱 실패', severity: 'error' });
