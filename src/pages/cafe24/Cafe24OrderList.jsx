@@ -1006,6 +1006,7 @@ export default function Cafe24OrderList() {
                       {showPriceDetails && <TableCell align="right">{Number(item.bundle_discount || item.discount_amount || 0).toLocaleString()}</TableCell>}
                       <TableCell align="right">{((Number(item.payment_amount === undefined ? (Number(item.price || 0) * Number(item.quantity || 1)) : item.payment_amount)) + (idx === 0 ? Number(order.shipping_fee || 0) : 0)).toLocaleString()}</TableCell>
                       {idx === 0 && <TableCell align="right" rowSpan={items.length}>{Number(order.shipping_fee || 0).toLocaleString()}</TableCell>}
+                      {idx === 0 && <TableCell align="right" rowSpan={items.length}>{displayUsedPoints.toLocaleString()}</TableCell>}
                       {idx === 0 && <TableCell align="right" rowSpan={items.length}>
                         <Box display="flex" alignItems="center" justifyContent="flex-end" gap={0.5}>
                           <strong>{Number(order.actual_payment_amount !== undefined && order.actual_payment_amount !== null ? order.actual_payment_amount : (order.total_amount || 0)).toLocaleString()}</strong>
