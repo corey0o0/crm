@@ -435,7 +435,9 @@ module.exports = function(supabaseAdmin) {
       const pg_payment = Number(order.payment_amount || 0);
       const actual_deposit = Number(order.deposit || (order.actual_order_amount && order.actual_order_amount.deposit) || 0);
       
-      const total_amount = pg_payment > 0 
+      const isFullPoints = Number(order.actual_order_amount?.order_price_amount) > 0 && pg_payment === 0 && actual_deposit === 0;
+
+      const total_amount = pg_payment > 0 || actual_deposit > 0 || isFullPoints
         ? (pg_payment + actual_deposit) 
         : ((order.actual_order_amount && order.actual_order_amount.order_price_amount) || order.total_order_price || 0);
       const shipping_fee = Number((order.actual_order_amount && order.actual_order_amount.shipping_fee) || 0);
@@ -596,157 +598,162 @@ module.exports = function(supabaseAdmin) {
         return res.json({ success: true, message: '전송할 유효한 주문이 없습니다.' });
       }
 
-      let transferCount = 0;
-
-      // 3. 각 주문별로 출고(매출) 분할 생성
-      for (const order of orders) {
-        const orderDateStr = order.order_date ? new Date(order.order_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-        const items = order.order_items || [];
-        
-        // 창고별로 아이템 그룹화
-        const itemsByWarehouse = {};
-        
-        items.forEach((item, index) => {
-          let wid = null;
-          if (warehouseConfig && warehouseConfig[order.id] && warehouseConfig[order.id][index]) {
-            wid = warehouseConfig[order.id][index];
+      // 3. 일괄 조회 (Bulk Fetch) 단계
+      const uniqueProductCodes = new Set();
+      orders.forEach(order => {
+        (order.order_items || []).forEach(item => {
+          if (!item.part_id) {
+            const pCode = item.custom_product_code || item.product_code || '';
+            if (pCode) uniqueProductCodes.add(String(pCode).trim());
           }
-          if (!wid) wid = 'DEFAULT';
-
-          if (!itemsByWarehouse[wid]) itemsByWarehouse[wid] = [];
-          itemsByWarehouse[wid].push(item);
         });
+      });
 
-        const warehouseIds = Object.keys(itemsByWarehouse);
-
-        for (const wid of warehouseIds) {
-          const wItems = itemsByWarehouse[wid];
-          const wName = warehouseMap[wid] || '기본창고';
-          const isCheongdam = wName.includes('청담');
-          
-          let totalQuantity = 0;
-          let totalPrice = 0;
-          let itemNames = [];
-          let brandName = 'XRB';
-
-          wItems.forEach(item => {
-            totalQuantity += Number(item.quantity || 1);
-            totalPrice += Number(item.payment_amount || (Number(item.price || 0) * Number(item.quantity || 1)));
-            itemNames.push(item.name);
-            if (item.name && item.name.includes('NB')) brandName = 'NB';
+      const partsCacheByCode = {};
+      const partsCacheById = {}; 
+      if (uniqueProductCodes.size > 0) {
+        // 500개씩 끊어서 조회 (PostgREST URL 길이 제한 방지)
+        const codesArray = Array.from(uniqueProductCodes);
+        for(let i=0; i<codesArray.length; i+=200) {
+          const { data: pData } = await supabaseAdmin.from('parts')
+            .select('id, code, supplier')
+            .in('code', codesArray.slice(i, i+200));
+          (pData || []).forEach(p => {
+            partsCacheByCode[String(p.code).trim()] = p;
+            partsCacheById[p.id] = p;
           });
-
-          // 배송비는 한 주문에서 첫 번째 분할 출고건에만 부과 (중복 방지)
-          if (warehouseIds.indexOf(wid) === 0) {
-            totalPrice += Number(order.shipping_fee || 0);
-          }
-
-          const productName = itemNames.length > 1 ? `${itemNames[0]} 외 ${itemNames.length - 1}건` : (itemNames[0] || '상품 없음');
-
-          // 항상 '완료' (즉시 출고) 처리
-          const transactionStatus = '완료';
-
-          const transactionsToInsert = [];
-          for (const item of wItems) {
-            let mappedPartId = item.part_id;
-            let productSupplier = 'NEARBIKE';
-            
-            if (!mappedPartId) {
-              const pCode = item.custom_product_code || item.product_code || '';
-              if (pCode) {
-                const { data: pData } = await supabaseAdmin.from('parts').select('id, supplier').eq('code', pCode).maybeSingle();
-                if (pData) {
-                  mappedPartId = pData.id;
-                  if (pData.supplier) productSupplier = pData.supplier;
-                }
-              }
-            } else {
-              const { data: pData } = await supabaseAdmin.from('parts').select('supplier').eq('id', mappedPartId).maybeSingle();
-              if (pData && pData.supplier) productSupplier = pData.supplier;
-            }
-
-            if (mappedPartId) {
-                transactionsToInsert.push({
-                 group_id: order.agency_id && !isNaN(order.agency_id) ? Number(order.agency_id) : null,
-                 type: 'out',
-                 product_id: mappedPartId,
-                 product_name: item.name,
-                 product_code: item.custom_product_code || item.product_code || '',
-                 product_supplier: productSupplier,
-                 quantity: Number(item.quantity || 1),
-                 to_location: String(order.agency_id || 'B2C'),
-                 from_location: wid !== 'DEFAULT' ? wid : 'NEARBIKE',
-                 date: orderDateStr,
-                 note: `[카페24 ${order.agency_id ? 'B2B 자동전송' : 'B2C 전송'}] 주문: ${order.order_id} (출고처:${wName})`,
-                 is_grouped: wItems.length > 1,
-                 status: transactionStatus
-               });
-            }
-          }
-
-          if (transactionsToInsert.length > 0) {
-            const { data: insertedTxs, error: txErr } = await supabaseAdmin.from('transactions').insert(transactionsToInsert).select();
-            if (txErr) console.error('[Transaction Insert Error]', txErr);
-
-            // 대기(pending_outbounds) 절차 생략하고 바로 재고 차감만 수행
-          }
-
-          // ** 모든 창고에 대해 재고 즉시 차감 로직 실행 **
-          if (wid !== 'DEFAULT') {
-            try {
-              for (const item of wItems) {
-                let mappedPartId = item.part_id;
-                if (!mappedPartId) {
-                  const pCode = item.custom_product_code || item.product_code || '';
-                  if (pCode) {
-                    const { data: pData } = await supabaseAdmin.from('parts').select('id').eq('code', pCode).maybeSingle();
-                    if (pData) mappedPartId = pData.id;
-                  }
-                }
-
-                if (mappedPartId) {
-                  const { data: currentInv } = await supabaseAdmin.from('inventory')
-                    .select('quantity')
-                    .eq('warehouse_id', wid)
-                    .eq('product_id', mappedPartId)
-                    .maybeSingle();
-                  
-                  const prevQty = currentInv ? currentInv.quantity : 0;
-                  const newQty = prevQty - Number(item.quantity || 1);
-
-                  await supabaseAdmin.from('inventory').upsert({
-                     warehouse_id: wid,
-                     product_id: mappedPartId,
-                     quantity: newQty,
-                     updated_at: new Date().toISOString()
-                  }, { onConflict: 'warehouse_id,product_id' });
-
-                  await supabaseAdmin.from('inventory_logs').insert({
-                     part_id: mappedPartId,
-                     part_name: item.name,
-                     part_code: item.custom_product_code || item.product_code || '',
-                     change_type: 'shipment_complete',
-                     quantity_change: -(Number(item.quantity || 1)),
-                     previous_quantity: prevQty,
-                     new_quantity: newQty,
-                     reference_id: order.id,
-                     reference_type: 'cafe24_order',
-                     notes: `온라인 주문 즉시 재고 차감 (주문번호: ${order.order_id})`
-                  });
-                }
-              }
-            } catch (invErr) {
-              console.error(`[Inventory Transfer Error] order: ${order.id}`, invErr);
-            }
-          }
-        } // end of warehouse split
-
-        // 상태 업데이트
-        await supabaseAdmin.from('cafe24_orders').update({ is_transferred: true }).eq('id', order.id);
-        transferCount++;
+        }
       }
 
-      res.json({ success: true, message: `${transferCount}건 분할 전송(출고/차감) 완료` });
+      // 필수적으로 쓰일 트랜잭션과 인벤토리 정보 집계
+      const requiredInventoryKeys = new Set(); // FORMAT: 'warehouseId_partId'
+      const itemsToDeduct = [];
+
+      orders.forEach(order => {
+        const items = order.order_items || [];
+        items.forEach((item, index) => {
+          let wid = (warehouseConfig && warehouseConfig[order.id] && warehouseConfig[order.id][index]) || 'DEFAULT';
+          
+          let mappedPartId = item.part_id;
+          if (!mappedPartId) {
+            const pCode = item.custom_product_code || item.product_code || '';
+            if (pCode && partsCacheByCode[String(pCode).trim()]) {
+              mappedPartId = partsCacheByCode[String(pCode).trim()].id;
+            }
+          }
+
+          if (mappedPartId) {
+             const supplier = partsCacheById[mappedPartId]?.supplier || 'NEARBIKE';
+             itemsToDeduct.push({ order, item, wid, mappedPartId, supplier });
+             if (wid !== 'DEFAULT') {
+               requiredInventoryKeys.add(`${wid}_${mappedPartId}`);
+             }
+          }
+        });
+      });
+
+      // 일괄 재고 조회 (현재 재고)
+      const currentInventoryMap = {}; 
+      if (requiredInventoryKeys.size > 0) {
+        const wIds = Array.from(new Set(Array.from(requiredInventoryKeys).map(k => k.split('_')[0])));
+        const pIds = Array.from(new Set(Array.from(requiredInventoryKeys).map(k => k.split('_')[1])));
+        
+        let invDataArray = [];
+        for(let w=0; w<wIds.length; w+=100) {
+          for(let p=0; p<pIds.length; p+=100) {
+             const { data: invData } = await supabaseAdmin.from('inventory')
+               .select('warehouse_id, product_id, quantity')
+               .in('warehouse_id', wIds.slice(w, w+100))
+               .in('product_id', pIds.slice(p, p+100));
+             if (invData) invDataArray = invDataArray.concat(invData);
+          }
+        }
+        invDataArray.forEach(row => {
+           currentInventoryMap[`${row.warehouse_id}_${row.product_id}`] = row.quantity;
+        });
+      }
+
+      // 4. 일괄 데이터 준비 (메모리 연산)
+      const transactionsToInsert = [];
+      const inventoryLogsToInsert = [];
+      const inventoryToUpsertMap = {}; 
+      
+      itemsToDeduct.forEach(({ order, item, wid, mappedPartId, supplier }) => {
+         const orderDateStr = order.order_date ? new Date(order.order_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+         const wName = warehouseMap[wid] || '기본창고';
+         
+         transactionsToInsert.push({
+            group_id: order.agency_id && !isNaN(order.agency_id) ? Number(order.agency_id) : null,
+            type: 'out',
+            product_id: mappedPartId,
+            product_name: item.name,
+            product_code: item.custom_product_code || item.product_code || '',
+            product_supplier: supplier,
+            quantity: Number(item.quantity || 1),
+            to_location: String(order.agency_id || 'B2C'),
+            from_location: wid !== 'DEFAULT' ? wid : 'NEARBIKE',
+            date: orderDateStr,
+            note: `[카페24 ${order.agency_id ? 'B2B 자동전송' : 'B2C 전송'}] 주문: ${order.order_id} (출고처:${wName})`,
+            is_grouped: (order.order_items || []).length > 1,
+            status: '완료'
+         });
+
+         if (wid !== 'DEFAULT') {
+            const invKey = `${wid}_${mappedPartId}`;
+            // 누적 계산을 위해 map에 들어있는 최신 개수 확인
+            let prevQty = currentInventoryMap[invKey] || 0;
+            if (inventoryToUpsertMap[invKey] !== undefined) {
+               prevQty = inventoryToUpsertMap[invKey].quantity;
+            }
+            
+            const newQty = prevQty - Number(item.quantity || 1);
+            
+            inventoryToUpsertMap[invKey] = {
+               warehouse_id: wid,
+               product_id: mappedPartId,
+               quantity: newQty,
+               updated_at: new Date().toISOString()
+            };
+
+            inventoryLogsToInsert.push({
+               part_id: mappedPartId,
+               part_name: item.name,
+               part_code: item.custom_product_code || item.product_code || '',
+               change_type: 'shipment_complete',
+               quantity_change: -(Number(item.quantity || 1)),
+               previous_quantity: prevQty,
+               new_quantity: newQty,
+               reference_id: order.id,
+               reference_type: 'cafe24_order',
+               notes: `온라인 주문 즉시 재고 차감 (주문번호: ${order.order_id})`
+            });
+         }
+      });
+
+      // 5. DB 일괄 업데이트 실행 (Bulk Execution)
+      if (transactionsToInsert.length > 0) {
+        for (let i = 0; i < transactionsToInsert.length; i += 500) {
+           await supabaseAdmin.from('transactions').insert(transactionsToInsert.slice(i, i + 500));
+        }
+      }
+
+      const invUpsertArray = Object.values(inventoryToUpsertMap);
+      if (invUpsertArray.length > 0) {
+        for (let i = 0; i < invUpsertArray.length; i += 500) {
+           await supabaseAdmin.from('inventory').upsert(invUpsertArray.slice(i, i + 500), { onConflict: 'warehouse_id,product_id' });
+        }
+      }
+
+      if (inventoryLogsToInsert.length > 0) {
+        for (let i = 0; i < inventoryLogsToInsert.length; i += 500) {
+           await supabaseAdmin.from('inventory_logs').insert(inventoryLogsToInsert.slice(i, i + 500));
+        }
+      }
+
+      // 최종 상태 변경
+      await supabaseAdmin.from('cafe24_orders').update({ is_transferred: true }).in('id', orderIds);
+
+      res.json({ success: true, message: `${orders.length}건 일괄 전송(출고/차감) 완료` });
     } catch (e) {
       console.error('[Transfer Error]', e);
       res.status(500).json({ error: e.message });

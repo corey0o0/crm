@@ -4,7 +4,7 @@ import {
   TableHead, TableRow, Chip, CircularProgress, Alert, Stack, Dialog, DialogTitle,
   DialogContent, DialogActions, Autocomplete, TextField, Tabs, Tab, Select, MenuItem, FormControl, InputLabel, Checkbox, IconButton, Tooltip, InputAdornment, TablePagination, ToggleButton, ToggleButtonGroup
 } from '@mui/material';
-import { Sync as SyncIcon, PersonAdd as PersonAddIcon, Search as SearchIcon } from '@mui/icons-material';
+import { Sync as SyncIcon, PersonAdd as PersonAddIcon, Search as SearchIcon, Edit as EditIcon } from '@mui/icons-material';
 import Cafe24Settings from '../../components/Settings/Cafe24Settings';
 import { supabase } from '../../lib/supabaseClient';
 import { getCafe24Malls, syncCafe24Orders, addCafe24ProductMapping, transferCafe24Orders, cancelSalesTransfer } from '../../utils/cafe24Api';
@@ -114,6 +114,12 @@ export default function Cafe24OrderList() {
   const [selectedOrderForAgencyMatch, setSelectedOrderForAgencyMatch] = useState(null);
   const [selectedAgency, setSelectedAgency] = useState(null);
   const [agencyMatchSaving, setAgencyMatchSaving] = useState(false);
+
+  // 금액 수정 모달 상태
+  const [amountEditModalOpen, setAmountEditModalOpen] = useState(false);
+  const [amountEditOrder, setAmountEditOrder] = useState(null);
+  const [newAmount, setNewAmount] = useState('');
+  const [amountEditSaving, setAmountEditSaving] = useState(false);
 
   useEffect(() => {
     fetchMalls();
@@ -641,6 +647,32 @@ export default function Cafe24OrderList() {
     }
   };
 
+  const handleOpenAmountEditModal = (order) => {
+    setAmountEditOrder(order);
+    const currentVal = order.actual_payment_amount !== undefined && order.actual_payment_amount !== null ? order.actual_payment_amount : (order.total_amount || 0);
+    setNewAmount(currentVal);
+    setAmountEditModalOpen(true);
+  };
+
+  const handleSaveAmount = async () => {
+    if (!amountEditOrder) return;
+    setAmountEditSaving(true);
+    try {
+      const { error } = await supabase.from('cafe24_orders')
+        .update({ total_amount: Number(newAmount), actual_payment_amount: Number(newAmount) })
+        .eq('id', amountEditOrder.id);
+        
+      if (error) throw error;
+      
+      setAmountEditModalOpen(false);
+      fetchOrders();
+    } catch (err) {
+      alert('금액 수정 중 오류가 발생했습니다: ' + err.message);
+    } finally {
+      setAmountEditSaving(false);
+    }
+  };
+
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h5" fontWeight="bold" sx={{ mb: 2 }}>온라인주문관리</Typography>
@@ -974,8 +1006,16 @@ export default function Cafe24OrderList() {
                       {showPriceDetails && <TableCell align="right">{Number(item.bundle_discount || item.discount_amount || 0).toLocaleString()}</TableCell>}
                       <TableCell align="right">{((Number(item.payment_amount === undefined ? (Number(item.price || 0) * Number(item.quantity || 1)) : item.payment_amount)) + (idx === 0 ? Number(order.shipping_fee || 0) : 0)).toLocaleString()}</TableCell>
                       {idx === 0 && <TableCell align="right" rowSpan={items.length}>{Number(order.shipping_fee || 0).toLocaleString()}</TableCell>}
-                      {idx === 0 && <TableCell align="right" rowSpan={items.length}>{displayUsedPoints > 0 ? `-${displayUsedPoints.toLocaleString()}` : '0'}</TableCell>}
-                      {idx === 0 && <TableCell align="right" rowSpan={items.length}><strong>{Number(order.actual_payment_amount !== undefined && order.actual_payment_amount !== null ? order.actual_payment_amount : (order.total_amount || 0)).toLocaleString()}</strong></TableCell>}
+                      {idx === 0 && <TableCell align="right" rowSpan={items.length}>
+                        <Box display="flex" alignItems="center" justifyContent="flex-end" gap={0.5}>
+                          <strong>{Number(order.actual_payment_amount !== undefined && order.actual_payment_amount !== null ? order.actual_payment_amount : (order.total_amount || 0)).toLocaleString()}</strong>
+                          {!order.is_transferred && (
+                            <IconButton size="small" onClick={() => handleOpenAmountEditModal(order)} title="금액 직접 수정">
+                              <EditIcon fontSize="small" color="action" />
+                            </IconButton>
+                          )}
+                        </Box>
+                      </TableCell>}
                       <TableCell>
                         {erpCode || (needsMapping ? <Chip size="small" label="미스매칭" color="warning" /> : '-')}
                       </TableCell>
@@ -1186,6 +1226,32 @@ export default function Cafe24OrderList() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* 금액 직접 수정 모달 */}
+      <Dialog open={amountEditModalOpen} onClose={() => setAmountEditModalOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>실결제액 수정 ({amountEditOrder?.order_id})</DialogTitle>
+        <DialogContent>
+          <Box pt={1}>
+            <Typography variant="body2" color="text.secondary" mb={2}>
+              마일리지/포인트 100% 결제 또는 연동 오류로 인해 계산된 실결제액이 잘못된 경우, 여기서 강제로 수정할 수 있습니다. 수정한 결제액은 매출 통계에 즉시 반영됩니다.
+            </Typography>
+            <TextField 
+              fullWidth 
+              label="총 실결제액 (원)" 
+              type="number"
+              value={newAmount} 
+              onChange={e => setNewAmount(e.target.value)} 
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAmountEditModalOpen(false)}>취소</Button>
+          <Button variant="contained" onClick={handleSaveAmount} disabled={amountEditSaving}>
+            {amountEditSaving ? <CircularProgress size={24} /> : '저장'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
     </Box>
   );
 }
