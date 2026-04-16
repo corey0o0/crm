@@ -31,6 +31,9 @@ function SalesHistory() {
   const [editOpen, setEditOpen] = useState(false);
   const [editTarget, setEditTarget] = useState({ id: null, type: null });
 
+  // 공급가/부가세 표시 토글
+  const [showTaxDetails, setShowTaxDetails] = useState(false);
+
   // 페이지네이션
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(30);
@@ -85,16 +88,62 @@ function SalesHistory() {
       return `${prefix}-${(id || '').toString().slice(0, 8).toUpperCase()}`;
     };
 
-    const [shipRes, asRes, cafeRes, whRes] = await Promise.all([
+    const [shipRes, asRes, cafeRes, whRes, partsRes] = await Promise.all([
       shipQuery,
       asQuery,
       cafeQuery,
-      supabase.from('warehouses').select('id, name')
+      supabase.from('warehouses').select('id, name'),
+      supabase.from('parts').select('id, code, barcode, name, note, brand')
     ]);
 
     // 사전 창고 맵 생성
     const warehouseMap = {};
     (whRes.data || []).forEach(w => { warehouseMap[w.id] = w.name; });
+
+    const formatCategory = (cat) => {
+      if (!cat) return '기타';
+      if (cat === '파츠') return '부품';
+      return cat;
+    };
+
+    const partsMap = {};
+    const partsByCode = {};
+    const partsBrandMap = {};
+    const partsBrandByCode = {};
+
+    (partsRes.data || []).forEach(p => {
+      const cat = formatCategory(p.note);
+      const brand = p.brand || '-';
+      if (p.name) {
+        partsMap[p.name] = cat;
+        partsBrandMap[p.name] = brand;
+      }
+      if (p.code) {
+        partsByCode[p.code] = cat;
+        partsBrandByCode[p.code] = brand;
+      }
+      if (p.barcode) {
+        partsByCode[p.barcode] = cat;
+        partsBrandByCode[p.barcode] = brand;
+      }
+    });
+
+    const resolveCategory = (name, code = '') => {
+      if (code && partsByCode[code]) return partsByCode[code];
+      if (name && partsMap[name]) return partsMap[name];
+      const n = (name || '').toLowerCase();
+      if (n.includes('교환') || n.includes('수리') || n.includes('공임') || n.includes('출장') || n.includes('작업')) return '공임';
+      if (n.includes('자전거') || n.includes('기체') || n.includes('완차') || n.includes('스쿠터')) return '기체';
+      if (code && (code.startsWith('XRBP') || code.startsWith('NBP'))) return '부품';
+      if (code && (code.startsWith('XRBS') || code.startsWith('NBS'))) return '공임';
+      return '기타';
+    };
+
+    const resolveBrand = (name, code = '') => {
+      if (code && partsBrandByCode[code]) return partsBrandByCode[code];
+      if (name && partsBrandMap[name]) return partsBrandMap[name];
+      return '-';
+    };
 
     if (shipRes.error) console.error('Ship error:', shipRes.error);
     if (asRes.error) console.error('A/S error:', asRes.error);
@@ -134,6 +183,25 @@ function SalesHistory() {
       }
     }
 
+    // A/S 출고 시 발생한 transactions 를 통해 실 출고 창고 역추적
+    const serviceTxMap = {};
+    if (asIds.length > 0) {
+      const { data: txData, error: txErr } = await supabase
+        .from('transactions')
+        .select('group_id, product_id, from_location')
+        .in('group_id', asIds.map(String))
+        .eq('type', 'out');
+      
+      if (!txErr && txData) {
+        txData.forEach(tx => {
+           serviceTxMap[tx.group_id] = tx.from_location;
+           if (tx.product_id) {
+             serviceTxMap[`${tx.group_id}_${tx.product_id}`] = tx.from_location;
+           }
+        });
+      }
+    }
+
     const rows = [];
 
     // 출고 건 → 품목 단위로 펼치기
@@ -151,11 +219,15 @@ function SalesHistory() {
         order_no: orderNo,
       };
       if (parts.length === 0) {
-        rows.push({ ...baseFields, _id: `ship_${s.id}_none`, part_name: '(품목 미기재)', quantity: 0, unit_price: 0, total_price: Number(s.price || 0) });
+        rows.push({ ...baseFields, _id: `ship_${s.id}_none`, part_name: '(품목 미기재)', part_category: '기타', quantity: 0, unit_price: 0, total_price: Number(s.price || 0) });
       } else {
         parts.forEach((p, idx) => {
           const total = Number(p.total_price || (Number(p.price || 0) * Number(p.quantity || 1)));
-          rows.push({ ...baseFields, _id: `ship_${s.id}_${p.id || idx}`, part_name: p.part_name || '상품', quantity: Number(p.quantity || 1), unit_price: Number(p.price || 0), total_price: total });
+          const pName = p.part_name || '상품';
+          const pCode = p.part_code || '';
+          const cat = resolveCategory(pName, pCode);
+          const brand = resolveBrand(pName, pCode);
+          rows.push({ ...baseFields, _id: `ship_${s.id}_${p.id || idx}`, part_name: pName, part_category: cat, part_brand: brand, quantity: Number(p.quantity || 1), unit_price: Number(p.price || 0), total_price: total });
         });
       }
     });
@@ -163,15 +235,18 @@ function SalesHistory() {
     // A/S 건 → 품목 단위로 펼치기
     (asRes.data || []).forEach(s => {
       const parts = servicePartsMap[s.id] || [];
-      const agencyName = s.agencies?.name || 'A/S센터';
+      const agencyName = s.agencies?.name || '고객';
       const orderNo = parseOrderNo(s.note, s.id, 'AS');
+      
+      const fallbackWhId = serviceTxMap[String(s.id)];
+      const fallbackWhName = fallbackWhId && warehouseMap[fallbackWhId] ? warehouseMap[fallbackWhId] : '청담본점'; // A/S는 기본 청담
+
       const baseFields = {
         _orderId: s.id, _type: 'service',
         date_val: s.completion_date || s.reception_date,
         customer_name: s.customer_name || '-',
         sales_channel: agencyName,
         note: s.note || '',
-        warehouse_name: 'A/S센터',
         order_no: orderNo,
       };
       if (parts.length > 0) {
@@ -180,7 +255,16 @@ function SalesHistory() {
           const qty = Number(sp.quantity || 1);
           const total = unitPrice * qty;
           if (total > 0) {
-            rows.push({ ...baseFields, _id: `as_${s.id}_${sp.id || idx}`, part_name: sp.parts?.name || '부품', quantity: qty, unit_price: unitPrice, total_price: total });
+            const pName = sp.parts?.name || '부품';
+            const cat = resolveCategory(pName);
+            const brand = resolveBrand(pName);
+            
+            let wid = serviceTxMap[`${s.id}_${sp.part_id}`];
+            if (!wid) wid = fallbackWhId;
+            let itemWarehouseName = fallbackWhName;
+            if (wid && warehouseMap[wid]) itemWarehouseName = warehouseMap[wid];
+
+            rows.push({ ...baseFields, warehouse_name: itemWarehouseName, _id: `as_${s.id}_${sp.id || idx}`, part_name: pName, part_category: cat, part_brand: brand, quantity: qty, unit_price: unitPrice, total_price: total });
           }
         });
       }
@@ -203,19 +287,30 @@ function SalesHistory() {
       };
 
       if (items.length === 0) {
-        rows.push({ ...baseFields, warehouse_name: fallbackWarehouseName, _id: `cafe_${o.id}_none`, part_name: '(품목 미기재)', quantity: 0, unit_price: 0, total_price: Number(o.total_amount || 0) });
+        rows.push({ ...baseFields, warehouse_name: fallbackWarehouseName, _id: `cafe_${o.id}_none`, part_name: '(품목 미기재)', part_category: '기타', part_brand: '-', quantity: 0, unit_price: 0, total_price: Number(o.total_amount || 0) });
       } else {
         items.forEach((item, idx) => {
           const itemCode = item.custom_product_code || item.product_code || '';
-          let wid = cafeWarehouseMap[`${o.id}_${itemCode}`];
+          let wid = item._warehouse_id || cafeWarehouseMap[`${o.id}_${itemCode}`];
           if (!wid) wid = fallbackWid;
-          const itemWarehouseName = wid && warehouseMap[wid] ? warehouseMap[wid] : '온라인출고';
+          
+          let itemWarehouseName = '온라인출고';
+          if (wid === 'DEFAULT') itemWarehouseName = '청담본점';
+          else if (wid && warehouseMap[wid]) itemWarehouseName = warehouseMap[wid];
+          
+          const pName = item.product_name || item.name || '상품';
+          const itemQty = Number(item.quantity || 1);
+          const iPrice = Number(item.product_price || item.price || 0);
+          let shipFee = 0;
+          if (idx === 0) {
+            shipFee = Number(o.shipping_fee || 0);
+            if (o.points_spent) shipFee -= Number(o.points_spent);
+          }
+          const total = (iPrice * itemQty) + shipFee;
+          const cat = resolveCategory(pName, itemCode);
+          const brand = resolveBrand(pName, itemCode);
 
-          const qty = Number(item.quantity || 1);
-          // product_price or price
-          const price = Number(item.product_price || item.price || 0);
-          const total = qty * price;
-          rows.push({ ...baseFields, warehouse_name: itemWarehouseName, _id: `cafe_${o.id}_${idx}`, part_name: item.product_name || item.name || '상품', quantity: qty, unit_price: price, total_price: total });
+          rows.push({ ...baseFields, warehouse_name: itemWarehouseName, _id: `cafe_${o.id}_${idx}`, part_name: pName, part_category: cat, part_brand: brand, quantity: itemQty, unit_price: iPrice, unit_shipping_fee: shipFee, total_price: total });
         });
       }
     });
@@ -332,7 +427,7 @@ function SalesHistory() {
               <MenuItem value="all">전체보기</MenuItem>
               <MenuItem value="cafe24">온라인주문</MenuItem>
               <MenuItem value="shipment">매장출고</MenuItem>
-              <MenuItem value="service">A/S건</MenuItem>
+              <MenuItem value="service">A/S</MenuItem>
             </Select>
           </FormControl>
           <TextField
@@ -362,6 +457,15 @@ function SalesHistory() {
           <Button variant="outlined" color="secondary" onClick={() => { setStartDate(null); setEndDate(null); setSearchTerm(''); setFilterType('all'); }}>
             초기화
           </Button>
+          <Box sx={{ flexGrow: 1 }} />
+          <Button 
+            variant="text" 
+            color="primary" 
+            onClick={() => setShowTaxDetails(!showTaxDetails)}
+            sx={{ fontWeight: 'bold' }}
+          >
+            {showTaxDetails ? '공급가/부가세 숨기기' : '공급가/부가세 보기'}
+          </Button>
         </Box>
       </Paper>
 
@@ -370,21 +474,24 @@ function SalesHistory() {
         <Table size="small">
           <TableHead>
             <TableRow sx={{ bgcolor: '#3f51b5' }}>
-              {['일자', '구분', '고객명/거래처명', '출고창고', '주문번호', '품목명', '수량', '단가', '공급가액', '부가세', '합계'].map(h => (
-                <TableCell key={h} sx={{ color: 'white', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{h}</TableCell>
+              {['일자', '구분', '고객명/거래처명', '출고창고', '주문번호', '품목구분', '브랜드', '품목명', '수량', '단가'].map(h => (
+                <TableCell key={h} sx={{ color: 'white', fontWeight: 'bold', whiteSpace: 'nowrap', textAlign: h === '출고창고' || h === '주문번호' || h === '품목구분' || h === '브랜드' ? 'center' : 'left' }}>{h}</TableCell>
               ))}
+              {showTaxDetails && <TableCell sx={{ color: 'white', fontWeight: 'bold', whiteSpace: 'nowrap', textAlign: 'right' }}>공급가액</TableCell>}
+              {showTaxDetails && <TableCell sx={{ color: 'white', fontWeight: 'bold', whiteSpace: 'nowrap', textAlign: 'right' }}>부가세</TableCell>}
+              <TableCell sx={{ color: 'white', fontWeight: 'bold', whiteSpace: 'nowrap', textAlign: 'right' }}>합계</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={12} align="center" sx={{ py: 5 }}>
+                <TableCell colSpan={showTaxDetails ? 13 : 11} align="center" sx={{ py: 5 }}>
                   <CircularProgress size={28} />
                 </TableCell>
               </TableRow>
             ) : paginated.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={12} align="center" sx={{ py: 5 }}>조회된 판매 내역이 없습니다.</TableCell>
+                <TableCell colSpan={showTaxDetails ? 13 : 11} align="center" sx={{ py: 5 }}>조회된 판매 내역이 없습니다.</TableCell>
               </TableRow>
             ) : (
               paginated.map((row, idx) => {
@@ -392,12 +499,12 @@ function SalesHistory() {
                 if (row._isMonthSummary) {
                   return (
                     <TableRow key={`month_${row._month}_${idx}`} sx={{ bgcolor: '#e8eaf6' }}>
-                      <TableCell colSpan={6} sx={{ fontWeight: 'bold', color: '#3f51b5' }}>{row._month} 계</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold' }}>{row.qty.toLocaleString()}</TableCell>
+                      <TableCell colSpan={8} sx={{ fontWeight: 'bold', color: '#3f51b5', textAlign: 'center' }}>{row._month} 계</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', textAlign: 'right' }}>{row.qty.toLocaleString()}</TableCell>
                       <TableCell></TableCell>
-                      <TableCell sx={{ fontWeight: 'bold' }}>{row.supply.toLocaleString()}</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold' }}>{row.vat.toLocaleString()}</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', color: '#1565c0' }}>{row.total.toLocaleString()}</TableCell>
+                      {showTaxDetails && <TableCell sx={{ fontWeight: 'bold', textAlign: 'right' }}>{row.supply.toLocaleString()}</TableCell>}
+                      {showTaxDetails && <TableCell sx={{ fontWeight: 'bold', textAlign: 'right' }}>{row.vat.toLocaleString()}</TableCell>}
+                      <TableCell align="right" sx={{ fontWeight: 'bold', color: '#1565c0' }}>{row.total.toLocaleString()}</TableCell>
                     </TableRow>
                   );
                 }
@@ -405,6 +512,10 @@ function SalesHistory() {
                 const { supply, vat } = calcVAT(row.total_price);
                 const isService = row._type === 'service';
                 const isCafe = row._type === 'cafe24';
+                const catColor = {
+                  bg: row.part_category === '기체' ? '#e3f2fd' : row.part_category === '부품' ? '#f3e5f5' : row.part_category === '공임' ? '#e8f5e9' : '#f5f5f5',
+                  text: row.part_category === '기체' ? '#1976d2' : row.part_category === '부품' ? '#7b1fa2' : row.part_category === '공임' ? '#2e7d32' : '#616161'
+                };
 
                 return (
                   <TableRow
@@ -419,7 +530,7 @@ function SalesHistory() {
                     <TableCell>
                       <Chip
                         size="small"
-                        label={isCafe ? '온라인주문' : (isService ? 'A/S건' : '매장출고')}
+                        label={isCafe ? '온라인주문' : (isService ? 'A/S' : '매장출고')}
                         color={isCafe ? 'success' : (isService ? 'warning' : 'primary')}
                         variant="outlined"
                       />
@@ -432,13 +543,26 @@ function SalesHistory() {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell sx={{ fontSize: '0.8rem', color: 'text.secondary' }}>{row.warehouse_name}</TableCell>
-                    <TableCell sx={{ fontSize: '0.78rem', color: '#1565c0', whiteSpace: 'nowrap' }}>{row.order_no}</TableCell>
-                    <TableCell>{row.part_name}</TableCell>
+                    <TableCell align="center" sx={{ fontSize: '0.8rem', color: 'text.secondary' }}>{row.warehouse_name}</TableCell>
+                    <TableCell align="center" sx={{ fontSize: '0.78rem', color: '#1565c0', whiteSpace: 'nowrap' }}>{row.order_no}</TableCell>
+                    <TableCell align="center">
+                      <Chip 
+                        size="small" 
+                        label={row.part_category} 
+                        sx={{ bgcolor: catColor.bg, color: catColor.text, fontWeight: 'bold', minWidth: 50 }}
+                      />
+                    </TableCell>
+                    <TableCell align="center" sx={{ whiteSpace: 'nowrap', color: '#555' }}>
+                      {row.part_brand || '-'}
+                    </TableCell>
+                    <TableCell sx={{ minWidth: 150 }}>
+                      <Typography variant="body2">{row.part_name}</Typography>
+                      {row.unit_shipping_fee > 0 && <Typography variant="caption" color="textSecondary">배송비 포함</Typography>}
+                    </TableCell>
                     <TableCell align="right">{Number(row.quantity).toLocaleString()}</TableCell>
                     <TableCell align="right">{Number(row.unit_price).toLocaleString()}</TableCell>
-                    <TableCell align="right">{supply.toLocaleString()}</TableCell>
-                    <TableCell align="right">{vat.toLocaleString()}</TableCell>
+                    {showTaxDetails && <TableCell align="right">{supply.toLocaleString()}</TableCell>}
+                    {showTaxDetails && <TableCell align="right">{vat.toLocaleString()}</TableCell>}
                     <TableCell align="right" sx={{ fontWeight: 'bold' }}>
                       {Number(row.total_price).toLocaleString()}
                     </TableCell>
@@ -450,11 +574,11 @@ function SalesHistory() {
             {/* 전체 합계 푸터 */}
             {!loading && filtered.length > 0 && (
               <TableRow sx={{ bgcolor: '#fff3e0', '& td': { fontWeight: 'bold', fontSize: '0.9rem' } }}>
-                <TableCell colSpan={6} align="right" sx={{ color: 'text.secondary' }}>총합계</TableCell>
+                <TableCell colSpan={7} align="right" sx={{ color: 'text.secondary' }}>총합계</TableCell>
                 <TableCell align="right">{totalQty.toLocaleString()}</TableCell>
                 <TableCell></TableCell>
-                <TableCell align="right">{totalSupply.toLocaleString()}</TableCell>
-                <TableCell align="right">{totalVat.toLocaleString()}</TableCell>
+                {showTaxDetails && <TableCell align="right">{totalSupply.toLocaleString()}</TableCell>}
+                {showTaxDetails && <TableCell align="right">{totalVat.toLocaleString()}</TableCell>}
                 <TableCell align="right" sx={{ color: '#c62828', fontSize: '1rem' }}>
                   {totalAmt.toLocaleString()}
                 </TableCell>

@@ -750,8 +750,14 @@ module.exports = function(supabaseAdmin) {
         }
       }
 
-      // 최종 상태 변경
-      await supabaseAdmin.from('cafe24_orders').update({ is_transferred: true }).in('id', orderIds);
+      // 최종 상태 변경 (개별 order_items에 _warehouse_id 기록)
+      for (const order of orders) {
+        const updatedItems = (order.order_items || []).map((item, index) => {
+          const wid = (warehouseConfig && warehouseConfig[order.id] && warehouseConfig[order.id][index]) || 'DEFAULT';
+          return { ...item, _warehouse_id: wid };
+        });
+        await supabaseAdmin.from('cafe24_orders').update({ is_transferred: true, order_items: updatedItems }).eq('id', order.id);
+      }
 
       res.json({ success: true, message: `${orders.length}건 일괄 전송(출고/차감) 완료` });
     } catch (e) {

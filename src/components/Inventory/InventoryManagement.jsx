@@ -35,7 +35,8 @@ import {
   Pagination,
   InputAdornment,
   Popover,
-  Checkbox
+  Checkbox,
+  Tooltip
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -778,7 +779,7 @@ function InventoryManagement() {
             productId: parseInt(item.product.id, 10),
             productName: item.product.name,
             productCode: item.product.code || null,
-            productSupplier: item.product.supplier || 'NEARBIKE',
+            productSupplier: item.product.supplier || '-',
             quantity: parseInt(item.quantity, 10) || 0,
             fromLocation: item.fromLocation || null,
             toLocation: item.toLocation || null,
@@ -804,7 +805,7 @@ function InventoryManagement() {
           productId: parseInt(item.product?.id ?? selectedTransaction.productId, 10),
           productName: item.product?.name ?? selectedTransaction.productName,
           productCode: item.product?.code ?? selectedTransaction.productCode ?? null,
-          productSupplier: item.product?.supplier ?? selectedTransaction.productSupplier ?? 'NEARBIKE',
+          productSupplier: item.product?.supplier ?? selectedTransaction.productSupplier ?? '-',
           quantity: parseInt(item.quantity ?? selectedTransaction.quantity, 10) || 0,
           fromLocation: item.fromLocation ?? selectedTransaction.fromLocation ?? null,
           toLocation: item.toLocation ?? selectedTransaction.toLocation ?? null,
@@ -1005,7 +1006,7 @@ function InventoryManagement() {
         productId: parseInt(item.productId),
         productName: product.name,
         productCode: product.code,
-        productSupplier: product.supplier || 'NEARBIKE',
+        productSupplier: product.supplier || '-',
         quantity: parseInt(item.quantity),
         fromLocation: isOutbound ? item.fromLocation : (item.fromLocation || '외부'),
         toLocation: item.toLocation,
@@ -1320,7 +1321,7 @@ function InventoryManagement() {
           productId: parseInt(product.id),
           productName: product.name,
           productCode: product.code,
-          productSupplier: product.supplier || 'NEARBIKE',
+          productSupplier: product.supplier || '-',
           quantity: item.quantity,
           fromLocation: item.fromLocation || (isInbound ? '외부' : ''),
           toLocation: item.toLocation,
@@ -2800,7 +2801,31 @@ function InventoryManagement() {
                           )}
                         </TableCell>
                         <TableCell>
-                          {group.items.length === 1 ? group.items[0].productName : `${group.items.length}개 상품`}
+                          {group.items.length === 1 ? (
+                            group.items[0].productName
+                          ) : (
+                            <Tooltip
+                              title={
+                                <Box sx={{ p: 0.5 }}>
+                                  {group.items.map((item, i) => (
+                                    <Typography key={i} variant="body2" sx={{ fontSize: '0.8rem' }}>
+                                      • {item.productName} ({item.quantity}개)
+                                    </Typography>
+                                  ))}
+                                </Box>
+                              }
+                              arrow
+                              placement="top"
+                            >
+                              <Typography variant="body2" sx={{ cursor: 'pointer', display: 'inline-block', borderBottom: '1px dashed #999' }}>
+                                {(() => {
+                                  const names = group.items.slice(0, 3).map(i => i.productName).join(', ');
+                                  if (group.items.length <= 3) return names;
+                                  return `${names} 외 ${group.items.length - 3}개`;
+                                })()}
+                              </Typography>
+                            </Tooltip>
+                          )}
                         </TableCell>
                         <TableCell align="center">{group.items.length}</TableCell>
                         <TableCell align="center">{group.items.length === 1 ? group.items[0].quantity : group.items.reduce((sum, item) => sum + item.quantity, 0)}</TableCell>
@@ -3546,7 +3571,7 @@ function InventoryManagement() {
                         <Autocomplete
                           fullWidth
                           options={products}
-                          getOptionLabel={(option) => `${option.name} (${option.code}) [${option.supplier || 'NEARBIKE'}]`}
+                          getOptionLabel={(option) => `${option.name} (${option.code}) [${option.supplier || '-'}]`}
                           value={products.find(p => p.id === product.productId) || null}
                           onChange={(event, value) => 
                           updateIoProductRow(product.id, 'productId', value?.id || '')
@@ -3570,9 +3595,9 @@ function InventoryManagement() {
                                       const isOutbound = warehouses.find(w => w.id === srcId);
                                       if (isOutbound) {
                                         const available = (inventory[srcId]?.[option.id]) || 0;
-                                        return `${option.code} • ${option.category} • ${option.supplier || 'NEARBIKE'} • ${option.price?.toLocaleString()}원 • 출발지 재고 ${available}개`;
+                                        return `${option.code} • ${option.category} • ${option.supplier || '-'} • ${option.price?.toLocaleString()}원 • 출발지 재고 ${available}개`;
                                       }
-                                      return `${option.code} • ${option.category} • ${option.supplier || 'NEARBIKE'} • ${option.price?.toLocaleString()}원`;
+                                      return `${option.code} • ${option.category} • ${option.supplier || '-'} • ${option.price?.toLocaleString()}원`;
                                     })()}
                                   </Typography>
                               </Box>
@@ -3581,7 +3606,7 @@ function InventoryManagement() {
                           renderInput={(params) => (
                             <TextField
                               {...params}
-                            label={`상품 선택 ${products.find(p => p.id === product.productId) ? `[${products.find(p => p.id === product.productId)?.supplier || 'NEARBIKE'}]` : ''}`}
+                            label={`상품 선택 ${products.find(p => p.id === product.productId) ? `[${products.find(p => p.id === product.productId)?.supplier || '-'}]` : ''}`}
                               required
                               fullWidth
                               size="small"
@@ -3992,25 +4017,32 @@ function InventoryManagement() {
                       </Box>
                     </Box>
                   ) : (
-                    // 읽기 모드: 경계선 없는 테이블 표시
-                    <TableContainer component={Box} sx={{ mt: 2 }}>
-                      <Table size="small" sx={{ '& td, & th': { border: 0 } }}>
+                    // 읽기 모드: 표준 디자인 테이블 표시
+                    <TableContainer component={Paper} variant="outlined" sx={{ mt: 2 }}>
+                      <Table size="small">
                         <TableHead>
-                          <TableRow>
-                            <TableCell>상품명</TableCell>
-                            <TableCell>브랜드</TableCell>
-                            <TableCell>바코드</TableCell>
-                            <TableCell align="center">수량</TableCell>
-                            <TableCell>출발지</TableCell>
-                            <TableCell>목적지</TableCell>
-                            <TableCell>메모</TableCell>
+                          <TableRow sx={{ bgcolor: '#f8f9fa' }}>
+                            <TableCell sx={{ fontWeight: 'bold' }}>상품명</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>브랜드</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>바코드</TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 'bold' }}>수량</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>출발지</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>목적지</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>메모</TableCell>
                           </TableRow>
                         </TableHead>
                         <TableBody>
                           {selectedTransaction.items.map((item, index) => (
-                            <TableRow key={index}>
+                            <TableRow key={index} hover>
                               <TableCell>{item.productName}</TableCell>
-                              <TableCell>{item.productSupplier || 'NEARBIKE'}</TableCell>
+                              <TableCell>
+                                {(() => {
+                                  const p = products.find(prod => prod.id === item.productId || prod.code === item.productCode);
+                                  const dbBrand = p ? p.supplier : null;
+                                  const txBrand = item.productSupplier && item.productSupplier !== 'NEARBIKE' ? item.productSupplier : null;
+                                  return dbBrand || txBrand || '-';
+                                })()}
+                              </TableCell>
                               <TableCell>{item.productCode}</TableCell>
                               <TableCell align="center">{item.quantity}</TableCell>
                               <TableCell>

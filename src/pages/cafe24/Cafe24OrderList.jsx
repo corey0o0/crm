@@ -209,6 +209,40 @@ export default function Cafe24OrderList() {
     }
   };
 
+  // DB에 갓 불러온 orders 데이터의 is_transferred 가 true인 경우,
+  // order_items 내부에 있는 _warehouse_id 를 읽어서 warehouseConfig에 세팅해줍니다.
+  useEffect(() => {
+    if (!orders || orders.length === 0) return;
+    
+    setWarehouseConfig(prev => {
+      const newConfig = { ...prev };
+      let changed = false;
+
+      // "청담"이나 "본점", "기본" 단어가 포함된 창고를 DEFAULT 매핑용으로 탐색
+      const defaultWh = warehouses.find(w => w.name.includes('청담') || w.name.includes('본점') || w.name.includes('NEARBIKE'));
+
+      orders.forEach(o => {
+        if (o.is_transferred && o.order_items) {
+          o.order_items.forEach((item, idx) => {
+            if (item._warehouse_id) {
+              if (!newConfig[o.id]) newConfig[o.id] = {};
+              
+              let wid = item._warehouse_id;
+              if (wid === 'DEFAULT' && defaultWh) wid = defaultWh.id;
+              else if (wid === 'DEFAULT') wid = '';
+
+              if (newConfig[o.id][idx] !== wid) {
+                newConfig[o.id][idx] = wid;
+                changed = true;
+              }
+            }
+          });
+        }
+      });
+      return changed ? newConfig : prev;
+    });
+  }, [orders, warehouses]);
+
   const handleSync = async () => {
     if (malls.length === 0) {
       alert('연동된 카페24 쇼핑몰이 없습니다. 설정 메뉴에서 쇼핑몰을 연동해주세요.');
