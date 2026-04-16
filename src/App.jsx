@@ -44,6 +44,7 @@ import ShipmentDetail from './pages/shipment/ShipmentDetail';
 import ShipmentForm from './pages/shipment/ShipmentForm';
 import SalesEntry from './pages/sales/SalesEntry';
 import SalesHistory from './pages/sales/SalesHistory';
+import SalesHistoryStats from './components/Stats/SalesHistoryStats';
 import AgencyManagement from './pages/agency/AgencyManagement';
 import AdminTools from './pages/admin/AdminTools';
 import BoardList from './pages/board/BoardList';
@@ -118,6 +119,7 @@ function AppRouter() {
           <Route path="service/analysis" element={<ServiceAnalysis />} />
           <Route path="service/:id" element={<ServiceDetail />} />
           <Route path="sales/stats" element={<SalesStats />} />
+          <Route path="sales/history-stats" element={<SalesHistoryStats />} />
           <Route path="online/stats" element={<OnlineStats />} />
           <Route path="stocks" element={<StockList />} />
           <Route path="stats/service" element={<ServiceStats />} />

@@ -294,6 +294,7 @@ function Layout() {
       path: '', 
       key: 'stats',
       children: [
+        { text: '판매현황 통계', icon: <BarChartIcon />, path: '/sales/history-stats', key: 'sales_history_stats' },
         { text: '매장 매출 통계', icon: <BarChartIcon />, path: '/sales/stats', key: 'sales_stats' },
         { text: '온라인 통계', icon: <BarChartIcon />, path: '/online/stats', key: 'online_stats' }
       ]
