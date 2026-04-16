@@ -57,7 +57,7 @@ function SalesHistory() {
     let asQuery = supabase
       .from('services')
       .select('id, reception_date, completion_date, customer_name, status, note')
-      .in('status', ['처리중', '완료', '수령대기', '결제대기', '수령완료', '출고완료'])
+      .ilike('status', '%완료%')
       .order('completion_date', { ascending: false })
       .limit(800);
     if (startDate) {
@@ -254,7 +254,7 @@ function SalesHistory() {
           const unitPrice = Number(sp.parts?.price || 0);
           const qty = Number(sp.quantity || 1);
           const total = unitPrice * qty;
-          if (total > 0) {
+          if (qty > 0) {
             const pName = sp.parts?.name || '부품';
             const cat = resolveCategory(pName);
             const brand = resolveBrand(pName);
