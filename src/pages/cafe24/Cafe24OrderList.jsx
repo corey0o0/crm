@@ -756,10 +756,10 @@ export default function Cafe24OrderList() {
                     전체 내역 <Chip label={transferCounts.all} size="small" sx={{ ml: 1, height: 20, fontSize: '0.75rem' }} color={transferFilter === 'all' ? "primary" : "default"} />
                   </ToggleButton>
                   <ToggleButton value="not_transferred" sx={{ px: 2 }}>
-                    미전송 <Chip label={transferCounts.not_transferred} size="small" sx={{ ml: 1, height: 20, fontSize: '0.75rem' }} color={transferFilter === 'not_transferred' ? "warning" : "default"} />
+                    반영 전 <Chip label={transferCounts.not_transferred} size="small" sx={{ ml: 1, height: 20, fontSize: '0.75rem' }} color={transferFilter === 'not_transferred' ? "warning" : "default"} />
                   </ToggleButton>
                   <ToggleButton value="transferred" sx={{ px: 2 }}>
-                    전송완료 <Chip label={transferCounts.transferred} size="small" sx={{ ml: 1, height: 20, fontSize: '0.75rem' }} color={transferFilter === 'transferred' ? "success" : "default"} />
+                    반영 완료 <Chip label={transferCounts.transferred} size="small" sx={{ ml: 1, height: 20, fontSize: '0.75rem' }} color={transferFilter === 'transferred' ? "success" : "default"} />
                   </ToggleButton>
                 </ToggleButtonGroup>
 

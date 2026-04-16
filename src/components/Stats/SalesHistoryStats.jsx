@@ -184,6 +184,12 @@ function SalesHistoryStats() {
     // 온라인 건
     (cafeRes.data || []).forEach(o => {
       const items = o.order_items || [];
+      const fallbackWid = cafeWarehouseMap[o.id];
+
+      // "반영 예외(무시)" 처리된 건은 통계에서 제외
+      const hasWarehouseInfo = items.some(item => item._warehouse_id) || fallbackWid;
+      if (!hasWarehouseInfo) return;
+
       const baseFields = {
         _type: 'cafe24', date_val: o.order_date, sales_channel: '온라인주문',
       };
