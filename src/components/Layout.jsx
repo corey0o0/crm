@@ -267,7 +267,7 @@ function Layout() {
       key: 'sales',
       children: [
         { text: 'A/S 관리', icon: <BuildIcon />, path: '/services', key: 'services' },
-        { text: '매장출고관리(B2C)', icon: <LocalShippingIcon />, path: '/shipment', key: 'shipment' },
+        { text: '매장출고관리', icon: <LocalShippingIcon />, path: '/shipment', key: 'shipment' },
         { text: '온라인주문관리', icon: <ShoppingCartOutlinedIcon />, path: '/cafe24/orders', key: 'cafe24_orders' },
         { text: '출고 대기', icon: <CalendarTodayIcon />, path: '/inventory-management?tab=outbound_scan', key: 'outbound_scan' },
         { text: '수기 판매 관리', icon: <LocalShippingIcon />, path: '/sales/manual', key: 'manual_sales' },
