@@ -430,7 +430,7 @@ export default function Cafe24OrderList() {
           setSelectedOrders([]);
           setWarehouseConfig(prev => {
             const next = { ...prev };
-            ordersToTransfer.forEach(o => delete next[o.id]);
+            // ordersToTransfer.forEach(o => delete next[o.id]); // 상태 유지
             return next;
           });
           fetchOrders();
@@ -475,7 +475,7 @@ export default function Cafe24OrderList() {
           setAlertDialog({ open: true, title: '성공', message: '전송이 완료되었습니다.' });
           setWarehouseConfig(prev => {
             const next = { ...prev };
-            delete next[order.id];
+            // delete next[order.id]; // 상태 유지 (화면 깜빡임 방지)
             return next;
           });
           fetchOrders();
@@ -1075,7 +1075,7 @@ export default function Cafe24OrderList() {
                       <TableCell>
                         <FormControl size="small" fullWidth sx={{ minWidth: 100 }} error={!order.is_transferred && !(warehouseConfig[order.id] && warehouseConfig[order.id][idx])}>
                            <Select 
-                              value={(warehouseConfig[order.id] && warehouseConfig[order.id][idx]) || ''}
+                              value={(warehouseConfig[order.id] && warehouseConfig[order.id][idx] !== undefined) ? String(warehouseConfig[order.id][idx]) : ''}
                               onChange={e => setWarehouseConfig(prev => ({
                                 ...prev,
                                 [order.id]: {
@@ -1088,7 +1088,7 @@ export default function Cafe24OrderList() {
                               sx={{ fontSize: '0.8rem', height: 28 }}
                            >
                              <MenuItem value="" disabled><em>선택안됨</em></MenuItem>
-                             {warehouses.map(w => <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>)}
+                             {warehouses.map(w => <MenuItem key={w.id} value={String(w.id)}>{w.name}</MenuItem>)}
                            </Select>
                         </FormControl>
                       </TableCell>
