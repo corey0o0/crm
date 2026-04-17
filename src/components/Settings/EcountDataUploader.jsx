@@ -301,6 +301,7 @@ export default function EcountDataUploader() {
                  <TableRow>
                    <TableCell>주문날짜</TableCell>
                    <TableCell>거래처(고객명)</TableCell>
+                   <TableCell>메모/주문번호</TableCell>
                    <TableCell>출고창고</TableCell>
                    <TableCell>상세 품목 (상품명, 코드, 수량)</TableCell>
                    <TableCell align="right">합산금액</TableCell>
@@ -312,6 +313,11 @@ export default function EcountDataUploader() {
                    <TableRow key={idx} sx={{ bgcolor: row.isDuplicate ? '#ffebee' : 'inherit' }}>
                      <TableCell>{row.order_date}</TableCell>
                      <TableCell>{row.customer_name}</TableCell>
+                     <TableCell>
+                       <Typography variant="body2" color="textSecondary" sx={{ fontSize: '0.75rem', maxWidth: 150 }} noWrap title={row.note}>
+                         {row.note || '-'}
+                       </Typography>
+                     </TableCell>
                      <TableCell>
                        {manualWarehouseId ? 
                          <Typography variant="body2" color="primary">{warehouses.find(w => w.id === manualWarehouseId)?.name || '지정됨'}</Typography> : 
