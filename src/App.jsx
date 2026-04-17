@@ -21,6 +21,7 @@ import ServiceDetail from './components/Service/ServiceDetail';
 import ServiceStatistics from './components/Statistics/ServiceStatistics';
 import PartsManagement from './components/Service/PartsManagement';
 import ProductShipment from './components/Product/ProductShipment';
+import ManualSalesList from './pages/sales/ManualSalesList';
 import ReceiptScanner from './components/Receipt/ReceiptScanner';
 import SystemHealthCheck from './components/Test/SystemHealthCheck';
 import TelegramTest from './components/Test/TelegramTest';
@@ -147,6 +148,10 @@ function AppRouter() {
           {/* 출고/판매 관리 */}
           <Route path="sales/entry" element={<SalesEntry />} />
           <Route path="sales/history" element={<SalesHistory />} />
+          <Route path="sales/manual" element={<ManualSalesList />} />
+          <Route path="sales/manual/new" element={<ShipmentForm isManualB2B={true} />} />
+          <Route path="sales/manual/edit/:id" element={<ShipmentForm isManualB2B={true} />} />
+          
           <Route path="pending-orders" element={<PendingOrderList />} />
           <Route path="pending-orders/:id" element={<PendingOrderDetail />} />
         </Route>

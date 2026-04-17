@@ -81,6 +81,7 @@ export const MENU_KEYS = {
   SALES: 'sales',
   SALES_ENTRY: 'sales_entry',
   SALES_HISTORY: 'sales_history',
+  MANUAL_SALES: 'manual_sales',
   ONLINE_STATS: 'online_stats',
   SALES_HISTORY_STATS: 'sales_history_stats'
 };

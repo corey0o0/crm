@@ -87,7 +87,7 @@ const calculateTotal = (part) => {
 // ... 기존 import 위에 추가
 const TEMP_KEY = 'shipmentFormTemp';
 
-function ShipmentForm() {
+function ShipmentForm({ isManualB2B = false }) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
@@ -99,10 +99,10 @@ function ShipmentForm() {
     order_date: new Date().toISOString().split('T')[0],
     shipment_date: new Date().toISOString().split('T')[0],
     status: '준비중',
-    delivery_method: '택배',
+    delivery_method: isManualB2B ? '수기판매' : '택배',
     tracking_number: '',
-    note: '',
-    sales_channel: '공홈',
+    note: isManualB2B ? '[B2B수기판매] ' : '',
+    sales_channel: isManualB2B ? '[B2B수기]' : '공홈',
     warehouse_id: ''
   });
 
@@ -702,9 +702,9 @@ function ShipmentForm() {
 
       setTimeout(() => {
         if (submitActionRef.current === 'detail' && shipmentId) {
-          navigate(`/shipment/${shipmentId}`);
+          navigate(isManualB2B ? `/sales/manual` : `/shipment/${shipmentId}`);
         } else {
-          navigate('/shipment');
+          navigate(isManualB2B ? '/sales/manual' : '/shipment');
         }
       }, 1500);
 
@@ -724,10 +724,10 @@ function ShipmentForm() {
   const handleBack = () => {
     if (hasUnsavedChanges) {
       if (window.confirm('저장하지 않은 변경사항이 있습니다. 정말 나가시겠습니까?')) {
-        navigate('/shipment');
+        navigate(isManualB2B ? '/sales/manual' : '/shipment');
       }
     } else {
-      navigate('/shipment');
+      navigate(isManualB2B ? '/sales/manual' : '/shipment');
     }
   };
 
@@ -1350,7 +1350,7 @@ function ShipmentForm() {
       </Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h5">
-          {isEditMode ? '출고 정보 수정' : '신규 출고 등록'}
+          {isManualB2B ? (isEditMode ? '수기 판매 전표 수정 (B2B)' : '새 수기 판매 전표 작성 (B2B)') : (isEditMode ? '출고 정보 수정' : '신규 출고 등록')}
         </Typography>
         <Box>
           {isEditMode ? (

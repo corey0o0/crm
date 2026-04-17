@@ -256,7 +256,6 @@ export const fetchShipments = async (options = {}) => {
     filters.push(`brand=eq.${encodeURIComponent(selectedBrand)}`);
   }
 
-  // 날짜 필터 적용
   if (dateFilter.startDate && dateFilter.endDate) {
     const startDate = dateFilter.startDate;
     const endDate = dateFilter.endDate;
@@ -269,6 +268,10 @@ export const fetchShipments = async (options = {}) => {
       filters.push(`shipment_date=lte.${endDate}`);
     }
   }
+
+  // B2B 수기판매 및 과거 매출 데이터는 B2C 출고 목록에서 제외
+  filters.push(`sales_channel=neq.${encodeURIComponent('과거 이카운트 이관')}`);
+  filters.push(`sales_channel=neq.${encodeURIComponent('[B2B수기]')}`);
 
   if (filters.length > 0) {
     filter = filters.join('&');
@@ -318,6 +321,10 @@ export const countShipments = async (options = {}) => {
       filters.push(`shipment_date=lte.${endDate}`);
     }
   }
+
+  // B2B 수기판매 및 과거 매출 데이터는 B2C 출고 목록에서 제외
+  filters.push(`sales_channel=neq.${encodeURIComponent('과거 이카운트 이관')}`);
+  filters.push(`sales_channel=neq.${encodeURIComponent('[B2B수기]')}`);
 
   if (filters.length > 0) {
     filter = filters.join('&');
