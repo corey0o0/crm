@@ -188,6 +188,11 @@ export default function EcountDataUploader() {
          const isAgency = agencies.some(a => a.name === item.customer_name || item.customer_name.includes(a.name) || a.name.includes(item.customer_name));
          const finalSalesChannel = isAgency ? item.customer_name : '과거 이카운트 이관';
 
+         // 상품명 요약 생성
+         const summaryProductName = item.parts && item.parts.length > 0 
+           ? (item.parts.length === 1 ? item.parts[0].part_name : `${item.parts[0].part_name} 외 ${item.parts.length - 1}건`)
+           : '품목 없음';
+
          // 1. Shipment 기록 생성
          const shipmentData = {
            brand: item.brand,
@@ -195,6 +200,7 @@ export default function EcountDataUploader() {
            shipment_date: item.order_date,
            status: '출고완료',
            customer_name: item.customer_name,
+           product_name: summaryProductName,
            note: `[과거 이카운트 이관] ${item.note}`,
            sales_channel: finalSalesChannel, // 대리점 여부에 따라 자동 적용
            price: item.total_price,
