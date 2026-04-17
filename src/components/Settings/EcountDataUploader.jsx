@@ -262,6 +262,7 @@ export default function EcountDataUploader() {
                  <TableRow>
                    <TableCell>주문날짜</TableCell>
                    <TableCell>거래처(고객명)</TableCell>
+                   <TableCell>상세 품목 (상품명, 코드, 수량)</TableCell>
                    <TableCell align="right">합산금액</TableCell>
                    <TableCell>상태</TableCell>
                  </TableRow>
@@ -271,6 +272,13 @@ export default function EcountDataUploader() {
                    <TableRow key={idx} sx={{ bgcolor: row.isDuplicate ? '#ffebee' : 'inherit' }}>
                      <TableCell>{row.order_date}</TableCell>
                      <TableCell>{row.customer_name}</TableCell>
+                     <TableCell>
+                       {row.parts && row.parts.map((p, i) => (
+                         <Typography key={i} variant="body2" sx={{ fontSize: '0.75rem' }}>
+                           • {p.part_name} <span style={{ color: '#666' }}>[{p.part_code || '미지정'}]</span> : <b>{p.quantity}개</b>
+                         </Typography>
+                       ))}
+                     </TableCell>
                      <TableCell align="right">{row.total_price.toLocaleString()}원</TableCell>
                      <TableCell>
                        {row.isDuplicate ? 
