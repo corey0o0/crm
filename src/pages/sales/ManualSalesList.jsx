@@ -19,7 +19,17 @@ export default function ManualSalesList() {
   
   const navigate = useNavigate();
 
+  const [warehouses, setWarehouses] = useState([]);
+
   // B2B 수기판매 전표 식별 조건: '과거 이카운트 이관'이거나 메모/채널에 'B2B수기판매' 등 포함
+  useEffect(() => {
+    async function loadWarehouses() {
+      const { data } = await supabase.from('warehouses').select('id, name');
+      if (data) setWarehouses(data);
+    }
+    loadWarehouses();
+  }, []);
+
   useEffect(() => {
     fetchManualSales();
   }, [page, rowsPerPage]);
@@ -114,6 +124,7 @@ export default function ManualSalesList() {
             <TableRow sx={{ bgcolor: '#f5f5f5' }}>
               <TableCell>주문/출고일자</TableCell>
               <TableCell>거래처(요청채널)</TableCell>
+              <TableCell>출고처(창고)</TableCell>
               <TableCell>대표 품목</TableCell>
               <TableCell align="right">금액</TableCell>
               <TableCell align="center">상태</TableCell>
@@ -135,6 +146,11 @@ export default function ManualSalesList() {
                   <TableCell>
                     <Typography variant="body2" fontWeight="bold">{s.customer_name}</Typography>
                     {s.sales_channel && <Typography variant="caption" color="text.secondary">{s.sales_channel}</Typography>}
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" color="text.secondary">
+                      {s.warehouse_id ? (warehouses.find(w => w.id === s.warehouse_id)?.name || '알 수 없는 창고') : '-'}
+                    </Typography>
                   </TableCell>
                   <TableCell>{partCount > 1 ? `${repPart} 외 ${partCount - 1}건` : repPart}</TableCell>
                   <TableCell align="right">{Number(s.price || 0).toLocaleString()}원</TableCell>
