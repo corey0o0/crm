@@ -209,11 +209,20 @@ function SalesHistory() {
       const parts = s.shipment_parts || [];
       const warehouseName = (s.warehouse_id && warehouseMap[s.warehouse_id]) || '-';
       const orderNo = parseOrderNo(s.note, s.id, 'SHP');
+      let extractedChannel = s.sales_channel && s.sales_channel !== '-' ? s.sales_channel : '-';
+      if (extractedChannel === '-' && s.note) {
+         const match = s.note.match(/\[판매처:\s*(.*?)\]/);
+         if (match && match[1]) {
+             extractedChannel = match[1].trim();
+         }
+      }
+      if (extractedChannel === '-') extractedChannel = '일반출고(공홈)';
+
       const baseFields = {
         _orderId: s.id, _type: 'shipment',
         date_val: s.order_date,
         customer_name: s.customer_name || '-',
-        sales_channel: s.sales_channel || '-',
+        sales_channel: extractedChannel,
         note: s.note || '',
         warehouse_name: warehouseName,
         order_no: orderNo,
@@ -479,7 +488,7 @@ function SalesHistory() {
         <Table size="small">
           <TableHead>
             <TableRow sx={{ bgcolor: '#3f51b5' }}>
-              {['일자', '구분', '고객명/거래처명', '출고창고', '주문번호', '품목구분', '브랜드', '품목명', '수량', '단가'].map(h => (
+              {['일자', '구분', '채널(대리점)', '고객명/수령인', '출고창고', '주문번호', '품목구분', '브랜드', '품목명', '수량', '단가'].map(h => (
                 <TableCell key={h} sx={{ color: 'white', fontWeight: 'bold', whiteSpace: 'nowrap', textAlign: h === '출고창고' || h === '주문번호' || h === '품목구분' || h === '브랜드' ? 'center' : 'left' }}>{h}</TableCell>
               ))}
               {showTaxDetails && <TableCell sx={{ color: 'white', fontWeight: 'bold', whiteSpace: 'nowrap', textAlign: 'right' }}>공급가액</TableCell>}
@@ -490,13 +499,13 @@ function SalesHistory() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={showTaxDetails ? 13 : 11} align="center" sx={{ py: 5 }}>
+                <TableCell colSpan={showTaxDetails ? 14 : 12} align="center" sx={{ py: 5 }}>
                   <CircularProgress size={28} />
                 </TableCell>
               </TableRow>
             ) : paginated.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={showTaxDetails ? 13 : 11} align="center" sx={{ py: 5 }}>조회된 판매 내역이 없습니다.</TableCell>
+                <TableCell colSpan={showTaxDetails ? 14 : 12} align="center" sx={{ py: 5 }}>조회된 판매 내역이 없습니다.</TableCell>
               </TableRow>
             ) : (
               paginated.map((row, idx) => {
@@ -504,7 +513,7 @@ function SalesHistory() {
                 if (row._isMonthSummary) {
                   return (
                     <TableRow key={`month_${row._month}_${idx}`} sx={{ bgcolor: '#e8eaf6' }}>
-                      <TableCell colSpan={8} sx={{ fontWeight: 'bold', color: '#3f51b5', textAlign: 'center' }}>{row._month} 계</TableCell>
+                      <TableCell colSpan={9} sx={{ fontWeight: 'bold', color: '#3f51b5', textAlign: 'center' }}>{row._month} 계</TableCell>
                       <TableCell sx={{ fontWeight: 'bold', textAlign: 'right' }}>{row.qty.toLocaleString()}</TableCell>
                       <TableCell></TableCell>
                       {showTaxDetails && <TableCell sx={{ fontWeight: 'bold', textAlign: 'right' }}>{row.supply.toLocaleString()}</TableCell>}
@@ -540,12 +549,12 @@ function SalesHistory() {
                         variant="outlined"
                       />
                     </TableCell>
+                    <TableCell sx={{ fontSize: '0.85rem', color: '#1976d2', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                       {row.sales_channel && row.sales_channel !== '-' && row.sales_channel !== '온라인주문' ? row.sales_channel : (isCafe ? '온라인몰' : '본사/기본')}
+                    </TableCell>
                     <TableCell sx={{ fontWeight: 500 }}>
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
                         <span>{row.customer_name}</span>
-                        {row.sales_channel && row.sales_channel !== '-' && row.sales_channel !== '온라인주문' && (
-                          <span style={{ fontSize: '0.73rem', color: '#6b7280', fontWeight: 'normal' }}>{row.sales_channel}</span>
-                        )}
                       </div>
                     </TableCell>
                     <TableCell align="center" sx={{ fontSize: '0.8rem', color: 'text.secondary' }}>{row.warehouse_name}</TableCell>
@@ -579,7 +588,7 @@ function SalesHistory() {
             {/* 전체 합계 푸터 */}
             {!loading && filtered.length > 0 && (
               <TableRow sx={{ bgcolor: '#fff3e0', '& td': { fontWeight: 'bold', fontSize: '0.9rem' } }}>
-                <TableCell colSpan={7} align="right" sx={{ color: 'text.secondary' }}>총합계</TableCell>
+                <TableCell colSpan={9} align="right" sx={{ color: 'text.secondary' }}>총합계</TableCell>
                 <TableCell align="right">{totalQty.toLocaleString()}</TableCell>
                 <TableCell></TableCell>
                 {showTaxDetails && <TableCell align="right">{totalSupply.toLocaleString()}</TableCell>}
