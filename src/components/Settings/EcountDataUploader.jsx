@@ -66,7 +66,7 @@ export default function EcountDataUploader() {
         const qty = Number(row['수량'] || 1);
         const price = Number(row['단가'] || 0);
         const total = Number(row['합계'] || (qty * price));
-        const xlWarehouseName = row['출하창고'] || row['창고'] || row['출고지'] || '';
+        const xlWarehouseName = row['창고명'] || row['출하창고'] || row['창고'] || row['출고지'] || '';
         const noteInfo = `[주문:${row['주문번호'] || ''}] [프로젝트:${row['프로젝트명'] || ''}]`;
 
         // 날짜 추출 (YYYY-MM-DD-No 에서 앞 3 덩어리)
