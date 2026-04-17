@@ -18,14 +18,19 @@ export default function EcountDataUploader() {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [warehouses, setWarehouses] = useState([]);
   const [manualWarehouseId, setManualWarehouseId] = useState('');
+  const [agencies, setAgencies] = useState([]);
   const { user } = useAuth();
 
   React.useEffect(() => {
-    async function fetchWarehouses() {
-      const { data } = await supabase.from('warehouses').select('id, name');
-      if (data) setWarehouses(data);
+    async function fetchBaseData() {
+      const [{ data: wData }, { data: aData }] = await Promise.all([
+        supabase.from('warehouses').select('id, name'),
+        supabase.from('agencies').select('id, name')
+      ]);
+      if (wData) setWarehouses(wData);
+      if (aData) setAgencies(aData);
     }
-    fetchWarehouses();
+    fetchBaseData();
   }, []);
 
   const handleFileChange = async (e) => {
@@ -179,6 +184,10 @@ export default function EcountDataUploader() {
     try {
       // 청크 단위 삽입 대신, 안정성을 위해 하나씩 또는 소규모 청크로 Insert 진행
       for (const item of toUpload) {
+         // 대리점 고객인 경우 판매처를 대리점 이름으로 할당 (B2B 출고 인식용)
+         const isAgency = agencies.some(a => a.name === item.customer_name || item.customer_name.includes(a.name) || a.name.includes(item.customer_name));
+         const finalSalesChannel = isAgency ? item.customer_name : '과거 이카운트 이관';
+
          // 1. Shipment 기록 생성
          const shipmentData = {
            brand: item.brand,
@@ -187,7 +196,7 @@ export default function EcountDataUploader() {
            status: '출고완료',
            customer_name: item.customer_name,
            note: `[과거 이카운트 이관] ${item.note}`,
-           sales_channel: '과거 이카운트 이관', // 신규 통계 분리를 위함
+           sales_channel: finalSalesChannel, // 대리점 여부에 따라 자동 적용
            price: item.total_price,
            warehouse_id: manualWarehouseId || item.excel_warehouse_id || null
          };
