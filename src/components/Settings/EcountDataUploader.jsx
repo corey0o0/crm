@@ -120,7 +120,7 @@ export default function EcountDataUploader() {
       // 전체 기존 데이터 중복 검사를 위한 쿼리
       const { data: existingShipments, error: dbError } = await supabase
         .from('shipments')
-        .select('order_date, customer_name, total_price')
+        .select('order_date, customer_name, price')
         .eq('status', '출고완료');
 
       if (dbError) throw dbError;
@@ -131,7 +131,7 @@ export default function EcountDataUploader() {
          const isDup = existingShipments.some(existing => 
             existing.order_date === item.order_date &&
             existing.customer_name === item.customer_name &&
-            Number(existing.total_price || 0) === Number(item.total_price)
+            Number(existing.price || 0) === Number(item.total_price)
          );
          item.isDuplicate = isDup;
          if (isDup) dupCount++;
