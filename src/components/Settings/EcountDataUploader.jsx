@@ -195,7 +195,6 @@ export default function EcountDataUploader() {
              shipment_id: shipmentId,
              part_name: p.part_name,
              part_code: p.part_code || '',
-             part_category: p.part_category, // 코드 기반으로 매핑된 정확한 카테고리 적용
              quantity: p.quantity,
              price: p.price,
              total_price: p.total_price
