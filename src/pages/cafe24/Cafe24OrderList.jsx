@@ -919,7 +919,6 @@ export default function Cafe24OrderList() {
               <TableCell align="right"><strong>총결제액</strong></TableCell>
               <TableCell><strong>품목코드(ERP)</strong></TableCell>
               <TableCell><strong>품목명(ERP)</strong></TableCell>
-              <TableCell><strong>배송메시지</strong></TableCell>
               <TableCell><strong>출고창고(필수)</strong></TableCell>
               <TableCell><strong>판매전송</strong></TableCell>
             </TableRow>
@@ -1070,11 +1069,6 @@ export default function Cafe24OrderList() {
                           ) : '-'
                         )}
                       </TableCell>
-                      {idx === 0 && (
-                        <TableCell sx={{ maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={order.shipping_message} rowSpan={items.length}>
-                          {order.shipping_message || '-'}
-                        </TableCell>
-                      )}
                       <TableCell>
                         <FormControl size="small" fullWidth sx={{ minWidth: 100 }} error={!order.is_transferred && !(warehouseConfig[order.id] && warehouseConfig[order.id][idx])}>
                            <Select 
