@@ -1,18 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Paper, Grid, Card, CardContent, CircularProgress,
-  FormControl, Select, MenuItem, InputLabel, Button, Divider, TextField
+  FormControl, Select, MenuItem, InputLabel, Button, Divider, TextField,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  Tabs, Tab, ButtonGroup
 } from '@mui/material';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ko } from 'date-fns/locale';
-import { startOfMonth, endOfMonth, format } from 'date-fns';
+import { startOfMonth, endOfMonth, format, startOfYear, endOfYear, getWeek, startOfWeek } from 'date-fns';
 import { supabase } from '../../lib/supabaseClient';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line
 } from 'recharts';
 import SearchIcon from '@mui/icons-material/Search';
+import AssessmentIcon from '@mui/icons-material/Assessment';
 
 const COLORS = ['#1976d2', '#2e7d32', '#ed6c02', '#9c27b0', '#d32f2f', '#0288d1', '#7b1fa2'];
 
@@ -23,6 +26,13 @@ function SalesHistoryStats() {
   const [endDate, setEndDate] = useState(endOfMonth(new Date()));
   const [filterType, setFilterType] = useState('all');
   const [filterBrand, setFilterBrand] = useState('전체');
+  const [tabValue, setTabValue] = useState(0);
+
+  const handleSetYear = () => {
+    const today = new Date();
+    setStartDate(startOfYear(today));
+    setEndDate(endOfYear(today));
+  };
 
   useEffect(() => {
     fetchSales();
@@ -145,7 +155,7 @@ function SalesHistoryStats() {
     (shipRes.data || []).forEach(s => {
       const parts = s.shipment_parts || [];
       const baseFields = {
-        _type: 'shipment', date_val: s.order_date, sales_channel: s.sales_channel || '매장출고',
+        _type: 'shipment', date_val: s.order_date, sales_channel: s.sales_channel || '매장출고', customer_name: s.customer_name || '-'
       };
       if (parts.length === 0) {
         rows.push({ ...baseFields, part_category: '기타', part_brand: '-', quantity: 0, total_price: Number(s.price || 0) });
@@ -164,7 +174,7 @@ function SalesHistoryStats() {
       const parts = servicePartsMap[s.id] || [];
       const agencyName = s.agencies?.name || 'A/S수리';
       const baseFields = {
-        _type: 'service', date_val: s.completion_date || s.reception_date, sales_channel: agencyName,
+        _type: 'service', date_val: s.completion_date || s.reception_date, sales_channel: agencyName, customer_name: s.customer_name || '-'
       };
       if (parts.length > 0) {
         parts.forEach((sp) => {
@@ -191,7 +201,7 @@ function SalesHistoryStats() {
       if (!hasWarehouseInfo) return;
 
       const baseFields = {
-        _type: 'cafe24', date_val: o.order_date, sales_channel: '온라인주문',
+        _type: 'cafe24', date_val: o.order_date, sales_channel: '온라인주문', customer_name: o.buyer_name || '-'
       };
       if (items.length === 0) {
         rows.push({ ...baseFields, part_category: '기타', part_brand: '-', quantity: 0, total_price: Number(o.total_amount || 0) });
@@ -261,6 +271,123 @@ function SalesHistoryStats() {
 
   const formatCurrency = (val) => new Intl.NumberFormat('ko-KR').format(val) + '원';
 
+  // 보고서용 다차원 그룹화 로직 (브랜드별, 대리점별, 종합, 시계열)
+  const { reportGroups, brandGroups, dealerGroups, timeSeriesData } = React.useMemo(() => {
+    const rpGroupData = {};
+    const brGroupData = {};
+    const dlGroupData = {};
+    const tsGroupData = {};
+
+    currentFiltered.forEach(r => {
+      let brand = r.part_brand || '기타';
+      if (brand === '-') brand = '기타';
+      const ch = r.sales_channel || '기타';
+      
+      // ** 파츠 / 공임 분류 병합 로직 **
+      let pName = r.part_name || '상품';
+      if (r.part_category === '부품') pName = '[ 부품 종합 ]';
+      else if (r.part_category === '공임') pName = '[ 공임 종합 ]';
+      else if (r.part_category === '기타') pName = '[ 기타 종합 ]';
+
+      const uPrice = Number(r.unit_price || 0);
+
+      // 출고나 A/S의 경우 채널명에 대리점 이름이 있는 경우가 많으므로 이를 활용하거나 고객명을 우선 활용
+      let agencyName = r.customer_name || '-';
+      if (r._type === 'shipment' && r.sales_channel && r.sales_channel.includes('대리점')) {
+         agencyName = r.customer_name || r.sales_channel;
+      } else if (r._type === 'service' && r.sales_channel && r.sales_channel !== 'A/S수리') {
+         agencyName = r.sales_channel;
+      }
+      
+      const qty = Number(r.quantity || 0);
+      const amt = Number(r.total_price || 0);
+
+      // 1) 상세 보고서 매트릭스 (Brand -> Channel)
+      const rpKey = `${brand}_${ch}`;
+      if (!rpGroupData[rpKey]) rpGroupData[rpKey] = { brand, channel: ch, itemsMap: {}, subtotalQty: 0, subtotalAmt: 0 };
+      const rpItemKey = `${agencyName}_${pName}_${uPrice}`;
+      if (!rpGroupData[rpKey].itemsMap[rpItemKey]) {
+        rpGroupData[rpKey].itemsMap[rpItemKey] = { agency_name: agencyName, part_name: pName, unit_price: uPrice, quantity: 0, total_price: 0 };
+      }
+      rpGroupData[rpKey].itemsMap[rpItemKey].quantity += qty;
+      rpGroupData[rpKey].itemsMap[rpItemKey].total_price += amt;
+      rpGroupData[rpKey].subtotalQty += qty;
+      rpGroupData[rpKey].subtotalAmt += amt;
+
+      // 2) 브랜드 그룹 (Brand -> Model/Parts)
+      const brKey = brand;
+      if (!brGroupData[brKey]) brGroupData[brKey] = { brand, itemsMap: {}, subtotalQty: 0, subtotalAmt: 0 };
+      const brItemKey = pName; 
+      if (!brGroupData[brKey].itemsMap[brItemKey]) {
+        brGroupData[brKey].itemsMap[brItemKey] = { part_name: pName, quantity: 0, total_price: 0 };
+      }
+      brGroupData[brKey].itemsMap[brItemKey].quantity += qty;
+      brGroupData[brKey].itemsMap[brItemKey].total_price += amt;
+      brGroupData[brKey].subtotalQty += qty;
+      brGroupData[brKey].subtotalAmt += amt;
+
+      // 3) 대리점별 그룹 (Agency -> Model/Parts)
+      const dlKey = agencyName;
+      if (!dlGroupData[dlKey]) dlGroupData[dlKey] = { agency_name: agencyName, itemsMap: {}, subtotalQty: 0, subtotalAmt: 0 };
+      const dlItemKey = pName;
+      if (!dlGroupData[dlKey].itemsMap[dlItemKey]) {
+        dlGroupData[dlKey].itemsMap[dlItemKey] = { part_name: pName, quantity: 0, total_price: 0 };
+      }
+      dlGroupData[dlKey].itemsMap[dlItemKey].quantity += qty;
+      dlGroupData[dlKey].itemsMap[dlItemKey].total_price += amt;
+      dlGroupData[dlKey].subtotalQty += qty;
+      dlGroupData[dlKey].subtotalAmt += amt;
+
+      // 4) 시계열 그룹 (Weekly & Monthly)
+      const dateVal = new Date(r.date_val);
+      const weekNum = getWeek(dateVal);
+      const monthStr = format(dateVal, 'yyyy-MM');
+      const weekStr = `${format(startOfWeek(dateVal, { weekStartsOn: 1 }), 'MM.dd')} 주차`;
+
+      if (!tsGroupData[monthStr]) tsGroupData[monthStr] = { type: 'month', label: monthStr + '월', amount: 0, qty: 0 };
+      tsGroupData[monthStr].amount += amt;
+      tsGroupData[monthStr].qty += qty;
+
+      if (!tsGroupData[weekStr]) tsGroupData[weekStr] = { type: 'week', label: weekStr, amount: 0, qty: 0 };
+      tsGroupData[weekStr].amount += amt;
+      tsGroupData[weekStr].qty += qty;
+    });
+
+    const reportGroupsArr = Object.values(rpGroupData).map(g => ({
+       ...g,
+       items: Object.values(g.itemsMap).sort((a,b) => b.total_price - a.total_price)
+    })).sort((a,b) => {
+       if(a.brand !== b.brand) return a.brand.localeCompare(b.brand);
+       return a.channel.localeCompare(b.channel);
+    });
+
+    const brandGroupsArr = Object.values(brGroupData).map(g => ({
+       ...g,
+       items: Object.values(g.itemsMap).sort((a,b) => b.total_price - a.total_price)
+    })).sort((a,b) => b.subtotalAmt - a.subtotalAmt);
+
+    const dealerGroupsArr = Object.values(dlGroupData).map(g => ({
+       ...g,
+       items: Object.values(g.itemsMap).sort((a,b) => b.total_price - a.total_price)
+    })).sort((a,b) => b.subtotalAmt - a.subtotalAmt);
+
+    // 시계열 데이터 누적 계산
+    const weeks = Object.values(tsGroupData).filter(x => x.type === 'week').sort((a,b) => a.label.localeCompare(b.label));
+    const months = Object.values(tsGroupData).filter(x => x.type === 'month').sort((a,b) => a.label.localeCompare(b.label));
+
+    let weekAcc = 0;
+    weeks.forEach(w => { weekAcc += w.amount; w.cumulative = weekAcc; });
+    let monthAcc = 0;
+    months.forEach(m => { monthAcc += m.amount; m.cumulative = monthAcc; });
+
+    return {
+      reportGroups: reportGroupsArr,
+      brandGroups: brandGroupsArr,
+      dealerGroups: dealerGroupsArr,
+      timeSeriesData: { weeks, months }
+    };
+  }, [currentFiltered]);
+
   return (
     <Box sx={{ p: 3, bgcolor: '#f4f6f8', minHeight: '100vh' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -313,11 +440,12 @@ function SalesHistoryStats() {
             </FormControl>
           </Grid>
 
-          <Grid item xs={12} sm={2}>
-            <Button variant="contained" fullWidth startIcon={<SearchIcon />} onClick={fetchSales} disabled={loading} sx={{ height: 40 }}>
-              조회
-            </Button>
-          </Grid>
+            <Grid item xs={12} sm={3}>
+              <ButtonGroup fullWidth sx={{ height: 40 }}>
+                <Button variant="outlined" onClick={handleSetYear}>올해 전체</Button>
+                <Button variant="contained" onClick={fetchSales} disabled={loading} sx={{ width: '70%' }} startIcon={<SearchIcon />}>조회</Button>
+              </ButtonGroup>
+            </Grid>
         </Grid>
       </Paper>
 
@@ -439,6 +567,208 @@ function SalesHistoryStats() {
             </Grid>
 
           </Grid>
+
+          <Box sx={{ borderBottom: 1, borderColor: 'divider', mt: 4, mb: 2 }}>
+            <Tabs value={tabValue} onChange={(e, v) => setTabValue(v)} variant="scrollable" scrollButtons="auto">
+              <Tab label="시계열 누적 추이 차트" />
+              <Tab label="브랜드별 요약 테이블" />
+              <Tab label="대리점 종합 요약 테이블" />
+              <Tab label="전체 매트릭스 리포트 (통합상세)" />
+            </Tabs>
+          </Box>
+
+          <Box pb={10}>
+            {/* 탭 0: 시계열 추이 (월간/주간 누적) */}
+            {tabValue === 0 && (
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <Paper sx={{ p: 2, height: 400 }}>
+                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>월별 매출 및 누적 추이 (월간)</Typography>
+                    <ResponsiveContainer width="100%" height="90%">
+                      <LineChart data={timeSeriesData.months}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="label" />
+                        <YAxis tickFormatter={(val) => (val/10000) + '만'} />
+                        <Tooltip formatter={(val) => formatCurrency(val)} />
+                        <Legend />
+                        <Line type="monotone" name="월별매출액" dataKey="amount" stroke="#1976d2" strokeWidth={2} />
+                        <Line type="monotone" name="누적합계" dataKey="cumulative" stroke="#ed6c02" strokeWidth={3} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </Paper>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Paper sx={{ p: 2, height: 400, overflowY: 'auto' }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 2 }}>시계열 데이터 표 (주차별 상세)</Typography>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>시기</TableCell>
+                          <TableCell align="right">매출액</TableCell>
+                          <TableCell align="right">누적매출액</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                         {timeSeriesData.weeks.map(w => (
+                           <TableRow key={w.label}>
+                             <TableCell>{w.label}</TableCell>
+                             <TableCell align="right">{formatCurrency(w.amount)}</TableCell>
+                             <TableCell align="right" sx={{ fontWeight: 'bold', color: '#ed6c02' }}>{formatCurrency(w.cumulative)}</TableCell>
+                           </TableRow>
+                         ))}
+                      </TableBody>
+                    </Table>
+                  </Paper>
+                </Grid>
+              </Grid>
+            )}
+
+            {/* 탭 1: 브랜드별 요약 표 */}
+            {tabValue === 1 && (
+              <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
+                <Table size="small" sx={{ minWidth: 600, '& th, & td': { border: '1px solid #cfd8dc' }, '& th': { bgcolor: '#eceff1', fontWeight: 'bold', textAlign: 'center' } }}>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell width="20%">브랜드</TableCell>
+                      <TableCell width="50%">기종/부품분류</TableCell>
+                      <TableCell width="10%">합산수량</TableCell>
+                      <TableCell width="20%">합계금액</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {brandGroups.map((g, gIdx) => (
+                       <React.Fragment key={gIdx}>
+                         {g.items.map((it, iIdx) => (
+                            <TableRow key={`${gIdx}-${iIdx}`} hover>
+                              {iIdx === 0 && (
+                                <TableCell rowSpan={g.items.length + 1} align="center" sx={{ fontWeight: 'bold', bgcolor: '#f8f9fa' }}>
+                                  {g.brand}
+                                </TableCell>
+                              )}
+                              <TableCell>{it.part_name}</TableCell>
+                              <TableCell align="center">{it.quantity}</TableCell>
+                              <TableCell align="right">{formatCurrency(it.total_price)}</TableCell>
+                            </TableRow>
+                         ))}
+                         <TableRow sx={{ bgcolor: '#e8f5e9' }}>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>[ {g.brand} 종합 ]</TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>{g.subtotalQty}</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>{formatCurrency(g.subtotalAmt)}</TableCell>
+                         </TableRow>
+                       </React.Fragment>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+
+            {/* 탭 2: 대리점 종합 표 */}
+            {tabValue === 2 && (
+              <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
+                <Table size="small" sx={{ minWidth: 600, '& th, & td': { border: '1px solid #cfd8dc' }, '& th': { bgcolor: '#eceff1', fontWeight: 'bold', textAlign: 'center' } }}>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell width="30%">대리점명 (고객)</TableCell>
+                      <TableCell width="40%">기종/부품분류</TableCell>
+                      <TableCell width="10%">합산수량</TableCell>
+                      <TableCell width="20%">합계금액</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {dealerGroups.map((g, gIdx) => (
+                       <React.Fragment key={gIdx}>
+                         {g.items.map((it, iIdx) => (
+                            <TableRow key={`${gIdx}-${iIdx}`} hover>
+                              {iIdx === 0 && (
+                                <TableCell rowSpan={g.items.length + 1} align="center" sx={{ fontWeight: 'bold', bgcolor: '#f8f9fa' }}>
+                                  {g.agency_name}
+                                </TableCell>
+                              )}
+                              <TableCell>{it.part_name}</TableCell>
+                              <TableCell align="center">{it.quantity}</TableCell>
+                              <TableCell align="right">{formatCurrency(it.total_price)}</TableCell>
+                            </TableRow>
+                         ))}
+                         <TableRow sx={{ bgcolor: '#fff3e0' }}>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', color: '#e65100' }}>[ {g.agency_name} 합산 ]</TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 'bold', color: '#e65100' }}>{g.subtotalQty}</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', color: '#e65100' }}>{formatCurrency(g.subtotalAmt)}</TableCell>
+                         </TableRow>
+                       </React.Fragment>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+
+            {/* 탭 3: 기존의 상세 통합 매트릭스 리포트 */}
+            {tabValue === 3 && (
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, display: 'flex', alignItems: 'center' }}>
+                  <AssessmentIcon sx={{ mr: 1, color: '#1565c0' }}/> 통합 상세 매트릭스 분할표
+                </Typography>
+                <TableContainer component={Paper} sx={{ overflowX: 'auto', border: '1px solid #cfd8dc' }}>
+                  {/* 기존 테이블 내용 유지 */}
+                  <Table size="small" sx={{ 
+                    minWidth: 800, 
+                    '& th, & td': { border: '1px solid #cfd8dc', padding: '6px 12px' },
+                    '& th': { bgcolor: '#eceff1', fontWeight: 'bold', textAlign: 'center', fontSize: '0.9rem' }
+                  }}>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell width="12%">구분 (브랜드/채널)</TableCell>
+                        <TableCell width="15%">대리점명 (고객)</TableCell>
+                        <TableCell width="35%">모델명 (분류)</TableCell>
+                        <TableCell width="13%">기준 단가</TableCell>
+                        <TableCell width="10%">판매수량</TableCell>
+                        <TableCell width="15%">합계금액</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {reportGroups.length === 0 && (
+                         <TableRow><TableCell colSpan={6} align="center" sx={{ py: 3 }}>조회된 데이터가 없습니다.</TableCell></TableRow>
+                      )}
+                      {reportGroups.map((g, gIdx) => {
+                         return (
+                           <React.Fragment key={gIdx}>
+                             {g.items.map((it, iIdx) => (
+                                <TableRow key={`${gIdx}-${iIdx}`} hover>
+                                  {iIdx === 0 && (
+                                    <TableCell rowSpan={g.items.length + 1} align="center" sx={{ fontWeight: 'bold', bgcolor: '#f8f9fa', verticalAlign: 'middle' }}>
+                                      <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>{g.brand}</Typography>
+                                      <Typography variant="caption" sx={{ color: 'text.secondary' }}>{g.channel}</Typography>
+                                    </TableCell>
+                                  )}
+                                  <TableCell>{it.agency_name}</TableCell>
+                                  <TableCell>{it.part_name}</TableCell>
+                                  <TableCell align="right">{it.unit_price > 0 ? formatCurrency(it.unit_price) : '-'}</TableCell>
+                                  <TableCell align="center">{it.quantity}</TableCell>
+                                  <TableCell align="right">{formatCurrency(it.total_price)}</TableCell>
+                                </TableRow>
+                             ))}
+                             {/* 소계 행 */}
+                             <TableRow sx={{ bgcolor: '#e8f5e9' }}>
+                                <TableCell colSpan={3} align="right" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>[ {g.brand} {g.channel} 소계 ]</TableCell>
+                                <TableCell align="center" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>{g.subtotalQty}</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>{formatCurrency(g.subtotalAmt)}</TableCell>
+                             </TableRow>
+                           </React.Fragment>
+                         )
+                      })}
+                      {/* 총 합계 행 */}
+                      {reportGroups.length > 0 && (
+                        <TableRow sx={{ bgcolor: '#fff3e0' }}>
+                          <TableCell colSpan={4} align="center" sx={{ fontWeight: 'bold', fontSize: '1.05rem', color: '#e65100' }}>총 매 출 합 계 (TOTAL)</TableCell>
+                          <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '1.05rem', color: '#e65100' }}>{totalQty}</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold', fontSize: '1.05rem', color: '#e65100' }}>{formatCurrency(totalAmt)}</TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Box>
+            )}
+          </Box>
         </>
       )}
     </Box>

@@ -1,0 +1,264 @@
+import React, { useState } from 'react';
+import {
+  Box, Typography, Button, Paper, Table, TableBody, TableCell, TableContainer,
+  TableHead, TableRow, CircularProgress, Alert, Snackbar, Stack
+} from '@mui/material';
+import { CloudUpload as CloudUploadIcon, PlayArrow as PlayArrowIcon } from '@mui/icons-material';
+import { readExcelFile } from '../../utils/excelUtils';
+import { supabase } from '../../lib/supabaseClient';
+import { useAuth } from '../../contexts/AuthContext';
+
+export default function EcountDataUploader() {
+  const [file, setFile] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [previewData, setPreviewData] = useState([]);
+  const [duplicateCount, setDuplicateCount] = useState(0);
+  const [uploading, setUploading] = useState(false);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const { user } = useAuth();
+
+  const handleFileChange = async (e) => {
+    const selectedFile = e.target.files[0];
+    if (!selectedFile) return;
+
+    setFile(selectedFile);
+    setLoading(true);
+    setPreviewData([]);
+    setDuplicateCount(0);
+
+    try {
+      // 엑셀 파싱
+      const rawData = await readExcelFile(selectedFile);
+      if (!rawData || rawData.length === 0) {
+        throw new Error("데이터가 비어있거나 올바르지 않은 양식입니다.");
+      }
+
+      // 그룹화 및 매핑 로직 (Ecount 방식: 일자-No. 와 거래처 기준)
+      const grouped = {};
+      rawData.forEach((row, idx) => {
+        // 필수 헤더: 일자-No., 거래처명, 품목명(규격)
+        const dateNo = row['일자-No.'] || row['일자'] || '';
+        const customer = row['거래처명'] || row['거래처'] || '미상 거래처';
+        const partName = row['품목명(규격)'] || row['품목명'] || `품목-${idx}`;
+        const qty = Number(row['수량'] || 1);
+        const price = Number(row['단가'] || 0);
+        const total = Number(row['합계'] || (qty * price));
+        const noteInfo = `[주문:${row['주문번호'] || ''}] [프로젝트:${row['프로젝트명'] || ''}]`;
+
+        // 날짜 추출 (YYYY-MM-DD-No 에서 앞 3 덩어리)
+        let orderDate = '';
+        if (dateNo.includes('-')) {
+          const parts = dateNo.split('-');
+          if (parts.length >= 3) {
+            orderDate = parts.slice(0, 3).join('-');
+          } else {
+             orderDate = dateNo;
+          }
+        } else {
+           orderDate = dateNo.substring(0, 10);
+        }
+
+        // 유효한 날짜가 없으면 현재 날짜로 폴백
+        if (orderDate.length < 8) {
+           orderDate = new Date().toISOString().split('T')[0];
+        }
+
+        const groupKey = `${orderDate}_${customer}_${dateNo}`;
+
+        if (!grouped[groupKey]) {
+           grouped[groupKey] = {
+             order_date: orderDate,
+             customer_name: customer,
+             note: noteInfo.trim(),
+             brand: 'XRB', // 기본값
+             total_price: 0,
+             parts: []
+           };
+        }
+
+        grouped[groupKey].parts.push({
+           part_name: partName,
+           quantity: qty,
+           price: price,
+           total_price: total
+        });
+        grouped[groupKey].total_price += total;
+      });
+
+      const parsedPreview = Object.values(grouped);
+
+      // 전체 기존 데이터 중복 검사를 위한 쿼리
+      const { data: existingShipments, error: dbError } = await supabase
+        .from('shipments')
+        .select('order_date, customer_name, total_price')
+        .eq('status', '출고완료');
+
+      if (dbError) throw dbError;
+
+      // 간단한 중복 체크 로직 (날짜, 고객명, 총액이 동일하면 중복으로 간주)
+      let dupCount = 0;
+      parsedPreview.forEach(item => {
+         const isDup = existingShipments.some(existing => 
+            existing.order_date === item.order_date &&
+            existing.customer_name === item.customer_name &&
+            Number(existing.total_price || 0) === Number(item.total_price)
+         );
+         item.isDuplicate = isDup;
+         if (isDup) dupCount++;
+      });
+
+      setPreviewData(parsedPreview);
+      setDuplicateCount(dupCount);
+
+    } catch (e) {
+      console.error(e);
+      setSnackbar({ open: true, message: `파일 파싱 오류: ${e.message}`, severity: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const executeUpload = async () => {
+    if (previewData.length === 0) return;
+    const toUpload = previewData.filter(d => !d.isDuplicate);
+    if (toUpload.length === 0) {
+      setSnackbar({ open: true, message: '업로드할 새로운 (중복되지 않은) 데이터가 없습니다.', severity: 'warning' });
+      return;
+    }
+
+    setUploading(true);
+    let successCount = 0;
+
+    try {
+      // 청크 단위 삽입 대신, 안정성을 위해 하나씩 또는 소규모 청크로 Insert 진행
+      for (const item of toUpload) {
+         // 1. Shipment 기록 생성
+         const shipmentData = {
+           brand: item.brand,
+           order_date: item.order_date,
+           shipment_date: item.order_date,
+           status: '출고완료',
+           customer_name: item.customer_name,
+           note: `[과거 이카운트 이관] ${item.note}`,
+           sales_channel: '과거 이카운트 이관', // 신규 통계 분리를 위함
+           author_email: user?.email || 'admin',
+           price: item.total_price,
+           warehouse_id: null // 재고 차감을 방지하기 위한 강제 null 또는 기본 창고 (로직에서 Bypass)
+         };
+
+         const { data: newShipment, error: insertError } = await supabase
+           .from('shipments')
+           .insert([shipmentData])
+           .select('id')
+           .single();
+
+         if (insertError) {
+           console.error("출고 기록 에러:", insertError);
+           continue; 
+         }
+
+         const shipmentId = newShipment.id;
+
+         // 2. Shipment Parts 기록 생성
+         if (item.parts && item.parts.length > 0) {
+           const partsData = item.parts.map(p => ({
+             shipment_id: shipmentId,
+             part_name: p.part_name,
+             part_code: '',
+             part_category: '기타', // 과거 데이터는 자동 기타 처리하여 재고 품목에 바로 걸리지 않게 함
+             quantity: p.quantity,
+             price: p.price,
+             total_price: p.total_price
+           }));
+
+           const { error: partErr } = await supabase.from('shipment_parts').insert(partsData);
+           if (partErr) console.error("부품 등록 에러:", partErr);
+         }
+         successCount++;
+      }
+
+      setSnackbar({ open: true, message: `성공적으로 ${successCount}건의 과거 출고 내역을 동기화했습니다!`, severity: 'success' });
+      setFile(null);
+      setPreviewData([]);
+    } catch (err) {
+      console.error(err);
+      setSnackbar({ open: true, message: `업로드 중 오류: ${err.message}`, severity: 'error' });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <Box>
+      <Typography variant="h6" fontWeight="bold" mb={2}>과거 이카운트(Ecount) 매출 연동</Typography>
+      
+      <Alert severity="info" sx={{ mb: 3 }}>
+        과거 이카운트의 전표 데이터를 엑셀로 업로드하여 장부에 동기화합니다.<br/>
+        <b>[매출 꼬임 방지 장치 적용됨]</b> 중복 건은 자동으로 무시되며, 데이터에는 특별 태그가 부착되어 기존 재고 수량을 차감하지 않습니다.
+      </Alert>
+
+      <Stack direction="row" spacing={2} mb={3}>
+        <Button variant="outlined" component="label" startIcon={<CloudUploadIcon />} disabled={loading || uploading}>
+          이카운트 엑셀 업로드
+          <input type="file" hidden accept=".xlsx, .csv" onChange={handleFileChange} />
+        </Button>
+        {loading && <CircularProgress size={24} sx={{ mt: 1 }} />}
+      </Stack>
+
+      {file && <Typography variant="body2" sx={{ mb: 2 }}>선택된 파일: {file.name}</Typography>}
+
+      {previewData.length > 0 && (
+        <Box>
+           <Paper sx={{ p: 2, mb: 3, bgcolor: '#f8f9fa' }}>
+             <Typography variant="subtitle1" fontWeight="bold">모의 업로드 분석 리포트</Typography>
+             <Typography variant="body2">총 발견된 그룹(전표): <b>{previewData.length}</b>건</Typography>
+             <Typography variant="body2" color="error">기존 시스템 중복 예상 건: <b>{duplicateCount}</b>건 (무시됨)</Typography>
+             <Typography variant="body2" color="primary">실제 신규 등록 대기 건: <b>{previewData.length - duplicateCount}</b>건</Typography>
+             
+             <Button 
+                variant="contained" 
+                color="primary" 
+                startIcon={<PlayArrowIcon />} 
+                onClick={executeUpload}
+                disabled={uploading || previewData.length - duplicateCount === 0}
+                sx={{ mt: 2 }}
+             >
+               {uploading ? '동기화 진행 중...' : '안전 동기화 (최종 업로드) 시작'}
+             </Button>
+           </Paper>
+
+           <TableContainer component={Paper} sx={{ maxHeight: 400 }}>
+             <Table stickyHeader size="small">
+               <TableHead>
+                 <TableRow>
+                   <TableCell>주문날짜</TableCell>
+                   <TableCell>거래처(고객명)</TableCell>
+                   <TableCell align="right">합산금액</TableCell>
+                   <TableCell>상태</TableCell>
+                 </TableRow>
+               </TableHead>
+               <TableBody>
+                 {previewData.map((row, idx) => (
+                   <TableRow key={idx} sx={{ bgcolor: row.isDuplicate ? '#ffebee' : 'inherit' }}>
+                     <TableCell>{row.order_date}</TableCell>
+                     <TableCell>{row.customer_name}</TableCell>
+                     <TableCell align="right">{row.total_price.toLocaleString()}원</TableCell>
+                     <TableCell>
+                       {row.isDuplicate ? 
+                         <Typography color="error" variant="caption">중복(건너뜀)</Typography> : 
+                         <Typography color="primary" variant="caption">신규등록</Typography>}
+                     </TableCell>
+                   </TableRow>
+                 ))}
+               </TableBody>
+             </Table>
+           </TableContainer>
+        </Box>
+      )}
+
+      <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={() => setSnackbar({...snackbar, open: false})}>
+        <Alert severity={snackbar.severity} sx={{ width: '100%' }}>{snackbar.message}</Alert>
+      </Snackbar>
+    </Box>
+  );
+}
