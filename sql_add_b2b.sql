@@ -1,0 +1,1 @@
+ALTER TABLE public.shipments ADD COLUMN IF NOT EXISTS is_b2b BOOLEAN DEFAULT false;
