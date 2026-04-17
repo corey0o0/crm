@@ -881,14 +881,17 @@ export default function Cafe24OrderList() {
 
       <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
         <Table size="small" sx={{ 
-          minWidth: 1500, 
-          whiteSpace: 'nowrap',
+          minWidth: '100%', 
           border: '1px solid rgba(224, 224, 224, 1)',
-          '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' },
+          '& th, & td': { 
+            border: '1px solid rgba(224, 224, 224, 1)',
+            whiteSpace: 'normal',
+            wordBreak: 'break-word'
+          },
           '& .MuiTableCell-root': {
-            fontSize: '0.85rem',
-            padding: '3px 6px',
-            lineHeight: 1.2
+            fontSize: '0.82rem',
+            padding: '4px 6px',
+            lineHeight: 1.3
           },
           '& .MuiTableHead-root .MuiTableCell-root': {
             fontWeight: 600,
