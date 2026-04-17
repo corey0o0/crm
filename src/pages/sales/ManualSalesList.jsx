@@ -29,8 +29,8 @@ export default function ManualSalesList() {
     try {
       let query = supabase.from('shipments').select('*, shipment_parts(*)', { count: 'exact' });
       
-      // B2B & 과거 매출 판별 (기존 이카운트 데이터 + 신규 B2B태그)
-      let condition = `sales_channel.eq.과거 이카운트 이관,note.ilike.%[B2B수기판매]%`;
+      // B2B & 과거 매출 판별 (기존 이카운트 데이터 + 대리점 매핑 데이터 + 신규 B2B태그)
+      let condition = `sales_channel.eq.과거 이카운트 이관,note.ilike.%[B2B수기판매]%,note.ilike.%[과거 이카운트 이관]%,note.ilike.%[엑셀일괄등록]%`;
       query = query.or(condition);
 
       if (searchTerm) {
