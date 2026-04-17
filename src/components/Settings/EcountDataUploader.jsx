@@ -171,7 +171,6 @@ export default function EcountDataUploader() {
            customer_name: item.customer_name,
            note: `[과거 이카운트 이관] ${item.note}`,
            sales_channel: '과거 이카운트 이관', // 신규 통계 분리를 위함
-           author_email: user?.email || 'admin',
            price: item.total_price,
            warehouse_id: null // 재고 차감을 방지하기 위한 강제 null 또는 기본 창고 (로직에서 Bypass)
          };
