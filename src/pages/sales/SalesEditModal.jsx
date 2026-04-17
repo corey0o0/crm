@@ -8,8 +8,10 @@ import {
 import { Close as CloseIcon } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
 import { format } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
 
 export default function SalesEditModal({ open, onClose, orderId, orderType, onRefresh }) {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [orderData, setOrderData] = useState(null);
@@ -317,16 +319,32 @@ export default function SalesEditModal({ open, onClose, orderId, orderType, onRe
         )}
       </DialogContent>
 
-      <DialogActions sx={{ p: 2, gap: 1 }}>
-        <Button onClick={onClose} variant="outlined" color="inherit">취소</Button>
-        <Button
-          onClick={handleSave}
-          variant="contained"
-          disabled={saving || loading}
-          sx={{ minWidth: 100 }}
-        >
-          {saving ? <CircularProgress size={20} /> : '저장'}
-        </Button>
+      <DialogActions sx={{ p: 2, gap: 1, justifyContent: 'space-between' }}>
+        <Box>
+           {(orderType === 'shipment' || orderType === 'service') && (
+              <Button 
+                variant="outlined" 
+                color="error"
+                onClick={() => {
+                   onClose();
+                   navigate(`/${orderType}/${orderId}`);
+                }}
+              >
+                상세 원본 보기 / 완전 삭제하기
+              </Button>
+           )}
+        </Box>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button onClick={onClose} variant="outlined" color="inherit">취소</Button>
+          <Button
+            onClick={handleSave}
+            variant="contained"
+            disabled={saving || loading}
+            sx={{ minWidth: 100 }}
+          >
+            {saving ? <CircularProgress size={20} /> : '저장'}
+          </Button>
+        </Box>
       </DialogActions>
     </Dialog>
   );
