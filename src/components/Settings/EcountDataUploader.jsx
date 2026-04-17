@@ -33,8 +33,8 @@ export default function EcountDataUploader() {
         throw new Error("데이터가 비어있거나 올바르지 않은 양식입니다.");
       }
 
-      // 1. 전체 Parts DB 룩업 맵핑용으로 미리 불러오기
-      const { data: dbParts, error: partsErr } = await supabase.from('parts').select('id, name, code, barcode, brand, category');
+      // 1. 전체 Parts DB 룩업 맵핑용으로 미리 불러오기 (비고 필드가 카테고리로 쓰임)
+      const { data: dbParts, error: partsErr } = await supabase.from('parts').select('id, name, code, barcode, brand, note');
       if (partsErr) throw partsErr;
 
       // 그룹화 및 매핑 로직 (Ecount 방식: 일자-No. 와 거래처 기준)
@@ -85,7 +85,7 @@ export default function EcountDataUploader() {
 
         if (matchedPart) {
            finalBrand = matchedPart.brand || 'XRB';
-           finalCategory = matchedPart.category || '기타';
+           finalCategory = matchedPart.note || '기타';
            finalCode = matchedPart.code;
         } else {
            // 매핑 실패 시 이름 기반 단순 추정 폴백

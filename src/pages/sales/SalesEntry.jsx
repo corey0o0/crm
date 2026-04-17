@@ -30,7 +30,7 @@ function SalesEntry() {
     try {
       const [{ data: agData }, { data: pData }] = await Promise.all([
         supabase.from('agencies').select('*'),
-        supabase.from('parts').select('id, name, code, barcode, category, supplier, price')
+        supabase.from('parts').select('id, name, code, barcode, note, supplier, price')
       ]);
       if (agData) setAgencies(agData);
       if (pData) setParts(pData);

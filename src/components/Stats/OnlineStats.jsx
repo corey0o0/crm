@@ -90,7 +90,7 @@ function OnlineStats() {
       ] = await Promise.all([
         supabase.from('cafe24_orders').select('*').gte('order_date', startDateTime).lte('order_date', endDateTime).eq('is_deleted', false).eq('is_transferred', true),
         supabase.from('agencies').select('id, name'),
-        supabase.from('parts').select('id, supplier, category, price'),
+        supabase.from('parts').select('id, supplier, note, price'),
         supabase.from('cafe24_orders').select('order_date, total_amount').gte('order_date', yearStart).lte('order_date', yearEnd).eq('is_deleted', false).eq('is_transferred', true)
       ]);
 
