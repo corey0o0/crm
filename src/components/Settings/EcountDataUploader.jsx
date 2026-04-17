@@ -69,18 +69,8 @@ export default function EcountDataUploader() {
         const xlWarehouseName = row['창고명'] || row['출하창고'] || row['창고'] || row['출고지'] || '';
         const noteInfo = `[주문:${row['주문번호'] || ''}] [프로젝트:${row['프로젝트명'] || ''}]`;
 
-        // 날짜 추출 (YYYY-MM-DD-No 에서 앞 3 덩어리)
-        let orderDate = '';
-        if (dateNo.includes('-')) {
-          const parts = dateNo.split('-');
-          if (parts.length >= 3) {
-            orderDate = parts.slice(0, 3).join('-');
-          } else {
-             orderDate = dateNo;
-          }
-        } else {
-           orderDate = dateNo.substring(0, 10);
-        }
+        // 날짜 추출 (가장 앞의 10자리 YYYY-MM-DD 형식만 추출하여 타임존 에러 방지)
+        let orderDate = String(dateNo).trim().substring(0, 10).replace(/\//g, '-');
 
         // 유효한 날짜가 없으면 현재 날짜로 폴백
         if (orderDate.length < 8) {
