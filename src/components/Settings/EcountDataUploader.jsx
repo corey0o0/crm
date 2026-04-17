@@ -33,13 +33,20 @@ export default function EcountDataUploader() {
         throw new Error("데이터가 비어있거나 올바르지 않은 양식입니다.");
       }
 
+      // 1. 전체 Parts DB 룩업 맵핑용으로 미리 불러오기
+      const { data: dbParts, error: partsErr } = await supabase.from('parts').select('id, name, code, barcode, brand, category');
+      if (partsErr) throw partsErr;
+
       // 그룹화 및 매핑 로직 (Ecount 방식: 일자-No. 와 거래처 기준)
       const grouped = {};
       rawData.forEach((row, idx) => {
-        // 필수 헤더: 일자-No., 거래처명, 품목명(규격)
+        // 필수 헤더 및 바코드 정보
         const dateNo = row['일자-No.'] || row['일자'] || '';
         const customer = row['거래처명'] || row['거래처'] || '미상 거래처';
         const partName = row['품목명(규격)'] || row['품목명'] || `품목-${idx}`;
+        const excelCode = row['품목코드'] || row['상품코드'] || '';
+        const excelBarcode = row['바코드'] || '';
+        
         const qty = Number(row['수량'] || 1);
         const price = Number(row['단가'] || 0);
         const total = Number(row['합계'] || (qty * price));
@@ -65,12 +72,33 @@ export default function EcountDataUploader() {
 
         const groupKey = `${orderDate}_${customer}_${dateNo}`;
 
+        // 바코드/품목코드 기반 DB 매핑 시도
+        let finalBrand = 'XRB'; // 기본값
+        let finalCategory = '기타';
+        let finalCode = excelCode || excelBarcode;
+
+        const matchedPart = dbParts.find(p => 
+           (excelCode && (p.code === excelCode || p.barcode === excelCode)) ||
+           (excelBarcode && (p.barcode === excelBarcode || p.code === excelBarcode)) ||
+           (p.name && partName && p.name.includes(partName)) // 이름으로도 부분 일치 시도 (옵션)
+        );
+
+        if (matchedPart) {
+           finalBrand = matchedPart.brand || 'XRB';
+           finalCategory = matchedPart.category || '기타';
+           finalCode = matchedPart.code;
+        } else {
+           // 매핑 실패 시 이름 기반 단순 추정 폴백
+           if (partName.toUpperCase().includes('NB') || partName.includes('니어')) { finalBrand = 'NEARBIKE'; }
+           if (partName.includes('파츠') || partName.includes('부품')) { finalCategory = '부품'; }
+        }
+
         if (!grouped[groupKey]) {
            grouped[groupKey] = {
              order_date: orderDate,
              customer_name: customer,
              note: noteInfo.trim(),
-             brand: 'XRB', // 기본값
+             brand: finalBrand, // 첫 번째 발견된 제품의 ब्रांड를 대표로 지정
              total_price: 0,
              parts: []
            };
@@ -78,6 +106,8 @@ export default function EcountDataUploader() {
 
         grouped[groupKey].parts.push({
            part_name: partName,
+           part_code: finalCode,
+           part_category: finalCategory,
            quantity: qty,
            price: price,
            total_price: total
@@ -164,8 +194,8 @@ export default function EcountDataUploader() {
            const partsData = item.parts.map(p => ({
              shipment_id: shipmentId,
              part_name: p.part_name,
-             part_code: '',
-             part_category: '기타', // 과거 데이터는 자동 기타 처리하여 재고 품목에 바로 걸리지 않게 함
+             part_code: p.part_code || '',
+             part_category: p.part_category, // 코드 기반으로 매핑된 정확한 카테고리 적용
              quantity: p.quantity,
              price: p.price,
              total_price: p.total_price
