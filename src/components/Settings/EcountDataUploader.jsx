@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import {
   Box, Typography, Button, Paper, Table, TableBody, TableCell, TableContainer,
-  TableHead, TableRow, CircularProgress, Alert, Snackbar, Stack
+  TableHead, TableRow, CircularProgress, Alert, Snackbar, Stack,
+  FormControl, InputLabel, Select, MenuItem
 } from '@mui/material';
 import { CloudUpload as CloudUploadIcon, PlayArrow as PlayArrowIcon } from '@mui/icons-material';
 import { readExcelFile } from '../../utils/excelUtils';
@@ -15,7 +16,17 @@ export default function EcountDataUploader() {
   const [duplicateCount, setDuplicateCount] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [warehouses, setWarehouses] = useState([]);
+  const [manualWarehouseId, setManualWarehouseId] = useState('');
   const { user } = useAuth();
+
+  React.useEffect(() => {
+    async function fetchWarehouses() {
+      const { data } = await supabase.from('warehouses').select('id, name');
+      if (data) setWarehouses(data);
+    }
+    fetchWarehouses();
+  }, []);
 
   const handleFileChange = async (e) => {
     const selectedFile = e.target.files[0];
@@ -50,6 +61,7 @@ export default function EcountDataUploader() {
         const qty = Number(row['수량'] || 1);
         const price = Number(row['단가'] || 0);
         const total = Number(row['합계'] || (qty * price));
+        const xlWarehouseName = row['출하창고'] || row['창고'] || row['출고지'] || '';
         const noteInfo = `[주문:${row['주문번호'] || ''}] [프로젝트:${row['프로젝트명'] || ''}]`;
 
         // 날짜 추출 (YYYY-MM-DD-No 에서 앞 3 덩어리)
@@ -94,11 +106,16 @@ export default function EcountDataUploader() {
         }
 
         if (!grouped[groupKey]) {
+           let matchedWh = null;
+           if (xlWarehouseName && warehouses.length > 0) {
+              matchedWh = warehouses.find(w => w.name.includes(xlWarehouseName) || xlWarehouseName.includes(w.name));
+           }
            grouped[groupKey] = {
              order_date: orderDate,
              customer_name: customer,
              note: noteInfo.trim(),
-             brand: finalBrand, // 첫 번째 발견된 제품의 ब्रांड를 대표로 지정
+             brand: finalBrand, // 첫 번째 발견된 제품의 브랜드 대표
+             excel_warehouse_id: matchedWh ? matchedWh.id : null,
              total_price: 0,
              parts: []
            };
@@ -172,7 +189,7 @@ export default function EcountDataUploader() {
            note: `[과거 이카운트 이관] ${item.note}`,
            sales_channel: '과거 이카운트 이관', // 신규 통계 분리를 위함
            price: item.total_price,
-           warehouse_id: null // 재고 차감을 방지하기 위한 강제 null 또는 기본 창고 (로직에서 Bypass)
+           warehouse_id: manualWarehouseId || item.excel_warehouse_id || null
          };
 
          const { data: newShipment, error: insertError } = await supabase
@@ -225,7 +242,21 @@ export default function EcountDataUploader() {
         <b>[매출 꼬임 방지 장치 적용됨]</b> 중복 건은 자동으로 무시되며, 데이터에는 특별 태그가 부착되어 기존 재고 수량을 차감하지 않습니다.
       </Alert>
 
-      <Stack direction="row" spacing={2} mb={3}>
+      <Stack direction="row" spacing={2} mb={3} alignItems="center">
+        <FormControl sx={{ minWidth: 200 }} size="small">
+          <InputLabel>일괄 적용 출고창고 (선택)</InputLabel>
+          <Select
+            value={manualWarehouseId}
+            label="일괄 적용 출고창고 (선택)"
+            onChange={(e) => setManualWarehouseId(e.target.value)}
+          >
+            <MenuItem value=""><em>엑셀 원본 값 사용(없을시 미지정)</em></MenuItem>
+            {warehouses.map(w => (
+              <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
         <Button variant="outlined" component="label" startIcon={<CloudUploadIcon />} disabled={loading || uploading}>
           이카운트 엑셀 업로드
           <input type="file" hidden accept=".xlsx, .csv" onChange={handleFileChange} />
