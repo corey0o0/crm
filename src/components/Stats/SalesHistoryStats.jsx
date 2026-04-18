@@ -177,7 +177,7 @@ function SalesHistoryStats() {
     (shipRes.data || []).forEach(s => {
       const parts = s.shipment_parts || [];
       const baseFields = {
-        _type: 'shipment', date_val: s.order_date, sales_channel: s.sales_channel || '매장출고', customer_name: s.customer_name || '-'
+        _id: s.id, _type: 'shipment', date_val: s.order_date, sales_channel: s.sales_channel || '매장출고', customer_name: s.customer_name || '-'
       };
       if (parts.length === 0) {
         rows.push({ ...baseFields, part_category: '기타', part_brand: '-', quantity: 0, total_price: Number(s.price || 0) });
@@ -196,7 +196,7 @@ function SalesHistoryStats() {
       const parts = servicePartsMap[s.id] || [];
       const agencyName = s.agencies?.name || 'A/S수리';
       const baseFields = {
-        _type: 'service', date_val: s.completion_date || s.reception_date, sales_channel: agencyName, customer_name: s.customer_name || '-'
+        _id: s.id, _type: 'service', date_val: s.completion_date || s.reception_date, sales_channel: agencyName, customer_name: s.customer_name || '-'
       };
       if (parts.length > 0) {
         parts.forEach((sp) => {
@@ -223,7 +223,7 @@ function SalesHistoryStats() {
       if (!hasWarehouseInfo) return;
 
       const baseFields = {
-        _type: 'cafe24', date_val: o.order_date, sales_channel: '온라인주문', customer_name: o.buyer_name || '-'
+        _id: o.id, _type: 'cafe24', date_val: o.order_date, sales_channel: '온라인주문', customer_name: o.buyer_name || '-'
       };
       if (items.length === 0) {
         rows.push({ ...baseFields, part_category: '기타', part_brand: '-', quantity: 0, total_price: Number(o.total_amount || 0) });
@@ -258,9 +258,28 @@ function SalesHistoryStats() {
 
   // 요약
   const totalAmt = currentFiltered.reduce((a, r) => a + Number(r.total_price || 0), 0);
-  const totalSupply = Math.round(totalAmt / 1.1);
-  const totalVat = totalAmt - totalSupply;
   const totalQty = currentFiltered.reduce((a, r) => a + Number(r.quantity || 0), 0);
+
+  const uniqueGroups = {
+    service: new Set(),
+    store: new Set(),
+    agency: new Set()
+  };
+
+  currentFiltered.forEach(r => {
+    if (!r._id) return;
+    if (r._type === 'service') {
+      uniqueGroups.service.add(r._id);
+    } else {
+      const isAgency = agenciesList.includes(r.sales_channel) || r.sales_channel?.includes('대리점');
+      if (isAgency) uniqueGroups.agency.add(r._id);
+      else uniqueGroups.store.add(r._id);
+    }
+  });
+
+  const countService = uniqueGroups.service.size;
+  const countStore = uniqueGroups.store.size;
+  const countAgency = uniqueGroups.agency.size;
 
   // 차트 데이터 가공
   const dailyMap = {};
@@ -517,19 +536,26 @@ function SalesHistoryStats() {
                 </CardContent>
               </Card>
             </Grid>
-            <Grid item xs={12} sm={3}>
-              <Card>
+            <Grid item xs={12} sm={6}>
+              <Card sx={{ height: '100%' }}>
                 <CardContent>
-                  <Typography variant="subtitle2" color="text.secondary">총 공급가액</Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 'bold', mt: 1 }}>{formatCurrency(totalSupply)}</Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-            <Grid item xs={12} sm={3}>
-              <Card>
-                <CardContent>
-                  <Typography variant="subtitle2" color="text.secondary">총 부가세액</Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 'bold', mt: 1 }}>{formatCurrency(totalVat)}</Typography>
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>구분별 주문/처리 건수</Typography>
+                  <Stack direction="row" spacing={{ xs: 2, sm: 4 }} alignItems="center">
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">매장/온라인 출고</Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#1976d2' }}>{countStore.toLocaleString()} <Typography component="span" variant="body1">건</Typography></Typography>
+                    </Box>
+                    <Divider orientation="vertical" flexItem />
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">대리점 (B2B)</Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>{countAgency.toLocaleString()} <Typography component="span" variant="body1">건</Typography></Typography>
+                    </Box>
+                    <Divider orientation="vertical" flexItem />
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">A/S 수리</Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#ed6c02' }}>{countService.toLocaleString()} <Typography component="span" variant="body1">건</Typography></Typography>
+                    </Box>
+                  </Stack>
                 </CardContent>
               </Card>
             </Grid>
