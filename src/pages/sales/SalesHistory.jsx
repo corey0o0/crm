@@ -23,14 +23,14 @@ function SalesHistory() {
   const [loading, setLoading] = useState(true);
   const [flatRows, setFlatRows] = useState([]);   // 품목 단위로 펼친 데이터
   const [searchTerm, setSearchTerm] = useState('');
-  const [startDate, setStartDate] = useState(null);
-  const [endDate, setEndDate] = useState(null);
+  const [startDate, setStartDate] = useState(() => subDays(new Date(), 7));
+  const [endDate, setEndDate] = useState(() => new Date());
   const [filterType, setFilterType] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sellerFilter, setSellerFilter] = useState('all');
   const [dateType, setDateType] = useState('주문/출고/완료일자');
-  const [sellers, setSellers] = useState(['전체 판매처']);
-  const [statuses, setStatuses] = useState(['전체 상태']);
+  const [sellers, setSellers] = useState(['all']);
+  const [statuses, setStatuses] = useState(['all']);
 
   // 편집 모달
   const [editOpen, setEditOpen] = useState(false);
@@ -375,8 +375,8 @@ function SalesHistory() {
        if (r.sales_channel) uniqueSellers.add(r.sales_channel);
        if (r.status) uniqueStatuses.add(r.status);
     });
-    setSellers(['전체 판매처', ...Array.from(uniqueSellers)]);
-    setStatuses(['전체 상태', ...Array.from(uniqueStatuses)]);
+    setSellers(['all', ...Array.from(uniqueSellers)]);
+    setStatuses(['all', ...Array.from(uniqueStatuses)]);
 
     rows.sort((a, b) => new Date(b.date_val) - new Date(a.date_val));
     setFlatRows(rows);
@@ -593,13 +593,13 @@ function SalesHistory() {
       <TableContainer component={Paper}>
         <Table size="small">
           <TableHead>
-            <TableRow sx={{ bgcolor: '#3f51b5' }}>
+            <TableRow sx={{ bgcolor: '#f5f5f5' }}>
               {['일자', '구분', '채널(대리점)', '고객명/수령인', '출고창고', '주문번호', '품목구분', '브랜드', '품목명', '수량', '단가'].map(h => (
-                <TableCell key={h} sx={{ color: 'white', fontWeight: 'bold', whiteSpace: 'nowrap', textAlign: h === '출고창고' || h === '주문번호' || h === '품목구분' || h === '브랜드' ? 'center' : 'left' }}>{h}</TableCell>
+                <TableCell key={h} sx={{ fontWeight: 'bold', whiteSpace: 'nowrap', textAlign: h === '출고창고' || h === '주문번호' || h === '품목구분' || h === '브랜드' ? 'center' : 'left' }}>{h}</TableCell>
               ))}
-              {showTaxDetails && <TableCell sx={{ color: 'white', fontWeight: 'bold', whiteSpace: 'nowrap', textAlign: 'right' }}>공급가액</TableCell>}
-              {showTaxDetails && <TableCell sx={{ color: 'white', fontWeight: 'bold', whiteSpace: 'nowrap', textAlign: 'right' }}>부가세</TableCell>}
-              <TableCell sx={{ color: 'white', fontWeight: 'bold', whiteSpace: 'nowrap', textAlign: 'right' }}>합계</TableCell>
+              {showTaxDetails && <TableCell sx={{ fontWeight: 'bold', whiteSpace: 'nowrap', textAlign: 'right' }}>공급가액</TableCell>}
+              {showTaxDetails && <TableCell sx={{ fontWeight: 'bold', whiteSpace: 'nowrap', textAlign: 'right' }}>부가세</TableCell>}
+              <TableCell sx={{ fontWeight: 'bold', whiteSpace: 'nowrap', textAlign: 'right' }}>합계</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
