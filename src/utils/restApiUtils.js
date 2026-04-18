@@ -269,10 +269,13 @@ export const fetchShipments = async (options = {}) => {
     }
   }
 
-  // B2B 수기판매 및 과거 매출 데이터는 B2C 출고 목록에서 제외하되, null 값은 유지
+  // B2B 수기판매, 수기판매, 과거 매출 데이터는 B2C 출고 목록에서 완전히 제외
   const ecountTag = encodeURIComponent('과거 이카운트 이관');
-  const b2bTag = encodeURIComponent('[B2B수기]');
-  filters.push(`or=(sales_channel.is.null,and(sales_channel.neq.${ecountTag},sales_channel.neq.${b2bTag}))`);
+  const b2bTag1 = encodeURIComponent('[B2B수기]');
+  const b2bTag2 = encodeURIComponent('[B2B수기판매]');
+  const excelTag = encodeURIComponent('[엑셀일괄등록]');
+  const manualTag = encodeURIComponent('[수기판매]');
+  filters.push(`not.or=(sales_channel.eq.${ecountTag},sales_channel.eq.${b2bTag1},note.ilike.*${b2bTag2}*,note.ilike.*${excelTag}*,note.ilike.*${manualTag}*)`);
 
   if (filters.length > 0) {
     filter = filters.join('&');
@@ -329,10 +332,13 @@ export const countShipments = async (options = {}) => {
     }
   }
 
-  // B2B 수기판매 및 과거 매출 데이터는 B2C 출고 목록에서 제외하되, null 값은 유지
+  // B2B 수기판매, 수기판매, 과거 매출 데이터는 B2C 출고 목록에서 카운트 완전 제외
   const ecountTag = encodeURIComponent('과거 이카운트 이관');
-  const b2bTag = encodeURIComponent('[B2B수기]');
-  filters.push(`or=(sales_channel.is.null,and(sales_channel.neq.${ecountTag},sales_channel.neq.${b2bTag}))`);
+  const b2bTag1 = encodeURIComponent('[B2B수기]');
+  const b2bTag2 = encodeURIComponent('[B2B수기판매]');
+  const excelTag = encodeURIComponent('[엑셀일괄등록]');
+  const manualTag = encodeURIComponent('[수기판매]');
+  filters.push(`not.or=(sales_channel.eq.${ecountTag},sales_channel.eq.${b2bTag1},note.ilike.*${b2bTag2}*,note.ilike.*${excelTag}*,note.ilike.*${manualTag}*)`);
 
   if (filters.length > 0) {
     filter = filters.join('&');

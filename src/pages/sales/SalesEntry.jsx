@@ -129,12 +129,13 @@ function SingleEntryForm({ agencies, parts, setSnackbar }) {
 
       const agencyName = formData.agency_id ? agencies.find(a => a.id === formData.agency_id)?.name : null;
       const salesChannel = agencyName || '공홈';
+      const modifiedNote = `[수기판매] ${formData.note || ''}`.trim();
 
       // 1. Insert Shipment
       const { data: newShipment, error: shpErr } = await supabase.from('shipments').insert([{
         brand: 'XRB', order_date: format(formData.order_date, 'yyyy-MM-dd'), shipment_date: format(formData.order_date, 'yyyy-MM-dd'),
         status: '완료', customer_name: formData.buyer_name || agencyName || '비회원', sales_channel: salesChannel,
-        product_name: combinedTitle, quantity: totalQty, price: totalAmt, note: formData.note
+        product_name: combinedTitle, quantity: totalQty, price: totalAmt, note: modifiedNote
       }]).select();
       if (shpErr) throw shpErr;
 
