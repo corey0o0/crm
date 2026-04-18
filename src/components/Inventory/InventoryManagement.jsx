@@ -2367,15 +2367,14 @@ function InventoryManagement() {
               py: 2
             }
           }}
-        >
-          <Tab label="대시보드" sx={{ display: 'none' }} />
-          <Tab label="거래 내역" />
-          <Tab label="매장/온라인 출고" />
-          <Tab label="재고 현황" />
-          <Tab label="박스 관리" />
-          <Tab label="입출고 통계" />
-          <Tab label="창고/대리점 관리" />
-          <Tab label="카페24 재고 비교" sx={{ display: 'none' }} />
+          {/* <Tab value={0} label="대시보드" /> */}
+          <Tab value={1} label="거래 내역" />
+          <Tab value={2} label="매장/온라인 출고" />
+          <Tab value={3} label="재고 현황" />
+          <Tab value={4} label="박스 관리" />
+          <Tab value={5} label="입출고 통계" />
+          <Tab value={6} label="창고/대리점 관리" />
+          {/* <Tab value={7} label="카페24 재고 비교" /> */}
         </Tabs>
       </Paper>
 
