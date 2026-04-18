@@ -242,7 +242,7 @@ function InventoryManagement() {
     } else if (tabParam === 'inventory_status') {
       setActiveTab(3); // 재고 현황 탭
     } else if (tabParam === 'inventory_stats') {
-      setActiveTab(5); // 입출고 통계 탭
+      setActiveTab(1); // 입출고 통계 탭 링크 진입 시 기본 거래 내역으로 리다이렉트
     } else if (!tabParam) {
       setActiveTab(1); // 기본 탭 변경 (거래 내역)
     }
