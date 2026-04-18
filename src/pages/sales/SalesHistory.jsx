@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Paper, Table, TableBody, TableCell, TableContainer,
-  TableHead, TableRow, Chip, TextField, Button, Grid,
+  TableHead, TableRow, Chip, TextField, Button, Grid, Divider,
   TablePagination, CircularProgress, FormControl, InputLabel, Select, MenuItem, Stack, ButtonGroup
 } from '@mui/material';
 import { Assessment as AssessmentIcon } from '@mui/icons-material';
@@ -403,9 +403,28 @@ function SalesHistory() {
 
   // ── 합계 계산 ────────────────────────────────────────
   const totalAmt   = filtered.reduce((a, r) => a + Number(r.total_price || 0), 0);
-  const totalSupply = Math.round(totalAmt / 1.1);
-  const totalVat   = totalAmt - totalSupply;
   const totalQty   = filtered.reduce((a, r) => a + Number(r.quantity || 0), 0);
+
+  const uniqueGroups = {
+    service: new Set(),
+    store: new Set(),
+    agency: new Set()
+  };
+
+  filtered.forEach(r => {
+    if (!r._orderId) return;
+    if (r._type === 'service') {
+      uniqueGroups.service.add(r._orderId);
+    } else {
+      const isAgency = r.sales_channel && !['고객', '-', '일반출고(공홈)', '온라인주문', '매장출고'].includes(r.sales_channel);
+      if (isAgency) uniqueGroups.agency.add(r._orderId);
+      else uniqueGroups.store.add(r._orderId);
+    }
+  });
+
+  const countService = uniqueGroups.service.size;
+  const countStore = uniqueGroups.store.size;
+  const countAgency = uniqueGroups.agency.size;
 
   // ── 월별 합계 계산 ───────────────────────────────────
   const monthlyTotals = {};
@@ -455,7 +474,7 @@ function SalesHistory() {
       {/* 요약 카드 */}
       <Grid container spacing={2} mb={3}>
         <Grid item xs={12} sm={4}>
-          <Paper sx={{ p: 2.5, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#e3f2fd', borderRadius: 2 }}>
+          <Paper sx={{ p: 2.5, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#e3f2fd', borderRadius: 2, height: '100%' }}>
             <AssessmentIcon color="primary" fontSize="large" />
             <Box>
               <Typography variant="body2" color="textSecondary">총 판매액 (합계)</Typography>
@@ -463,21 +482,24 @@ function SalesHistory() {
             </Box>
           </Paper>
         </Grid>
-        <Grid item xs={6} sm={4}>
-          <Paper sx={{ p: 2.5, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#f3e5f5', borderRadius: 2 }}>
-            <AssessmentIcon color="secondary" fontSize="large" />
-            <Box>
-              <Typography variant="body2" color="textSecondary">공급가 합계</Typography>
-              <Typography variant="h5" fontWeight="bold">{totalSupply.toLocaleString()}원</Typography>
-            </Box>
-          </Paper>
-        </Grid>
-        <Grid item xs={6} sm={4}>
-          <Paper sx={{ p: 2.5, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#e8f5e9', borderRadius: 2 }}>
-            <AssessmentIcon sx={{ color: '#2e7d32' }} fontSize="large" />
-            <Box>
-              <Typography variant="body2" color="textSecondary">부가세 합계</Typography>
-              <Typography variant="h5" fontWeight="bold">{totalVat.toLocaleString()}원</Typography>
+        <Grid item xs={12} sm={8}>
+          <Paper sx={{ p: 2.5, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#f5f5f5', borderRadius: 2, height: '100%' }}>
+            <Box sx={{ width: '100%' }}>
+              <Typography variant="body2" color="textSecondary" mb={1}>구분별 주문/처리 건수</Typography>
+              <Stack direction="row" spacing={{ xs: 2, sm: 4 }} alignItems="center" divider={<Divider orientation="vertical" flexItem />}>
+                 <Box>
+                   <Typography variant="body2" color="textSecondary">매장/온라인 출고</Typography>
+                   <Typography variant="h5" fontWeight="bold" color="primary">{countStore.toLocaleString()} <Typography component="span" variant="body1">건</Typography></Typography>
+                 </Box>
+                 <Box>
+                   <Typography variant="body2" color="textSecondary">대리점 (B2B)</Typography>
+                   <Typography variant="h5" fontWeight="bold" sx={{ color: '#2e7d32' }}>{countAgency.toLocaleString()} <Typography component="span" variant="body1">건</Typography></Typography>
+                 </Box>
+                 <Box>
+                   <Typography variant="body2" color="textSecondary">A/S 수리</Typography>
+                   <Typography variant="h5" fontWeight="bold" sx={{ color: '#ed6c02' }}>{countService.toLocaleString()} <Typography component="span" variant="body1">건</Typography></Typography>
+                 </Box>
+              </Stack>
             </Box>
           </Paper>
         </Grid>
