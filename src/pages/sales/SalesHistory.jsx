@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Paper, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Chip, TextField, Button, Grid,
-  TablePagination, CircularProgress, FormControl, InputLabel, Select, MenuItem
+  TablePagination, CircularProgress, FormControl, InputLabel, Select, MenuItem, Stack, ButtonGroup
 } from '@mui/material';
 import { Assessment as AssessmentIcon } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
-import { format } from 'date-fns';
+import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { ko } from 'date-fns/locale';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -26,6 +26,11 @@ function SalesHistory() {
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
   const [filterType, setFilterType] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [sellerFilter, setSellerFilter] = useState('all');
+  const [dateType, setDateType] = useState('주문/출고/완료일자');
+  const [sellers, setSellers] = useState(['전체 판매처']);
+  const [statuses, setStatuses] = useState(['전체 상태']);
 
   // 편집 모달
   const [editOpen, setEditOpen] = useState(false);
@@ -39,6 +44,38 @@ function SalesHistory() {
   const [rowsPerPage, setRowsPerPage] = useState(30);
 
   useEffect(() => { fetchSales(); }, []);
+
+  const handleQuickDateFilter = (period) => {
+    const today = new Date();
+    let start = null;
+    let end = null;
+
+    switch (period) {
+      case 'today':        start = end = today; break;
+      case 'yesterday':    start = end = subDays(today, 1); break;
+      case 'thisWeek':
+        start = startOfWeek(today, { weekStartsOn: 1 });
+        end = endOfWeek(today, { weekStartsOn: 1 });
+        break;
+      case 'lastWeek':
+        const lastWeek = subDays(today, 7);
+        start = startOfWeek(lastWeek, { weekStartsOn: 1 });
+        end = endOfWeek(lastWeek, { weekStartsOn: 1 });
+        break;
+      case 'thisMonth':
+        start = startOfMonth(today);
+        end = endOfMonth(today);
+        break;
+      case 'lastMonth':
+        const lastMonth = subDays(startOfMonth(today), 1);
+        start = startOfMonth(lastMonth);
+        end = endOfMonth(lastMonth);
+        break;
+      default: break;
+    }
+    setStartDate(start);
+    setEndDate(end);
+  };
 
   // ── 데이터 패치 ────────────────────────────────────────
   const fetchSales = async () => {
@@ -223,6 +260,7 @@ function SalesHistory() {
         date_val: s.order_date,
         customer_name: s.customer_name || '-',
         sales_channel: extractedChannel,
+        status: s.status || '완료',
         note: s.note || '',
         warehouse_name: warehouseName,
         order_no: orderNo,
@@ -255,6 +293,7 @@ function SalesHistory() {
         date_val: s.completion_date || s.reception_date,
         customer_name: s.customer_name || '-',
         sales_channel: agencyName,
+        status: s.status || '완료',
         note: s.note || '',
         order_no: orderNo,
       };
@@ -296,6 +335,7 @@ function SalesHistory() {
         date_val: o.order_date,
         customer_name: o.buyer_name || '-',
         sales_channel: '온라인주문',
+        status: o.status || '배송완료',
         note: o.status || '',
         order_no: orderNo,
       };
@@ -329,6 +369,15 @@ function SalesHistory() {
       }
     });
 
+    const uniqueSellers = new Set();
+    const uniqueStatuses = new Set();
+    rows.forEach(r => {
+       if (r.sales_channel) uniqueSellers.add(r.sales_channel);
+       if (r.status) uniqueStatuses.add(r.status);
+    });
+    setSellers(['전체 판매처', ...Array.from(uniqueSellers)]);
+    setStatuses(['전체 상태', ...Array.from(uniqueStatuses)]);
+
     rows.sort((a, b) => new Date(b.date_val) - new Date(a.date_val));
     setFlatRows(rows);
     setLoading(false);
@@ -337,13 +386,19 @@ function SalesHistory() {
   // ── 필터 ────────────────────────────────────────────
   const filtered = flatRows.filter(r => {
     if (filterType !== 'all' && r._type !== filterType) return false;
+    if (statusFilter !== 'all' && statusFilter !== '전체 상태' && r.status !== statusFilter) return false;
+    if (sellerFilter !== 'all' && sellerFilter !== '전체 판매처' && r.sales_channel !== sellerFilter) return false;
 
-    return (
-      (r.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (r.sales_channel || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (r.part_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (r.note || '').toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase();
+      return (
+        (r.customer_name || '').toLowerCase().includes(q) ||
+        (r.sales_channel || '').toLowerCase().includes(q) ||
+        (r.part_name || '').toLowerCase().includes(q) ||
+        (r.note || '').toLowerCase().includes(q)
+      );
+    }
+    return true;
   });
 
   // ── 합계 계산 ────────────────────────────────────────
@@ -428,59 +483,110 @@ function SalesHistory() {
         </Grid>
       </Grid>
 
-      {/* 검색/기간 필터 */}
-      <Paper sx={{ p: 2, mb: 2 }}>
-        <Box display="flex" gap={2} alignItems="center" flexWrap="wrap">
-          <FormControl size="small" sx={{ minWidth: 120 }}>
-            <InputLabel>구분</InputLabel>
-            <Select
-              value={filterType}
-              label="구분"
-              onChange={e => setFilterType(e.target.value)}
-            >
-              <MenuItem value="all">전체보기</MenuItem>
-              <MenuItem value="cafe24">온라인주문</MenuItem>
-              <MenuItem value="shipment">매장출고</MenuItem>
-              <MenuItem value="service">A/S</MenuItem>
-            </Select>
-          </FormControl>
-          <TextField
-            label="고객/채널/품목/메모 검색"
-            variant="outlined"
-            size="small"
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            sx={{ width: 260 }}
-          />
-          <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
-            <DatePicker
-              label="시작일"
-              value={startDate}
-              onChange={v => setStartDate(v)}
-              slotProps={{ textField: { size: 'small', sx: { width: 145 } } }}
-            />
-            <Typography>~</Typography>
-            <DatePicker
-              label="종료일"
-              value={endDate}
-              onChange={v => setEndDate(v)}
-              slotProps={{ textField: { size: 'small', sx: { width: 145 } } }}
-            />
-          </LocalizationProvider>
-          <Button variant="contained" onClick={fetchSales}>검색/새로고침</Button>
-          <Button variant="outlined" color="secondary" onClick={() => { setStartDate(null); setEndDate(null); setSearchTerm(''); setFilterType('all'); }}>
-            초기화
-          </Button>
-          <Box sx={{ flexGrow: 1 }} />
-          <Button 
-            variant="text" 
-            color="primary" 
-            onClick={() => setShowTaxDetails(!showTaxDetails)}
-            sx={{ fontWeight: 'bold' }}
-          >
-            {showTaxDetails ? '공급가/부가세 숨기기' : '공급가/부가세 보기'}
-          </Button>
-        </Box>
+      {/* 검색/기간 통합 필터 UI */}
+      <Paper sx={{ p: 2, mb: 3 }}>
+        <Grid container spacing={2} alignItems="center">
+          
+          {/* 상태 & 판매처 & 구분 드롭다운 */}
+          <Grid item xs={12} md={5}>
+            <Stack direction="row" spacing={1}>
+              <FormControl size="small" sx={{ width: 110 }}>
+                <InputLabel>분류</InputLabel>
+                <Select value={filterType} label="분류" onChange={e => { setFilterType(e.target.value); setPage(0); }}>
+                  <MenuItem value="all">전체분류</MenuItem>
+                  <MenuItem value="cafe24">온라인주문</MenuItem>
+                  <MenuItem value="shipment">매장출고</MenuItem>
+                  <MenuItem value="service">A/S</MenuItem>
+                </Select>
+              </FormControl>
+
+              <FormControl size="small" sx={{ width: 120 }}>
+                <InputLabel>상태</InputLabel>
+                <Select value={statusFilter} label="상태" onChange={e => { setStatusFilter(e.target.value); setPage(0); }}>
+                  {statuses.map(s => <MenuItem key={s} value={s}>{s === 'all' ? '전체 상태' : s}</MenuItem>)}
+                </Select>
+              </FormControl>
+
+              <FormControl size="small" sx={{ width: 130 }}>
+                <InputLabel>판매처</InputLabel>
+                <Select value={sellerFilter} label="판매처" onChange={e => { setSellerFilter(e.target.value); setPage(0); }}>
+                  {sellers.map(s => <MenuItem key={s} value={s}>{s === 'all' ? '전체 판매처' : s}</MenuItem>)}
+                </Select>
+              </FormControl>
+            </Stack>
+          </Grid>
+
+          {/* 날짜 필터 & 퀵버튼 */}
+          <Grid item xs={12} md={7}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
+              <FormControl size="small" sx={{ width: 150 }}>
+                <InputLabel>기준일</InputLabel>
+                <Select value={dateType} label="기준일" onChange={e => setDateType(e.target.value)}>
+                  <MenuItem value="주문/출고/완료일자">주문/출고/완료일자</MenuItem>
+                </Select>
+              </FormControl>
+
+              <ButtonGroup size="small" variant="outlined">
+                <Button onClick={() => handleQuickDateFilter('today')}>오늘</Button>
+                <Button onClick={() => handleQuickDateFilter('yesterday')}>어제</Button>
+                <Button onClick={() => handleQuickDateFilter('thisWeek')}>이번주</Button>
+                <Button onClick={() => handleQuickDateFilter('lastWeek')}>지난주</Button>
+                <Button onClick={() => handleQuickDateFilter('thisMonth')}>이번달</Button>
+                <Button onClick={() => handleQuickDateFilter('lastMonth')}>지난달</Button>
+              </ButtonGroup>
+
+              <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <DatePicker
+                    value={startDate}
+                    onChange={v => setStartDate(v)}
+                    slotProps={{ textField: { size: 'small', sx: { width: 120 } } }}
+                  />
+                  <Typography variant="body2">~</Typography>
+                  <DatePicker
+                    value={endDate}
+                    onChange={v => setEndDate(v)}
+                    slotProps={{ textField: { size: 'small', sx: { width: 120 } } }}
+                  />
+                </Box>
+              </LocalizationProvider>
+            </Stack>
+          </Grid>
+
+          {/* 검색명 입력 & 버튼 그룹 */}
+          <Grid item xs={12}>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <TextField
+                size="small"
+                label="고객명, 판매처, 제품명 등 검색"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                onKeyPress={e => { if (e.key === 'Enter') fetchSales(); }}
+                sx={{ flexGrow: 1, maxWidth: 500 }}
+              />
+              <Button variant="contained" onClick={() => { setPage(0); fetchSales(); }} sx={{ bgcolor: '#3182f6' }}>검색</Button>
+              <Button variant="outlined" onClick={() => {
+                setSearchTerm('');
+                setStatusFilter('all');
+                setSellerFilter('all');
+                setFilterType('all');
+                setStartDate(null);
+                setEndDate(null);
+                setPage(0);
+                setTimeout(() => fetchSales(), 0);
+              }}>초기화</Button>
+              <Box sx={{ flexGrow: 1 }} />
+              <Button 
+                variant="text" 
+                color="primary" 
+                onClick={() => setShowTaxDetails(!showTaxDetails)}
+                sx={{ fontWeight: 'bold' }}
+              >
+                {showTaxDetails ? '공급가/부가세 숨기기' : '공급가/부가세 보기'}
+              </Button>
+            </Stack>
+          </Grid>
+        </Grid>
       </Paper>
 
       {/* 테이블 */}

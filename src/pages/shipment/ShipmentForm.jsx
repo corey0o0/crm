@@ -98,7 +98,7 @@ function ShipmentForm({ isManualB2B = false }) {
     customer_address: '',
     order_date: new Date().toISOString().split('T')[0],
     shipment_date: new Date().toISOString().split('T')[0],
-    status: '준비중',
+    status: isManualB2B ? '출고완료' : '준비중',
     delivery_method: isManualB2B ? '수기판매' : '택배',
     tracking_number: '',
     note: isManualB2B ? '[B2B수기판매] ' : '',

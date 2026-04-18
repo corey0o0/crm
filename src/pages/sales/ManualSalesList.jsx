@@ -1,9 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Button, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Alert, TextField, Stack, TablePagination } from '@mui/material';
+import { Box, Typography, Button, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Alert, TextField, Stack, TablePagination, Grid, FormControl, InputLabel, Select, MenuItem, ButtonGroup } from '@mui/material';
 import { Add as AddIcon, Search as SearchIcon, Delete as DeleteIcon, Edit as EditIcon, CloudUpload as CloudUploadIcon } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { ko } from 'date-fns/locale';
+import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO } from 'date-fns';
 
 export default function ManualSalesList() {
   const [loading, setLoading] = useState(true);
@@ -20,6 +25,14 @@ export default function ManualSalesList() {
   const navigate = useNavigate();
 
   const [warehouses, setWarehouses] = useState([]);
+  const [sellers, setSellers] = useState(['전체']);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [sellerFilter, setSellerFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState({
+    type: 'order_date',
+    startDate: '',
+    endDate: ''
+  });
 
   // B2B 수기판매 전표 식별 조건: '과거 이카운트 이관'이거나 메모/채널에 'B2B수기판매' 등 포함
   useEffect(() => {
@@ -43,8 +56,23 @@ export default function ManualSalesList() {
       let condition = `sales_channel.eq.과거 이카운트 이관,note.ilike.%[B2B수기판매]%,note.ilike.%[과거 이카운트 이관]%,note.ilike.%[엑셀일괄등록]%`;
       query = query.or(condition);
 
+      if (statusFilter !== 'all') {
+        query = query.eq('status', statusFilter);
+      }
+
+      if (sellerFilter !== 'all') {
+        query = query.eq('sales_channel', sellerFilter);
+      }
+
+      if (dateFilter.startDate) {
+        query = query.gte(dateFilter.type, `${dateFilter.startDate}T00:00:00`);
+      }
+      if (dateFilter.endDate) {
+        query = query.lte(dateFilter.type, `${dateFilter.endDate}T23:59:59`);
+      }
+
       if (searchTerm) {
-        query = query.or(`customer_name.ilike.%${searchTerm}%,sales_channel.ilike.%${searchTerm}%`);
+        query = query.or(`customer_name.ilike.%${searchTerm}%,sales_channel.ilike.%${searchTerm}%,note.ilike.%${searchTerm}%`);
       }
 
       query = query.order('order_date', { ascending: false })
@@ -55,6 +83,19 @@ export default function ManualSalesList() {
       
       setShipments(data || []);
       setTotalCount(count || 0);
+
+      // 판매처 목록 동적 수집 (B2B 수기판매 대상 한정)
+      if (sellers.length === 1 && data && data.length > 0) {
+        const uniqueSellers = new Set();
+        data.forEach(s => {
+          if (s.sales_channel && !['과거 이카운트 이관', '-', '(---)', '---'].includes(s.sales_channel)) {
+            uniqueSellers.add(s.sales_channel);
+          }
+        });
+        if (uniqueSellers.size > 0) {
+           setSellers(['전체', ...Array.from(uniqueSellers)]);
+        }
+      }
     } catch (err) {
       console.error(err);
       setSnackbar({ open: true, message: '데이터 불러오기 실패: ' + err.message, severity: 'error' });
@@ -68,6 +109,47 @@ export default function ManualSalesList() {
       setPage(0);
       fetchManualSales();
     }
+  };
+
+  const handleQuickDateFilter = (period) => {
+    const today = new Date();
+    let start = '';
+    let end = '';
+
+    switch (period) {
+      case 'today':
+        start = end = format(today, 'yyyy-MM-dd');
+        break;
+      case 'yesterday':
+        start = end = format(subDays(today, 1), 'yyyy-MM-dd');
+        break;
+      case 'thisWeek':
+        start = format(startOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+        end = format(endOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+        break;
+      case 'lastWeek':
+        const lastWeek = subDays(today, 7);
+        start = format(startOfWeek(lastWeek, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+        end = format(endOfWeek(lastWeek, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+        break;
+      case 'thisMonth':
+        start = format(startOfMonth(today), 'yyyy-MM-dd');
+        end = format(endOfMonth(today), 'yyyy-MM-dd');
+        break;
+      case 'lastMonth':
+        const lastMonth = subDays(startOfMonth(today), 1);
+        start = format(startOfMonth(lastMonth), 'yyyy-MM-dd');
+        end = format(endOfMonth(lastMonth), 'yyyy-MM-dd');
+        break;
+      default:
+        break;
+    }
+
+    setDateFilter(prev => ({ ...prev, startDate: start, endDate: end }));
+  };
+
+  const handleDateFilterChange = (field, value) => {
+    setDateFilter(prev => ({ ...prev, [field]: value }));
   };
 
   const handleDeleteConfirm = async () => {
@@ -106,16 +188,102 @@ export default function ManualSalesList() {
         </Stack>
       </Box>
 
-      <Paper sx={{ p: 2, mb: 3, display: 'flex', gap: 2, alignItems: 'center' }}>
-        <TextField
-          size="small"
-          label="대리점명 또는 거래처명 검색"
-          value={searchTerm}
-          onChange={e => setSearchTerm(e.target.value)}
-          onKeyPress={executeSearch}
-          sx={{ width: 300 }}
-        />
-        <Button variant="outlined" onClick={executeSearch}>검색</Button>
+      <Paper sx={{ p: 2, mb: 3 }}>
+        <Grid container spacing={2} alignItems="center">
+          <Grid item xs={12} md={5}>
+            <Stack direction="row" spacing={2}>
+              <FormControl size="small" sx={{ width: 140 }}>
+                <InputLabel>상태</InputLabel>
+                <Select
+                  value={statusFilter}
+                  label="상태"
+                  onChange={e => setStatusFilter(e.target.value)}
+                >
+                  <MenuItem value="all">전체 상태</MenuItem>
+                  <MenuItem value="준비중">준비중</MenuItem>
+                  <MenuItem value="출고대기">출고대기</MenuItem>
+                  <MenuItem value="출고완료">출고완료</MenuItem>
+                </Select>
+              </FormControl>
+
+              <FormControl size="small" sx={{ width: 150 }}>
+                <InputLabel>판매처</InputLabel>
+                <Select
+                  value={sellerFilter}
+                  label="판매처"
+                  onChange={e => setSellerFilter(e.target.value)}
+                >
+                  <MenuItem value="all">전체 판매처</MenuItem>
+                  {sellers.filter(s => s !== '전체').map(seller => (
+                    <MenuItem key={seller} value={seller}>{seller}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Stack>
+          </Grid>
+
+          <Grid item xs={12} md={7}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
+              <FormControl size="small" sx={{ width: 130 }}>
+                <InputLabel>날짜 유형</InputLabel>
+                <Select
+                  value={dateFilter.type}
+                  label="날짜 유형"
+                  onChange={(e) => handleDateFilterChange('type', e.target.value)}
+                >
+                  <MenuItem value="order_date">주문일자</MenuItem>
+                  <MenuItem value="shipment_date">출고일자</MenuItem>
+                </Select>
+              </FormControl>
+
+              <ButtonGroup size="small" variant="outlined">
+                <Button onClick={() => handleQuickDateFilter('today')}>오늘</Button>
+                <Button onClick={() => handleQuickDateFilter('yesterday')}>어제</Button>
+                <Button onClick={() => handleQuickDateFilter('thisWeek')}>이번주</Button>
+                <Button onClick={() => handleQuickDateFilter('lastWeek')}>지난주</Button>
+                <Button onClick={() => handleQuickDateFilter('thisMonth')}>이번달</Button>
+                <Button onClick={() => handleQuickDateFilter('lastMonth')}>지난달</Button>
+              </ButtonGroup>
+
+              <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <DatePicker
+                    value={dateFilter.startDate ? parseISO(dateFilter.startDate) : null}
+                    onChange={(newValue) => handleDateFilterChange('startDate', newValue ? format(newValue, 'yyyy-MM-dd') : '')}
+                    slotProps={{ textField: { size: "small", sx: { width: 120 } } }}
+                  />
+                  <Typography variant="body2">~</Typography>
+                  <DatePicker
+                    value={dateFilter.endDate ? parseISO(dateFilter.endDate) : null}
+                    onChange={(newValue) => handleDateFilterChange('endDate', newValue ? format(newValue, 'yyyy-MM-dd') : '')}
+                    slotProps={{ textField: { size: "small", sx: { width: 120 } } }}
+                  />
+                </Box>
+              </LocalizationProvider>
+            </Stack>
+          </Grid>
+
+          <Grid item xs={12}>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <TextField
+                size="small"
+                label="고객명, 연락처, 제품명 등 검색"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                onKeyPress={executeSearch}
+                sx={{ flexGrow: 1, maxWidth: 500 }}
+              />
+              <Button variant="contained" onClick={executeSearch} sx={{ bgcolor: '#3182f6' }}>검색</Button>
+              <Button variant="outlined" onClick={() => {
+                setSearchTerm('');
+                setStatusFilter('all');
+                setSellerFilter('all');
+                setDateFilter({ type: 'order_date', startDate: '', endDate: '' });
+                setPage(0);
+              }}>초기화</Button>
+            </Stack>
+          </Grid>
+        </Grid>
       </Paper>
 
       <TableContainer component={Paper}>
@@ -145,7 +313,9 @@ export default function ManualSalesList() {
                   <TableCell>{dayjs(s.order_date).format('YYYY-MM-DD')}</TableCell>
                   <TableCell>
                     <Typography variant="body2" fontWeight="bold">{s.customer_name}</Typography>
-                    {s.sales_channel && <Typography variant="caption" color="text.secondary">{s.sales_channel}</Typography>}
+                    {s.sales_channel && !['과거 이카운트 이관', '-', '(---)', '---'].includes(s.sales_channel) && (
+                      <Typography variant="caption" color="text.secondary">{s.sales_channel}</Typography>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2" color="text.secondary">
