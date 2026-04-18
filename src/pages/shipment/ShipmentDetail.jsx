@@ -77,7 +77,7 @@ function ShipmentDetail() {
        return;
     }
 
-    if (!window.confirm("이 출고건을 '매장/온라인 출고' 검수 대기열로 전송하시겠습니까?")) return;
+    if (!window.confirm("이 출고건을 '출고 검수' 대기열로 전송하시겠습니까?")) return;
 
     try {
       setAddingToQueue(true);
@@ -514,10 +514,10 @@ function ShipmentDetail() {
       // === [검수 락 (관리자 바이패스 및 토글 체크)] ===
       if (isInspectionEnabled && ['출고완료', '출고대기'].includes(newStatus) && !['출고완료', '출고대기'].includes(previousStatus) && !isMaster) {
         // 출고 창고 지정 기능이 제거되었으므로, 모든 일반 계정 출고 건은 
-        // 매장/온라인 출고 탭을 통해 검수 프로세스를 거쳐야만 출고 확정이 가능하도록 기본 설정됨.
+        // 출고 검수 탭을 통해 검수 프로세스를 거쳐야만 출고 확정이 가능하도록 기본 설정됨.
         const { data: po } = await supabase.from('pending_outbounds').select('status').eq('source_id', id).maybeSingle();
         if (!po || po.status !== '완료') {
-          alert('출고 확정 시 반드시 [매장/온라인 출고] 탭에서 검수를 완료(' + (po?po.status:'미등록') + ')해야만 확정 처리가 가능합니다. (일반 계정 제한)');
+          alert('출고 확정 시 반드시 [출고 검수] 탭에서 검수를 완료(' + (po?po.status:'미등록') + ')해야만 확정 처리가 가능합니다. (일반 계정 제한)');
           setSaving(false);
           return;
         }

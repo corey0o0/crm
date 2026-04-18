@@ -238,7 +238,7 @@ function InventoryManagement() {
     const params = new URLSearchParams(location.search);
     const tabParam = params.get('tab');
     if (tabParam === 'outbound_scan') {
-      setActiveTab(2); // 매장/온라인 출고 탭
+      setActiveTab(2); // 출고 검수 탭
     } else if (tabParam === 'inventory_status') {
       setActiveTab(3); // 재고 현황 탭
     } else if (tabParam === 'inventory_stats') {
@@ -2370,7 +2370,7 @@ function InventoryManagement() {
         >
           {/* <Tab value={0} label="대시보드" /> */}
           <Tab value={1} label="거래 내역" />
-          <Tab value={2} label="매장/온라인 출고" />
+          <Tab value={2} label="출고 검수" />
           <Tab value={3} label="재고 현황" />
           <Tab value={4} label="박스 관리" />
           {/* <Tab value={5} label="입출고 통계" /> */}
@@ -4735,7 +4735,7 @@ function InventoryManagement() {
         </DialogActions>
       </Dialog>
 
-      {/* 매장/온라인 출고 탭 */}
+      {/* 출고 검수 탭 */}
       {activeTab === 2 && (
         <StoreOnlineOutboundTab />
       )}
