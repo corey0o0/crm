@@ -568,7 +568,7 @@ function SalesHistory() {
 
           {/* 날짜 필터 & 퀵버튼 */}
           <Grid item xs={12} md={7}>
-            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ rowGap: 1 }}>
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ overflowX: 'auto', pb: 0.5, '&::-webkit-scrollbar': { height: '6px' }, '&::-webkit-scrollbar-thumb': { backgroundColor: '#e0e0e0', borderRadius: '4px' } }}>
               <FormControl size="small" sx={{ width: 140, flexShrink: 0 }}>
                 <InputLabel>날짜 기준</InputLabel>
                 <Select value={dateType} label="날짜 기준" onChange={e => setDateType(e.target.value)}>
