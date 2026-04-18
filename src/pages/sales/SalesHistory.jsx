@@ -506,23 +506,23 @@ function SalesHistory() {
           <Paper sx={{ p: 2.5, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#f5f5f5', borderRadius: 2, height: '100%' }}>
             <Box sx={{ width: '100%' }}>
               <Typography variant="body2" color="textSecondary" mb={1}>구분별 주문/처리 건수</Typography>
-              <Stack direction="row" spacing={{ xs: 2, sm: 4 }} alignItems="center" divider={<Divider orientation="vertical" flexItem />}>
-                 <Box>
+              <Stack direction="row" justifyContent="space-around" alignItems="center" sx={{ width: '100%' }} divider={<Divider orientation="vertical" flexItem />}>
+                 <Box sx={{ flex: 1, textAlign: 'center' }}>
                    <Typography variant="body2" color="textSecondary">매장 출고</Typography>
                    <Typography variant="h5" fontWeight="bold" color="primary">{countStore.toLocaleString()} <Typography component="span" variant="body1">건</Typography></Typography>
                    <Typography variant="body2" color="textSecondary">{groupAmounts.store.toLocaleString()}원</Typography>
                  </Box>
-                 <Box>
+                 <Box sx={{ flex: 1, textAlign: 'center' }}>
                    <Typography variant="body2" color="textSecondary">온라인 출고</Typography>
                    <Typography variant="h5" fontWeight="bold" sx={{ color: '#0288d1' }}>{countOnline.toLocaleString()} <Typography component="span" variant="body1">건</Typography></Typography>
                    <Typography variant="body2" color="textSecondary">{groupAmounts.online.toLocaleString()}원</Typography>
                  </Box>
-                 <Box>
+                 <Box sx={{ flex: 1, textAlign: 'center' }}>
                    <Typography variant="body2" color="textSecondary">대리점 (B2B)</Typography>
                    <Typography variant="h5" fontWeight="bold" sx={{ color: '#2e7d32' }}>{countAgency.toLocaleString()} <Typography component="span" variant="body1">건</Typography></Typography>
                    <Typography variant="body2" color="textSecondary">{groupAmounts.agency.toLocaleString()}원</Typography>
                  </Box>
-                 <Box>
+                 <Box sx={{ flex: 1, textAlign: 'center' }}>
                    <Typography variant="body2" color="textSecondary">A/S 수리</Typography>
                    <Typography variant="h5" fontWeight="bold" sx={{ color: '#ed6c02' }}>{countService.toLocaleString()} <Typography component="span" variant="body1">건</Typography></Typography>
                    <Typography variant="body2" color="textSecondary">{groupAmounts.service.toLocaleString()}원</Typography>
@@ -568,15 +568,15 @@ function SalesHistory() {
 
           {/* 날짜 필터 & 퀵버튼 */}
           <Grid item xs={12} md={7}>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
-              <FormControl size="small" sx={{ width: 150 }}>
-                <InputLabel>기준일</InputLabel>
-                <Select value={dateType} label="기준일" onChange={e => setDateType(e.target.value)}>
+            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ rowGap: 1 }}>
+              <FormControl size="small" sx={{ width: 140, flexShrink: 0 }}>
+                <InputLabel>날짜 기준</InputLabel>
+                <Select value={dateType} label="날짜 기준" onChange={e => setDateType(e.target.value)}>
                   <MenuItem value="주문/출고/완료일자">주문/출고/완료일자</MenuItem>
                 </Select>
               </FormControl>
 
-              <ButtonGroup size="small" variant="outlined">
+              <ButtonGroup size="small" variant="outlined" sx={{ flexShrink: 0 }}>
                 <Button onClick={() => handleQuickDateFilter('today')}>오늘</Button>
                 <Button onClick={() => handleQuickDateFilter('yesterday')}>어제</Button>
                 <Button onClick={() => handleQuickDateFilter('thisWeek')}>이번주</Button>

@@ -558,23 +558,23 @@ function SalesHistoryStats() {
               <Card sx={{ height: '100%' }}>
                 <CardContent>
                   <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>구분별 주문/처리 건수</Typography>
-                  <Stack direction="row" spacing={{ xs: 2, sm: 4 }} alignItems="center" divider={<Divider orientation="vertical" flexItem />}>
-                    <Box>
+                  <Stack direction="row" justifyContent="space-around" alignItems="center" sx={{ width: '100%' }} divider={<Divider orientation="vertical" flexItem />}>
+                    <Box sx={{ flex: 1, textAlign: 'center' }}>
                       <Typography variant="body2" color="text.secondary">매장 출고</Typography>
                       <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#1976d2' }}>{countStore.toLocaleString()} <Typography component="span" variant="body1">건</Typography></Typography>
                       <Typography variant="body2" color="text.secondary">{groupAmounts.store.toLocaleString()}원</Typography>
                     </Box>
-                    <Box>
+                    <Box sx={{ flex: 1, textAlign: 'center' }}>
                       <Typography variant="body2" color="text.secondary">온라인 출고</Typography>
                       <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#0288d1' }}>{countOnline.toLocaleString()} <Typography component="span" variant="body1">건</Typography></Typography>
                       <Typography variant="body2" color="text.secondary">{groupAmounts.online.toLocaleString()}원</Typography>
                     </Box>
-                    <Box>
+                    <Box sx={{ flex: 1, textAlign: 'center' }}>
                       <Typography variant="body2" color="text.secondary">대리점 (B2B)</Typography>
                       <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>{countAgency.toLocaleString()} <Typography component="span" variant="body1">건</Typography></Typography>
                       <Typography variant="body2" color="text.secondary">{groupAmounts.agency.toLocaleString()}원</Typography>
                     </Box>
-                    <Box>
+                    <Box sx={{ flex: 1, textAlign: 'center' }}>
                       <Typography variant="body2" color="text.secondary">A/S 수리</Typography>
                       <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#ed6c02' }}>{countService.toLocaleString()} <Typography component="span" variant="body1">건</Typography></Typography>
                       <Typography variant="body2" color="text.secondary">{groupAmounts.service.toLocaleString()}원</Typography>
