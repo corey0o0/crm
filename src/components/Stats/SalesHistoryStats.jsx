@@ -8,7 +8,7 @@ import {
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ko } from 'date-fns/locale';
-import { startOfMonth, endOfMonth, format, startOfYear, endOfYear, getWeek, startOfWeek } from 'date-fns';
+import { startOfMonth, endOfMonth, format, startOfYear, endOfYear, getWeek, startOfWeek, startOfQuarter, endOfQuarter, setMonth } from 'date-fns';
 import { supabase } from '../../lib/supabaseClient';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -32,6 +32,24 @@ function SalesHistoryStats() {
     const today = new Date();
     setStartDate(startOfYear(today));
     setEndDate(endOfYear(today));
+  };
+
+  const handleQuickDate = (type, monthIndex = 0) => {
+    const today = new Date();
+    if (type === 'week') {
+      setStartDate(startOfWeek(today, { weekStartsOn: 1 }));
+      setEndDate(new Date()); // 혹은 endOfWeek
+    } else if (type === 'month') {
+      setStartDate(startOfMonth(today));
+      setEndDate(endOfMonth(today));
+    } else if (type === 'quarter') {
+      setStartDate(startOfQuarter(today));
+      setEndDate(endOfQuarter(today));
+    } else if (type === 'specific_month') {
+      const targetDate = setMonth(today, monthIndex);
+      setStartDate(startOfMonth(targetDate));
+      setEndDate(endOfMonth(targetDate));
+    }
   };
 
   useEffect(() => {
@@ -397,6 +415,23 @@ function SalesHistoryStats() {
       {/* 필터 영역 */}
       <Paper sx={{ p: 2, mb: 3 }}>
         <Grid container spacing={2} alignItems="center">
+          {/* 날짜 범위 퀵 선택 버튼들 */}
+          <Grid item xs={12}>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1, alignItems: 'center' }}>
+              <Typography variant="body2" sx={{ fontWeight: 'bold', mr: 1, color: 'text.secondary' }}>빠른 선택:</Typography>
+              <Button size="small" variant="outlined" color="secondary" onClick={() => handleQuickDate('week')}>이번 주</Button>
+              <Button size="small" variant="outlined" color="secondary" onClick={() => handleQuickDate('month')}>이번 달</Button>
+              <Button size="small" variant="outlined" color="secondary" onClick={() => handleQuickDate('quarter')}>이번 분기</Button>
+              <Button size="small" variant="outlined" color="secondary" onClick={handleSetYear}>올해 전체</Button>
+              <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+              {[...Array(12)].map((_, i) => (
+                <Button key={i} size="small" variant="outlined" color="info" onClick={() => handleQuickDate('specific_month', i)}>
+                  {i + 1}월
+                </Button>
+              ))}
+            </Box>
+          </Grid>
+          
           <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
             <Grid item xs={12} sm={3}>
               <DatePicker
@@ -440,11 +475,8 @@ function SalesHistoryStats() {
             </FormControl>
           </Grid>
 
-            <Grid item xs={12} sm={3}>
-              <ButtonGroup fullWidth sx={{ height: 40 }}>
-                <Button variant="outlined" onClick={handleSetYear}>올해 전체</Button>
-                <Button variant="contained" onClick={fetchSales} disabled={loading} sx={{ width: '70%' }} startIcon={<SearchIcon />}>조회</Button>
-              </ButtonGroup>
+            <Grid item xs={12} sm={2}>
+              <Button fullWidth variant="contained" onClick={fetchSales} disabled={loading} sx={{ height: 40 }} startIcon={<SearchIcon />}>조회</Button>
             </Grid>
         </Grid>
       </Paper>
