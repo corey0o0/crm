@@ -25,9 +25,9 @@ export const sendTelegramNotification = async (notificationData, options = {}) =
   }
 
   // 백엔드 주소 (개발/운영 환경별 자동 분기)
-  const baseUrl = process.env.NODE_ENV === 'production' 
+  const baseUrl = process.env.REACT_APP_BACKEND_URL || (process.env.NODE_ENV === 'production' 
     ? 'https://crm-production-067b.up.railway.app' 
-    : 'http://localhost:5001';
+    : 'http://localhost:5001');
 
   let textToSend = notificationData.message;
 
@@ -69,8 +69,8 @@ export const sendTelegramNotification = async (notificationData, options = {}) =
     console.log('[텔레그램] 알림 전송 성공:', responseData);
     return { success: true, data: responseData };
   } catch (e) {
-    console.error('[텔레그램] 알림 전송 실패:', e);
+    console.error('[텔레그램] 알림 전송 실패:', e instanceof Error ? e.message : e);
     // 앱 크래시 방지를 위해 텔레그램 에러는 조용히 실패시킴
-    return { success: false, error: e.message };
+    return { success: false, error: e instanceof Error ? e.message : String(e) };
   }
 };
