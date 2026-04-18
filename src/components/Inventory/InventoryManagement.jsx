@@ -3211,7 +3211,21 @@ function InventoryManagement() {
                       <TableBody>
                         {Object.values(productStats)
                           .filter(stat => stat.outTransactions > 0)
-                          .sort((a, b) => b.outTotalQuantity - a.outTotalQuantity)
+                          .sort((a, b) => {
+                             const getWeight = (name='', code='') => {
+                               const n = name.toLowerCase();
+                               const c = code.toUpperCase();
+                               if (n.includes('교환') || n.includes('수리') || n.includes('공임') || n.includes('작업')) return 0; // 최하단 (공임)
+                               if (n.includes('부품') || c.includes('XRBP') || c.includes('NBP') || c.includes('NBS')) return 1; // 파츠
+                               // 기체
+                               if (n.includes('자전거') || n.includes('기체') || n.includes('스쿠터') || n.includes('완차')) return 3;
+                               return 2; // 불명확(아마도 기체나 악세사리)
+                             };
+                             const wA = getWeight(a.productName, a.productCode);
+                             const wB = getWeight(b.productName, b.productCode);
+                             if (wA !== wB) return wB - wA; // 높은 가중치(기체)가 먼저 오도록
+                             return b.outTotalQuantity - a.outTotalQuantity; // 그 다음 판매량순
+                          })
                           .slice(0, 15)
                           .map((stat, index) => (
                             <TableRow key={index} hover>
