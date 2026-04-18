@@ -263,6 +263,7 @@ function SalesHistoryStats() {
   const uniqueGroups = {
     service: new Set(),
     store: new Set(),
+    online: new Set(),
     agency: new Set()
   };
 
@@ -272,13 +273,19 @@ function SalesHistoryStats() {
       uniqueGroups.service.add(r._id);
     } else {
       const isAgency = agenciesList.includes(r.sales_channel) || r.sales_channel?.includes('대리점');
-      if (isAgency) uniqueGroups.agency.add(r._id);
-      else uniqueGroups.store.add(r._id);
+      if (isAgency) {
+        uniqueGroups.agency.add(r._id);
+      } else if (r.sales_channel === '온라인주문' || r._type === 'cafe24') {
+        uniqueGroups.online.add(r._id);
+      } else {
+        uniqueGroups.store.add(r._id);
+      }
     }
   });
 
   const countService = uniqueGroups.service.size;
   const countStore = uniqueGroups.store.size;
+  const countOnline = uniqueGroups.online.size;
   const countAgency = uniqueGroups.agency.size;
 
   // 차트 데이터 가공
@@ -540,17 +547,19 @@ function SalesHistoryStats() {
               <Card sx={{ height: '100%' }}>
                 <CardContent>
                   <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>구분별 주문/처리 건수</Typography>
-                  <Stack direction="row" spacing={{ xs: 2, sm: 4 }} alignItems="center">
+                  <Stack direction="row" spacing={{ xs: 2, sm: 4 }} alignItems="center" divider={<Divider orientation="vertical" flexItem />}>
                     <Box>
-                      <Typography variant="body2" color="text.secondary">매장/온라인 출고</Typography>
+                      <Typography variant="body2" color="text.secondary">매장 출고</Typography>
                       <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#1976d2' }}>{countStore.toLocaleString()} <Typography component="span" variant="body1">건</Typography></Typography>
                     </Box>
-                    <Divider orientation="vertical" flexItem />
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">온라인 출고</Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#0288d1' }}>{countOnline.toLocaleString()} <Typography component="span" variant="body1">건</Typography></Typography>
+                    </Box>
                     <Box>
                       <Typography variant="body2" color="text.secondary">대리점 (B2B)</Typography>
                       <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>{countAgency.toLocaleString()} <Typography component="span" variant="body1">건</Typography></Typography>
                     </Box>
-                    <Divider orientation="vertical" flexItem />
                     <Box>
                       <Typography variant="body2" color="text.secondary">A/S 수리</Typography>
                       <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#ed6c02' }}>{countService.toLocaleString()} <Typography component="span" variant="body1">건</Typography></Typography>

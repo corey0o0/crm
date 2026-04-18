@@ -410,6 +410,7 @@ function SalesHistory() {
   const uniqueGroups = {
     service: new Set(),
     store: new Set(),
+    online: new Set(),
     agency: new Set()
   };
 
@@ -419,13 +420,19 @@ function SalesHistory() {
       uniqueGroups.service.add(r._orderId);
     } else {
       const isAgency = r.sales_channel && !['고객', '-', '일반출고(공홈)', '온라인주문', '매장출고'].includes(r.sales_channel);
-      if (isAgency) uniqueGroups.agency.add(r._orderId);
-      else uniqueGroups.store.add(r._orderId);
+      if (isAgency) {
+        uniqueGroups.agency.add(r._orderId);
+      } else if (r.sales_channel === '온라인주문' || r._type === 'cafe24') {
+        uniqueGroups.online.add(r._orderId);
+      } else {
+        uniqueGroups.store.add(r._orderId);
+      }
     }
   });
 
   const countService = uniqueGroups.service.size;
   const countStore = uniqueGroups.store.size;
+  const countOnline = uniqueGroups.online.size;
   const countAgency = uniqueGroups.agency.size;
 
   // ── 월별 합계 계산 ───────────────────────────────────
@@ -490,8 +497,12 @@ function SalesHistory() {
               <Typography variant="body2" color="textSecondary" mb={1}>구분별 주문/처리 건수</Typography>
               <Stack direction="row" spacing={{ xs: 2, sm: 4 }} alignItems="center" divider={<Divider orientation="vertical" flexItem />}>
                  <Box>
-                   <Typography variant="body2" color="textSecondary">매장/온라인 출고</Typography>
+                   <Typography variant="body2" color="textSecondary">매장 출고</Typography>
                    <Typography variant="h5" fontWeight="bold" color="primary">{countStore.toLocaleString()} <Typography component="span" variant="body1">건</Typography></Typography>
+                 </Box>
+                 <Box>
+                   <Typography variant="body2" color="textSecondary">온라인 출고</Typography>
+                   <Typography variant="h5" fontWeight="bold" sx={{ color: '#0288d1' }}>{countOnline.toLocaleString()} <Typography component="span" variant="body1">건</Typography></Typography>
                  </Box>
                  <Box>
                    <Typography variant="body2" color="textSecondary">대리점 (B2B)</Typography>
