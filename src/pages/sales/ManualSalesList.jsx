@@ -88,7 +88,7 @@ export default function ManualSalesList() {
       if (sellers.length === 1 && data && data.length > 0) {
         const uniqueSellers = new Set();
         data.forEach(s => {
-          if (s.sales_channel && !['과거 이카운트 이관', '-', '(---)', '---'].includes(s.sales_channel)) {
+          if (s.sales_channel && s.sales_channel !== '과거 이카운트 이관') {
             uniqueSellers.add(s.sales_channel);
           }
         });
@@ -177,7 +177,7 @@ export default function ManualSalesList() {
   return (
     <Box p={3} sx={{ maxWidth: 1200, margin: '0 auto' }}>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" fontWeight="bold">수기 판매 관리 (대리점/B2B)</Typography>
+        <Typography variant="h4" fontWeight="bold">수기 판매 관리</Typography>
         <Stack direction="row" spacing={2}>
            <Button variant="outlined" startIcon={<CloudUploadIcon />} onClick={() => navigate('/settings/ecount-uploader')}>
             이카운트 엑셀 일괄등록
@@ -313,9 +313,7 @@ export default function ManualSalesList() {
                   <TableCell>{dayjs(s.order_date).format('YYYY-MM-DD')}</TableCell>
                   <TableCell>
                     <Typography variant="body2" fontWeight="bold">{s.customer_name}</Typography>
-                    {s.sales_channel && !['과거 이카운트 이관', '-', '(---)', '---'].includes(s.sales_channel) && (
-                      <Typography variant="caption" color="text.secondary">{s.sales_channel}</Typography>
-                    )}
+                    {s.sales_channel && <Typography variant="caption" color="text.secondary">{s.sales_channel}</Typography>}
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2" color="text.secondary">
