@@ -267,18 +267,29 @@ function SalesHistoryStats() {
     agency: new Set()
   };
 
+  const groupAmounts = {
+    service: 0,
+    store: 0,
+    online: 0,
+    agency: 0
+  };
+
   currentFiltered.forEach(r => {
-    if (!r._id) return;
+    const price = Number(r.total_price || 0);
     if (r._type === 'service') {
-      uniqueGroups.service.add(r._id);
+      if (r._id) uniqueGroups.service.add(r._id);
+      groupAmounts.service += price;
     } else {
       const isAgency = agenciesList.includes(r.sales_channel) || r.sales_channel?.includes('대리점');
       if (isAgency) {
-        uniqueGroups.agency.add(r._id);
+        if (r._id) uniqueGroups.agency.add(r._id);
+        groupAmounts.agency += price;
       } else if (r.sales_channel === '온라인주문' || r._type === 'cafe24') {
-        uniqueGroups.online.add(r._id);
+        if (r._id) uniqueGroups.online.add(r._id);
+        groupAmounts.online += price;
       } else {
-        uniqueGroups.store.add(r._id);
+        if (r._id) uniqueGroups.store.add(r._id);
+        groupAmounts.store += price;
       }
     }
   });
@@ -551,18 +562,22 @@ function SalesHistoryStats() {
                     <Box>
                       <Typography variant="body2" color="text.secondary">매장 출고</Typography>
                       <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#1976d2' }}>{countStore.toLocaleString()} <Typography component="span" variant="body1">건</Typography></Typography>
+                      <Typography variant="body2" color="text.secondary">{groupAmounts.store.toLocaleString()}원</Typography>
                     </Box>
                     <Box>
                       <Typography variant="body2" color="text.secondary">온라인 출고</Typography>
                       <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#0288d1' }}>{countOnline.toLocaleString()} <Typography component="span" variant="body1">건</Typography></Typography>
+                      <Typography variant="body2" color="text.secondary">{groupAmounts.online.toLocaleString()}원</Typography>
                     </Box>
                     <Box>
                       <Typography variant="body2" color="text.secondary">대리점 (B2B)</Typography>
                       <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>{countAgency.toLocaleString()} <Typography component="span" variant="body1">건</Typography></Typography>
+                      <Typography variant="body2" color="text.secondary">{groupAmounts.agency.toLocaleString()}원</Typography>
                     </Box>
                     <Box>
                       <Typography variant="body2" color="text.secondary">A/S 수리</Typography>
                       <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#ed6c02' }}>{countService.toLocaleString()} <Typography component="span" variant="body1">건</Typography></Typography>
+                      <Typography variant="body2" color="text.secondary">{groupAmounts.service.toLocaleString()}원</Typography>
                     </Box>
                   </Stack>
                 </CardContent>
