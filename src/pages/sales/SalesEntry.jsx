@@ -48,7 +48,7 @@ function SalesEntry() {
     <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
       <Typography variant="h5" sx={{ mb: 3, fontWeight: 'bold' }}>수기 판매 등록</Typography>
       <Paper sx={{ width: '100%', mb: 2 }}>
-        <Tabs value={tabIndex} onChange={handleTabChange} textColor="primary" indicatorColor="primary">
+        <Tabs value={tabIndex} onChange={handleTabChange} textColor="primary" indicatorColor="primary" variant="fullWidth" sx={{ '& .MuiTab-root': { fontSize: '1.05rem', fontWeight: 'bold' } }}>
           <Tab label="단건 빠른 등록" />
           <Tab label="엑셀 대량 업로드 (과거 자료)" />
           <Tab label="수기 판매 내역 (관리)" />
