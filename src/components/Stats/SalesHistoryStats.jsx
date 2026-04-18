@@ -29,28 +29,49 @@ function SalesHistoryStats() {
   const [filterBrand, setFilterBrand] = useState('전체');
   const [tabValue, setTabValue] = useState(0);
 
-  const handleSetYear = () => {
-    const today = new Date();
-    setStartDate(startOfYear(today));
-    setEndDate(endOfYear(today));
+  const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [selectedMonth, setSelectedMonth] = useState(null);
+
+  const handleYearSelect = (year) => {
+    setSelectedYear(year);
+    const newStartDate = startOfYear(new Date(year, 0, 1));
+    const newEndDate = endOfYear(new Date(year, 11, 31));
+    setStartDate(newStartDate);
+    setEndDate(newEndDate);
+    setSelectedMonth(null);
   };
 
-  const handleQuickDate = (type, monthIndex = 0) => {
-    const today = new Date();
-    if (type === 'week') {
-      setStartDate(startOfWeek(today, { weekStartsOn: 1 }));
-      setEndDate(new Date()); // 혹은 endOfWeek
-    } else if (type === 'month') {
-      setStartDate(startOfMonth(today));
-      setEndDate(endOfMonth(today));
-    } else if (type === 'quarter') {
-      setStartDate(startOfQuarter(today));
-      setEndDate(endOfQuarter(today));
-    } else if (type === 'specific_month') {
-      const targetDate = setMonth(today, monthIndex);
-      setStartDate(startOfMonth(targetDate));
-      setEndDate(endOfMonth(targetDate));
-    }
+  const handleMonthSelect = (monthIndex) => {
+    const newDate = new Date(selectedYear, monthIndex, 1);
+    const newStartDate = startOfMonth(newDate);
+    const newEndDate = endOfMonth(newDate);
+    setSelectedMonth(monthIndex);
+    setStartDate(newStartDate);
+    setEndDate(newEndDate);
+  };
+
+  const currentMonth = new Date().getMonth();
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+
+  const handleYearSelect = (year) => {
+    setSelectedYear(year);
+    const newStartDate = startOfYear(new Date(year, 0, 1));
+    const newEndDate = endOfYear(new Date(year, 11, 31));
+    setStartDate(newStartDate);
+    setEndDate(newEndDate);
+    setSelectedMonth(null);
+  };
+
+  const handleMonthSelect = (monthIndex) => {
+    const newDate = new Date(selectedYear, monthIndex, 1);
+    const newStartDate = startOfMonth(newDate);
+    const newEndDate = endOfMonth(newDate);
+    setSelectedMonth(monthIndex);
+    setStartDate(newStartDate);
+    setEndDate(newEndDate);
   };
 
   useEffect(() => {
@@ -475,25 +496,74 @@ function SalesHistoryStats() {
       </Box>
 
       {/* 필터 영역 */}
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Grid container spacing={2} alignItems="center">
-          {/* 날짜 범위 퀵 선택 버튼들 */}
-          <Grid item xs={12}>
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1, alignItems: 'center' }}>
-              <Typography variant="body2" sx={{ fontWeight: 'bold', mr: 1, color: 'text.secondary' }}>빠른 선택:</Typography>
-              <Button size="small" variant="outlined" color="secondary" onClick={() => handleQuickDate('week')}>이번 주</Button>
-              <Button size="small" variant="outlined" color="secondary" onClick={() => handleQuickDate('month')}>이번 달</Button>
-              <Button size="small" variant="outlined" color="secondary" onClick={() => handleQuickDate('quarter')}>이번 분기</Button>
-              <Button size="small" variant="outlined" color="secondary" onClick={handleSetYear}>올해 전체</Button>
-              <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
-              {[...Array(12)].map((_, i) => (
-                <Button key={i} size="small" variant="outlined" color="info" onClick={() => handleQuickDate('specific_month', i)}>
-                  {i + 1}월
+      <Paper sx={{ p: 3, mb: 3, borderLeft: '4px solid #3182f6' }}>
+        <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 500, color: '#3182f6' }}>
+          검색 필터
+        </Typography>
+
+        {/* 연도 선택 */}
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
+            연도 선택
+          </Typography>
+          <ButtonGroup size="small" variant="outlined" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+            {(() => {
+              const minYear = 2022;
+              const years = [];
+              for (let year = currentYear; year >= minYear; year--) {
+                years.push(year);
+              }
+              return years.map((year) => (
+                <Button
+                  key={year}
+                  onClick={() => handleYearSelect(year)}
+                  sx={{
+                    minWidth: '60px',
+                    backgroundColor: selectedYear === year ? 'primary.main' : 'inherit',
+                    color: selectedYear === year ? 'white' : 'inherit',
+                    fontWeight: selectedYear === year ? 'bold' : 'normal',
+                    '&:hover': { backgroundColor: selectedYear === year ? 'primary.dark' : '' }
+                  }}
+                >
+                  {year}년
                 </Button>
-              ))}
-            </Box>
-          </Grid>
-          
+              ));
+            })()}
+          </ButtonGroup>
+        </Box>
+
+        {/* 월별 버튼 그룹 */}
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary', display: 'flex', alignItems: 'center' }}>
+            월 선택
+            {selectedMonth !== null && (
+              <Box component="span" sx={{
+                ml: 2, py: 0.5, px: 1.5, borderRadius: 1, backgroundColor: '#e3f2fd', fontSize: '0.9rem', color: '#1976d2', display: 'inline-flex', alignItems: 'center'
+              }}>
+                현재 선택: {selectedMonth + 1}월 ({format(startDate, 'yyyy-MM-dd')} ~ {format(endDate, 'yyyy-MM-dd')})
+              </Box>
+            )}
+          </Typography>
+          <ButtonGroup size="small" variant="outlined" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+            {[...Array(12)].map((_, idx) => (
+              <Button
+                key={idx}
+                onClick={() => handleMonthSelect(idx)}
+                sx={{
+                  minWidth: '40px',
+                  backgroundColor: selectedMonth === idx ? 'primary.main' : 'inherit',
+                  color: selectedMonth === idx ? 'white' : 'inherit',
+                  fontWeight: selectedMonth === idx ? 'bold' : 'normal',
+                  '&:hover': { backgroundColor: selectedMonth === idx ? 'primary.dark' : '' }
+                }}
+              >
+                {idx + 1}월
+              </Button>
+            ))}
+          </ButtonGroup>
+        </Box>
+
+        <Grid container spacing={2} alignItems="center">
           <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
             <Grid item xs={12} sm={3}>
               <DatePicker
@@ -537,9 +607,9 @@ function SalesHistoryStats() {
             </FormControl>
           </Grid>
 
-            <Grid item xs={12} sm={2}>
-              <Button fullWidth variant="contained" onClick={fetchSales} disabled={loading} sx={{ height: 40 }} startIcon={<SearchIcon />}>조회</Button>
-            </Grid>
+          <Grid item xs={12} sm={2}>
+            <Button fullWidth variant="contained" onClick={fetchSales} disabled={loading} sx={{ height: 40, bgcolor: '#3182f6', '&:hover': { bgcolor: '#1b64da' } }} startIcon={<SearchIcon />}>조회</Button>
+          </Grid>
         </Grid>
       </Paper>
 

@@ -192,62 +192,95 @@ function OnlineStats() {
         </Typography>
       </Box>
 
-      <Paper sx={{ p: 3, mb: 3, borderRadius: 2 }}>
-        <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} md={8}>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
-                  <DatePicker
-                    label="시작일"
-                    value={startDate}
-                    onChange={(newValue) => {
-                      setStartDate(newValue);
-                      setSelectedMonth(null);
-                    }}
-                    renderInput={(params) => <TextField {...params} size="small" sx={{ width: 150 }} />}
-                  />
-                  <Typography>~</Typography>
-                  <DatePicker
-                    label="종료일"
-                    value={endDate}
-                    onChange={(newValue) => {
-                      setEndDate(newValue);
-                      setSelectedMonth(null);
-                    }}
-                    renderInput={(params) => <TextField {...params} size="small" sx={{ width: 150 }} />}
-                  />
-                </LocalizationProvider>
-                <Button variant="contained" onClick={() => fetchData()} disabled={loading} startIcon={<RefreshIcon />}>
-                  조회
-                </Button>
-              </Box>
+      <Paper sx={{ p: 3, mb: 3, borderLeft: '4px solid #3182f6' }}>
+        <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 500, color: '#3182f6' }}>
+          검색 필터
+        </Typography>
 
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-                <ButtonGroup variant="outlined" size="small">
-                  {[2023, 2024, 2025, 2026].map(year => (
-                    <Button
-                      key={year}
-                      onClick={() => handleYearSelect(year)}
-                      variant={selectedYear === year ? 'contained' : 'outlined'}
-                    >
-                      {year}년
-                    </Button>
-                  ))}
-                </ButtonGroup>
-                <ButtonGroup variant="outlined" size="small" sx={{ flexWrap: 'wrap' }}>
-                  {[...Array(12)].map((_, i) => (
-                    <Button
-                      key={i}
-                      onClick={() => handleMonthSelect(i)}
-                      variant={selectedMonth === i ? 'contained' : 'outlined'}
-                    >
-                      {i + 1}월
-                    </Button>
-                  ))}
-                </ButtonGroup>
+        {/* 연도 선택 */}
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
+            연도 선택
+          </Typography>
+          <ButtonGroup size="small" variant="outlined" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+            {(() => {
+              const minYear = 2022;
+              const years = [];
+              for (let year = currentYear; year >= minYear; year--) {
+                years.push(year);
+              }
+              return years.map((year) => (
+                <Button
+                  key={year}
+                  onClick={() => handleYearSelect(year)}
+                  sx={{
+                    minWidth: '60px',
+                    backgroundColor: selectedYear === year ? 'primary.main' : 'inherit',
+                    color: selectedYear === year ? 'white' : 'inherit',
+                    fontWeight: selectedYear === year ? 'bold' : 'normal',
+                    '&:hover': { backgroundColor: selectedYear === year ? 'primary.dark' : '' }
+                  }}
+                >
+                  {year}년
+                </Button>
+              ));
+            })()}
+          </ButtonGroup>
+        </Box>
+
+        {/* 월별 버튼 그룹 */}
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary', display: 'flex', alignItems: 'center' }}>
+            월 선택
+            {selectedMonth !== null && (
+              <Box component="span" sx={{
+                ml: 2, py: 0.5, px: 1.5, borderRadius: 1, backgroundColor: '#e3f2fd', fontSize: '0.9rem', color: '#1976d2', display: 'inline-flex', alignItems: 'center'
+              }}>
+                현재 선택: {selectedMonth + 1}월 ({format(startDate, 'yyyy-MM-dd')} ~ {format(endDate, 'yyyy-MM-dd')})
               </Box>
-            </Box>
+            )}
+          </Typography>
+          <ButtonGroup size="small" variant="outlined" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+            {[...Array(12)].map((_, idx) => (
+              <Button
+                key={idx}
+                onClick={() => handleMonthSelect(idx)}
+                sx={{
+                  minWidth: '40px',
+                  backgroundColor: selectedMonth === idx ? 'primary.main' : 'inherit',
+                  color: selectedMonth === idx ? 'white' : 'inherit',
+                  fontWeight: selectedMonth === idx ? 'bold' : 'normal',
+                  '&:hover': { backgroundColor: selectedMonth === idx ? 'primary.dark' : '' }
+                }}
+              >
+                {idx + 1}월
+              </Button>
+            ))}
+          </ButtonGroup>
+        </Box>
+
+        <Grid container spacing={2} alignItems="center">
+          <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
+            <Grid item xs={12} sm={3}>
+              <DatePicker
+                label="시작일"
+                value={startDate}
+                onChange={(newValue) => { setStartDate(newValue); setSelectedMonth(null); }}
+                renderInput={(params) => <TextField {...params} fullWidth size="small" />}
+              />
+            </Grid>
+            <Grid item xs={12} sm={3}>
+              <DatePicker
+                label="종료일"
+                value={endDate}
+                onChange={(newValue) => { setEndDate(newValue); setSelectedMonth(null); }}
+                renderInput={(params) => <TextField {...params} fullWidth size="small" />}
+              />
+            </Grid>
+          </LocalizationProvider>
+
+          <Grid item xs={12} sm={2}>
+            <Button fullWidth variant="contained" onClick={() => fetchData()} disabled={loading} sx={{ height: 40, bgcolor: '#3182f6', '&:hover': { bgcolor: '#1b64da' } }} startIcon={<RefreshIcon />}>조회</Button>
           </Grid>
         </Grid>
       </Paper>
