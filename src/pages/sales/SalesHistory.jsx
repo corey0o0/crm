@@ -403,6 +403,8 @@ function SalesHistory() {
 
   // ── 합계 계산 ────────────────────────────────────────
   const totalAmt   = filtered.reduce((a, r) => a + Number(r.total_price || 0), 0);
+  const totalSupply = Math.round(totalAmt / 1.1);
+  const totalVat   = totalAmt - totalSupply;
   const totalQty   = filtered.reduce((a, r) => a + Number(r.quantity || 0), 0);
 
   const uniqueGroups = {
