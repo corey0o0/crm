@@ -2259,10 +2259,10 @@ function InventoryManagement() {
   }, []);
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box p={3} sx={{ maxWidth: 1200, margin: '0 auto' }}>
       {/* 헤더 */}
       <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h5" fontWeight="bold">
+        <Typography variant="h4" fontWeight="bold">
           입출고 관리
         </Typography>
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -2504,7 +2504,7 @@ function InventoryManagement() {
               <TableContainer>
                 <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                   <TableHead>
-                    <TableRow>
+<TableRow sx={{ bgcolor: '#f5f5f5' }}>
                       <TableCell>날짜</TableCell>
                       <TableCell>유형</TableCell>
                       <TableCell>상품</TableCell>
@@ -2552,43 +2552,17 @@ function InventoryManagement() {
       {activeTab === 1 && (
         <Box>
           {/* 필터 옵션 */}
-          <Card sx={{ p: 2, mb: 3 }}>
-            <Typography variant="h6" sx={{ mb: 2 }}>
-              필터 옵션
-            </Typography>
-            
-            {/* 날짜 필터 버튼 */}
-            <Box sx={{ mb: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-              <Button
-                size="small"
-                variant={dateFilter === 'all' ? 'contained' : 'outlined'}
-                onClick={() => handleDateFilterClick('all')}
-              >
-                전체
-              </Button>
-              <Button
-                size="small"
-                variant={dateFilter === 'today' ? 'contained' : 'outlined'}
-                onClick={() => handleDateFilterClick('today')}
-              >
-                당일
-              </Button>
-              <Button
-                size="small"
-                variant={dateFilter === 'week' ? 'contained' : 'outlined'}
-                onClick={() => handleDateFilterClick('week')}
-              >
-                이번주
-              </Button>
-              <Button
-                size="small"
-                variant={dateFilter === 'month' ? 'contained' : 'outlined'}
-                onClick={() => handleDateFilterClick('month')}
-              >
-                당월
-              </Button>
-            </Box>
-            <Grid container spacing={2}>
+          <Paper sx={{ p: 2, mb: 3 }}>
+            <Grid container spacing={2} alignItems="center">
+              {/* 날짜 퀵 필터 */}
+              <Grid item xs={12} md={3}>
+                <ButtonGroup size="small" variant="outlined" fullWidth>
+                  <Button variant={dateFilter === 'all' ? 'contained' : 'outlined'} onClick={() => handleDateFilterClick('all')}>전체</Button>
+                  <Button variant={dateFilter === 'today' ? 'contained' : 'outlined'} onClick={() => handleDateFilterClick('today')}>당일</Button>
+                  <Button variant={dateFilter === 'week' ? 'contained' : 'outlined'} onClick={() => handleDateFilterClick('week')}>이번주</Button>
+                  <Button variant={dateFilter === 'month' ? 'contained' : 'outlined'} onClick={() => handleDateFilterClick('month')}>당월</Button>
+                </ButtonGroup>
+              
               <Grid item xs={12} md={2}>
                 <TextField
                   select
@@ -2727,7 +2701,8 @@ function InventoryManagement() {
                 </Button>
               </Grid>
             </Grid>
-          </Card>
+            </Grid>
+          </Paper>
 
           {/* 거래 내역 보기 전환 및 렌더 */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
@@ -2749,7 +2724,7 @@ function InventoryManagement() {
               <TableContainer component={Paper}>
               <Table>
                 <TableHead>
-                  <TableRow>
+<TableRow sx={{ bgcolor: '#f5f5f5' }}>
                     <TableCell padding="checkbox">
                       <Checkbox
                         checked={paginatedTransactions.length > 0 && selectedTransactions.length === paginatedTransactions.length}
@@ -2883,7 +2858,7 @@ function InventoryManagement() {
                           <TableContainer component={Paper}>
                             <Table>
                               <TableHead>
-                                <TableRow>
+<TableRow sx={{ bgcolor: '#f5f5f5' }}>
                                   <TableCell>날짜</TableCell>
                                   {productCols.map(p => (
                                     <TableCell key={`prod-col-${wid}-${p.id}`} align="right">{p.name}</TableCell>
@@ -3115,7 +3090,7 @@ function InventoryManagement() {
               <TableContainer>
                 <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                   <TableHead>
-                    <TableRow>
+<TableRow sx={{ bgcolor: '#f5f5f5' }}>
                       <TableCell sx={{ py: 0.5 }}>기간</TableCell>
                       <TableCell align="right" sx={{ py: 0.5 }}>수량</TableCell>
                       <TableCell align="right" sx={{ py: 0.5 }}>건수</TableCell>
@@ -3154,7 +3129,7 @@ function InventoryManagement() {
                   <TableContainer>
                     <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                       <TableHead>
-                        <TableRow>
+<TableRow sx={{ bgcolor: '#f5f5f5' }}>
                           <TableCell sx={{ py: 0.5 }}>창고명</TableCell>
                           <TableCell align="right" sx={{ py: 0.5 }}>출고량</TableCell>
                           <TableCell align="right" sx={{ py: 0.5 }}>건수</TableCell>
@@ -3197,7 +3172,7 @@ function InventoryManagement() {
                   <TableContainer>
                     <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                       <TableHead>
-                        <TableRow>
+<TableRow sx={{ bgcolor: '#f5f5f5' }}>
                           <TableCell sx={{ py: 0.5 }}>제품명</TableCell>
                           <TableCell align="right" sx={{ py: 0.5 }}>출고량</TableCell>
                           <TableCell align="right" sx={{ py: 0.5 }}>건수</TableCell>
@@ -3248,7 +3223,7 @@ function InventoryManagement() {
               <TableContainer>
                 <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                   <TableHead>
-                    <TableRow>
+<TableRow sx={{ bgcolor: '#f5f5f5' }}>
                       <TableCell sx={{ py: 0.5 }}>대리점명</TableCell>
                       <TableCell sx={{ py: 0.5 }}>지역</TableCell>
                       <TableCell align="right" sx={{ py: 0.5 }}>입고량</TableCell>
@@ -3367,7 +3342,7 @@ function InventoryManagement() {
                             </Typography>
                             <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                               <TableHead>
-                                <TableRow>
+<TableRow sx={{ bgcolor: '#f5f5f5' }}>
                                   <TableCell sx={{ py: 0.3, px: 1 }}>기간</TableCell>
                                   <TableCell align="right" sx={{ py: 0.3, px: 1 }}>수량</TableCell>
                                   <TableCell align="right" sx={{ py: 0.3, px: 1 }}>건수</TableCell>
@@ -3448,7 +3423,7 @@ function InventoryManagement() {
           <TableContainer component={Paper} sx={{ width: '100%', maxHeight: 600, overflowX: 'hidden', overflowY: 'auto' }}>
             <Table size="small" stickyHeader sx={{ width: '100%', tableLayout: 'fixed', border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', border: '1px solid rgba(224, 224, 224, 1)' } }}>
               <TableHead>
-                <TableRow>
+<TableRow sx={{ bgcolor: '#f5f5f5' }}>
                   <TableCell sx={{ position: 'sticky', left: 0, zIndex: 3, backgroundColor: 'background.paper', width: 240, maxWidth: 240 }}>상품</TableCell>
                   <TableCell sx={{ width: 120, maxWidth: 120 }}>바코드</TableCell>
                   <TableCell sx={{ width: 120, maxWidth: 120 }}>제품코드</TableCell>
@@ -4483,7 +4458,7 @@ function InventoryManagement() {
                 <TableContainer component={Paper} sx={{ maxHeight: 300 }}>
                   <Table stickyHeader size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                     <TableHead>
-                      <TableRow>
+<TableRow sx={{ bgcolor: '#f5f5f5' }}>
                         <TableCell>상품코드</TableCell>
                         <TableCell>상품명</TableCell>
                         <TableCell align="right">수량</TableCell>
@@ -4600,7 +4575,7 @@ function InventoryManagement() {
             <TableContainer>
               <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                 <TableHead>
-                  <TableRow>
+<TableRow sx={{ bgcolor: '#f5f5f5' }}>
                     <TableCell>유형</TableCell>
                     <TableCell>상품</TableCell>
                     <TableCell align="right">수량</TableCell>
@@ -4666,7 +4641,7 @@ function InventoryManagement() {
               <TableContainer component={Paper}>
                 <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                   <TableHead>
-                    <TableRow>
+<TableRow sx={{ bgcolor: '#f5f5f5' }}>
                       <TableCell>시간</TableCell>
                       <TableCell>유형</TableCell>
                       <TableCell>상품</TableCell>
