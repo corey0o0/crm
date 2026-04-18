@@ -276,7 +276,7 @@ export const fetchShipments = async (options = {}) => {
   const excelTag = encodeURIComponent('[엑셀일괄등록]');
   const manualTag = encodeURIComponent('[수기판매]');
   const salesChannelFilter = `or(sales_channel.is.null,and(sales_channel.neq.${ecountTag},sales_channel.neq.${b2bTag1}))`;
-  const noteFilter = `or(note.is.null,not.or(note.ilike.*${b2bTag2}*,note.ilike.*${excelTag}*,note.ilike.*${manualTag}*))`;
+  const noteFilter = `or(note.is.null,and(note.not.ilike.*${b2bTag2}*,note.not.ilike.*${excelTag}*,note.not.ilike.*${manualTag}*))`;
 
   filters.push(`and(${salesChannelFilter},${noteFilter})`);
 
@@ -342,7 +342,7 @@ export const countShipments = async (options = {}) => {
   const excelTag = encodeURIComponent('[엑셀일괄등록]');
   const manualTag = encodeURIComponent('[수기판매]');
   const salesChannelFilter = `or(sales_channel.is.null,and(sales_channel.neq.${ecountTag},sales_channel.neq.${b2bTag1}))`;
-  const noteFilter = `or(note.is.null,not.or(note.ilike.*${b2bTag2}*,note.ilike.*${excelTag}*,note.ilike.*${manualTag}*))`;
+  const noteFilter = `or(note.is.null,and(note.not.ilike.*${b2bTag2}*,note.not.ilike.*${excelTag}*,note.not.ilike.*${manualTag}*))`;
 
   filters.push(`and(${salesChannelFilter},${noteFilter})`);
 
