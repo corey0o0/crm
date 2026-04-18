@@ -3,7 +3,7 @@ import {
   Box, Typography, Paper, Grid, Card, CardContent, CircularProgress,
   FormControl, Select, MenuItem, InputLabel, Button, Divider, TextField,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Tabs, Tab, ButtonGroup
+  Tabs, Tab, ButtonGroup, Stack
 } from '@mui/material';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -445,7 +445,7 @@ function SalesHistoryStats() {
       dealerGroups: dealerGroupsArr,
       timeSeriesData: { weeks, months }
     };
-  }, [currentFiltered]);
+  }, [currentFiltered, agenciesList]);
 
   return (
     <Box sx={{ p: 3, bgcolor: '#f4f6f8', minHeight: '100vh' }}>
