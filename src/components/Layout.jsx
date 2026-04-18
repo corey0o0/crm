@@ -283,8 +283,8 @@ function Layout() {
       children: [
         { text: '매장 재고 관리', icon: <InventoryIcon />, path: '/stocks', key: 'stocks' },
         { text: '입출고 관리', icon: <InventoryIcon />, path: '/inventory-management', key: 'inventory_management' },
-        { text: '재고 현황', icon: <AssessmentIcon />, path: '/inventory-management?tab=inventory_status', key: 'inventory_status' },
-        { text: '입출고 통계', icon: <AnalyticsIcon />, path: '/inventory-management?tab=inventory_stats', key: 'inventory_stats' }
+        { text: '재고 현황', icon: <AssessmentIcon />, path: '/inventory-management?tab=inventory_status', key: 'inventory_status' }
+        // { text: '입출고 통계', icon: <AnalyticsIcon />, path: '/inventory-management?tab=inventory_stats', key: 'inventory_stats' }
       ]
     },
     // 📊 통계 & 분석
