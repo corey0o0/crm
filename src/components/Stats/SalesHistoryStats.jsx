@@ -29,27 +29,7 @@ function SalesHistoryStats() {
   const [filterBrand, setFilterBrand] = useState('전체');
   const [tabValue, setTabValue] = useState(0);
 
-  const currentYear = new Date().getFullYear();
-  const [selectedYear, setSelectedYear] = useState(currentYear);
-  const [selectedMonth, setSelectedMonth] = useState(null);
 
-  const handleYearSelect = (year) => {
-    setSelectedYear(year);
-    const newStartDate = startOfYear(new Date(year, 0, 1));
-    const newEndDate = endOfYear(new Date(year, 11, 31));
-    setStartDate(newStartDate);
-    setEndDate(newEndDate);
-    setSelectedMonth(null);
-  };
-
-  const handleMonthSelect = (monthIndex) => {
-    const newDate = new Date(selectedYear, monthIndex, 1);
-    const newStartDate = startOfMonth(newDate);
-    const newEndDate = endOfMonth(newDate);
-    setSelectedMonth(monthIndex);
-    setStartDate(newStartDate);
-    setEndDate(newEndDate);
-  };
 
   const currentMonth = new Date().getMonth();
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
