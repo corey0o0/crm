@@ -2752,7 +2752,7 @@ function InventoryManagement() {
           {transactionViewMode === 'list' && (
             <>
               <TableContainer component={Paper}>
-              <Table>
+              <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                 <TableHead>
                   <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                     <TableCell padding="checkbox">
@@ -2886,7 +2886,7 @@ function InventoryManagement() {
                         <CardContent>
                           <Typography variant="h6" sx={{ mb: 1 }}>{w.name}</Typography>
                           <TableContainer component={Paper}>
-                            <Table>
+                            <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                               <TableHead>
                                 <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                                   <TableCell>날짜</TableCell>
