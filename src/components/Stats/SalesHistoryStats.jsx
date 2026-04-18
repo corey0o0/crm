@@ -182,7 +182,7 @@ function SalesHistoryStats() {
           const total = Number(p.total_price || (Number(p.price || 0) * Number(p.quantity || 1)));
           const cat = resolveCategory(p.part_name, p.part_code);
           const brand = resolveBrand(p.part_name, p.part_code);
-          rows.push({ ...baseFields, part_category: cat, part_brand: brand, quantity: Number(p.quantity || 1), total_price: total });
+          rows.push({ ...baseFields, part_name: p.part_name || '기체/상품', part_category: cat, part_brand: brand, quantity: Number(p.quantity || 1), total_price: total });
         });
       }
     });
@@ -203,7 +203,7 @@ function SalesHistoryStats() {
             const pName = sp.parts?.name || '부품';
             const cat = resolveCategory(pName);
             const brand = resolveBrand(pName);
-            rows.push({ ...baseFields, part_category: cat, part_brand: brand, quantity: qty, total_price: total });
+            rows.push({ ...baseFields, part_name: pName, part_category: cat, part_brand: brand, quantity: qty, total_price: total });
           }
         });
       }
@@ -237,7 +237,7 @@ function SalesHistoryStats() {
           const total = (iPrice * itemQty) + shipFee;
           const cat = resolveCategory(pName, itemCode);
           const brand = resolveBrand(pName, itemCode);
-          rows.push({ ...baseFields, part_category: cat, part_brand: brand, quantity: itemQty, total_price: total });
+          rows.push({ ...baseFields, part_name: pName, part_category: cat, part_brand: brand, quantity: itemQty, total_price: total });
         });
       }
     });
