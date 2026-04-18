@@ -416,7 +416,10 @@ function SalesHistoryStats() {
       const dateVal = new Date(r.date_val);
       const weekNum = getWeek(dateVal);
       const monthStr = format(dateVal, 'yyyy-MM');
-      const weekStr = `${format(startOfWeek(dateVal, { weekStartsOn: 1 }), 'MM.dd')} 주차`;
+      const wkStart = startOfWeek(dateVal, { weekStartsOn: 1 });
+      const wkEnd = new Date(wkStart);
+      wkEnd.setDate(wkStart.getDate() + 6);
+      const weekStr = `${format(wkStart, 'MM.dd')} ~ ${format(wkEnd, 'MM.dd')}`;
 
       if (!tsGroupData[monthStr]) tsGroupData[monthStr] = { type: 'month', label: monthStr + '월', amount: 0, qty: 0 };
       tsGroupData[monthStr].amount += amt;
