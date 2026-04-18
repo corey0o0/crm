@@ -85,7 +85,7 @@ const formatLocationName = (locationId, warehouses, dealers) => {
 };
 
 function InventoryManagement() {
-  const [activeTab, setActiveTab] = useState(0);
+  const [activeTab, setActiveTab] = useState(1); // 기본값을 거래 내역 탭으로 변경
   const [openDialog, setOpenDialog] = useState(false);
   // 창고별 상세 재고 Dialog 상태
   const [warehouseDetailOpen, setWarehouseDetailOpen] = useState(false);
@@ -244,7 +244,7 @@ function InventoryManagement() {
     } else if (tabParam === 'inventory_stats') {
       setActiveTab(5); // 입출고 통계 탭
     } else if (!tabParam) {
-      setActiveTab(0); // 기본 대시보드 탭
+      setActiveTab(1); // 기본 탭 변경 (거래 내역)
     }
   }, [location.search]);
 
@@ -2368,14 +2368,14 @@ function InventoryManagement() {
             }
           }}
         >
-          <Tab label="대시보드" />
+          <Tab label="대시보드" sx={{ display: 'none' }} />
           <Tab label="거래 내역" />
           <Tab label="매장/온라인 출고" />
           <Tab label="재고 현황" />
           <Tab label="박스 관리" />
           <Tab label="입출고 통계" />
           <Tab label="창고/대리점 관리" />
-          <Tab label="카페24 재고 비교" />
+          <Tab label="카페24 재고 비교" sx={{ display: 'none' }} />
         </Tabs>
       </Paper>
 
