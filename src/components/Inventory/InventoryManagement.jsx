@@ -2507,7 +2507,7 @@ function InventoryManagement() {
             </Typography>
             {dashboardStats.recent.length > 0 ? (
               <TableContainer>
-                <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
+                <Table size="small" sx={{ borderTop: '1px solid rgba(224, 224, 224, 1)', borderLeft: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { borderRight: '1px solid rgba(224, 224, 224, 1)', borderBottom: '1px solid rgba(224, 224, 224, 1)' } }}>
                   <TableHead>
                     <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                       <TableCell>날짜</TableCell>
@@ -2752,7 +2752,7 @@ function InventoryManagement() {
           {transactionViewMode === 'list' && (
             <>
               <TableContainer component={Paper}>
-              <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
+              <Table size="small" sx={{ borderTop: '1px solid rgba(224, 224, 224, 1)', borderLeft: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { borderRight: '1px solid rgba(224, 224, 224, 1)', borderBottom: '1px solid rgba(224, 224, 224, 1)' } }}>
                 <TableHead>
                   <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                     <TableCell padding="checkbox">
@@ -2886,7 +2886,7 @@ function InventoryManagement() {
                         <CardContent>
                           <Typography variant="h6" sx={{ mb: 1 }}>{w.name}</Typography>
                           <TableContainer component={Paper}>
-                            <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
+                            <Table size="small" sx={{ borderTop: '1px solid rgba(224, 224, 224, 1)', borderLeft: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { borderRight: '1px solid rgba(224, 224, 224, 1)', borderBottom: '1px solid rgba(224, 224, 224, 1)' } }}>
                               <TableHead>
                                 <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                                   <TableCell>날짜</TableCell>
@@ -3118,7 +3118,7 @@ function InventoryManagement() {
                 총 이동 수령 (총 입고량) - {totalInboundStats.totalQuantity.toLocaleString()}개 ({totalInboundStats.totalTransactions}건)
               </Typography>
               <TableContainer>
-                <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
+                <Table size="small" sx={{ borderTop: '1px solid rgba(224, 224, 224, 1)', borderLeft: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { borderRight: '1px solid rgba(224, 224, 224, 1)', borderBottom: '1px solid rgba(224, 224, 224, 1)' } }}>
                   <TableHead>
                     <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                       <TableCell sx={{ py: 0.5 }}>기간</TableCell>
@@ -3157,7 +3157,7 @@ function InventoryManagement() {
                 <Card sx={{ p: 1.5 }}>
                   <Typography variant="subtitle1" gutterBottom sx={{ mb: 1, fontWeight: 'bold' }}>창고별 출고량</Typography>
                   <TableContainer>
-                    <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
+                    <Table size="small" sx={{ borderTop: '1px solid rgba(224, 224, 224, 1)', borderLeft: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { borderRight: '1px solid rgba(224, 224, 224, 1)', borderBottom: '1px solid rgba(224, 224, 224, 1)' } }}>
                       <TableHead>
                         <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                           <TableCell sx={{ py: 0.5 }}>창고명</TableCell>
@@ -3200,7 +3200,7 @@ function InventoryManagement() {
                 <Card sx={{ p: 1.5 }}>
                   <Typography variant="subtitle1" gutterBottom sx={{ mb: 1, fontWeight: 'bold' }}>모델별 출고량</Typography>
                   <TableContainer>
-                    <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
+                    <Table size="small" sx={{ borderTop: '1px solid rgba(224, 224, 224, 1)', borderLeft: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { borderRight: '1px solid rgba(224, 224, 224, 1)', borderBottom: '1px solid rgba(224, 224, 224, 1)' } }}>
                       <TableHead>
                         <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                           <TableCell sx={{ py: 0.5 }}>제품명</TableCell>
@@ -3251,7 +3251,7 @@ function InventoryManagement() {
             <Card sx={{ p: 1.5 }}>
               <Typography variant="subtitle1" gutterBottom sx={{ mb: 1, fontWeight: 'bold' }}>지점별 입출고 통계</Typography>
               <TableContainer>
-                <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
+                <Table size="small" sx={{ borderTop: '1px solid rgba(224, 224, 224, 1)', borderLeft: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { borderRight: '1px solid rgba(224, 224, 224, 1)', borderBottom: '1px solid rgba(224, 224, 224, 1)' } }}>
                   <TableHead>
                     <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                       <TableCell sx={{ py: 0.5 }}>대리점명</TableCell>
@@ -3370,7 +3370,7 @@ function InventoryManagement() {
                             <Typography variant="body2" fontWeight="bold" gutterBottom sx={{ mb: 0.5 }}>
                               {stat.name} ({stat.location})
                             </Typography>
-                            <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
+                            <Table size="small" sx={{ borderTop: '1px solid rgba(224, 224, 224, 1)', borderLeft: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { borderRight: '1px solid rgba(224, 224, 224, 1)', borderBottom: '1px solid rgba(224, 224, 224, 1)' } }}>
                               <TableHead>
                                 <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                                   <TableCell sx={{ py: 0.3, px: 1 }}>기간</TableCell>
@@ -3451,7 +3451,7 @@ function InventoryManagement() {
           </Card>
 
           <TableContainer component={Paper} sx={{ width: '100%', maxHeight: 600, overflowX: 'hidden', overflowY: 'auto' }}>
-            <Table size="small" stickyHeader sx={{ width: '100%', tableLayout: 'fixed', border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', border: '1px solid rgba(224, 224, 224, 1)' } }}>
+            <Table size="small" stickyHeader sx={{ width: '100%', tableLayout: 'fixed', borderTop: '1px solid rgba(224, 224, 224, 1)', borderLeft: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', borderRight: '1px solid rgba(224, 224, 224, 1)', borderBottom: '1px solid rgba(224, 224, 224, 1)' } }}>
               <TableHead>
                 <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                   <TableCell sx={{ position: 'sticky', left: 0, zIndex: 3, backgroundColor: '#f5f5f5', width: 240, maxWidth: 240, fontWeight: 'bold' }}>상품</TableCell>
@@ -4486,7 +4486,7 @@ function InventoryManagement() {
                   📊 업로드된 데이터 미리보기 ({excelData.length}개 상품)
                 </Typography>
                 <TableContainer component={Paper} sx={{ maxHeight: 300 }}>
-                  <Table stickyHeader size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
+                  <Table stickyHeader size="small" sx={{ borderTop: '1px solid rgba(224, 224, 224, 1)', borderLeft: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { borderRight: '1px solid rgba(224, 224, 224, 1)', borderBottom: '1px solid rgba(224, 224, 224, 1)' } }}>
                     <TableHead>
                       <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                         <TableCell>상품코드</TableCell>
@@ -4603,7 +4603,7 @@ function InventoryManagement() {
               {hoverTransactions[0].date} - {hoverTransactions.length}건의 거래
             </Typography>
             <TableContainer>
-              <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
+              <Table size="small" sx={{ borderTop: '1px solid rgba(224, 224, 224, 1)', borderLeft: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { borderRight: '1px solid rgba(224, 224, 224, 1)', borderBottom: '1px solid rgba(224, 224, 224, 1)' } }}>
                 <TableHead>
                   <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                     <TableCell>유형</TableCell>
@@ -4669,7 +4669,7 @@ function InventoryManagement() {
                 {selectedTableTransactions[0].date} - {selectedTableTransactions.length}건의 거래
               </Typography>
               <TableContainer component={Paper}>
-                <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
+                <Table size="small" sx={{ borderTop: '1px solid rgba(224, 224, 224, 1)', borderLeft: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { borderRight: '1px solid rgba(224, 224, 224, 1)', borderBottom: '1px solid rgba(224, 224, 224, 1)' } }}>
                   <TableHead>
                     <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                       <TableCell>시간</TableCell>
