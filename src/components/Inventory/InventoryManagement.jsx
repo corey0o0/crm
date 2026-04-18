@@ -3454,7 +3454,7 @@ function InventoryManagement() {
             <Table size="small" stickyHeader sx={{ width: '100%', tableLayout: 'fixed', border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', border: '1px solid rgba(224, 224, 224, 1)' } }}>
               <TableHead>
                 <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                  <TableCell sx={{ position: 'sticky', left: 0, zIndex: 3, backgroundColor: 'background.paper', width: 240, maxWidth: 240 }}>상품</TableCell>
+                  <TableCell sx={{ position: 'sticky', left: 0, zIndex: 3, backgroundColor: '#f5f5f5', width: 240, maxWidth: 240, fontWeight: 'bold' }}>상품</TableCell>
                   <TableCell sx={{ width: 120, maxWidth: 120 }}>바코드</TableCell>
                   <TableCell sx={{ width: 120, maxWidth: 120 }}>제품코드</TableCell>
                   {warehouses.map(w => (
@@ -3504,18 +3504,18 @@ function InventoryManagement() {
                       );
                     }),
                     // 창고별 총합 행
-                    <TableRow key="warehouse-totals" sx={{ backgroundColor: '#f8f9fa' }}>
-                      <TableCell sx={{ position: 'sticky', left: 0, zIndex: 2, backgroundColor: '#e3f2fd', fontWeight: 'bold', width: 240, maxWidth: 240 }}>
+                    <TableRow key="warehouse-totals" sx={{ backgroundColor: '#f5f5f5' }}>
+                      <TableCell sx={{ position: 'sticky', left: 0, zIndex: 2, backgroundColor: '#f5f5f5', fontWeight: 'bold', width: 240, maxWidth: 240 }}>
                         창고별 총합
                       </TableCell>
-                      <TableCell sx={{ backgroundColor: '#e3f2fd' }}></TableCell>
-                      <TableCell sx={{ backgroundColor: '#e3f2fd' }}></TableCell>
+                      <TableCell sx={{ backgroundColor: '#f5f5f5' }}></TableCell>
+                      <TableCell sx={{ backgroundColor: '#f5f5f5' }}></TableCell>
                       {warehouses.map((w, index) => (
-                        <TableCell key={`warehouse-total-${w.id}`} align="right" sx={{ width: 120, maxWidth: 140, backgroundColor: '#e3f2fd', fontWeight: 'bold' }}>
+                        <TableCell key={`warehouse-total-${w.id}`} align="right" sx={{ width: 120, maxWidth: 140, backgroundColor: '#f5f5f5', fontWeight: 'bold' }}>
                           {warehouseTotals[index].toLocaleString()}
                         </TableCell>
                       ))}
-                      <TableCell align="right" sx={{ width: 120, maxWidth: 140, backgroundColor: '#bbdefb', fontWeight: 'bold' }}>
+                      <TableCell align="right" sx={{ width: 120, maxWidth: 140, backgroundColor: '#e0e0e0', fontWeight: 'bold' }}>
                         {grandTotal.toLocaleString()}
                       </TableCell>
                     </TableRow>
