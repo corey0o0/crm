@@ -538,7 +538,7 @@ function SalesHistory() {
         <Grid container spacing={2} alignItems="center">
           
           {/* 상태 & 판매처 & 구분 드롭다운 */}
-          <Grid item xs={12} md={5}>
+          <Grid item xs={12} md="auto">
             <Stack direction="row" spacing={1}>
               <FormControl size="small" sx={{ width: 110 }}>
                 <InputLabel>분류</InputLabel>
@@ -567,7 +567,7 @@ function SalesHistory() {
           </Grid>
 
           {/* 날짜 필터 & 퀵버튼 */}
-          <Grid item xs={12} md={7}>
+          <Grid item xs={12} md>
             <Stack direction="row" spacing={1} alignItems="center" sx={{ overflowX: 'auto', pb: 0.5, '&::-webkit-scrollbar': { height: '6px' }, '&::-webkit-scrollbar-thumb': { backgroundColor: '#e0e0e0', borderRadius: '4px' } }}>
               <FormControl size="small" sx={{ width: 140, flexShrink: 0 }}>
                 <InputLabel>날짜 기준</InputLabel>
