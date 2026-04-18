@@ -275,7 +275,10 @@ export const fetchShipments = async (options = {}) => {
   const b2bTag2 = encodeURIComponent('[B2B수기판매]');
   const excelTag = encodeURIComponent('[엑셀일괄등록]');
   const manualTag = encodeURIComponent('[수기판매]');
-  filters.push(`not.or=(sales_channel.eq.${ecountTag},sales_channel.eq.${b2bTag1},note.ilike.*${b2bTag2}*,note.ilike.*${excelTag}*,note.ilike.*${manualTag}*)`);
+  const salesChannelFilter = `or(sales_channel.is.null,and(sales_channel.neq.${ecountTag},sales_channel.neq.${b2bTag1}))`;
+  const noteFilter = `or(note.is.null,not.or(note.ilike.*${b2bTag2}*,note.ilike.*${excelTag}*,note.ilike.*${manualTag}*))`;
+
+  filters.push(`and(${salesChannelFilter},${noteFilter})`);
 
   if (filters.length > 0) {
     filter = filters.join('&');
@@ -338,7 +341,10 @@ export const countShipments = async (options = {}) => {
   const b2bTag2 = encodeURIComponent('[B2B수기판매]');
   const excelTag = encodeURIComponent('[엑셀일괄등록]');
   const manualTag = encodeURIComponent('[수기판매]');
-  filters.push(`not.or=(sales_channel.eq.${ecountTag},sales_channel.eq.${b2bTag1},note.ilike.*${b2bTag2}*,note.ilike.*${excelTag}*,note.ilike.*${manualTag}*)`);
+  const salesChannelFilter = `or(sales_channel.is.null,and(sales_channel.neq.${ecountTag},sales_channel.neq.${b2bTag1}))`;
+  const noteFilter = `or(note.is.null,not.or(note.ilike.*${b2bTag2}*,note.ilike.*${excelTag}*,note.ilike.*${manualTag}*))`;
+
+  filters.push(`and(${salesChannelFilter},${noteFilter})`);
 
   if (filters.length > 0) {
     filter = filters.join('&');
