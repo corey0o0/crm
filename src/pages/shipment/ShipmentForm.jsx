@@ -1461,7 +1461,7 @@ function ShipmentForm({ isManualB2B = false }) {
               fullWidth
               label="주소"
               name="customer_address"
-              value={shipmentData.customer_address}
+              value={shipmentData.customer_address || ''}
               onChange={handleChange}
               multiline
               rows={2}
@@ -1954,7 +1954,7 @@ function ShipmentForm({ isManualB2B = false }) {
         <TextField
           fullWidth
           name="note"
-          value={shipmentData.note}
+          value={shipmentData.note || ''}
           onChange={handleChange}
           multiline
           rows={3}
