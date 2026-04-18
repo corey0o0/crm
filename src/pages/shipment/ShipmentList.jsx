@@ -736,6 +736,11 @@ function ShipmentList() {
         end = new Date(today.getFullYear(), today.getMonth(), 0);
         end.setHours(23, 59, 59, 999);
         break;
+      case 'thisYear':
+        start = new Date(today.getFullYear(), 0, 1);
+        end = new Date(today.getFullYear(), 11, 31);
+        end.setHours(23, 59, 59, 999);
+        break;
       default:
         return;
     }
@@ -1779,13 +1784,14 @@ function ShipmentList() {
                 </Select>
               </FormControl>
 
-              <ButtonGroup size="small" variant="outlined">
+              <ButtonGroup size="small" variant="outlined" sx={{ flexWrap: 'wrap', mb: { xs: 1, sm: 0 } }}>
                 <Button onClick={() => handleQuickDateFilter('today')}>오늘</Button>
                 <Button onClick={() => handleQuickDateFilter('yesterday')}>어제</Button>
                 <Button onClick={() => handleQuickDateFilter('thisWeek')}>이번주</Button>
                 <Button onClick={() => handleQuickDateFilter('lastWeek')}>지난주</Button>
                 <Button onClick={() => handleQuickDateFilter('thisMonth')}>이번달</Button>
                 <Button onClick={() => handleQuickDateFilter('lastMonth')}>지난달</Button>
+                <Button onClick={() => handleQuickDateFilter('thisYear')}>올해</Button>
               </ButtonGroup>
 
               <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>

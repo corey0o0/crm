@@ -278,13 +278,19 @@ export const fetchShipments = async (options = {}) => {
     filter = filters.join('&');
   }
 
+  // 기준일자에 따른 DB 정렬 기준 동적 설정 (created_at 의존성 탈피)
+  let orderString = 'order_date.desc.nullslast,created_at.desc';
+  if (dateFilter.type === 'completion_date') {
+    orderString = 'shipment_date.desc.nullslast,created_at.desc';
+  }
+
   // 페이지네이션
   const offset = page * pageSize;
 
   return fetchFromSupabase('shipments', {
     select: '*,shipment_parts(id,part_name,part_category,quantity)',
     filter: filter,
-    order: 'created_at.desc',
+    order: orderString,
     limit: pageSize,
     offset,
     signal
