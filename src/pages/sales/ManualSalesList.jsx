@@ -10,7 +10,7 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ko } from 'date-fns/locale';
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO } from 'date-fns';
 
-export default function ManualSalesList() {
+export default function ManualSalesList({ isEmbedded = false }) {
   const [loading, setLoading] = useState(true);
   const [shipments, setShipments] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -175,18 +175,20 @@ export default function ManualSalesList() {
   };
 
   return (
-    <Box p={3} sx={{ maxWidth: 1200, margin: '0 auto' }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" fontWeight="bold">수기 판매 관리</Typography>
-        <Stack direction="row" spacing={2}>
-           <Button variant="outlined" startIcon={<CloudUploadIcon />} onClick={() => navigate('/settings/ecount-uploader')}>
-            이카운트 엑셀 일괄등록
-          </Button>
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate('/sales/manual/new')}>
-            새 수기 판매 등록
-          </Button>
-        </Stack>
-      </Box>
+    <Box p={isEmbedded ? 0 : 3} sx={{ maxWidth: 1200, margin: '0 auto' }}>
+      {!isEmbedded && (
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+          <Typography variant="h4" fontWeight="bold">수기 판매 관리</Typography>
+          <Stack direction="row" spacing={2}>
+             <Button variant="outlined" startIcon={<CloudUploadIcon />} onClick={() => navigate('/settings/ecount-uploader')}>
+              이카운트 엑셀 일괄등록
+            </Button>
+            <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate('/sales/manual/new')}>
+              새 수기 판매 등록
+            </Button>
+          </Stack>
+        </Box>
+      )}
 
       <Paper sx={{ p: 2, mb: 3 }}>
         <Grid container spacing={2} alignItems="center">

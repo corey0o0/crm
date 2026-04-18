@@ -13,6 +13,7 @@ import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
+import ManualSalesList from './ManualSalesList';
 
 function SalesEntry() {
   const [tabIndex, setTabIndex] = useState(0);
@@ -50,6 +51,7 @@ function SalesEntry() {
         <Tabs value={tabIndex} onChange={handleTabChange} textColor="primary" indicatorColor="primary">
           <Tab label="단건 빠른 등록" />
           <Tab label="엑셀 대량 업로드 (과거 자료)" />
+          <Tab label="수기 판매 내역 (관리)" />
         </Tabs>
       </Paper>
       
@@ -59,6 +61,22 @@ function SalesEntry() {
         <>
           {tabIndex === 0 && <SingleEntryForm agencies={agencies} parts={parts} setSnackbar={setSnackbar} />}
           {tabIndex === 1 && <ExcelBatchUpload agencies={agencies} parts={parts} setSnackbar={setSnackbar} />}
+          {tabIndex === 2 && (
+            <Box mt={2}>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                <Typography variant="subtitle1" fontWeight="bold">진행된 수기 판매 목록</Typography>
+                <Stack direction="row" spacing={2}>
+                  <Button variant="outlined" startIcon={<CloudUploadIcon />} onClick={() => window.location.href='/settings/ecount-uploader'}>
+                    이카운트 엑셀 일괄등록
+                  </Button>
+                  <Button variant="contained" startIcon={<AddIcon />} onClick={() => window.location.href='/sales/manual/new'}>
+                    새 수기 판매 등록
+                  </Button>
+                </Stack>
+              </Box>
+              <ManualSalesList isEmbedded={true} />
+            </Box>
+          )}
         </>
       )}
 
