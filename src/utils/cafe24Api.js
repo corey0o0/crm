@@ -203,3 +203,17 @@ export async function compareCafe24Inventory(mall_id) {
   }
   return resp.json();
 }
+
+export async function returnCafe24Inventory(orderIds) {
+  const resp = await fetch(`${BACKEND_URL}/api/cafe24/transfer/return-inventory`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orderIds })
+  });
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error || '재고 환입 처리 실패');
+  }
+  return resp.json();
+}

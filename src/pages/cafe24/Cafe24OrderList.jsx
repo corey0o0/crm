@@ -7,7 +7,7 @@ import {
 import { Sync as SyncIcon, PersonAdd as PersonAddIcon, Search as SearchIcon, Edit as EditIcon } from '@mui/icons-material';
 import Cafe24Settings from '../../components/Settings/Cafe24Settings';
 import { supabase } from '../../lib/supabaseClient';
-import { getCafe24Malls, syncCafe24Orders, addCafe24ProductMapping, transferCafe24Orders, cancelSalesTransfer } from '../../utils/cafe24Api';
+import { getCafe24Malls, syncCafe24Orders, addCafe24ProductMapping, transferCafe24Orders, cancelSalesTransfer, returnCafe24Inventory } from '../../utils/cafe24Api';
 import { agencyApi } from '../../api/agencyApi';
 import { warehouseApi } from '../../api/warehouseApi';
 
@@ -607,6 +607,82 @@ export default function Cafe24OrderList() {
     });
   };
 
+  const handleSmartResolve = async (order) => {
+    // 1. 미전송 상태인 경우 무시 처리
+    if (!order.is_transferred) {
+      setConfirmDialog({
+        open: true,
+        title: '반영 예외(무시) 자동 처리',
+        message: '아직 장부에 전송되지 않은 주문입니다. 장부 반영 없이 "반영 완료(조치 완료)" 상태로 무시 처리하시겠습니까?',
+        onConfirm: async () => {
+          setLoading(true);
+          try {
+            const { error } = await supabase.from('cafe24_orders').update({ is_transferred: true }).eq('id', order.id);
+            if (error) throw error;
+            setAlertDialog({ open: true, title: '처리 완료', message: '무시 처리가 완료되었습니다.' });
+            fetchOrders();
+          } catch(err) {
+            setAlertDialog({ open: true, title: '처리 실패', message: err.message });
+          } finally {
+            setLoading(false);
+          }
+        }
+      });
+      return;
+    }
+
+    // 2. 이미 전송된 주문의 경우, 출고 확정(검수 완료) 여부를 1차 판단
+    setLoading(true);
+    let poHeader = null;
+    try {
+      const { data } = await supabase.from('pending_outbounds').select('status').eq('order_no', order.order_id).maybeSingle();
+      poHeader = data;
+    } catch(err) {
+      console.error(err);
+    }
+    setLoading(false);
+
+    if (poHeader && poHeader.status === '완료') {
+      // 경우 3: 이미 출고된 상태 -> 재고 환입 부분 입고 권장
+      setConfirmDialog({
+        open: true,
+        title: '재고 환입 (반품 원상복구) 처리',
+        message: '이미 포장/출고 검수가 완료된 물품이라 일반적인 전송 취소가 불가능합니다.\n반품된 부품 수량만큼을 원래 창고에 [재고 플러스(+)] 하도록 재입고 처리 시키겠습니까?\n처리가 완료되면 다시 미전송 상태로 잠시 돌아갑니다.',
+        onConfirm: async () => {
+          setLoading(true);
+          try {
+            const res = await returnCafe24Inventory([order.id]);
+            setAlertDialog({ open: true, title: '환입 완료', message: res.message || '환입이 완료되었습니다.\n목록에서 다시 [스마트 처리]를 눌러 무시 상태로 마무리해 주세요.' });
+            fetchOrders();
+          } catch(err) {
+            setAlertDialog({ open: true, title: '환입 실패', message: err.message });
+          } finally {
+            setLoading(false);
+          }
+        }
+      });
+    } else {
+      // 경우 2: 아직 출고 전이라면 롤백
+      setConfirmDialog({
+        open: true,
+        title: '판매 반영 취소(전체 롤백)',
+        message: '장부에 반영되었으나 아직 출고 검수는 안 되었습니다. 출고 및 매출 내역을 완전히 취소(롤백)하시겠습니까?',
+        onConfirm: async () => {
+          setLoading(true);
+          try {
+            await cancelSalesTransfer([order.id]);
+            setAlertDialog({ open: true, title: '롤백 완료', message: '반영 취소 및 롤백이 완료되었습니다.\n목록에서 이 버튼을 단 한 번 더 누르면 미반영 무시 처리로 깔끔하게 치워집니다!' });
+            fetchOrders();
+          } catch(err) {
+            setAlertDialog({ open: true, title: '취소 실패', message: err.message });
+          } finally {
+            setLoading(false);
+          }
+        }
+      });
+    }
+  };
+
   const openMappingModal = (order, item) => {
     const targetCode = item.custom_product_code || item.product_code;
     setMappingItem({
@@ -1094,19 +1170,36 @@ export default function Cafe24OrderList() {
                       </TableCell>
                       {idx === 0 && (
                         <TableCell rowSpan={items.length} align="center">
-                          {order.is_transferred ? (
-                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'center' }}>
-                              <Chip size="small" label="완료" color="success" />
-                              <Button size="small" variant="text" color="error" onClick={() => handleSingleCancelTransfer(order)} sx={{ fontSize: '0.7rem', padding: '2px 4px', minWidth: 'auto' }}>
-                                반영취소
-                              </Button>
-                            </Box>
-                          ) : (
-                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                              <Button size="small" variant="contained" color="primary" onClick={() => handleSingleSalesTransfer(order)}>판매반영</Button>
-                              <Button size="small" variant="outlined" color="warning" onClick={() => handleSingleIgnoreOrder(order)}>반영무시</Button>
-                            </Box>
-                          )}
+                          {(() => {
+                            const isCanceledOrReturned = order.status && (String(order.status).trim().startsWith('C') || String(order.status).trim().startsWith('R') || String(order.status).trim().startsWith('E'));
+                            if (isCanceledOrReturned) {
+                               return (
+                                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'center' }}>
+                                    <Button size="small" variant="contained" color="secondary" disableElevation onClick={() => handleSmartResolve(order)} sx={{ fontSize: '0.7rem', fontWeight: 'bold', padding: '4px 6px' }}>
+                                      🔄 스마트 처리
+                                    </Button>
+                                    {order.is_transferred ? (
+                                      <Chip size="small" label="완료상태" color="success" sx={{ fontSize: '0.65rem', height: 16 }} />
+                                    ) : (
+                                      <Chip size="small" label="미처리" color="warning" variant="outlined" sx={{ fontSize: '0.65rem', height: 16 }} />
+                                    )}
+                                 </Box>
+                               );
+                            }
+                            return order.is_transferred ? (
+                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'center' }}>
+                                <Chip size="small" label="완료" color="success" />
+                                <Button size="small" variant="text" color="error" onClick={() => handleSingleCancelTransfer(order)} sx={{ fontSize: '0.7rem', padding: '2px 4px', minWidth: 'auto' }}>
+                                  반영취소
+                                </Button>
+                              </Box>
+                            ) : (
+                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                <Button size="small" variant="contained" color="primary" onClick={() => handleSingleSalesTransfer(order)}>판매반영</Button>
+                                <Button size="small" variant="outlined" color="warning" onClick={() => handleSingleIgnoreOrder(order)}>반영무시</Button>
+                              </Box>
+                            );
+                          })()}
                         </TableCell>
                       )}
                     </TableRow>

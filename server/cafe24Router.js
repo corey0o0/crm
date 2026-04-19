@@ -868,5 +868,122 @@ module.exports = function(supabaseAdmin) {
     }
   });
 
+  // 7. 출고 완료된 주문의 재고를 부분 입고(환입) 처리하는 API
+  router.post('/transfer/return-inventory', async (req, res) => {
+    try {
+      const { orderIds } = req.body;
+      if (!orderIds || !orderIds.length) {
+        return res.status(400).json({ error: '주문 ID가 제공되지 않았습니다.' });
+      }
+
+      let successCount = 0;
+      let failCount = 0;
+      let failMessages = [];
+
+      for (const orderId of orderIds) {
+        // 1. 주문 데이터 조회
+        const { data: order, error: oErr } = await supabaseAdmin
+          .from('cafe24_orders')
+          .select('*')
+          .eq('id', orderId)
+          .single();
+        
+        if (oErr || !order) throw new Error('주문 데이터 조회 실패');
+        if (!order.is_transferred) {
+          failCount++; failMessages.push(`${order.order_id}: 아직 전송(출고)되지 않은 주문입니다.`); continue;
+        }
+
+        // 2. 출고 확정(검수 완료) 상태 확인
+        const { data: poHeader } = await supabaseAdmin.from('pending_outbounds').select('id, status').eq('order_no', order.order_id).maybeSingle();
+        if (!poHeader || poHeader.status !== '완료') {
+          failCount++; failMessages.push(`${order.order_id}: 아직 검수가 완료되지 않은 주문입니다. [전송 취소] 기능을 이용해주세요.`); continue;
+        }
+
+        // 3. 재고 환입 처리
+        const items = order.order_items || [];
+        const { data: warehouses } = await supabaseAdmin.from('warehouses').select('id, name');
+        const defaultWh = warehouses.find(w => w.name.includes('청담') || w.name.includes('본점'));
+        const defaultWhId = defaultWh ? defaultWh.id : null;
+        const warehouseMap = {};
+        (warehouses || []).forEach(w => { warehouseMap[w.id] = w.name; });
+
+        for (const item of items) {
+          let wid = item._warehouse_id || defaultWhId;
+          if (!wid || wid === 'DEFAULT') wid = defaultWhId;
+          const mappedPartId = item.part_id;
+          
+          if (!mappedPartId || !wid) continue;
+
+          const qtyToReturn = Number(item.quantity || 1);
+
+          // a. 현재 창고 재고 가져오기
+          const { data: currentInv } = await supabaseAdmin.from('inventory')
+            .select('quantity')
+            .eq('warehouse_id', wid)
+            .eq('product_id', mappedPartId)
+            .maybeSingle();
+
+          const currentQty = currentInv ? currentInv.quantity : 0;
+          const newQty = currentQty + qtyToReturn;
+
+          // b. 재고 업데이트 (+)
+          await supabaseAdmin.from('inventory').upsert({
+            warehouse_id: wid,
+            product_id: mappedPartId,
+            quantity: newQty,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'warehouse_id,product_id' });
+
+          // c. 트랜잭션 기록 (입고)
+          const wName = warehouseMap[wid] || '기본창고';
+          await supabaseAdmin.from('transactions').insert({
+            group_id: null,
+            type: 'in',
+            product_id: mappedPartId,
+            product_name: item.name,
+            product_code: item.custom_product_code || item.product_code || '',
+            product_supplier: 'NEARBIKE',
+            quantity: qtyToReturn,
+            from_location: String(order.buyer_name || order.agency_id || '고객반품'),
+            to_location: wid,
+            date: new Date().toISOString().split('T')[0],
+            note: `[온라인 반품] 발송 완료된 주문 반품 복구 (주문번호: ${order.order_id})`,
+            is_grouped: false,
+            status: '완료'
+          });
+
+          // d. 인벤토리 로그 기록
+          await supabaseAdmin.from('inventory_logs').insert({
+            warehouse_id: wid,
+            part_id: mappedPartId,
+            part_name: item.name,
+            part_code: item.custom_product_code || item.product_code || '',
+            change_type: 'return',
+            quantity_change: qtyToReturn,
+            previous_quantity: currentQty,
+            new_quantity: newQty,
+            reference_id: order.id,
+            reference_type: 'cafe24_return',
+            notes: `온라인 주문 반품으로 인한 창고 재입고 처리 (주문번호: ${order.order_id})`
+          });
+        }
+
+        // 처리 완료되면 is_transferred를 false로 풀어버려서 미전송 풀(pool)로 돌려 다시 무시 하든 재진행하든 자유도를 줍니다.
+        await supabaseAdmin.from('cafe24_orders').update({ is_transferred: false }).eq('id', order.id);
+        successCount++;
+      }
+
+      res.json({
+        success: true,
+        message: `총 ${successCount}건의 주문에 속한 품목들의 반품 재입고 처리가 정상 등록되었습니다.` + (failCount > 0 ? ` (실패: ${failCount}건)` : ''),
+        failedDetails: failMessages
+      });
+
+    } catch(err) {
+      console.error('[Return Inventory Error]', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   return router;
 };
