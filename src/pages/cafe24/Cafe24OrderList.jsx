@@ -1003,14 +1003,14 @@ export default function Cafe24OrderList() {
                     <Button size="small" variant="outlined" color="error" onClick={handleDeleteSelected}>
                       삭제
                     </Button>
-                    <Button size="medium" variant="contained" color="error" onClick={handleCancelTransfer}>
-                      판매 반영 취소
+                    <Button size="small" variant="contained" color="error" onClick={handleCancelTransfer} sx={{ lineHeight: 1.2, py: 0.5, px: 2, textAlign: 'center' }}>
+                      판매반영<br/>취소
                     </Button>
-                    <Button size="medium" variant="outlined" color="warning" onClick={handleIgnoreOrders}>
-                      판매 반영 예외(무시)
+                    <Button size="small" variant="outlined" color="warning" onClick={handleIgnoreOrders} sx={{ lineHeight: 1.2, py: 0.5, px: 2, textAlign: 'center' }}>
+                      판매반영<br/>예외(무시)
                     </Button>
-                    <Button size="medium" variant="contained" color="primary" onClick={handleSalesTransfer}>
-                      판매 반영(전송)
+                    <Button size="small" variant="contained" color="primary" onClick={handleSalesTransfer} sx={{ lineHeight: 1.2, py: 0.5, px: 2, textAlign: 'center' }}>
+                      판매반영<br/>(전송)
                     </Button>
                   </Stack>
                 ) : (
