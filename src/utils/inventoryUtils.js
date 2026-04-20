@@ -62,7 +62,7 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
           product_id: null,
           product_name: part.part_name,
           product_code: part.part_code,
-          product_supplier: brandCode || 'NEARBIKE',
+          product_supplier: brandCode || 'XRB',
           quantity: Math.abs(quantityChange),
           from_location: isRevert ? '외부(취소/환불)' : (part.warehouse_id || defaultWarehouseId),
           to_location: isRevert ? (part.warehouse_id || defaultWarehouseId) : '외부(고객)',
@@ -146,7 +146,7 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
             part_id: null, // 외래키/타입(uuid) 충돌 방지를 위해 임시 null 처리 (향후 DB 타입 변경 필요)
             part_name: part.part_name,
             part_code: part.part_code,
-            brand_code: brandCode || 'NEARBIKE',
+            brand_code: brandCode || 'XRB',
             change_type: changeType,
             quantity_change: quantityChange,
             previous_quantity: previousQuantity,
@@ -171,7 +171,7 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
             product_id: part.part_id,
             product_name: part.part_name,
             product_code: part.part_code,
-            product_supplier: brandCode || 'NEARBIKE',
+            product_supplier: brandCode || 'XRB',
             quantity: Math.abs(quantityChange), // 항상 양수로 기록
             from_location: isRevert ? '외부(취소/환불)' : (part.warehouse_id || defaultWarehouseId),
             to_location: isRevert ? (part.warehouse_id || defaultWarehouseId) : '외부(고객)',

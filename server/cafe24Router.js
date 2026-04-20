@@ -643,7 +643,7 @@ module.exports = function(supabaseAdmin) {
           }
 
           if (mappedPartId) {
-             const supplier = partsCacheById[mappedPartId]?.supplier || 'NEARBIKE';
+             const supplier = partsCacheById[mappedPartId]?.supplier || 'XRB';
              itemsToDeduct.push({ order, item, wid, mappedPartId, supplier });
              if (wid !== 'DEFAULT') {
                requiredInventoryKeys.add(`${wid}_${mappedPartId}`);
@@ -719,7 +719,7 @@ module.exports = function(supabaseAdmin) {
                part_id: mappedPartId,
                part_name: item.name,
                part_code: item.custom_product_code || item.product_code || '',
-               brand_code: 'NEARBIKE',
+               brand_code: 'XRB',
                change_type: 'shipment_complete',
                quantity_change: -(Number(item.quantity || 1)),
                previous_quantity: prevQty,
@@ -828,7 +828,7 @@ module.exports = function(supabaseAdmin) {
                part_id: log.part_id,
                part_name: log.part_name,
                part_code: log.part_code,
-               brand_code: 'NEARBIKE',
+               brand_code: 'XRB',
                change_type: 'cancellation',
                quantity_change: Math.abs(log.quantity_change),
                previous_quantity: currentQty,
@@ -960,7 +960,7 @@ module.exports = function(supabaseAdmin) {
             part_id: mappedPartId,
             part_name: item.name,
             part_code: item.custom_product_code || item.product_code || '',
-            brand_code: 'NEARBIKE',
+            brand_code: 'XRB',
             change_type: 'return',
             quantity_change: qtyToReturn,
             previous_quantity: currentQty,
