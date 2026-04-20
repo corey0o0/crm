@@ -19,6 +19,21 @@ const calcVAT = (total) => {
   return { supply, vat: t - supply };
 };
 
+// ── 공통 상태 매핑 ────────────────────────────
+const CAFE24_STATUS_KO = {
+  'N00': '입금전', 'N10': '상품준비중', 'N20': '배송준비중', 'N21': '배송대기',
+  'N22': '배송보류', 'N30': '배송중', 'N40': '배송완료', 'N50': '구매확정',
+  'C00': '취소접수', 'C10': '취소처리중', 'C40': '취소처리', 
+  'E00': '교환접수', 'E10': '교환처리중', 'E40': '교환처리', 
+  'R00': '반품접수', 'R10': '반품처리중', 'R40': '반품처리',
+  'M': '배송준비중', 'T': '배송중', 'F': '배송완료', 'W': '배송보류',
+  'C': '취소처리', 'E': '교환처리', 'R': '반품처리', 'null': '상태없음'
+};
+const getKoStatus = (status) => {
+  if (!status) return '배송완료';
+  return CAFE24_STATUS_KO[String(status).trim()] || status;
+};
+
 function SalesHistory() {
   const [loading, setLoading] = useState(true);
   const [flatRows, setFlatRows] = useState([]);   // 품목 단위로 펼친 데이터
@@ -330,13 +345,14 @@ function SalesHistory() {
 
       const fallbackWarehouseName = fallbackWid && warehouseMap[fallbackWid] ? warehouseMap[fallbackWid] : '온라인출고';
       
+      const koStatus = getKoStatus(o.status);
       const baseFields = {
         _orderId: o.id, _type: 'cafe24',
         date_val: o.order_date,
         customer_name: o.buyer_name || '-',
         sales_channel: o.agencies?.name || '온라인주문',
-        status: o.status || '배송완료',
-        note: o.status || '',
+        status: koStatus,
+        note: koStatus,
         order_no: orderNo,
       };
 
