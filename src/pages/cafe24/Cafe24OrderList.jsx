@@ -305,7 +305,9 @@ export default function Cafe24OrderList() {
 
   const handleSelectAllClick = (event) => {
     if (event.target.checked) {
-      const newSelecteds = filteredOrders.map(n => n.id);
+      const newSelecteds = filteredOrders
+        .filter(n => !n.is_transferred && String(n.status).trim() !== 'N00')
+        .map(n => n.id);
       setSelectedOrders(newSelecteds);
       return;
     }
@@ -377,10 +379,10 @@ export default function Cafe24OrderList() {
 
   const handleSalesTransfer = async () => {
     if (!selectedOrders.length) return;
-    const ordersToTransfer = orders.filter(o => selectedOrders.includes(o.id) && !o.is_transferred);
+    const ordersToTransfer = orders.filter(o => selectedOrders.includes(o.id) && !o.is_transferred && String(o.status).trim() !== 'N00');
     
     if (ordersToTransfer.length === 0) {
-      setAlertDialog({ open: true, title: '알림', message: '선택한 주문 중 판매 전송 가능한 건이 없습니다. (이미 전송 완료된 건 제외)' });
+      setAlertDialog({ open: true, title: '알림', message: '선택한 주문 중 판매 전송 가능한 건이 없습니다. (이미 전송 완료된 건 또는 입금전 건 제외)' });
       return;
     }
 
@@ -1018,7 +1020,7 @@ export default function Cafe24OrderList() {
                         <Checkbox
                           checked={selectedOrders.includes(order.id)}
                           onChange={(e) => handleSelectRow(e, order.id)}
-                          disabled={order.is_transferred}
+                          disabled={order.is_transferred || String(order.status).trim() === 'N00'}
                         />
                       </TableCell>
                       <TableCell>카페24</TableCell>
@@ -1055,7 +1057,7 @@ export default function Cafe24OrderList() {
                           <Checkbox
                             checked={selectedOrders.includes(order.id)}
                             onChange={(e) => handleSelectRow(e, order.id)}
-                            disabled={order.is_transferred}
+                            disabled={order.is_transferred || String(order.status).trim() === 'N00'}
                           />
                         </TableCell>
                       )}
@@ -1195,7 +1197,7 @@ export default function Cafe24OrderList() {
                               </Box>
                             ) : (
                               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                <Button size="small" variant="contained" color="primary" onClick={() => handleSingleSalesTransfer(order)}>판매반영</Button>
+                                <Button size="small" variant="contained" color="primary" disabled={String(order.status).trim() === 'N00'} onClick={() => handleSingleSalesTransfer(order)}>{String(order.status).trim() === 'N00' ? '입금대기' : '판매반영'}</Button>
                                 <Button size="small" variant="outlined" color="warning" onClick={() => handleSingleIgnoreOrder(order)}>반영무시</Button>
                               </Box>
                             );
