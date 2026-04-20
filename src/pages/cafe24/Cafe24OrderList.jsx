@@ -4,7 +4,7 @@ import {
   TableHead, TableRow, Chip, CircularProgress, Alert, Stack, Dialog, DialogTitle,
   DialogContent, DialogActions, Autocomplete, TextField, Tabs, Tab, Select, MenuItem, FormControl, InputLabel, Checkbox, IconButton, Tooltip, InputAdornment, TablePagination, ToggleButton, ToggleButtonGroup
 } from '@mui/material';
-import { Sync as SyncIcon, PersonAdd as PersonAddIcon, Search as SearchIcon, Edit as EditIcon } from '@mui/icons-material';
+import { Sync as SyncIcon, PersonAdd as PersonAddIcon, Search as SearchIcon, Edit as EditIcon, PlaylistAdd as PlaylistAddIcon, Close as CloseIcon } from '@mui/icons-material';
 import Cafe24Settings from '../../components/Settings/Cafe24Settings';
 import { supabase } from '../../lib/supabaseClient';
 import { getCafe24Malls, syncCafe24Orders, addCafe24ProductMapping, transferCafe24Orders, cancelSalesTransfer, returnCafe24Inventory } from '../../utils/cafe24Api';
