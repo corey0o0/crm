@@ -183,22 +183,9 @@ function Dashboard() {
       try {
         console.log('[Dashboard] 공유 메모 불러오기 시작...');
         
-        // 스마트 데이터 로딩 (캐시 우선, 네트워크 백업)
-        const sharedMemos = await smartLoad('shared_memos', async () => {
-          // 네트워크에서 데이터 가져오기 (Supabase 클라이언트가 자체적으로 최신 토큰을 관리함)
-          const { data, error } = await supabase.from('shared_memos').select('*').limit(1);
-          if (error) throw new Error(`HTTP 401/가져오기 실패: ${error.message}`);
-          return data || [];
-        }, {
-          ttl: 2 * 60 * 1000, // 2분 TTL
-          fallbackToCache: true,
-          onCacheHit: (data) => {
-            console.log('[Dashboard] 캐시에서 공유 메모 로딩');
-          },
-          onNetworkSuccess: (data) => {
-            console.log('[Dashboard] 네트워크에서 공유 메모 로딩');
-          }
-        });
+        // 시크릿 창 등 캐시 접근이 제한된 환경에서의 버그를 막기 위해 직접 조회
+        const { data: sharedMemos, error } = await supabase.from('shared_memos').select('*').limit(1);
+        if (error) throw new Error(`HTTP 401/가져오기 실패: ${error.message}`);
         console.log('[Dashboard] shared_memos 조회 결과:', sharedMemos);
         const sharedMemo = sharedMemos && sharedMemos.length > 0 ? sharedMemos[0] : null;
 
