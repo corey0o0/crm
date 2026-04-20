@@ -356,7 +356,7 @@ function SalesHistory() {
           const itemQty = Number(item.quantity || 1);
           
           let paymentAmt = 0;
-          if (item.payment_amount !== undefined) {
+          if (item.payment_amount !== undefined && item.payment_amount !== null && !isNaN(Number(item.payment_amount))) {
              paymentAmt = Number(item.payment_amount);
           } else {
              paymentAmt = Number(item.product_price || item.price || 0) * itemQty;
@@ -400,11 +400,11 @@ function SalesHistory() {
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
       return (
-        (r.customer_name || '').toLowerCase().includes(q) ||
-        (r.sales_channel || '').toLowerCase().includes(q) ||
-        (r.part_name || '').toLowerCase().includes(q) ||
-        (r.note || '').toLowerCase().includes(q) ||
-        (r.order_no || '').toLowerCase().includes(q)
+        (String(r.customer_name || '')).toLowerCase().includes(q) ||
+        (String(r.sales_channel || '')).toLowerCase().includes(q) ||
+        (String(r.part_name || '')).toLowerCase().includes(q) ||
+        (String(r.note || '')).toLowerCase().includes(q) ||
+        (String(r.order_no || '')).toLowerCase().includes(q)
       );
     }
     return true;
