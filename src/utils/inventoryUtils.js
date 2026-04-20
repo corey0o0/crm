@@ -50,6 +50,12 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
     const errors = [];
 
     for (const part of parts) {
+      const inferredBrandCode = brandCode || (
+        (part.part_code && (part.part_code.toUpperCase().startsWith('NB') || part.part_code.toUpperCase().includes('NEARBIKE'))) ||
+        (part.part_name && (part.part_name.toUpperCase().startsWith('NB') || part.part_name.includes('니어'))) 
+        ? 'NB' : 'XRB'
+      );
+
       if (!part.part_id) {
         const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(referenceId));
         const txGroupId = isUUID ? null : parseInt(referenceId, 10);
@@ -62,7 +68,7 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
           product_id: null,
           product_name: part.part_name,
           product_code: part.part_code,
-          product_supplier: brandCode || 'XRB',
+          product_supplier: inferredBrandCode,
           quantity: Math.abs(quantityChange),
           from_location: isRevert ? '외부(취소/환불)' : (part.warehouse_id || defaultWarehouseId),
           to_location: isRevert ? (part.warehouse_id || defaultWarehouseId) : '외부(고객)',
@@ -146,7 +152,7 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
             part_id: null, // 외래키/타입(uuid) 충돌 방지를 위해 임시 null 처리 (향후 DB 타입 변경 필요)
             part_name: part.part_name,
             part_code: part.part_code,
-            brand_code: brandCode || 'XRB',
+            brand_code: inferredBrandCode,
             change_type: changeType,
             quantity_change: quantityChange,
             previous_quantity: previousQuantity,
@@ -171,7 +177,7 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
             product_id: part.part_id,
             product_name: part.part_name,
             product_code: part.part_code,
-            product_supplier: brandCode || 'XRB',
+            product_supplier: inferredBrandCode,
             quantity: Math.abs(quantityChange), // 항상 양수로 기록
             from_location: isRevert ? '외부(취소/환불)' : (part.warehouse_id || defaultWarehouseId),
             to_location: isRevert ? (part.warehouse_id || defaultWarehouseId) : '외부(고객)',
