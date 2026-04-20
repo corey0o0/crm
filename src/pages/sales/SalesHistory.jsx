@@ -354,13 +354,21 @@ function SalesHistory() {
           
           const pName = item.product_name || item.name || '상품';
           const itemQty = Number(item.quantity || 1);
-          const iPrice = Number(item.product_price || item.price || 0);
+          
+          let paymentAmt = 0;
+          if (item.payment_amount !== undefined) {
+             paymentAmt = Number(item.payment_amount);
+          } else {
+             paymentAmt = Number(item.product_price || item.price || 0) * itemQty;
+          }
+          const iPrice = itemQty > 0 ? paymentAmt / itemQty : paymentAmt;
+
           let shipFee = 0;
           if (idx === 0) {
             shipFee = Number(o.shipping_fee || 0);
             if (o.points_spent) shipFee -= Number(o.points_spent);
           }
-          const total = (iPrice * itemQty) + shipFee;
+          const total = paymentAmt + shipFee;
           const cat = resolveCategory(pName, itemCode);
           const brand = resolveBrand(pName, itemCode);
 
