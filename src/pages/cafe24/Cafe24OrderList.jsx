@@ -63,6 +63,12 @@ export default function Cafe24OrderList() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showPriceDetails, setShowPriceDetails] = useState(false);
 
+  const [editItemsModalOpen, setEditItemsModalOpen] = useState(false);
+  const [editingOrder, setEditingOrder] = useState(null);
+  const [editingItems, setEditingItems] = useState([]);
+  const [addingPart, setAddingPart] = useState(null);
+  const [editItemsSaving, setEditItemsSaving] = useState(false);
+
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(20);
 
@@ -785,6 +791,66 @@ export default function Cafe24OrderList() {
     }
   };
 
+  const handleOpenEditItemsModal = (order) => {
+    setEditingOrder(order);
+    setEditingItems(JSON.parse(JSON.stringify(order.order_items || [])));
+    setAddingPart(null);
+    setEditItemsModalOpen(true);
+  };
+
+  const handleRemoveEditingItem = (index) => {
+    setEditingItems(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAddEditingPart = () => {
+    if (!addingPart) return;
+    const newItem = {
+      product_code: addingPart.code,
+      custom_product_code: addingPart.barcode || addingPart.code,
+      name: addingPart.name,
+      product_name: addingPart.name,
+      quantity: 1,
+      price: addingPart.price || 0,
+      product_price: addingPart.price || 0,
+      payment_amount: addingPart.price || 0,
+      part_id: addingPart.id,
+      is_manual_added: true
+    };
+    setEditingItems(prev => [...prev, newItem]);
+    setAddingPart(null);
+  };
+
+  const handleEditingItemChange = (index, field, value) => {
+    const updated = [...editingItems];
+    updated[index][field] = value;
+    setEditingItems(updated);
+  };
+
+  const handleSaveEditedItems = async () => {
+    if (!editingOrder) return;
+    setEditItemsSaving(true);
+    try {
+      const sanitizedItems = editingItems.map(item => ({
+        ...item,
+        quantity: Number(item.quantity || 1),
+        payment_amount: Number(item.payment_amount || 0)
+      }));
+
+      const { error } = await supabase.from('cafe24_orders')
+        .update({ order_items: sanitizedItems })
+        .eq('id', editingOrder.id);
+        
+      if (error) throw error;
+      
+      setEditItemsModalOpen(false);
+      fetchOrders();
+    } catch (err) {
+      alert('품목 저장 중 오류가 발생했습니다: ' + err.message);
+    } finally {
+      setEditItemsSaving(false);
+    }
+  };
+
   return (
     <Box>
       <Typography variant="h5" fontWeight="bold" sx={{ mb: 2 }}>온라인주문관리</Typography>
@@ -1173,6 +1239,11 @@ export default function Cafe24OrderList() {
                       {idx === 0 && (
                         <TableCell rowSpan={items.length} align="center">
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'center' }}>
+                              {(!order.is_transferred) && (
+                                <Button size="small" variant="outlined" color="info" onClick={() => handleOpenEditItemsModal(order)} sx={{ fontSize: '0.7rem', padding: '4px 6px', width: '100%', mb: 1, borderStyle: 'dashed' }}>
+                                  <PlaylistAddIcon fontSize="small" sx={{ mr: 0.5 }} /> 품목 교체
+                                </Button>
+                              )}
                               {(() => {
                                 const isCanceledOrReturned = order.status && (String(order.status).trim().startsWith('C') || String(order.status).trim().startsWith('R') || String(order.status).trim().startsWith('E'));
                                 if (isCanceledOrReturned) {
@@ -1382,6 +1453,97 @@ export default function Cafe24OrderList() {
         </DialogActions>
       </Dialog>
 
+      {/* 품목 수정 모달 */}
+      <Dialog open={editItemsModalOpen} onClose={() => setEditItemsModalOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>주문 품목 직접 교체/추가 ({editingOrder?.order_id})</DialogTitle>
+        <DialogContent dividers>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            개인결제창 등 실제 재고가 차감되지 않는 더미 품목을 삭제하고, 출고할 <b>[실제 CRM 부품]</b>을 직접 추가하여 구성을 변경합니다.<br/>
+            (수정 완료 후 목록에서 [판매반영]을 눌러야 실제 재고가 차감 및 통계에 잡힙니다.)
+          </Alert>
+          
+          <Table size="small" sx={{ mb: 3 }}>
+            <TableHead>
+              <TableRow>
+                <TableCell>상품명</TableCell>
+                <TableCell width="80">수량</TableCell>
+                <TableCell width="140">품목별 실결제액(원)</TableCell>
+                <TableCell width="60" align="center">삭제</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {editingItems.map((item, idx) => (
+                <TableRow key={idx}>
+                  <TableCell>
+                    {item.name || item.product_name}
+                    {item.part_id ? <Chip size="small" label="CRM 연동됨" color="success" sx={{ml:1, fontSize:'0.6rem'}}/> : <Chip size="small" label="미연동(더미)" color="error" sx={{ml:1, fontSize:'0.6rem'}}/>}
+                  </TableCell>
+                  <TableCell>
+                    <TextField 
+                      type="number" size="small" 
+                      value={item.quantity} 
+                      onChange={e => handleEditingItemChange(idx, 'quantity', e.target.value)}
+                      inputProps={{ min: 1, style: { padding: '4px 8px' } }}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <TextField
+                      size="small"
+                      type="number"
+                      value={item.payment_amount !== undefined ? item.payment_amount : (item.product_price || 0)}
+                      onChange={e => handleEditingItemChange(idx, 'payment_amount', e.target.value)}
+                      inputProps={{ style: { padding: '4px 8px' } }}
+                    />
+                  </TableCell>
+                  <TableCell align="center">
+                    <IconButton size="small" color="error" onClick={() => handleRemoveEditingItem(idx)}>
+                      <CloseIcon fontSize="small" />
+                    </IconButton>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {editingItems.length === 0 && (
+                <TableRow><TableCell colSpan={4} align="center">모든 항목이 삭제되었습니다. 아래에서 출고할 부품을 추가해주세요.</TableCell></TableRow>
+              )}
+            </TableBody>
+          </Table>
+
+          <Box sx={{ p: 2, bgcolor: '#f8f9fa', borderRadius: 1, border: '1px solid #e0e0e0' }}>
+            <Typography variant="subtitle2" mb={1} color="primary">➕ 실제 기체/부품 새롭게 교체 추가</Typography>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Autocomplete
+                sx={{ flexGrow: 1 }}
+                options={availableParts}
+                getOptionLabel={(option) => `${option.name} (${option.barcode || option.code})`}
+                isOptionEqualToValue={(option, value) => option.id === value?.id}
+                value={addingPart}
+                onChange={(e, val) => setAddingPart(val)}
+                renderInput={(params) => <TextField {...params} label="CRM 기체/부품명 검색" size="small" sx={{ bgcolor: 'white' }} />}
+                renderOption={(props, option) => {
+                  const { key, ...otherProps } = props;
+                  return (
+                    <li key={option.id || key} {...otherProps}>
+                      <Box>
+                        <Typography variant="body2">{option.name}</Typography>
+                        <Typography variant="caption" color="text.secondary">코드: {option.code} | 기준가: {(option.price||0).toLocaleString()}원</Typography>
+                      </Box>
+                    </li>
+                  );
+                }}
+              />
+              <Button variant="contained" onClick={handleAddEditingPart} disabled={!addingPart} sx={{ height: '40px', whiteSpace: 'nowrap' }}>
+                추가
+              </Button>
+            </Stack>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditItemsModalOpen(false)}>취소</Button>
+          <Button variant="contained" onClick={handleSaveEditedItems} disabled={editItemsSaving || editingItems.length === 0}>
+            {editItemsSaving ? '저장중...' : '수정 내역 저장'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
