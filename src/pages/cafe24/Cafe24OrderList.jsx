@@ -1172,36 +1172,39 @@ export default function Cafe24OrderList() {
                       </TableCell>
                       {idx === 0 && (
                         <TableCell rowSpan={items.length} align="center">
-                          {(() => {
-                            const isCanceledOrReturned = order.status && (String(order.status).trim().startsWith('C') || String(order.status).trim().startsWith('R') || String(order.status).trim().startsWith('E'));
-                            if (isCanceledOrReturned) {
-                               return (
-                                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'center' }}>
-                                    <Button size="small" variant="contained" color="secondary" disableElevation onClick={() => handleSmartResolve(order)} sx={{ fontSize: '0.7rem', fontWeight: 'bold', padding: '4px 6px' }}>
-                                      🔄 스마트 처리
-                                    </Button>
-                                    {order.is_transferred ? (
-                                      <Chip size="small" label="완료상태" color="success" sx={{ fontSize: '0.65rem', height: 16 }} />
-                                    ) : (
-                                      <Chip size="small" label="미처리" color="warning" variant="outlined" sx={{ fontSize: '0.65rem', height: 16 }} />
-                                    )}
-                                 </Box>
-                               );
-                            }
-                            return order.is_transferred ? (
-                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'center' }}>
-                                <Chip size="small" label="완료" color="success" />
-                                <Button size="small" variant="text" color="error" onClick={() => handleSingleCancelTransfer(order)} sx={{ fontSize: '0.7rem', padding: '2px 4px', minWidth: 'auto' }}>
-                                  반영취소
-                                </Button>
-                              </Box>
-                            ) : (
-                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                <Button size="small" variant="contained" color="primary" disabled={String(order.status).trim() === 'N00'} onClick={() => handleSingleSalesTransfer(order)}>{String(order.status).trim() === 'N00' ? '입금대기' : '판매반영'}</Button>
-                                <Button size="small" variant="outlined" color="warning" onClick={() => handleSingleIgnoreOrder(order)}>반영무시</Button>
-                              </Box>
-                            );
-                          })()}
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'center' }}>
+                              {(() => {
+                                const isCanceledOrReturned = order.status && (String(order.status).trim().startsWith('C') || String(order.status).trim().startsWith('R') || String(order.status).trim().startsWith('E'));
+                                if (isCanceledOrReturned) {
+                                   return (
+                                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'center', width: '100%', mb: 1, pb: 1, borderBottom: '1px dashed #e0e0e0' }}>
+                                        <Button size="small" variant="contained" color="secondary" disableElevation onClick={() => handleSmartResolve(order)} sx={{ fontSize: '0.7rem', fontWeight: 'bold', padding: '4px 6px', width: '100%' }}>
+                                          🔄 스마트 처리
+                                        </Button>
+                                     </Box>
+                                   );
+                                }
+                                return null;
+                              })()}
+                              
+                              {order.is_transferred ? (
+                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'center', width: '100%' }}>
+                                  <Chip size="small" label="완료" color="success" sx={{ width: '100%' }} />
+                                  <Button size="small" variant="text" color="error" onClick={() => handleSingleCancelTransfer(order)} sx={{ fontSize: '0.7rem', padding: '2px 4px', minWidth: 'auto' }}>
+                                    반영취소
+                                  </Button>
+                                </Box>
+                              ) : (
+                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, width: '100%' }}>
+                                  <Button size="small" variant="contained" color="primary" disabled={String(order.status).trim() === 'N00'} onClick={() => handleSingleSalesTransfer(order)} sx={{ width: '100%' }}>
+                                    {String(order.status).trim() === 'N00' ? '입금대기' : '판매반영'}
+                                  </Button>
+                                  <Button size="small" variant="outlined" color="warning" onClick={() => handleSingleIgnoreOrder(order)} sx={{ width: '100%' }}>
+                                    반영무시
+                                  </Button>
+                                </Box>
+                              )}
+                            </Box>
                         </TableCell>
                       )}
                     </TableRow>
