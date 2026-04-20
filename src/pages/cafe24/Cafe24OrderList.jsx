@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Paper, Button, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Chip, CircularProgress, Alert, Stack, Dialog, DialogTitle,
-  DialogContent, DialogActions, Autocomplete, TextField, Tabs, Tab, Select, MenuItem, FormControl, InputLabel, Checkbox, IconButton, Tooltip, InputAdornment, TablePagination, ToggleButton, ToggleButtonGroup, TableFooter
+  DialogContent, DialogActions, Autocomplete, TextField, Tabs, Tab, Select, MenuItem, FormControl, FormControlLabel, InputLabel, Checkbox, IconButton, Tooltip, InputAdornment, TablePagination, ToggleButton, ToggleButtonGroup, TableFooter
 } from '@mui/material';
 import { Sync as SyncIcon, PersonAdd as PersonAddIcon, Search as SearchIcon, Edit as EditIcon, PlaylistAdd as PlaylistAddIcon, Close as CloseIcon } from '@mui/icons-material';
 import Cafe24Settings from '../../components/Settings/Cafe24Settings';
@@ -718,10 +718,13 @@ export default function Cafe24OrderList() {
     }
   };
 
+  const [updateAllOrdersOfBuyer, setUpdateAllOrdersOfBuyer] = useState(false);
+
   const handleOpenAgencyMatchModal = (order) => {
     setSelectedOrderForAgencyMatch(order);
     const existing = order.agency_id ? agencies.find(a => a.id === order.agency_id) : null;
     setSelectedAgency(existing || null);
+    setUpdateAllOrdersOfBuyer(false);
     setAgencyMatchModalOpen(true);
   };
 
@@ -729,29 +732,42 @@ export default function Cafe24OrderList() {
     if (!selectedOrderForAgencyMatch || !selectedAgency) return;
     setAgencyMatchSaving(true);
     try {
-      // 1. 거래처에 카페24 연동 ID 등록 (여러 아이디를 쉼표로 관리)
-      const existingIds = selectedAgency.cafe24_member_id ? selectedAgency.cafe24_member_id.split(',').map(s => s.trim()).filter(Boolean) : [];
-      let newCafe24MemberId = selectedAgency.cafe24_member_id || '';
-      
-      if (!existingIds.includes(selectedOrderForAgencyMatch.buyer_id)) {
-        newCafe24MemberId = newCafe24MemberId 
-          ? `${newCafe24MemberId}, ${selectedOrderForAgencyMatch.buyer_id}` 
-          : selectedOrderForAgencyMatch.buyer_id;
+      if (updateAllOrdersOfBuyer) {
+        // 1. 거래처에 카페24 연동 ID 등록 (여러 아이디를 쉼표로 관리)
+        const existingIds = selectedAgency.cafe24_member_id ? selectedAgency.cafe24_member_id.split(',').map(s => s.trim()).filter(Boolean) : [];
+        let newCafe24MemberId = selectedAgency.cafe24_member_id || '';
+        
+        if (!existingIds.includes(selectedOrderForAgencyMatch.buyer_id)) {
+          newCafe24MemberId = newCafe24MemberId 
+            ? `${newCafe24MemberId}, ${selectedOrderForAgencyMatch.buyer_id}` 
+            : selectedOrderForAgencyMatch.buyer_id;
+        }
+        
+        await agencyApi.update(selectedAgency.id, {
+          cafe24_member_id: newCafe24MemberId
+        });
+        
+        // 2. 이 사용자(buyer_id)의 모든 기존 주문을 새로운 일괄 업데이트
+        const { error: updateErr } = await supabase
+          .from('cafe24_orders')
+          .update({ agency_id: selectedAgency.id })
+          .eq('buyer_id', selectedOrderForAgencyMatch.buyer_id);
+          
+        if (updateErr) throw updateErr;
+
+        alert('거래처 매칭이 완료되었으며, 이 주문자의 기존 주문들도 모두 업데이트되었습니다.');
+      } else {
+        // 단일 주문의 판매처만 강제 업데이트
+        const { error: updateErr } = await supabase
+          .from('cafe24_orders')
+          .update({ agency_id: selectedAgency.id })
+          .eq('id', selectedOrderForAgencyMatch.id);
+          
+        if (updateErr) throw updateErr;
+
+        alert('선택한 주문의 결제/출고용 거래처(판매처)가 성공적으로 변경되었습니다.');
       }
       
-      await agencyApi.update(selectedAgency.id, {
-        cafe24_member_id: newCafe24MemberId
-      });
-      
-      // 2. 이 사용자(buyer_id)의 모든 기존 주문을 새로운 일괄 업데이트
-      const { error: updateErr } = await supabase
-        .from('cafe24_orders')
-        .update({ agency_id: selectedAgency.id })
-        .eq('buyer_id', selectedOrderForAgencyMatch.buyer_id);
-        
-      if (updateErr) throw updateErr;
-
-      alert('거래처 매칭이 완료되었으며, 이 주문자의 기존 주문들도 모두 업데이트되었습니다.');
       setAgencyMatchModalOpen(false);
       
       // 목록 갱신
@@ -1363,11 +1379,11 @@ export default function Cafe24OrderList() {
 
       {/* 주문자 - 거래처 수동 매칭 모달 */}
       <Dialog open={agencyMatchModalOpen} onClose={() => setAgencyMatchModalOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>주문자 - 거래처 수동 매칭</DialogTitle>
+        <DialogTitle>주문자 - 거래처 수동 변경 및 매칭</DialogTitle>
         <DialogContent dividers>
           <Alert severity="info" sx={{ mb: 3 }}>
-            카페24 주문자 <b>"{selectedOrderForAgencyMatch?.buyer_name || '비회원'}"</b> (ID: {selectedOrderForAgencyMatch?.buyer_id}) 의 정보를 CRM 거래처와 연결합니다.<br /><br />
-            저장 시 이 거래처에 연동 ID가 등록되며, 이 주문자 ID의 과거 주문 내역들도 자동으로 이 거래처로 일괄 변경됩니다.
+            카페24 주문 <b>"{selectedOrderForAgencyMatch?.buyer_name || '비회원'}"</b> (주문번호: {selectedOrderForAgencyMatch?.order_id}) 의 <b>실제 매출 및 검수용 <span style={{color: '#d32f2f'}}>판매처(거래처)</span></b>를 수동으로 지정합니다.<br /><br />
+            기본적으로 <b>현재 선택한 이 주문 1건에 대해서만</b> 판매처 정보가 즉시 변경됩니다.
           </Alert>
 
           <Autocomplete
@@ -1376,7 +1392,7 @@ export default function Cafe24OrderList() {
             isOptionEqualToValue={(option, value) => option.id === value?.id}
             value={selectedAgency}
             onChange={(event, newValue) => setSelectedAgency(newValue)}
-            renderInput={(params) => <TextField {...params} label="거래처 검색" />}
+            renderInput={(params) => <TextField {...params} label="변경할 거래처 검색" />}
             renderOption={(props, option) => {
               const { key, ...otherProps } = props;
               return (
@@ -1389,6 +1405,23 @@ export default function Cafe24OrderList() {
               );
             }}
           />
+          
+          <Box sx={{ mt: 3, p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={updateAllOrdersOfBuyer}
+                  onChange={(e) => setUpdateAllOrdersOfBuyer(e.target.checked)}
+                  color="primary"
+                />
+              }
+              label={
+                <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                  이 구매자(ID: {selectedOrderForAgencyMatch?.buyer_id})의 기존/미래 카페24 주문 내역도 앞으로 해당 판매처로 영구 고정합니다. (구매자-대리점 일괄 매칭)
+                </Typography>
+              }
+            />
+          </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setAgencyMatchModalOpen(false)}>취소</Button>

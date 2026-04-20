@@ -108,7 +108,7 @@ function SalesHistory() {
 
     let cafeQuery = supabase
       .from('cafe24_orders')
-      .select('id, order_id, order_date, buyer_name, total_amount, order_items, status')
+      .select('id, order_id, order_date, buyer_name, total_amount, order_items, status, agencies(name)')
       .eq('is_transferred', true)
       .order('order_date', { ascending: false })
       .limit(800);
@@ -334,7 +334,7 @@ function SalesHistory() {
         _orderId: o.id, _type: 'cafe24',
         date_val: o.order_date,
         customer_name: o.buyer_name || '-',
-        sales_channel: '온라인주문',
+        sales_channel: o.agencies?.name || '온라인주문',
         status: o.status || '배송완료',
         note: o.status || '',
         order_no: orderNo,
