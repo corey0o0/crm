@@ -1240,7 +1240,7 @@ export default function Cafe24OrderList() {
                         <TableCell rowSpan={items.length} align="center">
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'center' }}>
                               {(!order.is_transferred) && (
-                                <Button size="small" variant="outlined" color="info" onClick={() => handleOpenEditItemsModal(order)} sx={{ width: '100%', mb: 1, borderStyle: 'dashed' }}>
+                                <Button size="small" variant="outlined" color="info" onClick={() => handleOpenEditItemsModal(order)} sx={{ width: '100%', mb: 1, py: 0.5, fontSize: '0.75rem', whiteSpace: 'nowrap', borderStyle: 'dashed' }}>
                                   품목 교체
                                 </Button>
                               )}
@@ -1249,8 +1249,8 @@ export default function Cafe24OrderList() {
                                 if (isCanceledOrReturned) {
                                    return (
                                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'center', width: '100%', mb: 1, pb: 1, borderBottom: '1px dashed #e0e0e0' }}>
-                                        <Button size="small" variant="contained" color="secondary" disableElevation onClick={() => handleSmartResolve(order)} sx={{ fontSize: '0.7rem', fontWeight: 'bold', padding: '4px 6px', width: '100%' }}>
-                                          🔄 스마트 처리
+                                        <Button size="small" variant="contained" color="secondary" disableElevation onClick={() => handleSmartResolve(order)} sx={{ width: '100%', py: 0.5, fontSize: '0.75rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                                          스마트 처리
                                         </Button>
                                      </Box>
                                    );
@@ -1267,10 +1267,10 @@ export default function Cafe24OrderList() {
                                 </Box>
                               ) : (
                                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, width: '100%' }}>
-                                  <Button size="small" variant="contained" color="primary" disabled={String(order.status).trim() === 'N00'} onClick={() => handleSingleSalesTransfer(order)} sx={{ width: '100%' }}>
+                                  <Button size="small" variant="contained" color="primary" disabled={String(order.status).trim() === 'N00'} onClick={() => handleSingleSalesTransfer(order)} sx={{ width: '100%', py: 0.5, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
                                     {String(order.status).trim() === 'N00' ? '입금대기' : '판매반영'}
                                   </Button>
-                                  <Button size="small" variant="outlined" color="warning" onClick={() => handleSingleIgnoreOrder(order)} sx={{ width: '100%' }}>
+                                  <Button size="small" variant="outlined" color="warning" onClick={() => handleSingleIgnoreOrder(order)} sx={{ width: '100%', py: 0.5, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
                                     반영무시
                                   </Button>
                                 </Box>
