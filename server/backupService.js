@@ -1,15 +1,19 @@
 const { S3Client, PutObjectCommand, DeleteObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
 require('dotenv').config();
 
+const endpoint = process.env.R2_ENDPOINT || process.env.REACT_APP_R2_ENDPOINT;
+const accessKeyId = process.env.R2_ACCESS_KEY_ID || process.env.REACT_APP_R2_ACCESS_KEY_ID;
+const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY || process.env.REACT_APP_R2_SECRET_ACCESS_KEY;
+
 // R2 클라이언트 초기화
 let r2Client = null;
-if (process.env.R2_ENDPOINT && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY) {
+if (endpoint && accessKeyId && secretAccessKey) {
   r2Client = new S3Client({
     region: 'auto',
-    endpoint: process.env.R2_ENDPOINT,
+    endpoint: endpoint,
     credentials: {
-      accessKeyId: process.env.R2_ACCESS_KEY_ID,
-      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+      accessKeyId: accessKeyId,
+      secretAccessKey: secretAccessKey,
     },
   });
 }
@@ -117,7 +121,7 @@ async function executeBackup(supabaseAdmin) {
     const dateStr = new Date().toISOString().split('T')[0];
     const timeStr = new Date().toISOString().split('T')[1].replace(/:/g, '-').slice(0, 8);
     const fileName = `db-backups/crm-backup-${dateStr}_${timeStr}.json`;
-    const bucketName = process.env.R2_BUCKET_NAME || 'crm-storage';
+    const bucketName = process.env.R2_BUCKET_NAME || process.env.REACT_APP_R2_BUCKET_NAME || 'crm-storage';
 
     console.log(`[Backup] Collection complete. Uploading to R2 (${bucketName}/${fileName})...`);
 
