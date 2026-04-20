@@ -203,7 +203,7 @@ export default function Cafe24OrderList() {
         .select('*')
         .neq('is_deleted', true)
         .order('order_date', { ascending: false })
-        .limit(200);
+        .limit(2000);
 
       if (dbErr) throw dbErr;
       setOrders(data || []);
