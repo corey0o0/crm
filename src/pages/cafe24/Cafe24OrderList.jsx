@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Paper, Button, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Chip, CircularProgress, Alert, Stack, Dialog, DialogTitle,
-  DialogContent, DialogActions, Autocomplete, TextField, Tabs, Tab, Select, MenuItem, FormControl, InputLabel, Checkbox, IconButton, Tooltip, InputAdornment, TablePagination, ToggleButton, ToggleButtonGroup
+  DialogContent, DialogActions, Autocomplete, TextField, Tabs, Tab, Select, MenuItem, FormControl, InputLabel, Checkbox, IconButton, Tooltip, InputAdornment, TablePagination, ToggleButton, ToggleButtonGroup, TableFooter
 } from '@mui/material';
 import { Sync as SyncIcon, PersonAdd as PersonAddIcon, Search as SearchIcon, Edit as EditIcon, PlaylistAdd as PlaylistAddIcon, Close as CloseIcon } from '@mui/icons-material';
 import Cafe24Settings from '../../components/Settings/Cafe24Settings';
@@ -1523,6 +1523,17 @@ export default function Cafe24OrderList() {
                 <TableRow><TableCell colSpan={4} align="center">모든 항목이 삭제되었습니다. 아래에서 출고할 부품을 추가해주세요.</TableCell></TableRow>
               )}
             </TableBody>
+            <TableFooter>
+              <TableRow sx={{ bgcolor: '#f8fbff' }}>
+                <TableCell colSpan={3} align="right" sx={{ fontWeight: 'bold', color: 'text.secondary' }}>
+                  등록된 품목의 총결제액 합계
+                </TableCell>
+                <TableCell sx={{ fontWeight: 'bold', color: '#1976d2', fontSize: '1rem' }}>
+                  {editingItems.reduce((acc, item) => acc + Number(item.payment_amount !== undefined ? item.payment_amount : (item.product_price || 0) * (item.quantity || 1)), 0).toLocaleString()}
+                </TableCell>
+                <TableCell />
+              </TableRow>
+            </TableFooter>
           </Table>
 
           <Box sx={{ p: 2, bgcolor: '#f8f9fa', borderRadius: 1, border: '1px solid #e0e0e0' }}>
