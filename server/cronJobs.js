@@ -1,4 +1,5 @@
 const cron = require('node-cron');
+const { executeBackup } = require('./backupService');
 
 module.exports = function(supabaseAdmin, cafe24Router) {
   // 매 정시마다 스케줄러 실행 (예: 0분 0초)
@@ -51,4 +52,11 @@ module.exports = function(supabaseAdmin, cafe24Router) {
   });
 
   console.log('[Cron] 백그라운드 스케줄러(cronJobs)가 활성화되었습니다. (주기: 매시간 0분)');
+
+  // 매일 새벽 4시 0분에 데이터베이스 백업 실행
+  cron.schedule('0 4 * * *', async () => {
+    console.log('[Cron Job] 자동 데이터 백업 스케줄러를 시작합니다.');
+    await executeBackup(supabaseAdmin);
+  });
+  console.log('[Cron] 자동 백업 스케줄러가 활성화되었습니다. (주기: 매일 새벽 4시)');
 };
