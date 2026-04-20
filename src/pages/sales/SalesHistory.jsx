@@ -361,7 +361,7 @@ function SalesHistory() {
           } else {
              paymentAmt = Number(item.product_price || item.price || 0) * itemQty;
           }
-          const iPrice = itemQty > 0 ? paymentAmt / itemQty : paymentAmt;
+          const iPrice = Number(item.product_price || item.price || 0); // 항상 기준 단가(MSRP 라벨스 프라이스) 표시
 
           let shipFee = 0;
           if (idx === 0) {
