@@ -1330,7 +1330,7 @@ export default function Cafe24OrderList() {
 
           <Autocomplete
             options={availableParts}
-            getOptionLabel={(option) => `${option.name} (${option.barcode || option.code})`}
+            getOptionLabel={(option) => `${option.name} [${option.code}${option.barcode && option.barcode !== option.code ? ` | ${option.barcode}` : ''}]`}
             isOptionEqualToValue={(option, value) => option.id === value?.id}
             value={selectedPart}
             onChange={(event, newValue) => setSelectedPart(newValue)}
@@ -1531,7 +1531,7 @@ export default function Cafe24OrderList() {
               <Autocomplete
                 sx={{ flexGrow: 1 }}
                 options={availableParts}
-                getOptionLabel={(option) => `${option.name} (${option.barcode || option.code})`}
+                getOptionLabel={(option) => `${option.name} [${option.code}${option.barcode && option.barcode !== option.code ? ` | ${option.barcode}` : ''}]`}
                 isOptionEqualToValue={(option, value) => option.id === value?.id}
                 value={addingPart}
                 onChange={(e, val) => setAddingPart(val)}
