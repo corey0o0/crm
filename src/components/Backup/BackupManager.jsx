@@ -58,7 +58,7 @@ import {
   getBackupSettings,
   saveBackupSettings,
   getBackupHistory,
-  uploadBackupToGoogleDrive,
+  uploadBackupToCloudflareR2,
   saveBackupHistory,
   startBackupScheduler
 } from '../../utils/backupUtils';
@@ -176,15 +176,15 @@ const BackupManager = () => {
     }
   };
 
-  // 수동으로 구글 드라이브에 백업 업로드
-  const handleUploadToGoogleDrive = async () => {
+  // 수동으로 클라우드 플레어 R2에 백업 업로드
+  const handleUploadToCloudflareR2 = async () => {
     try {
       if (!backupData) {
         throw new Error('먼저 백업을 생성해주세요.');
       }
 
       setIsBackingUp(true);
-      const uploadResult = await uploadBackupToGoogleDrive(backupData, autoBackupSettings.google_drive_folder_id);
+      const uploadResult = await uploadBackupToCloudflareR2(backupData, autoBackupSettings.google_drive_folder_id);
       
       // 백업 이력 저장
       const { data: { user } } = await supabase.auth.getUser();
@@ -203,11 +203,11 @@ const BackupManager = () => {
 
       setSnackbar({
         open: true,
-        message: '구글 드라이브에 백업이 업로드되었습니다.',
+        message: '클라우드 플레어 R2에 백업이 업로드되었습니다.',
         severity: 'success'
       });
     } catch (error) {
-      console.error('구글 드라이브 업로드 실패:', error);
+      console.error('클라우드 플레어 R2 업로드 실패:', error);
       setSnackbar({
         open: true,
         message: `업로드 실패: ${error.message}`,
@@ -502,10 +502,10 @@ const BackupManager = () => {
                     <Button
                       variant="outlined"
                       startIcon={<CloudUploadIcon />}
-                      onClick={handleUploadToGoogleDrive}
+                      onClick={handleUploadToCloudflareR2}
                       disabled={isBackingUp}
                     >
-                      구글 드라이브에 업로드
+                      클라우드 플레어 R2에 업로드
                     </Button>
                   </Box>
                 )}
@@ -523,7 +523,7 @@ const BackupManager = () => {
                 자동백업 설정
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                정기적으로 구글 드라이브에 자동 백업합니다.
+                정기적으로 클라우드 플레어 R2에 자동 백업합니다.
               </Typography>
               <Box sx={{ mb: 2 }}>
                 <FormControlLabel
@@ -813,7 +813,7 @@ const BackupManager = () => {
 
               <TextField
                 fullWidth
-                label="구글 드라이브 폴더 ID (선택사항)"
+                label="클라우드 플레어 R2 폴더 ID (선택사항)"
                 value={autoBackupSettings.google_drive_folder_id}
                 onChange={(e) => setAutoBackupSettings(prev => ({
                   ...prev,
@@ -842,7 +842,7 @@ const BackupManager = () => {
               <Alert severity="info" sx={{ mt: 2 }}>
                 <Typography variant="body2">
                   자동백업은 설정한 시간에 자동으로 실행됩니다.
-                  백업 파일은 구글 드라이브에 저장되며, 최신 {autoBackupSettings.retention_count}개만 보관됩니다.
+                  백업 파일은 클라우드 플레어 R2에 저장되며, 최신 {autoBackupSettings.retention_count}개만 보관됩니다.
                 </Typography>
               </Alert>
             </>

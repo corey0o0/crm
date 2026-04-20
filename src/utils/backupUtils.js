@@ -1,6 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
-import { initializeGoogleAPI, getAccessToken } from '../lib/googleDriveConfig';
-import { uploadFileToGoogleDrive, findOrCreateFolder } from './cloudflareR2Utils';
+import { uploadFileToGoogleDrive as uploadFileToR2, findOrCreateFolder } from './cloudflareR2Utils';
 
 /**
  * 복원 순서: 외래 키 의존성을 고려한 순서
@@ -483,44 +482,15 @@ export const getBackupStats = (backupData) => {
 };
 
 /**
- * 백업 데이터를 구글 드라이브에 업로드
+ * 백업 데이터를 클라우드 플레어 R2에 업로드
  * @param {Object} backupData - 백업 데이터
- * @param {string} folderId - 구글 드라이브 폴더 ID (선택사항)
+ * @param {string} folderId - R2 경로(Prefix) (선택사항)
  * @returns {Promise<Object>} 업로드된 파일 정보
  */
-export const uploadBackupToGoogleDrive = async (backupData, folderId = null) => {
+export const uploadBackupToCloudflareR2 = async (backupData, folderId = null) => {
   try {
-    console.log('구글 드라이브 백업 업로드 시작...');
+    console.log('클라우드 플레어 R2 백업 업로드 시작...');
     
-    // 구글 API 초기화
-    await initializeGoogleAPI();
-    
-    // 액세스 토큰 획득
-    let accessToken;
-    try {
-      accessToken = await getAccessToken();
-      // getAccessToken이 토큰 객체를 반환하는 경우
-      if (window.gapi && window.gapi.client && window.gapi.client.getToken()) {
-        accessToken = window.gapi.client.getToken().access_token;
-      }
-    } catch (error) {
-      // 토큰이 없으면 재요청
-      if (window.gapi && window.gapi.client) {
-        const token = window.gapi.client.getToken();
-        if (token) {
-          accessToken = token.access_token;
-        } else {
-          throw new Error('구글 드라이브 인증이 필요합니다. 다시 시도해주세요.');
-        }
-      } else {
-        throw new Error('구글 드라이브 API 초기화에 실패했습니다.');
-      }
-    }
-    
-    if (!accessToken) {
-      throw new Error('구글 드라이브 액세스 토큰을 획득할 수 없습니다.');
-    }
-
     // 백업 파일명 생성
     const timestamp = new Date().toISOString().split('T')[0];
     const fileName = `crm_backup_${timestamp}_${Date.now()}.json`;
@@ -530,30 +500,30 @@ export const uploadBackupToGoogleDrive = async (backupData, folderId = null) => 
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
     const file = new File([dataBlob], fileName, { type: 'application/json' });
 
-    // 폴더 ID가 없으면 기본 백업 폴더 찾기 또는 생성
+    // 폴더 Prefix가 없으면 기본 백업 폴더 경로 생성
     let targetFolderId = folderId;
     if (!targetFolderId) {
-      const rootFolderId = process.env.REACT_APP_GOOGLE_DRIVE_ROOT_FOLDER_ID;
+      const rootFolderId = process.env.REACT_APP_GOOGLE_DRIVE_ROOT_FOLDER_ID || 'backups';
       const backupFolderName = 'CRM_Backups';
       
-      const folder = await findOrCreateFolder(backupFolderName, rootFolderId, accessToken);
+      const folder = await findOrCreateFolder(backupFolderName, rootFolderId);
       targetFolderId = folder.id;
     }
 
-    // 구글 드라이브에 업로드
-    const uploadResult = await uploadFileToGoogleDrive(file, targetFolderId, accessToken);
+    // 클라우드 플레어 R2에 업로드
+    const uploadResult = await uploadFileToR2(file, targetFolderId);
     
-    console.log('구글 드라이브 백업 업로드 완료:', uploadResult);
+    console.log('클라우드 플레어 R2 백업 업로드 완료:', uploadResult);
     
     return {
       fileId: uploadResult.id,
       fileName: fileName,
       fileSize: file.size,
-      webViewLink: `https://drive.google.com/file/d/${uploadResult.id}/view`
+      webViewLink: uploadResult.webViewLink
     };
 
   } catch (error) {
-    console.error('구글 드라이브 백업 업로드 실패:', error);
+    console.error('클라우드 플레어 R2 백업 업로드 실패:', error);
     throw error;
   }
 };
@@ -763,8 +733,8 @@ export const runAutomaticBackup = async (userId) => {
     // 백업 생성
     const backupData = await createBackup();
     
-    // 구글 드라이브에 업로드
-    const uploadResult = await uploadBackupToGoogleDrive(
+    // R2에 업로드
+    const uploadResult = await uploadBackupToCloudflareR2(
       backupData,
       settings.google_drive_folder_id
     );
@@ -852,8 +822,8 @@ const cleanupOldBackups = async (userId, retentionCount) => {
           .delete()
           .eq('id', backup.id);
 
-        // 구글 드라이브에서도 삭제 (선택사항)
-        // 주의: 구글 드라이브 파일 삭제는 액세스 토큰이 필요하므로
+        // 클라우드 플레어 R2에서도 삭제 (선택사항)
+        // 주의: 클라우드 플레어 R2 파일 삭제는 액세스 토큰이 필요하므로
         // 여기서는 데이터베이스 기록만 삭제
         console.log(`오래된 백업 삭제: ${backup.id}`);
       }
