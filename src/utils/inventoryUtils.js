@@ -146,7 +146,7 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
             part_id: null, // 외래키/타입(uuid) 충돌 방지를 위해 임시 null 처리 (향후 DB 타입 변경 필요)
             part_name: part.part_name,
             part_code: part.part_code,
-            brand_code: brandCode,
+            brand_code: brandCode || 'NEARBIKE',
             change_type: changeType,
             quantity_change: quantityChange,
             previous_quantity: previousQuantity,
