@@ -90,7 +90,7 @@ function OnlineStats() {
       ] = await Promise.all([
         supabase.from('cafe24_orders').select('*').gte('order_date', startDateTime).lte('order_date', endDateTime).eq('is_deleted', false).eq('is_transferred', true),
         supabase.from('agencies').select('id, name'),
-        supabase.from('parts').select('id, supplier, note, price'),
+        supabase.from('parts').select('id, code, supplier, note, price, category, name'),
         supabase.from('cafe24_orders').select('order_date, total_amount').gte('order_date', yearStart).lte('order_date', yearEnd).eq('is_deleted', false).eq('is_transferred', true)
       ]);
 
@@ -103,8 +103,12 @@ function OnlineStats() {
         const generalProductStats = {};
         const agencyMap = {};
         agenciesData?.forEach(a => { agencyMap[a.id] = a.name; });
-        const partMap = {};
-        partsData?.forEach(p => { partMap[p.id] = p; });
+        const partMapById = {};
+        const partMapByCode = {};
+        partsData?.forEach(p => { 
+          partMapById[p.id] = p; 
+          if (p.code) partMapByCode[String(p.code).trim()] = p;
+        });
 
         cafe24Orders.forEach(o => {
           const amt = Number(o.total_amount || 0);
@@ -117,8 +121,10 @@ function OnlineStats() {
 
           if (o.order_items && Array.isArray(o.order_items)) {
              o.order_items.forEach(item => {
-               if (item.part_id && partMap[item.part_id]) {
-                  const p = partMap[item.part_id];
+               const pCode = String(item.custom_product_code || item.product_code || '').trim();
+               const p = item.part_id ? partMapById[item.part_id] : (pCode ? partMapByCode[pCode] : null);
+               
+               if (p) {
                   const sup = p.supplier || '기타 브랜드';
                   if (!brandStats[sup]) brandStats[sup] = { airframe: 0, parts: 0, airframeAmount: 0, partsAmount: 0 };
                   
@@ -137,7 +143,7 @@ function OnlineStats() {
                   // 일반 고객(B2C) 주문인 경우 상품별로 분리하여 집계
                   if (!o.agency_id) {
                      if (!generalProductStats[p.id]) {
-                       generalProductStats[p.id] = { name: p.name, category: p.category, quantity: 0, amount: 0 };
+                       generalProductStats[p.id] = { name: p.name || item.name, category: p.category, quantity: 0, amount: 0 };
                      }
                      generalProductStats[p.id].quantity += qty;
                      generalProductStats[p.id].amount += amount;
