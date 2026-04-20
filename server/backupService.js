@@ -100,7 +100,9 @@ async function executeBackup(supabaseAdmin) {
       'customers',
       'agencies',
       'as_requests',
-      'cafe24_settings'
+      'cafe24_settings',
+      'shared_memos',
+      'user_memos'
     ];
     
     const backupData = {

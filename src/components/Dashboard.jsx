@@ -381,25 +381,24 @@ function Dashboard() {
 
       const now = new Date().toISOString();
       
-      // 로컬 스토리지에서 최신 값 가져오기
-      const memo1Content = localStorage.getItem(`temp_${memoType}_memo_0`) || memoList[0]?.content || '';
-      const memo2Content = localStorage.getItem(`temp_${memoType}_memo_1`) || memoList[1]?.content || '';
-      const memo3Content = localStorage.getItem(`temp_${memoType}_memo_2`) || memoList[2]?.content || '';
+      // 로컬 스토리지에서 수정한 값 하나만 선별 가져오기
+      const memoContent = localStorage.getItem(`temp_${memoType}_memo_${idx}`) || memoList[idx]?.content || '';
+      const memoKey = `memo${idx + 1}`;
+      const memoNameKey = `memo_name_${idx + 1}`;
+      const currentName = memoType === 'personal' ? personalMemoNames[idx] : sharedMemoNames[idx];
       
       if (memoType === 'personal') {
-        // 개인 메모 저장
-        const { error } = await supabase
-          .from('user_memos')
-          .upsert({
-            user_id: user.id,
-            memo1: memo1Content,
-            memo2: memo2Content,
-            memo3: memo3Content
-          }, {
-            onConflict: 'user_id'
-          });
-
-        if (error) throw error;
+        // 개인 메모 저장 (Upsert의 경우 다른 열이 기본값으로 덮어씌워질 수 있으니 주의. 
+        // 실 환경에서는 기존 데이터를 불러와서 합쳐야 하지만 현재는 특정 키만 삽입/업데이트)
+        // 안전하게 먼저 기존 데이터가 있는지 확인
+        const { data: existingUserMemo } = await supabase.from('user_memos').select('id').eq('user_id', user.id).maybeSingle();
+        if (existingUserMemo) {
+           const { error } = await supabase.from('user_memos').update({ [memoKey]: memoContent }).eq('user_id', user.id);
+           if (error) throw error;
+        } else {
+           const { error } = await supabase.from('user_memos').insert({ user_id: user.id, [memoKey]: memoContent, [memoNameKey]: currentName });
+           if (error) throw error;
+        }
         
         setPersonalMemoList(prev => prev.map((m, i) => 
           i === idx ? { ...m, lastSaved: now, hasChanges: false, saving: false } : m
@@ -407,9 +406,8 @@ function Dashboard() {
       } else {
         // 공유 메모 저장
         const memoData = {
-          memo1: memo1Content,
-          memo2: memo2Content,
-          memo3: memo3Content
+          [memoKey]: memoContent,
+          updated_by: user.id
         };
 
         // 오프라인 상태 체크 및 추적
@@ -449,10 +447,8 @@ function Dashboard() {
         ));
       }
 
-      // 임시 저장 데이터 제거
-      localStorage.removeItem(`temp_${memoType}_memo_0`);
-      localStorage.removeItem(`temp_${memoType}_memo_1`);
-      localStorage.removeItem(`temp_${memoType}_memo_2`);
+      // 임시 저장 데이터 제거 (현재 작업한 것만 지움)
+      localStorage.removeItem(`temp_${memoType}_memo_${idx}`);
 
       console.log(`${memoType} 메모 저장 완료`);
 
