@@ -823,6 +823,14 @@ export default function Cafe24OrderList() {
   const handleEditingItemChange = (index, field, value) => {
     const updated = [...editingItems];
     updated[index][field] = value;
+    
+    // 수량이나 단가를 수정한 경우, 라인 총 결제액(payment_amount)을 자동 재계산
+    if (field === 'quantity' || field === 'product_price') {
+      const qty = Number(updated[index].quantity || 1);
+      const uPrice = Number(updated[index].product_price || 0);
+      updated[index].payment_amount = qty * uPrice;
+    }
+    
     setEditingItems(updated);
   };
 
@@ -1467,7 +1475,8 @@ export default function Cafe24OrderList() {
               <TableRow>
                 <TableCell>상품명</TableCell>
                 <TableCell width="80">수량</TableCell>
-                <TableCell width="140">품목별 실결제액(원)</TableCell>
+                <TableCell width="120">단가(원)</TableCell>
+                <TableCell width="140">라인 총결제액(합계)</TableCell>
                 <TableCell width="60" align="center">삭제</TableCell>
               </TableRow>
             </TableHead>
@@ -1488,9 +1497,17 @@ export default function Cafe24OrderList() {
                   </TableCell>
                   <TableCell>
                     <TextField
+                      size="small" type="number"
+                      value={item.product_price || 0}
+                      onChange={e => handleEditingItemChange(idx, 'product_price', e.target.value)}
+                      inputProps={{ style: { padding: '4px 8px' } }}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <TextField
                       size="small"
                       type="number"
-                      value={item.payment_amount !== undefined ? item.payment_amount : (item.product_price || 0)}
+                      value={item.payment_amount !== undefined ? item.payment_amount : (item.product_price || 0) * (item.quantity || 1)}
                       onChange={e => handleEditingItemChange(idx, 'payment_amount', e.target.value)}
                       inputProps={{ style: { padding: '4px 8px' } }}
                     />
