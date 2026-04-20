@@ -1240,8 +1240,8 @@ export default function Cafe24OrderList() {
                         <TableCell rowSpan={items.length} align="center">
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'center' }}>
                               {(!order.is_transferred) && (
-                                <Button size="small" variant="outlined" color="info" onClick={() => handleOpenEditItemsModal(order)} sx={{ fontSize: '0.7rem', padding: '4px 6px', width: '100%', mb: 1, borderStyle: 'dashed' }}>
-                                  <PlaylistAddIcon fontSize="small" sx={{ mr: 0.5 }} /> 품목 교체
+                                <Button size="small" variant="outlined" color="info" onClick={() => handleOpenEditItemsModal(order)} sx={{ width: '100%', mb: 1, borderStyle: 'dashed' }}>
+                                  품목 교체
                                 </Button>
                               )}
                               {(() => {
