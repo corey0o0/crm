@@ -403,7 +403,8 @@ function SalesHistory() {
         (r.customer_name || '').toLowerCase().includes(q) ||
         (r.sales_channel || '').toLowerCase().includes(q) ||
         (r.part_name || '').toLowerCase().includes(q) ||
-        (r.note || '').toLowerCase().includes(q)
+        (r.note || '').toLowerCase().includes(q) ||
+        (r.order_no || '').toLowerCase().includes(q)
       );
     }
     return true;
@@ -616,7 +617,7 @@ function SalesHistory() {
             <Stack direction="row" spacing={1} alignItems="center">
               <TextField
                 size="small"
-                label="고객명, 판매처, 제품명 등 검색"
+                label="고객명, 판매처, 주문번호, 제품명 등 검색"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 onKeyPress={e => { if (e.key === 'Enter') fetchSales(); }}
