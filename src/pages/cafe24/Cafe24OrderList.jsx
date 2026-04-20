@@ -129,11 +129,15 @@ export default function Cafe24OrderList() {
 
   useEffect(() => {
     fetchMalls();
-    fetchOrders();
     fetchParts();
     fetchAgencies();
     fetchWarehouses();
   }, []);
+
+  // 날짜 범위(또는 마운트 시) 주문 목록 불러오기
+  useEffect(() => {
+    fetchOrders();
+  }, [startDate, endDate]);
 
   useEffect(() => {
     if (warehouses.length > 0 && orders.length > 0) {
@@ -198,12 +202,14 @@ export default function Cafe24OrderList() {
     setLoading(true);
     setError(null);
     try {
+      // startDate~endDate 기간 내의 주문 또는 아직 처리되지 않은(is_transferred=false) 주문을 모두 불러옵니다.
       const { data, error: dbErr } = await supabase
         .from('cafe24_orders')
         .select('*')
         .neq('is_deleted', true)
+        .or(`is_transferred.eq.false,and(order_date.gte.${startDate},order_date.lte.${endDate} 23:59:59)`)
         .order('order_date', { ascending: false })
-        .limit(2000);
+        .limit(3000);
 
       if (dbErr) throw dbErr;
       setOrders(data || []);
