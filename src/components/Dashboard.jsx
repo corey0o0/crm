@@ -176,6 +176,10 @@ function Dashboard() {
   useEffect(() => {
     let retryTimer = null;
     const fetchSharedMemos = async (retryCount = 0) => {
+      if (!user?.id) {
+        console.log('[Dashboard] 공유 메모 사용자 인증 대기 중...');
+        return;
+      }
       try {
         console.log('[Dashboard] 공유 메모 불러오기 시작...');
         
