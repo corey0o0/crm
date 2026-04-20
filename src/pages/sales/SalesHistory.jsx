@@ -216,24 +216,8 @@ function SalesHistory() {
       });
     }
 
-    // Cafe24 연동 시 발생한 inventory_logs 를 통해 warehouse_id 역추적
-    const cafeIds = (cafeRes.data || []).map(o => o.id);
+    // Cafe24 연동 시 발생한 inventory_logs 를 통해 warehouse_id 역추적 (더이상 지원안함, order_items에 모두 존재함)
     const cafeWarehouseMap = {};
-    if (cafeIds.length > 0) {
-      const { data: invData, error: invErr } = await supabase
-        .from('inventory_logs')
-        .select('reference_id, warehouse_id, part_code')
-        .eq('reference_type', 'cafe24_order')
-        .in('reference_id', cafeIds);
-      if (!invErr) {
-        (invData || []).forEach(log => {
-          cafeWarehouseMap[log.reference_id] = log.warehouse_id;
-          if (log.part_code) {
-            cafeWarehouseMap[`${log.reference_id}_${log.part_code}`] = log.warehouse_id;
-          }
-        });
-      }
-    }
 
     // A/S 출고 시 발생한 transactions 를 통해 실 출고 창고 역추적
     const serviceTxMap = {};
