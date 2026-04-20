@@ -43,7 +43,7 @@ function ReceiptAnalysis() {
         return;
       }
 
-      // 1. Google Drive에 영수증 이미지 업로드
+      // 1. Cloudflare R2에 영수증 이미지 업로드
       const timestamp = new Date().toISOString();
       const fileName = `receipt_${timestamp}_${file.name}`;
       const { fileId, webViewLink } = await uploadToGoogleDrive(file, fileName);

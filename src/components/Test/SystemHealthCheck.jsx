@@ -380,7 +380,7 @@ const SystemHealthCheck = () => {
   const checkExternalServices = async () => {
     const checks = {};
 
-    // Google Drive 확인
+    // Cloudflare R2 확인
     try {
       // 5초 타임아웃 설정
       const timeoutPromise = new Promise((_, reject) =>
@@ -391,12 +391,12 @@ const SystemHealthCheck = () => {
 
       checks.googleDrive = {
         status: STATUS.SUCCESS,
-        message: 'Google Drive API 초기화 성공'
+        message: 'Cloudflare R2 API 초기화 성공'
       };
     } catch (error) {
       checks.googleDrive = {
         status: STATUS.WARNING,
-        message: `Google Drive API 초기화 실패: ${error.message}`
+        message: `Cloudflare R2 API 초기화 실패: ${error.message}`
       };
     }
 

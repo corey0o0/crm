@@ -118,7 +118,7 @@ function GoogleDriveTest() {
     <Box sx={{ p: 3, maxWidth: 600, mx: 'auto' }}>
       <Paper sx={{ p: 3 }}>
         <Typography variant="h5" gutterBottom>
-          Google Drive API 테스트
+          Cloudflare R2 API 테스트
         </Typography>
 
         {/* API 상태 표시 및 진단 버튼 */}

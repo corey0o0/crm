@@ -740,9 +740,9 @@ function AddService() {
   // 영수증 이미지 URL에서 이미지 데이터 가져오기
   const fetchImageFromUrl = async (url) => {
     try {
-      // Google Drive 공유 링크를 직접 다운로드 링크로 변환
+      // Cloudflare R2 공유 링크를 직접 다운로드 링크로 변환
       const fileId = url.match(/\/d\/(.*?)\/view/)?.[1];
-      if (!fileId) throw new Error('Invalid Google Drive URL');
+      if (!fileId) throw new Error('Invalid Cloudflare R2 URL');
       
       const directUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
       const response = await fetch(directUrl);
