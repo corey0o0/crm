@@ -301,13 +301,13 @@ export default function ManualSalesList({ isEmbedded = false }) {
                   <DatePicker
                     value={dateFilter.startDate ? parseISO(dateFilter.startDate) : null}
                     onChange={(newValue) => handleDateFilterChange('startDate', newValue ? format(newValue, 'yyyy-MM-dd') : '')}
-                    slotProps={{ textField: { size: "small", sx: { width: 120 } } }}
+                    slotProps={{ textField: { size: "small", sx: { width: 140 } } }}
                   />
                   <Typography variant="body2">~</Typography>
                   <DatePicker
                     value={dateFilter.endDate ? parseISO(dateFilter.endDate) : null}
                     onChange={(newValue) => handleDateFilterChange('endDate', newValue ? format(newValue, 'yyyy-MM-dd') : '')}
-                    slotProps={{ textField: { size: "small", sx: { width: 120 } } }}
+                    slotProps={{ textField: { size: "small", sx: { width: 140 } } }}
                   />
                 </Box>
               </LocalizationProvider>

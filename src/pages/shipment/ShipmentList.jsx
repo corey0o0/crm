@@ -1804,7 +1804,7 @@ function ShipmentList() {
                     slotProps={{
                       textField: {
                         size: "small",
-                        sx: { width: 120 }
+                        sx: { width: 140 }
                       }
                     }}
                   />
@@ -1817,7 +1817,7 @@ function ShipmentList() {
                     slotProps={{
                       textField: {
                         size: "small",
-                        sx: { width: 120 }
+                        sx: { width: 140 }
                       }
                     }}
                   />

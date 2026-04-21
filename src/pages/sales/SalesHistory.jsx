@@ -636,13 +636,13 @@ function SalesHistory() {
                   <DatePicker
                     value={startDate}
                     onChange={v => setStartDate(v)}
-                    slotProps={{ textField: { size: 'small', sx: { width: 120 } } }}
+                    slotProps={{ textField: { size: 'small', sx: { width: 140 } } }}
                   />
                   <Typography variant="body2">~</Typography>
                   <DatePicker
                     value={endDate}
                     onChange={v => setEndDate(v)}
-                    slotProps={{ textField: { size: 'small', sx: { width: 120 } } }}
+                    slotProps={{ textField: { size: 'small', sx: { width: 140 } } }}
                   />
                 </Box>
               </LocalizationProvider>
