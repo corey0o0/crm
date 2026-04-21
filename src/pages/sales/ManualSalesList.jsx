@@ -175,7 +175,7 @@ export default function ManualSalesList({ isEmbedded = false }) {
   };
 
   return (
-    <Box p={isEmbedded ? 0 : 3} sx={{ maxWidth: 1200, margin: '0 auto' }}>
+    <Box p={isEmbedded ? 0 : 3} sx={{ maxWidth: 1600, margin: '0 auto' }}>
       {!isEmbedded && (
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
           <Typography variant="h4" fontWeight="bold">수기 판매 관리</Typography>
