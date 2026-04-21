@@ -57,6 +57,7 @@ import PendingOrderDetail from './pages/pendingOrders/PendingOrderDetail';
 import Cafe24Settings from './components/Settings/Cafe24Settings';
 import ProductComparisonDashboard from './components/Settings/ProductComparisonDashboard';
 import Cafe24OrderList from './pages/cafe24/Cafe24OrderList';
+import EcountDataUploader from './components/Settings/EcountDataUploader';
 
 function AppRouter() {
   const { session } = useAuth();
@@ -135,6 +136,7 @@ function AppRouter() {
           <Route path="admin/tools" element={<AdminTools />} />
 
           {/* 카페24 연동 설정 */}
+          <Route path="settings/ecount-uploader" element={<EcountDataUploader />} />
           <Route path="settings/cafe24" element={<Cafe24Settings />} />
           <Route path="cafe24/orders" element={<Cafe24OrderList />} />
           <Route path="settings/product-sync" element={<ProductComparisonDashboard />} />
