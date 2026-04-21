@@ -279,7 +279,7 @@ export const fetchShipments = async (options = {}) => {
   const salesChannelFilter = `or(sales_channel.is.null,and(sales_channel.neq.${ecountTag},sales_channel.neq.${b2bTag1}))`;
   const noteFilter = `or(note.is.null,and(note.not.ilike.*${b2bTag2}*,note.not.ilike.*${excelTag}*,note.not.ilike.*${manualTag}*,note.not.ilike.*${ecountNoteTag}*))`;
 
-  filters.push(`and(${salesChannelFilter},${noteFilter})`);
+  filters.push(`and=(${salesChannelFilter},${noteFilter})`);
 
   if (filters.length > 0) {
     filter = filters.join('&');
@@ -346,7 +346,7 @@ export const countShipments = async (options = {}) => {
   const salesChannelFilter = `or(sales_channel.is.null,and(sales_channel.neq.${ecountTag},sales_channel.neq.${b2bTag1}))`;
   const noteFilter = `or(note.is.null,and(note.not.ilike.*${b2bTag2}*,note.not.ilike.*${excelTag}*,note.not.ilike.*${manualTag}*,note.not.ilike.*${ecountNoteTag}*))`;
 
-  filters.push(`and(${salesChannelFilter},${noteFilter})`);
+  filters.push(`and=(${salesChannelFilter},${noteFilter})`);
 
   if (filters.length > 0) {
     filter = filters.join('&');
