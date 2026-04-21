@@ -304,9 +304,9 @@ export default function ManualSalesList({ isEmbedded = false }) {
 
       <Paper sx={{ p: 2, mb: 3 }}>
         <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} md={12} lg={4}>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
-              <FormControl size="small" sx={{ width: 140, mb: { xs: 1, sm: 0 } }}>
+          <Grid item xs={12}>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, alignItems: 'center' }}>
+              <FormControl size="small" sx={{ width: 130 }}>
                 <InputLabel>상태</InputLabel>
                 <Select
                   value={statusFilter}
@@ -320,7 +320,7 @@ export default function ManualSalesList({ isEmbedded = false }) {
                 </Select>
               </FormControl>
 
-              <FormControl size="small" sx={{ width: 150 }}>
+              <FormControl size="small" sx={{ width: 140 }}>
                 <InputLabel>판매처</InputLabel>
                 <Select
                   value={sellerFilter}
@@ -333,11 +333,6 @@ export default function ManualSalesList({ isEmbedded = false }) {
                   ))}
                 </Select>
               </FormControl>
-            </Box>
-          </Grid>
-
-          <Grid item xs={12} md={12} lg={8}>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, alignItems: 'center' }}>
               <FormControl size="small" sx={{ minWidth: 120 }}>
                 <InputLabel>날짜 유형</InputLabel>
                 <Select
