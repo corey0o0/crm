@@ -991,27 +991,30 @@ export default function Cafe24OrderList() {
                   검색
                 </Button>
 
-                <Box sx={{ flexGrow: 1 }} />
+                {/* 강제 줄바꿈 100% width Box */}
+                <Box sx={{ width: '100%', my: 0.5 }} />
 
                 <Stack direction="row" spacing={1} alignItems="center">
-                  <TextField type="date" size="small" InputLabelProps={{ shrink: true }} value={startDate} onChange={(e) => setStartDate(e.target.value)} sx={{ width: 130 }} />
+                  <TextField type="date" size="small" InputLabelProps={{ shrink: true }} value={startDate} onChange={(e) => setStartDate(e.target.value)} sx={{ width: 130, bgcolor: 'white' }} />
                   <Typography>~</Typography>
-                  <TextField type="date" size="small" InputLabelProps={{ shrink: true }} value={endDate} onChange={(e) => setEndDate(e.target.value)} sx={{ width: 130 }} />
+                  <TextField type="date" size="small" InputLabelProps={{ shrink: true }} value={endDate} onChange={(e) => setEndDate(e.target.value)} sx={{ width: 130, bgcolor: 'white' }} />
                 </Stack>
-                <Button variant="outlined" size="small" onClick={() => setPeriod(0)}>금일</Button>
-                <Button variant="outlined" size="small" onClick={setYesterday}>전일</Button>
-                <Button variant="outlined" size="small" onClick={() => setPeriod(7)}>일주일</Button>
-                <Button variant="outlined" size="small" onClick={() => setPeriod(30)}>1개월</Button>
+                <Button variant="outlined" size="small" sx={{ bgcolor: 'white' }} onClick={() => setPeriod(0)}>금일</Button>
+                <Button variant="outlined" size="small" sx={{ bgcolor: 'white' }} onClick={setYesterday}>전일</Button>
+                <Button variant="outlined" size="small" sx={{ bgcolor: 'white' }} onClick={() => setPeriod(7)}>일주일</Button>
+                <Button variant="outlined" size="small" sx={{ bgcolor: 'white' }} onClick={() => setPeriod(30)}>1개월</Button>
                 
+                <Box sx={{ flexGrow: 1 }} />
+
                 <Button 
                   variant="outlined" 
                   color="secondary"
                   startIcon={syncing ? <CircularProgress size={20} color="inherit" /> : <SyncIcon />} 
                   onClick={handleSync}
                   disabled={syncing}
-                  sx={{ ml: 1 }}
+                  sx={{ ml: 1, bgcolor: 'white' }}
                 >
-                  {syncing ? '수집 중...' : (selectedMall === 'all' ? '전체 쇼핑몰 대량 수집' : '선택된 쇼핑몰 주문 수집')}
+                  {syncing ? '수집 중...' : (selectedMall === 'all' ? '전체 쇼핑몰 수집' : '선택된 쇼핑몰 주문 수집')}
                 </Button>
               </Box>
 
