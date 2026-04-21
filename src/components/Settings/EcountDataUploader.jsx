@@ -99,7 +99,7 @@ export default function EcountDataUploader() {
         const matchedPart = dbParts.find(p => 
            (excelCode && (p.code === excelCode || p.barcode === excelCode)) ||
            (excelBarcode && (p.barcode === excelBarcode || p.code === excelBarcode)) ||
-           (p.name && partName && p.name.includes(partName)) // 이름으로도 부분 일치 시도 (옵션)
+           (p.name && partName && partName.replace(/[\s\-]/g, '').includes(p.name.replace(/[\s\-]/g, ''))) // 엑셀명(옵션포함) 안에 DB품목명이 포함되는지 확인
         );
 
         if (matchedPart) {
