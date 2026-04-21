@@ -753,12 +753,22 @@ function SalesHistory() {
                       {row.date_val ? format(new Date(row.date_val), 'yyyy-MM-dd') : '-'}
                     </TableCell>
                     <TableCell>
-                      <Chip
-                        size="small"
-                        label={isCafe ? '온라인주문' : (isService ? 'A/S' : '매장출고')}
-                        color={isCafe ? 'success' : (isService ? 'warning' : 'primary')}
-                        variant="outlined"
-                      />
+                      {(() => {
+                        let cLabel = '매장출고';
+                        let cColor = 'primary';
+                        if (isCafe || row.sales_channel === '온라인주문') {
+                          cLabel = '온라인주문';
+                          cColor = 'success';
+                        } else if (isService) {
+                          cLabel = 'A/S';
+                          cColor = 'warning';
+                        } else if (row.sales_channel === '고객') {
+                          cLabel = '고객';
+                        } else if (row.sales_channel && row.sales_channel !== '-' && row.sales_channel !== '본사/기본' && row.sales_channel !== '과거 이카운트 이관') {
+                          cLabel = row.sales_channel;
+                        }
+                        return <Chip size="small" label={cLabel} color={cColor} variant="outlined" sx={{ maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis' }} />;
+                      })()}
                     </TableCell>
                     <TableCell sx={{ fontSize: '0.85rem', color: '#1976d2', fontWeight: 500, whiteSpace: 'nowrap' }}>
                        {row.sales_channel && row.sales_channel !== '-' && row.sales_channel !== '온라인주문' ? row.sales_channel : (isCafe ? '온라인몰' : '본사/기본')}
