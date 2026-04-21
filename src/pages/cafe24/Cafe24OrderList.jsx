@@ -202,12 +202,13 @@ export default function Cafe24OrderList() {
     setLoading(true);
     setError(null);
     try {
-      // startDate~endDate 기간 내의 주문 또는 아직 처리되지 않은(is_transferred=false) 주문을 모두 불러옵니다.
+      // startDate~endDate 기간 내의 주문만을 불러옵니다 (요청에 따라 날짜 엄격하게 필터링 적용)
       const { data, error: dbErr } = await supabase
         .from('cafe24_orders')
         .select('*')
         .neq('is_deleted', true)
-        .or(`is_transferred.eq.false,and(order_date.gte.${startDate},order_date.lte.${endDate} 23:59:59)`)
+        .gte('order_date', `${startDate}T00:00:00Z`)
+        .lte('order_date', `${endDate}T23:59:59Z`)
         .order('order_date', { ascending: false })
         .limit(3000);
 
