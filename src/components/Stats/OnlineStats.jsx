@@ -115,24 +115,35 @@ function OnlineStats() {
           total += amt;
 
           const agName = o.agency_id ? (agencyMap[o.agency_id] || `미등록 대리점`) : '일반 주문';
-          if (!agencyStats[agName]) agencyStats[agName] = { amount: 0, count: 0 };
-          agencyStats[agName].amount += amt;
+          if (!agencyStats[agName]) agencyStats[agName] = { amount: 0, count: 0, airframe: 0, airframeAmount: 0, parts: 0, partsAmount: 0 };
+          agencyStats[agName].amount += amt; // Total includes shipping/discount
           agencyStats[agName].count += 1;
 
           if (o.order_items && Array.isArray(o.order_items)) {
              o.order_items.forEach(item => {
                const pCode = String(item.custom_product_code || item.product_code || '').trim();
+               const pName = item.name || item.product_name || '';
                const p = item.part_id ? partMapById[item.part_id] : (pCode ? partMapByCode[pCode] : null);
                
+               const qty = Number(item.quantity || 1);
+               const unitPrice = Number(item.product_price || item.price || (p ? p.price : 0));
+               const amount = qty * unitPrice;
+               
+               const isAirframe = p ? (p.category === '기체') : (pName.includes('기체') || pName.includes('차체'));
+               
+               if (isAirframe) {
+                  agencyStats[agName].airframe += qty;
+                  agencyStats[agName].airframeAmount += amount;
+               } else {
+                  agencyStats[agName].parts += qty;
+                  agencyStats[agName].partsAmount += amount;
+               }
+
                if (p) {
                   const sup = p.supplier || '기타 브랜드';
                   if (!brandStats[sup]) brandStats[sup] = { airframe: 0, parts: 0, airframeAmount: 0, partsAmount: 0 };
                   
-                  const qty = Number(item.quantity || 1);
-                  const unitPrice = Number(item.product_price || item.price || p.price || 0);
-                  const amount = qty * unitPrice;
-
-                  if (p.category === '기체') {
+                  if (isAirframe) {
                      brandStats[sup].airframe += qty;
                      brandStats[sup].airframeAmount += amount;
                   } else {
@@ -347,6 +358,8 @@ function OnlineStats() {
                   <TableHead sx={{ bgcolor: 'grey.100' }}>
                     <TableRow>
                       <TableCell>대리점명</TableCell>
+                      <TableCell align="right">기체 판매</TableCell>
+                      <TableCell align="right">파츠 판매</TableCell>
                       <TableCell align="right">주문 건수</TableCell>
                       <TableCell align="right">총 주문 금액</TableCell>
                     </TableRow>
@@ -358,12 +371,20 @@ function OnlineStats() {
                         .map(([agencyName, data]) => (
                           <TableRow key={agencyName} hover>
                             <TableCell>{agencyName}</TableCell>
+                            <TableCell align="right">
+                               <Typography variant="body2" sx={{ fontWeight: data.airframe > 0 ? 'bold' : 'normal', color: data.airframe > 0 ? 'primary.main' : 'inherit' }}>{data.airframe}대</Typography>
+                               <Typography variant="caption" color="textSecondary">{formatCurrency(data.airframeAmount)}</Typography>
+                            </TableCell>
+                            <TableCell align="right">
+                               <Typography variant="body2">{data.parts}개</Typography>
+                               <Typography variant="caption" color="textSecondary">{formatCurrency(data.partsAmount)}</Typography>
+                            </TableCell>
                             <TableCell align="right">{data.count}건</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(data.amount)}</TableCell>
                           </TableRow>
                         ))
                     ) : (
-                      <TableRow><TableCell colSpan={3} align="center">데이터가 없습니다.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={5} align="center">데이터가 없습니다.</TableCell></TableRow>
                     )}
                   </TableBody>
                 </Table>
