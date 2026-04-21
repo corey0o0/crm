@@ -206,7 +206,6 @@ export default function Cafe24OrderList() {
       const { data, error: dbErr } = await supabase
         .from('cafe24_orders')
         .select('*')
-        .neq('is_deleted', true)
         .gte('order_date', `${startDate}T00:00:00Z`)
         .lte('order_date', `${endDate}T23:59:59Z`)
         .order('order_date', { ascending: false })
@@ -305,12 +304,19 @@ export default function Cafe24OrderList() {
   });
 
   const transferCounts = {
-    all: baseFilteredOrders.length,
-    not_transferred: baseFilteredOrders.filter(o => !o.is_transferred).length,
-    transferred: baseFilteredOrders.filter(o => o.is_transferred).length,
+    all: baseFilteredOrders.filter(o => !o.is_deleted).length,
+    not_transferred: baseFilteredOrders.filter(o => !o.is_transferred && !o.is_deleted).length,
+    transferred: baseFilteredOrders.filter(o => o.is_transferred && !o.is_deleted).length,
+    ignored: baseFilteredOrders.filter(o => o.is_deleted).length,
   };
 
   const filteredOrders = baseFilteredOrders.filter(order => {
+    if (transferFilter === 'ignored') {
+      return order.is_deleted === true;
+    }
+    // For all other filters, hide ignored
+    if (order.is_deleted) return false;
+    
     if (transferFilter === 'transferred' && !order.is_transferred) return false;
     if (transferFilter === 'not_transferred' && order.is_transferred) return false;
     return true;
@@ -318,7 +324,7 @@ export default function Cafe24OrderList() {
 
   const visibleOrders = filteredOrders.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   const visibleSelectableIds = visibleOrders
-    .filter(n => !n.is_transferred && String(n.status).trim() !== 'N00')
+    .filter(n => transferFilter === 'ignored' || (!n.is_transferred && String(n.status).trim() !== 'N00'))
     .map(n => n.id);
 
   const handleSelectAllClick = (event) => {
@@ -526,7 +532,7 @@ export default function Cafe24OrderList() {
           setLoading(true);
           const { error } = await supabase
             .from('cafe24_orders')
-            .update({ is_transferred: true }) // 실제론 전송을 안하고 상태만 넘김
+            .update({ is_deleted: true, is_transferred: false }) // '반영 무시' 탭으로 명확히 이동
             .in('id', ordersToIgnore.map(o => o.id));
           if (error) throw error;
           
@@ -555,7 +561,7 @@ export default function Cafe24OrderList() {
           setLoading(true);
           const { error } = await supabase
             .from('cafe24_orders')
-            .update({ is_transferred: true })
+            .update({ is_deleted: true, is_transferred: false })
             .eq('id', order.id);
           if (error) throw error;
           
@@ -939,6 +945,9 @@ export default function Cafe24OrderList() {
                   </ToggleButton>
                   <ToggleButton value="transferred" sx={{ px: 2 }}>
                     반영 완료 <Chip label={transferCounts.transferred} size="small" sx={{ ml: 1, height: 20, fontSize: '0.75rem' }} color={transferFilter === 'transferred' ? "success" : "default"} />
+                  </ToggleButton>
+                  <ToggleButton value="ignored" sx={{ px: 2 }}>
+                    반영 무시 <Chip label={transferCounts.ignored} size="small" sx={{ ml: 1, height: 20, fontSize: '0.75rem' }} color={transferFilter === 'ignored' ? "error" : "default"} />
                   </ToggleButton>
                 </ToggleButtonGroup>
 
