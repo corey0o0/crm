@@ -62,7 +62,7 @@ export default function AdminTools() {
                         <Tab label="텔레그램 알림 관리" {...a11yProps(2)} />
                         <Tab label="데이터 백업/복원" {...a11yProps(3)} />
                         <Tab label="사용자 권한 관리" {...a11yProps(4)} />
-                        <Tab label="과거 이카운트 연동" {...a11yProps(5)} />
+                        {/* <Tab label="과거 이카운트 연동" {...a11yProps(5)} /> */}
                     </Tabs>
                 </Box>
                 <TabPanel value={value} index={0}>
@@ -82,9 +82,9 @@ export default function AdminTools() {
                 <TabPanel value={value} index={4}>
                     <UserMenuSettings />
                 </TabPanel>
-                <TabPanel value={value} index={5}>
+                {/* <TabPanel value={value} index={5}>
                     <EcountDataUploader />
-                </TabPanel>
+                </TabPanel> */}
             </Paper>
         </Container>
     );
