@@ -90,7 +90,7 @@ function OnlineStats() {
       ] = await Promise.all([
         supabase.from('cafe24_orders').select('*').gte('order_date', startDateTime).lte('order_date', endDateTime).eq('is_deleted', false).eq('is_transferred', true),
         supabase.from('agencies').select('id, name'),
-        supabase.from('parts').select('id, code, supplier, note, price, category, name'),
+        supabase.from('parts').select('id, code, barcode, supplier, note, price, category, name'),
         supabase.from('cafe24_orders').select('order_date, total_amount').gte('order_date', yearStart).lte('order_date', yearEnd).eq('is_deleted', false).eq('is_transferred', true)
       ]);
 
@@ -108,6 +108,7 @@ function OnlineStats() {
         partsData?.forEach(p => { 
           partMapById[p.id] = p; 
           if (p.code) partMapByCode[String(p.code).trim()] = p;
+          if (p.barcode) partMapByCode[String(p.barcode).trim()] = p;
         });
 
         cafe24Orders.forEach(o => {
