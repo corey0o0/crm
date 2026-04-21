@@ -316,15 +316,19 @@ export default function Cafe24OrderList() {
     return true;
   });
 
+  const visibleOrders = filteredOrders.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  const visibleSelectableIds = visibleOrders
+    .filter(n => !n.is_transferred && String(n.status).trim() !== 'N00')
+    .map(n => n.id);
+
   const handleSelectAllClick = (event) => {
     if (event.target.checked) {
-      const newSelecteds = filteredOrders
-        .filter(n => !n.is_transferred && String(n.status).trim() !== 'N00')
-        .map(n => n.id);
+      const newSelecteds = [...new Set([...selectedOrders, ...visibleSelectableIds])];
       setSelectedOrders(newSelecteds);
-      return;
+    } else {
+      const newSelecteds = selectedOrders.filter(id => !visibleSelectableIds.includes(id));
+      setSelectedOrders(newSelecteds);
     }
-    setSelectedOrders([]);
   };
 
   const handleSelectRow = (event, id) => {
@@ -1088,8 +1092,15 @@ export default function Cafe24OrderList() {
             <TableRow>
               <TableCell padding="checkbox">
                 <Checkbox
-                  indeterminate={selectedOrders.length > 0 && selectedOrders.length < filteredOrders.length}
-                  checked={filteredOrders.length > 0 && selectedOrders.length === filteredOrders.length}
+                  indeterminate={
+                    visibleSelectableIds.length > 0 && 
+                    visibleSelectableIds.some(id => selectedOrders.includes(id)) && 
+                    !visibleSelectableIds.every(id => selectedOrders.includes(id))
+                  }
+                  checked={
+                    visibleSelectableIds.length > 0 && 
+                    visibleSelectableIds.every(id => selectedOrders.includes(id))
+                  }
                   onChange={handleSelectAllClick}
                 />
               </TableCell>
@@ -1118,7 +1129,7 @@ export default function Cafe24OrderList() {
             ) : filteredOrders.length === 0 ? (
               <TableRow><TableCell colSpan={16} align="center" sx={{ py: 3 }}>수집·필터 조건에 맞는 주문 데이터가 없습니다.</TableCell></TableRow>
             ) : (
-              filteredOrders.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).reduce((acc, order) => {
+             visibleOrders.reduce((acc, order) => {
                 const items = order.order_items || [];
                 if (items.length === 0) {
                   // 빈 주문인 경우 빈 행 하나 추가
