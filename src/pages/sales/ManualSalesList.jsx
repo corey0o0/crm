@@ -304,9 +304,9 @@ export default function ManualSalesList({ isEmbedded = false }) {
 
       <Paper sx={{ p: 2, mb: 3 }}>
         <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} md={5}>
-            <Stack direction="row" spacing={2}>
-              <FormControl size="small" sx={{ width: 140 }}>
+          <Grid item xs={12} md={12} lg={4}>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
+              <FormControl size="small" sx={{ width: 140, mb: { xs: 1, sm: 0 } }}>
                 <InputLabel>상태</InputLabel>
                 <Select
                   value={statusFilter}
@@ -333,12 +333,12 @@ export default function ManualSalesList({ isEmbedded = false }) {
                   ))}
                 </Select>
               </FormControl>
-            </Stack>
+            </Box>
           </Grid>
 
-          <Grid item xs={12} md={7}>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
-              <FormControl size="small" sx={{ width: 130 }}>
+          <Grid item xs={12} md={12} lg={8}>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, alignItems: 'center' }}>
+              <FormControl size="small" sx={{ minWidth: 120 }}>
                 <InputLabel>날짜 유형</InputLabel>
                 <Select
                   value={dateFilter.type}
@@ -350,7 +350,7 @@ export default function ManualSalesList({ isEmbedded = false }) {
                 </Select>
               </FormControl>
 
-              <ButtonGroup size="small" variant="outlined">
+              <ButtonGroup size="small" variant="outlined" sx={{ flexWrap: 'wrap' }}>
                 <Button onClick={() => handleQuickDateFilter('today')}>오늘</Button>
                 <Button onClick={() => handleQuickDateFilter('yesterday')}>어제</Button>
                 <Button onClick={() => handleQuickDateFilter('thisWeek')}>이번주</Button>
@@ -360,21 +360,21 @@ export default function ManualSalesList({ isEmbedded = false }) {
               </ButtonGroup>
 
               <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                   <DatePicker
                     value={dateFilter.startDate ? parseISO(dateFilter.startDate) : null}
                     onChange={(newValue) => handleDateFilterChange('startDate', newValue ? format(newValue, 'yyyy-MM-dd') : '')}
-                    slotProps={{ textField: { size: "small", sx: { width: 140 } } }}
+                    slotProps={{ textField: { size: "small", sx: { width: 130 } } }}
                   />
                   <Typography variant="body2">~</Typography>
                   <DatePicker
                     value={dateFilter.endDate ? parseISO(dateFilter.endDate) : null}
                     onChange={(newValue) => handleDateFilterChange('endDate', newValue ? format(newValue, 'yyyy-MM-dd') : '')}
-                    slotProps={{ textField: { size: "small", sx: { width: 140 } } }}
+                    slotProps={{ textField: { size: "small", sx: { width: 130 } } }}
                   />
                 </Box>
               </LocalizationProvider>
-            </Stack>
+            </Box>
           </Grid>
 
           <Grid item xs={12}>
