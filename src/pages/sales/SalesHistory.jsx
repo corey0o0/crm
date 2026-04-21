@@ -4,7 +4,7 @@ import {
   TableHead, TableRow, Chip, TextField, Button, Grid, Divider,
   TablePagination, CircularProgress, FormControl, InputLabel, Select, MenuItem, Stack, ButtonGroup
 } from '@mui/material';
-import { Assessment as AssessmentIcon } from '@mui/icons-material';
+import { Assessment as AssessmentIcon, FileDownload as FileDownloadIcon } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
@@ -493,6 +493,43 @@ function SalesHistory() {
     setEditOpen(true);
   };
 
+  const handleExportExcel = async () => {
+    try {
+      const { downloadExcel } = await import('../../utils/excelUtils');
+      const headers = [
+        { key: 'date_val', label: '주문/출고일자' },
+        { key: 'customer_name', label: '고객명/거래처' },
+        { key: 'sales_channel', label: '판매처' },
+        { key: '_type', label: '분류' },
+        { key: 'part_name', label: '품목명(옵션)' },
+        { key: 'part_code', label: '품목코드' },
+        { key: 'brand', label: '브랜드' },
+        { key: 'quantity', label: '수량' },
+        { key: 'unit_price', label: '개별단가' },
+        { key: 'total_price', label: '합산금액' },
+        { key: 'supply', label: '공급가액' },
+        { key: 'vat', label: '부가세' },
+        { key: 'status', label: '상태' }
+      ];
+
+      const excelData = filtered.map(r => {
+        const amtInfo = calcVAT(r.total_price);
+        return {
+          ...r,
+          date_val: format(new Date(r.date_val), 'yyyy-MM-dd'),
+          _type: r._type === 'cafe24' ? '온라인주문' : r._type === 'shipment' ? '매장출고(수기)' : 'A/S수리',
+          supply: amtInfo.supply,
+          vat: amtInfo.vat
+        };
+      });
+
+      await downloadExcel(excelData, headers, `판매현황_${format(new Date(), 'yyyy-MM-dd')}`);
+    } catch (err) {
+      console.error(err);
+      alert('엑셀 다운로드 중 오류가 발생했습니다.');
+    }
+  };
+
   return (
     <Box>
       {/* 제목 */}
@@ -635,6 +672,15 @@ function SalesHistory() {
                 setTimeout(() => fetchSales(), 0);
               }}>초기화</Button>
               <Box sx={{ flexGrow: 1 }} />
+              <Button 
+                variant="outlined" 
+                color="success" 
+                startIcon={<FileDownloadIcon />} 
+                onClick={handleExportExcel}
+                sx={{ mr: 1, bgcolor: 'white' }}
+              >
+                엑셀 추출
+              </Button>
               <Button 
                 variant="text" 
                 color="primary" 

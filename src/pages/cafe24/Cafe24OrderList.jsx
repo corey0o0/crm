@@ -4,7 +4,7 @@ import {
   TableHead, TableRow, Chip, CircularProgress, Alert, Stack, Dialog, DialogTitle,
   DialogContent, DialogActions, Autocomplete, TextField, Tabs, Tab, Select, MenuItem, FormControl, FormControlLabel, InputLabel, Checkbox, IconButton, Tooltip, InputAdornment, TablePagination, ToggleButton, ToggleButtonGroup, TableFooter
 } from '@mui/material';
-import { Sync as SyncIcon, PersonAdd as PersonAddIcon, Search as SearchIcon, Edit as EditIcon, PlaylistAdd as PlaylistAddIcon, Close as CloseIcon } from '@mui/icons-material';
+import { Sync as SyncIcon, PersonAdd as PersonAddIcon, Search as SearchIcon, Edit as EditIcon, PlaylistAdd as PlaylistAddIcon, Close as CloseIcon, FileDownload as FileDownloadIcon } from '@mui/icons-material';
 import Cafe24Settings from '../../components/Settings/Cafe24Settings';
 import { supabase } from '../../lib/supabaseClient';
 import { getCafe24Malls, syncCafe24Orders, addCafe24ProductMapping, transferCafe24Orders, cancelSalesTransfer, returnCafe24Inventory } from '../../utils/cafe24Api';
@@ -196,6 +196,56 @@ export default function Cafe24OrderList() {
   const fetchParts = async () => {
     const { data } = await supabase.from('parts').select('id, name, barcode, code').order('name');
     if (data) setAvailableParts(data);
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      const { downloadExcel } = await import('../../utils/excelUtils');
+      const headers = [
+        { key: 'mall_id', label: '쇼핑몰명' },
+        { key: 'order_id', label: '주문번호' },
+        { key: 'order_date', label: '주문일자' },
+        { key: 'buyer_name', label: '주문자' },
+        { key: 'buyer_id', label: '주문자ID' },
+        { key: 'product_name', label: '상품명(옵션)' },
+        { key: 'quantity', label: '수량' },
+        { key: 'total_amount', label: '결제금액' },
+        { key: 'status', label: '주문상태' },
+        { key: 'shipping_message', label: '배송메시지' },
+        { key: 'is_transferred', label: '이관완료' },
+        { key: 'is_deleted', label: '반영무시여부' }
+      ];
+
+      const excelData = [];
+      baseFilteredOrders.forEach(order => {
+        const items = order.order_items || [];
+        if (items.length === 0) {
+           excelData.push({
+             ...order,
+             status: getKoStatus(order.status),
+             product_name: '-',
+             quantity: 0,
+             is_transferred: order.is_transferred ? 'O' : 'X',
+             is_deleted: order.is_deleted ? 'O' : 'X'
+           });
+        } else {
+           items.forEach(item => {
+             excelData.push({
+               ...order,
+               status: getKoStatus(order.status),
+               product_name: `${item.name || ''} ${item.option_value || ''}`.trim(),
+               quantity: item.quantity || 1,
+               is_transferred: order.is_transferred ? 'O' : 'X',
+               is_deleted: order.is_deleted ? 'O' : 'X'
+             });
+           });
+        }
+      });
+      await downloadExcel(excelData, headers, `온라인주문내역_${getFormattedDate(new Date())}`);
+    } catch (err) {
+      console.error(err);
+      alert('엑셀 다운로드 중 오류가 발생했습니다.');
+    }
   };
 
   const fetchOrders = async () => {
@@ -1019,6 +1069,17 @@ export default function Cafe24OrderList() {
                 <Button variant="outlined" size="small" sx={{ bgcolor: 'white' }} onClick={() => setPeriod(30)}>1개월</Button>
                 
                 <Box sx={{ flexGrow: 1 }} />
+                
+                <Button 
+                  variant="outlined" 
+                  color="success"
+                  startIcon={<FileDownloadIcon />} 
+                  onClick={handleExportExcel}
+                  disabled={baseFilteredOrders.length === 0}
+                  sx={{ bgcolor: 'white' }}
+                >
+                  엑셀 다운로드
+                </Button>
 
                 <Button 
                   variant="outlined" 

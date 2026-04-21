@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Typography, Button, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Alert, TextField, Stack, TablePagination, Grid, FormControl, InputLabel, Select, MenuItem, ButtonGroup } from '@mui/material';
-import { Add as AddIcon, Search as SearchIcon, Delete as DeleteIcon, Edit as EditIcon, CloudUpload as CloudUploadIcon } from '@mui/icons-material';
+import { Add as AddIcon, Search as SearchIcon, Delete as DeleteIcon, Edit as EditIcon, CloudUpload as CloudUploadIcon, FileDownload as FileDownloadIcon } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -174,6 +174,55 @@ export default function ManualSalesList({ isEmbedded = false }) {
     }
   };
 
+  const handleExportExcel = async () => {
+    try {
+      let query = supabase.from('shipments').select('*, shipment_parts(*)');
+      let condition = `sales_channel.eq.과거 이카운트 이관,sales_channel.eq.[B2B수기],note.ilike.%[B2B수기판매]%,note.ilike.%[과거 이카운트 이관]%,note.ilike.%[엑셀일괄등록]%,note.ilike.%[수기판매]%`;
+      query = query.or(condition);
+
+      if (statusFilter !== 'all') query = query.eq('status', statusFilter);
+      if (sellerFilter !== 'all') query = query.eq('sales_channel', sellerFilter);
+      if (dateFilter.startDate) query = query.gte(dateFilter.type, `${dateFilter.startDate}T00:00:00`);
+      if (dateFilter.endDate) query = query.lte(dateFilter.type, `${dateFilter.endDate}T23:59:59`);
+      if (searchTerm) query = query.or(`customer_name.ilike.%${searchTerm}%,sales_channel.ilike.%${searchTerm}%,note.ilike.%${searchTerm}%`);
+
+      query = query.order('order_date', { ascending: false });
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      const { downloadExcel } = await import('../../utils/excelUtils');
+      const headers = [
+        { key: 'order_date', label: '주문/출고일자' },
+        { key: 'customer_name', label: '고객명/거래처' },
+        { key: 'sales_channel', label: '구분(판매처)' },
+        { key: 'product_name', label: '대표 품목' },
+        { key: 'price', label: '금액' },
+        { key: 'status', label: '상태' },
+        { key: 'warehouse_name', label: '출고창고' },
+        { key: 'note', label: '비고' }
+      ];
+
+      const excelData = data.map(s => {
+        const partCount = s.shipment_parts?.length || 0;
+        const repPart = s.shipment_parts?.[0]?.part_name || '-';
+        const productName = partCount > 1 ? `${repPart} 외 ${partCount - 1}건` : repPart;
+        
+        return {
+          ...s,
+          order_date: dayjs(s.order_date).format('YYYY-MM-DD'),
+          product_name: productName,
+          warehouse_name: s.warehouse_id ? (warehouses.find(w => w.id === s.warehouse_id)?.name || '알 수 없는 창고') : '-'
+        };
+      });
+
+      await downloadExcel(excelData, headers, `수기판매내역_${new Date().toISOString().split('T')[0]}`);
+    } catch (err) {
+      console.error(err);
+      alert('엑셀 다운로드 중 오류가 발생했습니다.');
+    }
+  };
+
   return (
     <Box p={isEmbedded ? 0 : 3} sx={{ maxWidth: 1600, margin: '0 auto' }}>
       {!isEmbedded && (
@@ -283,6 +332,15 @@ export default function ManualSalesList({ isEmbedded = false }) {
                 setDateFilter({ type: 'order_date', startDate: '', endDate: '' });
                 setPage(0);
               }}>초기화</Button>
+              <Box sx={{ flexGrow: 1 }} />
+              <Button 
+                variant="outlined" 
+                color="success" 
+                startIcon={<FileDownloadIcon />} 
+                onClick={handleExportExcel}
+              >
+                엑셀 추출
+              </Button>
             </Stack>
           </Grid>
         </Grid>
