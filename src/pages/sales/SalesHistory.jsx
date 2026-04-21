@@ -695,8 +695,8 @@ function SalesHistory() {
       </Paper>
 
       {/* 테이블 */}
-      <TableContainer component={Paper}>
-        <Table size="small">
+      <TableContainer component={Paper} sx={{ width: '100%', overflowX: 'auto' }}>
+        <Table size="small" sx={{ minWidth: 650, width: '100%', tableLayout: 'auto', border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
           <TableHead>
             <TableRow sx={{ bgcolor: '#f5f5f5' }}>
               {['일자', '구분', '채널(대리점)', '고객명/수령인', '출고창고', '주문번호', '품목구분', '브랜드', '품목명', '수량', '단가'].map(h => (
