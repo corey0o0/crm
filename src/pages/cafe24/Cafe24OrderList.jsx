@@ -982,6 +982,14 @@ export default function Cafe24OrderList() {
                   }}
                   sx={{ width: 300, bgcolor: 'white' }}
                 />
+                <Button 
+                  variant="contained" 
+                  size="small" 
+                  onClick={() => fetchOrders()}
+                  sx={{ height: 40, bgcolor: '#3182f6', ml: 1, '&:hover': { bgcolor: '#1b64da' } }}
+                >
+                  검색
+                </Button>
 
                 <Box sx={{ flexGrow: 1 }} />
 
