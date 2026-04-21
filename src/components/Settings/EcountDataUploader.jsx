@@ -67,7 +67,27 @@ export default function EcountDataUploader() {
         const price = Number(row['단가'] || 0);
         const total = Number(row['합계'] || (qty * price));
         const xlWarehouseName = row['창고명'] || row['출하창고'] || row['창고'] || row['출고지'] || '';
-        const noteInfo = `[주문:${row['주문번호'] || ''}] [프로젝트:${row['프로젝트명'] || ''}]`;
+        const projectName = String(row['프로젝트명'] || '').trim();
+        const noteInfo = `[주문:${row['주문번호'] || ''}] [프로젝트:${projectName}]`;
+        
+        let mappedChannel = null;
+        if (projectName) {
+           const projectMap = {
+             '대리점-NB-온라인판매': '대리점 니어바이크 온라인판매',
+             '대리점-NB-일반판매': '대리점 니어바이크 일반판매',
+             '대리점-NB-기타판매': '대리점 니어바이크 기타판매',
+             '일반-NB-온라인판매': '일반고객 니어바이크 온라인판매',
+             '일반-NB-일반판매': '일반고객 니어바이크 매장판매',
+             '일반-NB-기타판매': '일반고객 니어바이크 기타판매',
+             '대리점-XRB-온라인판매': '대리점 엑스라이더 온라인판매',
+             '대리점-XRB-일반판매': '대리점 엑스라이더 일반판매',
+             '대리점-XRB-기타판매': '대리점 엑스라이더 기타판매',
+             '일반-XRB-온라인판매': '일반고객 엑스라이더 온라인판매',
+             '일반-XRB-일반판매': '일반고객 엑스라이더 매장판매',
+             '일반-XRB-기타판매': '일반고객 엑스라이더 기타판매'
+           };
+           mappedChannel = projectMap[projectName] || projectName; // 매핑 없으면 원본값 사용
+        }
 
         // 날짜 추출 (가장 앞의 10자리 YYYY-MM-DD 형식만 추출하여 타임존 에러 방지)
         let orderDate = String(dateNo).trim().substring(0, 10).replace(/\//g, '-');
@@ -110,6 +130,7 @@ export default function EcountDataUploader() {
              customer_name: customer,
              note: noteInfo.trim(),
              brand: finalBrand, // 첫 번째 발견된 제품의 브랜드 대표
+             project_channel: mappedChannel,
              excel_warehouse_id: matchedWh ? matchedWh.id : null,
              total_price: 0,
              parts: []
@@ -176,7 +197,8 @@ export default function EcountDataUploader() {
       for (const item of toUpload) {
          // 대리점 고객인 경우 판매처를 대리점 이름으로 할당 (B2B 출고 인식용)
          const isAgency = agencies.some(a => a.name === item.customer_name || item.customer_name.includes(a.name) || a.name.includes(item.customer_name));
-         const finalSalesChannel = isAgency ? item.customer_name : '과거 이카운트 이관';
+         const fallbackChannel = isAgency ? item.customer_name : '과거 이카운트 이관';
+         const finalSalesChannel = item.project_channel ? item.project_channel : fallbackChannel;
 
          // 상품명 요약 생성
          const summaryProductName = item.parts && item.parts.length > 0 
@@ -308,7 +330,10 @@ export default function EcountDataUploader() {
                  {previewData.map((row, idx) => (
                    <TableRow key={idx} sx={{ bgcolor: row.isDuplicate ? '#ffebee' : 'inherit' }}>
                      <TableCell>{row.order_date}</TableCell>
-                     <TableCell>{row.customer_name}</TableCell>
+                     <TableCell>
+                       {row.customer_name}
+                       {row.project_channel && <Typography variant="caption" display="block" color="secondary" fontWeight="bold">{row.project_channel}</Typography>}
+                     </TableCell>
                      <TableCell>
                        <Typography variant="body2" color="textSecondary" sx={{ fontSize: '0.75rem', maxWidth: 150 }} noWrap title={row.note}>
                          {row.note || '-'}
