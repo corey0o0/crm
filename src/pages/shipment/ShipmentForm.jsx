@@ -112,8 +112,9 @@ function ShipmentForm({ isManualB2B = false }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [allParts, setAllParts] = useState([]);
 
-  // 창고 상태 추가
+  // 창고 및 거래처 상태 추가
   const [warehouses, setWarehouses] = useState([]);
+  const [agencies, setAgencies] = useState([]);
 
   // 엑셀 업로드 관련 상태 추가
   const [excelUploadDialog, setExcelUploadDialog] = useState(false);
@@ -146,21 +147,25 @@ function ShipmentForm({ isManualB2B = false }) {
   // 임시 저장
   const [hasTempData, setHasTempData] = useState(false);
 
-  // 창고 목록 불러오기
+  // 창고 및 대리점 목록 불러오기
   const fetchWarehouses = async () => {
     try {
-      const { data } = await supabase.from('warehouses').select('*').order('name');
-      setWarehouses(data || []);
+      const [{ data: whData }, { data: agData }] = await Promise.all([
+        supabase.from('warehouses').select('*').order('name'),
+        supabase.from('agencies').select('*').order('name')
+      ]);
+      setWarehouses(whData || []);
+      setAgencies(agData || []);
       
       // 새 출고 등록 시 기본 창고(청담) 설정
-      if (!isEditMode && data) {
-         const cheongdam = data.find(w => w.name.includes('청담'));
+      if (!isEditMode && whData) {
+         const cheongdam = whData.find(w => w.name.includes('청담'));
          if (cheongdam) {
            setShipmentData(prev => ({ ...prev, warehouse_id: cheongdam.id }));
          }
       }
     } catch (e) {
-      console.error('창고 로딩 에러:', e);
+      console.error('기준 정보 로딩 에러:', e);
     }
   };
 
@@ -465,10 +470,27 @@ function ShipmentForm({ isManualB2B = false }) {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setShipmentData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    
+    setShipmentData(prev => {
+      const nextData = { ...prev, [name]: value };
+      
+      // 고객명 입력 시 대리점명과 부분 일치하면 자동으로 거래처로 연동
+      if (name === 'customer_name' && value.trim().length >= 2) {
+        const query = value.trim();
+        const matchedAgency = agencies.find(a => a.name === query || query.includes(a.name) || a.name.includes(query));
+        
+        if (matchedAgency) {
+          // 일치하는 대리점이 있다면 기타 정보도 연동
+          nextData.sales_channel = matchedAgency.name;
+          // UI 표시용으로 고객명에 대리점 추가 (만약 이미 '(대리점)'이 없다면)
+          if (!query.includes('(대리점)')) {
+            nextData.customer_name = `${query} (대리점)`;
+          }
+        }
+      }
+      
+      return nextData;
+    });
   };
 
   const handleDateChange = (name) => (date) => {
@@ -775,29 +797,16 @@ function ShipmentForm({ isManualB2B = false }) {
           let foundPart = null;
           let updatedPart = { ...part };
 
-          // 1. 정확한 이름으로 검색
-          const { data: exactMatchParts } = await supabase
-            .from('parts')
-            .select('*')
-            .eq('brand', shipment.brand)
-            .eq('name', part.part_name)
-            .limit(1);
-
-          if (exactMatchParts && exactMatchParts.length > 0) {
-            foundPart = exactMatchParts[0];
-          } else {
-            // 2. 부분 일치 검색
-            const { data: partialMatchParts } = await supabase
-              .from('parts')
-              .select('*')
-              .eq('brand', shipment.brand)
-              .ilike('name', `% ${part.part_name}% `)
-              .limit(1);
-
-            if (partialMatchParts && partialMatchParts.length > 0) {
-              foundPart = partialMatchParts[0];
-            }
-          }
+          // 1. 올인원 검색 (바코드, 코드, 제품명)
+          const searchName = part.part_name ? part.part_name.replace(/[\s\-]/g, '').toLowerCase() : '';
+          foundPart = allParts.find(p => 
+            (part.part_code && p.code === part.part_code) ||
+            (part.part_code && p.barcode === part.part_code) ||
+            (p.code === part.part_name) ||
+            (p.barcode === part.part_name) ||
+            (p.name === part.part_name) ||
+            (searchName && p.name && searchName.includes(p.name.replace(/[\s\-]/g, '').toLowerCase()))
+          );
 
           // 상품 관리에서 해당 부품을 찾았다면 가격 업데이트
           if (foundPart) {
@@ -881,29 +890,16 @@ function ShipmentForm({ isManualB2B = false }) {
           // 상품 관리 시스템에서 매칭되는 제품 검색 - 이름이 정확히 일치하는 항목 우선
           let partFromDB = null;
 
-          // 1. 정확한 이름으로 검색 (정확히 일치하는 제품 먼저 찾기)
-          const { data: exactMatchParts } = await supabase
-            .from('parts')
-            .select('*')
-            .eq('brand', shipment.brand)
-            .eq('name', productName)
-            .limit(1);
-
-          if (exactMatchParts && exactMatchParts.length > 0) {
-            partFromDB = exactMatchParts[0];
-          } else {
-            // 2. 정확히 일치하는 제품이 없으면 부분 일치 검색
-            const { data: partialMatchParts } = await supabase
-              .from('parts')
-              .select('*')
-              .eq('brand', shipment.brand)
-              .ilike('name', `% ${productName}% `)
-              .limit(1);
-
-            if (partialMatchParts && partialMatchParts.length > 0) {
-              partFromDB = partialMatchParts[0];
-            }
-          }
+          // 1. 올인원 검색 (바코드, 코드, 제품명)
+          const searchName = productName ? productName.replace(/[\s\-]/g, '').toLowerCase() : '';
+          partFromDB = allParts.find(p => 
+            (partCode && p.code === partCode) ||
+            (partCode && p.barcode === partCode) ||
+            (p.code === productName) ||
+            (p.barcode === productName) ||
+            (p.name === productName) ||
+            (searchName && p.name && searchName.includes(p.name.replace(/[\s\-]/g, '').toLowerCase()))
+          );
 
           if (partFromDB) {
             // 상품 관리에 설정된 구분 확인
@@ -983,29 +979,16 @@ function ShipmentForm({ isManualB2B = false }) {
         // 3. 상품 관리 시스템에서 매칭되는 제품 검색 - 이름이 정확히 일치하는 항목 우선
         let partFromDB = null;
 
-        // 1. 정확한 이름으로 검색 (정확히 일치하는 제품 먼저 찾기)
-        const { data: exactMatchParts } = await supabase
-          .from('parts')
-          .select('*')
-          .eq('brand', shipment.brand)
-          .eq('name', shipment.product_name)
-          .limit(1);
-
-        if (exactMatchParts && exactMatchParts.length > 0) {
-          partFromDB = exactMatchParts[0];
-        } else {
-          // 2. 정확히 일치하는 제품이 없으면 부분 일치 검색
-          const { data: partialMatchParts } = await supabase
-            .from('parts')
-            .select('*')
-            .eq('brand', shipment.brand)
-            .ilike('name', `% ${shipment.product_name}% `)
-            .limit(1);
-
-          if (partialMatchParts && partialMatchParts.length > 0) {
-            partFromDB = partialMatchParts[0];
-          }
-        }
+        // 1. 올인원 검색 (바코드, 코드, 제품명)
+        const searchName = shipment.product_name ? shipment.product_name.replace(/[\s\-]/g, '').toLowerCase() : '';
+        partFromDB = allParts.find(p => 
+          (partCode && p.code === partCode) ||
+          (partCode && p.barcode === partCode) ||
+          (p.code === shipment.product_name) ||
+          (p.barcode === shipment.product_name) ||
+          (p.name === shipment.product_name) ||
+          (searchName && p.name && searchName.includes(p.name.replace(/[\s\-]/g, '').toLowerCase()))
+        );
 
         if (partFromDB) {
           if (partFromDB.note) {
@@ -1350,7 +1333,7 @@ function ShipmentForm({ isManualB2B = false }) {
       </Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h5">
-          {isManualB2B ? (isEditMode ? '수기 판매 전표 수정 (B2B)' : '새 수기 판매 전표 작성 (B2B)') : (isEditMode ? '출고 정보 수정' : '신규 출고 등록')}
+          {isManualB2B ? (isEditMode ? '수기 판매 전표 수정' : '새 수기 판매 전표 작성') : (isEditMode ? '출고 정보 수정' : '신규 출고 등록')}
         </Typography>
         <Box>
           {isEditMode ? (
