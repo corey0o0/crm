@@ -36,7 +36,7 @@ function a11yProps(index) {
 }
 
 export default function AdminTools() {
-    const [value, setValue] = useState(0);
+    const [value, setValue] = useState(1);
 
     const handleChange = (event, newValue) => {
         setValue(newValue);
@@ -57,7 +57,7 @@ export default function AdminTools() {
                         variant="scrollable" 
                         scrollButtons="auto"
                     >
-                        <Tab label="시스템 상태 점검" {...a11yProps(0)} />
+                        {/* <Tab label="시스템 상태 점검" {...a11yProps(0)} /> */}
                         <Tab label="텔레그램 테스트" {...a11yProps(1)} />
                         <Tab label="텔레그램 알림 관리" {...a11yProps(2)} />
                         <Tab label="데이터 백업/복원" {...a11yProps(3)} />
@@ -65,9 +65,9 @@ export default function AdminTools() {
                         {/* <Tab label="과거 이카운트 연동" {...a11yProps(5)} /> */}
                     </Tabs>
                 </Box>
-                <TabPanel value={value} index={0}>
+                {/* <TabPanel value={value} index={0}>
                     <SystemHealthCheck />
-                </TabPanel>
+                </TabPanel> */}
                 <TabPanel value={value} index={1}>
                     <TelegramTest />
                 </TabPanel>
