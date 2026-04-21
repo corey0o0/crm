@@ -90,7 +90,7 @@ function OnlineStats() {
       ] = await Promise.all([
         supabase.from('cafe24_orders').select('*').gte('order_date', startDateTime).lte('order_date', endDateTime).eq('is_deleted', false).eq('is_transferred', true),
         supabase.from('agencies').select('id, name'),
-        supabase.from('parts').select('id, code, barcode, supplier, note, price, category, name'),
+        supabase.from('parts').select('id, code, barcode, brand, note, price, name'),
         supabase.from('cafe24_orders').select('order_date, total_amount').gte('order_date', yearStart).lte('order_date', yearEnd).eq('is_deleted', false).eq('is_transferred', true)
       ]);
 
@@ -130,7 +130,7 @@ function OnlineStats() {
                const unitPrice = Number(item.product_price || item.price || (p ? p.price : 0));
                const amount = qty * unitPrice;
                
-               const isAirframe = p ? (p.category === '기체') : (pName.includes('기체') || pName.includes('차체'));
+               const isAirframe = p ? (p.note === '기체') : (pName.includes('기체') || pName.includes('차체'));
                
                if (isAirframe) {
                   agencyStats[agName].airframe += qty;
@@ -141,7 +141,7 @@ function OnlineStats() {
                }
 
                if (p) {
-                  const sup = p.supplier || '기타 브랜드';
+                  const sup = p.brand || '기타 브랜드';
                   if (!brandStats[sup]) brandStats[sup] = { airframe: 0, parts: 0, airframeAmount: 0, partsAmount: 0 };
                   
                   if (isAirframe) {
@@ -155,7 +155,7 @@ function OnlineStats() {
                   // 일반 고객(B2C) 주문인 경우 상품별로 분리하여 집계
                   if (!o.agency_id) {
                      if (!generalProductStats[p.id]) {
-                       generalProductStats[p.id] = { name: p.name || item.name, category: p.category, quantity: 0, amount: 0 };
+                       generalProductStats[p.id] = { name: p.name || item.name, category: p.note, quantity: 0, amount: 0 };
                      }
                      generalProductStats[p.id].quantity += qty;
                      generalProductStats[p.id].amount += amount;
