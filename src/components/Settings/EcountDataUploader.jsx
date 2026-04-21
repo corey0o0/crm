@@ -72,21 +72,13 @@ export default function EcountDataUploader() {
         
         let mappedChannel = null;
         if (projectName) {
-           const projectMap = {
-             '대리점-NB-온라인판매': '대리점 니어바이크 온라인판매',
-             '대리점-NB-일반판매': '대리점 니어바이크 일반판매',
-             '대리점-NB-기타판매': '대리점 니어바이크 기타판매',
-             '일반-NB-온라인판매': '일반고객 니어바이크 온라인판매',
-             '일반-NB-일반판매': '일반고객 니어바이크 매장판매',
-             '일반-NB-기타판매': '일반고객 니어바이크 기타판매',
-             '대리점-XRB-온라인판매': '대리점 엑스라이더 온라인판매',
-             '대리점-XRB-일반판매': '대리점 엑스라이더 일반판매',
-             '대리점-XRB-기타판매': '대리점 엑스라이더 기타판매',
-             '일반-XRB-온라인판매': '일반고객 엑스라이더 온라인판매',
-             '일반-XRB-일반판매': '일반고객 엑스라이더 매장판매',
-             '일반-XRB-기타판매': '일반고객 엑스라이더 기타판매'
-           };
-           mappedChannel = projectMap[projectName] || projectName; // 매핑 없으면 원본값 사용
+           if (projectName.includes('일반') && projectName.includes('온라인판매')) {
+               mappedChannel = '온라인주문';
+           } else if (projectName.includes('대리점')) {
+               mappedChannel = 'USE_CUSTOMER_NAME';
+           } else if (projectName.includes('일반')) {
+               mappedChannel = '고객';
+           }
         }
 
         // 날짜 추출 (가장 앞의 10자리 YYYY-MM-DD 형식만 추출하여 타임존 에러 방지)
@@ -198,7 +190,7 @@ export default function EcountDataUploader() {
          // 대리점 고객인 경우 판매처를 대리점 이름으로 할당 (B2B 출고 인식용)
          const isAgency = agencies.some(a => a.name === item.customer_name || item.customer_name.includes(a.name) || a.name.includes(item.customer_name));
          const fallbackChannel = isAgency ? item.customer_name : '과거 이카운트 이관';
-         const finalSalesChannel = item.project_channel ? item.project_channel : fallbackChannel;
+         const finalSalesChannel = item.project_channel === 'USE_CUSTOMER_NAME' ? item.customer_name : (item.project_channel ? item.project_channel : fallbackChannel);
 
          // 상품명 요약 생성
          const summaryProductName = item.parts && item.parts.length > 0 
@@ -332,7 +324,8 @@ export default function EcountDataUploader() {
                      <TableCell>{row.order_date}</TableCell>
                      <TableCell>
                        {row.customer_name}
-                       {row.project_channel && <Typography variant="caption" display="block" color="secondary" fontWeight="bold">{row.project_channel}</Typography>}
+                       {row.project_channel && row.project_channel !== 'USE_CUSTOMER_NAME' && <Typography variant="caption" display="block" color="secondary" fontWeight="bold">{row.project_channel}</Typography>}
+                       {row.project_channel === 'USE_CUSTOMER_NAME' && <Typography variant="caption" display="block" color="secondary" fontWeight="bold">{row.customer_name}</Typography>}
                      </TableCell>
                      <TableCell>
                        <Typography variant="body2" color="textSecondary" sx={{ fontSize: '0.75rem', maxWidth: 150 }} noWrap title={row.note}>
