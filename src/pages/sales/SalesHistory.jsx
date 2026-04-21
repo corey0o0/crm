@@ -756,17 +756,36 @@ function SalesHistory() {
                       {(() => {
                         let cLabel = '매장출고';
                         let cColor = 'primary';
-                        if (isCafe || row.sales_channel === '온라인주문') {
+                        
+                        const isEcount = row._type === 'shipment' && row.note && row.note.includes('이카운트');
+                        const startsWithDate = row.order_no && /^(20[2-9]\d[0-1]\d[0-3]\d)/.test(row.order_no);
+
+                        if (isCafe) {
                           cLabel = '온라인주문';
                           cColor = 'success';
                         } else if (isService) {
                           cLabel = 'A/S';
                           cColor = 'warning';
-                        } else if (row.sales_channel === '고객') {
-                          cLabel = '고객';
-                        } else if (row.sales_channel && row.sales_channel !== '-' && row.sales_channel !== '본사/기본' && row.sales_channel !== '과거 이카운트 이관') {
-                          cLabel = row.sales_channel;
+                        } else if (isEcount) {
+                          if (startsWithDate) {
+                            cLabel = '온라인주문';
+                            cColor = 'success';
+                          } else {
+                            cLabel = '기타';
+                            cColor = 'default';
+                          }
+                        } else {
+                          // 수기 입력 등 Ecount 외의 경우
+                          if (row.sales_channel === '온라인주문') {
+                            cLabel = '온라인주문';
+                            cColor = 'success';
+                          } else if (row.sales_channel === '고객') {
+                            cLabel = '고객';
+                          } else if (row.sales_channel && row.sales_channel !== '-' && row.sales_channel !== '본사/기본' && row.sales_channel !== '과거 이카운트 이관') {
+                            cLabel = row.sales_channel;
+                          }
                         }
+                        
                         return <Chip size="small" label={cLabel} color={cColor} variant="outlined" sx={{ maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis' }} />;
                       })()}
                     </TableCell>
