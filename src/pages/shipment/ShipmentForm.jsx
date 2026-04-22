@@ -835,29 +835,34 @@ function ShipmentForm({ isManualB2B = false }) {
             // 카테고리 업데이트 로직
             let category = updatedPart.category;
 
-            // 노트에서 카테고리 정보 확인
-            if (foundPart.note) {
-              const note = foundPart.note.toLowerCase();
-              if (note.includes('파츠') || note.includes('part') || note.includes('부품')) {
-                category = '파츠';
-              } else if (note.includes('공임') || note.includes('작업') || note.includes('서비스')) {
-                category = '공임';
-              } else if (note.includes('기타') || note.includes('etc')) {
-                category = '기타';
-              } else if (note.includes('기체') || note.includes('바이크') || note.includes('자전거')) {
-                category = '기체';
+            // 1. CRM 상품 관리에서 설정된 카테고리(note)가 있으면 최우선으로 적용
+            if (foundPart.note && ['파츠', '공임', '기타', '기체'].includes(foundPart.note.trim())) {
+              category = foundPart.note.trim();
+            } else {
+              // 2. 명확한 카테고리가 없는 경우 텍스트 포함 여부나 코드로 추론
+              if (foundPart.note) {
+                const note = foundPart.note.toLowerCase();
+                if (note.includes('파츠') || note.includes('part') || note.includes('부품')) {
+                  category = '파츠';
+                } else if (note.includes('공임') || note.includes('작업') || note.includes('서비스')) {
+                  category = '공임';
+                } else if (note.includes('기타') || note.includes('etc')) {
+                  category = '기타';
+                } else if (note.includes('기체') || note.includes('바이크') || note.includes('자전거')) {
+                  category = '기체';
+                }
               }
-            }
 
-            // 코드에서 카테고리 정보 확인
-            if (foundPart.code) {
-              const code = foundPart.code.toUpperCase();
-              if (code.startsWith('XRBP-') || code.startsWith('NBP-') || code.includes('PART')) {
-                category = '파츠';
-              } else if (code.startsWith('XRBS-') || code.startsWith('NBS-') || code.includes('SERVICE')) {
-                category = '공임';
-              } else if (code.startsWith('XRBM-') || code.startsWith('NBM-') || code.includes('BIKE')) {
-                category = '기체';
+              // 노트로 판단 안 된 경우 코드에서 추론
+              if (!['파츠', '공임', '기타', '기체'].includes(category) && foundPart.code) {
+                const code = foundPart.code.toUpperCase();
+                if (code.startsWith('XRBP-') || code.startsWith('NBP-') || code.includes('PART')) {
+                  category = '파츠';
+                } else if (code.startsWith('XRBS-') || code.startsWith('NBS-') || code.includes('SERVICE')) {
+                  category = '공임';
+                } else if (code.startsWith('XRBM-') || code.startsWith('NBM-') || code.includes('BIKE')) {
+                  category = '기체';
+                }
               }
             }
 
