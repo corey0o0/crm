@@ -36,8 +36,7 @@ export default function ManualSalesList({ isEmbedded = false }) {
 
   const [selectedItems, setSelectedItems] = useState([]);
   const [bulkDeleteDialog, setBulkDeleteDialog] = useState(false);
-
-
+  const [searchTrigger, setSearchTrigger] = useState(0);
   // B2B 수기판매 전표 식별 조건: '과거 이카운트 이관'이거나 메모/채널에 'B2B수기판매' 등 포함
   useEffect(() => {
     async function loadWarehouses() {
@@ -49,7 +48,7 @@ export default function ManualSalesList({ isEmbedded = false }) {
 
   useEffect(() => {
     fetchManualSales();
-  }, [page, rowsPerPage]);
+  }, [page, rowsPerPage, searchTrigger]);
 
   const fetchManualSales = async () => {
     setLoading(true);
@@ -111,8 +110,11 @@ export default function ManualSalesList({ isEmbedded = false }) {
 
   const executeSearch = (e) => {
     if ((e.key && e.key === 'Enter') || !e.key) {
-      setPage(0);
-      fetchManualSales();
+      if (page !== 0) {
+        setPage(0);
+      } else {
+        setSearchTrigger(prev => prev + 1);
+      }
     }
   };
 
@@ -173,7 +175,11 @@ export default function ManualSalesList({ isEmbedded = false }) {
         setSellerFilter(parsed.sellerFilter || 'all');
         setDateFilter(parsed.dateFilter || { type: 'order_date', startDate: '', endDate: '' });
         setSearchTerm(parsed.searchTerm || '');
-        setPage(0);
+        if (page !== 0) {
+          setPage(0);
+        } else {
+          setSearchTrigger(prev => prev + 1);
+        }
         setSnackbar({ open: true, message: '저장된 필터를 불러왔습니다.', severity: 'success' });
       } catch (err) {
         setSnackbar({ open: true, message: '필터를 불러오는 중 오류가 발생했습니다.', severity: 'error' });
@@ -418,7 +424,11 @@ export default function ManualSalesList({ isEmbedded = false }) {
                 setStatusFilter('all');
                 setSellerFilter('all');
                 setDateFilter({ type: 'order_date', startDate: '', endDate: '' });
-                setPage(0);
+                if (page !== 0) {
+                  setPage(0);
+                } else {
+                  setSearchTrigger(prev => prev + 1);
+                }
               }}>초기화</Button>
               <Button variant="outlined" color="secondary" onClick={handleSaveFilter}>필터 저장</Button>
               <Button variant="outlined" color="secondary" onClick={handleLoadFilter}>필터 불러오기</Button>
