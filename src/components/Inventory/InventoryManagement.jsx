@@ -2861,12 +2861,17 @@ function InventoryManagement() {
                               arrow
                               placement="top"
                             >
-                              <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-                                {group.items.map((item, idx) => (
+                              <Box sx={{ display: 'flex', flexDirection: 'column', borderBottom: '1px dashed #999', pb: 0.5 }}>
+                                {group.items.slice(0, 3).map((item, idx) => (
                                   <Typography key={idx} variant="body2" sx={{ cursor: 'pointer' }}>
                                     {item.productName}
                                   </Typography>
                                 ))}
+                                {group.items.length > 3 && (
+                                  <Typography variant="body2" color="text.secondary" sx={{ cursor: 'pointer', mt: 0.5 }}>
+                                    외 {group.items.length - 3}개
+                                  </Typography>
+                                )}
                               </Box>
                             </Tooltip>
                           )}
