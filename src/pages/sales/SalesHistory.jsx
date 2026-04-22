@@ -271,7 +271,13 @@ function SalesHistory() {
           const total = Number(p.total_price || (Number(p.price || 0) * Number(p.quantity || 1)));
           const pName = p.part_name || '상품';
           const pCode = p.part_code || '';
-          const cat = resolveCategory(pName, pCode);
+          
+          let cat = p.part_category;
+          if (cat === '파츠') cat = '부품'; // 통계 용어 통일
+          if (!cat || cat === '-' || cat === '알수없음') {
+            cat = resolveCategory(pName, pCode);
+          }
+          
           const brand = resolveBrand(pName, pCode);
           rows.push({ ...baseFields, _id: `ship_${s.id}_${p.id || idx}`, part_name: pName, part_category: cat, part_brand: brand, quantity: Number(p.quantity || 1), unit_price: Number(p.price || 0), total_price: total });
         });
