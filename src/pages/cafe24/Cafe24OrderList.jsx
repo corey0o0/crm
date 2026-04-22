@@ -1173,23 +1173,23 @@ export default function Cafe24OrderList() {
                         {warehouses.map(w => <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>)}
                       </Select>
                     </FormControl>
-                    <Button size="small" variant="contained" color="secondary" onClick={handleBatchApplyWarehouse}>
+                    <Button size="small" variant="contained" color="secondary" onClick={handleBatchApplyWarehouse} sx={{ height: 40, px: 2, whiteSpace: 'nowrap' }}>
                       일괄적용
                     </Button>
                     <Box sx={{ width: 1, height: 30, bgcolor: 'divider', mx: 1 }} />
-                    <Button size="small" variant="outlined" color="error" onClick={handleDeleteSelected}>
+                    <Button size="small" variant="outlined" color="error" onClick={handleDeleteSelected} sx={{ height: 40, px: 2, whiteSpace: 'nowrap' }}>
                       삭제
                     </Button>
-                    <Button size="small" variant="contained" color="error" onClick={handleCancelTransfer} sx={{ lineHeight: 1.2, py: 0.5, px: 2, textAlign: 'center' }}>
+                    <Button size="small" variant="contained" color="error" onClick={handleCancelTransfer} sx={{ height: 40, lineHeight: 1.2, px: 2, textAlign: 'center' }}>
                       판매반영<br/>취소
                     </Button>
-                    <Button size="small" variant="outlined" color="warning" onClick={handleIgnoreOrders} sx={{ lineHeight: 1.2, py: 0.5, px: 2, textAlign: 'center' }}>
+                    <Button size="small" variant="outlined" color="warning" onClick={handleIgnoreOrders} sx={{ height: 40, lineHeight: 1.2, px: 2, textAlign: 'center' }}>
                       판매반영<br/>예외(무시)
                     </Button>
-                    <Button size="small" variant="outlined" color="info" onClick={handleUnignoreOrders} sx={{ lineHeight: 1.2, py: 0.5, px: 2, textAlign: 'center' }}>
+                    <Button size="small" variant="outlined" color="info" onClick={handleUnignoreOrders} sx={{ height: 40, lineHeight: 1.2, px: 2, textAlign: 'center' }}>
                       무시<br/>복구
                     </Button>
-                    <Button size="small" variant="contained" color="primary" onClick={handleSalesTransfer} sx={{ lineHeight: 1.2, py: 0.5, px: 2, textAlign: 'center' }}>
+                    <Button size="small" variant="contained" color="primary" onClick={handleSalesTransfer} sx={{ height: 40, lineHeight: 1.2, px: 2, textAlign: 'center' }}>
                       판매반영<br/>(전송)
                     </Button>
                   </Stack>
