@@ -253,7 +253,10 @@ function InventoryManagement() {
          navigate(`/sales/manual/${groupId}`);
          return;
        }
-       // 그다음 AS인지 확인
+    }
+    
+    // 숫자 형식 (A/S) 확인
+    if (/^\d+$/.test(String(groupId))) {
        const { data: asData } = await supabase.from('services').select('id').eq('id', groupId).single();
        if (asData) {
          navigate(`/service/${groupId}`);
@@ -262,7 +265,7 @@ function InventoryManagement() {
     }
     
     // Cafe24 주문 확인 (예: 2024, 2025 등 숫자로 시작하는 주문번호)
-    if (/^20\d{2}/.test(groupId) || groupId.includes('-')) {
+    if (/^20\d{2}/.test(String(groupId)) || String(groupId).includes('-')) {
        navigate(`/sales/cafe24`); 
        return;
     }
@@ -4096,9 +4099,11 @@ function InventoryManagement() {
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {selectedTransaction.items.map((item, index) => (
-                            <TableRow key={index} hover>
-                              <TableCell>{item.productName}</TableCell>
+                          {[...selectedTransaction.items].sort((a, b) => a.productName.localeCompare(b.productName)).map((item, index) => {
+                            const isReturn = item.note?.includes('취소') || item.note?.includes('환불') || item.fromLocation?.includes('취소');
+                            return (
+                            <TableRow key={index} hover sx={{ bgcolor: isReturn ? 'rgba(244, 67, 54, 0.05)' : 'inherit' }}>
+                              <TableCell sx={{ color: isReturn ? 'text.secondary' : 'inherit' }}>{item.productName}</TableCell>
                               <TableCell>
                                 {(() => {
                                   const p = products.find(prod => prod.id === item.productId || prod.code === item.productCode);
@@ -4135,7 +4140,8 @@ function InventoryManagement() {
                                 {item.additionalNote && <div style={{ fontSize: '0.8em', color: '#666' }}>{item.additionalNote}</div>}
                               </TableCell>
                             </TableRow>
-                          ))}
+                            );
+                          })}
                         </TableBody>
                       </Table>
                     </TableContainer>
