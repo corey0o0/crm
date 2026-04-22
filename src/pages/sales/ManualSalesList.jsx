@@ -153,6 +153,36 @@ export default function ManualSalesList({ isEmbedded = false }) {
     setDateFilter(prev => ({ ...prev, startDate: start, endDate: end }));
   };
 
+  const handleSaveFilter = () => {
+    const filterData = {
+      statusFilter,
+      sellerFilter,
+      dateFilter,
+      searchTerm
+    };
+    localStorage.setItem('manualSalesFilter', JSON.stringify(filterData));
+    setSnackbar({ open: true, message: '현재 필터가 저장되었습니다.', severity: 'success' });
+  };
+
+  const handleLoadFilter = () => {
+    const savedFilter = localStorage.getItem('manualSalesFilter');
+    if (savedFilter) {
+      try {
+        const parsed = JSON.parse(savedFilter);
+        setStatusFilter(parsed.statusFilter || 'all');
+        setSellerFilter(parsed.sellerFilter || 'all');
+        setDateFilter(parsed.dateFilter || { type: 'order_date', startDate: '', endDate: '' });
+        setSearchTerm(parsed.searchTerm || '');
+        setPage(0);
+        setSnackbar({ open: true, message: '저장된 필터를 불러왔습니다.', severity: 'success' });
+      } catch (err) {
+        setSnackbar({ open: true, message: '필터를 불러오는 중 오류가 발생했습니다.', severity: 'error' });
+      }
+    } else {
+      setSnackbar({ open: true, message: '저장된 필터가 없습니다.', severity: 'warning' });
+    }
+  };
+
   const handleDateFilterChange = (field, value) => {
     setDateFilter(prev => ({ ...prev, [field]: value }));
   };
@@ -390,6 +420,8 @@ export default function ManualSalesList({ isEmbedded = false }) {
                 setDateFilter({ type: 'order_date', startDate: '', endDate: '' });
                 setPage(0);
               }}>초기화</Button>
+              <Button variant="outlined" color="secondary" onClick={handleSaveFilter}>필터 저장</Button>
+              <Button variant="outlined" color="secondary" onClick={handleLoadFilter}>필터 불러오기</Button>
               <Box sx={{ flexGrow: 1 }} />
               {selectedItems.length > 0 && (
                 <Button 
