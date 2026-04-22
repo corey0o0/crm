@@ -2858,13 +2858,13 @@ function InventoryManagement() {
                               arrow
                               placement="top"
                             >
-                              <Typography variant="body2" sx={{ cursor: 'pointer', display: 'inline-block', borderBottom: '1px dashed #999' }}>
-                                {(() => {
-                                  const names = group.items.slice(0, 3).map(i => i.productName).join(', ');
-                                  if (group.items.length <= 3) return names;
-                                  return `${names} 외 ${group.items.length - 3}개`;
-                                })()}
-                              </Typography>
+                              <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                                {group.items.map((item, idx) => (
+                                  <Typography key={idx} variant="body2" sx={{ cursor: 'pointer' }}>
+                                    {item.productName}
+                                  </Typography>
+                                ))}
+                              </Box>
                             </Tooltip>
                           )}
                         </TableCell>
