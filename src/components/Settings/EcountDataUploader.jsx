@@ -63,9 +63,21 @@ export default function EcountDataUploader() {
         const excelCode = row['품목코드'] || row['상품코드'] || '';
         const excelBarcode = row['바코드'] || '';
         
-        const qty = Number(row['수량'] || 1);
-        const price = Number(row['단가'] || 0);
-        const total = Number(row['합계'] || (qty * price));
+        const qty = Number(String(row['수량'] || 1).replace(/,/g, ''));
+        const price = Number(String(row['단가'] || row['공급단가'] || 0).replace(/,/g, ''));
+        const supply = Number(String(row['공급가액'] || row['공급가'] || 0).replace(/,/g, ''));
+        const vat = Number(String(row['부가세'] || row['세액'] || 0).replace(/,/g, ''));
+        
+        // 엑셀에 '합계'열이 없더라도 공급가+부가세로 합산. 없으면 단가*수량으로 계산하되 부가세 10% 추가 고려
+        let total = Number(String(row['합계'] || row['합계금액'] || row['총액'] || 0).replace(/,/g, ''));
+        if (!total) {
+          if (supply > 0) {
+             total = supply + vat;
+          } else {
+             // 단가만 있는 경우 부가세 제외 단가일 확률이 높으므로 1.1을 곱해줌
+             total = Math.round((price * qty) * 1.1);
+          }
+        }
         const xlWarehouseName = row['창고명'] || row['출하창고'] || row['창고'] || row['출고지'] || '';
         const projectName = String(row['프로젝트명'] || '').trim();
         const noteInfo = `[주문:${row['주문번호'] || ''}] [프로젝트:${projectName}]`;
