@@ -61,7 +61,7 @@ import {
   ArrowDownward as ArrowDownwardIcon,
   QrCodeScanner as QrCodeScannerIcon
 } from '@mui/icons-material';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import LocationManagement from './LocationManagement';
 import BarcodeScanner from './BarcodeScanner';
 import { productApi } from '../../api/productApi';
@@ -233,6 +233,42 @@ function InventoryManagement() {
   const [isDragOver, setIsDragOver] = useState(false);
 
   const location = useLocation();
+  const navigate = useNavigate();
+
+  const handleViewOriginal = async () => {
+    if (!selectedTransaction) return;
+    const groupId = selectedTransaction.group_id || selectedTransaction.id;
+    if (!groupId || groupId === 'none') {
+      setSnackbar({ open: true, message: '원본 전표를 찾을 수 없는 단일 입출고 건입니다.', severity: 'warning' });
+      return;
+    }
+    
+    // UUID 형식 검사
+    const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(groupId);
+    
+    if (isUuid) {
+       // 먼저 수기 판매(shipments)인지 확인
+       const { data: shipData } = await supabase.from('shipments').select('id').eq('id', groupId).single();
+       if (shipData) {
+         navigate(`/sales/manual/${groupId}`);
+         return;
+       }
+       // 그다음 AS인지 확인
+       const { data: asData } = await supabase.from('services').select('id').eq('id', groupId).single();
+       if (asData) {
+         navigate(`/service/${groupId}`);
+         return;
+       }
+    }
+    
+    // Cafe24 주문 확인 (예: 2024, 2025 등 숫자로 시작하는 주문번호)
+    if (/^20\d{2}/.test(groupId) || groupId.includes('-')) {
+       navigate(`/sales/cafe24`); 
+       return;
+    }
+    
+    setSnackbar({ open: true, message: '원본 전표를 찾을 수 없습니다.', severity: 'warning' });
+  };
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -3826,15 +3862,24 @@ function InventoryManagement() {
       
       {/* 거래내역 상세 Dialog */}
       <Dialog open={transactionDetailOpen} onClose={closeTransactionDetail} maxWidth="xl" fullWidth>
-        <DialogTitle>
-          거래내역 상세 정보
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            거래내역 상세 정보
+            {(selectedTransaction?.group_id || selectedTransaction?.id) && (selectedTransaction?.group_id !== 'none' && selectedTransaction?.id !== 'none') && (
+              <Button 
+                variant="outlined" 
+                color="primary" 
+                size="small" 
+                onClick={handleViewOriginal}
+              >
+                원본 보기
+              </Button>
+            )}
+          </Box>
           <IconButton
             aria-label="close"
             onClick={closeTransactionDetail}
             sx={{
-              position: 'absolute',
-              right: 8,
-              top: 8,
               color: (theme) => theme.palette.grey[500],
             }}
           >
