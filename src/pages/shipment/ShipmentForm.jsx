@@ -362,11 +362,16 @@ function ShipmentForm({ isManualB2B = false }) {
             let actualPrice = part.price;
             let actualTotalPrice = part.total_price || (actualPrice * part.quantity);
 
-            // 과거 이카운트 데이터는 단가가 부가세 제외로 되어 있으므로 1.1을 곱해 복원 (수기 수정 폼 로드 시)
+            // 과거 이카운트 데이터 처리 (업로더에서 합계 금액은 이미 부가세 처리가 완료되어 total_price에 저장됨)
             if (isLegacyEcount) {
-              actualPrice = Math.round(actualPrice * 1.1);
-              // 이카운트 원본 합계는 이미 부가세가 포함되어 있거나, 혹은 계산 오류 방지를 위해 '단가 * 수량'으로 통일
-              actualTotalPrice = actualPrice * part.quantity;
+              if (part.total_price != null && part.total_price !== 0) {
+                actualTotalPrice = part.total_price;
+                actualPrice = Math.round(actualTotalPrice / (part.quantity || 1));
+              } else {
+                // total_price가 없는 과거 데이터에 대한 폴백 처리
+                actualPrice = Math.round(actualPrice * 1.1);
+                actualTotalPrice = actualPrice * part.quantity;
+              }
             }
 
             return {
