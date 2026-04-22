@@ -364,7 +364,8 @@ function ShipmentForm({ isManualB2B = false }) {
             // 과거 이카운트 데이터는 단가가 부가세 제외로 되어 있으므로 1.1을 곱해 복원 (수기 수정 폼 로드 시)
             if (isLegacyEcount) {
               actualPrice = Math.round(actualPrice * 1.1);
-              actualTotalPrice = Math.round(actualTotalPrice * 1.1);
+              // 이카운트 원본 합계는 이미 부가세가 포함되어 있거나, 혹은 계산 오류 방지를 위해 '단가 * 수량'으로 통일
+              actualTotalPrice = actualPrice * part.quantity;
             }
 
             return {
