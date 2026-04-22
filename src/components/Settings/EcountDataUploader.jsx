@@ -103,10 +103,10 @@ export default function EcountDataUploader() {
 
         const groupKey = `${orderDate}_${customer}_${dateNo}`;
 
-        // 바코드/품목코드 기반 DB 매핑 시도
         let finalBrand = 'XRB'; // 기본값
         let finalCategory = '기타';
         let finalCode = excelCode || excelBarcode;
+        let finalPartName = partName;
 
         const matchedPart = dbParts.find(p => 
            (excelCode && (p.code === excelCode || p.barcode === excelCode)) ||
@@ -118,6 +118,7 @@ export default function EcountDataUploader() {
            finalBrand = matchedPart.brand || 'XRB';
            finalCategory = matchedPart.note || '기타';
            finalCode = matchedPart.code;
+           finalPartName = matchedPart.name;
         } else {
            // 매핑 실패 시 이름 기반 단순 추정 폴백
            if (partName.toUpperCase().includes('NB') || partName.includes('니어')) { finalBrand = 'NEARBIKE'; }
@@ -142,7 +143,7 @@ export default function EcountDataUploader() {
         }
 
         grouped[groupKey].parts.push({
-           part_name: partName,
+           part_name: finalPartName,
            part_code: finalCode,
            part_category: finalCategory,
            quantity: qty,
