@@ -598,6 +598,67 @@ export default function Cafe24OrderList() {
       }
     });
   };
+  const handleUnignoreOrders = async () => {
+    if (!selectedOrders.length) return;
+    const ordersToUnignore = orders.filter(o => selectedOrders.includes(o.id) && o.is_deleted);
+    
+    if (ordersToUnignore.length === 0) {
+      setAlertDialog({ open: true, title: '알림', message: '선택한 주문 중 복구할 반영 무시 건이 없습니다.' });
+      return;
+    }
+
+    setConfirmDialog({
+      open: true,
+      title: '반영 무시 복구',
+      message: `선택한 ${ordersToUnignore.length}건의 반영 무시 상태를 해제하고 다시 미전송 상태로 복구하시겠습니까?`,
+      onConfirm: async () => {
+        try {
+          setLoading(true);
+          const { error } = await supabase
+            .from('cafe24_orders')
+            .update({ is_deleted: false, is_transferred: false })
+            .in('id', ordersToUnignore.map(o => o.id));
+          if (error) throw error;
+          
+          setAlertDialog({ open: true, title: '처리 완료', message: '선택 항목이 반영 무시 해제(복구) 처리되었습니다.' });
+          setSelectedOrders([]);
+          fetchOrders();
+        } catch (err) {
+          console.error(err);
+          setAlertDialog({ open: true, title: '처리 실패', message: err.message });
+        } finally {
+          setLoading(false);
+        }
+      }
+    });
+  };
+
+  const handleSingleUnignoreOrder = async (order) => {
+    setConfirmDialog({
+      open: true,
+      title: '반영 무시 해제(복구)',
+      message: `주문(Cafe24 ID: ${order.order_id})의 반영 무시 상태를 해제하고 다시 미전송 상태로 복구하시겠습니까?`,
+      onConfirm: async () => {
+        try {
+          setLoading(true);
+          const { error } = await supabase
+            .from('cafe24_orders')
+            .update({ is_deleted: false, is_transferred: false })
+            .eq('id', order.id);
+          if (error) throw error;
+          
+          setAlertDialog({ open: true, title: '처리 완료', message: '반영 무시가 해제되었습니다.' });
+          fetchOrders();
+        } catch (err) {
+          console.error(err);
+          setAlertDialog({ open: true, title: '처리 실패', message: err.message });
+        } finally {
+          setLoading(false);
+        }
+      }
+    });
+  };
+
 
   const handleSingleIgnoreOrder = async (order) => {
     if (order.is_transferred) return;
@@ -1125,6 +1186,9 @@ export default function Cafe24OrderList() {
                     <Button size="small" variant="outlined" color="warning" onClick={handleIgnoreOrders} sx={{ lineHeight: 1.2, py: 0.5, px: 2, textAlign: 'center' }}>
                       판매반영<br/>예외(무시)
                     </Button>
+                    <Button size="small" variant="outlined" color="info" onClick={handleUnignoreOrders} sx={{ lineHeight: 1.2, py: 0.5, px: 2, textAlign: 'center' }}>
+                      무시<br/>복구
+                    </Button>
                     <Button size="small" variant="contained" color="primary" onClick={handleSalesTransfer} sx={{ lineHeight: 1.2, py: 0.5, px: 2, textAlign: 'center' }}>
                       판매반영<br/>(전송)
                     </Button>
@@ -1393,9 +1457,15 @@ export default function Cafe24OrderList() {
                                   <Button size="small" variant="contained" color="primary" disabled={String(order.status).trim() === 'N00'} onClick={() => handleSingleSalesTransfer(order)} sx={{ width: '100%', py: 0.5, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
                                     {String(order.status).trim() === 'N00' ? '입금대기' : '판매반영'}
                                   </Button>
-                                  <Button size="small" variant="outlined" color="warning" onClick={() => handleSingleIgnoreOrder(order)} sx={{ width: '100%', py: 0.5, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
-                                    반영무시
-                                  </Button>
+                                  {order.is_deleted ? (
+                                    <Button size="small" variant="outlined" color="info" onClick={() => handleSingleUnignoreOrder(order)} sx={{ width: '100%', py: 0.5, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                                      무시복구
+                                    </Button>
+                                  ) : (
+                                    <Button size="small" variant="outlined" color="warning" onClick={() => handleSingleIgnoreOrder(order)} sx={{ width: '100%', py: 0.5, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                                      반영무시
+                                    </Button>
+                                  )}
                                 </Box>
                               )}
                             </Box>
