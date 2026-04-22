@@ -814,17 +814,17 @@ function ShipmentForm({ isManualB2B = false }) {
             (searchName && p.name && searchName.includes(p.name.replace(/[\s\-]/g, '').toLowerCase()))
           );
 
-          // 상품 관리에서 해당 부품을 찾았다면 가격 업데이트
+          // 상품 관리에서 해당 부품을 찾았다면 가격 제외한 정보 업데이트
           if (foundPart) {
-            // 가격이 다른 경우에만 업데이트 카운트 증가
-            if (foundPart.price !== updatedPart.price) {
+            // 정보가 다른 경우에만 업데이트 카운트 증가
+            if (foundPart.name !== updatedPart.part_name || foundPart.code !== updatedPart.part_code) {
               priceUpdated++;
             }
 
-            // 상품 관리의 코드와 가격 적용
+            // 상품 관리의 이름과 코드를 적용 (단가는 수기 판매 내역의 원본 유지를 위해 덮어쓰지 않음)
+            updatedPart.part_name = foundPart.name || updatedPart.part_name;
             updatedPart.part_code = foundPart.code || updatedPart.part_code;
-            updatedPart.price = foundPart.price || 0;
-            updatedPart.totalPrice = foundPart.price * (updatedPart.quantity || 1);
+            // price와 totalPrice는 기존 값 유지
 
             // 카테고리 업데이트 로직
             let category = updatedPart.category;
@@ -866,7 +866,7 @@ function ShipmentForm({ isManualB2B = false }) {
 
         setSnackbar({
           open: true,
-          message: `${priceUpdated}개 제품의 가격 정보가 상품 관리 기준으로 업데이트되었습니다.`,
+          message: `${priceUpdated > 0 ? `${priceUpdated}개 제품의 ` : ''}제품 정보(이름, 코드, 분류)가 동기화되었습니다. (단가 유지)`,
           severity: 'success'
         });
 
