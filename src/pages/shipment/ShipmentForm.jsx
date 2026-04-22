@@ -355,15 +355,28 @@ function ShipmentForm({ isManualB2B = false }) {
           .eq('shipment_id', id);
 
         if (!partsError && parts) {
-          const formattedParts = parts.map(part => ({
-            id: part.id,
-            part_name: part.part_name,
-            part_code: part.part_code,
-            category: part.part_category || '기체',
-            quantity: part.quantity,
-            price: part.price,
-            totalPrice: part.total_price || part.price * part.quantity
-          }));
+          const isLegacyEcount = shipmentInfo.note?.includes('[과거 이카운트 이관]') || shipmentInfo.sales_channel === '과거 이카운트 이관';
+
+          const formattedParts = parts.map(part => {
+            let actualPrice = part.price;
+            let actualTotalPrice = part.total_price || (actualPrice * part.quantity);
+
+            // 과거 이카운트 데이터는 단가가 부가세 제외로 되어 있으므로 1.1을 곱해 복원 (수기 수정 폼 로드 시)
+            if (isLegacyEcount) {
+              actualPrice = Math.round(actualPrice * 1.1);
+              actualTotalPrice = Math.round(actualTotalPrice * 1.1);
+            }
+
+            return {
+              id: part.id,
+              part_name: part.part_name,
+              part_code: part.part_code,
+              category: part.part_category || '기체',
+              quantity: part.quantity,
+              price: actualPrice,
+              totalPrice: actualTotalPrice
+            };
+          });
 
           setSelectedParts(formattedParts);
 
