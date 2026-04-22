@@ -1155,13 +1155,13 @@ export default function Cafe24OrderList() {
               </Box>
 
               {/* 두 번째 줄: 실행 액션 관리들 */}
-              <Box sx={{ display: 'flex', alignItems: 'center', p: 1.5, bgcolor: '#e3f2fd', borderRadius: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, p: 1.5, bgcolor: '#e3f2fd', borderRadius: 1 }}>
                 <Typography variant="body2" sx={{ mr: 2, fontWeight: 'bold', color: '#1565c0' }}>
                   총 {filteredOrders.length}건 검색됨 {selectedOrders.length > 0 && `(현재 ${selectedOrders.length}건 선택됨)`}
                 </Typography>
                 
                 {selectedOrders.length > 0 ? (
-                  <Stack direction="row" spacing={2} sx={{ ml: 'auto', alignItems: 'center' }}>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, ml: 'auto', alignItems: 'center' }}>
                     <FormControl size="small" sx={{ minWidth: 140, bgcolor: 'white' }}>
                       <InputLabel>선택 일괄 창고지정</InputLabel>
                       <Select 
@@ -1192,7 +1192,7 @@ export default function Cafe24OrderList() {
                     <Button size="small" variant="contained" color="primary" onClick={handleSalesTransfer} sx={{ height: 40, lineHeight: 1.2, px: 2, textAlign: 'center' }}>
                       판매반영<br/>(전송)
                     </Button>
-                  </Stack>
+                  </Box>
                 ) : (
                   <Typography variant="caption" sx={{ ml: 'auto', color: 'text.secondary' }}>
                     주문을 체크하면 '판매 반영(매출 연동)' 및 삭제 메뉴가 활성화됩니다.
