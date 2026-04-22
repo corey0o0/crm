@@ -443,7 +443,6 @@ function ShipmentForm({ isManualB2B = false }) {
       const { data, error } = await supabase
         .from('parts')
         .select('*')
-        .in('brand', [shipmentData.brand, 'COMMON']) // 선택된 브랜드 + 공용 파츠 포함
         .order('name');
 
       if (error) throw error;
@@ -454,12 +453,11 @@ function ShipmentForm({ isManualB2B = false }) {
     }
   };
 
-  // 브랜드 변경 시 부품 목록 가져오기
+  // 컴포넌트 마운트 시 전체 부품 목록 가져오기
   useEffect(() => {
-    // 브랜드가 변경되면 부품 목록 다시 가져오기
     fetchAllParts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shipmentData.brand]);
+  }, []);
 
 
 
