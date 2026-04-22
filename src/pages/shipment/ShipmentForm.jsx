@@ -621,6 +621,7 @@ function ShipmentForm({ isManualB2B = false }) {
         quantity: totalQuantity,
         price: totalPrice,
         warehouse_id: shipmentData.warehouse_id, // 이제 필수로 들어감
+        sales_channel: shipmentData.sales_channel,
         updated_at: new Date().toISOString()
       };
 
