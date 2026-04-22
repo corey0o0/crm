@@ -82,8 +82,8 @@ const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' })(
   ({ theme, open }) => ({
     flexGrow: 1,
     padding: theme.spacing(3),
-    width: '100vw',
-    maxWidth: '100%',
+    width: '100%',
+    boxSizing: 'border-box',
     overflowX: 'hidden',
     transition: theme.transitions.create('margin', {
       easing: theme.transitions.easing.sharp,
@@ -96,11 +96,11 @@ const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' })(
         duration: theme.transitions.duration.enteringScreen,
       }),
       marginLeft: drawerWidth,
-      width: `calc(100vw - ${drawerWidth}px)`,
+      width: `calc(100% - ${drawerWidth}px)`,
     }),
     [theme.breakpoints.down('sm')]: {
       marginLeft: 0,
-      width: '100vw',
+      width: '100%',
       padding: theme.spacing(2),
     },
   }),
