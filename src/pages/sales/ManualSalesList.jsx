@@ -427,12 +427,13 @@ export default function ManualSalesList({ isEmbedded = false }) {
                   onChange={handleSelectAllClick}
                 />
               </TableCell>
-              <TableCell width="12%">주문/출고일자</TableCell>
-              <TableCell width="14%">거래처(요청채널)</TableCell>
-              <TableCell width="12%">출고처(창고)</TableCell>
+              <TableCell width="11%">주문/출고일자</TableCell>
+              <TableCell width="13%">주문번호</TableCell>
+              <TableCell width="13%">거래처(요청채널)</TableCell>
+              <TableCell width="10%">출고처(창고)</TableCell>
               <TableCell width="25%">대표 품목</TableCell>
-              <TableCell width="15%" align="right">금액</TableCell>
-              <TableCell width="10%" align="center">상태</TableCell>
+              <TableCell width="10%" align="right">금액</TableCell>
+              <TableCell width="8%" align="center">상태</TableCell>
               <TableCell width="10%" align="center">관리</TableCell>
             </TableRow>
           </TableHead>
@@ -461,6 +462,11 @@ export default function ManualSalesList({ isEmbedded = false }) {
                     />
                   </TableCell>
                   <TableCell>{dayjs(s.order_date).format('YYYY-MM-DD')}</TableCell>
+                  <TableCell>
+                    <Typography variant="body2" color="primary" sx={{ fontSize: '0.85rem' }}>
+                      {s.tracking_number || (s.note?.match(/20\d{6}-\d{7}/) ? s.note.match(/20\d{6}-\d{7}/)[0] : '-')}
+                    </Typography>
+                  </TableCell>
                   <TableCell>
                     <Typography variant="body2" fontWeight="bold">{s.customer_name}</Typography>
                     {s.sales_channel && <Typography variant="caption" color="text.secondary">{s.sales_channel}</Typography>}
