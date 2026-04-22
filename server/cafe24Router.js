@@ -775,7 +775,7 @@ module.exports = function(supabaseAdmin) {
           const wid = (warehouseConfig && warehouseConfig[order.id] && warehouseConfig[order.id][index]) || 'DEFAULT';
           return { ...item, _warehouse_id: wid };
         });
-        await supabaseAdmin.from('cafe24_orders').update({ is_transferred: true, order_items: updatedItems }).eq('id', order.id);
+        await supabaseAdmin.from('cafe24_orders').update({ is_transferred: true, is_deleted: false, order_items: updatedItems }).eq('id', order.id);
       }
 
       res.json({ success: true, message: `${orders.length}건 일괄 전송(출고/차감) 완료` });
