@@ -194,7 +194,7 @@ export default function Cafe24OrderList() {
   };
 
   const fetchParts = async () => {
-    const { data } = await supabase.from('parts').select('id, name, barcode, code').order('name');
+    const { data } = await supabase.from('parts').select('id, name, barcode, code, brand, price').order('name');
     if (data) setAvailableParts(data);
   };
 
@@ -1445,7 +1445,7 @@ export default function Cafe24OrderList() {
 
           <Autocomplete
             options={availableParts}
-            getOptionLabel={(option) => `${option.name} [${option.code}${option.barcode && option.barcode !== option.code ? ` | ${option.barcode}` : ''}]`}
+            getOptionLabel={(option) => `${option.brand && option.brand !== '-' ? `[${option.brand}] ` : ''}${option.name} [${option.code}${option.barcode && option.barcode !== option.code ? ` | ${option.barcode}` : ''}]`}
             isOptionEqualToValue={(option, value) => option.id === value?.id}
             value={selectedPart}
             onChange={(event, newValue) => setSelectedPart(newValue)}
@@ -1674,7 +1674,7 @@ export default function Cafe24OrderList() {
               <Autocomplete
                 sx={{ flexGrow: 1 }}
                 options={availableParts}
-                getOptionLabel={(option) => `${option.name} [${option.code}${option.barcode && option.barcode !== option.code ? ` | ${option.barcode}` : ''}]`}
+                getOptionLabel={(option) => `${option.brand && option.brand !== '-' ? `[${option.brand}] ` : ''}${option.name} [${option.code}${option.barcode && option.barcode !== option.code ? ` | ${option.barcode}` : ''}]`}
                 isOptionEqualToValue={(option, value) => option.id === value?.id}
                 value={addingPart}
                 onChange={(e, val) => setAddingPart(val)}
@@ -1684,7 +1684,7 @@ export default function Cafe24OrderList() {
                   return (
                     <li key={option.id || key} {...otherProps}>
                       <Box>
-                        <Typography variant="body2">{option.name}</Typography>
+                        <Typography variant="body2">{option.brand && option.brand !== '-' ? `[${option.brand}] ` : ''}{option.name}</Typography>
                         <Typography variant="caption" color="text.secondary">코드: {option.code} | 기준가: {(option.price||0).toLocaleString()}원</Typography>
                       </Box>
                     </li>
