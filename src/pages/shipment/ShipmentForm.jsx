@@ -1430,7 +1430,10 @@ function ShipmentForm({ isManualB2B = false }) {
                   setShipmentData(prev => ({ 
                     ...prev, 
                     customer_name: newValue,
-                    sales_channel: matchedAgency ? matchedAgency.name : prev.sales_channel
+                    sales_channel: matchedAgency ? matchedAgency.name : prev.sales_channel,
+                    customer_phone: matchedAgency && (matchedAgency.mobile || matchedAgency.phone) 
+                      ? (matchedAgency.mobile || matchedAgency.phone) 
+                      : prev.customer_phone
                   }));
                 }
               }}
