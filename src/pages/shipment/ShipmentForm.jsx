@@ -342,7 +342,8 @@ function ShipmentForm({ isManualB2B = false }) {
         ...data,
         order_date: data.order_date || data.created_at?.split('T')[0],
         shipment_date: data.shipment_date || new Date().toISOString().split('T')[0],
-        sales_channel: extractSalesChannel(data.note) || '공홈'
+        sales_channel: extractSalesChannel(data.note) || '공홈',
+        order_no: data.note ? (data.note.match(/\[주문:(.*?)\]/)?.[1] || data.note.match(/20\d{6}-\d{7}/)?.[0] || '') : ''
       };
 
       setShipmentData(shipmentInfo);
@@ -424,7 +425,8 @@ function ShipmentForm({ isManualB2B = false }) {
           delivery_method: '택배',
           tracking_number: '',
           note: '',
-          sales_channel: '공홈'
+          sales_channel: '공홈',
+          order_no: ''
         },
         selectedParts: []
       });
@@ -583,8 +585,14 @@ function ShipmentForm({ isManualB2B = false }) {
     let shipmentId = id;
 
     try {
-      // 판매처 정보를 메모에 포함
+      // 판매처 및 주문번호 정보를 메모에 포함
       let finalNote = shipmentData.note || '';
+      
+      finalNote = finalNote.replace(/\[주문:.*?\]\s*/g, '');
+      if (shipmentData.order_no) {
+        finalNote = `[주문:${shipmentData.order_no}] ${finalNote}`.trim();
+      }
+
       if (shipmentData.sales_channel) {
         if (finalNote.includes('[판매처:')) {
           finalNote = finalNote.replace(/\[판매처: .*?\]/, `[판매처: ${shipmentData.sales_channel}]`);
@@ -1421,7 +1429,17 @@ function ShipmentForm({ isManualB2B = false }) {
               options={agencies.map(a => a.name)}
               value={shipmentData.customer_name || ''}
               onInputChange={(e, newValue) => {
-                setShipmentData(prev => ({ ...prev, customer_name: newValue || '' }));
+                const typedValue = newValue || '';
+                const matchedAgency = agencies.find(a => a.name === typedValue);
+                
+                setShipmentData(prev => ({ 
+                  ...prev, 
+                  customer_name: typedValue,
+                  ...(matchedAgency && {
+                    sales_channel: matchedAgency.name,
+                    customer_phone: (matchedAgency.mobile || matchedAgency.phone) || prev.customer_phone
+                  })
+                }));
               }}
               onChange={(e, newValue) => {
                 if (newValue) {
@@ -1455,6 +1473,16 @@ function ShipmentForm({ isManualB2B = false }) {
               value={shipmentData.customer_phone || ''}
               onChange={handleChange}
               required
+            />
+          </Grid>
+
+          <Grid item xs={12} md={3}>
+            <TextField
+              fullWidth
+              label="주문번호 (선택)"
+              name="order_no"
+              value={shipmentData.order_no || ''}
+              onChange={handleChange}
             />
           </Grid>
 
