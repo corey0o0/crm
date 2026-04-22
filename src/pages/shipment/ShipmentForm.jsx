@@ -342,7 +342,7 @@ function ShipmentForm({ isManualB2B = false }) {
         ...data,
         order_date: data.order_date || data.created_at?.split('T')[0],
         shipment_date: data.shipment_date || new Date().toISOString().split('T')[0],
-        sales_channel: extractSalesChannel(data.note) || '공홈',
+        sales_channel: data.sales_channel || extractSalesChannel(data.note) || '공홈',
         order_no: data.note ? (data.note.match(/\[주문:(.*?)\]/)?.[1] || data.note.match(/20\d{6}-\d{7}/)?.[0] || '') : ''
       };
 
