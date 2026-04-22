@@ -26,8 +26,10 @@ export default function ManualSalesList({ isEmbedded = false }) {
 
   const [warehouses, setWarehouses] = useState([]);
   const [sellers, setSellers] = useState(['전체']);
+  const [customers, setCustomers] = useState(['전체']);
   const [statusFilter, setStatusFilter] = useState('all');
   const [sellerFilter, setSellerFilter] = useState('all');
+  const [customerFilter, setCustomerFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState({
     type: 'order_date',
     startDate: '',
@@ -39,11 +41,14 @@ export default function ManualSalesList({ isEmbedded = false }) {
   const [searchTrigger, setSearchTrigger] = useState(0);
   // B2B 수기판매 전표 식별 조건: '과거 이카운트 이관'이거나 메모/채널에 'B2B수기판매' 등 포함
   useEffect(() => {
-    async function loadWarehouses() {
-      const { data } = await supabase.from('warehouses').select('id, name');
-      if (data) setWarehouses(data);
+    async function loadInitialData() {
+      const { data: whData } = await supabase.from('warehouses').select('id, name');
+      if (whData) setWarehouses(whData);
+
+      const { data: agData } = await supabase.from('agencies').select('name');
+      if (agData) setCustomers(['전체', ...agData.map(a => a.name).sort()]);
     }
-    loadWarehouses();
+    loadInitialData();
   }, []);
 
   useEffect(() => {
@@ -65,6 +70,10 @@ export default function ManualSalesList({ isEmbedded = false }) {
 
       if (sellerFilter !== 'all') {
         query = query.eq('sales_channel', sellerFilter);
+      }
+
+      if (customerFilter !== 'all') {
+        query = query.eq('customer_name', customerFilter);
       }
 
       if (dateFilter.startDate) {
@@ -159,6 +168,7 @@ export default function ManualSalesList({ isEmbedded = false }) {
     const filterData = {
       statusFilter,
       sellerFilter,
+      customerFilter,
       dateFilter,
       searchTerm
     };
@@ -173,6 +183,7 @@ export default function ManualSalesList({ isEmbedded = false }) {
         const parsed = JSON.parse(savedFilter);
         setStatusFilter(parsed.statusFilter || 'all');
         setSellerFilter(parsed.sellerFilter || 'all');
+        setCustomerFilter(parsed.customerFilter || 'all');
         setDateFilter(parsed.dateFilter || { type: 'order_date', startDate: '', endDate: '' });
         setSearchTerm(parsed.searchTerm || '');
         if (page !== 0) {
@@ -369,6 +380,21 @@ export default function ManualSalesList({ isEmbedded = false }) {
                   ))}
                 </Select>
               </FormControl>
+
+              <FormControl size="small" sx={{ width: 140 }}>
+                <InputLabel>거래처(고객명)</InputLabel>
+                <Select
+                  value={customerFilter}
+                  label="거래처(고객명)"
+                  onChange={e => setCustomerFilter(e.target.value)}
+                >
+                  <MenuItem value="all">전체 거래처</MenuItem>
+                  {customers.filter(c => c !== '전체').map(customer => (
+                    <MenuItem key={customer} value={customer}>{customer}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
               <FormControl size="small" sx={{ minWidth: 120 }}>
                 <InputLabel>날짜 유형</InputLabel>
                 <Select
@@ -423,6 +449,7 @@ export default function ManualSalesList({ isEmbedded = false }) {
                 setSearchTerm('');
                 setStatusFilter('all');
                 setSellerFilter('all');
+                setCustomerFilter('all');
                 setDateFilter({ type: 'order_date', startDate: '', endDate: '' });
                 if (page !== 0) {
                   setPage(0);
