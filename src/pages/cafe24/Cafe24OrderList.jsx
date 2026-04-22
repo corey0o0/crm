@@ -1176,7 +1176,7 @@ export default function Cafe24OrderList() {
                     <Button size="small" variant="contained" color="secondary" onClick={handleBatchApplyWarehouse} sx={{ height: 40, px: 2, whiteSpace: 'nowrap' }}>
                       일괄적용
                     </Button>
-                    <Box sx={{ width: 1, height: 30, bgcolor: 'divider', mx: 1 }} />
+                    <Box sx={{ width: '1px', height: 30, bgcolor: 'divider', mx: 1 }} />
                     <Button size="small" variant="outlined" color="error" onClick={handleDeleteSelected} sx={{ height: 40, px: 2, whiteSpace: 'nowrap' }}>
                       삭제
                     </Button>
