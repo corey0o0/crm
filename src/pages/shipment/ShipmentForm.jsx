@@ -1137,13 +1137,45 @@ function ShipmentForm({ isManualB2B = false }) {
     try {
       // 엑셀 데이터를 부품 목록으로 변환
       const newParts = uploadedData.map((item, index) => {
+        let finalPartName = item['제품명'] || '';
+        let finalPartCode = item['제품코드'] || '';
+        const excelBarcode = item['바코드'] || item['제품코드'] || '';
+
+        // DB 부품과 매칭 시도 (바코드, 코드, 제품명)
+        const searchName = finalPartName.replace(/[\s\-]/g, '').toLowerCase();
+        const foundPart = allParts.find(p => 
+          (excelBarcode && p.code === excelBarcode) ||
+          (excelBarcode && p.barcode === excelBarcode) ||
+          (finalPartCode && p.code === finalPartCode) ||
+          (finalPartCode && p.barcode === finalPartCode) ||
+          (p.name === finalPartName) ||
+          (searchName && p.name && searchName.includes(p.name.replace(/[\s\-]/g, '').toLowerCase()))
+        );
+
+        if (foundPart) {
+          finalPartName = foundPart.name || finalPartName;
+          finalPartCode = foundPart.code || finalPartCode;
+        }
+
         // 카테고리 결정
-        const category = item['카테고리'] || determineCategoryForExcel(item['제품코드'], item['제품명'], item['가격']);
+        let category = item['카테고리'];
+        if (!category) {
+          if (foundPart && foundPart.note) {
+            const note = foundPart.note.toLowerCase();
+            if (note.includes('파츠') || note.includes('part') || note.includes('부품')) category = '파츠';
+            else if (note.includes('공임') || note.includes('작업') || note.includes('서비스')) category = '공임';
+            else if (note.includes('기타') || note.includes('etc')) category = '기타';
+            else if (note.includes('기체') || note.includes('바이크') || note.includes('자전거')) category = '기체';
+          }
+          if (!category) {
+             category = determineCategoryForExcel(item['제품코드'], item['제품명'], item['가격']);
+          }
+        }
 
         return {
           id: Date.now() + index, // 임시 ID
-          part_name: item['제품명'],
-          part_code: item['제품코드'] || '',
+          part_name: finalPartName,
+          part_code: finalPartCode,
           category: category,
           quantity: parseInt(item['수량']) || 1,
           price: parseFloat(item['가격']) || 0,
