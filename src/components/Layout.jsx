@@ -55,6 +55,9 @@ import {
   Close as CloseIcon,
   Logout as LogoutIcon,
   ShoppingCartOutlined as ShoppingCartOutlinedIcon,
+  ZoomIn as ZoomInIcon,
+  ZoomOut as ZoomOutIcon,
+  FormatSize as FormatSizeIcon,
   Science as ScienceIcon,
   Store as StoreIcon,
   Forum as ForumIcon,
@@ -129,6 +132,38 @@ const DrawerHeader = styled('div')(({ theme }) => ({
 
 function Layout() {
   const theme = useTheme();
+  
+  // 글로벌 폰트 사이즈 상태
+  const [htmlFontSize, setHtmlFontSize] = useState(16);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('globalFontSize');
+    if (saved) {
+      const size = parseInt(saved, 10);
+      if (size >= 12 && size <= 24) {
+        setHtmlFontSize(size);
+        document.documentElement.style.fontSize = `${size}px`;
+      }
+    }
+  }, []);
+
+  const handleZoomIn = () => {
+    if (htmlFontSize < 24) {
+      const newSize = htmlFontSize + 1;
+      setHtmlFontSize(newSize);
+      document.documentElement.style.fontSize = `${newSize}px`;
+      localStorage.setItem('globalFontSize', newSize.toString());
+    }
+  };
+
+  const handleZoomOut = () => {
+    if (htmlFontSize > 12) {
+      const newSize = htmlFontSize - 1;
+      setHtmlFontSize(newSize);
+      document.documentElement.style.fontSize = `${newSize}px`;
+      localStorage.setItem('globalFontSize', newSize.toString());
+    }
+  };
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [open, setOpen] = useState(!isMobile);
   const navigate = useNavigate();
@@ -447,6 +482,23 @@ function Layout() {
                 {formatDateTimeWithWeekday(currentDateTime).weekday} • {formatDateTimeWithWeekday(currentDateTime).time}
               </Typography>
             </Box>
+          </Box>
+
+                    {/* 폰트 크기 조절 */}
+          <Box sx={{ display: 'flex', alignItems: 'center', mr: { xs: 0, sm: 1 }, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 2, px: 0.5 }}>
+            <Tooltip title="글자 작게">
+              <IconButton size="small" color="inherit" onClick={handleZoomOut} disabled={htmlFontSize <= 12}>
+                <ZoomOutIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Typography variant="body2" sx={{ minWidth: '30px', textAlign: 'center', fontWeight: 'bold' }}>
+              {htmlFontSize}
+            </Typography>
+            <Tooltip title="글자 크게">
+              <IconButton size="small" color="inherit" onClick={handleZoomIn} disabled={htmlFontSize >= 24}>
+                <ZoomInIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
           </Box>
 
           {/* 디버그 버튼 (마스터 계정 전용) */}
