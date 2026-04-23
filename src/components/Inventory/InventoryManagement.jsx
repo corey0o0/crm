@@ -1270,9 +1270,9 @@ function InventoryManagement() {
           if (rowNumber <= headerRow) return; // 헤더 행 건너뛰기
           
           const rowData = row.values;
-          const orderNumber = rowData[1]; // B열: 주문번호
-          const orderSource = rowData[2]; // C열: 주문처
-          const note = rowData[3]; // D열: 비고
+          const orderNumber = rowData[1]; // A열: 주문번호
+          const orderSource = rowData[2]; // B열: 주문처
+          const note = rowData[3]; // C열: 비고
           
           if (!orderNumber || orderNumber.toString().trim() === '') return;
           
@@ -1341,6 +1341,7 @@ function InventoryManagement() {
     excelData.forEach((item, index) => {
       const product = products.find(p => {
         if (p.code === item.productCode) return true;
+        if (p.barcode && String(p.barcode) === String(item.productCode)) return true;
         
         // 파츠 이름으로 매칭 시도 (공백 및 대소문자 무시)
         const dbNameStr = (p.name || '').replace(/\s+/g, '').toLowerCase();
@@ -1484,7 +1485,6 @@ function InventoryManagement() {
     
     // 헤더 설정 (구글 시트와 동일한 형식)
     worksheet.columns = [
-      { header: 'A', key: 'colA', width: 15 },
       { header: '주문번호', key: 'orderNumber', width: 20 },
       { header: '주문처', key: 'orderSource', width: 15 },
       { header: '비고', key: 'note', width: 20 },
@@ -1498,7 +1498,6 @@ function InventoryManagement() {
 
     // 샘플 데이터 추가 (입고 예시)
     worksheet.addRow({
-      colA: '20250930-0000031',
       orderNumber: '20250930-0000031',
       orderSource: '공홈',
       note: '9/30 에코',
@@ -3601,7 +3600,7 @@ function InventoryManagement() {
                         <Autocomplete
                           fullWidth
                           options={products}
-                          getOptionLabel={(option) => `${option.name} (${option.code}) [${option.supplier || '-'}]`}
+                          getOptionLabel={(option) => `${option.name} (${option.code})${option.barcode ? ` [바코드:${option.barcode}]` : ''} [${option.supplier || '-'}]`}
                           value={products.find(p => p.id === product.productId) || null}
                           onChange={(event, value) => 
                           updateIoProductRow(product.id, 'productId', value?.id || '')
@@ -3919,7 +3918,7 @@ function InventoryManagement() {
                               <Autocomplete
                                 size="small"
                                 options={products}
-                                getOptionLabel={(option) => option ? `${option.name} (${option.code})` : ''}
+                                getOptionLabel={(option) => option ? `${option.name} (${option.code})${option.barcode ? ` [바코드:${option.barcode}]` : ''}` : ''}
                                 value={product.product}
                                 onChange={(event, newValue) => updateEditProduct(index, 'product', newValue)}
                                 isOptionEqualToValue={(option, value) => option?.id === value?.id}
@@ -4178,7 +4177,7 @@ function InventoryManagement() {
                               <Autocomplete
                                 size="small"
                                 options={products}
-                                getOptionLabel={(option) => option ? `${option.name} (${option.code})` : ''}
+                                getOptionLabel={(option) => option ? `${option.name} (${option.code})${option.barcode ? ` [바코드:${option.barcode}]` : ''}` : ''}
                                 value={product.product}
                                 onChange={(event, newValue) => updateEditProduct(index, 'product', newValue)}
                                 isOptionEqualToValue={(option, value) => option?.id === value?.id}
