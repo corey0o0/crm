@@ -290,10 +290,14 @@ module.exports = function(supabaseAdmin) {
     const queryEnd = end_date || today.toISOString().split('T')[0];
 
     // Fetch all barcodes and part_ids from parts table once for quick lookup
-    const { data: partsList } = await supabaseAdmin.from('parts').select('id, barcode').not('barcode', 'is', null);
-    const barcodeToPartIdMap = {};
+    const { data: partsList } = await supabaseAdmin.from('parts').select('id, name, barcode').not('barcode', 'is', null);
+    const barcodeToPartsMap = {};
     (partsList || []).forEach(p => {
-      if(p.barcode) barcodeToPartIdMap[String(p.barcode).trim()] = p.id;
+      if(p.barcode) {
+        const bc = String(p.barcode).trim();
+        if(!barcodeToPartsMap[bc]) barcodeToPartsMap[bc] = [];
+        barcodeToPartsMap[bc].push({ id: p.id, name: p.name });
+      }
     });
 
     // Fetch manual product mappings (전체 브랜드 글로벌 기준 매칭 적용)
@@ -407,8 +411,34 @@ module.exports = function(supabaseAdmin) {
           const customCode = (item.custom_variant_code || item.custom_item_code || item.custom_product_code) ? String(item.custom_variant_code || item.custom_item_code || item.custom_product_code).trim() : '';
           
           let matchedPartId = null;
-          if (customCode && barcodeToPartIdMap[customCode]) {
-            matchedPartId = barcodeToPartIdMap[customCode]; // 1. Barcode match
+          if (customCode && barcodeToPartsMap[customCode]) {
+            const matchedParts = barcodeToPartsMap[customCode];
+            if (matchedParts.length === 1) {
+              matchedPartId = matchedParts[0].id; // 1. Barcode match
+            } else {
+              // 1.5. Duplicate barcodes found! Disambiguate using item options/name
+              const searchStr = `${item.product_name || ''} ${item.option_value || ''}`.toLowerCase();
+              // Split into words, keeping length >= 2
+              const words = searchStr.split(/[\s,()\[\]\-_=+./]+/).filter(w => w.length >= 2);
+              
+              let bestPart = matchedParts[0];
+              let maxMatches = -1;
+              
+              for (const part of matchedParts) {
+                const partName = (part.name || '').toLowerCase();
+                let matches = 0;
+                for (const word of words) {
+                  if (partName.includes(word)) {
+                    matches++;
+                  }
+                }
+                if (matches > maxMatches) {
+                  maxMatches = matches;
+                  bestPart = part;
+                }
+              }
+              matchedPartId = bestPart.id;
+            }
           } else if (code && manualCodeToPartIdMap[code]) {
             matchedPartId = manualCodeToPartIdMap[code]; // 2. Manual match fallback
           }
