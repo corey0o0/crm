@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Paper, Button, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Chip, CircularProgress, Alert, Stack, Dialog, DialogTitle,
-  DialogContent, DialogActions, Autocomplete, TextField, Tabs, Tab, Select, MenuItem, FormControl, FormControlLabel, InputLabel, Checkbox, IconButton, Tooltip, InputAdornment, TablePagination, ToggleButton, ToggleButtonGroup, TableFooter
+  DialogContent, DialogActions, Autocomplete, TextField, Tabs, Tab, Select, MenuItem, FormControl, FormControlLabel, InputLabel, Checkbox, IconButton, Tooltip, InputAdornment, TablePagination, ToggleButton, ToggleButtonGroup, TableFooter, Grid, ButtonGroup
 } from '@mui/material';
 import { Sync as SyncIcon, PersonAdd as PersonAddIcon, Search as SearchIcon, Edit as EditIcon, PlaylistAdd as PlaylistAddIcon, Close as CloseIcon, FileDownload as FileDownloadIcon } from '@mui/icons-material';
 import Cafe24Settings from '../../components/Settings/Cafe24Settings';
@@ -1038,121 +1038,132 @@ export default function Cafe24OrderList() {
               </Box>
 
               {/* 첫 번째 줄: 필터 및 일반 설정 */}
-              <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2, p: 2, bgcolor: '#f8f9fa', borderRadius: 1 }}>
+              <Paper sx={{ p: 2, mb: 3 }}>
+                <Grid container spacing={2} alignItems="center">
+                  
+                  {/* Row 1: 상태 & 토글 필터 */}
+                  <Grid item xs={12} md="auto">
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <ToggleButtonGroup
+                        color="primary"
+                        value={transferFilter}
+                        exclusive
+                        onChange={(e, val) => { if (val) setTransferFilter(val); }}
+                        size="small"
+                        sx={{ bgcolor: 'white' }}
+                      >
+                        <ToggleButton value="all" sx={{ px: 2 }}>
+                          전체 내역 <Chip label={transferCounts.all} size="small" sx={{ ml: 1, height: 20, fontSize: '0.75rem' }} color={transferFilter === 'all' ? "primary" : "default"} />
+                        </ToggleButton>
+                        <ToggleButton value="not_transferred" sx={{ px: 2 }}>
+                          반영 전 <Chip label={transferCounts.not_transferred} size="small" sx={{ ml: 1, height: 20, fontSize: '0.75rem' }} color={transferFilter === 'not_transferred' ? "warning" : "default"} />
+                        </ToggleButton>
+                        <ToggleButton value="transferred" sx={{ px: 2 }}>
+                          반영 완료 <Chip label={transferCounts.transferred} size="small" sx={{ ml: 1, height: 20, fontSize: '0.75rem' }} color={transferFilter === 'transferred' ? "success" : "default"} />
+                        </ToggleButton>
+                        <ToggleButton value="ignored" sx={{ px: 2 }}>
+                          반영 무시 <Chip label={transferCounts.ignored} size="small" sx={{ ml: 1, height: 20, fontSize: '0.75rem' }} color={transferFilter === 'ignored' ? "error" : "default"} />
+                        </ToggleButton>
+                      </ToggleButtonGroup>
 
-                <ToggleButtonGroup
-                  color="primary"
-                  value={transferFilter}
-                  exclusive
-                  onChange={(e, val) => { if (val) setTransferFilter(val); }}
-                  size="small"
-                  sx={{ bgcolor: 'white', height: 40 }}
-                >
-                  <ToggleButton value="all" sx={{ px: 2 }}>
-                    전체 내역 <Chip label={transferCounts.all} size="small" sx={{ ml: 1, height: 20, fontSize: '0.75rem' }} color={transferFilter === 'all' ? "primary" : "default"} />
-                  </ToggleButton>
-                  <ToggleButton value="not_transferred" sx={{ px: 2 }}>
-                    반영 전 <Chip label={transferCounts.not_transferred} size="small" sx={{ ml: 1, height: 20, fontSize: '0.75rem' }} color={transferFilter === 'not_transferred' ? "warning" : "default"} />
-                  </ToggleButton>
-                  <ToggleButton value="transferred" sx={{ px: 2 }}>
-                    반영 완료 <Chip label={transferCounts.transferred} size="small" sx={{ ml: 1, height: 20, fontSize: '0.75rem' }} color={transferFilter === 'transferred' ? "success" : "default"} />
-                  </ToggleButton>
-                  <ToggleButton value="ignored" sx={{ px: 2 }}>
-                    반영 무시 <Chip label={transferCounts.ignored} size="small" sx={{ ml: 1, height: 20, fontSize: '0.75rem' }} color={transferFilter === 'ignored' ? "error" : "default"} />
-                  </ToggleButton>
-                </ToggleButtonGroup>
+                      <FormControl size="small" sx={{ minWidth: 150, bgcolor: 'white' }}>
+                        <InputLabel>주문 상태</InputLabel>
+                        <Select value={statusFilter} label="주문 상태" onChange={e => setStatusFilter(e.target.value)}>
+                          <MenuItem value="all">모든 상태</MenuItem>
+                          {[...new Set(orders.map(o => getKoStatus(o.status)))].filter(Boolean).sort().map(label => (
+                            <MenuItem key={label} value={label}>{label}</MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
 
-                <FormControl size="small" sx={{ minWidth: 150, bgcolor: 'white' }}>
-                  <InputLabel>주문 상태</InputLabel>
-                  <Select value={statusFilter} label="주문 상태" onChange={e => setStatusFilter(e.target.value)}>
-                    <MenuItem value="all">모든 상태</MenuItem>
-                    {[...new Set(orders.map(o => getKoStatus(o.status)))].filter(Boolean).sort().map(label => (
-                      <MenuItem key={label} value={label}>{label}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
+                      <ToggleButtonGroup
+                        color="info"
+                        value={badgeFilter}
+                        exclusive
+                        onChange={(e, val) => { if (val) setBadgeFilter(val); }}
+                        size="small"
+                        sx={{ bgcolor: 'white' }}
+                      >
+                        <ToggleButton value="all" sx={{ px: 2 }}>전체 등급</ToggleButton>
+                        <ToggleButton value="normal" sx={{ px: 2 }}>일반회원</ToggleButton>
+                        <ToggleButton value="special" sx={{ px: 2 }}>특별관리(B)</ToggleButton>
+                        <ToggleButton value="xrider" sx={{ px: 2 }}>엑스라이더</ToggleButton>
+                      </ToggleButtonGroup>
 
-                <ToggleButtonGroup
-                  color="info"
-                  value={badgeFilter}
-                  exclusive
-                  onChange={(e, val) => { if (val) setBadgeFilter(val); }}
-                  size="small"
-                  sx={{ bgcolor: 'white', height: 40 }}
-                >
-                  <ToggleButton value="all" sx={{ px: 2 }}>전체 등급</ToggleButton>
-                  <ToggleButton value="normal" sx={{ px: 2 }}>일반회원</ToggleButton>
-                  <ToggleButton value="special" sx={{ px: 2 }}>특별관리(B)</ToggleButton>
-                  <ToggleButton value="xrider" sx={{ px: 2 }}>엑스라이더</ToggleButton>
-                </ToggleButtonGroup>
+                      <ToggleButton
+                        value="check"
+                        selected={showPriceDetails}
+                        onChange={() => setShowPriceDetails(!showPriceDetails)}
+                        color="secondary"
+                        size="small"
+                        sx={{ bgcolor: 'white', px: 2 }}
+                      >
+                        금액 상세 {showPriceDetails ? '접기' : '펼침'}
+                      </ToggleButton>
+                    </Stack>
+                  </Grid>
 
-                <ToggleButton
-                  value="check"
-                  selected={showPriceDetails}
-                  onChange={() => setShowPriceDetails(!showPriceDetails)}
-                  color="secondary"
-                  size="small"
-                  sx={{ bgcolor: 'white', height: 40, px: 2 }}
-                >
-                  금액 상세 {showPriceDetails ? '접기' : '펼침'}
-                </ToggleButton>
+                  {/* Row 2: 날짜 필터 & 퀵버튼 */}
+                  <Grid item xs={12} md>
+                    <Stack direction="row" spacing={1} alignItems="center" sx={{ overflowX: 'auto', pb: 0.5, '&::-webkit-scrollbar': { height: '6px' }, '&::-webkit-scrollbar-thumb': { backgroundColor: '#e0e0e0', borderRadius: '4px' } }}>
+                      <ButtonGroup size="small" variant="outlined" sx={{ flexShrink: 0 }}>
+                        <Button onClick={() => setPeriod(0)}>금일</Button>
+                        <Button onClick={setYesterday}>전일</Button>
+                        <Button onClick={() => setPeriod(7)}>일주일</Button>
+                        <Button onClick={() => setPeriod(30)}>1개월</Button>
+                      </ButtonGroup>
 
-                <TextField
-                  size="small"
-                  label="통합 검색 (주문번호, 이름, 상품명 등)"
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  InputProps={{
-                    startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>
-                  }}
-                  sx={{ width: 300, bgcolor: 'white' }}
-                />
-                <Button 
-                  variant="contained" 
-                  size="small" 
-                  onClick={() => fetchOrders()}
-                  sx={{ height: 40, bgcolor: '#3182f6', ml: 1, '&:hover': { bgcolor: '#1b64da' } }}
-                >
-                  검색
-                </Button>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <TextField type="date" size="small" InputLabelProps={{ shrink: true }} value={startDate} onChange={(e) => setStartDate(e.target.value)} sx={{ width: 140, bgcolor: 'white' }} />
+                        <Typography variant="body2">~</Typography>
+                        <TextField type="date" size="small" InputLabelProps={{ shrink: true }} value={endDate} onChange={(e) => setEndDate(e.target.value)} sx={{ width: 140, bgcolor: 'white' }} />
+                      </Box>
+                    </Stack>
+                  </Grid>
 
-                {/* 강제 줄바꿈 100% width Box */}
-                <Box sx={{ width: '100%', my: 0.5 }} />
-
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <TextField type="date" size="small" InputLabelProps={{ shrink: true }} value={startDate} onChange={(e) => setStartDate(e.target.value)} sx={{ width: 130, bgcolor: 'white' }} />
-                  <Typography>~</Typography>
-                  <TextField type="date" size="small" InputLabelProps={{ shrink: true }} value={endDate} onChange={(e) => setEndDate(e.target.value)} sx={{ width: 130, bgcolor: 'white' }} />
-                </Stack>
-                <Button variant="outlined" size="small" sx={{ bgcolor: 'white' }} onClick={() => setPeriod(0)}>금일</Button>
-                <Button variant="outlined" size="small" sx={{ bgcolor: 'white' }} onClick={setYesterday}>전일</Button>
-                <Button variant="outlined" size="small" sx={{ bgcolor: 'white' }} onClick={() => setPeriod(7)}>일주일</Button>
-                <Button variant="outlined" size="small" sx={{ bgcolor: 'white' }} onClick={() => setPeriod(30)}>1개월</Button>
-                
-                <Box sx={{ flexGrow: 1 }} />
-                
-                <Button 
-                  variant="outlined" 
-                  color="success"
-                  startIcon={<FileDownloadIcon />} 
-                  onClick={handleExportExcel}
-                  disabled={baseFilteredOrders.length === 0}
-                  sx={{ bgcolor: 'white' }}
-                >
-                  엑셀 다운로드
-                </Button>
-
-                <Button 
-                  variant="outlined" 
-                  color="secondary"
-                  startIcon={syncing ? <CircularProgress size={20} color="inherit" /> : <SyncIcon />} 
-                  onClick={handleSync}
-                  disabled={syncing}
-                  sx={{ ml: 1, bgcolor: 'white' }}
-                >
-                  {syncing ? '수집 중...' : (selectedMall === 'all' ? '전체 쇼핑몰 수집' : '선택된 쇼핑몰 주문 수집')}
-                </Button>
-              </Box>
+                  {/* Row 3: 검색명 입력 & 버튼 그룹 */}
+                  <Grid item xs={12}>
+                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                      <TextField
+                        size="small"
+                        label="통합 검색 (주문번호, 이름, 상품명 등)"
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        InputProps={{
+                          startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>
+                        }}
+                        sx={{ flexGrow: 1, maxWidth: 500, bgcolor: 'white' }}
+                      />
+                      <Button variant="contained" onClick={() => fetchOrders()} sx={{ bgcolor: '#3182f6' }}>검색</Button>
+                      <Button variant="outlined" onClick={() => { setSearchQuery(''); setStatusFilter('all'); setTransferFilter('all'); setBadgeFilter('all'); setPeriod(0); }}>초기화</Button>
+                      
+                      <Box sx={{ flexGrow: 1 }} />
+                      
+                      <Button 
+                        variant="outlined" 
+                        color="success"
+                        startIcon={<FileDownloadIcon />} 
+                        onClick={handleExportExcel}
+                        disabled={baseFilteredOrders.length === 0}
+                        sx={{ bgcolor: 'white' }}
+                      >
+                        엑셀 다운로드
+                      </Button>
+                      <Button 
+                        variant="outlined" 
+                        color="secondary"
+                        startIcon={syncing ? <CircularProgress size={20} color="inherit" /> : <SyncIcon />} 
+                        onClick={handleSync}
+                        disabled={syncing}
+                        sx={{ bgcolor: 'white' }}
+                      >
+                        {syncing ? '수집 중...' : (selectedMall === 'all' ? '전체 쇼핑몰 수집' : '선택된 쇼핑몰 주문 수집')}
+                      </Button>
+                    </Stack>
+                  </Grid>
+                  
+                </Grid>
+              </Paper>
 
               {/* 두 번째 줄: 실행 액션 관리들 */}
               <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, p: 1.5, bgcolor: '#e3f2fd', borderRadius: 1 }}>

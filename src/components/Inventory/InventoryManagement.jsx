@@ -38,7 +38,11 @@ import {
   InputAdornment,
   Popover,
   Checkbox,
-  Tooltip
+  Tooltip,
+  FormControl,
+  InputLabel,
+  Select,
+  ButtonGroup
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -2595,183 +2599,133 @@ function InventoryManagement() {
       {/* 거래 내역 탭 */}
       {activeTab === 1 && (
         <Box>
-          {/* 필터 옵션 */}
-          <Card sx={{ p: 2, mb: 3 }}>
-            <Typography variant="h6" sx={{ mb: 2 }}>
-              필터 옵션
-            </Typography>
-            
-            {/* 날짜 필터 버튼 */}
-            <Box sx={{ mb: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-              <Button
-                size="small"
-                variant={dateFilter === 'all' ? 'contained' : 'outlined'}
-                onClick={() => handleDateFilterClick('all')}
-              >
-                전체
-              </Button>
-              <Button
-                size="small"
-                variant={dateFilter === 'today' ? 'contained' : 'outlined'}
-                onClick={() => handleDateFilterClick('today')}
-              >
-                당일
-              </Button>
-              <Button
-                size="small"
-                variant={dateFilter === 'week' ? 'contained' : 'outlined'}
-                onClick={() => handleDateFilterClick('week')}
-              >
-                이번주
-              </Button>
-              <Button
-                size="small"
-                variant={dateFilter === 'month' ? 'contained' : 'outlined'}
-                onClick={() => handleDateFilterClick('month')}
-              >
-                당월
-              </Button>
-            </Box>
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={2}>
-                <TextField
-                  select
-                  fullWidth
-                  size="small"
-                  label="거래 유형"
-                  value={filter.type}
-                  onChange={(e) => setFilter(prev => ({ ...prev, type: e.target.value }))}
-                >
-                  <MenuItem value="all">전체</MenuItem>
-                  <MenuItem value="in">입고</MenuItem>
-                  <MenuItem value="out">출고</MenuItem>
-                </TextField>
+          {/* 검색/기간 통합 필터 UI */}
+          <Paper sx={{ p: 2, mb: 3 }}>
+            <Grid container spacing={2} alignItems="center">
+              
+              {/* 거래 유형 & 정렬 드롭다운 */}
+              <Grid item xs={12} md="auto">
+                <Stack direction="row" spacing={1}>
+                  <FormControl size="small" sx={{ width: 120 }}>
+                    <InputLabel>거래 유형</InputLabel>
+                    <Select
+                      value={filter.type}
+                      label="거래 유형"
+                      onChange={(e) => setFilter(prev => ({ ...prev, type: e.target.value }))}
+                    >
+                      <MenuItem value="all">전체</MenuItem>
+                      <MenuItem value="in">입고</MenuItem>
+                      <MenuItem value="out">출고</MenuItem>
+                    </Select>
+                  </FormControl>
+
+                  <FormControl size="small" sx={{ width: 130 }}>
+                    <InputLabel>정렬 기준</InputLabel>
+                    <Select
+                      value={filter.sortBy}
+                      label="정렬 기준"
+                      onChange={(e) => setFilter(prev => ({ ...prev, sortBy: e.target.value }))}
+                    >
+                      <MenuItem value="date">날짜</MenuItem>
+                      <MenuItem value="type">유형</MenuItem>
+                      <MenuItem value="product">상품</MenuItem>
+                      <MenuItem value="quantity">수량</MenuItem>
+                      <MenuItem value="from">출발지</MenuItem>
+                      <MenuItem value="to">목적지</MenuItem>
+                      <MenuItem value="note">메모</MenuItem>
+                    </Select>
+                  </FormControl>
+
+                  <FormControl size="small" sx={{ width: 120 }}>
+                    <InputLabel>정렬</InputLabel>
+                    <Select
+                      value={filter.sortOrder}
+                      label="정렬"
+                      onChange={(e) => setFilter(prev => ({ ...prev, sortOrder: e.target.value }))}
+                    >
+                      <MenuItem value="asc">오름차순</MenuItem>
+                      <MenuItem value="desc">내림차순</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Stack>
               </Grid>
-              <Grid item xs={12} md={2}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="시작 날짜"
-                  type="date"
-                  value={filter.dateFrom}
-                  onChange={(e) => setFilter(prev => ({ ...prev, dateFrom: e.target.value }))}
-                  InputLabelProps={{ shrink: true }}
-                />
+
+              {/* 날짜 필터 & 퀵버튼 */}
+              <Grid item xs={12} md>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ overflowX: 'auto', pb: 0.5, '&::-webkit-scrollbar': { height: '6px' }, '&::-webkit-scrollbar-thumb': { backgroundColor: '#e0e0e0', borderRadius: '4px' } }}>
+                  <ButtonGroup size="small" variant="outlined" sx={{ flexShrink: 0 }}>
+                    <Button variant={dateFilter === 'all' ? 'contained' : 'outlined'} onClick={() => handleDateFilterClick('all')}>전체</Button>
+                    <Button variant={dateFilter === 'today' ? 'contained' : 'outlined'} onClick={() => handleDateFilterClick('today')}>당일</Button>
+                    <Button variant={dateFilter === 'week' ? 'contained' : 'outlined'} onClick={() => handleDateFilterClick('week')}>이번주</Button>
+                    <Button variant={dateFilter === 'month' ? 'contained' : 'outlined'} onClick={() => handleDateFilterClick('month')}>당월</Button>
+                  </ButtonGroup>
+
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <TextField
+                      size="small"
+                      type="date"
+                      value={filter.dateFrom}
+                      onChange={(e) => setFilter(prev => ({ ...prev, dateFrom: e.target.value }))}
+                      InputLabelProps={{ shrink: true }}
+                      sx={{ width: 140 }}
+                    />
+                    <Typography variant="body2">~</Typography>
+                    <TextField
+                      size="small"
+                      type="date"
+                      value={filter.dateTo}
+                      onChange={(e) => setFilter(prev => ({ ...prev, dateTo: e.target.value }))}
+                      InputLabelProps={{ shrink: true }}
+                      sx={{ width: 140 }}
+                    />
+                  </Box>
+                </Stack>
               </Grid>
-              <Grid item xs={12} md={2}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="종료 날짜"
-                  type="date"
-                  value={filter.dateTo}
-                  onChange={(e) => setFilter(prev => ({ ...prev, dateTo: e.target.value }))}
-                  InputLabelProps={{ shrink: true }}
-                />
-              </Grid>
-              <Grid item xs={12} md={2}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="출발지 검색"
-                  value={filter.fromLocation}
-                  onChange={(e) => setFilter(prev => ({ ...prev, fromLocation: e.target.value }))}
-                />
-              </Grid>
-              <Grid item xs={12} md={2}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="목적지 검색"
-                  value={filter.toLocation}
-                  onChange={(e) => setFilter(prev => ({ ...prev, toLocation: e.target.value }))}
-                />
-              </Grid>
-              <Grid item xs={12} md={2}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="상품 검색"
-                  value={filter.product}
-                  onChange={(e) => setFilter(prev => ({ ...prev, product: e.target.value }))}
-                />
-              </Grid>
-              <Grid item xs={12} md={2}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="메모 검색"
-                  value={filter.note}
-                  onChange={(e) => setFilter(prev => ({ ...prev, note: e.target.value }))}
-                />
-              </Grid>
-              <Grid item xs={12} md={3}>
-                <TextField
-                  select
-                  fullWidth
-                  size="small"
-                  label="정렬 기준"
-                  value={filter.sortBy}
-                  onChange={(e) => setFilter(prev => ({ ...prev, sortBy: e.target.value }))}
-                >
-                  <MenuItem value="date">날짜</MenuItem>
-                  <MenuItem value="type">유형</MenuItem>
-                  <MenuItem value="product">상품</MenuItem>
-                  <MenuItem value="quantity">수량</MenuItem>
-                  <MenuItem value="from">출발지</MenuItem>
-                  <MenuItem value="to">목적지</MenuItem>
-                  <MenuItem value="note">메모</MenuItem>
-                </TextField>
-              </Grid>
-              <Grid item xs={12} md={1.5}>
-                <TextField
-                  select
-                  fullWidth
-                  size="small"
-                  label="정렬"
-                  value={filter.sortOrder}
-                  onChange={(e) => setFilter(prev => ({ ...prev, sortOrder: e.target.value }))}
-                >
-                  <MenuItem value="asc">오름차순</MenuItem>
-                  <MenuItem value="desc">내림차순</MenuItem>
-                </TextField>
-              </Grid>
-              <Grid item xs={12} md={1.5}>
-                <Button
-                  fullWidth
-                  variant="contained"
-                  startIcon={<SearchIcon />}
-                  onClick={() => {
-                    showSnackbar('필터가 적용되었습니다.', 'success');
-                  }}
-                >
-                  검색
-                </Button>
-              </Grid>
-              <Grid item xs={12} md={1.5}>
-                <Button
-                  fullWidth
-                  variant="outlined"
-                  onClick={() => {
+
+              {/* 검색명 입력 & 버튼 그룹 */}
+              <Grid item xs={12}>
+                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                  <TextField
+                    size="small"
+                    label="상품명 검색"
+                    value={filter.product}
+                    onChange={(e) => setFilter(prev => ({ ...prev, product: e.target.value }))}
+                    sx={{ width: 150 }}
+                  />
+                  <TextField
+                    size="small"
+                    label="출발지 검색"
+                    value={filter.fromLocation}
+                    onChange={(e) => setFilter(prev => ({ ...prev, fromLocation: e.target.value }))}
+                    sx={{ width: 150 }}
+                  />
+                  <TextField
+                    size="small"
+                    label="목적지 검색"
+                    value={filter.toLocation}
+                    onChange={(e) => setFilter(prev => ({ ...prev, toLocation: e.target.value }))}
+                    sx={{ width: 150 }}
+                  />
+                  <TextField
+                    size="small"
+                    label="메모 검색"
+                    value={filter.note}
+                    onChange={(e) => setFilter(prev => ({ ...prev, note: e.target.value }))}
+                    sx={{ width: 150 }}
+                  />
+                  
+                  <Button variant="contained" onClick={() => showSnackbar('필터가 적용되었습니다.', 'success')} sx={{ bgcolor: '#3182f6' }}>검색</Button>
+                  <Button variant="outlined" onClick={() => {
                     setFilter({
-                      dateFrom: '',
-                      dateTo: '',
-                      fromLocation: '',
-                      toLocation: '',
-                      product: '',
-                      note: '',
-                      type: 'all',
-                      sortBy: 'date',
-                      sortOrder: 'desc'
+                      dateFrom: '', dateTo: '', fromLocation: '', toLocation: '', product: '', note: '', type: 'all', sortBy: 'date', sortOrder: 'desc'
                     });
                     setDateFilter('all');
-                  }}
-                >
-                  초기화
-                </Button>
+                  }}>초기화</Button>
+                </Stack>
               </Grid>
+
             </Grid>
-          </Card>
+          </Paper>
 
           {/* 거래 내역 보기 전환 및 렌더 */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
