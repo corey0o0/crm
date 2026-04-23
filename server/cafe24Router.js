@@ -404,7 +404,7 @@ module.exports = function(supabaseAdmin) {
       if (order.items && order.items.length > 0) {
         formattedItems = order.items.map(item => {
           const code = item.product_code || item.custom_product_code || '';
-          const customCode = (item.custom_item_code || item.custom_product_code) ? String(item.custom_item_code || item.custom_product_code).trim() : '';
+          const customCode = (item.custom_variant_code || item.custom_item_code || item.custom_product_code) ? String(item.custom_variant_code || item.custom_item_code || item.custom_product_code).trim() : '';
           
           let matchedPartId = null;
           if (customCode && barcodeToPartIdMap[customCode]) {
