@@ -490,10 +490,10 @@ export default function ManualSalesList({ isEmbedded = false }) {
         </Grid>
       </Paper>
 
-      <TableContainer component={Paper} sx={{ width: '100%', overflowX: 'auto' }}>
-        <Table size="small" sx={{ minWidth: 650, width: '100%', tableLayout: 'auto', border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
+      <TableContainer component={Paper} sx={{ width: '100%', overflowX: 'auto', maxHeight: 'calc(100vh - 280px)' }}>
+        <Table stickyHeader size="small" sx={{ minWidth: 650, width: '100%', tableLayout: 'auto', border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
           <TableHead>
-            <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+            <TableRow sx={{ '& th': { bgcolor: '#f5f5f5' } }}>
               <TableCell padding="checkbox">
                 <Checkbox
                   color="primary"

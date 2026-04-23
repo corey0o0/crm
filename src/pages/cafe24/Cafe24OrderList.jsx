@@ -1272,8 +1272,8 @@ export default function Cafe24OrderList() {
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-      <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
-        <Table size="small" sx={{ 
+      <TableContainer component={Paper} sx={{ overflowX: 'auto', maxHeight: 'calc(100vh - 280px)' }}>
+        <Table stickyHeader size="small" sx={{ 
           minWidth: '100%', 
           border: '1px solid rgba(224, 224, 224, 1)',
           '& th, & td': { 
@@ -1288,10 +1288,11 @@ export default function Cafe24OrderList() {
           },
           '& .MuiTableHead-root .MuiTableCell-root': {
             fontWeight: 600,
-            fontSize: '0.85rem'
+            fontSize: '0.85rem',
+            backgroundColor: '#f5f5f5'
           }
         }}>
-          <TableHead sx={{ bgcolor: '#f5f5f5' }}>
+          <TableHead>
             <TableRow>
               <TableCell padding="checkbox">
                 <Checkbox
