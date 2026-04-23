@@ -1049,6 +1049,53 @@ export default function Cafe24OrderList() {
     }
   };
 
+  const renderActionBar = () => (
+    <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, p: 1.5, bgcolor: '#e3f2fd', borderRadius: 1 }}>
+      <Typography variant="body2" sx={{ mr: 2, fontWeight: 'bold', color: '#1565c0' }}>
+        총 {filteredOrders.length}건 검색됨 {selectedOrders.length > 0 && `(현재 ${selectedOrders.length}건 선택됨)`}
+      </Typography>
+      
+      {selectedOrders.length > 0 ? (
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, ml: 'auto', alignItems: 'center' }}>
+          <FormControl size="small" sx={{ minWidth: 140, bgcolor: 'white' }}>
+            <InputLabel>선택 일괄 창고지정</InputLabel>
+            <Select 
+              value={batchWarehouse} 
+              onChange={e => setBatchWarehouse(e.target.value)}
+              label="선택 일괄 창고지정"
+            >
+              <MenuItem value=""><em>미선택</em></MenuItem>
+              {warehouses.map(w => <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>)}
+            </Select>
+          </FormControl>
+          <Button size="small" variant="contained" color="secondary" onClick={handleBatchApplyWarehouse} sx={{ height: 40, px: 2, whiteSpace: 'nowrap' }}>
+            일괄적용
+          </Button>
+          <Box sx={{ width: '1px', height: 30, bgcolor: 'divider', mx: 1 }} />
+          <Button size="small" variant="outlined" color="error" onClick={handleDeleteSelected} sx={{ height: 40, px: 2, whiteSpace: 'nowrap' }}>
+            삭제
+          </Button>
+          <Button size="small" variant="contained" color="error" onClick={handleCancelTransfer} sx={{ height: 40, lineHeight: 1.2, px: 2, textAlign: 'center' }}>
+            판매반영<br/>취소
+          </Button>
+          <Button size="small" variant="outlined" color="warning" onClick={handleIgnoreOrders} sx={{ height: 40, lineHeight: 1.2, px: 2, textAlign: 'center' }}>
+            판매반영<br/>예외(무시)
+          </Button>
+          <Button size="small" variant="outlined" color="info" onClick={handleUnignoreOrders} sx={{ height: 40, lineHeight: 1.2, px: 2, textAlign: 'center' }}>
+            무시<br/>복구
+          </Button>
+          <Button size="small" variant="contained" color="primary" onClick={handleSalesTransfer} sx={{ height: 40, lineHeight: 1.2, px: 2, textAlign: 'center' }}>
+            판매반영<br/>(전송)
+          </Button>
+        </Box>
+      ) : (
+        <Typography variant="caption" sx={{ ml: 'auto', color: 'text.secondary' }}>
+          주문을 체크하면 '판매 반영(매출 연동)' 및 삭제 메뉴가 활성화됩니다.
+        </Typography>
+      )}
+    </Box>
+  );
+
   return (
     <Box sx={{ width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
       <Typography variant="h5" fontWeight="bold" sx={{ mb: 2 }}>온라인주문관리</Typography>
@@ -1219,51 +1266,8 @@ export default function Cafe24OrderList() {
                 </Grid>
               </Paper>
 
-              {/* 두 번째 줄: 실행 액션 관리들 */}
-              <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, p: 1.5, bgcolor: '#e3f2fd', borderRadius: 1 }}>
-                <Typography variant="body2" sx={{ mr: 2, fontWeight: 'bold', color: '#1565c0' }}>
-                  총 {filteredOrders.length}건 검색됨 {selectedOrders.length > 0 && `(현재 ${selectedOrders.length}건 선택됨)`}
-                </Typography>
-                
-                {selectedOrders.length > 0 ? (
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, ml: 'auto', alignItems: 'center' }}>
-                    <FormControl size="small" sx={{ minWidth: 140, bgcolor: 'white' }}>
-                      <InputLabel>선택 일괄 창고지정</InputLabel>
-                      <Select 
-                        value={batchWarehouse} 
-                        onChange={e => setBatchWarehouse(e.target.value)}
-                        label="선택 일괄 창고지정"
-                      >
-                        <MenuItem value=""><em>미선택</em></MenuItem>
-                        {warehouses.map(w => <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>)}
-                      </Select>
-                    </FormControl>
-                    <Button size="small" variant="contained" color="secondary" onClick={handleBatchApplyWarehouse} sx={{ height: 40, px: 2, whiteSpace: 'nowrap' }}>
-                      일괄적용
-                    </Button>
-                    <Box sx={{ width: '1px', height: 30, bgcolor: 'divider', mx: 1 }} />
-                    <Button size="small" variant="outlined" color="error" onClick={handleDeleteSelected} sx={{ height: 40, px: 2, whiteSpace: 'nowrap' }}>
-                      삭제
-                    </Button>
-                    <Button size="small" variant="contained" color="error" onClick={handleCancelTransfer} sx={{ height: 40, lineHeight: 1.2, px: 2, textAlign: 'center' }}>
-                      판매반영<br/>취소
-                    </Button>
-                    <Button size="small" variant="outlined" color="warning" onClick={handleIgnoreOrders} sx={{ height: 40, lineHeight: 1.2, px: 2, textAlign: 'center' }}>
-                      판매반영<br/>예외(무시)
-                    </Button>
-                    <Button size="small" variant="outlined" color="info" onClick={handleUnignoreOrders} sx={{ height: 40, lineHeight: 1.2, px: 2, textAlign: 'center' }}>
-                      무시<br/>복구
-                    </Button>
-                    <Button size="small" variant="contained" color="primary" onClick={handleSalesTransfer} sx={{ height: 40, lineHeight: 1.2, px: 2, textAlign: 'center' }}>
-                      판매반영<br/>(전송)
-                    </Button>
-                  </Box>
-                ) : (
-                  <Typography variant="caption" sx={{ ml: 'auto', color: 'text.secondary' }}>
-                    주문을 체크하면 '판매 반영(매출 연동)' 및 삭제 메뉴가 활성화됩니다.
-                  </Typography>
-                )}
-              </Box>
+              {/* 두 번째 줄: 실행 액션 관리들 (위쪽) */}
+              {renderActionBar()}
             </Box>
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
@@ -1545,6 +1549,11 @@ export default function Cafe24OrderList() {
           </TableBody>
         </Table>
       </TableContainer>
+
+      {/* 테이블 하단에도 실행 액션 관리들 (아래쪽) 배치 */}
+      <Box sx={{ mt: 2, mb: 4 }}>
+        {renderActionBar()}
+      </Box>
       
       <TablePagination
         component="div"
