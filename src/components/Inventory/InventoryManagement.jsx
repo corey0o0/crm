@@ -2304,7 +2304,7 @@ function InventoryManagement() {
   }, []);
 
   return (
-    <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+    <Box sx={{ width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
       {/* 헤더 */}
       <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Typography variant="h5" fontWeight="bold">
@@ -4775,7 +4775,7 @@ function InventoryManagement() {
         onError={handleBarcodeScanError}
       />
 
-    </Container>
+    </Box>
   );
 }
 
