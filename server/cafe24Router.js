@@ -367,7 +367,7 @@ module.exports = function(supabaseAdmin) {
             const chunkIds = orderIdsToFetch.slice(i, i + 100).join(',');
             const fetchOldOrders = async (token) => {
                return await axios.get(`https://${mall_id}.cafe24api.com/api/v2/admin/orders`, {
-                 params: { order_id: chunkIds, embed: 'items,buyer,receivers' },
+                 params: { order_id: chunkIds, start_date: '2020-01-01', end_date: new Date().toISOString().split('T')[0], embed: 'items,buyer,receivers' },
                  headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Cafe24-Api-Version': '2026-03-01' }
                });
             };
