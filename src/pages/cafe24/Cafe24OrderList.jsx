@@ -7,7 +7,7 @@ import {
 import { Sync as SyncIcon, PersonAdd as PersonAddIcon, Search as SearchIcon, Edit as EditIcon, PlaylistAdd as PlaylistAddIcon, Close as CloseIcon, FileDownload as FileDownloadIcon } from '@mui/icons-material';
 import Cafe24Settings from '../../components/Settings/Cafe24Settings';
 import { supabase } from '../../lib/supabaseClient';
-import { getCafe24Malls, syncCafe24Orders, addCafe24ProductMapping, transferCafe24Orders, cancelSalesTransfer, returnCafe24Inventory } from '../../utils/cafe24Api';
+import { getCafe24Malls, syncCafe24Orders, addCafe24ProductMapping, getCafe24ProductMappings, deleteCafe24ProductMapping,  transferCafe24Orders, cancelSalesTransfer, returnCafe24Inventory } from '../../utils/cafe24Api';
 import { agencyApi } from '../../api/agencyApi';
 import { warehouseApi } from '../../api/warehouseApi';
 
@@ -109,6 +109,10 @@ export default function Cafe24OrderList() {
   const [availableParts, setAvailableParts] = useState([]);
   const [selectedPart, setSelectedPart] = useState(null);
   const [mappingSaving, setMappingSaving] = useState(false);
+
+  const [mappingListModalOpen, setMappingListModalOpen] = useState(false);
+  const [mappingsList, setMappingsList] = useState([]);
+  const [mappingsLoading, setMappingsLoading] = useState(false);
 
   // 커스텀 알림창 상태
   const [confirmDialog, setConfirmDialog] = useState({ open: false, title: '', message: '', onConfirm: null });
@@ -835,14 +839,56 @@ export default function Cafe24OrderList() {
     setMappingSaving(true);
     try {
       await addCafe24ProductMapping(mappingItem.mall_id, mappingItem.product_code, selectedPart.id);
-      alert('수동 매핑이 저장되었습니다. 동기화를 다시 실행하여 반영할 수 있습니다.');
+      
+      // 즉시 로컬 상태의 order_items 업데이트 (서버에서는 이미 처리됨)
+      setOrders(prevOrders => prevOrders.map(order => {
+        if (!order.order_items) return order;
+        let modified = false;
+        const newItems = order.order_items.map(item => {
+           const code = item.custom_product_code || item.product_code || item.raw_custom_variant || item.raw_custom_product;
+           if (String(code).trim() === String(mappingItem.product_code).trim() && !item.part_id) {
+             modified = true;
+             return { ...item, part_id: selectedPart.id };
+           }
+           return item;
+        });
+        if (modified) return { ...order, order_items: newItems };
+        return order;
+      }));
+
+      alert('수동 매핑이 저장되어 해당 상품 코드의 누락된 매칭이 즉시 반영되었습니다.');
       setMappingModalOpen(false);
-      // 재동기화 권장
-      handleSync();
     } catch (err) {
       alert(err.message);
     } finally {
       setMappingSaving(false);
+    }
+  };
+
+  const loadMappingsList = async () => {
+    setMappingsLoading(true);
+    try {
+      const data = await getCafe24ProductMappings();
+      setMappingsList(data || []);
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setMappingsLoading(false);
+    }
+  };
+
+  const handleOpenMappingList = () => {
+    setMappingListModalOpen(true);
+    loadMappingsList();
+  };
+
+  const handleDeleteMapping = async (mapping) => {
+    if (!window.confirm(`이 상품의 매핑을 삭제하시겠습니까?\n(${mapping.cafe24_product_code})`)) return;
+    try {
+      await deleteCafe24ProductMapping(mapping.mall_id, mapping.cafe24_product_code);
+      setMappingsList(prev => prev.filter(m => m.cafe24_product_code !== mapping.cafe24_product_code));
+    } catch (e) {
+      alert(e.message);
     }
   };
 
@@ -1158,6 +1204,14 @@ export default function Cafe24OrderList() {
                         sx={{ bgcolor: 'white' }}
                       >
                         {syncing ? '수집 중...' : (selectedMall === 'all' ? '전체 쇼핑몰 수집' : '선택된 쇼핑몰 주문 수집')}
+                      </Button>
+                      <Button 
+                        variant="outlined" 
+                        color="primary"
+                        onClick={handleOpenMappingList}
+                        sx={{ bgcolor: 'white' }}
+                      >
+                        수동 매핑 관리
                       </Button>
                     </Stack>
                   </Grid>
@@ -1554,6 +1608,46 @@ export default function Cafe24OrderList() {
           >
             {mappingSaving ? '저장중...' : '매핑 저장'}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 수동 매핑 관리(목록) 모달 */}
+      <Dialog open={mappingListModalOpen} onClose={() => setMappingListModalOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>수동 상품 매핑 관리</DialogTitle>
+        <DialogContent dividers>
+          {mappingsLoading ? (
+            <Box display="flex" justifyContent="center" p={3}><CircularProgress /></Box>
+          ) : mappingsList.length === 0 ? (
+            <Typography align="center" color="text.secondary" p={2}>등록된 수동 매핑이 없습니다.</Typography>
+          ) : (
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
+                <TableHead sx={{ bgcolor: '#f5f5f5' }}>
+                  <TableRow>
+                    <TableCell>쇼핑몰</TableCell>
+                    <TableCell>카페24 자체품목코드 (또는 상품코드)</TableCell>
+                    <TableCell>CRM 매핑된 부품명</TableCell>
+                    <TableCell align="center">관리</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {mappingsList.map(item => (
+                    <TableRow key={`${item.mall_id}-${item.cafe24_product_code}`}>
+                      <TableCell>{item.mall_id}</TableCell>
+                      <TableCell><code>{item.cafe24_product_code}</code></TableCell>
+                      <TableCell>{item.parts?.name}</TableCell>
+                      <TableCell align="center">
+                        <Button color="error" size="small" onClick={() => handleDeleteMapping(item)}>삭제</Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setMappingListModalOpen(false)}>닫기</Button>
         </DialogActions>
       </Dialog>
 

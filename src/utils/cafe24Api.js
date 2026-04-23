@@ -217,3 +217,25 @@ export async function returnCafe24Inventory(orderIds) {
   }
   return resp.json();
 }
+
+export async function getCafe24ProductMappings() {
+  const resp = await fetch(`${BACKEND_URL}/api/cafe24/mappings`);
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error || '수동 매핑 목록 조회 실패');
+  }
+  return resp.json();
+}
+
+export async function deleteCafe24ProductMapping(mall_id, cafe24_product_code) {
+  const resp = await fetch(`${BACKEND_URL}/api/cafe24/mappings`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mall_id, cafe24_product_code })
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error || '매핑 삭제 실패');
+  }
+  return resp.json();
+}

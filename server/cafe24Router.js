@@ -596,6 +596,23 @@ module.exports = function(supabaseAdmin) {
       res.status(500).json({ error: e.message });
     }
   });
+  // 3.5. 수동 매핑 목록 조회 API
+  router.get('/mappings', async (req, res) => {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('cafe24_product_to_part')
+        .select(`
+          mall_id, 
+          cafe24_product_code, 
+          part_id,
+          parts ( name )
+        `);
+      if (error) throw error;
+      res.json(data);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
 
   // 4. 수동 매핑 추가/수정 API
   router.post('/mappings', async (req, res) => {
@@ -615,7 +632,46 @@ module.exports = function(supabaseAdmin) {
       });
       if (insError) throw insError;
 
+      // 즉시 기존 미전송 주문들에 반영
+      const { data: activeOrders } = await supabaseAdmin.from('cafe24_orders').select('id, order_items').eq('mall_id', mall_id).eq('is_transferred', false).eq('is_deleted', false);
+      if (activeOrders && activeOrders.length > 0) {
+        for (const o of activeOrders) {
+           if (!o.order_items) continue;
+           let modified = false;
+           const newItems = o.order_items.map(item => {
+              const code = item.custom_product_code || item.product_code || item.raw_custom_variant || item.raw_custom_product;
+              if (String(code).trim() === String(cafe24_product_code).trim() && !item.part_id) {
+                 modified = true;
+                 return { ...item, part_id: part_id };
+              }
+              return item;
+           });
+           if (modified) {
+             await supabaseAdmin.from('cafe24_orders').update({ order_items: newItems }).eq('id', o.id);
+           }
+        }
+      }
+
       res.json({ success: true, message: '매핑이 저장되었습니다.' });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // 4.5. 수동 매핑 삭제 API
+  router.delete('/mappings', async (req, res) => {
+    try {
+      const { mall_id, cafe24_product_code } = req.body;
+      if (!mall_id || !cafe24_product_code) {
+         return res.status(400).json({ error: '필수 파라미터 누락' });
+      }
+
+      const { error } = await supabaseAdmin.from('cafe24_product_to_part').delete()
+        .eq('mall_id', mall_id)
+        .eq('cafe24_product_code', cafe24_product_code);
+        
+      if (error) throw error;
+      res.json({ success: true, message: '매핑이 삭제되었습니다.' });
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
