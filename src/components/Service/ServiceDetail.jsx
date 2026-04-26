@@ -950,48 +950,30 @@ function ServiceDetail() {
         }
       }
 
-      // 재고 차감 처리 (상태가 "완료"인 경우)
+      // 재고 차감/동기화 처리 (상태와 무관하게 부품이 있거나 기존 차감 내역이 있으면 항상 동기화)
       let inventoryMessage = '';
       let pendingOrderMessage = '';
-      if (formData.status === '완료') {
-        try {
-          console.log(`A/S 완료 처리 시작 - 서비스ID: ${id}, 브랜드: ${formData.brand}`);
+      
+      try {
+        console.log(`A/S 재고 동기화 시작 - 서비스ID: ${id}, 브랜드: ${formData.brand}`);
 
-          const inventoryResult = await processServiceCompletion(id, formData.brand);
+        const inventoryResult = await processServiceCompletion(id, formData.brand);
 
-          if (inventoryResult.success) {
-            if (inventoryResult.message) {
-              inventoryMessage = ` (${inventoryResult.message})`;
-            }
-          } else {
-            inventoryMessage = ` 하지만 재고 차감 중 오류 발생: ${inventoryResult.message}`;
-            console.error('재고 차감 오류 상세:', inventoryResult.errors);
+        if (inventoryResult.success) {
+          if (inventoryResult.results && inventoryResult.results.length > 0) {
+             const deducted = inventoryResult.results.filter(r => r.change_type === 'deducted').length;
+             const restored = inventoryResult.results.filter(r => r.change_type === 'restored').length;
+             if (deducted > 0 || restored > 0) {
+               inventoryMessage = ` (재고 동기화: 차감 ${deducted}건, 복구 ${restored}건)`;
+             }
           }
-        } catch (inventoryError) {
-          console.error('재고 차감 처리 중 예외:', inventoryError);
-          inventoryMessage = ` 하지만 재고 차감 중 오류 발생: ${inventoryError.message}`;
+        } else {
+          inventoryMessage = ` 하지만 재고 동기화 중 오류 발생: ${inventoryResult.message}`;
+          console.error('재고 동기화 오류 상세:', inventoryResult.errors);
         }
-
-        // 주문대기 추가 처리 (비활성화됨)
-        // try {
-        //   console.log(`주문대기 추가 시작 - 서비스ID: ${id}, 브랜드: ${formData.brand}`);
-        //   
-        //   const pendingOrderResult = await addServicePartsToPendingOrders(id, formData.brand);
-        //   
-        //   if (pendingOrderResult.success) {
-        //     if (pendingOrderResult.skipped) {
-        //       pendingOrderMessage = ` 주문대기: ${pendingOrderResult.message}`;
-        //     } else {
-        //       pendingOrderMessage = ` 주문대기: ${pendingOrderResult.message}`;
-        //     }
-        //   } else {
-        //     pendingOrderMessage = ` 주문대기 추가 실패: ${pendingOrderResult.message}`;
-        //     console.error('주문대기 추가 오류:', pendingOrderResult.message);
-        //   }
-        // } catch (pendingOrderError) {
-        //   console.error('주문대기 추가 중 예외:', pendingOrderError);
-        //   pendingOrderMessage = ` 주문대기 추가 실패: ${pendingOrderError.message}`;
-        // }
+      } catch (inventoryError) {
+        console.error('재고 동기화 처리 중 예외:', inventoryError);
+        inventoryMessage = ` 하지만 재고 동기화 중 오류 발생: ${inventoryError.message}`;
       }
 
       // 모든 DB 작업 완료 후 데이터 다시 불러오기

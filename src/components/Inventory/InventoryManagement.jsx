@@ -266,6 +266,9 @@ function InventoryManagement() {
        if (asData) {
          navigate(`/service/${groupId}`);
          return;
+       } else if (selectedTransaction.note && selectedTransaction.note.includes('[A/S 취소]')) {
+         setSnackbar({ open: true, message: '취소(삭제)되어 원본이 더 이상 존재하지 않는 A/S 전표입니다.', severity: 'info' });
+         return;
        }
     }
     

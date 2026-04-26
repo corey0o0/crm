@@ -387,15 +387,15 @@ export const processServiceCompletion = async (serviceId, brandCode) => {
       if(!warehouseId) throw new Error('A/S 처리에 할당된 창고가 없습니다.');
     }
 
-    // --- ROLLBACK LOGIC ---
-    // 기존 트랜잭션을 합산하여 이전에 차감된 잔여량이 있다면 우선 복구 진행
+    // --- DELTA SYNC LOGIC ---
+    // 1. 기존 트랜잭션을 합산하여 이전에 차감된 잔여량 계산
     const { data: allTxs } = await supabase
       .from('transactions')
       .select('type, product_id, product_name, product_code, quantity, from_location, to_location')
       .eq('group_id', String(serviceId));
       
+    const netDeductions = {};
     if (allTxs && allTxs.length > 0) {
-      const netDeductions = {};
       allTxs.forEach(tx => {
         const whId = tx.type === 'out' ? tx.from_location : tx.to_location;
         const key = `${tx.product_id}_${whId}`;
@@ -410,39 +410,125 @@ export const processServiceCompletion = async (serviceId, brandCode) => {
         }
         netDeductions[key].net_qty += (tx.type === 'out' ? tx.quantity : -tx.quantity);
       });
-      
-      const revertParts = Object.values(netDeductions)
-        .filter(tx => tx.net_qty > 0)
-        .map(tx => ({
-          part_id: tx.part_id,
-          part_name: tx.part_name,
-          part_code: tx.part_code,
-          quantity: tx.net_qty,
-          warehouse_id: tx.warehouse_id
-        }));
-
-      if (revertParts.length > 0) {
-        console.log(`[A/S Rollback] 기존 차감 잔액 복구 시작 (${revertParts.length}품목)`);
-        const revertResult = await processInventory(warehouseId, revertParts, brandCode, serviceId, 'service', 'service_revert', true);
-        if (!revertResult.success) {
-           console.error('기존 재고 롤백 중 오류 발생:', revertResult);
-        }
-      }
     }
-    // --- END ROLLBACK LOGIC ---
 
+    // 2. 현재 저장된 A/S 부품의 유효 필요 수량 계산
+    const { data: serviceParts, error } = await supabase
+      .from('service_parts')
+      .select('part_id, quantity, usage, parts(name, code)')
+      .eq('service_id', serviceId);
 
-    const { data: serviceParts, error } = await supabase.from('service_parts').select('part_id, quantity, parts(name, code)').eq('service_id', serviceId);
-    if (error || !serviceParts || serviceParts.length === 0) return { success: true, results: [] };
+    if (error) throw new Error('A/S 부품 정보를 불러오지 못했습니다.');
 
-    const parts = serviceParts.map(sp => ({
-      part_id: sp.part_id, part_name: sp.parts?.name || 'Unknown', part_code: sp.parts?.code || 'Unknown', quantity: sp.quantity, warehouse_id: warehouseId
-    }));
+    const effectiveParts = {};
+    if (serviceParts && serviceParts.length > 0) {
+      serviceParts.forEach(sp => {
+        let returnedQty = 0;
+        if (sp.usage && sp.usage.includes('[반품완료]')) {
+          returnedQty = sp.quantity;
+        } else if (sp.usage) {
+          const matches = sp.usage.match(/\[부분반품:(\d+)개\]/g);
+          if (matches) {
+            matches.forEach(m => {
+              const qtyMatch = m.match(/\[부분반품:(\d+)개\]/);
+              if (qtyMatch && qtyMatch[1]) {
+                returnedQty += parseInt(qtyMatch[1], 10);
+              }
+            });
+          }
+        }
+        
+        const effectiveQty = Math.max(0, sp.quantity - returnedQty);
+        
+        if (effectiveQty > 0) {
+          const key = `${sp.part_id}_${warehouseId}`;
+          if (!effectiveParts[key]) {
+            effectiveParts[key] = {
+              part_id: sp.part_id,
+              part_name: sp.parts?.name || 'Unknown',
+              part_code: sp.parts?.code || 'Unknown',
+              warehouse_id: warehouseId,
+              effective_qty: 0
+            };
+          }
+          effectiveParts[key].effective_qty += effectiveQty;
+        }
+      });
+    }
 
-    const result = await processInventory(warehouseId, parts, brandCode, serviceId, 'service', 'service_complete', false);
-    return result;
+    // 3. 차이(Delta) 계산 및 적용
+    const partsToDeduct = [];
+    const partsToRevert = [];
+
+    // effectiveParts에 존재하는 부품 비교
+    Object.keys(effectiveParts).forEach(key => {
+      const needed = effectiveParts[key].effective_qty;
+      const deducted = netDeductions[key] ? netDeductions[key].net_qty : 0;
+      const delta = needed - deducted;
+
+      if (delta > 0) {
+        // 더 차감해야 함 (출고)
+        partsToDeduct.push({
+          part_id: effectiveParts[key].part_id,
+          part_name: effectiveParts[key].part_name,
+          part_code: effectiveParts[key].part_code,
+          quantity: delta,
+          warehouse_id: effectiveParts[key].warehouse_id
+        });
+      } else if (delta < 0) {
+        // 너무 많이 차감됨 (입고/복구)
+        partsToRevert.push({
+          part_id: effectiveParts[key].part_id,
+          part_name: effectiveParts[key].part_name,
+          part_code: effectiveParts[key].part_code,
+          quantity: Math.abs(delta),
+          warehouse_id: effectiveParts[key].warehouse_id
+        });
+      }
+      
+      // 처리한 키는 netDeductions에서 제거
+      if (netDeductions[key]) delete netDeductions[key];
+    });
+
+    // netDeductions에 남아있는 부품은 모두 복구 (effective에 없음 -> 완전 삭제됨)
+    Object.keys(netDeductions).forEach(key => {
+      const deducted = netDeductions[key].net_qty;
+      if (deducted > 0) {
+        partsToRevert.push({
+          part_id: netDeductions[key].part_id,
+          part_name: netDeductions[key].part_name,
+          part_code: netDeductions[key].part_code,
+          quantity: deducted,
+          warehouse_id: netDeductions[key].warehouse_id
+        });
+      }
+    });
+
+    const results = [];
+    
+    if (partsToRevert.length > 0) {
+      console.log(`[A/S Inventory Sync] 기존 차감량 일부 복구 (${partsToRevert.length}품목)`, partsToRevert);
+      const revertResult = await processInventory(warehouseId, partsToRevert, brandCode, serviceId, 'service', 'service_revert', true);
+      if (!revertResult.success) {
+        console.error('재고 복구(Delta) 중 오류 발생:', revertResult);
+        return revertResult;
+      }
+      results.push(...revertResult.results);
+    }
+
+    if (partsToDeduct.length > 0) {
+      console.log(`[A/S Inventory Sync] 신규 필요 수량 차감 (${partsToDeduct.length}품목)`, partsToDeduct);
+      const deductResult = await processInventory(warehouseId, partsToDeduct, brandCode, serviceId, 'service', 'service_complete', false);
+      if (!deductResult.success) {
+        console.error('재고 차감(Delta) 중 오류 발생:', deductResult);
+        return deductResult;
+      }
+      results.push(...deductResult.results);
+    }
+
+    return { success: true, results };
   } catch (err) {
-    return { success: false, message: `A/S 재고 차감 실패: ${err.message}`, errors: [err.message] };
+    return { success: false, message: `A/S 재고 동기화 실패: ${err.message}`, errors: [err.message] };
   }
 };
 
