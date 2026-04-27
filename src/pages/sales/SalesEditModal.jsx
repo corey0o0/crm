@@ -10,11 +10,23 @@ import { supabase } from '../../lib/supabaseClient';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 
+const STATUS_KO = {
+  'N00': '입금전', 'N10': '상품준비중', 'N20': '배송준비중', 'N21': '배송대기',
+  'N22': '배송보류', 'N30': '배송중', 'N40': '배송완료', 'N50': '구매확정',
+  'C00': '취소접수', 'C10': '취소처리중', 'C40': '취소처리', 
+  'E00': '교환접수', 'E10': '교환처리중', 'E40': '교환처리', 
+  'R00': '반품접수', 'R10': '반품처리중', 'R40': '반품처리',
+  'M': '배송준비중', 'T': '배송중', 'F': '배송완료', 'W': '배송보류',
+  'C': '취소처리', 'E': '교환처리', 'R': '반품처리', 'null': '상태없음'
+};
+const getKoStatus = (status) => STATUS_KO[String(status).trim()] || status;
+
 export default function SalesEditModal({ open, onClose, orderId, orderType, onRefresh }) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [orderData, setOrderData] = useState(null);
+  const [orderBrand, setOrderBrand] = useState('');
   const [items, setItems] = useState([]);
 
   useEffect(() => {
@@ -39,6 +51,7 @@ export default function SalesEditModal({ open, onClose, orderId, orderType, onRe
           price: Number(p.price || 0),
           total_price: Number(p.total_price || 0),
         })));
+        setOrderBrand(data.brand || '');
       } else if (orderType === 'service') {
         const { data, error } = await supabase
           .from('services')
@@ -58,6 +71,7 @@ export default function SalesEditModal({ open, onClose, orderId, orderType, onRe
             total_price: unitPrice * qty,
           };
         }));
+        setOrderBrand(data.brand || '');
       } else if (orderType === 'cafe24') {
         const { data, error } = await supabase
           .from('cafe24_orders')
@@ -83,6 +97,18 @@ export default function SalesEditModal({ open, onClose, orderId, orderType, onRe
             total_price: qty * price
           };
         }));
+        
+        let cBrand = '-';
+        const pcodes = orderItems.map(i => i.custom_product_code || i.product_code).filter(Boolean);
+        if (pcodes.length > 0) {
+          const { data: pData } = await supabase.from('parts').select('brand').in('code', pcodes);
+          if (pData && pData.length > 0 && pData[0].brand) cBrand = pData[0].brand;
+          else {
+            const { data: pData2 } = await supabase.from('parts').select('brand').in('barcode', pcodes);
+            if (pData2 && pData2.length > 0 && pData2[0].brand) cBrand = pData2[0].brand;
+          }
+        }
+        setOrderBrand(cBrand);
       }
     } catch (err) {
       console.error(err);
@@ -122,6 +148,7 @@ export default function SalesEditModal({ open, onClose, orderId, orderType, onRe
           customer_name: orderData.customer_name,
           sales_channel: orderData.sales_channel,
           note: orderData.note,
+          brand: orderBrand,
           price: totalAmt,
         }).eq('id', orderId);
 
@@ -138,6 +165,7 @@ export default function SalesEditModal({ open, onClose, orderId, orderType, onRe
         await supabase.from('services').update({
           customer_name: orderData.customer_name,
           note: orderData.note,
+          brand: orderBrand,
         }).eq('id', orderId);
 
         for (const item of items) {
@@ -199,10 +227,16 @@ export default function SalesEditModal({ open, onClose, orderId, orderType, onRe
             <Paper variant="outlined" sx={{ p: 2, mb: 3, borderRadius: 2 }}>
               <Typography variant="subtitle2" color="text.secondary" mb={1.5} fontWeight="bold">기본 정보</Typography>
               <Grid container spacing={2}>
-                <Grid item xs={6} sm={3}>
+                <Grid item xs={6} sm={2}>
                   <TextField label="일자" size="small" fullWidth value={dateStr} disabled />
                 </Grid>
-                <Grid item xs={6} sm={3}>
+                <Grid item xs={6} sm={2}>
+                  <TextField label="주문번호" size="small" fullWidth value={orderData?.order_id || orderId || ''} disabled />
+                </Grid>
+                <Grid item xs={6} sm={2}>
+                  <TextField label="브랜드" size="small" fullWidth value={orderBrand} disabled={orderType === 'cafe24'} onChange={e => setOrderBrand(e.target.value)} />
+                </Grid>
+                <Grid item xs={6} sm={2}>
                   <TextField
                     label="고객명"
                     size="small"
@@ -212,7 +246,7 @@ export default function SalesEditModal({ open, onClose, orderId, orderType, onRe
                   />
                 </Grid>
                 {orderType === 'shipment' && (
-                  <Grid item xs={6} sm={3}>
+                  <Grid item xs={6} sm={2}>
                     <TextField
                       label="판매채널"
                       size="small"
@@ -222,13 +256,14 @@ export default function SalesEditModal({ open, onClose, orderId, orderType, onRe
                     />
                   </Grid>
                 )}
-                <Grid item xs={12} sm={orderType === 'shipment' ? 3 : 6}>
+                <Grid item xs={12} sm={orderType === 'shipment' ? 2 : 4}>
                   <TextField
-                    label="메모"
+                    label={orderType === 'cafe24' ? '상태' : '메모'}
                     size="small"
                     fullWidth
-                    value={orderData?.note || ''}
+                    value={orderType === 'cafe24' ? getKoStatus(orderData?.note || '') : (orderData?.note || '')}
                     onChange={e => setOrderData({ ...orderData, note: e.target.value })}
+                    disabled={orderType === 'cafe24'}
                   />
                 </Grid>
               </Grid>
