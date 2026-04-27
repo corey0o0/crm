@@ -43,8 +43,10 @@ function SalesHistory() {
   const [filterType, setFilterType] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sellerFilter, setSellerFilter] = useState('all');
+  const [brandFilter, setBrandFilter] = useState('all');
   const [dateType, setDateType] = useState('주문/출고/완료일자');
   const [sellers, setSellers] = useState(['all']);
+  const [brands, setBrands] = useState(['all']);
   const [statuses, setStatuses] = useState(['all']);
 
   // 편집 모달
@@ -398,12 +400,15 @@ function SalesHistory() {
 
     const uniqueSellers = new Set();
     const uniqueStatuses = new Set();
+    const uniqueBrands = new Set();
     rows.forEach(r => {
        if (r.sales_channel) uniqueSellers.add(r.sales_channel);
        if (r.status) uniqueStatuses.add(r.status);
+       if (r.part_brand && r.part_brand !== '-') uniqueBrands.add(r.part_brand);
     });
     setSellers(['all', ...Array.from(uniqueSellers)]);
     setStatuses(['all', ...Array.from(uniqueStatuses)]);
+    setBrands(['all', ...Array.from(uniqueBrands)]);
 
     rows.sort((a, b) => new Date(b.date_val) - new Date(a.date_val));
     setFlatRows(rows);
@@ -415,6 +420,7 @@ function SalesHistory() {
     if (filterType !== 'all' && r._type !== filterType) return false;
     if (statusFilter !== 'all' && statusFilter !== '전체 상태' && r.status !== statusFilter) return false;
     if (sellerFilter !== 'all' && sellerFilter !== '전체 판매처' && r.sales_channel !== sellerFilter) return false;
+    if (brandFilter !== 'all' && brandFilter !== '전체 브랜드' && r.part_brand !== brandFilter) return false;
 
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
@@ -626,6 +632,13 @@ function SalesHistory() {
                 <InputLabel>판매처</InputLabel>
                 <Select value={sellerFilter} label="판매처" onChange={e => { setSellerFilter(e.target.value); setPage(0); }}>
                   {sellers.map(s => <MenuItem key={s} value={s}>{s === 'all' ? '전체 판매처' : s}</MenuItem>)}
+                </Select>
+              </FormControl>
+
+              <FormControl size="small" sx={{ width: 130 }}>
+                <InputLabel>브랜드</InputLabel>
+                <Select value={brandFilter} label="브랜드" onChange={e => { setBrandFilter(e.target.value); setPage(0); }}>
+                  {brands.map(b => <MenuItem key={b} value={b}>{b === 'all' ? '전체 브랜드' : b}</MenuItem>)}
                 </Select>
               </FormControl>
             </Stack>
