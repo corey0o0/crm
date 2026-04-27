@@ -957,7 +957,7 @@ export default function Cafe24OrderList() {
 
   const handleOpenAmountEditModal = (order) => {
     setAmountEditOrder(order);
-    const currentVal = order.actual_payment_amount !== undefined && order.actual_payment_amount !== null ? order.actual_payment_amount : (order.total_amount || 0);
+    const currentVal = order.total_amount || 0;
     setNewAmount(currentVal);
     setAmountEditModalOpen(true);
   };
@@ -967,7 +967,7 @@ export default function Cafe24OrderList() {
     setAmountEditSaving(true);
     try {
       const { error } = await supabase.from('cafe24_orders')
-        .update({ total_amount: Number(newAmount), actual_payment_amount: Number(newAmount) })
+        .update({ total_amount: Number(newAmount) })
         .eq('id', amountEditOrder.id);
         
       if (error) throw error;
@@ -1458,7 +1458,7 @@ export default function Cafe24OrderList() {
                       {idx === 0 && <TableCell align="right" rowSpan={items.length}>{displayUsedPoints.toLocaleString()}</TableCell>}
                       {idx === 0 && <TableCell align="right" rowSpan={items.length}>
                         <Box display="flex" alignItems="center" justifyContent="flex-end" gap={0.5}>
-                          <strong>{Number(order.actual_payment_amount !== undefined && order.actual_payment_amount !== null ? order.actual_payment_amount : (order.total_amount || 0)).toLocaleString()}</strong>
+                          <strong>{Number(order.total_amount || 0).toLocaleString()}</strong>
                           {!order.is_transferred && (
                             <IconButton size="small" onClick={() => handleOpenAmountEditModal(order)} title="금액 직접 수정">
                               <EditIcon fontSize="small" color="action" />
