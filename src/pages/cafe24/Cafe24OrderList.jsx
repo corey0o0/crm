@@ -484,6 +484,8 @@ export default function Cafe24OrderList() {
     for (const order of ordersToTransfer) {
       const items = order.order_items || [];
       for (const item of items) {
+        const isCancelled = ['C11', 'C40', 'R40', 'E40'].includes(item.order_status);
+        if (isCancelled) continue;
         if (!item.part_id && (item.custom_product_code || item.product_code)) {
           hasUnmappedItems = true;
           break;
@@ -527,6 +529,8 @@ export default function Cafe24OrderList() {
     const items = order.order_items || [];
     let missingWarehouse = false;
     for (let i = 0; i < items.length; i++) {
+      const isCancelled = ['C11', 'C40', 'R40', 'E40'].includes(items[i].order_status);
+      if (isCancelled) continue;
       if (!warehouseConfig[order.id] || !warehouseConfig[order.id][i]) {
         missingWarehouse = true;
         break;
@@ -537,7 +541,11 @@ export default function Cafe24OrderList() {
       return;
     }
 
-    const hasUnmappedItem = items.some(item => !item.part_id && (item.custom_product_code || item.product_code));
+    const hasUnmappedItem = items.some(item => {
+      const isCancelled = ['C11', 'C40', 'R40', 'E40'].includes(item.order_status);
+      if (isCancelled) return false;
+      return !item.part_id && (item.custom_product_code || item.product_code);
+    });
     if (hasUnmappedItem) {
       setAlertDialog({ open: true, title: '매핑 누락', message: '🔴 품목코드가 미스매칭(수동 연결 필요) 상태인 항목이 있습니다.\n해당 품목의 [수동 연결] 버튼을 눌러 먼저 ERP 품목과 매핑을 완료해주세요.' });
       return;
@@ -1470,40 +1478,48 @@ export default function Cafe24OrderList() {
                         {erpCode || (needsMapping ? <Chip size="small" label="미스매칭" color="warning" /> : '-')}
                       </TableCell>
                       <TableCell>
-                        {erpName ? (
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'nowrap' }}>
-                            {erpName}
-                            <IconButton size="small" onClick={() => openMappingModal(order, item)} title="매칭 변경">
-                              <SyncIcon fontSize="small" color="action" />
-                            </IconButton>
-                          </Box>
+                        {['C11', 'C40', 'R40', 'E40'].includes(item.order_status) ? (
+                          <Typography variant="caption" color="text.secondary">- (반영 제외)</Typography>
                         ) : (
-                          needsMapping ? (
-                            <Button size="small" variant="outlined" color="warning" onClick={() => openMappingModal(order, item)}>
-                              수동 연결
-                            </Button>
-                          ) : '-'
+                          erpName ? (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'nowrap' }}>
+                              {erpName}
+                              <IconButton size="small" onClick={() => openMappingModal(order, item)} title="매칭 변경">
+                                <SyncIcon fontSize="small" color="action" />
+                              </IconButton>
+                            </Box>
+                          ) : (
+                            needsMapping ? (
+                              <Button size="small" variant="outlined" color="warning" onClick={() => openMappingModal(order, item)}>
+                                수동 연결
+                              </Button>
+                            ) : '-'
+                          )
                         )}
                       </TableCell>
                       <TableCell>
-                        <FormControl size="small" fullWidth sx={{ minWidth: 100 }} error={!order.is_transferred && !(warehouseConfig[order.id] && warehouseConfig[order.id][idx])}>
-                           <Select 
-                              value={(warehouseConfig[order.id] && warehouseConfig[order.id][idx] !== undefined) ? String(warehouseConfig[order.id][idx]) : (item._warehouse_id ? String(item._warehouse_id) : '')}
-                              onChange={e => setWarehouseConfig(prev => ({
-                                ...prev,
-                                [order.id]: {
-                                  ...(prev[order.id] || {}),
-                                  [idx]: e.target.value
-                                }
-                              }))}
-                              displayEmpty
-                              disabled={order.is_transferred}
-                              sx={{ fontSize: '0.8rem', height: 28 }}
-                           >
-                             <MenuItem value="" disabled><em>선택안됨</em></MenuItem>
-                             {warehouses.map(w => <MenuItem key={w.id} value={String(w.id)}>{w.name}</MenuItem>)}
-                           </Select>
-                        </FormControl>
+                        {['C11', 'C40', 'R40', 'E40'].includes(item.order_status) ? (
+                           <Typography variant="caption" color="text.secondary">취소건 (제외)</Typography>
+                        ) : (
+                          <FormControl size="small" fullWidth sx={{ minWidth: 100 }} error={!order.is_transferred && !(warehouseConfig[order.id] && warehouseConfig[order.id][idx])}>
+                             <Select 
+                                value={(warehouseConfig[order.id] && warehouseConfig[order.id][idx] !== undefined) ? String(warehouseConfig[order.id][idx]) : (item._warehouse_id ? String(item._warehouse_id) : '')}
+                                onChange={e => setWarehouseConfig(prev => ({
+                                  ...prev,
+                                  [order.id]: {
+                                    ...(prev[order.id] || {}),
+                                    [idx]: e.target.value
+                                  }
+                                }))}
+                                displayEmpty
+                                disabled={order.is_transferred}
+                                sx={{ fontSize: '0.8rem', height: 28 }}
+                             >
+                               <MenuItem value="" disabled><em>선택안됨</em></MenuItem>
+                               {warehouses.map(w => <MenuItem key={w.id} value={String(w.id)}>{w.name}</MenuItem>)}
+                             </Select>
+                          </FormControl>
+                        )}
                       </TableCell>
                       {idx === 0 && (
                         <TableCell rowSpan={items.length} align="center">

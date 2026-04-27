@@ -364,7 +364,10 @@ function SalesHistory() {
       if (items.length === 0) {
         rows.push({ ...baseFields, warehouse_name: fallbackWarehouseName, _id: `cafe_${o.id}_none`, part_name: '(품목 미기재)', part_category: '기타', part_brand: '-', quantity: 0, unit_price: 0, total_price: Number(o.total_amount || 0) });
       } else {
-        items.forEach((item, idx) => {
+        const validItems = items.filter(item => !['C11', 'C40', 'R40', 'E40'].includes(item.order_status));
+        if (validItems.length === 0) return; // 전액/전부 취소건은 리스트에서 제외
+
+        validItems.forEach((item, idx) => {
           const itemCode = item.custom_product_code || item.product_code || '';
           let wid = item._warehouse_id || cafeWarehouseMap[`${o.id}_${itemCode}`];
           if (!wid) wid = fallbackWid;
@@ -385,7 +388,7 @@ function SalesHistory() {
           const iPrice = Number(item.product_price || item.price || 0); // 항상 기준 단가(MSRP 라벨스 프라이스) 표시
 
           // Calculate total payment amount for this order to distribute used_points proportionally
-          let totalPaymentAmt = o.order_items.reduce((acc, i) => {
+          let totalPaymentAmt = validItems.reduce((acc, i) => {
              let qty = Number(i.quantity || 1);
              let p = (i.payment_amount !== undefined && i.payment_amount !== null && !isNaN(Number(i.payment_amount))) ? Number(i.payment_amount) : Number(i.product_price || i.price || 0) * qty;
              return acc + p;
@@ -394,8 +397,8 @@ function SalesHistory() {
           let itemPointsDeduction = 0;
           if (totalPaymentAmt > 0) {
              itemPointsDeduction = Math.floor((paymentAmt / totalPaymentAmt) * Number(o.used_points || 0));
-             if (idx === o.order_items.length - 1) {
-                let previousDeductions = o.order_items.slice(0, o.order_items.length - 1).reduce((acc, prevItem) => {
+             if (idx === validItems.length - 1) {
+                let previousDeductions = validItems.slice(0, validItems.length - 1).reduce((acc, prevItem) => {
                    let prevQty = Number(prevItem.quantity || 1);
                    let prevP = (prevItem.payment_amount !== undefined && prevItem.payment_amount !== null && !isNaN(Number(prevItem.payment_amount))) ? Number(prevItem.payment_amount) : Number(prevItem.product_price || prevItem.price || 0) * prevQty;
                    return acc + Math.floor((prevP / totalPaymentAmt) * Number(o.used_points || 0));

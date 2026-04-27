@@ -745,6 +745,10 @@ module.exports = function(supabaseAdmin) {
       orders.forEach(order => {
         const items = order.order_items || [];
         items.forEach((item, index) => {
+          // 부분 취소/반품/교환 건은 재고 차감 및 매출 연동에서 제외
+          const isCancelled = ['C11', 'C40', 'R40', 'E40'].includes(item.order_status);
+          if (isCancelled) return;
+
           let wid = (warehouseConfig && warehouseConfig[order.id] && warehouseConfig[order.id][index]) || 'DEFAULT';
           
           let mappedPartId = item.part_id;
