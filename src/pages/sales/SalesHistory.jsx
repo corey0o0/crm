@@ -125,7 +125,7 @@ function SalesHistory() {
 
     let cafeQuery = supabase
       .from('cafe24_orders')
-      .select('id, order_id, order_date, buyer_name, total_amount, order_items, status, agencies(name)')
+      .select('id, order_id, order_date, buyer_name, total_amount, order_items, status, shipping_fee, used_points, agencies(name)')
       .eq('is_transferred', true)
       .order('order_date', { ascending: false })
       .limit(800);
