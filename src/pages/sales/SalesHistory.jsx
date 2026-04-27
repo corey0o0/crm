@@ -346,10 +346,6 @@ function SalesHistory() {
       const orderNo = o.order_id;
       const fallbackWid = cafeWarehouseMap[o.id];
       
-      // "반영 예외(무시)" 처리된 건은 매출/재고 통계에서 제외
-      const hasWarehouseInfo = items.some(item => item._warehouse_id) || fallbackWid;
-      if (!hasWarehouseInfo) return;
-
       const fallbackWarehouseName = fallbackWid && warehouseMap[fallbackWid] ? warehouseMap[fallbackWid] : '온라인출고';
       
       const koStatus = getKoStatus(o.status);
