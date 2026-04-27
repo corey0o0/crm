@@ -757,7 +757,7 @@ export default function Cafe24OrderList() {
         onConfirm: async () => {
           setLoading(true);
           try {
-            const { error } = await supabase.from('cafe24_orders').update({ is_transferred: true }).eq('id', order.id);
+            const { error } = await supabase.from('cafe24_orders').update({ is_deleted: true, is_transferred: false }).eq('id', order.id);
             if (error) throw error;
             setAlertDialog({ open: true, title: '처리 완료', message: '무시 처리가 완료되었습니다.' });
             fetchOrders();
