@@ -387,7 +387,7 @@ function SalesHistory() {
           let shipFee = 0;
           if (idx === 0) {
             shipFee = Number(o.shipping_fee || 0);
-            if (o.points_spent) shipFee -= Number(o.points_spent);
+            if (o.used_points) shipFee -= Number(o.used_points);
           }
           const total = paymentAmt + shipFee;
           const cat = resolveCategory(pName, itemCode);
