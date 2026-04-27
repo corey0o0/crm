@@ -601,7 +601,7 @@ function ServiceList() {
       // 매우 단순한 쿼리로 변경
       let query = supabase
         .from('services')
-        .select('*')
+        .select('*,service_tags(tag_name),service_parts(id,part_id,quantity,price,usage,parts(name,code))')
         .eq('brand', selectedBrand)
         .order('reception_date', { ascending: false });
       
@@ -762,7 +762,7 @@ function ServiceList() {
         console.log('[ServiceList] 기본 쿼리 구성 중...');
         let simpleQuery = supabase
           .from('services')
-          .select('*')
+          .select('*,service_tags(tag_name),service_parts(id,part_id,quantity,price,usage,parts(name,code))')
           .eq('brand', selectedBrand);
         
         console.log('[ServiceList] 브랜드 필터 적용 완료');
