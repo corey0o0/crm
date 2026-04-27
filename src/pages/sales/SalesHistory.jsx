@@ -384,12 +384,33 @@ function SalesHistory() {
           }
           const iPrice = Number(item.product_price || item.price || 0); // 항상 기준 단가(MSRP 라벨스 프라이스) 표시
 
+          // Calculate total payment amount for this order to distribute used_points proportionally
+          let totalPaymentAmt = o.order_items.reduce((acc, i) => {
+             let qty = Number(i.quantity || 1);
+             let p = (i.payment_amount !== undefined && i.payment_amount !== null && !isNaN(Number(i.payment_amount))) ? Number(i.payment_amount) : Number(i.product_price || i.price || 0) * qty;
+             return acc + p;
+          }, 0);
+
+          let itemPointsDeduction = 0;
+          if (totalPaymentAmt > 0) {
+             itemPointsDeduction = Math.floor((paymentAmt / totalPaymentAmt) * Number(o.used_points || 0));
+             if (idx === o.order_items.length - 1) {
+                let previousDeductions = o.order_items.slice(0, o.order_items.length - 1).reduce((acc, prevItem) => {
+                   let prevQty = Number(prevItem.quantity || 1);
+                   let prevP = (prevItem.payment_amount !== undefined && prevItem.payment_amount !== null && !isNaN(Number(prevItem.payment_amount))) ? Number(prevItem.payment_amount) : Number(prevItem.product_price || prevItem.price || 0) * prevQty;
+                   return acc + Math.floor((prevP / totalPaymentAmt) * Number(o.used_points || 0));
+                }, 0);
+                itemPointsDeduction = Number(o.used_points || 0) - previousDeductions;
+             }
+          } else {
+             if (idx === 0) itemPointsDeduction = Number(o.used_points || 0);
+          }
+
           let shipFee = 0;
           if (idx === 0) {
             shipFee = Number(o.shipping_fee || 0);
-            if (o.used_points) shipFee -= Number(o.used_points);
           }
-          const total = paymentAmt + shipFee;
+          const total = paymentAmt + shipFee - itemPointsDeduction;
           const cat = resolveCategory(pName, itemCode);
           const brand = resolveBrand(pName, itemCode);
 
