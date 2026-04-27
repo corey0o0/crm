@@ -455,9 +455,12 @@ module.exports = function(supabaseAdmin) {
             item_discount: itemDiscount,
             bundle_discount: bundleDiscount,
             discount_amount: itemDiscount + bundleDiscount,
-            payment_amount: Number(item.payment_amount || 0) || ((Number(item.product_price || 0) * Number(item.quantity || 1)) - itemDiscount - bundleDiscount),
+            payment_amount: (item.payment_amount !== null && item.payment_amount !== undefined) 
+              ? Number(item.payment_amount) 
+              : ((Number(item.product_price || 0) * Number(item.quantity || 1)) - itemDiscount - bundleDiscount),
             options: item.option_value || '',
-            part_id: matchedPartId
+            part_id: matchedPartId,
+            order_status: item.order_status
           };
         });
       }
@@ -466,10 +469,16 @@ module.exports = function(supabaseAdmin) {
       const actual_deposit = Number(order.deposit || (order.actual_order_amount && order.actual_order_amount.deposit) || 0);
       
       const isFullPoints = Number(order.actual_order_amount?.order_price_amount) > 0 && pg_payment === 0 && actual_deposit === 0;
+      const isPartiallyCanceled = order.canceled === 'M' || (order.items && order.items.some(i => ['C11','C40','R40','E40'].includes(i.order_status)));
 
-      const total_amount = pg_payment > 0 || actual_deposit > 0 || isFullPoints
-        ? (pg_payment + actual_deposit) 
-        : ((order.actual_order_amount && order.actual_order_amount.order_price_amount) || order.total_order_price || 0);
+      let total_amount;
+      if (isPartiallyCanceled && order.actual_order_amount) {
+        total_amount = Number(order.actual_order_amount.order_price_amount || 0) + Number(order.actual_order_amount.shipping_fee || 0);
+      } else {
+        total_amount = pg_payment > 0 || actual_deposit > 0 || isFullPoints
+          ? (pg_payment + actual_deposit) 
+          : ((order.actual_order_amount && order.actual_order_amount.order_price_amount) || order.total_order_price || 0);
+      }
       const shipping_fee = Number((order.actual_order_amount && order.actual_order_amount.shipping_fee) || 0);
 
       let items_payment_sum = 0;

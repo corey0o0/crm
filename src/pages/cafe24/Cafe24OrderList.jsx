@@ -1432,7 +1432,20 @@ export default function Cafe24OrderList() {
                         </TableCell>
                       )}
                       <TableCell>
-                        <Typography variant="body2">{item.name}</Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: item.options ? 0.5 : 0 }}>
+                          {['C11', 'C40', 'R40', 'E40'].includes(item.order_status) && (
+                            <Chip size="small" label="취소/반품" color="error" sx={{ mr: 1, height: 20, fontSize: '0.65rem' }} />
+                          )}
+                          <Typography 
+                            variant="body2" 
+                            sx={{ 
+                              textDecoration: ['C11', 'C40', 'R40', 'E40'].includes(item.order_status) ? 'line-through' : 'none',
+                              color: ['C11', 'C40', 'R40', 'E40'].includes(item.order_status) ? 'text.disabled' : 'inherit'
+                            }}
+                          >
+                            {item.name}
+                          </Typography>
+                        </Box>
                         {item.options && <Typography variant="caption" color="text.secondary" display="block">{item.options}</Typography>}
                       </TableCell>
                       <TableCell align="right">{item.quantity}</TableCell>
