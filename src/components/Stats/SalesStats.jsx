@@ -296,7 +296,7 @@ function SalesStats() {
         // 2. shipment_parts에서 실제 부품별 금액/수량/합계 조회
         const { data: shipmentPartsData, error: shipmentPartsError } = await supabase
           .from('shipment_parts')
-          .select('shipment_id, part_name, part_code, part_category, quantity, price, total_price, created_at')
+          .select('shipment_id, part_name, part_code, part_category, quantity, price, total_price, note, created_at')
           .in('shipment_id', shipmentIds);
         if (shipmentPartsError) {
           console.error('shipment_parts 조회 오류:', shipmentPartsError);
@@ -309,14 +309,34 @@ function SalesStats() {
             if (!shipment) return;
             const date = format(parseISO(shipment.order_date), 'yyyy-MM-dd');
             if (!shipmentPartsByDate[date]) shipmentPartsByDate[date] = [];
+            
+            // 반품 수량 차감 로직
+            let returnedQty = 0;
+            if (part.note && part.note.includes('[반품완료]')) {
+              returnedQty = part.quantity;
+            } else if (part.note && part.note.includes('[부분반품:')) {
+              const matches = part.note.match(/\[부분반품:(\d+)개\]/g);
+              if (matches) {
+                matches.forEach(m => {
+                  const qtyMatch = m.match(/\[부분반품:(\d+)개\]/);
+                  if (qtyMatch && qtyMatch[1]) {
+                    returnedQty += parseInt(qtyMatch[1], 10);
+                  }
+                });
+              }
+            }
+            const effectiveQty = Math.max(0, (part.quantity || 0) - returnedQty);
+            const effectiveTotal = Math.round(effectiveQty * (part.price || 0));
+
+            // 반품으로 인해 유효 수량이 0이면 통계에서 제외 (원할 경우 0원으로 남길수도 있음, 일단 제외하지 않고 0개/0원으로 남김)
             shipmentPartsByDate[date].push({
               shipment_id: part.shipment_id,
               name: part.part_name,
               code: part.part_code,
               part_category: part.part_category,
-              quantity: part.quantity,
+              quantity: effectiveQty,
               price: part.price,
-              total: part.total_price,
+              total: effectiveTotal,
               brand: shipment.brand,
               customer_name: shipment.customer_name,
               customer_phone: shipment.customer_phone,
@@ -412,14 +432,33 @@ function SalesStats() {
               servicePartsByDate[date] = [];
             }
 
+            // 반품 수량 차감 로직
+            let returnedQty = 0;
+            if (item.usage && item.usage.includes('[반품완료]')) {
+              returnedQty = item.quantity;
+            } else if (item.usage && item.usage.includes('[부분반품:')) {
+              const matches = item.usage.match(/\[부분반품:(\d+)개\]/g);
+              if (matches) {
+                matches.forEach(m => {
+                  const qtyMatch = m.match(/\[부분반품:(\d+)개\]/);
+                  if (qtyMatch && qtyMatch[1]) {
+                    returnedQty += parseInt(qtyMatch[1], 10);
+                  }
+                });
+              }
+            }
+            const effectiveQty = Math.max(0, (item.quantity || 0) - returnedQty);
+            const effectiveTotal = Math.round(effectiveQty * (item.price || 0));
+
             // 디버깅을 위한 로그 추가
             console.log('Processing service part:', {
               service_id: item.services.id,
               name: item.parts.name,
               usage: item.usage,
-              quantity: item.quantity,
+              original_quantity: item.quantity,
+              effective_quantity: effectiveQty,
               price: item.price,
-              total: (item.quantity || 0) * (item.price || 0)
+              effective_total: effectiveTotal
             });
 
             servicePartsByDate[date].push({
@@ -427,9 +466,9 @@ function SalesStats() {
               name: item.parts.name,
               code: item.parts.code,
               parts_note: item.parts.note,
-              quantity: item.quantity || 0,
+              quantity: effectiveQty,
               price: item.price || 0,
-              total: Math.round((item.quantity || 0) * (item.price || 0)),
+              total: effectiveTotal,
               usage: item.usage || 'AS',  // 기본값을 'AS'로 설정
               brand: item.services.brand
             });

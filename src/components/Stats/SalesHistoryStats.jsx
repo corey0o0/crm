@@ -22,6 +22,7 @@ const COLORS = ['#1976d2', '#2e7d32', '#ed6c02', '#9c27b0', '#d32f2f', '#0288d1'
 function SalesHistoryStats() {
   const [loading, setLoading] = useState(true);
   const [flatRows, setFlatRows] = useState([]);
+  const [inventoryList, setInventoryList] = useState([]); // 재고 목록 상태 추가
   const [agenciesList, setAgenciesList] = useState([]);
   const [startDate, setStartDate] = useState(startOfMonth(new Date()));
   const [endDate, setEndDate] = useState(endOfMonth(new Date()));
@@ -64,7 +65,7 @@ function SalesHistoryStats() {
 
     let shipQuery = supabase
       .from('shipments')
-      .select('id, order_date, customer_name, price, sales_channel, status, note, warehouse_id, shipment_parts(id, part_name, quantity, price, total_price)')
+      .select('id, order_date, customer_name, price, sales_channel, status, note, warehouse_id, shipment_parts(id, part_name, quantity, price, total_price, note)')
       .in('status', ['출고완료', '완료'])
       .order('order_date', { ascending: false });
 
@@ -95,11 +96,12 @@ function SalesHistoryStats() {
     if (startDate) cafeQuery = cafeQuery.gte('order_date', format(startDate, 'yyyy-MM-dd'));
     if (endDate)   cafeQuery = cafeQuery.lte('order_date', format(endDate, 'yyyy-MM-dd') + 'T23:59:59');
 
-    const [shipRes, asRes, cafeRes, whRes, partsRes, agenciesRes] = await Promise.all([
+    const [shipRes, asRes, cafeRes, whRes, partsRes, agenciesRes, invRes] = await Promise.all([
       shipQuery, asQuery, cafeQuery,
       supabase.from('warehouses').select('id, name'),
-      supabase.from('parts').select('id, code, barcode, name, note, brand'),
-      supabase.from('agencies').select('name')
+      supabase.from('parts').select('id, code, barcode, name, note, brand, supply_price'),
+      supabase.from('agencies').select('name'),
+      supabase.from('inventory').select('product_id, quantity')
     ]);
 
     setAgenciesList((agenciesRes.data || []).map(a => a.name));
@@ -147,7 +149,7 @@ function SalesHistoryStats() {
     const serviceTxMap = {};
     if (asIds.length > 0) {
       const [{ data: spData }, { data: txData }] = await Promise.all([
-        supabase.from('service_parts').select('id, service_id, quantity, part_id, parts(name, price)').in('service_id', asIds),
+        supabase.from('service_parts').select('id, service_id, quantity, part_id, usage, parts(name, price)').in('service_id', asIds),
         supabase.from('transactions').select('group_id, product_id, from_location').in('group_id', asIds.map(String)).eq('type', 'out')
       ]);
       (spData || []).forEach(sp => {
@@ -184,10 +186,24 @@ function SalesHistoryStats() {
         rows.push({ ...baseFields, part_category: '기타', part_brand: '-', quantity: 0, total_price: Number(s.price || 0) });
       } else {
         parts.forEach((p) => {
-          const total = Number(p.total_price || (Number(p.price || 0) * Number(p.quantity || 1)));
+          let returnedQty = 0;
+          if (p.note && p.note.includes('[반품완료]')) {
+            returnedQty = p.quantity;
+          } else if (p.note && p.note.includes('[부분반품:')) {
+            const matches = p.note.match(/\[부분반품:(\d+)개\]/g);
+            if (matches) {
+              matches.forEach(m => {
+                const qtyMatch = m.match(/\[부분반품:(\d+)개\]/);
+                if (qtyMatch && qtyMatch[1]) returnedQty += parseInt(qtyMatch[1], 10);
+              });
+            }
+          }
+          const effectiveQty = Math.max(0, Number(p.quantity || 1) - returnedQty);
+          
+          const total = Number(p.price || 0) * effectiveQty;
           const cat = resolveCategory(p.part_name, p.part_code);
           const brand = resolveBrand(p.part_name, p.part_code);
-          rows.push({ ...baseFields, part_name: p.part_name || '기체/상품', part_category: cat, part_brand: brand, quantity: Number(p.quantity || 1), total_price: total });
+          rows.push({ ...baseFields, part_name: p.part_name || '기체/상품', part_category: cat, part_brand: brand, quantity: effectiveQty, total_price: total });
         });
       }
     });
@@ -201,14 +217,27 @@ function SalesHistoryStats() {
       };
       if (parts.length > 0) {
         parts.forEach((sp) => {
+          let returnedQty = 0;
+          if (sp.usage && sp.usage.includes('[반품완료]')) {
+            returnedQty = sp.quantity;
+          } else if (sp.usage && sp.usage.includes('[부분반품:')) {
+            const matches = sp.usage.match(/\[부분반품:(\d+)개\]/g);
+            if (matches) {
+              matches.forEach(m => {
+                const qtyMatch = m.match(/\[부분반품:(\d+)개\]/);
+                if (qtyMatch && qtyMatch[1]) returnedQty += parseInt(qtyMatch[1], 10);
+              });
+            }
+          }
+          const effectiveQty = Math.max(0, Number(sp.quantity || 1) - returnedQty);
+
           const unitPrice = Number(sp.parts?.price || 0);
-          const qty = Number(sp.quantity || 1);
-          const total = unitPrice * qty;
-          if (qty > 0) {
+          const total = unitPrice * effectiveQty;
+          if (effectiveQty > 0 || Number(sp.quantity || 1) > 0) {
             const pName = sp.parts?.name || '부품';
             const cat = resolveCategory(pName);
             const brand = resolveBrand(pName);
-            rows.push({ ...baseFields, part_name: pName, part_category: cat, part_brand: brand, quantity: qty, total_price: total });
+            rows.push({ ...baseFields, part_name: pName, part_category: cat, part_brand: brand, quantity: effectiveQty, total_price: total });
           }
         });
       }
@@ -256,6 +285,38 @@ function SalesHistoryStats() {
     });
 
     setFlatRows(rows);
+
+    // 재고(Inventory) 데이터 가공
+    const invQtyMap = {};
+    (invRes.data || []).forEach(inv => {
+      if (!invQtyMap[inv.product_id]) invQtyMap[inv.product_id] = 0;
+      invQtyMap[inv.product_id] += Number(inv.quantity || 0);
+    });
+
+    const invRows = [];
+    (partsRes.data || []).forEach(p => {
+      const qty = invQtyMap[p.id] || 0;
+      const supplyPrice = Number(p.supply_price || 0);
+      const cat = resolveCategory(p.name, p.code);
+      const brand = resolveBrand(p.name, p.code);
+      
+      // 재고가 있거나 도매가/브랜드가 있는 주요 부품만 리포트에 표시
+      if (qty > 0 || (supplyPrice > 0 && brand !== '-')) {
+        invRows.push({
+          part_id: p.id,
+          part_name: p.name || '-',
+          brand: brand,
+          category: cat,
+          supply_price: supplyPrice,
+          quantity: qty,
+          amount: supplyPrice * qty,
+          rental: '-', // 대여 정보 (추후 확장을 위해)
+          defective: '-' // 불량 정보 (추후 확장을 위해)
+        });
+      }
+    });
+
+    setInventoryList(invRows);
     setLoading(false);
   };
 
@@ -340,7 +401,7 @@ function SalesHistoryStats() {
   const formatCurrency = (val) => new Intl.NumberFormat('ko-KR').format(val) + '원';
 
   // 보고서용 다차원 그룹화 로직 (브랜드별, 대리점별, 종합, 시계열)
-  const { reportGroups, brandGroups, dealerGroups, timeSeriesData } = React.useMemo(() => {
+  const { reportGroups, brandGroups, dealerGroups, timeSeriesData, comprehensiveSalesGroups, comprehensiveInventoryGroups } = React.useMemo(() => {
     const rpGroupData = {};
     const brGroupData = {};
     const dlGroupData = {};
@@ -469,13 +530,91 @@ function SalesHistoryStats() {
     let monthAcc = 0;
     months.forEach(m => { monthAcc += m.amount; m.cumulative = monthAcc; });
 
+    // 5) 종합 업무 보고서 그룹화 로직 (판매 매출)
+    const sGroupData = {};
+    
+    currentFiltered.forEach(r => {
+      let category = '기타';
+      const ch = r.sales_channel || '';
+      let brand = r.part_brand || '기타';
+      if (brand === '-') brand = '기타';
+      
+      // 구글 스프레드시트의 '항목' 구분 로직
+      if (r._type === 'service') {
+        category = `${brand} A/S`;
+      } else if (r._type === 'cafe24' || ch === '온라인주문') {
+        category = `${brand} 온라인`;
+      } else if (agenciesList.some(a => ch.includes(a)) || ch.includes('대리점')) {
+        category = `${brand} 도매`;
+      } else {
+        category = `${brand} 소매`;
+      }
+      
+      let pName = r.part_name || '상품';
+      if (r.part_category === '부품') pName = '[ 부품 종합 ]';
+      else if (r.part_category === '공임') pName = '[ 공임 종합 ]';
+      else if (r.part_category === '기타') pName = '[ 기타 종합 ]';
+      
+      // 대리점이나 고객명이 있는 경우 표시
+      let detailName = pName;
+      let agencyName = r.customer_name || '';
+      if (r._type === 'shipment' && ch && ch.includes('대리점')) {
+         agencyName = r.customer_name || ch;
+      } else if (r._type === 'service' && ch && ch !== 'A/S수리') {
+         agencyName = ch;
+      }
+      
+      if (agencyName && agencyName !== '-' && !pName.includes('종합')) {
+        detailName = `${agencyName} - ${pName}`;
+      }
+
+      const qty = Number(r.quantity || 0);
+      const amt = Number(r.total_price || 0);
+      const unitPrice = qty > 0 ? Math.round(amt / qty) : amt;
+
+      const gKey = category;
+      if (!sGroupData[gKey]) sGroupData[gKey] = { category: category, itemsMap: {}, subtotalQty: 0, subtotalAmt: 0 };
+      
+      const itemKey = `${detailName}_${unitPrice}`;
+      if (!sGroupData[gKey].itemsMap[itemKey]) {
+        sGroupData[gKey].itemsMap[itemKey] = { name: detailName, unitPrice: unitPrice, quantity: 0, amount: 0 };
+      }
+      sGroupData[gKey].itemsMap[itemKey].quantity += qty;
+      sGroupData[gKey].itemsMap[itemKey].amount += amt;
+      sGroupData[gKey].subtotalQty += qty;
+      sGroupData[gKey].subtotalAmt += amt;
+    });
+
+    const salesGroupsArr = Object.values(sGroupData).map(g => ({
+      ...g,
+      items: Object.values(g.itemsMap).sort((a,b) => b.amount - a.amount)
+    })).sort((a,b) => b.subtotalAmt - a.subtotalAmt);
+
+    // 재고 현황 그룹화 로직 (종합 업무 보고서 우측)
+    const invGroupData = {};
+    inventoryList.forEach(inv => {
+      let brand = inv.brand || '기타';
+      if (brand === '-') brand = '기타';
+      const gKey = brand;
+      if (!invGroupData[gKey]) invGroupData[gKey] = { brand: brand, items: [], totalAmount: 0 };
+      invGroupData[gKey].items.push(inv);
+      invGroupData[gKey].totalAmount += inv.amount;
+    });
+    
+    const inventoryGroupsArr = Object.values(invGroupData).map(g => ({
+      ...g,
+      items: g.items.sort((a,b) => b.amount - a.amount)
+    })).sort((a,b) => b.totalAmount - a.totalAmount);
+
     return {
       reportGroups: reportGroupsArr,
       brandGroups: brandGroupsArr,
       dealerGroups: dealerGroupsArr,
-      timeSeriesData: { weeks, months }
+      timeSeriesData: { weeks, months },
+      comprehensiveSalesGroups: salesGroupsArr,
+      comprehensiveInventoryGroups: inventoryGroupsArr
     };
-  }, [currentFiltered, agenciesList]);
+  }, [currentFiltered, agenciesList, inventoryList]);
 
   return (
     <Box sx={{ p: 3, bgcolor: '#f4f6f8', minHeight: '100vh' }}>
@@ -738,7 +877,7 @@ function SalesHistoryStats() {
               <Tab label="시계열 누적 추이 차트" />
               <Tab label="브랜드별 요약 테이블" />
               <Tab label="대리점 종합 요약 테이블" />
-              <Tab label="전체 매트릭스 리포트 (통합상세)" />
+              <Tab label="종합 업무 보고서" sx={{ fontWeight: 'bold', color: '#1565c0' }} />
             </Tabs>
           </Box>
 
@@ -888,84 +1027,113 @@ function SalesHistoryStats() {
               </TableContainer>
             )}
 
-            {/* 탭 3: 기존의 상세 통합 매트릭스 리포트 (3-Depth 분할표) */}
+            {/* 탭 3: 종합 업무 보고서 (구글 시트 양식) */}
             {tabValue === 3 && (
               <Box>
-                <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, display: 'flex', alignItems: 'center' }}>
-                  <AssessmentIcon sx={{ mr: 1, color: '#1565c0' }}/> 통합 상세 매트릭스 분할표
-                </Typography>
-                <TableContainer component={Paper} sx={{ overflowX: 'auto', border: '1px solid #cfd8dc' }}>
-                  <Table size="small" sx={{ 
-                    minWidth: 800, 
-                    '& th, & td': { border: '1px solid #cfd8dc', padding: '6px 12px' },
-                    '& th': { bgcolor: '#eceff1', fontWeight: 'bold', textAlign: 'center', fontSize: '0.9rem' }
-                  }}>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell width="15%">브랜드</TableCell>
-                        <TableCell width="25%">고객 / 대리점명</TableCell>
-                        <TableCell width="28%">기체 모델 / 상세 내역</TableCell>
-                        <TableCell width="12%">기준 단가</TableCell>
-                        <TableCell width="8%">수량</TableCell>
-                        <TableCell width="12%">합계 금액</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {reportGroups.length === 0 && (
-                         <TableRow><TableCell colSpan={6} align="center" sx={{ py: 3 }}>조회된 데이터가 없습니다.</TableCell></TableRow>
-                      )}
-                      {reportGroups.map((g, gIdx) => {
-                         const brandRowSpan = g.agencies.reduce((sum, ag) => sum + ag.items.length + 1, 0) + 1;
-                         return (
-                           <React.Fragment key={`rp-${gIdx}`}>
-                             {g.agencies.map((ag, aIdx) => (
-                               <React.Fragment key={`rp-${gIdx}-ag-${aIdx}`}>
-                                 {ag.items.map((it, iIdx) => (
-                                   <TableRow key={`rp-${gIdx}-ag-${aIdx}-it-${iIdx}`} hover>
-                                     {aIdx === 0 && iIdx === 0 && (
-                                       <TableCell rowSpan={brandRowSpan} align="center" sx={{ fontWeight: 'bold', bgcolor: '#f8f9fa', verticalAlign: 'middle' }}>
-                                         <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>{g.brand}</Typography>
+                <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #1976d2', pb: 1 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
+                    <AssessmentIcon sx={{ mr: 1, color: '#1565c0' }}/> 종합 업무 보고 (기간: {format(startDate, 'M/d(E)', {locale: ko})} ~ {format(endDate, 'M/d(E)', {locale: ko})})
+                  </Typography>
+                </Box>
+                
+                <Grid container spacing={4}>
+                  {/* 왼쪽: 판매 매출 */}
+                  <Grid item xs={12} xl={6}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1, color: '#424242' }}>(1) 판매 매출 (합계: {formatCurrency(totalAmt)})</Typography>
+                    <TableContainer component={Paper} sx={{ border: '1px solid #e0e0e0', borderRadius: 0, boxShadow: 'none' }}>
+                      <Table size="small" sx={{ 
+                        '& th, & td': { border: '1px solid #e0e0e0', padding: '6px 8px' },
+                        '& th': { bgcolor: '#f5f5f5', fontWeight: 'bold', textAlign: 'center', fontSize: '0.85rem' },
+                        '& td': { fontSize: '0.85rem' }
+                      }}>
+                        <TableHead>
+                          <TableRow>
+                            <TableCell width="20%">항목</TableCell>
+                            <TableCell width="40%">모델</TableCell>
+                            <TableCell width="15%">판매 단가</TableCell>
+                            <TableCell width="10%">수량</TableCell>
+                            <TableCell width="15%">합계</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {comprehensiveSalesGroups.length === 0 && (
+                            <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3 }}>조회된 매출 데이터가 없습니다.</TableCell></TableRow>
+                          )}
+                          {comprehensiveSalesGroups.map((g, gIdx) => {
+                             const rowSpan = g.items.length;
+                             return (
+                               <React.Fragment key={`cs-${gIdx}`}>
+                                 {g.items.map((it, iIdx) => (
+                                   <TableRow key={`cs-${gIdx}-it-${iIdx}`} hover>
+                                     {iIdx === 0 && (
+                                       <TableCell rowSpan={rowSpan} align="center" sx={{ fontWeight: 'bold', bgcolor: '#fafafa', verticalAlign: 'middle' }}>
+                                         {g.category}
                                        </TableCell>
                                      )}
+                                     <TableCell>{it.name}</TableCell>
+                                     <TableCell align="right">{it.unitPrice > 0 ? formatCurrency(it.unitPrice) : '-'}</TableCell>
+                                     <TableCell align="center">{it.quantity}</TableCell>
+                                     <TableCell align="right" sx={{ fontWeight: iIdx === 0 ? 'normal' : 'normal' }}>{formatCurrency(it.amount)}</TableCell>
+                                   </TableRow>
+                                 ))}
+                                 {/* 항목별 소계 (옵션, 너무 길어지면 생략 가능하나 구글 시트 양식에 맞춤) */}
+                               </React.Fragment>
+                             );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Grid>
+
+                  {/* 오른쪽: 재고 현황 */}
+                  <Grid item xs={12} xl={6}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1, color: '#424242' }}>(2) 재고 현황</Typography>
+                    <TableContainer component={Paper} sx={{ border: '1px solid #e0e0e0', borderRadius: 0, boxShadow: 'none' }}>
+                      <Table size="small" sx={{ 
+                        '& th, & td': { border: '1px solid #e0e0e0', padding: '6px 8px' },
+                        '& th': { bgcolor: '#f5f5f5', fontWeight: 'bold', textAlign: 'center', fontSize: '0.85rem' },
+                        '& td': { fontSize: '0.85rem' }
+                      }}>
+                        <TableHead>
+                          <TableRow>
+                            <TableCell width="15%">항목</TableCell>
+                            <TableCell width="35%">모델</TableCell>
+                            <TableCell width="15%">도매가</TableCell>
+                            <TableCell width="10%">수량</TableCell>
+                            <TableCell width="15%">금액</TableCell>
+                            <TableCell width="10%">대여/불량</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {comprehensiveInventoryGroups.length === 0 && (
+                            <TableRow><TableCell colSpan={6} align="center" sx={{ py: 3 }}>재고 데이터가 없습니다.</TableCell></TableRow>
+                          )}
+                          {comprehensiveInventoryGroups.map((g, gIdx) => {
+                             const rowSpan = g.items.length;
+                             return (
+                               <React.Fragment key={`ci-${gIdx}`}>
+                                 {g.items.map((it, iIdx) => (
+                                   <TableRow key={`ci-${gIdx}-it-${iIdx}`} hover>
                                      {iIdx === 0 && (
-                                       <TableCell rowSpan={ag.items.length + 1} align="center" sx={{ verticalAlign: 'middle' }}>
-                                         {ag.agency_name}
+                                       <TableCell rowSpan={rowSpan} align="center" sx={{ fontWeight: 'bold', bgcolor: '#fafafa', verticalAlign: 'middle' }}>
+                                         {g.brand}
                                        </TableCell>
                                      )}
                                      <TableCell>{it.part_name}</TableCell>
-                                     <TableCell align="right">{it.unit_price > 0 ? formatCurrency(it.unit_price) : '-'}</TableCell>
+                                     <TableCell align="right">{it.supply_price > 0 ? formatCurrency(it.supply_price) : '-'}</TableCell>
                                      <TableCell align="center">{it.quantity}</TableCell>
-                                     <TableCell align="right">{formatCurrency(it.total_price)}</TableCell>
+                                     <TableCell align="right">{formatCurrency(it.amount)}</TableCell>
+                                     <TableCell align="center" sx={{ color: '#aaa' }}>{it.rental}</TableCell>
                                    </TableRow>
                                  ))}
-                                 {/* 고객/대리점별 소계 행 */}
-                                 <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                                    <TableCell colSpan={2} align="center" sx={{ fontSize: '0.85rem', color: '#555' }}>[{ag.agency_name} 소계]</TableCell>
-                                    <TableCell align="center" sx={{ fontWeight: 'bold', color: '#555' }}>{ag.subtotalQty}</TableCell>
-                                    <TableCell align="right" sx={{ fontWeight: 'bold', color: '#555' }}>{formatCurrency(ag.subtotalAmt)}</TableCell>
-                                 </TableRow>
                                </React.Fragment>
-                             ))}
-                             {/* 브랜드 총 합계 행 */}
-                             <TableRow sx={{ bgcolor: '#e8f5e9' }}>
-                                <TableCell colSpan={3} align="center" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>[ {g.brand} 총 매 출 ]</TableCell>
-                                <TableCell align="center" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>{g.subtotalQty}</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>{formatCurrency(g.subtotalAmt)}</TableCell>
-                             </TableRow>
-                           </React.Fragment>
-                         );
-                      })}
-                      {/* 전체 합계 행 */}
-                      {reportGroups.length > 0 && (
-                        <TableRow sx={{ bgcolor: '#fff3e0' }}>
-                          <TableCell colSpan={4} align="center" sx={{ fontWeight: 'bold', fontSize: '1.05rem', color: '#e65100' }}>총 매 출 합 계 (TOTAL)</TableCell>
-                          <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '1.05rem', color: '#e65100' }}>{totalQty}</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 'bold', fontSize: '1.05rem', color: '#e65100' }}>{formatCurrency(totalAmt)}</TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                             );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Grid>
+                </Grid>
               </Box>
             )}
           </Box>

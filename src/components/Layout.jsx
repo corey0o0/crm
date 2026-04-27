@@ -311,7 +311,8 @@ function Layout() {
         { text: '온라인주문관리', icon: <ShoppingCartOutlinedIcon />, path: '/cafe24/orders', key: 'cafe24_orders' },
         { text: '출고 검수', icon: <CalendarTodayIcon />, path: '/inventory-management?tab=outbound_scan', key: 'outbound_scan' },
         { text: '수기 판매 관리', icon: <LocalShippingIcon />, path: '/sales/manual', key: 'sales_manual' },
-        { text: '판매 현황', icon: <HistoryIcon />, path: '/sales/history', key: 'sales_history' }
+        { text: '판매 현황', icon: <HistoryIcon />, path: '/sales/history', key: 'sales_history' },
+        { text: '세금계산서 발행', icon: <ReceiptIcon />, path: '/sales/tax-invoice', key: 'tax_invoice' }
       ]
     },
     // { text: '주문대기', icon: <ShoppingCartOutlinedIcon />, path: '/pending-orders', key: 'pending_orders' },

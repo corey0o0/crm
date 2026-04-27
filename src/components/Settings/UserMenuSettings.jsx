@@ -35,6 +35,7 @@ const AVAILABLE_PERMISSIONS = [
   { key: 'cafe24_orders', label: '온라인주문 관리' },
   { key: 'outbound_scan', label: '출고 대기' },
   { key: 'sales_entry', label: '수기 판매 관리' },
+  { key: 'tax_invoice', label: '세금계산서 발행' },
   { key: 'agencies', label: '거래처 관리' },
   { key: 'parts', label: '상품 관리' },
   { key: 'stocks', label: '매장 재고 관리' },
