@@ -1488,7 +1488,7 @@ export default function Cafe24OrderList() {
                       <TableCell>
                         <FormControl size="small" fullWidth sx={{ minWidth: 100 }} error={!order.is_transferred && !(warehouseConfig[order.id] && warehouseConfig[order.id][idx])}>
                            <Select 
-                              value={(warehouseConfig[order.id] && warehouseConfig[order.id][idx] !== undefined) ? String(warehouseConfig[order.id][idx]) : ''}
+                              value={(warehouseConfig[order.id] && warehouseConfig[order.id][idx] !== undefined) ? String(warehouseConfig[order.id][idx]) : (item._warehouse_id ? String(item._warehouse_id) : '')}
                               onChange={e => setWarehouseConfig(prev => ({
                                 ...prev,
                                 [order.id]: {
