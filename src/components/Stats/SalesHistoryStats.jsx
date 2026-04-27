@@ -162,16 +162,23 @@ function SalesHistoryStats() {
       });
     }
 
-    const cafeIds = (cafeRes.data || []).map(o => o.id);
+    const cafeIds = (cafeRes.data || []).map(o => String(o.id));
     const cafeWarehouseMap = {};
     if (cafeIds.length > 0) {
-      const { data: invData } = await supabase
-        .from('inventory_logs').select('reference_id, warehouse_id, part_code')
-        .eq('reference_type', 'cafe24_order').in('reference_id', cafeIds);
-      (invData || []).forEach(log => {
-        cafeWarehouseMap[log.reference_id] = log.warehouse_id;
-        if (log.part_code) cafeWarehouseMap[`${log.reference_id}_${log.part_code}`] = log.warehouse_id;
-      });
+      const { data: txData, error: txErr } = await supabase
+        .from('transactions')
+        .select('group_id, product_id, from_location')
+        .in('group_id', cafeIds)
+        .eq('type', 'out');
+        
+      if (!txErr && txData) {
+        txData.forEach(tx => {
+           cafeWarehouseMap[tx.group_id] = tx.from_location;
+           if (tx.product_id) {
+             cafeWarehouseMap[`${tx.group_id}_${tx.product_id}`] = tx.from_location;
+           }
+        });
+      }
     }
 
     const rows = [];
