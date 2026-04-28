@@ -549,13 +549,26 @@ module.exports = function(supabaseAdmin) {
         p.order_items = p.order_items.map((newItem, idx) => {
           const eItem = existingData.items[idx];
           if (eItem) {
-            const mergedItem = { ...newItem };
-            if (eItem._warehouse_id) mergedItem._warehouse_id = eItem._warehouse_id;
-            // 전송이 이미 완료된 주문의 경우, 이후 바코드가 바뀌어도 처음 매칭된 part_id를 그대로 보존
-            if (existingData.isTransferred && eItem.part_id) {
-              mergedItem.part_id = eItem.part_id;
+            if (existingData.isTransferred) {
+              // 전송 완료 건은 기존 DB 정보(상품명, 수량, 매핑, 창고 등)를 엄격히 보존
+              const mergedItem = { ...eItem, order_status: newItem.order_status };
+              
+              // 단, 과거 버그로 인해 part_id가 null로 유실된 상태인데 
+              // 이번 동기화에서 새롭게 매칭된 part_id가 있다면 복구를 위해 채워줌
+              if (!eItem.part_id && newItem.part_id) {
+                mergedItem.part_id = newItem.part_id;
+              }
+              
+              return mergedItem;
+            } else {
+              // 미전송 건은 최신 Cafe24 데이터를 우선하되, 
+              // 사용자가 지정했을 수 있는 출고 창고(_warehouse_id)는 보존
+              const mergedItem = { ...newItem };
+              if (eItem._warehouse_id) mergedItem._warehouse_id = eItem._warehouse_id;
+              // 수동으로 저장된 part_id도 보존 (동기화 시 날아가는 것 방지)
+              if (eItem.part_id) mergedItem.part_id = eItem.part_id;
+              return mergedItem;
             }
-            return mergedItem;
           }
           return newItem;
         });
