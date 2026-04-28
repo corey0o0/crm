@@ -176,7 +176,18 @@ function OnlineStats() {
                      if (item.options) {
                         const colorMatch = item.options.match(/색상=([^,]+)/);
                         if (colorMatch) {
-                           modelName += ` (${colorMatch[1].trim()})`;
+                           const extractedColor = colorMatch[1].trim();
+                           
+                           // 이름에 이미 ' - 색상' 형태가 포함된 경우 (예: 레트로 FS - 샌드 베이지)
+                           // 베이스 모델명만 추출하여 실제 선택된 옵션 색상을 붙여줌
+                           if (modelName.includes(' - ')) {
+                              modelName = modelName.split(' - ')[0];
+                           }
+                           
+                           // 만약 어떻게든 베이스 모델명에 색상이 포함되어있지 않다면 (혹은 '-' 가 없었다면)
+                           if (!modelName.replace(/\s/g, '').includes(extractedColor.replace(/\s/g, ''))) {
+                              modelName += ` (${extractedColor})`;
+                           }
                         }
                      }
 
