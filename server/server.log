@@ -109,3 +109,19 @@ GET /api/cafe24/mappings
 [Cron Job] nearbike: 연동되어 있지 않아 스킵합니다.
 [Cron Job] slimpack79: 연동되어 있지 않아 스킵합니다.
 [Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
+OPTIONS /api/cafe24/transfer/cancel
+POST /api/cafe24/transfer/cancel
+OPTIONS /api/cafe24/transfer/cancel
+POST /api/cafe24/transfer/cancel
+OPTIONS /api/cafe24/transfer/cancel
+POST /api/cafe24/transfer/cancel
+OPTIONS /api/cafe24/transfer/cancel
+POST /api/cafe24/transfer/cancel
+OPTIONS /api/cafe24/transfer/cancel
+POST /api/cafe24/transfer/cancel
+GET /api/cafe24/mappings
+[API] GET /mappings called
+OPTIONS /api/cafe24/transfer/cancel
+POST /api/cafe24/transfer/cancel
+OPTIONS /api/cafe24/transfer/cancel
+POST /api/cafe24/transfer/cancel

@@ -534,7 +534,10 @@ function OnlineStats() {
                               )}
                             </TableCell>
                             <TableCell align="right" sx={{ verticalAlign: 'top', pt: 2 }}>{formatCurrency(data.airframeAmount)}</TableCell>
-                            <TableCell align="right" sx={{ verticalAlign: 'top', pt: 2 }}>{formatCurrency(data.partsAmount)}</TableCell>
+                            <TableCell align="right" sx={{ verticalAlign: 'top', pt: 2 }}>
+                               <Typography variant="body2" sx={{ fontWeight: data.parts > 0 ? 'bold' : 'normal', color: data.parts > 0 ? 'primary.main' : 'inherit' }}>{data.parts}개</Typography>
+                               <Typography variant="caption" color="textSecondary">{formatCurrency(data.partsAmount)}</Typography>
+                            </TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', verticalAlign: 'top', pt: 2 }}>{formatCurrency(data.airframeAmount + data.partsAmount)}</TableCell>
                           </TableRow>
                         ))
@@ -589,7 +592,10 @@ function OnlineStats() {
                               )}
                             </TableCell>
                             <TableCell align="right" sx={{ verticalAlign: 'top', pt: 2 }}>{formatCurrency(data.airframeAmount)}</TableCell>
-                            <TableCell align="right" sx={{ verticalAlign: 'top', pt: 2 }}>{formatCurrency(data.partsAmount)}</TableCell>
+                            <TableCell align="right" sx={{ verticalAlign: 'top', pt: 2 }}>
+                               <Typography variant="body2" sx={{ fontWeight: data.parts > 0 ? 'bold' : 'normal', color: data.parts > 0 ? 'primary.main' : 'inherit' }}>{data.parts}개</Typography>
+                               <Typography variant="caption" color="textSecondary">{formatCurrency(data.partsAmount)}</Typography>
+                            </TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', verticalAlign: 'top', pt: 2 }}>{formatCurrency(data.airframeAmount + data.partsAmount)}</TableCell>
                           </TableRow>
                         ))
