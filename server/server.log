@@ -1,1 +1,14 @@
-nohup: npm: No such file or directory
+[Cron] 백그라운드 스케줄러(cronJobs)가 활성화되었습니다. (주기: 매시간 0분)
+[Cron] 자동 백업 스케줄러가 활성화되었습니다. (주기: 매일 새벽 4시)
+서버가 포트 5001에서 실행 중입니다.
+GET /api/cafe24/mappings
+[API] GET /mappings called
+GET /api/cafe24/mappings
+[API] GET /mappings called
+[Cron Job] 카페24 주문 자동 수집 스케줄러를 시작합니다.
+[Cron Job] nearbike: 연동되어 있지 않아 스킵합니다.
+[Cron Job] slimpack79 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] API로 과거 미완료 주문 974건 추가 상태 조회 시도...
+[Cafe24 Sync] Fetched 167 orders from Cafe24 API, processing 167 valid orders
+[Cron Job] slimpack79 수집 완료: 신규 0건, 갱신 167건
+[Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.

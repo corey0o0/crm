@@ -643,6 +643,7 @@ module.exports = function(supabaseAdmin) {
   });
   // 3.5. 수동 매핑 목록 조회 API
   router.get('/mappings', async (req, res) => {
+    console.log('[API] GET /mappings called');
     try {
       const { data, error } = await supabaseAdmin
         .from('cafe24_product_to_part')
