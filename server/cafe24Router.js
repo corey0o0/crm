@@ -460,7 +460,8 @@ module.exports = function(supabaseAdmin) {
               : ((Number(item.product_price || 0) * Number(item.quantity || 1)) - itemDiscount - bundleDiscount),
             options: item.option_value || '',
             part_id: matchedPartId,
-            order_status: item.order_status
+            order_status: item.order_status,
+            payment_method: order.payment_method_name ? order.payment_method_name.join(',') : (order.payment_method ? order.payment_method.join(',') : '')
           };
         });
       }

@@ -1397,8 +1397,11 @@ export default function Cafe24OrderList() {
                           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                             <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 500 }}>{order.order_id}</Typography>
                             <Typography variant="caption" color="text.secondary">{formatDate(order.order_date)}</Typography>
-                            <Box>
+                            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
                               <Chip label={getKoStatus(order.status)} size="small" color={getBadgeColor(order.status)} variant={order.status.startsWith('N') ? 'outlined' : 'filled'} sx={{ height: 18, fontSize: '0.7rem' }} />
+                              {items[0]?.payment_method && (
+                                <Chip label={items[0].payment_method} size="small" variant="outlined" sx={{ height: 18, fontSize: '0.7rem', color: 'text.secondary', borderColor: 'divider' }} />
+                              )}
                             </Box>
                           </Box>
                         </TableCell>

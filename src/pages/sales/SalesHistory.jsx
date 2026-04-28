@@ -164,10 +164,15 @@ function SalesHistory() {
     const partsByCode = {};
     const partsBrandMap = {};
     const partsBrandByCode = {};
+    const partsById = {};
+    const partsBrandById = {};
 
     (partsRes.data || []).forEach(p => {
       const cat = formatCategory(p.note);
       const brand = p.brand || '-';
+      partsById[p.id] = cat;
+      partsBrandById[p.id] = brand;
+
       if (p.name) {
         partsMap[p.name] = cat;
         partsBrandMap[p.name] = brand;
@@ -182,19 +187,23 @@ function SalesHistory() {
       }
     });
 
-    const resolveCategory = (name, code = '') => {
-      if (code && partsByCode[code]) return partsByCode[code];
+    const resolveCategory = (name, customCode = '', productCode = '', partId = null) => {
+      if (partId && partsById[partId]) return partsById[partId];
+      if (customCode && partsByCode[customCode]) return partsByCode[customCode];
+      if (productCode && partsByCode[productCode]) return partsByCode[productCode];
       if (name && partsMap[name]) return partsMap[name];
       const n = (name || '').toLowerCase();
       if (n.includes('교환') || n.includes('수리') || n.includes('공임') || n.includes('출장') || n.includes('작업')) return '공임';
       if (n.includes('자전거') || n.includes('기체') || n.includes('완차') || n.includes('스쿠터')) return '기체';
-      if (code && (code.startsWith('XRBP') || code.startsWith('NBP'))) return '부품';
-      if (code && (code.startsWith('XRBS') || code.startsWith('NBS'))) return '공임';
+      if (productCode && (productCode.startsWith('XRBP') || productCode.startsWith('NBP'))) return '부품';
+      if (productCode && (productCode.startsWith('XRBS') || productCode.startsWith('NBS'))) return '공임';
       return '기타';
     };
 
-    const resolveBrand = (name, code = '') => {
-      if (code && partsBrandByCode[code]) return partsBrandByCode[code];
+    const resolveBrand = (name, customCode = '', productCode = '', partId = null) => {
+      if (partId && partsBrandById[partId]) return partsBrandById[partId];
+      if (customCode && partsBrandByCode[customCode]) return partsBrandByCode[customCode];
+      if (productCode && partsBrandByCode[productCode]) return partsBrandByCode[productCode];
       if (name && partsBrandMap[name]) return partsBrandMap[name];
       return '-';
     };
@@ -294,10 +303,10 @@ function SalesHistory() {
           let cat = p.part_category;
           if (cat === '파츠') cat = '부품'; // 통계 용어 통일
           if (!cat || cat === '-' || cat === '알수없음') {
-            cat = resolveCategory(pName, pCode);
+            cat = resolveCategory(pName, pCode, '', p.part_id);
           }
           
-          const brand = resolveBrand(pName, pCode);
+          const brand = resolveBrand(pName, pCode, '', p.part_id);
           rows.push({ ...baseFields, _id: `ship_${s.id}_${p.id || idx}`, part_name: pName, part_category: cat, part_brand: brand, quantity: Number(p.quantity || 1), unit_price: Number(p.price || 0), total_price: total });
         });
       }
@@ -328,8 +337,8 @@ function SalesHistory() {
           const total = unitPrice * qty;
           if (qty > 0) {
             const pName = sp.parts?.name || '부품';
-            const cat = resolveCategory(pName);
-            const brand = resolveBrand(pName);
+            const cat = resolveCategory(pName, '', '', sp.part_id);
+            const brand = resolveBrand(pName, '', '', sp.part_id);
             
             let wid = serviceTxMap[`${s.id}_${sp.part_id}`];
             if (!wid) wid = fallbackWhId;
@@ -413,9 +422,11 @@ function SalesHistory() {
           if (idx === 0) {
             shipFee = Number(o.shipping_fee || 0);
           }
+          const customCode = item.custom_product_code || '';
+          const pCode = item.product_code || '';
           const total = paymentAmt + shipFee - itemPointsDeduction;
-          const cat = resolveCategory(pName, itemCode);
-          const brand = resolveBrand(pName, itemCode);
+          const cat = resolveCategory(pName, customCode, pCode, item.part_id);
+          const brand = resolveBrand(pName, customCode, pCode, item.part_id);
 
           rows.push({ ...baseFields, warehouse_name: itemWarehouseName, _id: `cafe_${o.id}_${idx}`, part_name: pName, part_category: cat, part_brand: brand, quantity: itemQty, unit_price: iPrice, unit_shipping_fee: shipFee, total_price: total });
         });
