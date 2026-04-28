@@ -1505,6 +1505,18 @@ export default function Cafe24OrderList() {
                       <TableCell>
                         {['C11', 'C40', 'R40', 'E40'].includes(item.order_status) ? (
                            <Typography variant="caption" color="text.secondary">취소건 (제외)</Typography>
+                        ) : order.is_transferred ? (
+                          <Typography variant="body2" color="text.secondary">
+                            {(() => {
+                              const wid = (warehouseConfig[order.id] && warehouseConfig[order.id][idx] !== undefined) 
+                                ? String(warehouseConfig[order.id][idx]) 
+                                : (item._warehouse_id ? String(item._warehouse_id) : '');
+                              if (wid && wid !== 'DEFAULT') {
+                                return warehouses.find(w => String(w.id) === wid)?.name || '전송완료';
+                              }
+                              return '전송완료';
+                            })()}
+                          </Typography>
                         ) : (
                           <FormControl size="small" fullWidth sx={{ minWidth: 100 }} error={!order.is_transferred && !(warehouseConfig[order.id] && warehouseConfig[order.id][idx])}>
                              <Select 
