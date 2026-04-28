@@ -523,26 +523,32 @@ module.exports = function(supabaseAdmin) {
       payloads.push(payload);
     }
 
-    // 1. 기존 DB에 있던 주문 식별을 위한 사전 일괄 조회 (통계 기록용 및 기존 _warehouse_id 보존용)
+    // 1. 기존 DB에 있던 주문 식별을 위한 사전 일괄 조회 (통계 기록용 및 기존 매칭/창고 보존용)
     const orderIds = payloads.map(p => p.order_id);
     const existingOrderMap = new Map();
     const FETCH_CHUNK = 200;
     for (let i = 0; i < orderIds.length; i += FETCH_CHUNK) {
       const chunk = orderIds.slice(i, i + FETCH_CHUNK);
-      const { data } = await supabaseAdmin.from('cafe24_orders').select('order_id, order_items').in('order_id', chunk);
+      const { data } = await supabaseAdmin.from('cafe24_orders').select('order_id, is_transferred, order_items').in('order_id', chunk);
       if (data) {
-        data.forEach(row => existingOrderMap.set(row.order_id, row.order_items));
+        data.forEach(row => existingOrderMap.set(row.order_id, { items: row.order_items, isTransferred: row.is_transferred }));
       }
     }
 
-    // 기존 _warehouse_id를 새 payload의 order_items에 병합
+    // 기존 매칭된 part_id(전송완료 건)와 _warehouse_id를 새 payload의 order_items에 병합
     payloads.forEach(p => {
-      const existingItems = existingOrderMap.get(p.order_id);
-      if (existingItems && Array.isArray(existingItems) && p.order_items) {
+      const existingData = existingOrderMap.get(p.order_id);
+      if (existingData && existingData.items && Array.isArray(existingData.items) && p.order_items) {
         p.order_items = p.order_items.map((newItem, idx) => {
-          const eItem = existingItems[idx];
-          if (eItem && eItem._warehouse_id) {
-            return { ...newItem, _warehouse_id: eItem._warehouse_id };
+          const eItem = existingData.items[idx];
+          if (eItem) {
+            const mergedItem = { ...newItem };
+            if (eItem._warehouse_id) mergedItem._warehouse_id = eItem._warehouse_id;
+            // 전송이 이미 완료된 주문의 경우, 이후 바코드가 바뀌어도 처음 매칭된 part_id를 그대로 보존
+            if (existingData.isTransferred && eItem.part_id) {
+              mergedItem.part_id = eItem.part_id;
+            }
+            return mergedItem;
           }
           return newItem;
         });
