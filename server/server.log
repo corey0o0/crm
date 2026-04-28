@@ -12,3 +12,100 @@ GET /api/cafe24/mappings
 [Cafe24 Sync] Fetched 167 orders from Cafe24 API, processing 167 valid orders
 [Cron Job] slimpack79 수집 완료: 신규 0건, 갱신 167건
 [Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
+[Cron Job] 카페24 주문 자동 수집 스케줄러를 시작합니다.
+[Cron Job] nearbike: 연동되어 있지 않아 스킵합니다.
+[Cron Job] slimpack79 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] API로 과거 미완료 주문 974건 추가 상태 조회 시도...
+[Cafe24 Sync] Fetched 167 orders from Cafe24 API, processing 167 valid orders
+[Cron Job] slimpack79 수집 완료: 신규 0건, 갱신 167건
+[Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
+[Cron Job] 카페24 주문 자동 수집 스케줄러를 시작합니다.
+[Cron Job] nearbike: 연동되어 있지 않아 스킵합니다.
+[Cron Job] slimpack79: 연동되어 있지 않아 스킵합니다.
+[Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
+[Cron Job] 카페24 주문 자동 수집 스케줄러를 시작합니다.
+[Cron Job] nearbike: 연동되어 있지 않아 스킵합니다.
+[Cron Job] slimpack79: 연동되어 있지 않아 스킵합니다.
+[Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
+[Cron Job] 카페24 주문 자동 수집 스케줄러를 시작합니다.
+[Cron Job] 자동 데이터 백업 스케줄러를 시작합니다.
+[Backup] Start JSON database collection...
+[Backup] Fetching table: parts...
+[Cron Job] nearbike: 연동되어 있지 않아 스킵합니다.
+[Cron Job] slimpack79: 연동되어 있지 않아 스킵합니다.
+[Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
+[Backup] Table parts fetch complete. Total rows: 683
+[Backup] Fetching table: inventory...
+[Backup] Table inventory fetch complete. Total rows: 2762
+[Backup] Fetching table: warehouses...
+[Backup] Table warehouses fetch complete. Total rows: 4
+[Backup] Fetching table: transactions...
+[Backup] Table transactions fetch complete. Total rows: 4189
+[Backup] Fetching table: inventory_logs...
+[Backup] Table inventory_logs fetch complete. Total rows: 3557
+[Backup] Fetching table: cafe24_orders...
+[Backup] Table cafe24_orders fetch complete. Total rows: 1424
+[Backup] Fetching table: pending_outbounds...
+[Backup] Table pending_outbounds fetch complete. Total rows: 16
+[Backup] Fetching table: shipments...
+[Backup] Table shipments fetch complete. Total rows: 845
+[Backup] Fetching table: shipment_parts...
+[Backup] Table shipment_parts fetch complete. Total rows: 2225
+[Backup] Fetching table: board_metadata...
+[Backup Error] Error fetching table board_metadata: relation "public.board_metadata" does not exist
+[Backup] Table board_metadata fetch complete. Total rows: 0
+[Backup] Fetching table: board_posts...
+[Backup] Table board_posts fetch complete. Total rows: 193
+[Backup] Fetching table: customers...
+[Backup] Table customers fetch complete. Total rows: 29
+[Backup] Fetching table: agencies...
+[Backup] Table agencies fetch complete. Total rows: 111
+[Backup] Fetching table: as_requests...
+[Backup Error] Error fetching table as_requests: relation "public.as_requests" does not exist
+[Backup] Table as_requests fetch complete. Total rows: 0
+[Backup] Fetching table: cafe24_settings...
+[Backup] Table cafe24_settings fetch complete. Total rows: 2
+[Backup] Fetching table: shared_memos...
+[Backup] Table shared_memos fetch complete. Total rows: 1
+[Backup] Fetching table: user_memos...
+[Backup] Table user_memos fetch complete. Total rows: 2
+[Backup] Collection complete. Uploading to R2 (crm-storage/db-backups/crm-backup-2026-04-28_19-00-10.json)...
+[Backup Fatal Error] NoSuchBucket: The specified bucket does not exist.
+    at S3RestXmlProtocol.handleError (/Users/weird/Desktop/Work/AS/crm-app/node_modules/@aws-sdk/core/dist-cjs/submodules/protocols/index.js:1850:27)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async S3RestXmlProtocol.deserializeResponse (/Users/weird/Desktop/Work/AS/crm-app/node_modules/@smithy/core/dist-cjs/submodules/protocols/index.js:343:13)
+    at async /Users/weird/Desktop/Work/AS/crm-app/node_modules/@smithy/core/dist-cjs/submodules/schema/index.js:27:24
+    at async /Users/weird/Desktop/Work/AS/crm-app/node_modules/@aws-sdk/middleware-sdk-s3/dist-cjs/index.js:387:20
+    at async /Users/weird/Desktop/Work/AS/crm-app/node_modules/@smithy/middleware-retry/dist-cjs/index.js:300:46
+    at async /Users/weird/Desktop/Work/AS/crm-app/node_modules/@aws-sdk/middleware-flexible-checksums/dist-cjs/index.js:243:24
+    at async /Users/weird/Desktop/Work/AS/crm-app/node_modules/@aws-sdk/middleware-sdk-s3/dist-cjs/index.js:64:28
+    at async /Users/weird/Desktop/Work/AS/crm-app/node_modules/@aws-sdk/middleware-sdk-s3/dist-cjs/index.js:91:20
+    at async /Users/weird/Desktop/Work/AS/crm-app/node_modules/@aws-sdk/middleware-logger/dist-cjs/index.js:5:26 {
+  '$fault': 'client',
+  '$retryable': undefined,
+  '$metadata': {
+    httpStatusCode: 404,
+    requestId: undefined,
+    extendedRequestId: undefined,
+    cfId: undefined,
+    attempts: 1,
+    totalRetryDelay: 0
+  },
+  Code: 'NoSuchBucket'
+}
+[Cron Job] 카페24 주문 자동 수집 스케줄러를 시작합니다.
+[Cron Job] nearbike: 연동되어 있지 않아 스킵합니다.
+[Cron Job] slimpack79: 연동되어 있지 않아 스킵합니다.
+[Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
+[Cron Job] 카페24 주문 자동 수집 스케줄러를 시작합니다.
+[Cron Job] nearbike: 연동되어 있지 않아 스킵합니다.
+[Cron Job] slimpack79: 연동되어 있지 않아 스킵합니다.
+[Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
+[Cron Job] 카페24 주문 자동 수집 스케줄러를 시작합니다.
+[Cron Job] nearbike: 연동되어 있지 않아 스킵합니다.
+[Cron Job] slimpack79: 연동되어 있지 않아 스킵합니다.
+[Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
+[Cron Job] 카페24 주문 자동 수집 스케줄러를 시작합니다.
+[Cron Job] nearbike: 연동되어 있지 않아 스킵합니다.
+[Cron Job] slimpack79: 연동되어 있지 않아 스킵합니다.
+[Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
