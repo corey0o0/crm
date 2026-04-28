@@ -42,6 +42,8 @@ function OnlineStats() {
   const [endDate, setEndDate] = useState(endOfMonth(new Date()));
   const [stats, setStats] = useState({ totalPayment: 0, orderCount: 0, list: [], agencyStats: {}, brandStats: {} });
   const [monthlyStats, setMonthlyStats] = useState([]);
+  const [brands, setBrands] = useState(['전체']);
+  const [selectedBrand, setSelectedBrand] = useState('전체');
   
   const currentMonth = getMonth(new Date());
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
@@ -67,13 +69,19 @@ function OnlineStats() {
     setSelectedMonth(monthIndex);
     setStartDate(newStartDate);
     setEndDate(newEndDate);
-    fetchData(newStartDate, newEndDate);
+    fetchData(newStartDate, newEndDate, selectedBrand);
+  };
+
+  // 브랜드 선택 핸들러
+  const handleBrandSelect = (brand) => {
+    setSelectedBrand(brand);
+    fetchData(startDate, endDate, brand);
   };
 
   const formatDateToStartOfDay = (date) => format(date, 'yyyy-MM-dd') + ' 00:00:00';
   const formatDateToEndOfDay = (date) => format(date, 'yyyy-MM-dd') + ' 23:59:59';
 
-  const fetchData = async (qStart, qEnd) => {
+  const fetchData = async (qStart, qEnd, qBrand = selectedBrand) => {
     setLoading(true);
     try {
       const startDateTime = formatDateToStartOfDay(qStart || startDate);
@@ -105,15 +113,21 @@ function OnlineStats() {
         agenciesData?.forEach(a => { agencyMap[a.id] = a.name; });
         const partMapById = {};
         const partMapByCode = {};
+        const brandSet = new Set();
         partsData?.forEach(p => { 
           partMapById[p.id] = p; 
           if (p.code) partMapByCode[String(p.code).trim()] = p;
           if (p.barcode) partMapByCode[String(p.barcode).trim()] = p;
+          if (p.brand && p.brand.trim() !== '') brandSet.add(p.brand.trim());
         });
+        setBrands(['전체', ...Array.from(brandSet).sort()]);
+
+        let filteredOrderCount = 0;
+        const filteredList = [];
 
         cafe24Orders.forEach(o => {
-          const amt = Number(o.total_amount || 0);
-          total += amt;
+          let orderTotalForBrand = 0;
+          let hasMatchingBrand = false;
 
           const agName = o.agency_id ? (agencyMap[o.agency_id] || `미등록 대리점`) : '일반 주문';
           if (!agencyStats[agName]) agencyStats[agName] = { amount: 0, count: 0, airframe: 0, airframeAmount: 0, parts: 0, partsAmount: 0 };
@@ -125,34 +139,41 @@ function OnlineStats() {
                const pCode = String(item.custom_product_code || item.product_code || '').trim();
                const pName = item.name || item.product_name || '';
                const p = item.part_id ? partMapById[item.part_id] : (pCode ? partMapByCode[pCode] : null);
-               
                const qty = Number(item.quantity || 1);
                const unitPrice = Number(item.product_price || item.price || (p ? p.price : 0));
                const amount = qty * unitPrice;
                
                const isAirframe = p ? (p.note === '기체') : (pName.includes('기체') || pName.includes('차체'));
+               const sup = p ? (p.brand || '기타 브랜드') : '기타 브랜드';
+
+               if (qBrand !== '전체' && sup !== qBrand) {
+                 return; // 현재 선택된 브랜드가 아니면 패스
+               }
+
+               hasMatchingBrand = true;
+               orderTotalForBrand += amount;
+               
+               if (!agencyStats[agName]) agencyStats[agName] = { amount: 0, count: 0, airframe: 0, airframeAmount: 0, parts: 0, partsAmount: 0 };
                
                if (isAirframe) {
                   agencyStats[agName].airframe += qty;
                   agencyStats[agName].airframeAmount += amount;
                } else {
-                  agencyStats[agName].parts += qty;
-                  agencyStats[agName].partsAmount += amount;
-               }
+                   agencyStats[agName].parts += qty;
+                   agencyStats[agName].partsAmount += amount;
+                }
 
-               if (p) {
-                  const sup = p.brand || '기타 브랜드';
-                  const isGeneral = !o.agency_id;
-                  const customerType = isGeneral ? 'general' : 'agency';
+                const isGeneral = !o.agency_id;
+                const customerType = isGeneral ? 'general' : 'agency';
 
-                  if (!brandStats[customerType]) {
-                    brandStats[customerType] = {};
-                  }
-                  if (!brandStats[customerType][sup]) {
-                    brandStats[customerType][sup] = { airframes: {}, airframeTotalQty: 0, parts: 0, airframeAmount: 0, partsAmount: 0 };
-                  }
-                  
-                  if (isAirframe) {
+                if (!brandStats[customerType]) {
+                  brandStats[customerType] = {};
+                }
+                if (!brandStats[customerType][sup]) {
+                  brandStats[customerType][sup] = { airframes: {}, airframeTotalQty: 0, parts: 0, airframeAmount: 0, partsAmount: 0 };
+                }
+                
+                if (isAirframe) {
                      let modelName = p.name || item.name || '알 수 없는 기체';
                      if (item.options) {
                         const colorMatch = item.options.match(/색상=([^,]+)/);
@@ -174,23 +195,40 @@ function OnlineStats() {
                      brandStats[customerType][sup].partsAmount += amount;
                   }
 
-                  // 일반 고객(B2C) 주문인 경우 상품별로 분리하여 집계
-                  if (!o.agency_id) {
-                     if (!generalProductStats[p.id]) {
-                       generalProductStats[p.id] = { name: p.name || item.name, category: p.note, quantity: 0, amount: 0 };
-                     }
-                     generalProductStats[p.id].quantity += qty;
-                     generalProductStats[p.id].amount += amount;
-                  }
-               }
+                   // 일반 고객(B2C) 주문인 경우 상품별로 분리하여 집계
+                   if (!o.agency_id && p) {
+                      if (!generalProductStats[p.id]) {
+                        generalProductStats[p.id] = { name: p.name || item.name, category: p.note, quantity: 0, amount: 0 };
+                      }
+                      generalProductStats[p.id].quantity += qty;
+                      generalProductStats[p.id].amount += amount;
+                   }
              });
           }
+
+          if (hasMatchingBrand) {
+              if (qBrand === '전체') {
+                 total += Number(o.total_amount || 0);
+                 if (agencyStats[agName]) {
+                    agencyStats[agName].amount += Number(o.total_amount || 0);
+                    agencyStats[agName].count += 1;
+                 }
+              } else {
+                 total += orderTotalForBrand;
+                 if (agencyStats[agName]) {
+                    agencyStats[agName].amount += orderTotalForBrand;
+                    agencyStats[agName].count += 1;
+                 }
+              }
+              filteredOrderCount += 1;
+              filteredList.push(o);
+           }
         });
 
         setStats({
           totalPayment: total,
-          orderCount: cafe24Orders.length,
-          list: cafe24Orders.sort((a, b) => new Date(b.order_date).getTime() - new Date(a.order_date).getTime()),
+          orderCount: filteredOrderCount,
+          list: filteredList.sort((a, b) => new Date(b.order_date).getTime() - new Date(a.order_date).getTime()),
           agencyStats,
           brandStats,
           generalProductStats
@@ -294,6 +332,30 @@ function OnlineStats() {
                 }}
               >
                 {idx + 1}월
+              </Button>
+            ))}
+          </ButtonGroup>
+        </Box>
+
+        {/* 브랜드 선택 */}
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
+            브랜드 선택
+          </Typography>
+          <ButtonGroup size="small" variant="outlined" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+            {brands.map((brand) => (
+              <Button
+                key={brand}
+                onClick={() => handleBrandSelect(brand)}
+                sx={{
+                  minWidth: '60px',
+                  backgroundColor: selectedBrand === brand ? 'primary.main' : 'inherit',
+                  color: selectedBrand === brand ? 'white' : 'inherit',
+                  fontWeight: selectedBrand === brand ? 'bold' : 'normal',
+                  '&:hover': { backgroundColor: selectedBrand === brand ? 'primary.dark' : '' }
+                }}
+              >
+                {brand}
               </Button>
             ))}
           </ButtonGroup>
@@ -433,8 +495,8 @@ function OnlineStats() {
                         .sort((a, b) => (b[1].airframeAmount + b[1].partsAmount) - (a[1].airframeAmount + a[1].partsAmount))
                         .map(([brandName, data]) => (
                           <TableRow key={brandName} hover>
-                            <TableCell sx={{ fontWeight: 'bold' }}>{brandName}</TableCell>
-                            <TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', verticalAlign: 'top', pt: 2 }}>{brandName}</TableCell>
+                            <TableCell sx={{ verticalAlign: 'top', pt: 2 }}>
                               {Object.entries(data.airframes).length > 0 ? (
                                 Object.entries(data.airframes)
                                   .sort((a, b) => b[1].qty - a[1].qty)
@@ -442,21 +504,25 @@ function OnlineStats() {
                                     <Box key={model} sx={{ 
                                       display: 'flex', 
                                       justifyContent: 'space-between', 
-                                      mb: index === arr.length - 1 ? 0 : 1,
-                                      pb: index === arr.length - 1 ? 0 : 1,
+                                      alignItems: 'center',
+                                      mb: index === arr.length - 1 ? 0 : 1.5,
+                                      pb: index === arr.length - 1 ? 0 : 1.5,
                                       borderBottom: index === arr.length - 1 ? 'none' : '1px solid #eee'
                                     }}>
-                                      <Typography variant="body2" color="textSecondary">{model}</Typography>
-                                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main', ml: 2 }}>{info.qty}대</Typography>
+                                      <Typography variant="body2" color="textSecondary" sx={{ pr: 2, flex: 1, wordBreak: 'keep-all' }}>{model}</Typography>
+                                      <Box sx={{ textAlign: 'right', minWidth: '80px' }}>
+                                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{info.qty}대</Typography>
+                                        <Typography variant="caption" color="textSecondary">{formatCurrency(info.amount)}</Typography>
+                                      </Box>
                                     </Box>
                                   ))
                               ) : (
                                 <Typography variant="body2" color="textSecondary">-</Typography>
                               )}
                             </TableCell>
-                            <TableCell align="right">{formatCurrency(data.airframeAmount)}</TableCell>
-                            <TableCell align="right">{formatCurrency(data.partsAmount)}</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(data.airframeAmount + data.partsAmount)}</TableCell>
+                            <TableCell align="right" sx={{ verticalAlign: 'top', pt: 2 }}>{formatCurrency(data.airframeAmount)}</TableCell>
+                            <TableCell align="right" sx={{ verticalAlign: 'top', pt: 2 }}>{formatCurrency(data.partsAmount)}</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', verticalAlign: 'top', pt: 2 }}>{formatCurrency(data.airframeAmount + data.partsAmount)}</TableCell>
                           </TableRow>
                         ))
                     ) : (
@@ -484,30 +550,34 @@ function OnlineStats() {
                         .sort((a, b) => (b[1].airframeAmount + b[1].partsAmount) - (a[1].airframeAmount + a[1].partsAmount))
                         .map(([brandName, data]) => (
                           <TableRow key={brandName} hover>
-                            <TableCell sx={{ fontWeight: 'bold' }}>{brandName}</TableCell>
-                            <TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', verticalAlign: 'top', pt: 2 }}>{brandName}</TableCell>
+                            <TableCell sx={{ verticalAlign: 'top', pt: 2 }}>
                               {Object.entries(data.airframes).length > 0 ? (
                                 Object.entries(data.airframes)
                                   .sort((a, b) => b[1].qty - a[1].qty)
                                   .map(([model, info], index, arr) => (
                                     <Box key={model} sx={{ 
                                       display: 'flex', 
-                                      justifyContent: 'space-between', 
-                                      mb: index === arr.length - 1 ? 0 : 1,
-                                      pb: index === arr.length - 1 ? 0 : 1,
+                                      justifyContent: 'space-between',
+                                      alignItems: 'center', 
+                                      mb: index === arr.length - 1 ? 0 : 1.5,
+                                      pb: index === arr.length - 1 ? 0 : 1.5,
                                       borderBottom: index === arr.length - 1 ? 'none' : '1px solid #eee'
                                     }}>
-                                      <Typography variant="body2" color="textSecondary">{model}</Typography>
-                                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main', ml: 2 }}>{info.qty}대</Typography>
+                                      <Typography variant="body2" color="textSecondary" sx={{ pr: 2, flex: 1, wordBreak: 'keep-all' }}>{model}</Typography>
+                                      <Box sx={{ textAlign: 'right', minWidth: '80px' }}>
+                                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{info.qty}대</Typography>
+                                        <Typography variant="caption" color="textSecondary">{formatCurrency(info.amount)}</Typography>
+                                      </Box>
                                     </Box>
                                   ))
                               ) : (
                                 <Typography variant="body2" color="textSecondary">-</Typography>
                               )}
                             </TableCell>
-                            <TableCell align="right">{formatCurrency(data.airframeAmount)}</TableCell>
-                            <TableCell align="right">{formatCurrency(data.partsAmount)}</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(data.airframeAmount + data.partsAmount)}</TableCell>
+                            <TableCell align="right" sx={{ verticalAlign: 'top', pt: 2 }}>{formatCurrency(data.airframeAmount)}</TableCell>
+                            <TableCell align="right" sx={{ verticalAlign: 'top', pt: 2 }}>{formatCurrency(data.partsAmount)}</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', verticalAlign: 'top', pt: 2 }}>{formatCurrency(data.airframeAmount + data.partsAmount)}</TableCell>
                           </TableRow>
                         ))
                     ) : (
