@@ -444,9 +444,14 @@ module.exports = function(supabaseAdmin) {
           } else if (code && barcodeToPartsMap[code]) {
             // 2) 자체 상품코드 (바코드 매칭)
             matchedPartId = resolvePartId(barcodeToPartsMap[code], item.product_name, item.option_value);
+          } else if (customCode && manualCodeToPartIdMap[customCode]) {
+            // 2.5) 자체 상품코드 (수동 매핑 테이블) - 자체 코드 우선
+            matchedPartId = manualCodeToPartIdMap[customCode];
           } else if (code && manualCodeToPartIdMap[code]) {
-            // 2.5) 자체 상품코드 (수동 매핑 테이블)
+            // 2.6) 상품코드 (수동 매핑 테이블) - 일반 코드 후순위
             matchedPartId = manualCodeToPartIdMap[code];
+          } else if (item.raw_custom_variant_code && manualCodeToPartIdMap[item.raw_custom_variant_code.trim()]) {
+            matchedPartId = manualCodeToPartIdMap[item.raw_custom_variant_code.trim()];
           } else if (item.product_name && nameToPartsMap[item.product_name.trim()]) {
             // 3) 상품명
             matchedPartId = resolvePartId(nameToPartsMap[item.product_name.trim()], item.product_name, item.option_value);
@@ -666,8 +671,14 @@ module.exports = function(supabaseAdmin) {
            if (!o.order_items) continue;
            let modified = false;
            const newItems = o.order_items.map(item => {
-              const code = item.raw_custom_variant_code || item.raw_custom_product_code || item.custom_product_code || item.product_code;
-              if (String(code).trim() === String(cafe24_product_code).trim()) {
+              const codes = [
+                item.raw_custom_variant_code,
+                item.raw_custom_product_code,
+                item.custom_product_code,
+                item.product_code
+              ].filter(Boolean).map(c => String(c).trim());
+              
+              if (codes.includes(String(cafe24_product_code).trim())) {
                  modified = true;
                  return { ...item, part_id: part_id };
               }

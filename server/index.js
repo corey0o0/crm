@@ -26,6 +26,7 @@ const allowedOrigins = [
   process.env.REACT_APP_FRONTEND_URL
 ].filter(Boolean);
 
+app.use((req, res, next) => { console.log(req.method, req.url); next(); });
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
