@@ -222,7 +222,7 @@ export async function getCafe24ProductMappings() {
   const resp = await fetch(`${BACKEND_URL}/api/cafe24/mappings`);
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
-    throw new Error(err.error || '수동 매핑 목록 조회 실패');
+    throw new Error(err.error || `수동 매핑 목록 조회 실패 (HTTP ${resp.status})`);
   }
   return resp.json();
 }
