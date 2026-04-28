@@ -392,7 +392,11 @@ function SalesHistory() {
           if (wid === 'DEFAULT') itemWarehouseName = '청담본점';
           else if (wid && warehouseMap[wid]) itemWarehouseName = warehouseMap[wid];
           
-          const pName = item.product_name || item.name || '상품';
+          let pName = item.product_name || item.name || '상품';
+          const optStr = item.option_value || item.options;
+          if (optStr && String(optStr).trim() !== '') {
+            pName = `${pName} [${String(optStr).trim()}]`;
+          }
           const itemQty = Number(item.quantity || 1);
           
           let paymentAmt = 0;
