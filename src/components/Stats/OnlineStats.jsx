@@ -153,7 +153,14 @@ function OnlineStats() {
                   }
                   
                   if (isAirframe) {
-                     const modelName = p.name || item.name || '알 수 없는 기체';
+                     let modelName = p.name || item.name || '알 수 없는 기체';
+                     if (item.options) {
+                        const colorMatch = item.options.match(/색상=([^,]+)/);
+                        if (colorMatch) {
+                           modelName += ` (${colorMatch[1].trim()})`;
+                        }
+                     }
+
                      if (!brandStats[customerType][sup].airframes[modelName]) {
                         brandStats[customerType][sup].airframes[modelName] = { qty: 0, amount: 0 };
                      }
@@ -431,8 +438,14 @@ function OnlineStats() {
                               {Object.entries(data.airframes).length > 0 ? (
                                 Object.entries(data.airframes)
                                   .sort((a, b) => b[1].qty - a[1].qty)
-                                  .map(([model, info]) => (
-                                    <Box key={model} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                                  .map(([model, info], index, arr) => (
+                                    <Box key={model} sx={{ 
+                                      display: 'flex', 
+                                      justifyContent: 'space-between', 
+                                      mb: index === arr.length - 1 ? 0 : 1,
+                                      pb: index === arr.length - 1 ? 0 : 1,
+                                      borderBottom: index === arr.length - 1 ? 'none' : '1px solid #eee'
+                                    }}>
                                       <Typography variant="body2" color="textSecondary">{model}</Typography>
                                       <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main', ml: 2 }}>{info.qty}대</Typography>
                                     </Box>
@@ -476,8 +489,14 @@ function OnlineStats() {
                               {Object.entries(data.airframes).length > 0 ? (
                                 Object.entries(data.airframes)
                                   .sort((a, b) => b[1].qty - a[1].qty)
-                                  .map(([model, info]) => (
-                                    <Box key={model} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                                  .map(([model, info], index, arr) => (
+                                    <Box key={model} sx={{ 
+                                      display: 'flex', 
+                                      justifyContent: 'space-between', 
+                                      mb: index === arr.length - 1 ? 0 : 1,
+                                      pb: index === arr.length - 1 ? 0 : 1,
+                                      borderBottom: index === arr.length - 1 ? 'none' : '1px solid #eee'
+                                    }}>
                                       <Typography variant="body2" color="textSecondary">{model}</Typography>
                                       <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main', ml: 2 }}>{info.qty}대</Typography>
                                     </Box>
