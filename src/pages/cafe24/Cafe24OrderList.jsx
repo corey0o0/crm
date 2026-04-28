@@ -1511,15 +1511,19 @@ export default function Cafe24OrderList() {
                           erpName ? (
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'nowrap' }}>
                               {erpName}
-                              <IconButton size="small" onClick={() => openMappingModal(order, item)} title="매칭 변경">
-                                <SyncIcon fontSize="small" color="action" />
+                              <IconButton size="small" onClick={() => openMappingModal(order, item)} title="매칭 변경" disabled={order.is_transferred}>
+                                <SyncIcon fontSize="small" color={order.is_transferred ? "disabled" : "action"} />
                               </IconButton>
                             </Box>
                           ) : (
                             needsMapping ? (
-                              <Button size="small" variant="outlined" color="warning" onClick={() => openMappingModal(order, item)}>
-                                수동 연결
-                              </Button>
+                              <Tooltip title={order.is_transferred ? "반영 완료(전송 완료) 건은 [반영 취소] 후 매핑할 수 있습니다." : "ERP 부품과 연결"}>
+                                <span>
+                                  <Button size="small" variant="outlined" color="warning" onClick={() => openMappingModal(order, item)} disabled={order.is_transferred}>
+                                    수동 연결
+                                  </Button>
+                                </span>
+                              </Tooltip>
                             ) : '-'
                           )
                         )}
