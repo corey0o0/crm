@@ -1449,14 +1449,14 @@ export default function Cafe24OrderList() {
                       )}
                       <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center', mb: item.options ? 0.5 : 0 }}>
-                          {['C11', 'C40', 'R40', 'E40'].includes(item.order_status) && (
-                            <Chip size="small" label="취소/반품" color="error" sx={{ mr: 1, height: 20, fontSize: '0.65rem' }} />
+                          {item.order_status && item.order_status.match(/^[CRE]/) && (
+                            <Chip size="small" label={getKoStatus(item.order_status)} color={getBadgeColor(item.order_status)} variant="filled" sx={{ mr: 1, height: 20, fontSize: '0.65rem' }} />
                           )}
                           <Typography 
                             variant="body2" 
                             sx={{ 
-                              textDecoration: ['C11', 'C40', 'R40', 'E40'].includes(item.order_status) ? 'line-through' : 'none',
-                              color: ['C11', 'C40', 'R40', 'E40'].includes(item.order_status) ? 'text.disabled' : 'inherit'
+                              textDecoration: item.order_status && item.order_status.match(/^(C40|C47|C48|C49|R40|C11|C34|C36|R34|R36)$/) ? 'line-through' : 'none',
+                              color: item.order_status && item.order_status.match(/^(C40|C47|C48|C49|R40|C11|C34|C36|R34|R36)$/) ? 'text.disabled' : 'inherit'
                             }}
                           >
                             {item.name}
