@@ -666,8 +666,8 @@ module.exports = function(supabaseAdmin) {
            if (!o.order_items) continue;
            let modified = false;
            const newItems = o.order_items.map(item => {
-              const code = item.custom_product_code || item.product_code || item.raw_custom_variant || item.raw_custom_product;
-              if (String(code).trim() === String(cafe24_product_code).trim() && !item.part_id) {
+              const code = item.raw_custom_variant_code || item.raw_custom_product_code || item.custom_product_code || item.product_code;
+              if (String(code).trim() === String(cafe24_product_code).trim()) {
                  modified = true;
                  return { ...item, part_id: part_id };
               }
