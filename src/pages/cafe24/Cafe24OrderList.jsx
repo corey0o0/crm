@@ -794,13 +794,14 @@ export default function Cafe24OrderList() {
       // 경우 3: 이미 출고된 상태 -> 재고 환입 부분 입고 권장
       setConfirmDialog({
         open: true,
-        title: '재고 환입 (반품 원상복구) 처리',
-        message: '이미 포장/출고 검수가 완료된 물품이라 일반적인 전송 취소가 불가능합니다.\n반품된 부품 수량만큼을 원래 창고에 [재고 플러스(+)] 하도록 재입고 처리 시키겠습니까?\n처리가 완료되면 다시 미전송 상태로 잠시 돌아갑니다.',
+        title: '재고 환입 (반품 원상복구) 및 무시 처리',
+        message: '이미 포장/출고 검수가 완료된 물품이라 일반적인 전송 취소가 불가능합니다.\n반품된 부품 수량만큼을 원래 창고에 [재고 플러스(+)] 하도록 재입고 처리 시키고, 리스트에서 바로 무시(제외) 처리하시겠습니까?',
         onConfirm: async () => {
           setLoading(true);
           try {
             const res = await returnCafe24Inventory([order.id]);
-            setAlertDialog({ open: true, title: '환입 완료', message: res.message || '환입이 완료되었습니다.\n목록에서 다시 [스마트 처리]를 눌러 무시 상태로 마무리해 주세요.' });
+            await supabase.from('cafe24_orders').update({ is_deleted: true, is_transferred: false }).eq('id', order.id);
+            setAlertDialog({ open: true, title: '환입 및 무시 완료', message: res.message || '환입 및 리스트 무시 처리가 성공적으로 완료되었습니다.' });
             fetchOrders();
           } catch(err) {
             setAlertDialog({ open: true, title: '환입 실패', message: err.message });
@@ -813,13 +814,14 @@ export default function Cafe24OrderList() {
       // 경우 2: 아직 출고 전이라면 롤백
       setConfirmDialog({
         open: true,
-        title: '판매 반영 취소(전체 롤백)',
-        message: '장부에 반영되었으나 아직 출고 검수는 안 되었습니다. 출고 및 매출 내역을 완전히 취소(롤백)하시겠습니까?',
+        title: '판매 반영 취소(전체 롤백) 및 무시 처리',
+        message: '장부에 반영되었으나 아직 출고 검수는 안 되었습니다. 출고 및 매출 내역을 완전히 취소(롤백)하고, 즉시 리스트에서 무시(제외) 처리하시겠습니까?',
         onConfirm: async () => {
           setLoading(true);
           try {
             await cancelSalesTransfer([order.id]);
-            setAlertDialog({ open: true, title: '롤백 완료', message: '반영 취소 및 롤백이 완료되었습니다.\n목록에서 이 버튼을 단 한 번 더 누르면 미반영 무시 처리로 깔끔하게 치워집니다!' });
+            await supabase.from('cafe24_orders').update({ is_deleted: true, is_transferred: false }).eq('id', order.id);
+            setAlertDialog({ open: true, title: '롤백 및 무시 완료', message: '반영 취소, 롤백 및 무시 처리가 한 번에 깔끔하게 완료되었습니다!' });
             fetchOrders();
           } catch(err) {
             setAlertDialog({ open: true, title: '취소 실패', message: err.message });
@@ -1455,10 +1457,18 @@ export default function Cafe24OrderList() {
                           </Typography>
                         </Box>
                         {item.options && <Typography variant="caption" color="text.secondary" display="block">{item.options}</Typography>}
-                        {(item.custom_product_code || item.product_code) && (
-                          <Box sx={{ display: 'flex', gap: 1, mt: 0.5 }}>
-                            {item.custom_product_code && <Typography variant="caption" color="primary" sx={{ fontSize: '0.65rem' }}>품목코드: {item.custom_product_code}</Typography>}
-                            {item.product_code && <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>상품코드: {item.product_code}</Typography>}
+                        {(item.raw_custom_variant_code || item.raw_custom_product_code || item.custom_product_code) && (
+                          <Box sx={{ display: 'flex', gap: 1, mt: 0.5, flexWrap: 'wrap' }}>
+                            {(item.raw_custom_variant_code || item.custom_product_code) && (
+                              <Typography variant="caption" color="primary" sx={{ fontSize: '0.65rem' }}>
+                                자체 품목코드: {item.raw_custom_variant_code || item.custom_product_code}
+                              </Typography>
+                            )}
+                            {item.raw_custom_product_code && (
+                              <Typography variant="caption" color="secondary" sx={{ fontSize: '0.65rem' }}>
+                                자체 상품코드: {item.raw_custom_product_code}
+                              </Typography>
+                            )}
                           </Box>
                         )}
                       </TableCell>

@@ -458,6 +458,8 @@ module.exports = function(supabaseAdmin) {
           return {
             product_code: code,
             custom_product_code: customCode,
+            raw_custom_variant_code: String(item.custom_variant_code || '').trim(),
+            raw_custom_product_code: String(item.custom_product_code || '').trim(),
             name: item.product_name,
             quantity: item.quantity,
             price: item.product_price,
