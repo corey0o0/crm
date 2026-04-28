@@ -413,13 +413,13 @@ export default function Cafe24OrderList() {
 
   const handleDeleteSelected = async () => {
     if (!selectedOrders.length) return;
-    if (!window.confirm(`선택한 ${selectedOrders.length}건의 주문을 목록에서 영구히 삭제하시겠습니까? (삭제 시 재수집해도 나타나지 않습니다)`)) return;
+    if (!window.confirm(`선택한 ${selectedOrders.length}건의 주문을 목록에서 삭제하시겠습니까? (삭제 후 '주문 동기화' 클릭 시 카페24에서 다시 수집됩니다)`)) return;
 
     try {
       setLoading(true);
       const { error } = await supabase
         .from('cafe24_orders')
-        .update({ is_deleted: true })
+        .delete()
         .in('id', selectedOrders);
       if (error) throw error;
 
