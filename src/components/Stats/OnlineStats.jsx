@@ -472,39 +472,7 @@ function OnlineStats() {
             </Table>
           </TableContainer>
 
-          <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>해당 기간 주문 리스트 (최신순)</Typography>
-          <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
-            <Table size="small">
-              <TableHead sx={{ bgcolor: 'grey.100' }}>
-                <TableRow>
-                  <TableCell>주문일</TableCell>
-                  <TableCell>주문번호</TableCell>
-                  <TableCell>주문자</TableCell>
-                  <TableCell>주문상품</TableCell>
-                  <TableCell align="right">결제액</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {stats.list.length > 0 ? (
-                  stats.list.map((o) => (
-                    <TableRow key={o.id} hover>
-                      <TableCell>{format(new Date(o.order_date), 'yyyy-MM-dd HH:mm')}</TableCell>
-                      <TableCell>{o.order_id}</TableCell>
-                      <TableCell>{o.buyer_name}</TableCell>
-                      <TableCell>{o.order_items ? o.order_items.map(i => i.name).join(', ') : '상품 정보 없음'}</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(o.total_amount || 0)}</TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
-                      해당 기간에 판매 반영된 주문이 없습니다.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
+
         </>
       )}
     </Container>
