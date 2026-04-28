@@ -1399,9 +1399,6 @@ export default function Cafe24OrderList() {
                             <Typography variant="caption" color="text.secondary">{formatDate(order.order_date)}</Typography>
                             <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
                               <Chip label={getKoStatus(order.status)} size="small" color={getBadgeColor(order.status)} variant={order.status.startsWith('N') ? 'outlined' : 'filled'} sx={{ height: 18, fontSize: '0.7rem' }} />
-                              {items[0]?.payment_method && (
-                                <Chip label={items[0].payment_method} size="small" variant="outlined" sx={{ height: 18, fontSize: '0.7rem', color: 'text.secondary', borderColor: 'divider' }} />
-                              )}
                             </Box>
                           </Box>
                         </TableCell>
@@ -1468,12 +1465,17 @@ export default function Cafe24OrderList() {
                       {idx === 0 && <TableCell align="right" rowSpan={items.length}>{Number(order.shipping_fee || 0).toLocaleString()}</TableCell>}
                       {idx === 0 && <TableCell align="right" rowSpan={items.length}>{displayUsedPoints.toLocaleString()}</TableCell>}
                       {idx === 0 && <TableCell align="right" rowSpan={items.length}>
-                        <Box display="flex" alignItems="center" justifyContent="flex-end" gap={0.5}>
-                          <strong>{Number(order.total_amount || 0).toLocaleString()}</strong>
-                          {!order.is_transferred && (
-                            <IconButton size="small" onClick={() => handleOpenAmountEditModal(order)} title="금액 직접 수정">
-                              <EditIcon fontSize="small" color="action" />
-                            </IconButton>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
+                          <Box display="flex" alignItems="center" justifyContent="flex-end" gap={0.5}>
+                            <strong>{Number(order.total_amount || 0).toLocaleString()}</strong>
+                            {!order.is_transferred && (
+                              <IconButton size="small" onClick={() => handleOpenAmountEditModal(order)} title="금액 직접 수정" sx={{ padding: 0 }}>
+                                <EditIcon fontSize="small" color="action" />
+                              </IconButton>
+                            )}
+                          </Box>
+                          {items[0]?.payment_method && (
+                            <Chip label={items[0].payment_method} size="small" variant="outlined" sx={{ height: 16, fontSize: '0.65rem', color: 'text.secondary' }} />
                           )}
                         </Box>
                       </TableCell>}

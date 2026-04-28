@@ -289,14 +289,20 @@ module.exports = function(supabaseAdmin) {
     const queryStart = start_date || lastPoint.toISOString().split('T')[0];
     const queryEnd = end_date || today.toISOString().split('T')[0];
 
-    // Fetch all barcodes and part_ids from parts table once for quick lookup
-    const { data: partsList } = await supabaseAdmin.from('parts').select('id, name, barcode').not('barcode', 'is', null);
+    // Fetch all parts from parts table once for quick lookup
+    const { data: partsList } = await supabaseAdmin.from('parts').select('id, name, barcode');
     const barcodeToPartsMap = {};
+    const nameToPartsMap = {};
     (partsList || []).forEach(p => {
       if(p.barcode) {
         const bc = String(p.barcode).trim();
         if(!barcodeToPartsMap[bc]) barcodeToPartsMap[bc] = [];
         barcodeToPartsMap[bc].push({ id: p.id, name: p.name });
+      }
+      if(p.name) {
+        const pName = String(p.name).trim();
+        if(!nameToPartsMap[pName]) nameToPartsMap[pName] = [];
+        nameToPartsMap[pName].push({ id: p.id, name: p.name });
       }
     });
 
@@ -411,36 +417,39 @@ module.exports = function(supabaseAdmin) {
           const customCode = (item.custom_variant_code || item.custom_item_code || item.custom_product_code) ? String(item.custom_variant_code || item.custom_item_code || item.custom_product_code).trim() : '';
           
           let matchedPartId = null;
-          if (customCode && barcodeToPartsMap[customCode]) {
-            const matchedParts = barcodeToPartsMap[customCode];
-            if (matchedParts.length === 1) {
-              matchedPartId = matchedParts[0].id; // 1. Barcode match
-            } else {
-              // 1.5. Duplicate barcodes found! Disambiguate using item options/name
-              const searchStr = `${item.product_name || ''} ${item.option_value || ''}`.toLowerCase();
-              // Split into words, keeping length >= 2
-              const words = searchStr.split(/[\s,()\[\]\-_=+./]+/).filter(w => w.length >= 2);
-              
-              let bestPart = matchedParts[0];
-              let maxMatches = -1;
-              
-              for (const part of matchedParts) {
-                const partName = (part.name || '').toLowerCase();
-                let matches = 0;
-                for (const word of words) {
-                  if (partName.includes(word)) {
-                    matches++;
-                  }
-                }
-                if (matches > maxMatches) {
-                  maxMatches = matches;
-                  bestPart = part;
-                }
+          
+          const resolvePartId = (matchedPartsArray, itemName, itemOptions) => {
+            if (matchedPartsArray.length === 1) return matchedPartsArray[0].id;
+            const searchStr = `${itemName || ''} ${itemOptions || ''}`.toLowerCase();
+            const words = searchStr.split(/[\s,()\[\]\-_=+./]+/).filter(w => w.length >= 2);
+            let bestPart = matchedPartsArray[0];
+            let maxMatches = -1;
+            for (const part of matchedPartsArray) {
+              const partName = (part.name || '').toLowerCase();
+              let matches = 0;
+              for (const word of words) {
+                if (partName.includes(word)) matches++;
               }
-              matchedPartId = bestPart.id;
+              if (matches > maxMatches) {
+                maxMatches = matches;
+                bestPart = part;
+              }
             }
+            return bestPart.id;
+          };
+
+          if (customCode && barcodeToPartsMap[customCode]) {
+            // 1) 자체 품목코드
+            matchedPartId = resolvePartId(barcodeToPartsMap[customCode], item.product_name, item.option_value);
+          } else if (code && barcodeToPartsMap[code]) {
+            // 2) 자체 상품코드 (바코드 매칭)
+            matchedPartId = resolvePartId(barcodeToPartsMap[code], item.product_name, item.option_value);
           } else if (code && manualCodeToPartIdMap[code]) {
-            matchedPartId = manualCodeToPartIdMap[code]; // 2. Manual match fallback
+            // 2.5) 자체 상품코드 (수동 매핑 테이블)
+            matchedPartId = manualCodeToPartIdMap[code];
+          } else if (item.product_name && nameToPartsMap[item.product_name.trim()]) {
+            // 3) 상품명
+            matchedPartId = resolvePartId(nameToPartsMap[item.product_name.trim()], item.product_name, item.option_value);
           }
 
           const itemDiscount = Number(item.app_item_discount_amount || 0) + Number(item.additional_discount_price || 0) + Number(item.set_product_discount_amount || 0);
