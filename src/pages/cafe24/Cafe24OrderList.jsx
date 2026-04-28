@@ -1455,6 +1455,12 @@ export default function Cafe24OrderList() {
                           </Typography>
                         </Box>
                         {item.options && <Typography variant="caption" color="text.secondary" display="block">{item.options}</Typography>}
+                        {(item.custom_product_code || item.product_code) && (
+                          <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.65rem', mt: 0.5 }}>
+                            {item.custom_product_code ? `[품목: ${item.custom_product_code}] ` : ''}
+                            {item.product_code ? `[상품: ${item.product_code}]` : ''}
+                          </Typography>
+                        )}
                       </TableCell>
                       <TableCell align="right">{item.quantity}</TableCell>
                       {showPriceDetails && <TableCell align="right">{Number(item.price || 0).toLocaleString()}</TableCell>}
