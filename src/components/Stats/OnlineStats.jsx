@@ -131,8 +131,6 @@ function OnlineStats() {
 
           const agName = o.agency_id ? (agencyMap[o.agency_id] || `미등록 대리점`) : '일반 주문';
           if (!agencyStats[agName]) agencyStats[agName] = { amount: 0, count: 0, airframe: 0, airframeAmount: 0, parts: 0, partsAmount: 0 };
-          agencyStats[agName].amount += amt; // Total includes shipping/discount
-          agencyStats[agName].count += 1;
 
           if (o.order_items && Array.isArray(o.order_items)) {
              o.order_items.forEach(item => {
