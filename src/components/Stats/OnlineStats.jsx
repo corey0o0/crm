@@ -99,7 +99,7 @@ function OnlineStats() {
       if (cafe24Orders) {
         let total = 0;
         const agencyStats = {};
-        const brandStats = {};
+        const brandStats = { agency: {}, general: {} };
         const generalProductStats = {};
         const agencyMap = {};
         agenciesData?.forEach(a => { agencyMap[a.id] = a.name; });
@@ -142,14 +142,29 @@ function OnlineStats() {
 
                if (p) {
                   const sup = p.brand || '기타 브랜드';
-                  if (!brandStats[sup]) brandStats[sup] = { airframe: 0, parts: 0, airframeAmount: 0, partsAmount: 0 };
+                  const isGeneral = !o.agency_id;
+                  const customerType = isGeneral ? 'general' : 'agency';
+
+                  if (!brandStats[customerType]) {
+                    brandStats[customerType] = {};
+                  }
+                  if (!brandStats[customerType][sup]) {
+                    brandStats[customerType][sup] = { airframes: {}, airframeTotalQty: 0, parts: 0, airframeAmount: 0, partsAmount: 0 };
+                  }
                   
                   if (isAirframe) {
-                     brandStats[sup].airframe += qty;
-                     brandStats[sup].airframeAmount += amount;
+                     const modelName = p.name || item.name || '알 수 없는 기체';
+                     if (!brandStats[customerType][sup].airframes[modelName]) {
+                        brandStats[customerType][sup].airframes[modelName] = { qty: 0, amount: 0 };
+                     }
+                     brandStats[customerType][sup].airframes[modelName].qty += qty;
+                     brandStats[customerType][sup].airframes[modelName].amount += amount;
+
+                     brandStats[customerType][sup].airframeTotalQty += qty;
+                     brandStats[customerType][sup].airframeAmount += amount;
                   } else {
-                     brandStats[sup].parts += qty;
-                     brandStats[sup].partsAmount += amount;
+                     brandStats[customerType][sup].parts += qty;
+                     brandStats[customerType][sup].partsAmount += amount;
                   }
 
                   // 일반 고객(B2C) 주문인 경우 상품별로 분리하여 집계
@@ -393,27 +408,83 @@ function OnlineStats() {
             </Grid>
 
             <Grid item xs={12} md={6}>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>브랜드별 제품 출고 현황</Typography>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>브랜드별 제품 출고 현황 (대리점 B2B)</Typography>
+              <TableContainer component={Paper} sx={{ borderRadius: 2, mb: 4 }}>
+                <Table size="small">
+                  <TableHead sx={{ bgcolor: 'grey.100' }}>
+                    <TableRow>
+                      <TableCell>브랜드명</TableCell>
+                      <TableCell>기체 종류별 판매 대수</TableCell>
+                      <TableCell align="right">기체 합계금액</TableCell>
+                      <TableCell align="right">부품/용품 합계금액</TableCell>
+                      <TableCell align="right">총 합계</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {Object.entries(stats.brandStats?.agency || {}).length > 0 ? (
+                      Object.entries(stats.brandStats.agency)
+                        .sort((a, b) => (b[1].airframeAmount + b[1].partsAmount) - (a[1].airframeAmount + a[1].partsAmount))
+                        .map(([brandName, data]) => (
+                          <TableRow key={brandName} hover>
+                            <TableCell sx={{ fontWeight: 'bold' }}>{brandName}</TableCell>
+                            <TableCell>
+                              {Object.entries(data.airframes).length > 0 ? (
+                                Object.entries(data.airframes)
+                                  .sort((a, b) => b[1].qty - a[1].qty)
+                                  .map(([model, info]) => (
+                                    <Box key={model} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                                      <Typography variant="body2" color="textSecondary">{model}</Typography>
+                                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main', ml: 2 }}>{info.qty}대</Typography>
+                                    </Box>
+                                  ))
+                              ) : (
+                                <Typography variant="body2" color="textSecondary">-</Typography>
+                              )}
+                            </TableCell>
+                            <TableCell align="right">{formatCurrency(data.airframeAmount)}</TableCell>
+                            <TableCell align="right">{formatCurrency(data.partsAmount)}</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(data.airframeAmount + data.partsAmount)}</TableCell>
+                          </TableRow>
+                        ))
+                    ) : (
+                      <TableRow><TableCell colSpan={5} align="center">데이터가 없습니다.</TableCell></TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>브랜드별 제품 출고 현황 (일반고객 B2C)</Typography>
               <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
                 <Table size="small">
                   <TableHead sx={{ bgcolor: 'grey.100' }}>
                     <TableRow>
                       <TableCell>브랜드명</TableCell>
-                      <TableCell align="right">기체 판매 대수</TableCell>
-                      <TableCell align="right">기체 판매 금액</TableCell>
-                      <TableCell align="right">파츠 판매 금액</TableCell>
+                      <TableCell>기체 종류별 판매 대수</TableCell>
+                      <TableCell align="right">기체 합계금액</TableCell>
+                      <TableCell align="right">부품/용품 합계금액</TableCell>
                       <TableCell align="right">총 합계</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {Object.entries(stats.brandStats || {}).length > 0 ? (
-                      Object.entries(stats.brandStats)
+                    {Object.entries(stats.brandStats?.general || {}).length > 0 ? (
+                      Object.entries(stats.brandStats.general)
                         .sort((a, b) => (b[1].airframeAmount + b[1].partsAmount) - (a[1].airframeAmount + a[1].partsAmount))
                         .map(([brandName, data]) => (
                           <TableRow key={brandName} hover>
-                            <TableCell>{brandName}</TableCell>
-                            <TableCell align="right" sx={{ color: 'primary.main', fontWeight: data.airframe > 0 ? 'bold' : 'normal' }}>
-                              {data.airframe}대
+                            <TableCell sx={{ fontWeight: 'bold' }}>{brandName}</TableCell>
+                            <TableCell>
+                              {Object.entries(data.airframes).length > 0 ? (
+                                Object.entries(data.airframes)
+                                  .sort((a, b) => b[1].qty - a[1].qty)
+                                  .map(([model, info]) => (
+                                    <Box key={model} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                                      <Typography variant="body2" color="textSecondary">{model}</Typography>
+                                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main', ml: 2 }}>{info.qty}대</Typography>
+                                    </Box>
+                                  ))
+                              ) : (
+                                <Typography variant="body2" color="textSecondary">-</Typography>
+                              )}
                             </TableCell>
                             <TableCell align="right">{formatCurrency(data.airframeAmount)}</TableCell>
                             <TableCell align="right">{formatCurrency(data.partsAmount)}</TableCell>
