@@ -466,9 +466,9 @@ module.exports = function(supabaseAdmin) {
             item_discount: itemDiscount,
             bundle_discount: bundleDiscount,
             discount_amount: itemDiscount + bundleDiscount,
-            payment_amount: (item.payment_amount !== null && item.payment_amount !== undefined) 
+            payment_amount: (item.payment_amount !== null && item.payment_amount !== undefined && Number(item.payment_amount) > 0) 
               ? Number(item.payment_amount) 
-              : ((Number(item.product_price || 0) * Number(item.quantity || 1)) - itemDiscount - bundleDiscount),
+              : Math.max(0, (Number(item.product_price || 0) * Number(item.quantity || 1)) - itemDiscount - bundleDiscount),
             options: item.option_value || '',
             part_id: matchedPartId,
             order_status: item.order_status,
@@ -477,7 +477,7 @@ module.exports = function(supabaseAdmin) {
         });
       }
 
-      const pg_payment = Number(order.payment_amount || 0);
+      const pg_payment = Number(order.payment_amount || 0) + Number(order.naver_point || 0) + Number(order.prepaid_amount || 0);
       const actual_deposit = Number(order.deposit || (order.actual_order_amount && order.actual_order_amount.deposit) || 0);
       
       const isFullPoints = Number(order.actual_order_amount?.order_price_amount) > 0 && pg_payment === 0 && actual_deposit === 0;
