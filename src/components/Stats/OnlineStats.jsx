@@ -335,33 +335,9 @@ function OnlineStats() {
           </ButtonGroup>
         </Box>
 
-        {/* 브랜드 선택 */}
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
-            브랜드 선택
-          </Typography>
-          <ButtonGroup size="small" variant="outlined" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
-            {brands.map((brand) => (
-              <Button
-                key={brand}
-                onClick={() => handleBrandSelect(brand)}
-                sx={{
-                  minWidth: '60px',
-                  backgroundColor: selectedBrand === brand ? 'primary.main' : 'inherit',
-                  color: selectedBrand === brand ? 'white' : 'inherit',
-                  fontWeight: selectedBrand === brand ? 'bold' : 'normal',
-                  '&:hover': { backgroundColor: selectedBrand === brand ? 'primary.dark' : '' }
-                }}
-              >
-                {brand}
-              </Button>
-            ))}
-          </ButtonGroup>
-        </Box>
-
         <Grid container spacing={2} alignItems="center">
           <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
-            <Grid item xs={12} sm={3}>
+            <Grid item xs={12} sm={3} md={2.5}>
               <DatePicker
                 label="시작일"
                 value={startDate}
@@ -369,7 +345,7 @@ function OnlineStats() {
                 renderInput={(params) => <TextField {...params} fullWidth size="small" />}
               />
             </Grid>
-            <Grid item xs={12} sm={3}>
+            <Grid item xs={12} sm={3} md={2.5}>
               <DatePicker
                 label="종료일"
                 value={endDate}
@@ -379,10 +355,38 @@ function OnlineStats() {
             </Grid>
           </LocalizationProvider>
 
-          <Grid item xs={12} sm={2}>
-            <Button fullWidth variant="contained" onClick={() => fetchData()} disabled={loading} sx={{ height: 40, bgcolor: '#3182f6', '&:hover': { bgcolor: '#1b64da' } }} startIcon={<RefreshIcon />}>조회</Button>
+          {/* 브랜드 선택 */}
+          <Grid item xs={12} sm={4} md={5}>
+            <ButtonGroup size="large" variant="outlined" sx={{ height: 40 }}>
+              {brands.map((brand) => (
+                <Button
+                  key={brand}
+                  onClick={() => handleBrandSelect(brand)}
+                  sx={{
+                    minWidth: '60px',
+                    height: '100%',
+                    backgroundColor: selectedBrand === brand ? 'primary.main' : 'inherit',
+                    color: selectedBrand === brand ? 'white' : 'inherit',
+                    fontWeight: selectedBrand === brand ? 'bold' : 'normal',
+                    '&:hover': { backgroundColor: selectedBrand === brand ? 'primary.dark' : '' }
+                  }}
+                >
+                  {brand}
+                </Button>
+              ))}
+            </ButtonGroup>
+          </Grid>
+
+          <Grid item xs={12} sm={2} md={2}>
+            <Button fullWidth variant="contained" onClick={() => fetchData()} disabled={loading} sx={{ height: 40, bgcolor: '#3182f6', '&:hover': { bgcolor: '#1b64da' }, fontWeight: 'bold' }}>조회</Button>
           </Grid>
         </Grid>
+
+        <Box sx={{ mt: 2 }}>
+          <Button variant="outlined" color="warning" startIcon={<RefreshIcon />} onClick={() => fetchData()} sx={{ fontWeight: 'bold' }}>
+            매출 강제 재계산 (캐시 무시)
+          </Button>
+        </Box>
       </Paper>
 
       {loading ? (
