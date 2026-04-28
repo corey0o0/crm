@@ -383,9 +383,7 @@ export default function Cafe24OrderList() {
   });
 
   const visibleOrders = filteredOrders.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-  const visibleSelectableIds = visibleOrders
-    .filter(n => transferFilter === 'ignored' || (!n.is_transferred && String(n.status).trim() !== 'N00'))
-    .map(n => n.id);
+  const visibleSelectableIds = visibleOrders.map(n => n.id);
 
   const handleSelectAllClick = (event) => {
     if (event.target.checked) {
@@ -1358,7 +1356,6 @@ export default function Cafe24OrderList() {
                         <Checkbox
                           checked={selectedOrders.includes(order.id)}
                           onChange={(e) => handleSelectRow(e, order.id)}
-                          disabled={order.is_transferred || String(order.status).trim() === 'N00'}
                         />
                       </TableCell>
                       <TableCell>카페24</TableCell>
@@ -1395,7 +1392,6 @@ export default function Cafe24OrderList() {
                           <Checkbox
                             checked={selectedOrders.includes(order.id)}
                             onChange={(e) => handleSelectRow(e, order.id)}
-                            disabled={order.is_transferred || String(order.status).trim() === 'N00'}
                           />
                         </TableCell>
                       )}
