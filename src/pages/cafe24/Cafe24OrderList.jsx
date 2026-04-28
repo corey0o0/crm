@@ -1456,10 +1456,10 @@ export default function Cafe24OrderList() {
                         </Box>
                         {item.options && <Typography variant="caption" color="text.secondary" display="block">{item.options}</Typography>}
                         {(item.custom_product_code || item.product_code) && (
-                          <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.65rem', mt: 0.5 }}>
-                            {item.custom_product_code ? `[품목: ${item.custom_product_code}] ` : ''}
-                            {item.product_code ? `[상품: ${item.product_code}]` : ''}
-                          </Typography>
+                          <Box sx={{ display: 'flex', gap: 1, mt: 0.5 }}>
+                            {item.custom_product_code && <Typography variant="caption" color="primary" sx={{ fontSize: '0.65rem' }}>품목코드: {item.custom_product_code}</Typography>}
+                            {item.product_code && <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>상품코드: {item.product_code}</Typography>}
+                          </Box>
                         )}
                       </TableCell>
                       <TableCell align="right">{item.quantity}</TableCell>
