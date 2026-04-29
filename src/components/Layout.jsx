@@ -307,10 +307,10 @@ function Layout() {
       key: 'sales',
       children: [
         { text: 'A/S 관리', icon: <BuildIcon />, path: '/services', key: 'services' },
-        { text: '매장출고관리', icon: <LocalShippingIcon />, path: '/shipment', key: 'shipment' },
-        { text: '온라인주문관리', icon: <ShoppingCartOutlinedIcon />, path: '/cafe24/orders', key: 'cafe24_orders' },
+        { text: '매장 출고관리', icon: <LocalShippingIcon />, path: '/shipment', key: 'shipment' },
+        { text: '온라인 주문관리', icon: <ShoppingCartOutlinedIcon />, path: '/cafe24/orders', key: 'cafe24_orders' },
         { text: '출고 검수', icon: <CalendarTodayIcon />, path: '/inventory-management?tab=outbound_scan', key: 'outbound_scan' },
-        { text: '수기 판매 관리', icon: <LocalShippingIcon />, path: '/sales/manual', key: 'sales_manual' },
+        { text: '수기 판매관리', icon: <LocalShippingIcon />, path: '/sales/manual', key: 'sales_manual' },
         { text: '판매 현황', icon: <HistoryIcon />, path: '/sales/history', key: 'sales_history' },
         { text: '세금계산서 발행', icon: <ReceiptIcon />, path: '/sales/tax-invoice', key: 'tax_invoice' }
       ]
@@ -336,7 +336,7 @@ function Layout() {
       key: 'stats',
       children: [
         { text: '판매현황 통계', icon: <BarChartIcon />, path: '/sales/history-stats', key: 'sales_history_stats' },
-        { text: '매장 매출 통계', icon: <BarChartIcon />, path: '/sales/stats', key: 'sales_stats' },
+        { text: '매장 매출통계', icon: <BarChartIcon />, path: '/sales/stats', key: 'sales_stats' },
         { text: '온라인 매출통계', icon: <BarChartIcon />, path: '/online/stats', key: 'online_stats' }
       ]
     },

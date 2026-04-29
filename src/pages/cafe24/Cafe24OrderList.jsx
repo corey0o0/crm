@@ -1160,7 +1160,7 @@ export default function Cafe24OrderList() {
 
   return (
     <Box sx={{ width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
-      <Typography variant="h5" fontWeight="bold" sx={{ mb: 2 }}>온라인주문관리</Typography>
+      <Typography variant="h5" fontWeight="bold" sx={{ mb: 2 }}>온라인 주문관리</Typography>
 
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
         <Tabs value={tabValue} onChange={(e, val) => setTabValue(val)}>

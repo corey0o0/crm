@@ -337,7 +337,7 @@ export default function ManualSalesList({ isEmbedded = false }) {
     <Box p={isEmbedded ? 0 : 3} sx={{ maxWidth: 1600, margin: '0 auto' }}>
       {!isEmbedded && (
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-          <Typography variant="h4" fontWeight="bold">수기 판매 관리</Typography>
+          <Typography variant="h5" fontWeight="bold">수기 판매관리</Typography>
           <Stack direction="row" spacing={2}>
              <Button variant="outlined" startIcon={<CloudUploadIcon />} onClick={() => navigate('/settings/ecount-uploader')}>
               이카운트 엑셀 일괄등록

@@ -1616,7 +1616,7 @@ function ShipmentList() {
     return (
       <Box sx={{ width: '100%', maxWidth: '1800px', mx: 'auto', p: 2 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h5">매장 출고 관리</Typography>
+          <Typography variant="h5">매장 출고관리</Typography>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <Button
               variant="contained"
@@ -1665,7 +1665,7 @@ function ShipmentList() {
   return (
     <Box sx={{ width: '100%', maxWidth: '1800px', mx: 'auto', p: 2 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h5">매장 출고 관리</Typography>
+        <Typography variant="h5">매장 출고관리</Typography>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
           <Button
             variant="contained"
