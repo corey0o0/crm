@@ -4,7 +4,7 @@ import {
   TableHead, TableRow, Chip, CircularProgress, Alert, Stack, Dialog, DialogTitle,
   DialogContent, DialogActions, Autocomplete, TextField, Tabs, Tab, Select, MenuItem, FormControl, FormControlLabel, InputLabel, Checkbox, IconButton, Tooltip, InputAdornment, TablePagination, ToggleButton, ToggleButtonGroup, TableFooter, Grid, ButtonGroup
 } from '@mui/material';
-import { Sync as SyncIcon, PersonAdd as PersonAddIcon, Search as SearchIcon, Edit as EditIcon, PlaylistAdd as PlaylistAddIcon, Close as CloseIcon, FileDownload as FileDownloadIcon } from '@mui/icons-material';
+import { Sync as SyncIcon, PersonAdd as PersonAddIcon, Search as SearchIcon, Edit as EditIcon, PlaylistAdd as PlaylistAddIcon, Close as CloseIcon, FileDownload as FileDownloadIcon, CallSplit as CallSplitIcon } from '@mui/icons-material';
 import Cafe24Settings from '../../components/Settings/Cafe24Settings';
 import { supabase } from '../../lib/supabaseClient';
 import { getCafe24Malls, syncCafe24Orders, addCafe24ProductMapping, getCafe24ProductMappings, deleteCafe24ProductMapping,  transferCafe24Orders, cancelSalesTransfer, returnCafe24Inventory } from '../../utils/cafe24Api';
@@ -1024,6 +1024,35 @@ export default function Cafe24OrderList() {
     setEditingItems(prev => prev.filter((_, i) => i !== index));
   };
 
+  const handleSplitEditingItem = (index) => {
+    setEditingItems(prev => {
+      const updated = [...prev];
+      const targetItem = updated[index];
+      const origQty = Number(targetItem.quantity || 1);
+      
+      if (origQty <= 1) {
+        alert('수량이 1개 이하인 품목은 분할할 수 없습니다.');
+        return updated;
+      }
+      
+      const origPaymentAmt = Number(targetItem.payment_amount || 0);
+      
+      const newItemQty = 1;
+      const remainingQty = origQty - 1;
+      
+      const remainingPaymentAmt = Math.floor((origPaymentAmt * remainingQty) / origQty);
+      const newPaymentAmt = origPaymentAmt - remainingPaymentAmt;
+      
+      targetItem.quantity = remainingQty;
+      targetItem.payment_amount = remainingPaymentAmt;
+      
+      const splitItem = { ...targetItem, quantity: newItemQty, payment_amount: newPaymentAmt };
+      
+      updated.splice(index + 1, 0, splitItem);
+      return updated;
+    });
+  };
+
   const handleAddEditingPart = () => {
     if (!addingPart) return;
     const newItem = {
@@ -1917,7 +1946,14 @@ export default function Cafe24OrderList() {
                       inputProps={{ style: { padding: '4px 8px' } }}
                     />
                   </TableCell>
-                  <TableCell align="center">
+                  <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
+                    <Tooltip title="1개 분할하기 (수량이 2개 이상일 때)">
+                      <span>
+                        <IconButton size="small" color="primary" onClick={() => handleSplitEditingItem(idx)} disabled={Number(item.quantity || 1) <= 1} sx={{ mr: 0.5 }}>
+                          <CallSplitIcon fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
                     <IconButton size="small" color="error" onClick={() => handleRemoveEditingItem(idx)}>
                       <CloseIcon fontSize="small" />
                     </IconButton>
