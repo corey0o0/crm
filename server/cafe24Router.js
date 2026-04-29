@@ -591,8 +591,8 @@ module.exports = function(supabaseAdmin) {
           }
           return newItem;
         });
+        }
       }
-    });
     });
 
     // 통계 계산
