@@ -138,3 +138,13 @@ POST /api/cafe24/transfer/cancel
 [Cron Job] slimpack79: 연동되어 있지 않아 스킵합니다.
 [Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
 POST /api/cafe24/sync/orders
+[Cron Job] 카페24 주문 자동 수집 스케줄러를 시작합니다.
+[Cron Job] slimpack79 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] API로 과거 미완료 주문 689건 추가 상태 조회 시도...
+[Cafe24 Sync] Fetched 131 orders from Cafe24 API, processing 131 valid orders
+[Cron Job] slimpack79 수집 완료: 신규 25건, 갱신 106건
+[Cron Job] nearbike 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] API로 과거 미완료 주문 268건 추가 상태 조회 시도...
+[Cafe24 Sync] Fetched 53 orders from Cafe24 API, processing 53 valid orders
+[Cron Job] nearbike 수집 완료: 신규 12건, 갱신 41건
+[Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.

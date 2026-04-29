@@ -859,7 +859,7 @@ export default function Cafe24OrderList() {
         if (!order.order_items) return order;
         let modified = false;
         const newItems = order.order_items.map(item => {
-           const code = item.custom_product_code || item.product_code || item.raw_custom_variant || item.raw_custom_product;
+           const code = item.custom_product_code || item.variant_code || item.product_code || item.raw_custom_variant || item.raw_custom_product;
            if (String(code).trim() === String(mappingItem.product_code).trim() && !item.part_id) {
              modified = true;
              return { ...item, part_id: selectedPart.id };

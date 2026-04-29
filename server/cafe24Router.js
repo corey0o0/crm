@@ -452,8 +452,11 @@ module.exports = function(supabaseAdmin) {
           } else if (customCode && manualCodeToPartIdMap[customCode]) {
             // 2.5) 자체 상품코드 (수동 매핑 테이블) - 자체 코드 우선
             matchedPartId = manualCodeToPartIdMap[customCode];
+          } else if (item.variant_code && manualCodeToPartIdMap[item.variant_code]) {
+            // 2.6) 카페24 옵션별 품목코드 (variant_code)
+            matchedPartId = manualCodeToPartIdMap[item.variant_code];
           } else if (code && manualCodeToPartIdMap[code]) {
-            // 2.6) 상품코드 (수동 매핑 테이블) - 일반 코드 후순위
+            // 2.7) 상품코드 (수동 매핑 테이블) - 일반 코드 후순위
             matchedPartId = manualCodeToPartIdMap[code];
           } else if (item.raw_custom_variant_code && manualCodeToPartIdMap[item.raw_custom_variant_code.trim()]) {
             matchedPartId = manualCodeToPartIdMap[item.raw_custom_variant_code.trim()];
@@ -467,6 +470,7 @@ module.exports = function(supabaseAdmin) {
 
           return {
             product_code: code,
+            variant_code: String(item.variant_code || '').trim(),
             custom_product_code: customCode,
             raw_custom_variant_code: String(item.custom_variant_code || '').trim(),
             raw_custom_product_code: String(item.custom_product_code || '').trim(),
@@ -716,6 +720,7 @@ module.exports = function(supabaseAdmin) {
                 item.raw_custom_variant_code,
                 item.raw_custom_product_code,
                 item.custom_product_code,
+                item.variant_code,
                 item.product_code
               ].filter(Boolean).map(c => String(c).trim());
               
