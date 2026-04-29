@@ -541,17 +541,31 @@ module.exports = function(supabaseAdmin) {
     const FETCH_CHUNK = 200;
     for (let i = 0; i < orderIds.length; i += FETCH_CHUNK) {
       const chunk = orderIds.slice(i, i + FETCH_CHUNK);
-      const { data } = await supabaseAdmin.from('cafe24_orders').select('order_id, is_transferred, order_items').in('order_id', chunk);
+      const { data } = await supabaseAdmin.from('cafe24_orders').select('order_id, is_transferred, order_items, total_amount, shipping_fee, used_points').in('order_id', chunk);
       if (data) {
-        data.forEach(row => existingOrderMap.set(row.order_id, { items: row.order_items, isTransferred: row.is_transferred }));
+        data.forEach(row => existingOrderMap.set(row.order_id, { 
+          items: row.order_items, 
+          isTransferred: row.is_transferred,
+          total_amount: row.total_amount,
+          shipping_fee: row.shipping_fee,
+          used_points: row.used_points
+        }));
       }
     }
 
     // 기존 매칭된 part_id(전송완료 건)와 _warehouse_id를 새 payload의 order_items에 병합
     payloads.forEach(p => {
       const existingData = existingOrderMap.get(p.order_id);
-      if (existingData && existingData.items && Array.isArray(existingData.items) && p.order_items) {
-        p.order_items = p.order_items.map((newItem, idx) => {
+      if (existingData) {
+        if (existingData.isTransferred) {
+          // 전송 완료된 주문은 최상위 금액 관련 필드도 엄격히 보존 (매출 통계/입출고와 어긋나지 않도록)
+          if (existingData.total_amount !== undefined) p.total_amount = existingData.total_amount;
+          if (existingData.shipping_fee !== undefined) p.shipping_fee = existingData.shipping_fee;
+          if (existingData.used_points !== undefined) p.used_points = existingData.used_points;
+        }
+
+        if (existingData.items && Array.isArray(existingData.items) && p.order_items) {
+          p.order_items = p.order_items.map((newItem, idx) => {
           const eItem = existingData.items[idx];
           if (eItem) {
             if (existingData.isTransferred) {
@@ -578,6 +592,7 @@ module.exports = function(supabaseAdmin) {
           return newItem;
         });
       }
+    });
     });
 
     // 통계 계산

@@ -133,3 +133,7 @@ POST /api/cafe24/transfer/cancel
 [Cron Job] nearbike: 연동되어 있지 않아 스킵합니다.
 [Cron Job] slimpack79: 연동되어 있지 않아 스킵합니다.
 [Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
+[Cron Job] 카페24 주문 자동 수집 스케줄러를 시작합니다.
+[Cron Job] nearbike: 연동되어 있지 않아 스킵합니다.
+[Cron Job] slimpack79: 연동되어 있지 않아 스킵합니다.
+[Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
