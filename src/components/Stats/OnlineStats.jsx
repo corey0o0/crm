@@ -284,114 +284,108 @@ function OnlineStats() {
           검색 필터
         </Typography>
 
-        {/* 연도 선택 */}
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
-            연도 선택
-          </Typography>
-          <ButtonGroup size="small" variant="outlined" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
-            {(() => {
-              const minYear = 2022;
-              const years = [];
-              for (let year = currentYear; year >= minYear; year--) {
-                years.push(year);
-              }
-              return years.map((year) => (
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={4} sx={{ mb: 3 }}>
+          {/* 연도 선택 */}
+          <Box>
+            <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
+              연도 선택
+            </Typography>
+            <ButtonGroup size="small" variant="outlined" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+              {(() => {
+                const minYear = 2022;
+                const years = [];
+                for (let year = currentYear; year >= minYear; year--) {
+                  years.push(year);
+                }
+                return years.map((year) => (
+                  <Button
+                    key={year}
+                    onClick={() => handleYearSelect(year)}
+                    sx={{
+                      minWidth: '60px',
+                      backgroundColor: selectedYear === year ? 'primary.main' : 'inherit',
+                      color: selectedYear === year ? 'white' : 'inherit',
+                      fontWeight: selectedYear === year ? 'bold' : 'normal',
+                      '&:hover': { backgroundColor: selectedYear === year ? 'primary.dark' : '' }
+                    }}
+                  >
+                    {year}년
+                  </Button>
+                ));
+              })()}
+            </ButtonGroup>
+          </Box>
+
+          {/* 월별 버튼 그룹 */}
+          <Box>
+            <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary', display: 'flex', alignItems: 'center' }}>
+              월 선택
+              {selectedMonth !== null && (
+                <Box component="span" sx={{
+                  ml: 2, py: 0.5, px: 1.5, borderRadius: 1, backgroundColor: '#e3f2fd', fontSize: '0.9rem', color: '#1976d2', display: 'inline-flex', alignItems: 'center'
+                }}>
+                  현재 선택: {selectedMonth + 1}월 ({format(startDate, 'yyyy-MM-dd')} ~ {format(endDate, 'yyyy-MM-dd')})
+                </Box>
+              )}
+            </Typography>
+            <ButtonGroup size="small" variant="outlined" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+              {[...Array(12)].map((_, idx) => (
                 <Button
-                  key={year}
-                  onClick={() => handleYearSelect(year)}
+                  key={idx}
+                  onClick={() => handleMonthSelect(idx)}
                   sx={{
-                    minWidth: '60px',
-                    backgroundColor: selectedYear === year ? 'primary.main' : 'inherit',
-                    color: selectedYear === year ? 'white' : 'inherit',
-                    fontWeight: selectedYear === year ? 'bold' : 'normal',
-                    '&:hover': { backgroundColor: selectedYear === year ? 'primary.dark' : '' }
+                    minWidth: '40px',
+                    backgroundColor: selectedMonth === idx ? 'primary.main' : 'inherit',
+                    color: selectedMonth === idx ? 'white' : 'inherit',
+                    fontWeight: selectedMonth === idx ? 'bold' : 'normal',
+                    '&:hover': { backgroundColor: selectedMonth === idx ? 'primary.dark' : '' }
                   }}
                 >
-                  {year}년
-                </Button>
-              ));
-            })()}
-          </ButtonGroup>
-        </Box>
-
-        {/* 월별 버튼 그룹 */}
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary', display: 'flex', alignItems: 'center' }}>
-            월 선택
-            {selectedMonth !== null && (
-              <Box component="span" sx={{
-                ml: 2, py: 0.5, px: 1.5, borderRadius: 1, backgroundColor: '#e3f2fd', fontSize: '0.9rem', color: '#1976d2', display: 'inline-flex', alignItems: 'center'
-              }}>
-                현재 선택: {selectedMonth + 1}월 ({format(startDate, 'yyyy-MM-dd')} ~ {format(endDate, 'yyyy-MM-dd')})
-              </Box>
-            )}
-          </Typography>
-          <ButtonGroup size="small" variant="outlined" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
-            {[...Array(12)].map((_, idx) => (
-              <Button
-                key={idx}
-                onClick={() => handleMonthSelect(idx)}
-                sx={{
-                  minWidth: '40px',
-                  backgroundColor: selectedMonth === idx ? 'primary.main' : 'inherit',
-                  color: selectedMonth === idx ? 'white' : 'inherit',
-                  fontWeight: selectedMonth === idx ? 'bold' : 'normal',
-                  '&:hover': { backgroundColor: selectedMonth === idx ? 'primary.dark' : '' }
-                }}
-              >
-                {idx + 1}월
-              </Button>
-            ))}
-          </ButtonGroup>
-        </Box>
-
-        <Grid container spacing={2} alignItems="center">
-          <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
-            <Grid item xs={12} sm={3} md={2.5}>
-              <DatePicker
-                label="시작일"
-                value={startDate}
-                onChange={(newValue) => { setStartDate(newValue); setSelectedMonth(null); }}
-                renderInput={(params) => <TextField {...params} fullWidth size="small" />}
-              />
-            </Grid>
-            <Grid item xs={12} sm={3} md={2.5}>
-              <DatePicker
-                label="종료일"
-                value={endDate}
-                onChange={(newValue) => { setEndDate(newValue); setSelectedMonth(null); }}
-                renderInput={(params) => <TextField {...params} fullWidth size="small" />}
-              />
-            </Grid>
-          </LocalizationProvider>
-
-          {/* 브랜드 선택 */}
-          <Grid item xs={12} sm={4} md={5}>
-            <ButtonGroup size="large" variant="outlined" sx={{ height: 40 }}>
-              {brands.map((brand) => (
-                <Button
-                  key={brand}
-                  onClick={() => handleBrandSelect(brand)}
-                  sx={{
-                    minWidth: '60px',
-                    height: '100%',
-                    backgroundColor: selectedBrand === brand ? 'primary.main' : 'inherit',
-                    color: selectedBrand === brand ? 'white' : 'inherit',
-                    fontWeight: selectedBrand === brand ? 'bold' : 'normal',
-                    '&:hover': { backgroundColor: selectedBrand === brand ? 'primary.dark' : '' }
-                  }}
-                >
-                  {brand}
+                  {idx + 1}월
                 </Button>
               ))}
             </ButtonGroup>
-          </Grid>
+          </Box>
+        </Stack>
 
-          <Grid item xs={12} sm={2} md={2}>
-            <Button fullWidth variant="contained" onClick={() => fetchData()} disabled={loading} sx={{ height: 40, bgcolor: '#3182f6', '&:hover': { bgcolor: '#1b64da' }, fontWeight: 'bold' }}>조회</Button>
-          </Grid>
-        </Grid>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+          <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
+            <DatePicker
+              label="시작일"
+              value={startDate}
+              onChange={(newValue) => { setStartDate(newValue); setSelectedMonth(null); }}
+              renderInput={(params) => <TextField {...params} size="small" sx={{ width: 140 }} />}
+            />
+            <DatePicker
+              label="종료일"
+              value={endDate}
+              onChange={(newValue) => { setEndDate(newValue); setSelectedMonth(null); }}
+              renderInput={(params) => <TextField {...params} size="small" sx={{ width: 140 }} />}
+            />
+          </LocalizationProvider>
+
+          {/* 브랜드 선택 */}
+          <ButtonGroup size="large" variant="outlined" sx={{ height: 40 }}>
+            {brands.map((brand) => (
+              <Button
+                key={brand}
+                onClick={() => handleBrandSelect(brand)}
+                sx={{
+                  minWidth: '60px',
+                  height: '100%',
+                  backgroundColor: selectedBrand === brand ? 'primary.main' : 'inherit',
+                  color: selectedBrand === brand ? 'white' : 'inherit',
+                  fontWeight: selectedBrand === brand ? 'bold' : 'normal',
+                  '&:hover': { backgroundColor: selectedBrand === brand ? 'primary.dark' : '' }
+                }}
+              >
+                {brand}
+              </Button>
+            ))}
+          </ButtonGroup>
+
+          <Button variant="contained" onClick={() => fetchData()} disabled={loading} sx={{ height: 40, bgcolor: '#3182f6', '&:hover': { bgcolor: '#1b64da' }, fontWeight: 'bold', px: 4 }}>조회</Button>
+        </Box>
 
         <Box sx={{ mt: 2 }}>
           <Button variant="outlined" color="warning" startIcon={<RefreshIcon />} onClick={() => fetchData()} sx={{ fontWeight: 'bold' }}>

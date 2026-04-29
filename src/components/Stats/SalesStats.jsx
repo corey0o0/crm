@@ -1858,168 +1858,143 @@ function SalesStats() {
             검색 필터
           </Typography>
 
-          {/* 연도 선택 */}
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
-              연도 선택
-            </Typography>
-            <ButtonGroup size="small" variant="outlined" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
-              {(() => {
-                const minYear = 2022;
-                const years = [];
-                for (let year = currentYear; year >= minYear; year--) {
-                  years.push(year);
-                }
-                return years.map((year) => (
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={4} sx={{ mb: 3 }}>
+            {/* 연도 선택 */}
+            <Box>
+              <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
+                연도 선택
+              </Typography>
+              <ButtonGroup size="small" variant="outlined" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+                {(() => {
+                  const minYear = 2022;
+                  const years = [];
+                  for (let year = currentYear; year >= minYear; year--) {
+                    years.push(year);
+                  }
+                  return years.map((year) => (
+                    <Button
+                      key={year}
+                      onClick={() => handleYearSelect(year)}
+                      sx={{
+                        minWidth: '60px',
+                        backgroundColor: selectedYear === year ? 'primary.main' : 'inherit',
+                        color: selectedYear === year ? 'white' : 'inherit',
+                        fontWeight: selectedYear === year ? 'bold' : 'normal',
+                        '&:hover': {
+                          backgroundColor: selectedYear === year ? 'primary.dark' : ''
+                        }
+                      }}
+                    >
+                      {year}년
+                    </Button>
+                  ));
+                })()}
+              </ButtonGroup>
+            </Box>
+
+            {/* 월별 버튼 그룹 추가 */}
+            <Box>
+              <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary', display: 'flex', alignItems: 'center' }}>
+                월 선택
+                {selectedMonth !== null && (
+                  <Box component="span" sx={{
+                    ml: 2,
+                    py: 0.5,
+                    px: 1.5,
+                    borderRadius: 1,
+                    backgroundColor: '#e3f2fd',
+                    fontSize: '0.9rem',
+                    color: '#1976d2',
+                    display: 'inline-flex',
+                    alignItems: 'center'
+                  }}>
+                    현재 선택: {selectedMonth + 1}월 ({format(startDate, 'yyyy-MM-dd')} ~ {format(endDate, 'yyyy-MM-dd')})
+                  </Box>
+                )}
+              </Typography>
+              <ButtonGroup size="small" variant="outlined" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+                {[...Array(12)].map((_, idx) => (
                   <Button
-                    key={year}
-                    onClick={() => handleYearSelect(year)}
+                    key={idx}
+                    onClick={() => handleMonthSelect(idx)}
                     sx={{
-                      minWidth: '60px',
-                      backgroundColor: selectedYear === year ? 'primary.main' : 'inherit',
-                      color: selectedYear === year ? 'white' : 'inherit',
-                      fontWeight: selectedYear === year ? 'bold' : 'normal',
+                      minWidth: '40px',
+                      backgroundColor: selectedMonth === idx ? 'primary.main' : 'inherit',
+                      color: selectedMonth === idx ? 'white' : 'inherit',
+                      fontWeight: selectedMonth === idx ? 'bold' : 'normal',
                       '&:hover': {
-                        backgroundColor: selectedYear === year ? 'primary.dark' : ''
+                        backgroundColor: selectedMonth === idx ? 'primary.dark' : ''
                       }
                     }}
                   >
-                    {year}년
+                    {idx + 1}월
                   </Button>
-                ));
-              })()}
-            </ButtonGroup>
-          </Box>
+                ))}
+              </ButtonGroup>
+            </Box>
+          </Stack>
 
-          {/* 월별 버튼 그룹 추가 */}
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary', display: 'flex', alignItems: 'center' }}>
-              월 선택
-              {selectedMonth !== null && (
-                <Box component="span" sx={{
-                  ml: 2,
-                  py: 0.5,
-                  px: 1.5,
-                  borderRadius: 1,
-                  backgroundColor: '#e3f2fd',
-                  fontSize: '0.9rem',
-                  color: '#1976d2',
-                  display: 'inline-flex',
-                  alignItems: 'center'
-                }}>
-                  현재 선택: {selectedMonth + 1}월 ({format(startDate, 'yyyy-MM-dd')} ~ {format(endDate, 'yyyy-MM-dd')})
-                </Box>
-              )}
-            </Typography>
-            <ButtonGroup size="small" variant="outlined" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
-              {[...Array(12)].map((_, idx) => (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+            <DatePicker
+              label="시작일"
+              value={startDate}
+              onChange={setStartDate}
+              slotProps={{ textField: { size: 'small', sx: { width: 140 } } }}
+            />
+            <DatePicker
+              label="종료일"
+              value={endDate}
+              onChange={setEndDate}
+              slotProps={{ textField: { size: 'small', sx: { width: 140 } } }}
+            />
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              {brandOptions.map(option => (
                 <Button
-                  key={idx}
-                  onClick={() => handleMonthSelect(idx)}
+                  key={option}
+                  variant={brand === option ? "contained" : "outlined"}
+                  size="small"
+                  onClick={() => setBrand(option)}
                   sx={{
-                    minWidth: '40px',
-                    backgroundColor: selectedMonth === idx ? 'primary.main' : 'inherit',
-                    color: selectedMonth === idx ? 'white' : 'inherit',
-                    fontWeight: selectedMonth === idx ? 'bold' : 'normal',
+                    flex: 1,
+                    minWidth: 0,
+                    px: 1,
+                    bgcolor: brand === option ? 'primary.main' : 'background.paper',
                     '&:hover': {
-                      backgroundColor: selectedMonth === idx ? 'primary.dark' : ''
+                      bgcolor: brand === option ? 'primary.dark' : ''
                     }
                   }}
                 >
-                  {idx + 1}월
+                  {option}
                 </Button>
               ))}
-            </ButtonGroup>
+            </Box>
+            <Button
+              variant="contained"
+              onClick={() => handleSearch(null, null, null)}
+              sx={{ height: 40, bgcolor: '#3182f6', '&:hover': { bgcolor: '#1b64da' }, px: 4 }}
+              disabled={loading}
+            >
+              조회
+            </Button>
+            <Button
+              variant="outlined"
+              color="secondary"
+              onClick={handleForceRecalculate}
+              sx={{
+                height: 40,
+                borderColor: '#ff9800',
+                color: '#ff9800',
+                '&:hover': {
+                  bgcolor: '#fff8e1',
+                  borderColor: '#ff8f00'
+                }
+              }}
+              disabled={loading}
+              startIcon={<RefreshIcon />}
+            >
+              매출 강제 재계산 (캐시 무시)
+            </Button>
           </Box>
-
-          <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} sm={4} md={3}>
-              <DatePicker
-                label="시작일"
-                value={startDate}
-                onChange={setStartDate}
-                slotProps={{
-                  textField: {
-                    size: "small",
-                    fullWidth: true
-                  }
-                }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={4} md={3}>
-              <DatePicker
-                label="종료일"
-                value={endDate}
-                onChange={setEndDate}
-                slotProps={{
-                  textField: {
-                    size: "small",
-                    fullWidth: true
-                  }
-                }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={4} md={3}>
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                {brandOptions.map(option => (
-                  <Button
-                    key={option}
-                    variant={brand === option ? "contained" : "outlined"}
-                    size="small"
-                    onClick={() => setBrand(option)}
-                    sx={{
-                      flex: 1,
-                      minWidth: 0,
-                      px: 1,
-                      bgcolor: brand === option ? 'primary.main' : 'background.paper',
-                      '&:hover': {
-                        bgcolor: brand === option ? 'primary.dark' : ''
-                      }
-                    }}
-                  >
-                    {option}
-                  </Button>
-                ))}
-              </Box>
-            </Grid>
-            <Grid item xs={12} md={3}>
-              <Button
-                variant="contained"
-                onClick={() => handleSearch(null, null, null)}
-                sx={{
-                  height: '40px',
-                  bgcolor: '#3182f6',
-                  '&:hover': { bgcolor: '#1b64da' }
-                }}
-                fullWidth
-                disabled={loading}
-              >
-                조회
-              </Button>
-            </Grid>
-            {/* 매출 재계산 버튼 추가 */}
-            <Grid item xs={12} md={3}>
-              <Button
-                variant="outlined"
-                color="secondary"
-                onClick={handleForceRecalculate}
-                sx={{
-                  height: '40px',
-                  borderColor: '#ff9800',
-                  color: '#ff9800',
-                  '&:hover': {
-                    bgcolor: '#fff8e1',
-                    borderColor: '#ff8f00'
-                  }
-                }}
-                fullWidth
-                disabled={loading}
-                startIcon={<RefreshIcon />}
-              >
-                매출 강제 재계산 (캐시 무시)
-              </Button>
-            </Grid>
-          </Grid>
         </Paper>
 
         {/* 총계 카드 + 비교 지표 */}
