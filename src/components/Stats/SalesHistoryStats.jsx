@@ -265,25 +265,44 @@ function SalesHistoryStats() {
       if (items.length === 0) {
         rows.push({ ...baseFields, part_category: '기타', part_brand: '-', quantity: 0, total_price: Number(o.total_amount || 0) });
       } else {
-        items.forEach((item, idx) => {
+        const validItems = items.filter(item => !['C11', 'C40', 'R40', 'E40'].includes(item.order_status));
+        if (validItems.length === 0) {
+          // 유효 항목이 없으면 건너뛰거나 기본값 처리
+          return;
+        }
+
+        let totalWeight = validItems.reduce((acc, i) => {
+           let qty = Number(i.quantity || 1);
+           let p = Number(i.product_price || i.price || 0) * qty;
+           return acc + p;
+        }, 0);
+
+        validItems.forEach((item, idx) => {
           const itemCode = item.custom_product_code || item.product_code || '';
           const pName = item.product_name || item.name || '상품';
           const itemQty = Number(item.quantity || 1);
+          const iPrice = Number(item.product_price || item.price || 0);
           
-          let paymentAmt = 0;
-          if (item.payment_amount !== undefined) {
-             paymentAmt = Number(item.payment_amount);
-          } else {
-             paymentAmt = Number(item.product_price || item.price || 0) * itemQty;
-          }
-          const iPrice = itemQty > 0 ? paymentAmt / itemQty : paymentAmt;
+          let itemWeight = iPrice * itemQty;
+          let total = 0;
 
-          let shipFee = 0;
-          if (idx === 0) {
-            shipFee = Number(o.shipping_fee || 0);
-            if (o.points_spent) shipFee -= Number(o.points_spent);
+          if (totalWeight > 0) {
+             total = Math.floor((itemWeight / totalWeight) * Number(o.total_amount || 0));
+             if (idx === validItems.length - 1) {
+                let previousTotals = validItems.slice(0, validItems.length - 1).reduce((acc, prevItem) => {
+                   let prevQty = Number(prevItem.quantity || 1);
+                   let prevWeight = Number(prevItem.product_price || prevItem.price || 0) * prevQty;
+                   return acc + Math.floor((prevWeight / totalWeight) * Number(o.total_amount || 0));
+                }, 0);
+                total = Number(o.total_amount || 0) - previousTotals;
+             }
+          } else {
+             total = Math.floor(Number(o.total_amount || 0) / validItems.length);
+             if (idx === validItems.length - 1) {
+                total = Number(o.total_amount || 0) - (total * (validItems.length - 1));
+             }
           }
-          const total = paymentAmt + shipFee;
+
           const cat = resolveCategory(pName, itemCode);
           const brand = resolveBrand(pName, itemCode);
           rows.push({ ...baseFields, part_name: pName, part_category: cat, part_brand: brand, quantity: itemQty, total_price: total });
@@ -357,7 +376,7 @@ function SalesHistoryStats() {
       if (r._id) uniqueGroups.service.add(r._id);
       groupAmounts.service += price;
     } else {
-      const isAgency = agenciesList.includes(r.sales_channel) || r.sales_channel?.includes('대리점');
+      const isAgency = r.sales_channel && !['고객', '-', '일반출고(공홈)', '온라인주문', '매장출고', '청담매장', '기타', '본점'].includes(r.sales_channel) && (agenciesList.includes(r.sales_channel) || r.sales_channel?.includes('대리점'));
       if (isAgency) {
         if (r._id) uniqueGroups.agency.add(r._id);
         groupAmounts.agency += price;
