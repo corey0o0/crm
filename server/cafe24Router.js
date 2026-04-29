@@ -545,14 +545,15 @@ module.exports = function(supabaseAdmin) {
     const FETCH_CHUNK = 200;
     for (let i = 0; i < orderIds.length; i += FETCH_CHUNK) {
       const chunk = orderIds.slice(i, i + FETCH_CHUNK);
-      const { data } = await supabaseAdmin.from('cafe24_orders').select('order_id, is_transferred, order_items, total_amount, shipping_fee, used_points').in('order_id', chunk);
+      const { data } = await supabaseAdmin.from('cafe24_orders').select('order_id, is_transferred, order_items, total_amount, shipping_fee, used_points, agency_id').in('order_id', chunk);
       if (data) {
         data.forEach(row => existingOrderMap.set(row.order_id, { 
           items: row.order_items, 
           isTransferred: row.is_transferred,
           total_amount: row.total_amount,
           shipping_fee: row.shipping_fee,
-          used_points: row.used_points
+          used_points: row.used_points,
+          agency_id: row.agency_id
         }));
       }
     }
@@ -561,6 +562,9 @@ module.exports = function(supabaseAdmin) {
     payloads.forEach(p => {
       const existingData = existingOrderMap.get(p.order_id);
       if (existingData) {
+        if (!cafe24ToAgencyMap[String(p.buyer_id || '').trim()] && existingData.agency_id) {
+          p.agency_id = existingData.agency_id; // 수동으로 변경된 거래처 유지
+        }
         if (existingData.isTransferred) {
           // 전송 완료된 주문은 최상위 금액 관련 필드도 엄격히 보존 (매출 통계/입출고와 어긋나지 않도록)
           if (existingData.total_amount !== undefined) p.total_amount = existingData.total_amount;

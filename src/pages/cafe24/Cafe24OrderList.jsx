@@ -954,14 +954,24 @@ export default function Cafe24OrderList() {
         });
         
         // 2. 이 사용자(buyer_id)의 모든 기존 주문을 새로운 일괄 업데이트
-        const { error: updateErr } = await supabase
+        const { data: updatedOrders, error: updateErr } = await supabase
           .from('cafe24_orders')
           .update({ agency_id: selectedAgency.id })
-          .eq('buyer_id', selectedOrderForAgencyMatch.buyer_id);
+          .eq('buyer_id', selectedOrderForAgencyMatch.buyer_id)
+          .select('order_id');
           
         if (updateErr) throw updateErr;
 
-        alert('거래처 매칭이 완료되었으며, 이 주문자의 기존 주문들도 모두 업데이트되었습니다.');
+        // 3. 이미 전송된 주문의 트랜잭션 기록도 함께 업데이트
+        if (updatedOrders && updatedOrders.length > 0) {
+          for (const order of updatedOrders) {
+            await supabase.from('transactions')
+              .update({ to_location: selectedAgency.id })
+              .like('note', `%주문: ${order.order_id}%`);
+          }
+        }
+
+        alert('거래처 매칭이 완료되었으며, 이 주문자의 기존 주문(판매 기록 포함)들도 모두 업데이트되었습니다.');
       } else {
         // 단일 주문의 판매처만 강제 업데이트
         const { error: updateErr } = await supabase
@@ -971,7 +981,12 @@ export default function Cafe24OrderList() {
           
         if (updateErr) throw updateErr;
 
-        alert('선택한 주문의 결제/출고용 거래처(판매처)가 성공적으로 변경되었습니다.');
+        // 이미 전송된 단일 주문의 트랜잭션 기록 업데이트
+        await supabase.from('transactions')
+          .update({ to_location: selectedAgency.id })
+          .like('note', `%주문: ${selectedOrderForAgencyMatch.order_id}%`);
+
+        alert('선택한 주문의 결제/출고용 거래처(판매 기록 포함)가 성공적으로 변경되었습니다.');
       }
       
       setAgencyMatchModalOpen(false);
