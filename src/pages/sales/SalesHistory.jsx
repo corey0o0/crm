@@ -225,7 +225,7 @@ function SalesHistory() {
     if (asIds.length > 0) {
       const { data: spData, error: spErr } = await supabase
         .from('service_parts')
-        .select('id, service_id, quantity, price, part_id, parts(name, price)')
+        .select('id, service_id, quantity, price, usage, part_id, parts(name, price)')
         .in('service_id', asIds);
       if (spErr) console.warn('service_parts fetch error (non-critical):', spErr.message);
       (spData || []).forEach(sp => {
@@ -341,7 +341,22 @@ function SalesHistory() {
         parts.forEach((sp, idx) => {
           // A/S에서 실제 청구된 금액(sp.price)을 사용 (0원이면 워런티 등 무상수리)
           const unitPrice = sp.price !== undefined && sp.price !== null ? Number(sp.price) : Number(sp.parts?.price || 0);
-          const qty = Number(sp.quantity || 1);
+          
+          let returnedQty = 0;
+          if (sp.usage && sp.usage.includes('[반품완료]')) {
+            returnedQty = sp.quantity;
+          } else if (sp.usage && sp.usage.includes('[부분반품:')) {
+            const matches = sp.usage.match(/\[부분반품:(\d+)개\]/g);
+            if (matches) {
+              matches.forEach(m => {
+                const qtyMatch = m.match(/\[부분반품:(\d+)개\]/);
+                if (qtyMatch && qtyMatch[1]) {
+                  returnedQty += parseInt(qtyMatch[1], 10);
+                }
+              });
+            }
+          }
+          const qty = Math.max(0, Number(sp.quantity || 1) - returnedQty);
           const total = unitPrice * qty;
           if (qty > 0) {
             const pName = sp.parts?.name || '부품';
