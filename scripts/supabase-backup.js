@@ -8,7 +8,7 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
 const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
 const R2_ENDPOINT = process.env.R2_ENDPOINT;
-const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || 'crm-storage';
+const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME === 'crm-storage' ? 'crm-img' : (process.env.R2_BUCKET_NAME || 'crm-img');
 
 const missingVars = [];
 if (!SUPABASE_URL) missingVars.push('SUPABASE_URL');
