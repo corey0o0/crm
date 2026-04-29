@@ -30,6 +30,8 @@ import {
   FormControlLabel,
   Checkbox,
   FormControl,
+  RadioGroup,
+  Radio,
   InputLabel,
   Select,
   CircularProgress,
@@ -648,6 +650,13 @@ function PartsManagement() {
   const [selectAll, setSelectAll] = useState(false);
   const [openCopyDialog, setOpenCopyDialog] = useState(false);
   const [copyTargetBrand, setCopyTargetBrand] = useState('');
+
+  // 일괄 가격 수정 상태
+  const [openBatchEditDialog, setOpenBatchEditDialog] = useState(false);
+  const [batchEditTarget, setBatchEditTarget] = useState('supply_price'); // 'cost_price', 'supply_price', 'special_price'
+  const [batchEditMode, setBatchEditMode] = useState('percent'); // 'percent', 'amount'
+  const [batchEditValue, setBatchEditValue] = useState('');
+  const [isBatchUpdating, setIsBatchUpdating] = useState(false);
 
   // 연동 관련 상태 추가
   const [openSyncDialog, setOpenSyncDialog] = useState(false);
@@ -1531,6 +1540,67 @@ function PartsManagement() {
     }
   };
 
+  // 일괄 가격 수정 다이얼로그 열기
+  const handleOpenBatchEditDialog = () => {
+    if (selectedItems.length === 0) {
+      showSnackbar('수정할 항목을 선택해주세요.', 'warning');
+      return;
+    }
+    setBatchEditValue('');
+    setOpenBatchEditDialog(true);
+  };
+
+  const handleCloseBatchEditDialog = () => {
+    setOpenBatchEditDialog(false);
+  };
+
+  const handleBatchUpdatePrices = async () => {
+    if (!batchEditValue || isNaN(Number(batchEditValue))) {
+      showSnackbar('유효한 숫자를 입력해주세요.', 'warning');
+      return;
+    }
+
+    const value = Number(batchEditValue);
+    if (batchEditMode === 'percent' && (value < 0 || value > 200)) {
+       showSnackbar('유효한 퍼센트 범위를 입력해주세요 (0~200).', 'warning');
+       return;
+    }
+
+    try {
+      setIsBatchUpdating(true);
+      const selectedPartsData = parts.filter(part => selectedItems.includes(part.id));
+      const updatePromises = selectedPartsData.map(part => {
+        const salesPrice = Number(part.price || 0);
+        let newValue = 0;
+        
+        if (batchEditMode === 'percent') {
+          newValue = Math.round(salesPrice * (value / 100));
+        } else if (batchEditMode === 'amount') {
+          newValue = Math.max(0, salesPrice - value);
+        }
+
+        const updates = {};
+        updates[batchEditTarget] = newValue;
+
+        return supabase
+          .from('parts')
+          .update(updates)
+          .eq('id', part.id);
+      });
+
+      await Promise.all(updatePromises);
+      showSnackbar(`${selectedItems.length}개 항목의 가격이 일괄 수정되었습니다.`, 'success');
+      handleCloseBatchEditDialog();
+      setSelectedItems([]);
+      fetchParts();
+    } catch (error) {
+      console.error('일괄 가격 수정 오류:', error);
+      showSnackbar('가격 수정 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setIsBatchUpdating(false);
+    }
+  };
+
   // 연동 다이얼로그 열기
   const handleOpenSyncDialog = (part) => {
     setSyncTargetPart(part);
@@ -1630,6 +1700,18 @@ function PartsManagement() {
                 sx={{ bgcolor: '#2196f3', '&:hover': { bgcolor: '#1976d2' } }}
               >
                 선택 항목 복사
+              </Button>
+            </Grid>
+
+            <Grid item>
+              <Button
+                variant="contained"
+                startIcon={<EditIcon />}
+                onClick={handleOpenBatchEditDialog}
+                disabled={selectedItems.length === 0}
+                sx={{ bgcolor: '#ff9800', '&:hover': { bgcolor: '#f57c00' }, color: 'white' }}
+              >
+                일괄 가격 수정
               </Button>
             </Grid>
 
@@ -2146,6 +2228,53 @@ function PartsManagement() {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseSyncDialog}>닫기</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={openBatchEditDialog} onClose={handleCloseBatchEditDialog} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 'bold' }}>선택 항목 일괄 가격 수정 ({selectedItems.length}개)</DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            선택한 {selectedItems.length}개 항목의 대상을 지정한 후, 해당 항목의 <strong>판매가</strong>를 기준으로 일괄 계산하여 적용합니다.
+          </Typography>
+
+          <FormControl component="fieldset" sx={{ width: '100%', mb: 3 }}>
+            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>적용 대상 선택</Typography>
+            <RadioGroup row value={batchEditTarget} onChange={(e) => setBatchEditTarget(e.target.value)}>
+              <FormControlLabel value="cost_price" control={<Radio />} label="매입가" />
+              <FormControlLabel value="supply_price" control={<Radio />} label="공급가" />
+              <FormControlLabel value="special_price" control={<Radio />} label="특별 공급가" />
+            </RadioGroup>
+          </FormControl>
+
+          <FormControl component="fieldset" sx={{ width: '100%', mb: 3 }}>
+            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>계산 방식 (판매가 기준)</Typography>
+            <RadioGroup row value={batchEditMode} onChange={(e) => setBatchEditMode(e.target.value)}>
+              <FormControlLabel value="percent" control={<Radio />} label="판매가의 % 적용" />
+              <FormControlLabel value="amount" control={<Radio />} label="판매가에서 정액 차감" />
+            </RadioGroup>
+          </FormControl>
+
+          <TextField
+            fullWidth
+            label={batchEditMode === 'percent' ? "비율 (%)" : "차감 금액 (원)"}
+            type="number"
+            value={batchEditValue}
+            onChange={(e) => setBatchEditValue(e.target.value)}
+            placeholder={batchEditMode === 'percent' ? "예: 70" : "예: 10000"}
+            helperText={batchEditMode === 'percent' 
+              ? "예: 70 입력 시 '판매가 × 0.7'로 일괄 적용됩니다." 
+              : "예: 10000 입력 시 '판매가 - 10,000원'으로 일괄 적용됩니다."}
+            InputProps={{
+              endAdornment: <InputAdornment position="end">{batchEditMode === 'percent' ? '%' : '원'}</InputAdornment>,
+            }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ p: 2, px: 3 }}>
+          <Button onClick={handleCloseBatchEditDialog} color="inherit">취소</Button>
+          <Button onClick={handleBatchUpdatePrices} variant="contained" color="primary" disabled={isBatchUpdating || !batchEditValue}>
+            {isBatchUpdating ? <CircularProgress size={24} /> : '일괄 적용'}
+          </Button>
         </DialogActions>
       </Dialog>
 
