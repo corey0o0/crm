@@ -2465,9 +2465,14 @@ function ServiceDetail() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {selectedParts.map((part, index) => (
-              <TableRow key={part.id} sx={part.usage && part.usage.includes('[반품완료]') ? { opacity: 0.5, textDecoration: 'line-through' } : {}}>
-                <TableCell>{part.name}</TableCell>
+            {selectedParts.map((part, index) => {
+              const rQty = getReturnedQty(part.usage);
+              const isFullyReturned = rQty === -1;
+              const effectiveQty = isFullyReturned ? 0 : Math.max(0, (part.quantity || 1) - rQty);
+              const rowStyle = isFullyReturned ? { opacity: 0.5, textDecoration: 'line-through' } : (rQty > 0 ? { bgcolor: '#fff3e0' } : {});
+              return (
+              <TableRow key={part.id} sx={rowStyle}>
+                <TableCell>{part.name} {rQty > 0 && <span style={{color: '#ed6c02', fontSize: '0.8rem', marginLeft: 4}}>[{rQty}개 반품]</span>}</TableCell>
                 <TableCell>{part.code}</TableCell>
                 <TableCell align="right">
                   {part.price.toLocaleString()}원
@@ -2489,9 +2494,10 @@ function ServiceDetail() {
                       inputProps: { min: 1, step: '1' }
                     }}
                   />
+                  {rQty > 0 && <div style={{ fontSize: '0.8rem', color: '#ed6c02', marginTop: 4 }}>적용: {effectiveQty}개</div>}
                 </TableCell>
                 <TableCell align="right">
-                  {(part.price * part.quantity).toLocaleString()}원
+                  {(part.price * effectiveQty).toLocaleString()}원
                 </TableCell>
                 <TableCell align="right" sx={{ minWidth: '200px' }}>
                   {showPriceEdit && (
@@ -2504,7 +2510,7 @@ function ServiceDetail() {
                         onBlur={() => console.log('가격 입력 필드 blur - 현재 값:', {
                           '부품명': part.name,
                           '가격': part.price,
-                          '총액': part.total
+                          '총액': part.price * effectiveQty
                         })}
                         sx={{
                           width: '120px',
@@ -2579,7 +2585,7 @@ function ServiceDetail() {
                   )}
                 </TableCell>
               </TableRow>
-            ))}
+            )})}
             <TableRow>
               <TableCell colSpan={4} align="right">
                 <Typography variant="subtitle2">합계</Typography>

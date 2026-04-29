@@ -201,3 +201,10 @@ POST /api/cafe24/sync/orders
 [Cafe24 Sync] Fetched 66 orders from Cafe24 API, processing 66 valid orders
 [Cron Job] nearbike 수집 완료: 신규 2건, 갱신 64건
 [Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
+[Cron Job] 카페24 주문 자동 수집 스케줄러를 시작합니다.
+[Cron Job] slimpack79: 연동되어 있지 않아 스킵합니다.
+[Cron Job] nearbike 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] API로 과거 미완료 주문 353건 추가 상태 조회 시도...
+[Cafe24 Sync] Fetched 66 orders from Cafe24 API, processing 66 valid orders
+[Cron Job] nearbike 수집 완료: 신규 0건, 갱신 66건
+[Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
