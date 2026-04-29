@@ -7,6 +7,7 @@ import {
   Grid,
   Table,
   TableBody,
+  TableFooter,
   TableCell,
   TableContainer,
   TableHead,
@@ -124,6 +125,11 @@ function OnlineStats() {
            });
         }
       });
+    });
+    items.sort((a, b) => {
+      if (a._isAirframe && !b._isAirframe) return -1;
+      if (!a._isAirframe && b._isAirframe) return 1;
+      return 0;
     });
     setModalData(items);
     setModalOpen(true);
@@ -790,7 +796,7 @@ function OnlineStats() {
                   <TableRow key={idx} hover>
                     <TableCell>{row.order_date ? row.order_date.split('T')[0] : ''}</TableCell>
                     <TableCell>{row.order_id}</TableCell>
-                    <TableCell>{row.name || row.product_name}</TableCell>
+                    <TableCell>{row._resolvedName || row.name || row.product_name}</TableCell>
                     <TableCell align="right">{row.quantity}개</TableCell>
                     <TableCell align="right">{formatCurrency(row.total_price)}</TableCell>
                   </TableRow>
@@ -798,6 +804,18 @@ function OnlineStats() {
                   <TableRow><TableCell colSpan={5} align="center">판매 내역이 없습니다.</TableCell></TableRow>
                 )}
               </TableBody>
+              <TableFooter>
+                <TableRow sx={{ bgcolor: 'grey.200' }}>
+                  <TableCell colSpan={3} align="right" sx={{ fontWeight: 'bold' }}>기체 총합</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 'bold' }}>{modalData.filter(i => i._isAirframe).reduce((sum, i) => sum + Number(i.quantity || 1), 0)}대</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(modalData.filter(i => i._isAirframe).reduce((sum, i) => sum + i.total_price, 0))}</TableCell>
+                </TableRow>
+                <TableRow sx={{ bgcolor: 'grey.200' }}>
+                  <TableCell colSpan={3} align="right" sx={{ fontWeight: 'bold' }}>파츠 총합</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 'bold' }}>{modalData.filter(i => !i._isAirframe).reduce((sum, i) => sum + Number(i.quantity || 1), 0)}개</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(modalData.filter(i => !i._isAirframe).reduce((sum, i) => sum + i.total_price, 0))}</TableCell>
+                </TableRow>
+              </TableFooter>
             </Table>
           </TableContainer>
         </DialogContent>
