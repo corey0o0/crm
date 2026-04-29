@@ -565,32 +565,37 @@ module.exports = function(supabaseAdmin) {
         }
 
         if (existingData.items && Array.isArray(existingData.items) && p.order_items) {
-          p.order_items = p.order_items.map((newItem, idx) => {
-          const eItem = existingData.items[idx];
-          if (eItem) {
-            if (existingData.isTransferred) {
-              // 전송 완료 건은 기존 DB 정보(상품명, 수량, 매핑, 창고 등)를 엄격히 보존
-              const mergedItem = { ...eItem, order_status: newItem.order_status };
+          if (existingData.isTransferred) {
+            // 전송 완료 건은 DB의 아이템 배열 구조(수동 추가/품목 교체 등)를 100% 기준으로 보존
+            p.order_items = existingData.items.map(eItem => {
+              const mergedItem = { ...eItem };
               
-              // 단, 과거 버그로 인해 part_id가 null로 유실된 상태인데 
-              // 이번 동기화에서 새롭게 매칭된 part_id가 있다면 복구를 위해 채워줌
-              if (!eItem.part_id && newItem.part_id) {
-                mergedItem.part_id = newItem.part_id;
+              // 최신 배송 상태만 카페24에서 가져와 업데이트 시도 (상품코드 또는 고유값 기준 매칭)
+              const matchedNewItem = p.order_items.find(ni => 
+                (ni.custom_product_code && ni.custom_product_code === eItem.custom_product_code) || 
+                (ni.product_code && ni.product_code === eItem.product_code)
+              );
+              
+              if (matchedNewItem && matchedNewItem.order_status) {
+                 mergedItem.order_status = matchedNewItem.order_status;
               }
               
               return mergedItem;
-            } else {
-              // 미전송 건은 최신 Cafe24 데이터를 우선하되, 
-              // 사용자가 지정했을 수 있는 출고 창고(_warehouse_id)는 보존
-              const mergedItem = { ...newItem };
-              if (eItem._warehouse_id) mergedItem._warehouse_id = eItem._warehouse_id;
-              // 수동으로 저장된 part_id도 보존 (동기화 시 날아가는 것 방지)
-              if (eItem.part_id) mergedItem.part_id = eItem.part_id;
-              return mergedItem;
-            }
+            });
+          } else {
+            // 미전송 건은 최신 Cafe24 데이터(p.order_items)를 기준으로 삼되, 수동 데이터 보존
+            p.order_items = p.order_items.map((newItem, idx) => {
+              const eItem = existingData.items[idx];
+              if (eItem) {
+                const mergedItem = { ...newItem };
+                if (eItem._warehouse_id) mergedItem._warehouse_id = eItem._warehouse_id;
+                // 수동으로 저장된 part_id도 보존 (동기화 시 날아가는 것 방지)
+                if (eItem.part_id) mergedItem.part_id = eItem.part_id;
+                return mergedItem;
+              }
+              return newItem;
+            });
           }
-          return newItem;
-        });
         }
       }
     });
