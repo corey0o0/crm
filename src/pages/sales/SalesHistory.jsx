@@ -474,7 +474,7 @@ function SalesHistory() {
        if (r.status) uniqueStatuses.add(r.status);
        if (r.part_brand && r.part_brand !== '-') uniqueBrands.add(r.part_brand);
     });
-    setSellers(['all', ...Array.from(uniqueSellers)]);
+    setSellers(['all', '전체 대리점', ...Array.from(uniqueSellers)]);
     setStatuses(['all', ...Array.from(uniqueStatuses)]);
     setBrands(['all', ...Array.from(uniqueBrands)]);
 
@@ -487,7 +487,16 @@ function SalesHistory() {
   const filtered = flatRows.filter(r => {
     if (filterType !== 'all' && r._type !== filterType) return false;
     if (statusFilter !== 'all' && statusFilter !== '전체 상태' && r.status !== statusFilter) return false;
-    if (sellerFilter !== 'all' && sellerFilter !== '전체 판매처' && r.sales_channel !== sellerFilter) return false;
+    
+    if (sellerFilter !== 'all' && sellerFilter !== '전체 판매처') {
+      if (sellerFilter === '전체 대리점') {
+        const isAgency = r.sales_channel && !['고객', '-', '일반출고(공홈)', '온라인주문', '매장출고', '청담매장', '기타', '본점'].includes(r.sales_channel);
+        if (!isAgency) return false;
+      } else if (r.sales_channel !== sellerFilter) {
+        return false;
+      }
+    }
+
     if (brandFilter !== 'all' && brandFilter !== '전체 브랜드' && r.part_brand !== brandFilter) return false;
 
     if (searchTerm) {
