@@ -47,15 +47,38 @@ export const createBackup = async () => {
     // 각 테이블의 데이터를 백업
     for (const table of tables) {
       try {
-        const { data, error } = await supabase
-          .from(table)
-          .select('*');
+        let allData = [];
+        let offset = 0;
+        const limit = 1000;
+        let fetchMore = true;
 
-        if (error) {
-          console.warn(`테이블 ${table} 백업 실패:`, error);
-          backupData.tables[table] = { error: error.message, data: [] };
-        } else {
-          backupData.tables[table] = { data: data || [] };
+        while (fetchMore) {
+          const { data, error } = await supabase
+            .from(table)
+            .select('*')
+            .range(offset, offset + limit - 1);
+
+          if (error) {
+            console.warn(`테이블 ${table} 백업 실패:`, error);
+            backupData.tables[table] = { error: error.message, data: allData };
+            fetchMore = false;
+            break;
+          }
+          
+          if (data && data.length > 0) {
+            allData = [...allData, ...data];
+            if (data.length < limit) {
+              fetchMore = false;
+            } else {
+              offset += limit;
+            }
+          } else {
+            fetchMore = false;
+          }
+        }
+        
+        if (!backupData.tables[table]?.error) {
+          backupData.tables[table] = { data: allData };
         }
       } catch (err) {
         console.warn(`테이블 ${table} 백업 중 오류:`, err);
