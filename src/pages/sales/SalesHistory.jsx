@@ -423,26 +423,32 @@ function SalesHistory() {
           }
           const iPrice = Number(item.product_price || item.price || 0); // 항상 기준 단가(MSRP 라벨스 프라이스) 표시
 
-          // Calculate total payment amount for this order to distribute used_points proportionally
-          let totalPaymentAmt = validItems.reduce((acc, i) => {
+          // 전체 유효 품목의 원래 가격(MSRP) 총합 계산
+          let totalWeight = validItems.reduce((acc, i) => {
              let qty = Number(i.quantity || 1);
-             let p = (i.payment_amount !== undefined && i.payment_amount !== null && !isNaN(Number(i.payment_amount))) ? Number(i.payment_amount) : Number(i.product_price || i.price || 0) * qty;
+             let p = Number(i.product_price || i.price || 0) * qty;
              return acc + p;
           }, 0);
 
-          let itemPointsDeduction = 0;
-          if (totalPaymentAmt > 0) {
-             itemPointsDeduction = Math.floor((paymentAmt / totalPaymentAmt) * Number(o.used_points || 0));
+          let itemWeight = iPrice * itemQty;
+          let total = 0;
+
+          if (totalWeight > 0) {
+             total = Math.floor((itemWeight / totalWeight) * Number(o.total_amount || 0));
              if (idx === validItems.length - 1) {
-                let previousDeductions = validItems.slice(0, validItems.length - 1).reduce((acc, prevItem) => {
+                let previousTotals = validItems.slice(0, validItems.length - 1).reduce((acc, prevItem) => {
                    let prevQty = Number(prevItem.quantity || 1);
-                   let prevP = (prevItem.payment_amount !== undefined && prevItem.payment_amount !== null && !isNaN(Number(prevItem.payment_amount))) ? Number(prevItem.payment_amount) : Number(prevItem.product_price || prevItem.price || 0) * prevQty;
-                   return acc + Math.floor((prevP / totalPaymentAmt) * Number(o.used_points || 0));
+                   let prevWeight = Number(prevItem.product_price || prevItem.price || 0) * prevQty;
+                   return acc + Math.floor((prevWeight / totalWeight) * Number(o.total_amount || 0));
                 }, 0);
-                itemPointsDeduction = Number(o.used_points || 0) - previousDeductions;
+                total = Number(o.total_amount || 0) - previousTotals;
              }
           } else {
-             if (idx === 0) itemPointsDeduction = Number(o.used_points || 0);
+             // 모든 품목의 가격이 0원인데 total_amount가 0이 아닌 경우 균등 분배
+             total = Math.floor(Number(o.total_amount || 0) / validItems.length);
+             if (idx === validItems.length - 1) {
+                total = Number(o.total_amount || 0) - (total * (validItems.length - 1));
+             }
           }
 
           let shipFee = 0;
@@ -451,7 +457,7 @@ function SalesHistory() {
           }
           const customCode = item.custom_product_code || '';
           const pCode = item.product_code || '';
-          const total = paymentAmt + shipFee - itemPointsDeduction;
+
           const cat = resolveCategory(pName, customCode, pCode, item.part_id);
           const brand = resolveBrand(pName, customCode, pCode, item.part_id);
 
