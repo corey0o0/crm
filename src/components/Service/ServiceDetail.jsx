@@ -80,6 +80,23 @@ import {
 // PDF worker 설정
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
 
+
+export const getReturnedQty = (usage) => {
+  if (!usage) return 0;
+  if (usage.includes('[반품완료]')) return -1; // -1 means fully returned
+  let rQty = 0;
+  if (usage.includes('[부분반품:')) {
+    const matches = usage.match(/\[부분반품:(\d+)개\]/g);
+    if (matches) {
+      matches.forEach(m => {
+        const qMatch = m.match(/\[부분반품:(\d+)개\]/);
+        if (qMatch) rQty += parseInt(qMatch[1], 10);
+      });
+    }
+  }
+  return rQty;
+};
+
 function ServiceDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -2148,7 +2165,15 @@ function ServiceDetail() {
           </div>
 
           <div class="estimate-amount">
-            견적금액: 일금 ${selectedParts.reduce((sum, p) => p.usage && p.usage.includes('[반품완료]') ? sum : sum + (p.price || 0) * (p.quantity || 1), 0).toLocaleString()}원 (￦${selectedParts.reduce((sum, p) => p.usage && p.usage.includes('[반품완료]') ? sum : sum + (p.price || 0) * (p.quantity || 1), 0).toLocaleString()}) ※ 부가세포함
+            견적금액: 일금 ${selectedParts.reduce((sum, p) => {
+              const rQty = getReturnedQty(p.usage);
+              const effective = rQty === -1 ? 0 : Math.max(0, (p.quantity || 1) - rQty);
+              return sum + (p.price || 0) * effective;
+            }, 0).toLocaleString()}원 (￦${selectedParts.reduce((sum, p) => {
+              const rQty = getReturnedQty(p.usage);
+              const effective = rQty === -1 ? 0 : Math.max(0, (p.quantity || 1) - rQty);
+              return sum + (p.price || 0) * effective;
+            }, 0).toLocaleString()}) ※ 부가세포함
           </div>
 
           <table>
@@ -2175,7 +2200,11 @@ function ServiceDetail() {
     }).join('')}
               <tr class="total-row">
                 <td colspan="3" style="text-align:center;">합계</td>
-                <td class="amount-cell">${selectedParts.reduce((sum, p) => p.usage && p.usage.includes('[반품완료]') ? sum : sum + (p.price || 0) * (p.quantity || 1), 0).toLocaleString()}</td>
+                <td class="amount-cell">${selectedParts.reduce((sum, p) => {
+              const rQty = getReturnedQty(p.usage);
+              const effective = rQty === -1 ? 0 : Math.max(0, (p.quantity || 1) - rQty);
+              return sum + (p.price || 0) * effective;
+            }, 0).toLocaleString()}</td>
               </tr>
             </tbody>
           </table>
@@ -2557,9 +2586,10 @@ function ServiceDetail() {
               </TableCell>
               <TableCell align="right">
                 <Typography variant="subtitle2">
-                  {selectedParts.reduce((sum, part) => {
-                    const partTotal = (part.price || 0) * (part.quantity || 1);
-                    return sum + partTotal;
+                  {selectedParts.reduce((sum, p) => {
+                    const rQty = getReturnedQty(p.usage);
+                    const effective = rQty === -1 ? 0 : Math.max(0, (p.quantity || 1) - rQty);
+                    return sum + (p.price || 0) * effective;
                   }, 0).toLocaleString()}원
                 </Typography>
               </TableCell>
