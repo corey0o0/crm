@@ -225,7 +225,7 @@ function SalesHistory() {
     if (asIds.length > 0) {
       const { data: spData, error: spErr } = await supabase
         .from('service_parts')
-        .select('id, service_id, quantity, part_id, parts(name, price)')
+        .select('id, service_id, quantity, price, part_id, parts(name, price)')
         .in('service_id', asIds);
       if (spErr) console.warn('service_parts fetch error (non-critical):', spErr.message);
       (spData || []).forEach(sp => {
@@ -339,7 +339,8 @@ function SalesHistory() {
       };
       if (parts.length > 0) {
         parts.forEach((sp, idx) => {
-          const unitPrice = Number(sp.parts?.price || 0);
+          // A/S에서 실제 청구된 금액(sp.price)을 사용 (0원이면 워런티 등 무상수리)
+          const unitPrice = sp.price !== undefined && sp.price !== null ? Number(sp.price) : Number(sp.parts?.price || 0);
           const qty = Number(sp.quantity || 1);
           const total = unitPrice * qty;
           if (qty > 0) {
