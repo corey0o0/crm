@@ -10,8 +10,15 @@ const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
 const R2_ENDPOINT = process.env.R2_ENDPOINT;
 const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || 'crm-storage';
 
-if (!SUPABASE_URL || !SUPABASE_KEY || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !R2_ENDPOINT) {
-  console.error("❌ 필수 환경 변수가 누락되었습니다.");
+const missingVars = [];
+if (!SUPABASE_URL) missingVars.push('SUPABASE_URL');
+if (!SUPABASE_KEY) missingVars.push('SUPABASE_SERVICE_KEY');
+if (!R2_ACCESS_KEY_ID) missingVars.push('R2_ACCESS_KEY_ID');
+if (!R2_SECRET_ACCESS_KEY) missingVars.push('R2_SECRET_ACCESS_KEY');
+if (!R2_ENDPOINT) missingVars.push('R2_ENDPOINT');
+
+if (missingVars.length > 0) {
+  console.error(`❌ 필수 환경 변수가 누락되었습니다: ${missingVars.join(', ')}`);
   process.exit(1);
 }
 
