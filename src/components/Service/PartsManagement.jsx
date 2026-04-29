@@ -153,7 +153,7 @@ const PartsFormDialog = memo(({
     setFormData(prev => {
       const next = {
         ...prev,
-        [name]: ['price', 'supplyPrice', 'costPrice', 'specialPrice'].includes(name) ? value.replace(/[^0-9]/g, '') : value
+        [name]: ['price', 'supplyPrice', 'costPrice', 'specialPrice', 'barcode'].includes(name) ? value.replace(/[^0-9]/g, '') : value
       };
       const shouldSuggest = (!prev.code || prev.code.trim() === '');
       if ((name === 'brand' || name === 'note') && typeof getNextPartCode === 'function') {
@@ -1050,7 +1050,7 @@ function PartsManagement() {
         supply_price: Number(String(supply_price).replace(/[^0-9]/g, '') || 0),
         special_price: Number(String(special_price).replace(/[^0-9]/g, '') || 0),
         price: Number(String(price).replace(/[^0-9]/g, '') || 0),
-        barcode: barcode ? String(barcode).trim() : null,
+        barcode: barcode ? String(barcode).replace(/[^0-9]/g, '') : null,
         note: note ? String(note).trim() : null
       });
     });

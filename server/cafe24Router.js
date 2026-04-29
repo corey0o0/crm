@@ -295,9 +295,11 @@ module.exports = function(supabaseAdmin) {
     const nameToPartsMap = {};
     (partsList || []).forEach(p => {
       if(p.barcode) {
-        const bc = String(p.barcode).trim();
-        if(!barcodeToPartsMap[bc]) barcodeToPartsMap[bc] = [];
-        barcodeToPartsMap[bc].push({ id: p.id, name: p.name });
+        const bc = String(p.barcode).replace(/[^0-9]/g, '');
+        if (bc) {
+          if(!barcodeToPartsMap[bc]) barcodeToPartsMap[bc] = [];
+          barcodeToPartsMap[bc].push({ id: p.id, name: p.name });
+        }
       }
       if(p.name) {
         const pName = String(p.name).trim();
@@ -416,6 +418,9 @@ module.exports = function(supabaseAdmin) {
           const code = item.product_code || item.custom_product_code || '';
           const customCode = (item.custom_variant_code || item.custom_item_code || item.custom_product_code) ? String(item.custom_variant_code || item.custom_item_code || item.custom_product_code).trim() : '';
           
+          const cleanCodeForBarcode = String(code).replace(/[^0-9]/g, '');
+          const cleanCustomCodeForBarcode = String(customCode).replace(/[^0-9]/g, '');
+          
           let matchedPartId = null;
           
           const resolvePartId = (matchedPartsArray, itemName, itemOptions) => {
@@ -438,12 +443,12 @@ module.exports = function(supabaseAdmin) {
             return bestPart.id;
           };
 
-          if (customCode && barcodeToPartsMap[customCode]) {
+          if (cleanCustomCodeForBarcode && barcodeToPartsMap[cleanCustomCodeForBarcode]) {
             // 1) 자체 품목코드
-            matchedPartId = resolvePartId(barcodeToPartsMap[customCode], item.product_name, item.option_value);
-          } else if (code && barcodeToPartsMap[code]) {
+            matchedPartId = resolvePartId(barcodeToPartsMap[cleanCustomCodeForBarcode], item.product_name, item.option_value);
+          } else if (cleanCodeForBarcode && barcodeToPartsMap[cleanCodeForBarcode]) {
             // 2) 자체 상품코드 (바코드 매칭)
-            matchedPartId = resolvePartId(barcodeToPartsMap[code], item.product_name, item.option_value);
+            matchedPartId = resolvePartId(barcodeToPartsMap[cleanCodeForBarcode], item.product_name, item.option_value);
           } else if (customCode && manualCodeToPartIdMap[customCode]) {
             // 2.5) 자체 상품코드 (수동 매핑 테이블) - 자체 코드 우선
             matchedPartId = manualCodeToPartIdMap[customCode];
