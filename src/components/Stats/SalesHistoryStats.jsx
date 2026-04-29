@@ -119,12 +119,14 @@ function SalesHistoryStats() {
     const partsByCode = {};
     const partsBrandMap = {};
     const partsBrandByCode = {};
+    const partsNameByCode = {};
 
     (partsRes.data || []).forEach(p => {
       const cat = formatCategory(p.note);
       const brand = p.brand || '-';
       if (p.name) { partsMap[p.name] = cat; partsBrandMap[p.name] = brand; }
-      if (p.code) { partsByCode[p.code] = cat; partsBrandByCode[p.code] = brand; }
+      if (p.code) { partsByCode[p.code] = cat; partsBrandByCode[p.code] = brand; partsNameByCode[p.code] = p.name; }
+      if (p.barcode) { partsByCode[p.barcode] = cat; partsBrandByCode[p.barcode] = brand; partsNameByCode[p.barcode] = p.name; }
     });
 
     const resolveCategory = (name, code = '') => {
@@ -279,7 +281,8 @@ function SalesHistoryStats() {
 
         validItems.forEach((item, idx) => {
           const itemCode = item.custom_product_code || item.product_code || '';
-          const pName = item.product_name || item.name || '상품';
+          let pName = item.product_name || item.name || '상품';
+          if (itemCode && partsNameByCode[itemCode]) pName = partsNameByCode[itemCode];
           const itemQty = Number(item.quantity || 1);
           const iPrice = Number(item.product_price || item.price || 0);
           
@@ -327,7 +330,7 @@ function SalesHistoryStats() {
       const brand = resolveBrand(p.name, p.code);
       
       // 재고가 있거나 도매가/브랜드가 있는 주요 부품만 리포트에 표시
-      if (qty > 0 || (supplyPrice > 0 && brand !== '-')) {
+      if (qty > 0) {
         invRows.push({
           part_id: p.id,
           part_name: p.name || '-',
@@ -600,7 +603,7 @@ function SalesHistoryStats() {
           검색 필터
         </Typography>
 
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={4} sx={{ mb: 3 }} justifyContent="center" alignItems="center">
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={4} sx={{ mb: 3 }} justifyContent="flex-start" alignItems="center">
           {/* 연도 선택 */}
           <Box>
             <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
@@ -878,34 +881,44 @@ function SalesHistoryStats() {
                             return c.subChannelsArr.map((sc, scIdx) => {
                               const subChannelRowSpan = sc.itemsArr.length;
                               
-                              return sc.itemsArr.map((item, iIdx) => (
-                                <TableRow key={`${bIdx}-${cIdx}-${scIdx}-${iIdx}`} hover>
-                                  {cIdx === 0 && scIdx === 0 && iIdx === 0 && (
-                                    <TableCell rowSpan={brandRowSpan} align="center" sx={{ fontWeight: 'bold', bgcolor: '#f8f9fa' }}>
-                                      {b.brand}
-                                    </TableCell>
-                                  )}
-                                  {scIdx === 0 && iIdx === 0 && (
-                                    <TableCell rowSpan={channelRowSpan} align="center" sx={{ fontWeight: 'bold' }}>
-                                      {c.channel}
-                                    </TableCell>
-                                  )}
-                                  {iIdx === 0 && (
-                                    <TableCell rowSpan={subChannelRowSpan} align="center">
-                                      {sc.subChannel}
-                                    </TableCell>
-                                  )}
-                                  <TableCell sx={{ color: item.isService ? '#ed6c02' : (!item.isAirframe ? '#607d8b' : 'inherit'), fontWeight: !item.isAirframe ? 'bold' : 'normal' }}>
-                                    {item.name}
-                                  </TableCell>
-                                  <TableCell align="center" sx={{ fontWeight: !item.isAirframe || item.isService ? 'bold' : 'normal' }}>
-                                    {item.quantity}{item.isService ? '건' : (item.isAirframe ? '대' : '개')}
-                                  </TableCell>
-                                  <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                                    {formatCurrency(item.amount)}
-                                  </TableCell>
-                                </TableRow>
-                              ));
+                              return (
+                                <React.Fragment key={`${bIdx}-${cIdx}-${scIdx}`}>
+                                  {sc.itemsArr.map((item, iIdx) => (
+                                    <TableRow key={`${bIdx}-${cIdx}-${scIdx}-${iIdx}`} hover>
+                                      {cIdx === 0 && scIdx === 0 && iIdx === 0 && (
+                                        <TableCell rowSpan={brandRowSpan + b.channelsArr.reduce((s, cc) => s + cc.subChannelsArr.length, 0)} align="center" sx={{ fontWeight: 'bold', bgcolor: '#f8f9fa' }}>
+                                          {b.brand}
+                                        </TableCell>
+                                      )}
+                                      {scIdx === 0 && iIdx === 0 && (
+                                        <TableCell rowSpan={channelRowSpan + c.subChannelsArr.length} align="center" sx={{ fontWeight: 'bold' }}>
+                                          {c.channel}
+                                        </TableCell>
+                                      )}
+                                      {iIdx === 0 && (
+                                        <TableCell rowSpan={subChannelRowSpan + 1} align="center" sx={{ bgcolor: '#fff', borderRight: '1px solid #cfd8dc' }}>
+                                          {sc.subChannel}
+                                        </TableCell>
+                                      )}
+                                      <TableCell sx={{ color: item.isService ? '#ed6c02' : (!item.isAirframe ? '#607d8b' : 'inherit'), fontWeight: !item.isAirframe ? 'bold' : 'normal' }}>
+                                        {item.name}
+                                      </TableCell>
+                                      <TableCell align="center" sx={{ fontWeight: !item.isAirframe || item.isService ? 'bold' : 'normal' }}>
+                                        {item.quantity}{item.isService ? '건' : (item.isAirframe ? '대' : '개')}
+                                      </TableCell>
+                                      <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                                        {formatCurrency(item.amount)}
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                  {/* 소계 행 */}
+                                  <TableRow sx={{ bgcolor: '#f1f8e9' }}>
+                                    <TableCell sx={{ fontWeight: 'bold', color: '#33691e', fontSize: '0.8rem' }} align="right" colSpan={1}>[{sc.subChannel} 소계]</TableCell>
+                                    <TableCell align="center" sx={{ fontWeight: 'bold', color: '#33691e' }}>{sc.subtotalQty}</TableCell>
+                                    <TableCell align="right" sx={{ fontWeight: 'bold', color: '#33691e' }}>{formatCurrency(sc.subtotalAmt)}</TableCell>
+                                  </TableRow>
+                                </React.Fragment>
+                              );
                             });
                           });
                         })
