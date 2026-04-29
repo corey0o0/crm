@@ -523,7 +523,7 @@ function SalesHistory() {
       if (r._orderId) uniqueGroups.service.add(r._orderId);
       groupAmounts.service += price;
     } else {
-      const isAgency = r.sales_channel && !['고객', '-', '일반출고(공홈)', '온라인주문', '매장출고'].includes(r.sales_channel);
+      const isAgency = r.sales_channel && !['고객', '-', '일반출고(공홈)', '온라인주문', '매장출고', '청담매장', '기타', '본점'].includes(r.sales_channel);
       if (isAgency) {
         if (r._orderId) uniqueGroups.agency.add(r._orderId);
         groupAmounts.agency += price;
