@@ -883,7 +883,25 @@ export default function Cafe24OrderList() {
     setMappingsLoading(true);
     try {
       const data = await getCafe24ProductMappings();
-      setMappingsList(data || []);
+      const enrichedData = (data || []).map(m => {
+        let foundName = '';
+        for (const o of orders) {
+          if (!o.order_items) continue;
+          const matchedItem = o.order_items.find(i => 
+            i.custom_product_code === m.cafe24_product_code || 
+            i.variant_code === m.cafe24_product_code || 
+            i.product_code === m.cafe24_product_code ||
+            i.raw_custom_variant_code === m.cafe24_product_code ||
+            i.raw_custom_product_code === m.cafe24_product_code
+          );
+          if (matchedItem) {
+            foundName = matchedItem.name;
+            break;
+          }
+        }
+        return { ...m, dynamic_product_name: foundName };
+      });
+      setMappingsList(enrichedData);
     } catch (e) {
       alert(e.message);
     } finally {
@@ -1704,6 +1722,7 @@ export default function Cafe24OrderList() {
                   <TableRow>
                     <TableCell>쇼핑몰</TableCell>
                     <TableCell>카페24 자체품목코드 (또는 상품코드)</TableCell>
+                    <TableCell>카페24 상품명 (최근 주문 기준)</TableCell>
                     <TableCell>CRM 매핑된 부품명</TableCell>
                     <TableCell align="center">관리</TableCell>
                   </TableRow>
@@ -1713,6 +1732,7 @@ export default function Cafe24OrderList() {
                     <TableRow key={`${item.mall_id}-${item.cafe24_product_code}`}>
                       <TableCell>{item.mall_id}</TableCell>
                       <TableCell><code>{item.cafe24_product_code}</code></TableCell>
+                      <TableCell>{item.dynamic_product_name ? <Typography variant="body2">{item.dynamic_product_name}</Typography> : <Typography variant="body2" color="text.secondary">(이름 미확인)</Typography>}</TableCell>
                       <TableCell>{item.parts?.name}</TableCell>
                       <TableCell align="center">
                         <Button color="error" size="small" onClick={() => handleDeleteMapping(item)}>삭제</Button>
