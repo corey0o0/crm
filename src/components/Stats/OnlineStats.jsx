@@ -18,8 +18,17 @@ import {
   Container,
   ButtonGroup,
   TextField,
-  Stack
+  Stack,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel
 } from '@mui/material';
+import { getCafe24Malls } from '../../utils/cafe24Api';
 
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
@@ -41,10 +50,29 @@ function OnlineStats() {
   const [loading, setLoading] = useState(true);
   const [startDate, setStartDate] = useState(startOfMonth(new Date()));
   const [endDate, setEndDate] = useState(endOfMonth(new Date()));
-  const [stats, setStats] = useState({ totalPayment: 0, orderCount: 0, list: [], agencyStats: {}, brandStats: {} });
+  const [stats, setStats] = useState({ totalPayment: 0, orderCount: 0, list: [], agencyStats: {}, brandStats: {}, totals: {} });
   const [monthlyStats, setMonthlyStats] = useState([]);
   const [brands, setBrands] = useState(['전체']);
   const [selectedBrand, setSelectedBrand] = useState('전체');
+  const [malls, setMalls] = useState([]);
+  const [selectedMall, setSelectedMall] = useState('all');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalTitle, setModalTitle] = useState('');
+  const [modalData, setModalData] = useState([]);
+  const [rawOrders, setRawOrders] = useState([]);
+  const [agencyMapGlobal, setAgencyMapGlobal] = useState({});
+
+  useEffect(() => {
+    const fetchMalls = async () => {
+      try {
+        const res = await getCafe24Malls();
+        if (res.success && res.malls) {
+          setMalls(res.malls.filter(m => m.connected));
+        }
+      } catch (err) {}
+    };
+    fetchMalls();
+  }, []);
   
   const currentMonth = getMonth(new Date());
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
@@ -73,6 +101,34 @@ function OnlineStats() {
     fetchData(newStartDate, newEndDate, selectedBrand);
   };
 
+  // 쇼핑몰 선택 핸들러
+  const handleMallSelect = (mallId) => {
+    setSelectedMall(mallId);
+    fetchData(startDate, endDate, selectedBrand, mallId);
+  };
+
+  const handleOpenModal = (title, dataFilter) => {
+    setModalTitle(title);
+    const items = [];
+    rawOrders.forEach(o => {
+      const agName = o.agency_id ? (agencyMapGlobal[o.agency_id] || '미등록 대리점') : '일반 주문';
+      o.order_items?.forEach(item => {
+        if (dataFilter(o, agName, item, item._isAirframe, item._brand)) {
+           items.push({
+             ...item,
+             order_id: o.order_id,
+             order_date: o.order_date,
+             buyer_name: o.buyer_name,
+             agency_name: agName,
+             total_price: Number(item.quantity || 1) * Number(item.product_price || item.price || 0)
+           });
+        }
+      });
+    });
+    setModalData(items);
+    setModalOpen(true);
+  };
+
   // 브랜드 선택 핸들러
   const handleBrandSelect = (brand) => {
     setSelectedBrand(brand);
@@ -82,7 +138,7 @@ function OnlineStats() {
   const formatDateToStartOfDay = (date) => format(date, 'yyyy-MM-dd') + ' 00:00:00';
   const formatDateToEndOfDay = (date) => format(date, 'yyyy-MM-dd') + ' 23:59:59';
 
-  const fetchData = async (qStart, qEnd, qBrand = selectedBrand) => {
+  const fetchData = async (qStart, qEnd, qBrand = selectedBrand, qMall = selectedMall) => {
     setLoading(true);
     try {
       const startDateTime = formatDateToStartOfDay(qStart || startDate);
@@ -91,16 +147,24 @@ function OnlineStats() {
       const yearStart = formatDateToStartOfDay(startOfYear(qStart || startDate));
       const yearEnd = formatDateToEndOfDay(endOfYear(qStart || startDate));
 
+      let orderQuery = supabase.from('cafe24_orders').select('*').gte('order_date', startDateTime).lte('order_date', endDateTime).eq('is_deleted', false).eq('is_transferred', true);
+      let chartQuery = supabase.from('cafe24_orders').select('order_date, total_amount').gte('order_date', yearStart).lte('order_date', yearEnd).eq('is_deleted', false).eq('is_transferred', true);
+      
+      if (qMall !== 'all') {
+        orderQuery = orderQuery.eq('mall_id', qMall);
+        chartQuery = chartQuery.eq('mall_id', qMall);
+      }
+
       const [
         { data: cafe24Orders, error },
         { data: agenciesData },
         { data: partsData },
         { data: chartDataRaw }
       ] = await Promise.all([
-        supabase.from('cafe24_orders').select('*').gte('order_date', startDateTime).lte('order_date', endDateTime).eq('is_deleted', false).eq('is_transferred', true),
+        orderQuery,
         supabase.from('agencies').select('id, name'),
         supabase.from('parts').select('id, code, barcode, brand, note, price, name'),
-        supabase.from('cafe24_orders').select('order_date, total_amount').gte('order_date', yearStart).lte('order_date', yearEnd).eq('is_deleted', false).eq('is_transferred', true)
+        chartQuery
       ]);
 
       if (error) throw error;
@@ -112,6 +176,8 @@ function OnlineStats() {
         const generalProductStats = {};
         const agencyMap = {};
         agenciesData?.forEach(a => { agencyMap[a.id] = a.name; });
+        setAgencyMapGlobal(agencyMap);
+        setRawOrders(cafe24Orders);
         const partMapById = {};
         const partMapByCode = {};
         const brandSet = new Set();
@@ -125,6 +191,9 @@ function OnlineStats() {
 
         let filteredOrderCount = 0;
         const filteredList = [];
+        
+        let totalB2BAirframeQty = 0, totalB2BAirframeAmt = 0, totalB2BPartsQty = 0, totalB2BPartsAmt = 0;
+        let totalB2CAirframeQty = 0, totalB2CAirframeAmt = 0, totalB2CPartsQty = 0, totalB2CPartsAmt = 0;
 
         cafe24Orders.forEach(o => {
           let orderTotalForBrand = 0;
@@ -144,6 +213,8 @@ function OnlineStats() {
                
                const isAirframe = p ? (p.note === '기체') : (pName.includes('기체') || pName.includes('차체'));
                const sup = p ? (p.brand || '기타 브랜드') : '기타 브랜드';
+               item._brand = sup;
+               item._isAirframe = isAirframe;
 
                if (qBrand !== '전체' && sup !== qBrand) {
                  return; // 현재 선택된 브랜드가 아니면 패스
@@ -241,7 +312,11 @@ function OnlineStats() {
           list: filteredList.sort((a, b) => new Date(b.order_date).getTime() - new Date(a.order_date).getTime()),
           agencyStats,
           brandStats,
-          generalProductStats
+          generalProductStats,
+          totals: {
+            b2b: { airframe: totalB2BAirframeQty, airframeAmt: totalB2BAirframeAmt, parts: totalB2BPartsQty, partsAmt: totalB2BPartsAmt },
+            b2c: { airframe: totalB2CAirframeQty, airframeAmt: totalB2CAirframeAmt, parts: totalB2CPartsQty, partsAmt: totalB2CPartsAmt }
+          }
         });
 
         const monthlyMap = {};
@@ -276,7 +351,7 @@ function OnlineStats() {
     <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h5" component="h2" sx={{ fontWeight: 'bold' }}>
-          온라인 주문 통계 (Cafe24)
+          온라인 매출통계
         </Typography>
       </Box>
 
@@ -365,6 +440,22 @@ function OnlineStats() {
             />
           </LocalizationProvider>
 
+          {/* 사이트 필터 */}
+          <FormControl size="small" sx={{ minWidth: 140, height: 40 }}>
+            <InputLabel>사이트별 조회</InputLabel>
+            <Select
+              value={selectedMall}
+              label="사이트별 조회"
+              onChange={(e) => handleMallSelect(e.target.value)}
+              sx={{ height: 40 }}
+            >
+              <MenuItem value="all">전체 사이트</MenuItem>
+              {malls.map(m => (
+                <MenuItem key={m.mall_id} value={m.mall_id}>{m.mall_id === 'slimpack79' ? '엑스라이더(slimpack79)' : m.mall_id === 'nearbike' ? '니어바이크(nearbike)' : m.mall_id}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          
           {/* 브랜드 선택 */}
           <ButtonGroup size="large" variant="outlined" sx={{ height: 40 }}>
             {brands.map((brand) => (
@@ -463,7 +554,10 @@ function OnlineStats() {
                         .sort((a, b) => b[1].amount - a[1].amount)
                         .map(([agencyName, data]) => (
                           <TableRow key={agencyName} hover>
-                            <TableCell>{agencyName}</TableCell>
+                            <TableCell 
+                              onClick={() => handleOpenModal(`${agencyName} 판매 상세 내역`, (o, agName) => agName === agencyName)}
+                              sx={{ cursor: 'pointer', color: 'primary.main', textDecoration: 'underline' }}
+                            >{agencyName}</TableCell>
                             <TableCell align="right">
                                <Typography variant="body2" sx={{ fontWeight: data.airframe > 0 ? 'bold' : 'normal', color: data.airframe > 0 ? 'primary.main' : 'inherit' }}>{data.airframe}대</Typography>
                                <Typography variant="caption" color="textSecondary">{formatCurrency(data.airframeAmount)}</Typography>
@@ -503,7 +597,10 @@ function OnlineStats() {
                         .sort((a, b) => (b[1].airframeAmount + b[1].partsAmount) - (a[1].airframeAmount + a[1].partsAmount))
                         .map(([brandName, data]) => (
                           <TableRow key={brandName} hover>
-                            <TableCell sx={{ fontWeight: 'bold', verticalAlign: 'top', pt: 2 }}>{brandName}</TableCell>
+                            <TableCell 
+                              onClick={() => handleOpenModal(`대리점(B2B) - ${brandName} 판매 상세 내역`, (o, agName, item, isAirframe, brand) => o.agency_id && brand === brandName)}
+                              sx={{ fontWeight: 'bold', verticalAlign: 'top', pt: 2, cursor: 'pointer', color: 'primary.main', textDecoration: 'underline' }}
+                            >{brandName}</TableCell>
                             <TableCell sx={{ verticalAlign: 'top', pt: 2 }}>
                               {Object.entries(data.airframes).length > 0 ? (
                                 Object.entries(data.airframes)
@@ -540,6 +637,16 @@ function OnlineStats() {
                       <TableRow><TableCell colSpan={5} align="center">데이터가 없습니다.</TableCell></TableRow>
                     )}
                   </TableBody>
+                  {Object.entries(stats.brandStats?.agency || {}).length > 0 && stats.totals?.b2b && (
+                  <TableHead sx={{ bgcolor: 'grey.200' }}>
+                    <TableRow>
+                      <TableCell colSpan={2} align="center" sx={{ fontWeight: 'bold' }}>총합</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.dark' }}>{formatCurrency(stats.totals.b2b.airframeAmt)}</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.dark' }}>{stats.totals.b2b.parts}개 / {formatCurrency(stats.totals.b2b.partsAmt)}</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.dark' }}>{formatCurrency(stats.totals.b2b.airframeAmt + stats.totals.b2b.partsAmt)}</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  )}
                 </Table>
               </TableContainer>
 
@@ -561,7 +668,10 @@ function OnlineStats() {
                         .sort((a, b) => (b[1].airframeAmount + b[1].partsAmount) - (a[1].airframeAmount + a[1].partsAmount))
                         .map(([brandName, data]) => (
                           <TableRow key={brandName} hover>
-                            <TableCell sx={{ fontWeight: 'bold', verticalAlign: 'top', pt: 2 }}>{brandName}</TableCell>
+                            <TableCell 
+                              onClick={() => handleOpenModal(`일반고객(B2C) - ${brandName} 판매 상세 내역`, (o, agName, item, isAirframe, brand) => !o.agency_id && brand === brandName)}
+                              sx={{ fontWeight: 'bold', verticalAlign: 'top', pt: 2, cursor: 'pointer', color: 'primary.main', textDecoration: 'underline' }}
+                            >{brandName}</TableCell>
                             <TableCell sx={{ verticalAlign: 'top', pt: 2 }}>
                               {Object.entries(data.airframes).length > 0 ? (
                                 Object.entries(data.airframes)
@@ -598,6 +708,16 @@ function OnlineStats() {
                       <TableRow><TableCell colSpan={5} align="center">데이터가 없습니다.</TableCell></TableRow>
                     )}
                   </TableBody>
+                  {Object.entries(stats.brandStats?.general || {}).length > 0 && stats.totals?.b2c && (
+                  <TableHead sx={{ bgcolor: 'grey.200' }}>
+                    <TableRow>
+                      <TableCell colSpan={2} align="center" sx={{ fontWeight: 'bold' }}>총합</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.dark' }}>{formatCurrency(stats.totals.b2c.airframeAmt)}</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.dark' }}>{stats.totals.b2c.parts}개 / {formatCurrency(stats.totals.b2c.partsAmt)}</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.dark' }}>{formatCurrency(stats.totals.b2c.airframeAmt + stats.totals.b2c.partsAmt)}</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  )}
                 </Table>
               </TableContainer>
             </Grid>
@@ -649,6 +769,42 @@ function OnlineStats() {
 
         </>
       )}
+    
+      {/* 상세내역 모달 */}
+      <Dialog open={modalOpen} onClose={() => setModalOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ fontWeight: 'bold' }}>{modalTitle}</DialogTitle>
+        <DialogContent dividers>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ bgcolor: 'grey.100' }}>
+                  <TableCell>주문일</TableCell>
+                  <TableCell>주문번호</TableCell>
+                  <TableCell>상품명</TableCell>
+                  <TableCell align="right">수량</TableCell>
+                  <TableCell align="right">결제금액</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {modalData.length > 0 ? modalData.map((row, idx) => (
+                  <TableRow key={idx} hover>
+                    <TableCell>{row.order_date ? row.order_date.split('T')[0] : ''}</TableCell>
+                    <TableCell>{row.order_id}</TableCell>
+                    <TableCell>{row.name || row.product_name}</TableCell>
+                    <TableCell align="right">{row.quantity}개</TableCell>
+                    <TableCell align="right">{formatCurrency(row.total_price)}</TableCell>
+                  </TableRow>
+                )) : (
+                  <TableRow><TableCell colSpan={5} align="center">판매 내역이 없습니다.</TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setModalOpen(false)} variant="contained" sx={{ bgcolor: 'grey.800', '&:hover': { bgcolor: 'grey.900' } }}>닫기</Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 }
