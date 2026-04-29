@@ -329,20 +329,18 @@ function SalesHistoryStats() {
       const cat = resolveCategory(p.name, p.code);
       const brand = resolveBrand(p.name, p.code);
       
-      // 재고가 있거나 도매가/브랜드가 있는 주요 부품만 리포트에 표시
-      if (qty > 0) {
-        invRows.push({
-          part_id: p.id,
-          part_name: p.name || '-',
-          brand: brand,
-          category: cat,
-          supply_price: supplyPrice,
-          quantity: qty,
-          amount: supplyPrice * qty,
-          rental: '-', // 대여 정보 (추후 확장을 위해)
-          defective: '-' // 불량 정보 (추후 확장을 위해)
-        });
-      }
+      // 재고 수량 무관하게 모두 리포트에 표시
+      invRows.push({
+        part_id: p.id,
+        part_name: p.name || '-',
+        brand: brand,
+        category: cat,
+        supply_price: supplyPrice,
+        quantity: qty,
+        amount: supplyPrice * qty,
+        rental: '-', // 대여 정보 (추후 확장을 위해)
+        defective: '-' // 불량 정보 (추후 확장을 위해)
+      });
     });
 
     setInventoryList(invRows);
@@ -739,7 +737,7 @@ function SalesHistoryStats() {
               <Card>
                 <CardContent>
                   <Typography variant="subtitle2" color="text.secondary">판매된 총 물품 수량</Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 'bold', mt: 1 }}>{totalQty.toLocaleString()} 개</Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 'bold', mt: 1 }}>{totalQty.toLocaleString()}</Typography>
                 </CardContent>
               </Card>
             </Grid>
@@ -878,7 +876,7 @@ function SalesHistoryStats() {
                                       {item.name}
                                     </TableCell>
                                     <TableCell align="center" sx={{ fontWeight: !item.isAirframe || item.isService ? 'bold' : 'normal' }}>
-                                      {item.quantity}{item.isService ? '건' : (item.isAirframe ? '대' : '개')}
+                                      {item.quantity}
                                     </TableCell>
                                     <TableCell align="right" sx={{ fontWeight: 'bold' }}>
                                       {formatCurrency(item.amount)}
@@ -947,7 +945,7 @@ function SalesHistoryStats() {
                                 {item.name}
                               </TableCell>
                               <TableCell align="center" sx={{ fontWeight: !item.isAirframe ? 'bold' : 'normal' }}>
-                                {item.quantity}{item.isAirframe ? '대' : '개'}
+                                {item.quantity}
                               </TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold' }}>
                                 {formatCurrency(item.amount)}
