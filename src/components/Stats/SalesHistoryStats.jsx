@@ -529,7 +529,6 @@ function SalesHistoryStats() {
       const qty = Number(inv.quantity || 0);
       const amt = Number(inv.amount || 0);
       
-      if (qty > 0) {
         if (!iGroupData[brand]) {
           iGroupData[brand] = { brand, items: {}, totalQty: 0, totalAmt: 0 };
         }
@@ -556,7 +555,6 @@ function SalesHistoryStats() {
         
         brandNode.totalQty += qty;
         brandNode.totalAmt += amt;
-      }
     });
     
     const invArr = Object.values(iGroupData).map(b => ({
