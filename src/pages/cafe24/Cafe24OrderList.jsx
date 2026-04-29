@@ -1045,7 +1045,8 @@ export default function Cafe24OrderList() {
       const sanitizedItems = editingItems.map(item => ({
         ...item,
         quantity: Number(item.quantity || 1),
-        payment_amount: Number(item.payment_amount || 0)
+        payment_amount: Number(item.payment_amount || 0),
+        is_edited_in_crm: true
       }));
 
       const { error } = await supabase.from('cafe24_orders')

@@ -565,8 +565,10 @@ module.exports = function(supabaseAdmin) {
         }
 
         if (existingData.items && Array.isArray(existingData.items) && p.order_items) {
-          if (existingData.isTransferred) {
-            // 전송 완료 건은 DB의 아이템 배열 구조(수동 추가/품목 교체 등)를 100% 기준으로 보존
+          const isItemsEdited = existingData.items.some(i => i.is_edited_in_crm || i.is_manual_added);
+          
+          if (existingData.isTransferred || isItemsEdited) {
+            // 전송 완료 건이거나, CRM에서 수동으로 품목을 교체/수정한 건은 DB의 아이템 배열 구조를 100% 기준으로 보존
             p.order_items = existingData.items.map(eItem => {
               const mergedItem = { ...eItem };
               
