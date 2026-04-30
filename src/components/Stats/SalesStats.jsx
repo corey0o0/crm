@@ -283,12 +283,24 @@ function SalesStats() {
       if (queryBrand !== '전체') {
         shipmentQuery = shipmentQuery.eq('brand', queryBrand);
       }
-      const { data: shipmentsData, error: shipmentsError } = await shipmentQuery;
+      const { data: rawShipmentsData, error: shipmentsError } = await shipmentQuery;
       if (shipmentsError) {
         console.error('출고 데이터 조회 오류:', shipmentsError);
         throw shipmentsError;
       }
-      console.log('조회된 출고 데이터:', shipmentsData);
+      
+      // 매장 매출통계이므로 대리점(B2B) 및 온라인 매출은 제외하고 순수 매장 출고건만 필터링
+      const shipmentsData = (rawShipmentsData || []).filter(shipment => {
+        const channel = extractSalesChannel(shipment.note, shipment.sales_channel);
+        // 온라인 제외
+        if (channel === '온라인주문' || channel === '공홈' || channel === '일반출고(공홈)' || channel === '스마트스토어' || channel === '쿠팡' || channel === '네이버') return false;
+        // 대리점 제외 (지정된 매장 관련 채널이 아니면 대리점으로 간주)
+        const isAgency = channel && !['고객', '-', '일반출고(공홈)', '공홈', '온라인주문', '매장출고', '청담매장', '기타', '본점'].includes(channel);
+        if (isAgency) return false;
+        return true;
+      });
+      
+      console.log('조회된 매장 출고 데이터:', shipmentsData);
 
       // 1-2. 출고건 id 목록 추출
       const shipmentIds = (shipmentsData || []).map(s => s.id);
