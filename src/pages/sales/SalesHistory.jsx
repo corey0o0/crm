@@ -490,7 +490,7 @@ function SalesHistory() {
     
     if (sellerFilter !== 'all' && sellerFilter !== '전체 판매처') {
       if (sellerFilter === '전체 대리점') {
-        const isAgency = r.sales_channel && !['고객', '-', '일반출고(공홈)', '온라인주문', '매장출고', '청담매장', '기타', '본점'].includes(r.sales_channel);
+        const isAgency = r.sales_channel && !['고객', '-', '일반출고(공홈)', '공홈', '온라인주문', '매장출고', '청담매장', '기타', '본점'].includes(r.sales_channel);
         if (!isAgency) return false;
       } else if (r.sales_channel !== sellerFilter) {
         return false;
@@ -538,11 +538,11 @@ function SalesHistory() {
       if (r._orderId) uniqueGroups.service.add(r._orderId);
       groupAmounts.service += price;
     } else {
-      const isAgency = r.sales_channel && !['고객', '-', '일반출고(공홈)', '온라인주문', '매장출고', '청담매장', '기타', '본점'].includes(r.sales_channel);
+      const isAgency = r.sales_channel && !['고객', '-', '일반출고(공홈)', '공홈', '온라인주문', '매장출고', '청담매장', '기타', '본점'].includes(r.sales_channel);
       if (isAgency) {
         if (r._orderId) uniqueGroups.agency.add(r._orderId);
         groupAmounts.agency += price;
-      } else if (r.sales_channel === '온라인주문' || r._type === 'cafe24') {
+      } else if (r.sales_channel === '온라인주문' || r.sales_channel === '공홈' || r.sales_channel === '일반출고(공홈)' || r._type === 'cafe24') {
         if (r._orderId) uniqueGroups.online.add(r._orderId);
         groupAmounts.online += price;
       } else {
@@ -619,7 +619,7 @@ function SalesHistory() {
         return {
           ...r,
           date_val: format(new Date(r.date_val), 'yyyy-MM-dd'),
-          _type: r._type === 'cafe24' ? '온라인주문' : r._type === 'shipment' ? '매장출고(수기)' : 'A/S수리',
+          _type: r._type === 'cafe24' ? '온라인주문' : r._type === 'shipment' ? '일반출고(수기)' : 'A/S수리',
           supply: amtInfo.supply,
           vat: amtInfo.vat
         };
@@ -656,7 +656,7 @@ function SalesHistory() {
               <Typography variant="body2" color="textSecondary" mb={1}>구분별 주문/처리 건수</Typography>
               <Stack direction="row" justifyContent="space-around" alignItems="center" sx={{ width: '100%' }} divider={<Divider orientation="vertical" flexItem />}>
                  <Box sx={{ flex: 1, textAlign: 'center' }}>
-                   <Typography variant="body2" color="textSecondary">매장 출고</Typography>
+                   <Typography variant="body2" color="textSecondary">매장/일반 출고</Typography>
                    <Typography variant="h5" fontWeight="bold" color="primary">{countStore.toLocaleString()} <Typography component="span" variant="body1">건</Typography></Typography>
                    <Typography variant="body2" color="textSecondary">{groupAmounts.store.toLocaleString()}원</Typography>
                  </Box>
@@ -693,7 +693,7 @@ function SalesHistory() {
                 <Select value={filterType} label="분류" onChange={e => { setFilterType(e.target.value); setPage(0); }}>
                   <MenuItem value="all">전체분류</MenuItem>
                   <MenuItem value="cafe24">온라인주문</MenuItem>
-                  <MenuItem value="shipment">매장출고</MenuItem>
+                  <MenuItem value="shipment">일반출고(수기)</MenuItem>
                   <MenuItem value="service">A/S</MenuItem>
                 </Select>
               </FormControl>
@@ -863,7 +863,7 @@ function SalesHistory() {
                     </TableCell>
                     <TableCell>
                       {(() => {
-                        let cLabel = '매장출고';
+                        let cLabel = '일반출고';
                         let cColor = 'primary';
                         
                         const isEcount = row._type === 'shipment' && row.note && row.note.includes('이카운트');

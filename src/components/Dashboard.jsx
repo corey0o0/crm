@@ -658,7 +658,7 @@ function Dashboard() {
 
       // 2. 출고 데이터 가져오기 (직접 REST API) - Egress 절감을 위해 limit 추가
       console.log('[Dashboard] Making shipments REST API call...');
-      const shipmentsResponse = await fetch(`${supabaseUrl}/rest/v1/shipments?select=*&order=created_at.desc&limit=100`, {
+      const shipmentsResponse = await fetch(`${supabaseUrl}/rest/v1/shipments?select=*&order=order_date.desc&limit=100`, {
         method: 'GET',
         headers: {
           'apikey': supabaseKey,
