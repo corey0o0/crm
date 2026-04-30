@@ -3,12 +3,12 @@ import {
   Box, Typography, Paper, Grid, Card, CardContent, CircularProgress,
   FormControl, Select, MenuItem, InputLabel, Button, Divider, TextField,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Tabs, Tab, ButtonGroup, Stack
+  Tabs, Tab, ButtonGroup, Stack, Switch, FormControlLabel
 } from '@mui/material';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ko } from 'date-fns/locale';
-import { startOfMonth, endOfMonth, format, startOfYear, endOfYear, getWeek, startOfWeek, startOfQuarter, endOfQuarter, setMonth } from 'date-fns';
+import { startOfMonth, endOfMonth, format, startOfYear, endOfYear, getWeek, startOfWeek, endOfWeek, startOfQuarter, endOfQuarter, setMonth } from 'date-fns';
 import { supabase } from '../../lib/supabaseClient';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -29,6 +29,10 @@ function SalesHistoryStats() {
   const [filterType, setFilterType] = useState('all');
   const [filterBrand, setFilterBrand] = useState('전체');
   const [tabValue, setTabValue] = useState(0);
+  const [showProfit, setShowProfit] = useState(false);
+  const [compareStats, setCompareStats] = useState({ context: null, mom: null, yoy: null, wow: null, yoyWeek: null });
+  const [monthlyStats, setMonthlyStats] = useState([]);
+  const [weeklyStats, setWeeklyStats] = useState([]);
 
 
 
@@ -57,8 +61,71 @@ function SalesHistoryStats() {
 
   useEffect(() => {
     fetchSales();
+    fetchCompareStats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startDate, endDate]);
+
+  const percentChange = (current, previous) => {
+    if (previous === 0 || previous === null || previous === undefined) return null;
+    return ((current - previous) / previous) * 100;
+  };
+
+  const fetchTotalsForRange = async (start, end) => {
+    const sDate = format(start, 'yyyy-MM-dd') + ' 00:00:00';
+    const eDate = format(end, 'yyyy-MM-dd') + ' 23:59:59';
+    
+    // Shipments
+    const { data: shipRows } = await supabase.from('shipments').select('price').gte('order_date', sDate).lte('order_date', eDate).in('status', ['출고완료', '완료']);
+    const shipTotal = (shipRows || []).reduce((acc, r) => acc + Number(r.price || 0), 0);
+    
+    // Services
+    const { data: asRows } = await supabase.from('service_parts')
+      .select('price, quantity, services!inner(completion_date, status)')
+      .gte('services.completion_date', sDate).lte('services.completion_date', eDate).ilike('services.status', '%완료%');
+    const asTotal = (asRows || []).reduce((acc, r) => acc + (Number(r.price || 0) * Number(r.quantity || 1)), 0);
+
+    // Cafe24
+    const { data: cafeRows } = await supabase.from('cafe24_orders').select('total_amount').gte('order_date', sDate).lte('order_date', eDate).eq('is_transferred', true);
+    const cafeTotal = (cafeRows || []).reduce((acc, r) => acc + Number(r.total_amount || 0), 0);
+
+    return shipTotal + asTotal + cafeTotal;
+  };
+
+  const fetchCompareStats = async () => {
+    if (!startDate || !endDate) return;
+    const days = Math.floor((endDate - startDate) / (24 * 60 * 60 * 1000)) + 1;
+    const isFullMonth = format(startDate, 'yyyy-MM-dd') === format(startOfMonth(startDate), 'yyyy-MM-dd') &&
+                        format(endDate, 'yyyy-MM-dd') === format(endOfMonth(startDate), 'yyyy-MM-dd');
+    const isApproxWeek = days >= 7 && days <= 8;
+
+    const currentTotal = await fetchTotalsForRange(startDate, endDate);
+
+    if (isFullMonth) {
+      const prevMonthStart = startOfMonth(setMonth(startDate, startDate.getMonth() - 1));
+      const prevMonthEnd = endOfMonth(prevMonthStart);
+      const lastYearMonthStart = startOfMonth(new Date(startDate.getFullYear() - 1, startDate.getMonth(), 1));
+      const lastYearMonthEnd = endOfMonth(lastYearMonthStart);
+
+      const [prev, yoyBase] = await Promise.all([
+        fetchTotalsForRange(prevMonthStart, prevMonthEnd),
+        fetchTotalsForRange(lastYearMonthStart, lastYearMonthEnd)
+      ]);
+      setCompareStats({ context: 'month', mom: percentChange(currentTotal, prev), yoy: percentChange(currentTotal, yoyBase), wow: null, yoyWeek: null });
+    } else if (isApproxWeek) {
+      const prevWeekStart = startOfWeek(new Date(startDate.getTime() - 7 * 24 * 60 * 60 * 1000), { weekStartsOn: 1 });
+      const prevWeekEnd = endOfWeek(prevWeekStart, { weekStartsOn: 1 });
+      const lastYearWeekStart = startOfWeek(new Date(startDate.getFullYear() - 1, startDate.getMonth(), startDate.getDate()), { weekStartsOn: 1 });
+      const lastYearWeekEnd = endOfWeek(lastYearWeekStart, { weekStartsOn: 1 });
+
+      const [prev, yoyBase] = await Promise.all([
+        fetchTotalsForRange(prevWeekStart, prevWeekEnd),
+        fetchTotalsForRange(lastYearWeekStart, lastYearWeekEnd)
+      ]);
+      setCompareStats({ context: 'week', mom: null, yoy: null, wow: percentChange(currentTotal, prev), yoyWeek: percentChange(currentTotal, yoyBase) });
+    } else {
+      setCompareStats({ context: null, mom: null, yoy: null, wow: null, yoyWeek: null });
+    }
+  };
 
   const fetchSales = async () => {
     setLoading(true);
@@ -120,14 +187,23 @@ function SalesHistoryStats() {
     const partsBrandMap = {};
     const partsBrandByCode = {};
     const partsNameByCode = {};
+    const partsCostMap = {};
+    const partsCostByCode = {};
 
     (partsRes.data || []).forEach(p => {
       const cat = formatCategory(p.note);
       const brand = p.brand || '-';
-      if (p.name) { partsMap[p.name] = cat; partsBrandMap[p.name] = brand; }
-      if (p.code) { partsByCode[p.code] = cat; partsBrandByCode[p.code] = brand; partsNameByCode[p.code] = p.name; }
-      if (p.barcode) { partsByCode[p.barcode] = cat; partsBrandByCode[p.barcode] = brand; partsNameByCode[p.barcode] = p.name; }
+      const cost = Number(p.supply_price || 0);
+      if (p.name) { partsMap[p.name] = cat; partsBrandMap[p.name] = brand; partsCostMap[p.name] = cost; }
+      if (p.code) { partsByCode[p.code] = cat; partsBrandByCode[p.code] = brand; partsNameByCode[p.code] = p.name; partsCostByCode[p.code] = cost; }
+      if (p.barcode) { partsByCode[p.barcode] = cat; partsBrandByCode[p.barcode] = brand; partsNameByCode[p.barcode] = p.name; partsCostByCode[p.barcode] = cost; }
     });
+
+    const resolveCost = (name, code = '') => {
+      if (code && typeof partsCostByCode[code] === 'number') return partsCostByCode[code];
+      if (name && typeof partsCostMap[name] === 'number') return partsCostMap[name];
+      return 0;
+    };
 
     const resolveCategory = (name, code = '') => {
       if (code && partsByCode[code]) return partsByCode[code];
@@ -192,7 +268,7 @@ function SalesHistoryStats() {
         _id: s.id, _type: 'shipment', date_val: s.order_date, sales_channel: s.sales_channel || '매장출고', customer_name: s.customer_name || '-'
       };
       if (parts.length === 0) {
-        rows.push({ ...baseFields, part_category: '기타', part_brand: '-', quantity: 0, total_price: Number(s.price || 0) });
+        rows.push({ ...baseFields, part_category: '기타', part_brand: '-', quantity: 0, total_price: Number(s.price || 0), total_cost: 0 });
       } else {
         parts.forEach((p) => {
           let returnedQty = 0;
@@ -212,7 +288,8 @@ function SalesHistoryStats() {
           const total = Number(p.price || 0) * effectiveQty;
           const cat = resolveCategory(p.part_name, p.part_code);
           const brand = resolveBrand(p.part_name, p.part_code);
-          rows.push({ ...baseFields, part_name: p.part_name || '기체/상품', part_category: cat, part_brand: brand, quantity: effectiveQty, total_price: total });
+          const unitCost = resolveCost(p.part_name, p.part_code);
+          rows.push({ ...baseFields, part_name: p.part_name || '기체/상품', part_category: cat, part_brand: brand, quantity: effectiveQty, total_price: total, total_cost: unitCost * effectiveQty });
         });
       }
     });
@@ -246,7 +323,8 @@ function SalesHistoryStats() {
             const pName = sp.parts?.name || '부품';
             const cat = resolveCategory(pName);
             const brand = resolveBrand(pName);
-            rows.push({ ...baseFields, part_name: pName, part_category: cat, part_brand: brand, quantity: effectiveQty, total_price: total });
+            const unitCost = resolveCost(pName);
+            rows.push({ ...baseFields, part_name: pName, part_category: cat, part_brand: brand, quantity: effectiveQty, total_price: total, total_cost: unitCost * effectiveQty });
           }
         });
       }
@@ -265,7 +343,7 @@ function SalesHistoryStats() {
         _id: o.id, _type: 'cafe24', date_val: o.order_date, sales_channel: '온라인주문', customer_name: o.buyer_name || '-'
       };
       if (items.length === 0) {
-        rows.push({ ...baseFields, part_category: '기타', part_brand: '-', quantity: 0, total_price: Number(o.total_amount || 0) });
+        rows.push({ ...baseFields, part_category: '기타', part_brand: '-', quantity: 0, total_price: Number(o.total_amount || 0), total_cost: 0 });
       } else {
         const validItems = items.filter(item => !['C11', 'C40', 'R40', 'E40'].includes(item.order_status));
         if (validItems.length === 0) {
@@ -308,12 +386,41 @@ function SalesHistoryStats() {
 
           const cat = resolveCategory(pName, itemCode);
           const brand = resolveBrand(pName, itemCode);
-          rows.push({ ...baseFields, part_name: pName, part_category: cat, part_brand: brand, quantity: itemQty, total_price: total });
+          const unitCost = resolveCost(pName, itemCode);
+          rows.push({ ...baseFields, part_name: pName, part_category: cat, part_brand: brand, quantity: itemQty, total_price: total, total_cost: unitCost * itemQty });
         });
       }
     });
 
     setFlatRows(rows);
+
+    // 월별, 주별 데이터 가공
+    const mMap = {};
+    const wMap = {};
+    rows.forEach(r => {
+      const d = new Date(r.date_val);
+      const mKey = format(d, 'yyyy-MM');
+      const wStart = startOfWeek(d, { weekStartsOn: 1 });
+      const wEnd = endOfWeek(d, { weekStartsOn: 1 });
+      const wKey = format(wStart, 'yyyy-MM-dd');
+      
+      if (!mMap[mKey]) mMap[mKey] = { period: format(d, 'yyyy년 MM월'), amount: 0, cost: 0, profit: 0 };
+      if (!wMap[wKey]) wMap[wKey] = { period: `${format(wStart, 'MM.dd')} ~ ${format(wEnd, 'MM.dd')}`, amount: 0, cost: 0, profit: 0 };
+      
+      const amt = Number(r.total_price || 0);
+      const cost = Number(r.total_cost || 0);
+      
+      mMap[mKey].amount += amt;
+      mMap[mKey].cost += cost;
+      mMap[mKey].profit += (amt - cost);
+
+      wMap[wKey].amount += amt;
+      wMap[wKey].cost += cost;
+      wMap[wKey].profit += (amt - cost);
+    });
+
+    setMonthlyStats(Object.values(mMap).sort((a, b) => a.period.localeCompare(b.period)));
+    setWeeklyStats(Object.values(wMap).sort((a, b) => a.period.localeCompare(b.period)));
 
     // 재고(Inventory) 데이터 가공
     const invQtyMap = {};
@@ -462,14 +569,15 @@ function SalesHistoryStats() {
       
       const qty = Number(r.quantity || 0);
       const amt = Number(r.total_price || 0);
+      const cost = Number(r.total_cost || 0);
 
       if (!sGroupData[customerType]) {
-        sGroupData[customerType] = { customerType, brands: {}, totalQty: 0, totalAmt: 0 };
+        sGroupData[customerType] = { customerType, brands: {}, totalQty: 0, totalAmt: 0, totalCost: 0, totalProfit: 0 };
       }
       
       const typeNode = sGroupData[customerType];
       if (!typeNode.brands[brand]) {
-        typeNode.brands[brand] = { brand, items: {}, subtotalQty: 0, subtotalAmt: 0 };
+        typeNode.brands[brand] = { brand, items: {}, subtotalQty: 0, subtotalAmt: 0, subtotalCost: 0, subtotalProfit: 0 };
       }
       
       const brandNode = typeNode.brands[brand];
@@ -489,16 +597,23 @@ function SalesHistoryStats() {
       }
       
       if (!brandNode.items[itemKey]) {
-         brandNode.items[itemKey] = { name: itemName, isAirframe, isService, quantity: 0, amount: 0 };
+         brandNode.items[itemKey] = { name: itemName, isAirframe, isService, quantity: 0, amount: 0, cost: 0, profit: 0 };
       }
       
       brandNode.items[itemKey].quantity += qty;
       brandNode.items[itemKey].amount += amt;
+      brandNode.items[itemKey].cost += cost;
+      brandNode.items[itemKey].profit += (amt - cost);
       
       brandNode.subtotalQty += qty;
       brandNode.subtotalAmt += amt;
+      brandNode.subtotalCost += cost;
+      brandNode.subtotalProfit += (amt - cost);
+
       typeNode.totalQty += qty;
       typeNode.totalAmt += amt;
+      typeNode.totalCost += cost;
+      typeNode.totalProfit += (amt - cost);
     });
 
     const typeOrder = { '대리점 매출': 1, '일반 고객 매출': 2, 'A/S 매출': 3 };
@@ -685,6 +800,12 @@ function SalesHistoryStats() {
           </FormControl>
 
           <Button variant="contained" onClick={fetchSales} disabled={loading} sx={{ height: 40, bgcolor: '#3182f6', '&:hover': { bgcolor: '#1b64da' }, px: 4 }} startIcon={<SearchIcon />}>조회</Button>
+          
+          <FormControlLabel
+            control={<Switch checked={showProfit} onChange={(e) => setShowProfit(e.target.checked)} color="primary" />}
+            label={<Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: showProfit ? '#2e7d32' : 'text.secondary' }}>영업이익 보기</Typography>}
+            sx={{ ml: 'auto' }}
+          />
         </Box>
       </Paper>
 
@@ -695,10 +816,49 @@ function SalesHistoryStats() {
           {/* 요약 카드 */}
           <Grid container spacing={2} sx={{ mb: 3 }}>
             <Grid item xs={12} sm={3}>
-              <Card sx={{ bgcolor: '#1976d2', color: 'white' }}>
+              <Card sx={{ bgcolor: '#1976d2', color: 'white', height: '100%' }}>
                 <CardContent>
                   <Typography variant="subtitle2" sx={{ opacity: 0.8 }}>총 판매 합계</Typography>
                   <Typography variant="h4" sx={{ fontWeight: 'bold', mt: 1 }}>{formatCurrency(totalAmt)}</Typography>
+                  {compareStats.context && (
+                    <Box sx={{ mt: 2, p: 1.5, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 1 }}>
+                      {compareStats.context === 'month' ? (
+                        <>
+                          <Typography variant="body2" sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                            <span>전월 대비:</span>
+                            <span style={{ fontWeight: 'bold', color: compareStats.mom > 0 ? '#69f0ae' : (compareStats.mom < 0 ? '#ff5252' : 'inherit') }}>
+                              {compareStats.mom > 0 ? '▲ ' : (compareStats.mom < 0 ? '▼ ' : '')}
+                              {compareStats.mom !== null ? Math.abs(compareStats.mom).toFixed(1) + '%' : '-'}
+                            </span>
+                          </Typography>
+                          <Typography variant="body2" sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span>전년 동월 대비:</span>
+                            <span style={{ fontWeight: 'bold', color: compareStats.yoy > 0 ? '#69f0ae' : (compareStats.yoy < 0 ? '#ff5252' : 'inherit') }}>
+                              {compareStats.yoy > 0 ? '▲ ' : (compareStats.yoy < 0 ? '▼ ' : '')}
+                              {compareStats.yoy !== null ? Math.abs(compareStats.yoy).toFixed(1) + '%' : '-'}
+                            </span>
+                          </Typography>
+                        </>
+                      ) : (
+                        <>
+                          <Typography variant="body2" sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                            <span>전주 대비:</span>
+                            <span style={{ fontWeight: 'bold', color: compareStats.wow > 0 ? '#69f0ae' : (compareStats.wow < 0 ? '#ff5252' : 'inherit') }}>
+                              {compareStats.wow > 0 ? '▲ ' : (compareStats.wow < 0 ? '▼ ' : '')}
+                              {compareStats.wow !== null ? Math.abs(compareStats.wow).toFixed(1) + '%' : '-'}
+                            </span>
+                          </Typography>
+                          <Typography variant="body2" sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span>전년 동주 대비:</span>
+                            <span style={{ fontWeight: 'bold', color: compareStats.yoyWeek > 0 ? '#69f0ae' : (compareStats.yoyWeek < 0 ? '#ff5252' : 'inherit') }}>
+                              {compareStats.yoyWeek > 0 ? '▲ ' : (compareStats.yoyWeek < 0 ? '▼ ' : '')}
+                              {compareStats.yoyWeek !== null ? Math.abs(compareStats.yoyWeek).toFixed(1) + '%' : '-'}
+                            </span>
+                          </Typography>
+                        </>
+                      )}
+                    </Box>
+                  )}
                 </CardContent>
               </Card>
             </Grid>
@@ -821,11 +981,16 @@ function SalesHistoryStats() {
           </Grid>
 
           <Box sx={{ mt: 5, mb: 3 }}>
-            <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 3, display: 'flex', alignItems: 'center' }}>
-              <AssessmentIcon sx={{ mr: 1, color: '#1565c0' }}/> 통합 매출 및 재고 보고서
-            </Typography>
+            <Paper sx={{ mb: 3 }}>
+              <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)} sx={{ borderBottom: 1, borderColor: 'divider' }}>
+                <Tab label="통합 매출 및 재고 보고서" icon={<AssessmentIcon />} iconPosition="start" />
+                <Tab label="월별 매출 통계" />
+                <Tab label="주별 매출 통계" />
+              </Tabs>
+            </Paper>
             
-            <Grid container spacing={4}>
+            {tabValue === 0 && (
+              <Grid container spacing={4}>
               {/* 왼쪽: 판매 매출 */}
               <Grid item xs={12} xl={6}>
                 <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, color: '#424242' }}>
@@ -839,11 +1004,14 @@ function SalesHistoryStats() {
                   }}>
                     <TableHead>
                       <TableRow>
-                        <TableCell width="20%">매출 구분 (고객유형)</TableCell>
-                        <TableCell width="20%">브랜드</TableCell>
-                        <TableCell width="40%">상품명 (기종-색상 / 파츠)</TableCell>
-                        <TableCell width="10%">수량</TableCell>
-                        <TableCell width="10%">판매 금액</TableCell>
+                        <TableCell width={showProfit ? "15%" : "20%"}>매출 구분 (고객유형)</TableCell>
+                        <TableCell width={showProfit ? "15%" : "20%"}>브랜드</TableCell>
+                        <TableCell width={showProfit ? "25%" : "40%"}>상품명 (기종-색상 / 파츠)</TableCell>
+                        <TableCell width="8%">수량</TableCell>
+                        {showProfit && <TableCell width="12%">원가 총액</TableCell>}
+                        <TableCell width="12%">판매 금액</TableCell>
+                        {showProfit && <TableCell width="10%">영업이익</TableCell>}
+                        {showProfit && <TableCell width="8%">이익률</TableCell>}
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -876,16 +1044,42 @@ function SalesHistoryStats() {
                                     <TableCell align="center" sx={{ fontWeight: !item.isAirframe || item.isService ? 'bold' : 'normal' }}>
                                       {item.quantity}
                                     </TableCell>
+                                    {showProfit && (
+                                      <TableCell align="right" sx={{ color: 'text.secondary' }}>
+                                        {formatCurrency(item.cost)}
+                                      </TableCell>
+                                    )}
                                     <TableCell align="right" sx={{ fontWeight: 'bold' }}>
                                       {formatCurrency(item.amount)}
                                     </TableCell>
+                                    {showProfit && (
+                                      <TableCell align="right" sx={{ fontWeight: 'bold', color: item.profit < 0 ? '#d32f2f' : '#2e7d32' }}>
+                                        {formatCurrency(item.profit)}
+                                      </TableCell>
+                                    )}
+                                    {showProfit && (
+                                      <TableCell align="center" sx={{ fontWeight: 'bold', color: item.profit < 0 ? '#d32f2f' : '#2e7d32' }}>
+                                        {item.amount > 0 ? ((item.profit / item.amount) * 100).toFixed(1) + '%' : '-'}
+                                      </TableCell>
+                                    )}
                                   </TableRow>
                                 ))}
                                 {/* 브랜드별 소계 행 */}
                                 <TableRow sx={{ bgcolor: '#f1f8e9' }}>
                                   <TableCell sx={{ fontWeight: 'bold', color: '#33691e', fontSize: '0.8rem' }} align="right">[{b.brand} 소계]</TableCell>
                                   <TableCell align="center" sx={{ fontWeight: 'bold', color: '#33691e' }}>{b.subtotalQty}</TableCell>
+                                  {showProfit && (
+                                    <TableCell align="right" sx={{ fontWeight: 'bold', color: '#33691e' }}>{formatCurrency(b.subtotalCost)}</TableCell>
+                                  )}
                                   <TableCell align="right" sx={{ fontWeight: 'bold', color: '#33691e' }}>{formatCurrency(b.subtotalAmt)}</TableCell>
+                                  {showProfit && (
+                                    <TableCell align="right" sx={{ fontWeight: 'bold', color: b.subtotalProfit < 0 ? '#d32f2f' : '#2e7d32' }}>{formatCurrency(b.subtotalProfit)}</TableCell>
+                                  )}
+                                  {showProfit && (
+                                    <TableCell align="center" sx={{ fontWeight: 'bold', color: b.subtotalProfit < 0 ? '#d32f2f' : '#2e7d32' }}>
+                                      {b.subtotalAmt > 0 ? ((b.subtotalProfit / b.subtotalAmt) * 100).toFixed(1) + '%' : '-'}
+                                    </TableCell>
+                                  )}
                                 </TableRow>
                               </React.Fragment>
                             );
@@ -956,7 +1150,74 @@ function SalesHistoryStats() {
                   </Table>
                 </TableContainer>
               </Grid>
-            </Grid>
+              </Grid>
+            )}
+
+            {tabValue === 1 && (
+              <TableContainer component={Paper} sx={{ border: '1px solid #cfd8dc', borderRadius: 1, boxShadow: 'none' }}>
+                <Table size="small" sx={{ '& th, & td': { border: '1px solid #cfd8dc', padding: '8px 10px' }, '& th': { bgcolor: '#eceff1', fontWeight: 'bold', textAlign: 'center' }}}>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>월</TableCell>
+                      <TableCell>총 판매 금액</TableCell>
+                      {showProfit && <TableCell>총 원가</TableCell>}
+                      {showProfit && <TableCell>영업이익</TableCell>}
+                      {showProfit && <TableCell>이익률</TableCell>}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {monthlyStats.length === 0 ? (
+                      <TableRow><TableCell colSpan={5} align="center">조회된 월별 데이터가 없습니다.</TableCell></TableRow>
+                    ) : (
+                      monthlyStats.map((row, idx) => (
+                        <TableRow key={idx} hover>
+                          <TableCell align="center">{row.period}</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(row.amount)}</TableCell>
+                          {showProfit && <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatCurrency(row.cost)}</TableCell>}
+                          {showProfit && <TableCell align="right" sx={{ fontWeight: 'bold', color: row.profit < 0 ? '#d32f2f' : '#2e7d32' }}>{formatCurrency(row.profit)}</TableCell>}
+                          {showProfit && <TableCell align="center" sx={{ fontWeight: 'bold', color: row.profit < 0 ? '#d32f2f' : '#2e7d32' }}>
+                            {row.amount > 0 ? ((row.profit / row.amount) * 100).toFixed(1) + '%' : '-'}
+                          </TableCell>}
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+
+            {tabValue === 2 && (
+              <TableContainer component={Paper} sx={{ border: '1px solid #cfd8dc', borderRadius: 1, boxShadow: 'none' }}>
+                <Table size="small" sx={{ '& th, & td': { border: '1px solid #cfd8dc', padding: '8px 10px' }, '& th': { bgcolor: '#eceff1', fontWeight: 'bold', textAlign: 'center' }}}>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>주차 (월~일)</TableCell>
+                      <TableCell>총 판매 금액</TableCell>
+                      {showProfit && <TableCell>총 원가</TableCell>}
+                      {showProfit && <TableCell>영업이익</TableCell>}
+                      {showProfit && <TableCell>이익률</TableCell>}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {weeklyStats.length === 0 ? (
+                      <TableRow><TableCell colSpan={5} align="center">조회된 주별 데이터가 없습니다.</TableCell></TableRow>
+                    ) : (
+                      weeklyStats.map((row, idx) => (
+                        <TableRow key={idx} hover>
+                          <TableCell align="center">{row.period}</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(row.amount)}</TableCell>
+                          {showProfit && <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatCurrency(row.cost)}</TableCell>}
+                          {showProfit && <TableCell align="right" sx={{ fontWeight: 'bold', color: row.profit < 0 ? '#d32f2f' : '#2e7d32' }}>{formatCurrency(row.profit)}</TableCell>}
+                          {showProfit && <TableCell align="center" sx={{ fontWeight: 'bold', color: row.profit < 0 ? '#d32f2f' : '#2e7d32' }}>
+                            {row.amount > 0 ? ((row.profit / row.amount) * 100).toFixed(1) + '%' : '-'}
+                          </TableCell>}
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
           </Box>
         </>
       )}
