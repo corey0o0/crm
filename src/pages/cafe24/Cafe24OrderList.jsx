@@ -498,15 +498,15 @@ export default function Cafe24OrderList() {
       if (hasUnmappedItems) break;
     }
 
+    let transferMessage = `${ordersToTransfer.length}건의 주문을 분할 전송(매출/출고 등록 및 재고 차감)하시겠습니까?`;
     if (hasUnmappedItems) {
-      setAlertDialog({ open: true, title: '매핑 누락', message: '🔴 품목코드가 미스매칭(수동 연결 필요) 상태인 항목이 포함되어 있습니다.\n해당 품목의 [수동 연결] 버튼을 눌러 먼저 ERP 품목과 매핑을 완료해주세요.' });
-      return;
+      transferMessage = `⚠️ 주의: 품목코드가 미스매칭(수동 연결 필요)인 항목이 포함되어 있습니다.\n\n해당 품목들(예: 개인결제건, 배송비 등)은 재고 차감 및 매출 기록에서 [자동 제외(스킵)]됩니다.\n\n그래도 계속 전송하시겠습니까?`;
     }
 
     setConfirmDialog({
       open: true,
-      title: '판매 반영(전송)',
-      message: `${ordersToTransfer.length}건의 주문을 분할 전송(매출/출고 등록 및 재고 차감)하시겠습니까?`,
+      title: hasUnmappedItems ? '판매 반영(전송) - 매핑 누락 포함' : '판매 반영(전송)',
+      message: transferMessage,
       onConfirm: async () => {
         try {
           setLoading(true);
@@ -515,7 +515,6 @@ export default function Cafe24OrderList() {
           setSelectedOrders([]);
           setWarehouseConfig(prev => {
             const next = { ...prev };
-            // ordersToTransfer.forEach(o => delete next[o.id]); // 상태 유지
             return next;
           });
           fetchOrders();
@@ -550,15 +549,15 @@ export default function Cafe24OrderList() {
       if (isCancelled) return false;
       return !item.part_id && (item.custom_product_code || item.product_code);
     });
+    let transferMessage = `주문(Cafe24 ID: ${order.order_id})을 전송(매출/출고 등록 및 재고 차감)하시겠습니까?`;
     if (hasUnmappedItem) {
-      setAlertDialog({ open: true, title: '매핑 누락', message: '🔴 품목코드가 미스매칭(수동 연결 필요) 상태인 항목이 있습니다.\n해당 품목의 [수동 연결] 버튼을 눌러 먼저 ERP 품목과 매핑을 완료해주세요.' });
-      return;
+      transferMessage = `⚠️ 주의: 품목코드가 미스매칭(수동 연결 필요)인 항목이 포함되어 있습니다.\n\n해당 품목(예: 개인결제건, 배송비 등)은 재고 차감 및 매출 기록에서 [자동 제외(스킵)]됩니다.\n\n그래도 계속 전송하시겠습니까?`;
     }
     
     setConfirmDialog({
       open: true,
-      title: '개별 판매 전송',
-      message: `주문(Cafe24 ID: ${order.order_id})을 전송(매출/출고 등록 및 재고 차감)하시겠습니까?`,
+      title: hasUnmappedItem ? '개별 판매 전송 - 매핑 누락 포함' : '개별 판매 전송',
+      message: transferMessage,
       onConfirm: async () => {
         try {
           setLoading(true);
@@ -566,7 +565,6 @@ export default function Cafe24OrderList() {
           setAlertDialog({ open: true, title: '성공', message: '전송이 완료되었습니다.' });
           setWarehouseConfig(prev => {
             const next = { ...prev };
-            // delete next[order.id]; // 상태 유지 (화면 깜빡임 방지)
             return next;
           });
           fetchOrders();
