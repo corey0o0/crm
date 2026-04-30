@@ -497,14 +497,9 @@ module.exports = function(supabaseAdmin) {
       const isFullPoints = Number(order.actual_order_amount?.order_price_amount) > 0 && pg_payment === 0 && actual_deposit === 0;
       const isPartiallyCanceled = order.canceled === 'M' || (order.items && order.items.some(i => ['C11','C40','R40','E40'].includes(i.order_status)));
 
-      let total_amount;
-      if (isPartiallyCanceled && order.actual_order_amount) {
-        total_amount = Number(order.actual_order_amount.order_price_amount || 0) + Number(order.actual_order_amount.shipping_fee || 0);
-      } else {
-        total_amount = pg_payment > 0 || actual_deposit > 0 || isFullPoints
-          ? (pg_payment + actual_deposit) 
-          : ((order.actual_order_amount && order.actual_order_amount.order_price_amount) || order.total_order_price || 0);
-      }
+      let total_amount = pg_payment > 0 || actual_deposit > 0 || isFullPoints
+        ? (pg_payment + actual_deposit) 
+        : ((order.actual_order_amount && order.actual_order_amount.payment_amount) || order.total_order_price || 0);
       const shipping_fee = Number((order.actual_order_amount && order.actual_order_amount.shipping_fee) || 0);
 
       let items_payment_sum = 0;
