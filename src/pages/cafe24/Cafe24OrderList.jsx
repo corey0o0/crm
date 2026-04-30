@@ -1447,7 +1447,7 @@ export default function Cafe24OrderList() {
                   const matchedPart = item.part_id ? availableParts.find(p => p.id === item.part_id) : null;
                   const erpCode = matchedPart ? (matchedPart.barcode || matchedPart.code) : '';
                   const erpName = matchedPart ? matchedPart.name : '';
-                  const needsMapping = !item.part_id && (item.custom_product_code || item.product_code);
+                  const needsMapping = !item.part_id && (item.custom_product_code || item.product_code) && !order.is_transferred;
                   
                   // 계산된 적립금/전체할인 구하기 (DB에 없을 경우를 대비해 프론트엔드에서도 계산)
                   const orderItemsSum = items.reduce((sum, it) => {
@@ -1551,7 +1551,15 @@ export default function Cafe24OrderList() {
                       {showPriceDetails && <TableCell align="right">{(Number(item.price || 0) * Number(item.quantity || 1)).toLocaleString()}</TableCell>}
                       {showPriceDetails && <TableCell align="right">{Number(item.item_discount || 0).toLocaleString()}</TableCell>}
                       {showPriceDetails && <TableCell align="right">{Number(item.bundle_discount || item.discount_amount || 0).toLocaleString()}</TableCell>}
-                      <TableCell align="right">{((Number(item.payment_amount === undefined ? (Number(item.price || 0) * Number(item.quantity || 1)) : item.payment_amount)) + (idx === 0 ? Number(order.shipping_fee || 0) : 0)).toLocaleString()}</TableCell>
+                      <TableCell align="right">
+                        {['C11', 'C40', 'R40', 'E40'].includes(item.order_status) ? (
+                          <Typography variant="body2" color="error" sx={{ textDecoration: 'line-through' }}>
+                            {((Number(item.payment_amount === undefined ? (Number(item.price || 0) * Number(item.quantity || 1)) : item.payment_amount)) + (idx === 0 ? Number(order.shipping_fee || 0) : 0)).toLocaleString()}
+                          </Typography>
+                        ) : (
+                          ((Number(item.payment_amount === undefined ? (Number(item.price || 0) * Number(item.quantity || 1)) : item.payment_amount)) + (idx === 0 ? Number(order.shipping_fee || 0) : 0)).toLocaleString()
+                        )}
+                      </TableCell>
                       {idx === 0 && <TableCell align="right" rowSpan={items.length}>{Number(order.shipping_fee || 0).toLocaleString()}</TableCell>}
                       {idx === 0 && <TableCell align="right" rowSpan={items.length}>{displayUsedPoints.toLocaleString()}</TableCell>}
                       {idx === 0 && <TableCell align="right" rowSpan={items.length}>

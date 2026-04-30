@@ -945,11 +945,20 @@ module.exports = function(supabaseAdmin) {
         }
       }
 
-      // 최종 상태 변경 (개별 order_items에 _warehouse_id 기록)
+      // 최종 상태 변경 (개별 order_items에 _warehouse_id 및 part_id 기록)
       for (const order of orders) {
         const updatedItems = (order.order_items || []).map((item, index) => {
           const wid = (warehouseConfig && warehouseConfig[order.id] && warehouseConfig[order.id][index]) || 'DEFAULT';
-          return { ...item, _warehouse_id: wid };
+          
+          let mappedPartId = item.part_id;
+          if (!mappedPartId) {
+            const pCode = item.custom_product_code || item.product_code || '';
+            if (pCode && partsCacheByCode[String(pCode).trim()]) {
+              mappedPartId = partsCacheByCode[String(pCode).trim()].id;
+            }
+          }
+          
+          return { ...item, _warehouse_id: wid, part_id: mappedPartId };
         });
         await supabaseAdmin.from('cafe24_orders').update({ is_transferred: true, is_deleted: false, order_items: updatedItems }).eq('id', order.id);
       }
