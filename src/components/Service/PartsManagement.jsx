@@ -2043,6 +2043,15 @@ function PartsManagement() {
             }
           }}
         >
+          <Tab
+            value="전체"
+            label="전체"
+            sx={{
+              '&.Mui-selected': {
+                fontWeight: 'bold'
+              }
+            }}
+          />
           {brands.map((brand) => (
             <Tab
               key={brand}
