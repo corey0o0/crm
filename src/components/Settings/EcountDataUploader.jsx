@@ -56,10 +56,22 @@ export default function EcountDataUploader() {
       // 그룹화 및 매핑 로직 (Ecount 방식: 일자-No. 와 거래처 기준)
       const grouped = {};
       rawData.forEach((row, idx) => {
-        // 필수 헤더 및 바코드 정보
         const dateNo = row['일자-No.'] || row['일자'] || '';
         const customer = row['거래처명'] || row['거래처'] || '미상 거래처';
         const partName = row['품목명(규격)'] || row['품목명'] || `품목-${idx}`;
+        
+        // 이카운트 엑셀의 '소계', '합계', '월계' 등의 요약 행 무시
+        if (
+          String(dateNo).includes('계') || 
+          String(customer).includes('합계') || 
+          String(customer).includes('소계') || 
+          String(customer).trim() === '계' ||
+          String(partName).includes('합계') ||
+          String(partName).includes('소계')
+        ) {
+          return;
+        }
+
         const excelCode = row['품목코드'] || row['상품코드'] || '';
         const excelBarcode = row['바코드'] || '';
         
@@ -78,6 +90,12 @@ export default function EcountDataUploader() {
              total = Math.round((price * qty) * 1.1);
           }
         }
+        
+        // 너무 큰 금액(1억 이상)이 단일 전표에 들어올 경우 DECIMAL(10,2) 에러 방지를 위해 제한 (필요시 스키마 변경 요망)
+        if (total > 99999999) {
+          total = 99999999;
+        }
+
         const xlWarehouseName = row['창고명'] || row['출하창고'] || row['창고'] || row['출고지'] || '';
         const projectName = String(row['프로젝트명'] || '').trim();
         const noteInfo = `[주문:${row['주문번호'] || ''}] [프로젝트:${projectName}]`;
@@ -94,10 +112,10 @@ export default function EcountDataUploader() {
         }
 
         // 날짜 추출 (가장 앞의 10자리 YYYY-MM-DD 형식만 추출하여 타임존 에러 방지)
-        let orderDate = String(dateNo).trim().substring(0, 10).replace(/\//g, '-');
+        let orderDate = String(dateNo).trim().substring(0, 10).replace(/[\/\.]/g, '-');
 
-        // 유효한 날짜가 없으면 현재 날짜로 폴백
-        if (orderDate.length < 8) {
+        // 유효한 날짜가 없거나 형식이 맞지 않으면 현재 날짜로 폴백
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(orderDate)) {
            orderDate = new Date().toISOString().split('T')[0];
         }
 
