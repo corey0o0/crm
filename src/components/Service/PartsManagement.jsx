@@ -2105,14 +2105,15 @@ function PartsManagement() {
                     sx={{
                       fontSize: '0.875rem',
                       color: part.barcode ? 'text.primary' : 'text.secondary',
-                      fontStyle: part.barcode ? 'normal' : 'italic'
+                      fontStyle: part.barcode ? 'normal' : 'italic',
+                      fontWeight: part.barcode ? 'bold' : 'normal'
                     }}
                   >
                     {part.barcode || '-'}
                   </Typography>
                 </TableCell>
                 <TableCell>
-                  {part.name}
+                  <Box component="span" sx={{ fontWeight: 'bold' }}>{part.name}</Box>
                   {part.name_en && (
                     <Typography variant="caption" display="block" color="text.secondary">
                       {part.name_en}
@@ -2123,9 +2124,9 @@ function PartsManagement() {
                   )}
                 </TableCell>
                 {showSupplyPrice && <TableCell align="right">{part.cost_price?.toLocaleString() || '-'}</TableCell>}
-                <TableCell align="right">{part.supply_price?.toLocaleString() || '-'}</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 'bold' }}>{part.supply_price?.toLocaleString() || '-'}</TableCell>
                 {showSupplyPrice && <TableCell align="right">{part.special_price?.toLocaleString() || '-'}</TableCell>}
-                <TableCell align="right">{part.price?.toLocaleString() || '-'}</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 'bold' }}>{part.price?.toLocaleString() || '-'}</TableCell>
                 <TableCell>
                   <Typography
                     sx={{
