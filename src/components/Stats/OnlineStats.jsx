@@ -121,7 +121,7 @@ function OnlineStats() {
              order_date: o.order_date,
              buyer_name: o.buyer_name,
              agency_name: agName,
-             total_price: Number(item.quantity || 1) * Number(item.product_price || item.price || 0)
+             total_price: item._calculated_amount !== undefined ? item._calculated_amount : (Number(item.quantity || 1) * Number(item.product_price || item.price || 0))
            });
         }
       });
@@ -208,14 +208,48 @@ function OnlineStats() {
           const agName = o.agency_id ? (agencyMap[o.agency_id] || `미등록 대리점`) : '일반 주문';
           if (!agencyStats[agName]) agencyStats[agName] = { amount: 0, count: 0, airframe: 0, airframeAmount: 0, parts: 0, partsAmount: 0 };
 
+          const validItems = o.order_items || [];
+          let totalWeight = 0;
+          validItems.forEach(i => {
+              const pCode = String(i.custom_product_code || i.product_code || '').trim();
+              const p = i.part_id ? partMapById[i.part_id] : (pCode ? partMapByCode[pCode] : null);
+              const pPrice = Number(i.product_price || i.price || (p ? p.price : 0));
+              totalWeight += pPrice * Number(i.quantity || 1);
+          });
+          const totalQty = validItems.reduce((acc, i) => acc + Number(i.quantity || 1), 0);
+
           if (o.order_items && Array.isArray(o.order_items)) {
-             o.order_items.forEach(item => {
+             o.order_items.forEach((item, idx) => {
                const pCode = String(item.custom_product_code || item.product_code || '').trim();
                const pName = item.name || item.product_name || '';
                const p = item.part_id ? partMapById[item.part_id] : (pCode ? partMapByCode[pCode] : null);
                const qty = Number(item.quantity || 1);
-               const unitPrice = Number(item.product_price || item.price || (p ? p.price : 0));
-               const amount = qty * unitPrice;
+               
+               let amount = 0;
+               if (item.payment_amount !== undefined && item.payment_amount !== null && Number(item.payment_amount) > 0) {
+                   amount = Number(item.payment_amount);
+               } else if (totalWeight > 0) {
+                   const pPrice = Number(item.product_price || item.price || (p ? p.price : 0));
+                   amount = Math.floor(((pPrice * qty) / totalWeight) * Number(o.total_amount || 0));
+                   if (idx === validItems.length - 1) {
+                       const prevTotal = validItems.slice(0, validItems.length - 1).reduce((acc, prev) => {
+                           const prevPCode = String(prev.custom_product_code || prev.product_code || '').trim();
+                           const prevP = prev.part_id ? partMapById[prev.part_id] : (prevPCode ? partMapByCode[prevPCode] : null);
+                           const prevPrice = Number(prev.product_price || prev.price || (prevP ? prevP.price : 0));
+                           return acc + Math.floor(((prevPrice * Number(prev.quantity || 1)) / totalWeight) * Number(o.total_amount || 0));
+                       }, 0);
+                       amount = Number(o.total_amount || 0) - prevTotal;
+                   }
+               } else if (totalQty > 0) {
+                   amount = Math.floor((qty / totalQty) * Number(o.total_amount || 0));
+                   if (idx === validItems.length - 1) {
+                       const prevTotal = validItems.slice(0, validItems.length - 1).reduce((acc, prev) => {
+                           return acc + Math.floor((Number(prev.quantity || 1) / totalQty) * Number(o.total_amount || 0));
+                       }, 0);
+                       amount = Number(o.total_amount || 0) - prevTotal;
+                   }
+               }
+               item._calculated_amount = amount;
                
                const isAirframe = p ? (p.note === '기체') : (pName.includes('기체') || pName.includes('차체'));
                const sup = p ? (p.brand || '기타 브랜드') : '기타 브랜드';
