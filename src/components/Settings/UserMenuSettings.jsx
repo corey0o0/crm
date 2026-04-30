@@ -49,7 +49,10 @@ const AVAILABLE_PERMISSIONS = [
   { key: 'board_group', label: '게시판 메뉴 전체' },
   { key: 'board_internal', label: '내부 게시판' },
   { key: 'board_cafe24', label: '카페24 게시판' },
-  { key: 'admin_tools', label: '관리자 도구' }
+  { key: 'admin_tools', label: '관리자 도구 (메뉴 접근)' },
+  { key: 'admin_telegram', label: '- 텔레그램 연동 관리' },
+  { key: 'admin_backup', label: '- 데이터 백업/복원' },
+  { key: 'admin_permissions', label: '- 사용자 권한 관리' }
 ];
 
 export default function UserMenuSettings() {

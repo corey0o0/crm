@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import { Box, Tabs, Tab, Typography, Paper, Container } from '@mui/material';
-import SystemHealthCheck from '../../components/Test/SystemHealthCheck';
+import { Box, Tabs, Tab, Typography, Paper, Container, Alert } from '@mui/material';
 import TelegramTest from '../../components/Test/TelegramTest';
-
 import BackupManager from '../../components/Backup/BackupManager';
 import UserMenuSettings from '../../components/Settings/UserMenuSettings';
 import TelegramSettings from '../../components/Settings/TelegramSettings';
-import EcountDataUploader from '../../components/Settings/EcountDataUploader';
+import { useAuth } from '../../contexts/AuthContext';
+import { hasMenuAccess } from '../../config/menuConfig';
 
 function TabPanel(props) {
     const { children, value, index, ...other } = props;
@@ -36,11 +35,47 @@ function a11yProps(index) {
 }
 
 export default function AdminTools() {
-    const [value, setValue] = useState(1);
+    const [value, setValue] = useState(0);
+    const { user, userMenuPermissions } = useAuth();
 
     const handleChange = (event, newValue) => {
         setValue(newValue);
     };
+
+    const email = user?.email;
+    const canSeeTelegram = hasMenuAccess(email, 'admin_telegram', userMenuPermissions);
+    const canSeeBackup = hasMenuAccess(email, 'admin_backup', userMenuPermissions);
+    const canSeePermissions = hasMenuAccess(email, 'admin_permissions', userMenuPermissions);
+    
+    // Master accounts or those who specifically got permission
+    // For telegram test, we will tie it to admin_telegram as well for simplicity, or just show it if any of them are true
+    const tabs = [];
+    
+    if (canSeeTelegram) {
+        tabs.push({ label: "텔레그램 테스트", component: <TelegramTest /> });
+        tabs.push({ label: "텔레그램 알림 관리", component: <TelegramSettings /> });
+    }
+    if (canSeeBackup) {
+        tabs.push({ label: "데이터 백업/복원", component: <Box sx={{ mt: -3 }}><BackupManager /></Box> });
+    }
+    if (canSeePermissions) {
+        tabs.push({ label: "사용자 권한 관리", component: <UserMenuSettings /> });
+    }
+
+    // fallback if no specific permissions were granted but they still accessed admin tools
+    if (tabs.length === 0) {
+        return (
+            <Container maxWidth="xl">
+                <Typography variant="h4" gutterBottom sx={{ mb: 4, fontWeight: 'bold' }}>
+                    관리자 도구
+                </Typography>
+                <Alert severity="warning">세부 관리자 권한이 부여되지 않았습니다. 권한 관리자에게 문의하세요.</Alert>
+            </Container>
+        );
+    }
+
+    // Ensure value does not exceed tabs length
+    const currentValue = value >= tabs.length ? 0 : value;
 
     return (
         <Container maxWidth="xl">
@@ -51,40 +86,22 @@ export default function AdminTools() {
             <Paper sx={{ width: '100%', mb: 4 }}>
                 <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
                     <Tabs 
-                        value={value} 
+                        value={currentValue} 
                         onChange={handleChange} 
                         aria-label="admin tools tabs" 
                         variant="scrollable" 
                         scrollButtons="auto"
                     >
-                        {/* <Tab label="시스템 상태 점검" {...a11yProps(0)} /> */}
-                        <Tab label="텔레그램 테스트" {...a11yProps(1)} />
-                        <Tab label="텔레그램 알림 관리" {...a11yProps(2)} />
-                        <Tab label="데이터 백업/복원" {...a11yProps(3)} />
-                        <Tab label="사용자 권한 관리" {...a11yProps(4)} />
-                        {/* <Tab label="과거 이카운트 연동" {...a11yProps(5)} /> */}
+                        {tabs.map((tab, idx) => (
+                            <Tab key={idx} label={tab.label} {...a11yProps(idx)} />
+                        ))}
                     </Tabs>
                 </Box>
-                {/* <TabPanel value={value} index={0}>
-                    <SystemHealthCheck />
-                </TabPanel> */}
-                <TabPanel value={value} index={1}>
-                    <TelegramTest />
-                </TabPanel>
-                <TabPanel value={value} index={2}>
-                    <TelegramSettings />
-                </TabPanel>
-                <TabPanel value={value} index={3}>
-                    <Box sx={{ mt: -3 }}>
-                        <BackupManager />
-                    </Box>
-                </TabPanel>
-                <TabPanel value={value} index={4}>
-                    <UserMenuSettings />
-                </TabPanel>
-                {/* <TabPanel value={value} index={5}>
-                    <EcountDataUploader />
-                </TabPanel> */}
+                {tabs.map((tab, idx) => (
+                    <TabPanel key={idx} value={currentValue} index={idx}>
+                        {tab.component}
+                    </TabPanel>
+                ))}
             </Paper>
         </Container>
     );
