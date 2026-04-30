@@ -1119,7 +1119,14 @@ function ServiceDetail() {
       setSelectedPart(null);
       setPartQuantity(1);
       setModifiedPrice('');
-      handleClosePartDialog();
+      
+      setSnackbar({
+        open: true,
+        message: '부품이 추가되었습니다. 계속해서 다른 부품을 추가할 수 있습니다.',
+        severity: 'success'
+      });
+      // 연속 등록을 위해 다이얼로그를 닫지 않습니다.
+      // handleClosePartDialog();
     }
   };
 

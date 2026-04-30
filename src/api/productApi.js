@@ -20,6 +20,7 @@ function mapPartToProduct(part) {
     min_stock: Number(part.min_stock ?? 0) || 0,
     description: part.note || part.description || null,
     supplier: part.brand || part.supplier || null,
+    discount_group: part.discount_group || null,
     status: 'active',
     _source: 'parts'
   };
@@ -63,7 +64,7 @@ export const productApi = {
 
       // Egress 절감을 위해 기본 limit 설정 (최대 1000개)
       const data = await fetchFromSupabase(PARTS_TABLE, {
-        select: 'id,code,barcode,name,price,brand,note',
+        select: 'id,code,barcode,name,price,brand,note,discount_group',
         filter: filter,
         order: 'name.asc',
         limit: 1000
@@ -97,7 +98,7 @@ export const productApi = {
       let filterExpr = `name.ilike."%${safeTerm}%",code.ilike."%${safeTerm}%",note.ilike."%${safeTerm}%"`;
       let query = supabase
         .from(PARTS_TABLE)
-        .select('id, code, barcode, name, price, brand, note')
+        .select('id, code, barcode, name, price, brand, note, discount_group')
         .or(filterExpr);
 
       if (PARTS_BRAND) {

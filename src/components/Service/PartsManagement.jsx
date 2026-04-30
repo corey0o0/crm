@@ -87,6 +87,7 @@ const PartsFormDialog = memo(({
     barcode: '',
     memo: '',
     note: '파츠',
+    discount_group: '',
     image_url: ''
   });
 
@@ -119,6 +120,7 @@ const PartsFormDialog = memo(({
           barcode: initialData.barcode || '',
           memo: initialData.memo || '',
           note: initialData.note || '파츠',
+          discount_group: initialData.discount_group || '',
           image_url: initialData.image_url || ''
         });
         setImagePreview(initialData.image_url || '');
@@ -139,6 +141,7 @@ const PartsFormDialog = memo(({
           barcode: '',
           memo: '',
           note: defaultCategory,
+          discount_group: '',
           image_url: ''
         });
         setImagePreview('');
@@ -448,6 +451,16 @@ const PartsFormDialog = memo(({
               onChange={handleChange}
             />
           </Grid>
+          <Grid item xs={12} md={6}>
+            <TextField
+              fullWidth
+              label="할인 그룹 (예: 25%할인그룹)"
+              name="discount_group"
+              value={formData.discount_group}
+              onChange={handleChange}
+              placeholder="그룹 단위 할인/가격을 관리할 때 입력"
+            />
+          </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <TextField
               fullWidth
@@ -623,7 +636,8 @@ function PartsManagement() {
   const [openDialog, setOpenDialog] = useState(false);
   const [enlargedImage, setEnlargedImage] = useState(null);
   const [selectedPart, setSelectedPart] = useState(null);
-  const [selectedBrand, setSelectedBrand] = useState('XRB');
+  const [selectedBrand, setSelectedBrand] = useState('전체');
+  const [selectedDiscountGroup, setSelectedDiscountGroup] = useState('전체');
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
@@ -657,6 +671,11 @@ function PartsManagement() {
   const [batchEditMode, setBatchEditMode] = useState('percent'); // 'percent', 'amount'
   const [batchEditValue, setBatchEditValue] = useState('');
   const [isBatchUpdating, setIsBatchUpdating] = useState(false);
+
+  // 일괄 그룹 지정 상태
+  const [openBatchGroupDialog, setOpenBatchGroupDialog] = useState(false);
+  const [batchGroupValue, setBatchGroupValue] = useState('');
+  const [isBatchGroupUpdating, setIsBatchGroupUpdating] = useState(false);
 
   // 연동 관련 상태 추가
   const [openSyncDialog, setOpenSyncDialog] = useState(false);
@@ -928,6 +947,7 @@ function PartsManagement() {
       if (formData.barcode) partData.barcode = formData.barcode;
       if (formData.memo) partData.memo = formData.memo;
       if (formData.note) partData.note = formData.note;
+      partData.discount_group = formData.discount_group || null;
 
       if (selectedPart) {
         const { error } = await supabase
@@ -1328,9 +1348,8 @@ function PartsManagement() {
     });
   };
 
-  // 필터링된 파츠 목록 최적화
   const filteredParts = useMemo(() => {
-    if (selectedBrand === '전체' && !searchTerm) {
+    if (selectedBrand === '전체' && selectedDiscountGroup === '전체' && selectedCategory === '전체' && !searchTerm) {
       return parts;
     }
 
@@ -1342,6 +1361,9 @@ function PartsManagement() {
       // 구분(카테고리)로 필터링
       const categoryMatch = selectedCategory === '전체' || (part.note || '') === selectedCategory;
       if (!categoryMatch) return false;
+      // 할인 그룹 필터링
+      const groupMatch = selectedDiscountGroup === '전체' || (part.discount_group || '') === selectedDiscountGroup;
+      if (!groupMatch) return false;
 
       // 검색어가 없으면 브랜드 필터링만 적용
       if (!searchTerm) return true;
@@ -1352,7 +1374,7 @@ function PartsManagement() {
         part.barcode?.toLowerCase().includes(searchTermLower) ||
         part.note?.toLowerCase().includes(searchTermLower);
     });
-  }, [parts, searchTerm, selectedBrand, selectedCategory]);
+  }, [parts, searchTerm, selectedBrand, selectedCategory, selectedDiscountGroup]);
 
   // 정렬된 파츠 목록
   const sortedParts = useMemo(() => {
@@ -1601,6 +1623,43 @@ function PartsManagement() {
     }
   };
 
+  const handleOpenBatchGroupDialog = () => {
+    if (selectedItems.length === 0) {
+      showSnackbar('그룹을 지정할 항목을 선택해주세요.', 'warning');
+      return;
+    }
+    setBatchGroupValue('');
+    setOpenBatchGroupDialog(true);
+  };
+
+  const handleCloseBatchGroupDialog = () => {
+    setOpenBatchGroupDialog(false);
+  };
+
+  const handleBatchUpdateGroup = async () => {
+    try {
+      setIsBatchGroupUpdating(true);
+      const selectedPartsData = parts.filter(part => selectedItems.includes(part.id));
+      const updatePromises = selectedPartsData.map(part => {
+        return supabase
+          .from('parts')
+          .update({ discount_group: batchGroupValue })
+          .eq('id', part.id);
+      });
+
+      await Promise.all(updatePromises);
+      showSnackbar(`${selectedItems.length}개 항목의 할인 그룹이 변경되었습니다.`, 'success');
+      handleCloseBatchGroupDialog();
+      setSelectedItems([]);
+      fetchParts();
+    } catch (error) {
+      console.error('일괄 그룹 지정 오류:', error);
+      showSnackbar('그룹 지정 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setIsBatchGroupUpdating(false);
+    }
+  };
+
   // 연동 다이얼로그 열기
   const handleOpenSyncDialog = (part) => {
     setSyncTargetPart(part);
@@ -1716,6 +1775,18 @@ function PartsManagement() {
             </Grid>
 
             <Grid item>
+              <Button
+                variant="contained"
+                startIcon={<EditIcon />}
+                onClick={handleOpenBatchGroupDialog}
+                disabled={selectedItems.length === 0}
+                sx={{ bgcolor: '#9c27b0', '&:hover': { bgcolor: '#7b1fa2' }, color: 'white' }}
+              >
+                일괄 그룹 지정
+              </Button>
+            </Grid>
+
+            <Grid item>
               <FormControlLabel
                 control={
                   <Checkbox
@@ -1772,7 +1843,7 @@ function PartsManagement() {
         {/* 검색 및 필터 영역 */}
         <Paper sx={{ p: 2 }}>
           <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid item xs={12} sm={4} md={2}>
               <TextField
                 select
                 fullWidth
@@ -1789,8 +1860,24 @@ function PartsManagement() {
                 ))}
               </TextField>
             </Grid>
+            <Grid item xs={12} sm={4} md={2}>
+              <TextField
+                select
+                fullWidth
+                size="small"
+                label="할인 그룹"
+                value={selectedDiscountGroup}
+                onChange={(e) => setSelectedDiscountGroup(e.target.value)}
+              >
+                <MenuItem value="전체">전체 그룹</MenuItem>
+                {Array.from(new Set(parts.map(p => p.discount_group).filter(Boolean))).map(group => (
+                  <MenuItem key={group} value={group}>{group}</MenuItem>
+                ))}
+                <MenuItem value="">(그룹 없음)</MenuItem>
+              </TextField>
+            </Grid>
 
-            <Grid item xs={12} sm={6} md={4}>
+            <Grid item xs={12} sm={12} md={4}>
               <SearchInput
                 searchInput={searchInput}
                 setSearchInput={setSearchInput}
@@ -1799,7 +1886,7 @@ function PartsManagement() {
                 isSearching={isSearching}
               />
             </Grid>
-            <Grid item xs={12} sm={6} md={2}>
+            <Grid item xs={12} sm={4} md={2}>
               <TextField
                 select
                 fullWidth
@@ -1899,6 +1986,7 @@ function PartsManagement() {
               {showSupplyPrice && renderSortableHeader('special_price', '특별공급가', 'right')}
               {renderSortableHeader('price', '판매가', 'right')}
               {renderSortableHeader('note', '구분')}
+              {renderSortableHeader('discount_group', '할인 그룹')}
               {/* <TableCell>연동</TableCell> */}
               <TableCell align="right">액션</TableCell>
             </TableRow>
@@ -1955,6 +2043,11 @@ function PartsManagement() {
                   >
                     {part.note || '-'}
                   </Typography>
+                </TableCell>
+                <TableCell>
+                  {part.discount_group ? (
+                    <Chip label={part.discount_group} size="small" sx={{ bgcolor: '#f3e5f5', color: '#7b1fa2', fontWeight: 500 }} />
+                  ) : '-'}
                 </TableCell>
                 {/* 
                 <TableCell>
@@ -2274,6 +2367,30 @@ function PartsManagement() {
           <Button onClick={handleCloseBatchEditDialog} color="inherit">취소</Button>
           <Button onClick={handleBatchUpdatePrices} variant="contained" color="primary" disabled={isBatchUpdating || !batchEditValue}>
             {isBatchUpdating ? <CircularProgress size={24} /> : '일괄 적용'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={openBatchGroupDialog} onClose={handleCloseBatchGroupDialog} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 'bold' }}>일괄 할인 그룹 지정 ({selectedItems.length}개)</DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            선택한 {selectedItems.length}개 항목을 하나의 할인 그룹으로 묶습니다.
+          </Typography>
+
+          <TextField
+            fullWidth
+            label="할인 그룹 이름"
+            value={batchGroupValue}
+            onChange={(e) => setBatchGroupValue(e.target.value)}
+            placeholder="예: 25%할인그룹"
+            helperText="기존에 있는 그룹 이름을 그대로 입력하시면 같은 그룹으로 묶입니다. 그룹에서 제외하려면 빈칸으로 두고 저장하세요."
+          />
+        </DialogContent>
+        <DialogActions sx={{ p: 2, px: 3 }}>
+          <Button onClick={handleCloseBatchGroupDialog} color="inherit">취소</Button>
+          <Button onClick={handleBatchUpdateGroup} variant="contained" color="primary" disabled={isBatchGroupUpdating}>
+            {isBatchGroupUpdating ? <CircularProgress size={24} /> : '일괄 적용'}
           </Button>
         </DialogActions>
       </Dialog>
