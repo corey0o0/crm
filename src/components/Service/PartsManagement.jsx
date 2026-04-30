@@ -1730,7 +1730,7 @@ function PartsManagement() {
   }, [parts, syncTargetPart, syncSearchTerm, syncedPartsMap]);
 
   return (
-    <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
+    <Box sx={{ p: 3, width: '100%', boxSizing: 'border-box' }}>
       <Typography variant="h5" sx={{ mb: 3, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
         <AddIcon />
         상품 관리
