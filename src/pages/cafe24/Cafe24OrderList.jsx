@@ -1117,8 +1117,14 @@ export default function Cafe24OrderList() {
         
       if (error) throw error;
       
+      setOrders(prevOrders => prevOrders.map(order => {
+        if (order.id === editingOrder.id) {
+          return { ...order, order_items: sanitizedItems };
+        }
+        return order;
+      }));
+      
       setEditItemsModalOpen(false);
-      fetchOrders();
     } catch (err) {
       alert('품목 저장 중 오류가 발생했습니다: ' + err.message);
     } finally {
@@ -1915,8 +1921,8 @@ export default function Cafe24OrderList() {
         <DialogTitle>주문 품목 직접 교체/추가 ({editingOrder?.order_id})</DialogTitle>
         <DialogContent dividers>
           <Alert severity="info" sx={{ mb: 2 }}>
-            개인결제창 등 실제 재고가 차감되지 않는 더미 품목을 삭제하고, 출고할 <b>[실제 CRM 부품]</b>을 직접 추가하여 구성을 변경합니다.<br/>
-            (수정 완료 후 목록에서 [판매반영]을 눌러야 실제 재고가 차감 및 통계에 잡힙니다.)
+            카페24 쇼핑몰에서 넘어온 <b>주문 정보(상품명, 결제금액 등)는 원본 그대로 보존</b>하면서, 실제 출고될 <b>[CRM 부품 매칭]만 강제로 교체</b>할 수 있습니다.<br/>
+            (더미 상품을 여러 개의 실제 부품으로 쪼개거나, 매핑이 잘못된 품목을 올바른 품목으로 바꿀 때 유용합니다.)
           </Alert>
           
           <Table size="small" sx={{ mb: 3 }}>
@@ -1933,8 +1939,42 @@ export default function Cafe24OrderList() {
               {editingItems.map((item, idx) => (
                 <TableRow key={idx}>
                   <TableCell>
-                    {item.name || item.product_name}
-                    {item.part_id ? <Chip size="small" label="CRM 연동됨" color="success" sx={{ml:1, fontSize:'0.6rem'}}/> : <Chip size="small" label="미연동(더미)" color="error" sx={{ml:1, fontSize:'0.6rem'}}/>}
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, flexWrap: 'wrap', gap: 1 }}>
+                      {item.order_status && item.order_status.match(/^[CRE]/) && (
+                        <Chip size="small" label={getKoStatus(item.order_status) || item.order_status} color={getBadgeColor(item.order_status) || 'default'} variant="filled" sx={{ height: 20, fontSize: '0.65rem' }} />
+                      )}
+                      <Typography 
+                        variant="body2" 
+                        sx={{ 
+                          fontWeight: 500, 
+                          color: item.order_status && item.order_status.match(/^(C40|C47|C48|C49|R40|E40|C11|C34|C36|R34|R36)$/) ? 'text.disabled' : 'text.primary', 
+                          textDecoration: item.order_status && item.order_status.match(/^(C40|C47|C48|C49|R40|E40|C11|C34|C36|R34|R36)$/) ? 'line-through' : 'none'
+                        }}
+                      >
+                        {item.name || item.product_name}
+                      </Typography>
+                    </Box>
+                    {item.options && <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>{item.options}</Typography>}
+                    <Autocomplete
+                      size="small"
+                      options={availableParts}
+                      getOptionLabel={(option) => `${option.brand ? `[${option.brand}] ` : ''}${option.name} [${option.code}]`}
+                      isOptionEqualToValue={(option, value) => option.id === value?.id}
+                      value={item.part_id ? availableParts.find(p => p.id === item.part_id) || null : null}
+                      onChange={(e, val) => handleEditingItemChange(idx, 'part_id', val ? val.id : null)}
+                      renderInput={(params) => <TextField {...params} label="매칭될 CRM 부품 (출고 대상)" placeholder="검색하여 연결" />}
+                      renderOption={(props, option) => {
+                        const { key, ...otherProps } = props;
+                        return (
+                          <li key={option.id || key} {...otherProps}>
+                            <Box>
+                              <Typography variant="body2">{option.name}</Typography>
+                              <Typography variant="caption" color="text.secondary">코드: {option.code}</Typography>
+                            </Box>
+                          </li>
+                        );
+                      }}
+                    />
                   </TableCell>
                   <TableCell>
                     <TextField 
@@ -1985,7 +2025,11 @@ export default function Cafe24OrderList() {
                   등록된 품목의 총결제액 합계
                 </TableCell>
                 <TableCell sx={{ fontWeight: 'bold', color: '#1976d2', fontSize: '1rem' }}>
-                  {editingItems.reduce((acc, item) => acc + Number(item.payment_amount !== undefined ? item.payment_amount : (item.product_price || 0) * (item.quantity || 1)), 0).toLocaleString()}
+                  {editingItems.reduce((acc, item) => {
+                    const isCanceled = item.order_status && item.order_status.match(/^(C40|C47|C48|C49|R40|E40|C11|C34|C36|R34|R36)$/);
+                    if (isCanceled) return acc;
+                    return acc + Number(item.payment_amount !== undefined ? item.payment_amount : (item.product_price || 0) * (item.quantity || 1));
+                  }, 0).toLocaleString()}
                 </TableCell>
                 <TableCell />
               </TableRow>
