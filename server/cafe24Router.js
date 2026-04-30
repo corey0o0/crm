@@ -509,7 +509,10 @@ module.exports = function(supabaseAdmin) {
 
       let items_payment_sum = 0;
       if (formattedItems && formattedItems.length > 0) {
-        items_payment_sum = formattedItems.reduce((acc, item) => acc + Number(item.payment_amount || 0), 0);
+        items_payment_sum = formattedItems.reduce((acc, item) => {
+          const isCancelled = ['C11', 'C40', 'R40', 'E40'].includes(item.order_status);
+          return acc + (isCancelled ? 0 : Number(item.payment_amount || 0));
+        }, 0);
       }
       const used_points = Math.max(0, items_payment_sum + shipping_fee - Number(total_amount));
 

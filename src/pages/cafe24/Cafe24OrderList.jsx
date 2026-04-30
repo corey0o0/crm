@@ -860,7 +860,7 @@ export default function Cafe24OrderList() {
         let modified = false;
         const newItems = order.order_items.map(item => {
            const code = item.custom_product_code || item.variant_code || item.product_code || item.raw_custom_variant || item.raw_custom_product;
-           if (String(code).trim() === String(mappingItem.product_code).trim() && !item.part_id) {
+           if (String(code).trim() === String(mappingItem.product_code).trim()) {
              modified = true;
              return { ...item, part_id: selectedPart.id };
            }
@@ -1450,7 +1450,10 @@ export default function Cafe24OrderList() {
                   const needsMapping = !item.part_id && (item.custom_product_code || item.product_code);
                   
                   // 계산된 적립금/전체할인 구하기 (DB에 없을 경우를 대비해 프론트엔드에서도 계산)
-                  const orderItemsSum = items.reduce((sum, it) => sum + Number(it.payment_amount || 0), 0);
+                  const orderItemsSum = items.reduce((sum, it) => {
+                    const isCancelled = ['C11', 'C40', 'R40', 'E40'].includes(it.order_status);
+                    return sum + (isCancelled ? 0 : Number(it.payment_amount || 0));
+                  }, 0);
                   const calculatedUsedPoints = Math.max(0, orderItemsSum + Number(order.shipping_fee || 0) - Number(order.total_amount || 0));
                   const displayUsedPoints = Number(order.used_points !== undefined && order.used_points !== null ? order.used_points : calculatedUsedPoints);
 
