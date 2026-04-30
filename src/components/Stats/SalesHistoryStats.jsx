@@ -362,26 +362,40 @@ function SalesHistoryStats() {
           let pName = item.product_name || item.name || '상품';
           if (itemCode && partsNameByCode[itemCode]) pName = partsNameByCode[itemCode];
           const itemQty = Number(item.quantity || 1);
-          const iPrice = Number(item.product_price || item.price || 0);
           
-          let itemWeight = iPrice * itemQty;
+          let paymentAmt = 0;
+          if (item.payment_amount !== undefined && item.payment_amount !== null && Number(item.payment_amount) > 0) {
+             paymentAmt = Number(item.payment_amount);
+          } else {
+             paymentAmt = Number(item.product_price || item.price || 0) * itemQty;
+          }
+          let iPrice = Number(item.product_price || item.price || 0);
+          
           let total = 0;
 
-          if (totalWeight > 0) {
-             total = Math.floor((itemWeight / totalWeight) * Number(o.total_amount || 0));
-             if (idx === validItems.length - 1) {
-                let previousTotals = validItems.slice(0, validItems.length - 1).reduce((acc, prevItem) => {
-                   let prevQty = Number(prevItem.quantity || 1);
-                   let prevWeight = Number(prevItem.product_price || prevItem.price || 0) * prevQty;
-                   return acc + Math.floor((prevWeight / totalWeight) * Number(o.total_amount || 0));
-                }, 0);
-                total = Number(o.total_amount || 0) - previousTotals;
-             }
+          if (paymentAmt > 0) {
+              total = paymentAmt;
+              if (iPrice === 0) iPrice = Math.round(paymentAmt / itemQty);
           } else {
-             total = Math.floor(Number(o.total_amount || 0) / validItems.length);
-             if (idx === validItems.length - 1) {
-                total = Number(o.total_amount || 0) - (total * (validItems.length - 1));
-             }
+              let itemWeight = iPrice * itemQty;
+
+              if (totalWeight > 0) {
+                 total = Math.floor((itemWeight / totalWeight) * Number(o.total_amount || 0));
+                 if (idx === validItems.length - 1) {
+                    let previousTotals = validItems.slice(0, validItems.length - 1).reduce((acc, prevItem) => {
+                       let prevQty = Number(prevItem.quantity || 1);
+                       let prevWeight = Number(prevItem.product_price || prevItem.price || 0) * prevQty;
+                       return acc + Math.floor((prevWeight / totalWeight) * Number(o.total_amount || 0));
+                    }, 0);
+                    total = Number(o.total_amount || 0) - previousTotals;
+                 }
+              } else {
+                 total = Math.floor(Number(o.total_amount || 0) / validItems.length);
+                 if (idx === validItems.length - 1) {
+                    total = Number(o.total_amount || 0) - (total * (validItems.length - 1));
+                 }
+              }
+              if (iPrice === 0 && total > 0) iPrice = Math.round(total / itemQty);
           }
 
           const cat = resolveCategory(pName, itemCode);

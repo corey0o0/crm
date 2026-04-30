@@ -416,39 +416,46 @@ function SalesHistory() {
           const itemQty = Number(item.quantity || 1);
           
           let paymentAmt = 0;
-          if (item.payment_amount !== undefined && item.payment_amount !== null && !isNaN(Number(item.payment_amount))) {
+          if (item.payment_amount !== undefined && item.payment_amount !== null && Number(item.payment_amount) > 0) {
              paymentAmt = Number(item.payment_amount);
           } else {
              paymentAmt = Number(item.product_price || item.price || 0) * itemQty;
           }
-          const iPrice = Number(item.product_price || item.price || 0); // 항상 기준 단가(MSRP 라벨스 프라이스) 표시
-
-          // 전체 유효 품목의 원래 가격(MSRP) 총합 계산
-          let totalWeight = validItems.reduce((acc, i) => {
-             let qty = Number(i.quantity || 1);
-             let p = Number(i.product_price || i.price || 0) * qty;
-             return acc + p;
-          }, 0);
-
-          let itemWeight = iPrice * itemQty;
+          let iPrice = Number(item.product_price || item.price || 0); // 항상 기준 단가(MSRP 라벨스 프라이스) 표시
+          
           let total = 0;
 
-          if (totalWeight > 0) {
-             total = Math.floor((itemWeight / totalWeight) * Number(o.total_amount || 0));
-             if (idx === validItems.length - 1) {
-                let previousTotals = validItems.slice(0, validItems.length - 1).reduce((acc, prevItem) => {
-                   let prevQty = Number(prevItem.quantity || 1);
-                   let prevWeight = Number(prevItem.product_price || prevItem.price || 0) * prevQty;
-                   return acc + Math.floor((prevWeight / totalWeight) * Number(o.total_amount || 0));
-                }, 0);
-                total = Number(o.total_amount || 0) - previousTotals;
-             }
+          if (paymentAmt > 0) {
+              total = paymentAmt;
+              if (iPrice === 0) iPrice = Math.round(paymentAmt / itemQty);
           } else {
-             // 모든 품목의 가격이 0원인데 total_amount가 0이 아닌 경우 균등 분배
-             total = Math.floor(Number(o.total_amount || 0) / validItems.length);
-             if (idx === validItems.length - 1) {
-                total = Number(o.total_amount || 0) - (total * (validItems.length - 1));
-             }
+              // 전체 유효 품목의 원래 가격(MSRP) 총합 계산
+              let totalWeight = validItems.reduce((acc, i) => {
+                 let qty = Number(i.quantity || 1);
+                 let p = Number(i.product_price || i.price || 0) * qty;
+                 return acc + p;
+              }, 0);
+
+              let itemWeight = iPrice * itemQty;
+
+              if (totalWeight > 0) {
+                 total = Math.floor((itemWeight / totalWeight) * Number(o.total_amount || 0));
+                 if (idx === validItems.length - 1) {
+                    let previousTotals = validItems.slice(0, validItems.length - 1).reduce((acc, prevItem) => {
+                       let prevQty = Number(prevItem.quantity || 1);
+                       let prevWeight = Number(prevItem.product_price || prevItem.price || 0) * prevQty;
+                       return acc + Math.floor((prevWeight / totalWeight) * Number(o.total_amount || 0));
+                    }, 0);
+                    total = Number(o.total_amount || 0) - previousTotals;
+                 }
+              } else {
+                 // 모든 품목의 가격이 0원인데 total_amount가 0이 아닌 경우 균등 분배
+                 total = Math.floor(Number(o.total_amount || 0) / validItems.length);
+                 if (idx === validItems.length - 1) {
+                    total = Number(o.total_amount || 0) - (total * (validItems.length - 1));
+                 }
+              }
+              if (iPrice === 0 && total > 0) iPrice = Math.round(total / itemQty);
           }
 
           let shipFee = 0;
