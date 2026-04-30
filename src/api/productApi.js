@@ -64,7 +64,7 @@ export const productApi = {
 
       // Egress 절감을 위해 기본 limit 설정 (최대 1000개)
       const data = await fetchFromSupabase(PARTS_TABLE, {
-        select: 'id,code,barcode,name,price,brand,note,discount_group',
+        select: '*', // 컬럼명 하드코딩 제거 (discount_group 컬럼 부재 시 에러 방지)
         filter: filter,
         order: 'name.asc',
         limit: 1000
@@ -98,7 +98,7 @@ export const productApi = {
       let filterExpr = `name.ilike."%${safeTerm}%",code.ilike."%${safeTerm}%",note.ilike."%${safeTerm}%"`;
       let query = supabase
         .from(PARTS_TABLE)
-        .select('id, code, barcode, name, price, brand, note, discount_group')
+        .select('*') // 컬럼명 하드코딩 제거
         .or(filterExpr);
 
       if (PARTS_BRAND) {
