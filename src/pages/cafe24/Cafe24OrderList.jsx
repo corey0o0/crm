@@ -1447,7 +1447,7 @@ export default function Cafe24OrderList() {
                   const matchedPart = item.part_id ? availableParts.find(p => p.id === item.part_id) : null;
                   const erpCode = matchedPart ? (matchedPart.barcode || matchedPart.code) : '';
                   const erpName = matchedPart ? matchedPart.name : '';
-                  const needsMapping = !item.part_id && (item.custom_product_code || item.product_code) && !order.is_transferred;
+                  const needsMapping = !item.part_id && (item.custom_product_code || item.product_code);
                   
                   // 계산된 적립금/전체할인 구하기 (DB에 없을 경우를 대비해 프론트엔드에서도 계산)
                   const orderItemsSum = items.reduce((sum, it) => {
