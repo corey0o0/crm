@@ -38,7 +38,8 @@ import {
   TablePagination,
   Stack,
   Chip,
-  Avatar
+  Avatar,
+  Divider
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -51,7 +52,8 @@ import {
   FileCopy as FileCopyIcon,
   CheckBox as CheckBoxIcon,
   Link as LinkIcon,
-  LinkOff as LinkOffIcon
+  LinkOff as LinkOffIcon,
+  Check as CheckIcon
 } from '@mui/icons-material';
 import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { supabase } from '../../lib/supabaseClient';
@@ -672,10 +674,12 @@ function PartsManagement() {
   const [batchEditValue, setBatchEditValue] = useState('');
   const [isBatchUpdating, setIsBatchUpdating] = useState(false);
 
-  // 일괄 그룹 지정 상태
+  // 일괄 그룹 지정 및 관리 상태
   const [openBatchGroupDialog, setOpenBatchGroupDialog] = useState(false);
   const [batchGroupValue, setBatchGroupValue] = useState('');
   const [isBatchGroupUpdating, setIsBatchGroupUpdating] = useState(false);
+  const [editingGroup, setEditingGroup] = useState(null);
+  const [editingGroupNewName, setEditingGroupNewName] = useState('');
 
   // 연동 관련 상태 추가
   const [openSyncDialog, setOpenSyncDialog] = useState(false);
@@ -1624,19 +1628,21 @@ function PartsManagement() {
   };
 
   const handleOpenBatchGroupDialog = () => {
-    if (selectedItems.length === 0) {
-      showSnackbar('그룹을 지정할 항목을 선택해주세요.', 'warning');
-      return;
-    }
     setBatchGroupValue('');
     setOpenBatchGroupDialog(true);
   };
 
   const handleCloseBatchGroupDialog = () => {
     setOpenBatchGroupDialog(false);
+    setEditingGroup(null);
+    setEditingGroupNewName('');
   };
 
   const handleBatchUpdateGroup = async () => {
+    if (selectedItems.length === 0) {
+      showSnackbar('선택된 파츠가 없습니다.', 'warning');
+      return;
+    }
     try {
       setIsBatchGroupUpdating(true);
       const selectedPartsData = parts.filter(part => selectedItems.includes(part.id));
@@ -1649,12 +1655,62 @@ function PartsManagement() {
 
       await Promise.all(updatePromises);
       showSnackbar(`${selectedItems.length}개 항목의 할인 그룹이 변경되었습니다.`, 'success');
-      handleCloseBatchGroupDialog();
       setSelectedItems([]);
       fetchParts();
     } catch (error) {
       console.error('일괄 그룹 지정 오류:', error);
       showSnackbar('그룹 지정 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setIsBatchGroupUpdating(false);
+    }
+  };
+
+  const handleEditExistingGroup = async (oldName) => {
+    if (!editingGroupNewName.trim()) {
+      showSnackbar('새 그룹 이름을 입력해주세요.', 'warning');
+      return;
+    }
+    try {
+      setIsBatchGroupUpdating(true);
+      
+      const { data, error } = await supabase
+        .from('parts')
+        .update({ discount_group: editingGroupNewName.trim() })
+        .eq('discount_group', oldName);
+
+      if (error) throw error;
+      
+      showSnackbar(`그룹 이름이 '${editingGroupNewName}'(으)로 변경되었습니다.`, 'success');
+      setEditingGroup(null);
+      setEditingGroupNewName('');
+      fetchParts();
+    } catch (error) {
+      console.error('그룹 이름 변경 오류:', error);
+      showSnackbar('그룹 이름 변경 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setIsBatchGroupUpdating(false);
+    }
+  };
+
+  const handleDeleteExistingGroup = async (groupName) => {
+    if (!window.confirm(`'${groupName}' 그룹을 삭제하시겠습니까? (파츠는 삭제되지 않고 그룹만 해제됩니다)`)) {
+      return;
+    }
+    try {
+      setIsBatchGroupUpdating(true);
+      
+      const { data, error } = await supabase
+        .from('parts')
+        .update({ discount_group: null })
+        .eq('discount_group', groupName);
+
+      if (error) throw error;
+      
+      showSnackbar(`'${groupName}' 그룹이 삭제되었습니다.`, 'success');
+      fetchParts();
+    } catch (error) {
+      console.error('그룹 삭제 오류:', error);
+      showSnackbar('그룹 삭제 중 오류가 발생했습니다.', 'error');
     } finally {
       setIsBatchGroupUpdating(false);
     }
@@ -1779,10 +1835,10 @@ function PartsManagement() {
                 variant="contained"
                 startIcon={<EditIcon />}
                 onClick={handleOpenBatchGroupDialog}
-                disabled={selectedItems.length === 0}
+                disabled={false}
                 sx={{ bgcolor: '#9c27b0', '&:hover': { bgcolor: '#7b1fa2' }, color: 'white' }}
               >
-                일괄 그룹 지정
+                그룹 관리
               </Button>
             </Grid>
 
@@ -2372,26 +2428,121 @@ function PartsManagement() {
       </Dialog>
 
       <Dialog open={openBatchGroupDialog} onClose={handleCloseBatchGroupDialog} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 'bold' }}>일괄 할인 그룹 지정 ({selectedItems.length}개)</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 'bold' }}>그룹 관리</DialogTitle>
         <DialogContent dividers>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            선택한 {selectedItems.length}개 항목을 하나의 할인 그룹으로 묶습니다.
-          </Typography>
+          
+          {/* 파츠 그룹 지정 섹션 */}
+          <Box sx={{ mb: 4 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>선택 항목 그룹 지정</Typography>
+            {selectedItems.length > 0 ? (
+              <>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  선택한 {selectedItems.length}개 항목을 새로운 또는 기존 할인 그룹으로 묶습니다.
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <TextField
+                    size="small"
+                    fullWidth
+                    label="할인 그룹 이름"
+                    value={batchGroupValue}
+                    onChange={(e) => setBatchGroupValue(e.target.value)}
+                    placeholder="예: 25%할인그룹"
+                  />
+                  <Button 
+                    variant="contained" 
+                    color="primary" 
+                    onClick={handleBatchUpdateGroup} 
+                    disabled={isBatchGroupUpdating}
+                    sx={{ flexShrink: 0 }}
+                  >
+                    적용
+                  </Button>
+                </Box>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                  * 기존에 있는 그룹 이름을 그대로 입력하시면 같은 그룹으로 묶입니다. 그룹에서 제외하려면 빈칸으로 두고 적용하세요.
+                </Typography>
+              </>
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                선택된 파츠가 없습니다. 파츠를 선택하면 해당 파츠의 할인 그룹을 일괄 지정할 수 있습니다.
+              </Typography>
+            )}
+          </Box>
 
-          <TextField
-            fullWidth
-            label="할인 그룹 이름"
-            value={batchGroupValue}
-            onChange={(e) => setBatchGroupValue(e.target.value)}
-            placeholder="예: 25%할인그룹"
-            helperText="기존에 있는 그룹 이름을 그대로 입력하시면 같은 그룹으로 묶입니다. 그룹에서 제외하려면 빈칸으로 두고 저장하세요."
-          />
+          <Divider sx={{ my: 3 }} />
+
+          {/* 기존 그룹 관리 섹션 */}
+          <Box>
+            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 2 }}>전체 할인 그룹 목록</Typography>
+            {(() => {
+              const existingGroups = Array.from(new Set(parts.map(p => p.discount_group).filter(Boolean)));
+              if (existingGroups.length === 0) {
+                return <Typography variant="body2" color="text.secondary">등록된 할인 그룹이 없습니다.</Typography>;
+              }
+              return (
+                <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 300 }}>
+                  <Table size="small" stickyHeader>
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: 'action.hover' }}>
+                        <TableCell>그룹 이름</TableCell>
+                        <TableCell align="right">파츠 수</TableCell>
+                        <TableCell align="center">관리</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {existingGroups.map(groupName => {
+                        const count = parts.filter(p => p.discount_group === groupName).length;
+                        const isEditing = editingGroup === groupName;
+                        return (
+                          <TableRow key={groupName} hover>
+                            <TableCell>
+                              {isEditing ? (
+                                <TextField
+                                  size="small"
+                                  value={editingGroupNewName}
+                                  onChange={(e) => setEditingGroupNewName(e.target.value)}
+                                  placeholder="새 그룹 이름"
+                                  autoFocus
+                                  sx={{ minWidth: 150 }}
+                                />
+                              ) : (
+                                <Typography variant="body2" sx={{ fontWeight: 500, color: '#7b1fa2' }}>{groupName}</Typography>
+                              )}
+                            </TableCell>
+                            <TableCell align="right">{count}개</TableCell>
+                            <TableCell align="center">
+                              {isEditing ? (
+                                <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.5 }}>
+                                  <IconButton size="small" color="primary" onClick={() => handleEditExistingGroup(groupName)}>
+                                    <CheckIcon fontSize="small" />
+                                  </IconButton>
+                                  <IconButton size="small" onClick={() => { setEditingGroup(null); setEditingGroupNewName(''); }}>
+                                    <CloseIcon fontSize="small" />
+                                  </IconButton>
+                                </Box>
+                              ) : (
+                                <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.5 }}>
+                                  <IconButton size="small" onClick={() => { setEditingGroup(groupName); setEditingGroupNewName(groupName); }}>
+                                    <EditIcon fontSize="small" />
+                                  </IconButton>
+                                  <IconButton size="small" color="error" onClick={() => handleDeleteExistingGroup(groupName)}>
+                                    <DeleteIcon fontSize="small" />
+                                  </IconButton>
+                                </Box>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              );
+            })()}
+          </Box>
         </DialogContent>
         <DialogActions sx={{ p: 2, px: 3 }}>
-          <Button onClick={handleCloseBatchGroupDialog} color="inherit">취소</Button>
-          <Button onClick={handleBatchUpdateGroup} variant="contained" color="primary" disabled={isBatchGroupUpdating}>
-            {isBatchGroupUpdating ? <CircularProgress size={24} /> : '일괄 적용'}
-          </Button>
+          <Button onClick={handleCloseBatchGroupDialog} color="inherit">닫기</Button>
         </DialogActions>
       </Dialog>
 
