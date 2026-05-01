@@ -31,8 +31,6 @@ function SalesHistoryStats() {
   const [tabValue, setTabValue] = useState(0);
   const [showProfit, setShowProfit] = useState(false);
   const [compareStats, setCompareStats] = useState({ context: null, mom: null, yoy: null, wow: null, yoyWeek: null });
-  const [monthlyStats, setMonthlyStats] = useState([]);
-  const [weeklyStats, setWeeklyStats] = useState([]);
 
 
 
@@ -408,34 +406,6 @@ function SalesHistoryStats() {
 
     setFlatRows(rows);
 
-    // 월별, 주별 데이터 가공
-    const mMap = {};
-    const wMap = {};
-    rows.forEach(r => {
-      const d = new Date(r.date_val);
-      const mKey = format(d, 'yyyy-MM');
-      const wStart = startOfWeek(d, { weekStartsOn: 1 });
-      const wEnd = endOfWeek(d, { weekStartsOn: 1 });
-      const wKey = format(wStart, 'yyyy-MM-dd');
-      
-      if (!mMap[mKey]) mMap[mKey] = { period: format(d, 'yyyy년 MM월'), amount: 0, cost: 0, profit: 0 };
-      if (!wMap[wKey]) wMap[wKey] = { period: `${format(wStart, 'MM.dd')} ~ ${format(wEnd, 'MM.dd')}`, amount: 0, cost: 0, profit: 0 };
-      
-      const amt = Number(r.total_price || 0);
-      const cost = Number(r.total_cost || 0);
-      
-      mMap[mKey].amount += amt;
-      mMap[mKey].cost += cost;
-      mMap[mKey].profit += (amt - cost);
-
-      wMap[wKey].amount += amt;
-      wMap[wKey].cost += cost;
-      wMap[wKey].profit += (amt - cost);
-    });
-
-    setMonthlyStats(Object.values(mMap).sort((a, b) => a.period.localeCompare(b.period)));
-    setWeeklyStats(Object.values(wMap).sort((a, b) => a.period.localeCompare(b.period)));
-
     // 재고(Inventory) 데이터 가공
     const invQtyMap = {};
     (invRes.data || []).forEach(inv => {
@@ -473,6 +443,38 @@ function SalesHistoryStats() {
     if (filterBrand !== '전체' && r.part_brand !== filterBrand) return false;
     return true;
   });
+
+  // 월별, 주별 데이터 가공 (필터링된 데이터 기준)
+  const { monthlyStats, weeklyStats } = React.useMemo(() => {
+    const mMap = {};
+    const wMap = {};
+    currentFiltered.forEach(r => {
+      const d = new Date(r.date_val);
+      const mKey = format(d, 'yyyy-MM');
+      const wStart = startOfWeek(d, { weekStartsOn: 1 });
+      const wEnd = endOfWeek(d, { weekStartsOn: 1 });
+      const wKey = format(wStart, 'yyyy-MM-dd');
+      
+      if (!mMap[mKey]) mMap[mKey] = { period: format(d, 'yyyy년 MM월'), amount: 0, cost: 0, profit: 0 };
+      if (!wMap[wKey]) wMap[wKey] = { period: `${format(wStart, 'MM.dd')} ~ ${format(wEnd, 'MM.dd')}`, amount: 0, cost: 0, profit: 0 };
+      
+      const amt = Number(r.total_price || 0);
+      const cost = Number(r.total_cost || 0);
+      
+      mMap[mKey].amount += amt;
+      mMap[mKey].cost += cost;
+      mMap[mKey].profit += (amt - cost);
+
+      wMap[wKey].amount += amt;
+      wMap[wKey].cost += cost;
+      wMap[wKey].profit += (amt - cost);
+    });
+
+    return {
+      monthlyStats: Object.values(mMap).sort((a, b) => a.period.localeCompare(b.period)),
+      weeklyStats: Object.values(wMap).sort((a, b) => a.period.localeCompare(b.period))
+    };
+  }, [currentFiltered]);
 
   // 요약
   const totalAmt = currentFiltered.reduce((a, r) => a + Number(r.total_price || 0), 0);

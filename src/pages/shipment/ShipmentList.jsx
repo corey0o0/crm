@@ -58,6 +58,7 @@ import {
   startOfMonth, endOfMonth, startOfWeek, endOfWeek,
   addDays, subDays, subMonths, addMonths, isSameMonth, isSameDay, isToday
 } from 'date-fns';
+import { processShipmentRevert } from '../../utils/inventoryUtils';
 import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -780,6 +781,13 @@ function ShipmentList() {
   const handleDeleteConfirm = async () => {
     try {
       setLoading(true);
+
+      if (selectedShipment.status === '출고완료') {
+        const revertResult = await processShipmentRevert(selectedShipment.id, selectedShipment.brand);
+        if (!revertResult.success) {
+          throw new Error('재고 복구 중 오류 발생: ' + revertResult.message);
+        }
+      }
 
       const { error } = await supabase
         .from('shipments')

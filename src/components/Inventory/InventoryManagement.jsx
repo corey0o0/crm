@@ -1078,7 +1078,9 @@ function InventoryManagement() {
       await transactionApi.createMany(newTransactions);
       const updatedTransactions = [...newTransactions, ...transactions];
       setTransactions(updatedTransactions);
-      newTransactions.forEach(t => updateInventory(t));
+      for (const t of newTransactions) {
+        await updateInventory(t);
+      }
       showSnackbar(`입출고 등록이 완료되었습니다. (${newTransactions.length}개 상품)`, 'success');
       handleCloseDialog();
     } catch (error) {
@@ -1090,89 +1092,94 @@ function InventoryManagement() {
   // (통합됨) 기존 입/출고 개별 처리 함수는 통합 제출 로직으로 대체되었습니다.
 
   const updateInventory = async (transaction) => {
-    setInventory(prev => {
-      const newInventory = { ...prev };
-      
-      if (transaction.type === 'in') {
-        // 입고 처리 - 목적지가 창고인 경우만 재고 증가
-        if (warehouses.find(w => w.id === transaction.toLocation)) {
-          if (!newInventory[transaction.toLocation]) {
-            newInventory[transaction.toLocation] = {};
-          }
-          if (!newInventory[transaction.toLocation][transaction.productId]) {
-            newInventory[transaction.toLocation][transaction.productId] = 0;
-          }
-          newInventory[transaction.toLocation][transaction.productId] += transaction.quantity;
-          
-          // 서버에 재고 업데이트
-          inventoryApi.upsert(transaction.toLocation, transaction.productId, newInventory[transaction.toLocation][transaction.productId]);
-          
-          // 창고 A(연동 창고)의 경우 실제 상품 재고도 업데이트
-          const warehouse = warehouses.find(w => w.id === transaction.toLocation);
-          if (warehouse?.syncWithProductStock) {
-            updateProductStock(transaction.productId, transaction.quantity, 'increase');
-          }
+    // 최신 상태를 비동기로 가져오기 (API 호출을 상태 업데이트 밖에서 하기 위함)
+    const currentInventory = await new Promise(resolve => {
+      setInventory(prev => {
+        resolve(prev);
+        return prev;
+      });
+    });
+
+    const newInventory = JSON.parse(JSON.stringify(currentInventory));
+    
+    if (transaction.type === 'in') {
+      // 입고 처리 - 목적지가 창고인 경우만 재고 증가
+      if (warehouses.find(w => w.id === transaction.toLocation)) {
+        if (!newInventory[transaction.toLocation]) {
+          newInventory[transaction.toLocation] = {};
         }
+        if (!newInventory[transaction.toLocation][transaction.productId]) {
+          newInventory[transaction.toLocation][transaction.productId] = 0;
+        }
+        newInventory[transaction.toLocation][transaction.productId] += transaction.quantity;
         
-        // 출발지가 창고/대리점인 경우 (창고→창고, 대리점→창고 이동) 출발지에서 재고 차감
-        if (warehouses.find(w => w.id === transaction.fromLocation)) {
-          if (newInventory[transaction.fromLocation] && 
-              newInventory[transaction.fromLocation][transaction.productId]) {
-            newInventory[transaction.fromLocation][transaction.productId] -= transaction.quantity;
-            
-            // 서버에 재고 업데이트
-            inventoryApi.upsert(transaction.fromLocation, transaction.productId, newInventory[transaction.fromLocation][transaction.productId]);
-            
-            // 창고 A(연동 창고)의 경우 실제 상품 재고도 업데이트
-            const warehouse = warehouses.find(w => w.id === transaction.fromLocation);
-            if (warehouse?.syncWithProductStock) {
-              updateProductStock(transaction.productId, -transaction.quantity, 'decrease');
-            }
-          }
-        }
-      } else {
-        // 출고 처리 - 출발지가 창고인 경우만 재고 차감
-        if (warehouses.find(w => w.id === transaction.fromLocation)) {
-          if (newInventory[transaction.fromLocation] && 
-              newInventory[transaction.fromLocation][transaction.productId]) {
-            newInventory[transaction.fromLocation][transaction.productId] -= transaction.quantity;
-            
-            // 서버에 재고 업데이트
-            inventoryApi.upsert(transaction.fromLocation, transaction.productId, newInventory[transaction.fromLocation][transaction.productId]);
-            
-            // 창고 A(연동 창고)의 경우 실제 상품 재고도 업데이트
-            const warehouse = warehouses.find(w => w.id === transaction.fromLocation);
-            if (warehouse?.syncWithProductStock) {
-              updateProductStock(transaction.productId, -transaction.quantity, 'decrease');
-            }
-          }
-        }
+        // 서버에 재고 업데이트 (비동기)
+        await inventoryApi.upsert(transaction.toLocation, transaction.productId, newInventory[transaction.toLocation][transaction.productId]);
         
-        // 목적지가 창고인 경우만 재고 증가 (창고→창고 이동)
-        if (warehouses.find(w => w.id === transaction.toLocation)) {
-          if (!newInventory[transaction.toLocation]) {
-            newInventory[transaction.toLocation] = {};
-          }
-          if (!newInventory[transaction.toLocation][transaction.productId]) {
-            newInventory[transaction.toLocation][transaction.productId] = 0;
-          }
-          newInventory[transaction.toLocation][transaction.productId] += transaction.quantity;
-          
-          // 서버에 재고 업데이트
-          inventoryApi.upsert(transaction.toLocation, transaction.productId, newInventory[transaction.toLocation][transaction.productId]);
-          
-          // 창고 A(연동 창고)의 경우 실제 상품 재고도 업데이트
-          const warehouse = warehouses.find(w => w.id === transaction.toLocation);
-          if (warehouse?.syncWithProductStock) {
-            updateProductStock(transaction.productId, transaction.quantity, 'increase');
-          }
+        // 창고 A(연동 창고)의 경우 실제 상품 재고도 업데이트
+        const warehouse = warehouses.find(w => w.id === transaction.toLocation);
+        if (warehouse?.syncWithProductStock) {
+          await updateProductStock(transaction.productId, transaction.quantity, 'increase');
         }
-        
-        // 목적지가 대리점인 경우는 재고 관리하지 않음 (출고 기록만)
       }
       
-      return newInventory;
-    });
+      // 출발지가 창고/대리점인 경우 (창고→창고, 대리점→창고 이동) 출발지에서 재고 차감
+      if (warehouses.find(w => w.id === transaction.fromLocation)) {
+        if (newInventory[transaction.fromLocation] && 
+            newInventory[transaction.fromLocation][transaction.productId]) {
+          newInventory[transaction.fromLocation][transaction.productId] -= transaction.quantity;
+          
+          // 서버에 재고 업데이트 (비동기)
+          await inventoryApi.upsert(transaction.fromLocation, transaction.productId, newInventory[transaction.fromLocation][transaction.productId]);
+          
+          // 창고 A(연동 창고)의 경우 실제 상품 재고도 업데이트
+          const warehouse = warehouses.find(w => w.id === transaction.fromLocation);
+          if (warehouse?.syncWithProductStock) {
+            await updateProductStock(transaction.productId, -transaction.quantity, 'decrease');
+          }
+        }
+      }
+    } else {
+      // 출고 처리 - 출발지가 창고인 경우만 재고 차감
+      if (warehouses.find(w => w.id === transaction.fromLocation)) {
+        if (newInventory[transaction.fromLocation] && 
+            newInventory[transaction.fromLocation][transaction.productId]) {
+          newInventory[transaction.fromLocation][transaction.productId] -= transaction.quantity;
+          
+          // 서버에 재고 업데이트 (비동기)
+          await inventoryApi.upsert(transaction.fromLocation, transaction.productId, newInventory[transaction.fromLocation][transaction.productId]);
+          
+          // 창고 A(연동 창고)의 경우 실제 상품 재고도 업데이트
+          const warehouse = warehouses.find(w => w.id === transaction.fromLocation);
+          if (warehouse?.syncWithProductStock) {
+            await updateProductStock(transaction.productId, -transaction.quantity, 'decrease');
+          }
+        }
+      }
+      
+      // 목적지가 창고인 경우만 재고 증가 (창고→창고 이동)
+      if (warehouses.find(w => w.id === transaction.toLocation)) {
+        if (!newInventory[transaction.toLocation]) {
+          newInventory[transaction.toLocation] = {};
+        }
+        if (!newInventory[transaction.toLocation][transaction.productId]) {
+          newInventory[transaction.toLocation][transaction.productId] = 0;
+        }
+        newInventory[transaction.toLocation][transaction.productId] += transaction.quantity;
+        
+        // 서버에 재고 업데이트 (비동기)
+        await inventoryApi.upsert(transaction.toLocation, transaction.productId, newInventory[transaction.toLocation][transaction.productId]);
+        
+        // 창고 A(연동 창고)의 경우 실제 상품 재고도 업데이트
+        const warehouse = warehouses.find(w => w.id === transaction.toLocation);
+        if (warehouse?.syncWithProductStock) {
+          await updateProductStock(transaction.productId, transaction.quantity, 'increase');
+        }
+      }
+    }
+    
+    // 최종 상태 업데이트
+    setInventory(newInventory);
   };
 
   // 실제 상품 재고 업데이트 함수
@@ -1401,9 +1408,9 @@ function InventoryManagement() {
       setTransactions(updatedTransactions);
       
       // 재고 업데이트
-      inventoryUpdates.forEach(transaction => {
-        updateInventory(transaction);
-      });
+      for (const transaction of inventoryUpdates) {
+        await updateInventory(transaction);
+      }
       
       const resultMessage = `총 ${newTransactions.length}개 상품 처리 완료 (입고: ${inboundCount}개, 출고: ${outboundCount}개)`;
       showSnackbar(resultMessage, 'success');

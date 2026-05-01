@@ -157,6 +157,7 @@ export default function SalesEditModal({ open, onClose, orderId, orderType, onRe
           note: orderData.note,
           brand: orderBrand,
           price: totalAmt,
+          quantity: totalQty,
         }).eq('id', orderId);
 
         for (const item of items) {
@@ -166,6 +167,12 @@ export default function SalesEditModal({ open, onClose, orderId, orderType, onRe
               price: Number(item.price),
               total_price: Number(item.total_price),
             }).eq('id', item.id);
+
+            // 장부(transactions) 수량 동기화
+            await supabase.from('transactions')
+              .update({ quantity: Number(item.quantity) })
+              .eq('group_id', orderId)
+              .eq('product_name', item.part_name);
           }
         }
       } else if (orderType === 'service') {
@@ -180,6 +187,12 @@ export default function SalesEditModal({ open, onClose, orderId, orderType, onRe
             await supabase.from('service_parts').update({
               quantity: Number(item.quantity),
             }).eq('id', item.id);
+
+            // 장부(transactions) 수량 동기화
+            await supabase.from('transactions')
+              .update({ quantity: Number(item.quantity) })
+              .eq('group_id', orderId)
+              .eq('product_name', item.part_name);
           }
         }
       } else if (orderType === 'cafe24') {

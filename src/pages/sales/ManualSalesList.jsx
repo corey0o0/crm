@@ -413,7 +413,7 @@ export default function ManualSalesList({ isEmbedded = false }) {
               note: `[일반 출고] ${shipment.customer_name}`,
               status: '완료'
             };
-          }).filter(t => t.product_id); // product_id가 없으면 수불부 차감 불가 (매핑 안된 항목)
+          }); // product_id가 null이더라도 기록을 남김
 
           if (transactionsToInsert.length > 0) {
             await supabase.from('transactions').insert(transactionsToInsert);

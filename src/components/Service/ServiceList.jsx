@@ -75,6 +75,7 @@ import { getCookie, setCookie, removeCookie, getJSONCookie, setJSONCookie } from
 import { formatKoreanDateTime } from '../../utils/dateUtils';
 import { format } from 'date-fns';
 import { sendTelegramNotification } from '../../lib/telegram'; // 텔레그램 유틸리티 함수 import
+import { processServiceCompletion, processServiceRevert } from '../../utils/inventoryUtils';
 
 // KST 변환 함수 추가
 // function toKST(dateString) { ... } // 삭제
@@ -1145,18 +1146,76 @@ function ServiceList() {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (selectedService) {
-      // API 호출로 데이터 업데이트
-      const updatedServices = services.map(service => 
-        service.id === selectedService.id 
-          ? selectedService
-          : service
-      );
-      setServices(updatedServices);
-      setFilteredServices(updatedServices);
-      setOpenDialog(false);
-      fetchBrandCounts(); // 건수 갱신
+      try {
+        const originalService = services.find(s => s.id === selectedService.id);
+        const wasCompleted = originalService?.status === '완료';
+        const isNowCompleted = selectedService.status === '완료';
+
+        const updateData = {
+          reception_date: selectedService.reception_date,
+          repair_date: selectedService.repair_date,
+          completion_date: selectedService.completion_date,
+          reception_type: selectedService.reception_type,
+          delivery_method: selectedService.delivery_method,
+          customer_name: selectedService.customer_name,
+          customer_phone: selectedService.customer_phone,
+          customer_address: selectedService.customer_address,
+          product_name: selectedService.product_name,
+          symptom: selectedService.symptom,
+          solution: selectedService.solution,
+          status: selectedService.status,
+          updated_at: new Date().toISOString()
+        };
+
+        const { error: updateError } = await supabase
+          .from('services')
+          .update(updateData)
+          .eq('id', selectedService.id);
+
+        if (updateError) throw updateError;
+
+        // 재고 연동 로직
+        if (wasCompleted && !isNowCompleted) {
+           await processServiceRevert(selectedService.id, selectedBrand);
+        } else if (!wasCompleted && isNowCompleted) {
+           await processServiceCompletion(selectedService.id, selectedBrand);
+        }
+
+        // API 호출로 데이터 업데이트
+        const updatedServices = services.map(service => 
+          service.id === selectedService.id 
+            ? { ...service, ...updateData }
+            : service
+        );
+        setServices(updatedServices);
+        
+        if (typeof setFilteredServices === 'function') {
+          try {
+            setFilteredServices(updatedServices);
+          } catch (e) {
+            // ignore if setFilteredServices doesn't exist or errors
+          }
+        }
+        
+        setOpenDialog(false);
+        fetchBrandCounts(); // 건수 갱신
+        
+        setSnackbar({
+          open: true,
+          message: 'A/S 정보가 성공적으로 업데이트되었습니다.',
+          severity: 'success'
+        });
+      } catch (err) {
+        console.error('Error saving service:', err);
+        setError(err.message);
+        setSnackbar({
+          open: true,
+          message: `저장 중 오류가 발생했습니다: ${err.message}`,
+          severity: 'error'
+        });
+      }
     }
   };
 

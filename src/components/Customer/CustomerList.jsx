@@ -74,6 +74,7 @@ function CustomerList({ refreshTrigger, onRefresh }) {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editCustomerData, setEditCustomerData] = useState({
+    id: null,
     name: '',
     phone: '',
     address: ''
@@ -155,8 +156,11 @@ function CustomerList({ refreshTrigger, onRefresh }) {
 
       // 기존 고객 데이터 추가
       customersData.forEach(customer => {
-        allCustomers.set(customer.phone, {
+        const phone = normalizePhoneNumber(customer.phone);
+        if (!phone) return;
+        allCustomers.set(phone, {
           ...customer,
+          phone: phone, // 정규화된 번호로 덮어쓰기
           serviceCount: {
             XRB: 0,
             NB: 0
@@ -172,7 +176,7 @@ function CustomerList({ refreshTrigger, onRefresh }) {
 
       // 서비스 데이터에서 고객 정보 추가/업데이트
       servicesData.forEach(service => {
-        const phone = service.customer_phone;
+        const phone = normalizePhoneNumber(service.customer_phone);
         const name = service.customer_name;
         const brand = service.brand;
         const productName = service.product_name || '';
@@ -214,7 +218,7 @@ function CustomerList({ refreshTrigger, onRefresh }) {
 
       // 출고 데이터에서 고객 정보 추가/업데이트
       shipmentsData.forEach(shipment => {
-        const phone = shipment.customer_phone;
+        const phone = normalizePhoneNumber(shipment.customer_phone);
         const name = shipment.customer_name;
         const brand = shipment.brand;
         const productName = shipment.product_name || '';
@@ -454,6 +458,7 @@ function CustomerList({ refreshTrigger, onRefresh }) {
   const handleEditClick = (customer, e) => {
     e.stopPropagation();
     setEditCustomerData({
+      id: customer.id || null,
       name: customer.name,
       phone: customer.phone,
       address: customer.address
@@ -495,13 +500,19 @@ function CustomerList({ refreshTrigger, onRefresh }) {
       
       const normalizedPhone = normalizePhoneNumber(editCustomerData.phone);
       
+      const upsertData = {
+        phone: normalizedPhone,
+        name: editCustomerData.name,
+        address: editCustomerData.address
+      };
+      
+      if (editCustomerData.id) {
+        upsertData.id = editCustomerData.id;
+      }
+      
       const { error } = await supabase
         .from('customers')
-        .upsert({
-          phone: normalizedPhone,
-          name: editCustomerData.name,
-          address: editCustomerData.address
-        });
+        .upsert(upsertData, { onConflict: 'phone' });
 
       if (error) throw error;
 

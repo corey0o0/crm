@@ -49,6 +49,7 @@ import { ko } from 'date-fns/locale';
 import { format } from 'date-fns';
 import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { sendTelegramNotification } from '../../lib/telegram';
+import { processShipmentCompletion, processShipmentRevert } from '../../utils/inventoryUtils';
 
 
 // 부품 카테고리 자동 결정 함수 (setSelectedCategory 호출 제거, 카테고리 반환)
@@ -629,6 +630,18 @@ function ShipmentForm({ isManualB2B = false }) {
         updated_at: new Date().toISOString()
       };
 
+      const wasCompleted = isEditMode && initialData?.shipmentData?.status === '출고완료';
+      const isNowCompleted = shipmentSaveData.status === '출고완료';
+
+      // 1. 만약 기존 상태가 '출고완료'였다면, DB를 업데이트하기 '전에' 기존 재고 차감을 복구(Revert)합니다.
+      // (processShipmentRevert는 DB에 저장된 기존 shipment_parts를 읽어와서 복구하므로 업데이트 전에 실행해야 함)
+      if (wasCompleted && shipmentId) {
+        const revertResult = await processShipmentRevert(shipmentId, shipmentData.brand);
+        if (!revertResult.success) {
+          throw new Error('기존 재고 복구 중 오류: ' + revertResult.message);
+        }
+      }
+
       if (isEditMode) {
         const { error: updateError } = await supabase
           .from('shipments')
@@ -680,42 +693,13 @@ function ShipmentForm({ isManualB2B = false }) {
       }
 
       // ==== 매장/일반 출고 재고 차감 (수불부 동기화) ====
-      if (shipmentId && shipmentSaveData.status === '출고완료') {
-        // 기존 transactions 삭제 (중복 생성 방지 - 수정 시 대비)
-        await supabase.from('transactions').delete().eq('group_id', shipmentId);
-        
-        const transactionsToInsert = selectedParts.map(part => {
-          let realPartId = null;
-          const matchedPart = allParts.find(p => 
-            (part.part_code && p.code === part.part_code) ||
-            (p.name === part.part_name)
-          );
-          if (matchedPart) {
-            realPartId = matchedPart.id;
-          }
-
-          if (!realPartId) return null;
-
-          return {
-            group_id: shipmentId,
-            type: 'out',
-            product_id: realPartId, // 부품 고유 ID
-            product_name: part.part_name,
-            product_code: part.part_code || '',
-            quantity: part.quantity || 1,
-            from_location: shipmentData.warehouse_id || 'DEFAULT', // 선택한 출고 창고
-            date: shipmentData.shipment_date || new Date().toISOString().split('T')[0],
-            note: `[일반 출고] ${shipmentData.customer_name}`,
-            status: '완료' // 확정 시 바로 차감
-          };
-        }).filter(Boolean);
-
-        if (transactionsToInsert.length > 0) {
-          const { error: txErr } = await supabase.from('transactions').insert(transactionsToInsert);
-          if (txErr) console.error('[Transaction Insert Error in Shipment]:', txErr);
+      if (shipmentId && isNowCompleted) {
+        const deductResult = await processShipmentCompletion(shipmentId, shipmentSaveData.brand);
+        if (!deductResult.success) {
+          console.error('[Inventory Deduct Error]:', deductResult.message);
         }
-      } else if (shipmentId && shipmentSaveData.status !== '출고완료') {
-        // 출고완료/대기가 아니면 (준비중 등) 출고 취소/대기라는 의미이므로 거래 내역 삭제
+      } else if (shipmentId && !isNowCompleted) {
+        // 출고완료가 아니면 (준비중 등) 기존 트랜잭션이 있을 경우 방어적으로 삭제
         await supabase.from('transactions').delete().eq('group_id', shipmentId);
       }
       // ==== 재고 차감 끝 ====

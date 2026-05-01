@@ -688,3 +688,33 @@ POST /api/cafe24/sync/orders
 [Cron Job] nearbike 수집 완료: 신규 0건, 갱신 61건
 [Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
 [2026-05-01T09:00:02.210Z] [PID: 9865] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Fri May 01 2026 18:00:00 GMT+0900 (Korean Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+[Cron Job] 카페24 주문 자동 수집 스케줄러를 시작합니다.
+[Cron Job] slimpack79: 연동되어 있지 않아 스킵합니다.
+[Cron Job] nearbike 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] API로 과거 미완료 주문 346건 추가 상태 조회 시도...
+[Cafe24 Sync] Fetched 62 orders from Cafe24 API, processing 62 valid orders
+[Cron Job] nearbike 수집 완료: 신규 0건, 갱신 62건
+[Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
+[Cron Job] 카페24 주문 자동 수집 스케줄러를 시작합니다.
+[Cron Job] slimpack79: 연동되어 있지 않아 스킵합니다.
+[Cron Job] nearbike 몰의 주문 수집을 진행합니다...
+[Cafe24 API] 401 Unauthorized - Forcing token refresh...
+[Cafe24 Sync] API로 과거 미완료 주문 346건 추가 상태 조회 시도...
+[Cafe24 Sync] Fetched 62 orders from Cafe24 API, processing 62 valid orders
+[Cron Job] nearbike 수집 완료: 신규 0건, 갱신 62건
+[Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
+[Cron Job] 카페24 주문 자동 수집 스케줄러를 시작합니다.
+[Cron Job] slimpack79: 연동되어 있지 않아 스킵합니다.
+[Cron Job] nearbike 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] API로 과거 미완료 주문 346건 추가 상태 조회 시도...
+[Cafe24 Sync] Fetched 62 orders from Cafe24 API, processing 62 valid orders
+[Cron Job] nearbike 수집 완료: 신규 0건, 갱신 62건
+[Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
+[Cron Job] 카페24 주문 자동 수집 스케줄러를 시작합니다.
+[Cron Job] slimpack79: 연동되어 있지 않아 스킵합니다.
+[Cron Job] nearbike 몰의 주문 수집을 진행합니다...
+[Cafe24 Sync] API로 과거 미완료 주문 346건 추가 상태 조회 시도...
+[Cafe24 Sync] Fetched 62 orders from Cafe24 API, processing 62 valid orders
+[Cron Job] nearbike 수집 완료: 신규 0건, 갱신 62건
+[Cron Job] 카페24 전체 쇼핑몰 자동 수집 루프 완료.
+[2026-05-01T14:00:02.224Z] [PID: 9865] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Fri May 01 2026 23:00:00 GMT+0900 (Korean Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.

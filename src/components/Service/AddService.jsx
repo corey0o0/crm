@@ -927,6 +927,12 @@ function AddService() {
         updated_at: new Date().toISOString()
       };
 
+      if (formData.status === '완료') {
+        const now = new Date();
+        serviceInsertData.completion_date = format(now, 'yyyy-MM-dd');
+        serviceInsertData.completion_time = format(now, 'HH:mm:ss');
+      }
+
       console.log('[AddService] A/S 정보 등록 시작');
       let insertedService;
       const { data: insertData, error: insertError } = await supabase

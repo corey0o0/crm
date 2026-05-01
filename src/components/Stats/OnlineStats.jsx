@@ -596,7 +596,7 @@ function OnlineStats() {
             <Grid item xs={12} md={6}>
               <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>대리점별 매출</Typography>
               <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
-                <Table size="small">
+                <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                   <TableHead sx={{ bgcolor: 'grey.100' }}>
                     <TableRow>
                       <TableCell>대리점명</TableCell>
@@ -639,7 +639,7 @@ function OnlineStats() {
             <Grid item xs={12} md={6}>
               <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>브랜드별 제품 출고 현황 (대리점 B2B)</Typography>
               <TableContainer component={Paper} sx={{ borderRadius: 2, mb: 4 }}>
-                <Table size="small">
+                <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                   <TableHead sx={{ bgcolor: 'grey.100' }}>
                     <TableRow>
                       <TableCell>브랜드명</TableCell>
@@ -710,7 +710,7 @@ function OnlineStats() {
 
               <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>브랜드별 제품 출고 현황 (일반고객 B2C)</Typography>
               <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
-                <Table size="small">
+                <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                   <TableHead sx={{ bgcolor: 'grey.100' }}>
                     <TableRow>
                       <TableCell>브랜드명</TableCell>
@@ -783,7 +783,7 @@ function OnlineStats() {
 
           <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>일반 고객(B2C) 상품별 매출 현황</Typography>
           <TableContainer component={Paper} sx={{ borderRadius: 2, mb: 4, maxHeight: 400 }}>
-            <Table size="small" stickyHeader>
+            <Table size="small" stickyHeader sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
               <TableHead>
                 <TableRow>
                   <TableCell sx={{ bgcolor: 'grey.100' }}>분류</TableCell>
@@ -833,7 +833,7 @@ function OnlineStats() {
         <DialogTitle sx={{ fontWeight: 'bold' }}>{modalTitle}</DialogTitle>
         <DialogContent dividers>
           <TableContainer>
-            <Table size="small">
+            <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
               <TableHead>
                 <TableRow sx={{ bgcolor: 'grey.100' }}>
                   <TableCell>주문일</TableCell>

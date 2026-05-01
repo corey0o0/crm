@@ -661,7 +661,8 @@ function ShipmentForm() {
             realPartId = matchedPart.id;
           }
 
-          if (!realPartId) return null;
+          // 미매핑 부품도 장부상 기록을 남기기 위해 null 반환하지 않고 통과시킴
+          // product_id가 null이더라도 product_name으로 기록을 남김
 
           return {
             group_id: shipmentId,
