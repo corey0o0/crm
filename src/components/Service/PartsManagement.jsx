@@ -959,7 +959,7 @@ function PartsManagement() {
           .update(partData)
           .eq('id', selectedPart.id);
 
-        if (error && error.code === 'PGRST204' && error.message.includes('discount_group')) {
+        if (error && (error.code === 'PGRST204' || error.code === '42703') && error.message.includes('discount_group')) {
           console.warn('discount_group 컬럼이 없어 제외하고 재시도합니다.');
           delete partData.discount_group;
           const retry = await supabase.from('parts').update(partData).eq('id', selectedPart.id);
@@ -991,7 +991,7 @@ function PartsManagement() {
           .insert([partData])
           .select(); // 등록된 데이터 가져오기
 
-        if (error && error.code === 'PGRST204' && error.message.includes('discount_group')) {
+        if (error && (error.code === 'PGRST204' || error.code === '42703') && error.message.includes('discount_group')) {
           console.warn('discount_group 컬럼이 없어 제외하고 재시도합니다.');
           delete partData.discount_group;
           const retry = await supabase.from('parts').insert([partData]).select();
@@ -1684,7 +1684,7 @@ function PartsManagement() {
       fetchParts();
     } catch (error) {
       console.error('일괄 그룹 지정 오류:', error);
-      if (error && error.code === 'PGRST204') {
+      if (error && (error.code === 'PGRST204' || error.code === '42703')) {
         showSnackbar('Supabase parts 테이블에 discount_group 컬럼이 아직 없습니다. 컬럼을 먼저 추가해주세요.', 'error');
       } else {
         showSnackbar('그룹 지정 중 오류가 발생했습니다.', 'error');
@@ -1715,7 +1715,7 @@ function PartsManagement() {
       fetchParts();
     } catch (error) {
       console.error('그룹 이름 변경 오류:', error);
-      if (error && error.code === 'PGRST204') {
+      if (error && (error.code === 'PGRST204' || error.code === '42703')) {
         showSnackbar('Supabase parts 테이블에 discount_group 컬럼이 아직 없습니다. 컬럼을 먼저 추가해주세요.', 'error');
       } else {
         showSnackbar('그룹 이름 변경 중 오류가 발생했습니다.', 'error');
@@ -1743,7 +1743,7 @@ function PartsManagement() {
       fetchParts();
     } catch (error) {
       console.error('그룹 삭제 오류:', error);
-      if (error && error.code === 'PGRST204') {
+      if (error && (error.code === 'PGRST204' || error.code === '42703')) {
         showSnackbar('Supabase parts 테이블에 discount_group 컬럼이 아직 없습니다. 컬럼을 먼저 추가해주세요.', 'error');
       } else {
         showSnackbar('그룹 삭제 중 오류가 발생했습니다.', 'error');
