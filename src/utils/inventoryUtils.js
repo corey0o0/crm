@@ -130,7 +130,7 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
 
         // RPC 결과에서 메인 파츠의 실제 결과(새 수량) 추출
         const mainPartResult = updateResults.find((r, idx) => allPartIds[idx] === part.part_id)?.data?.[0];
-        const newQuantity = mainPartResult ? mainPartResult.quantity : 0;
+        const newQuantity = mainPartResult ? (mainPartResult.out_quantity !== undefined ? mainPartResult.out_quantity : mainPartResult.quantity) : 0;
         const previousQuantity = newQuantity - quantityChange;
 
         // 재고 로그 기록
