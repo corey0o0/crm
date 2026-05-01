@@ -1401,7 +1401,8 @@ function PartsManagement() {
       return part.name?.toLowerCase().includes(searchTermLower) ||
         part.code?.toLowerCase().includes(searchTermLower) ||
         part.barcode?.toLowerCase().includes(searchTermLower) ||
-        part.note?.toLowerCase().includes(searchTermLower);
+        part.note?.toLowerCase().includes(searchTermLower) ||
+        part.memo?.toLowerCase().includes(searchTermLower);
     });
   }, [parts, searchTerm, selectedBrand, selectedCategory, selectedDiscountGroup]);
 
