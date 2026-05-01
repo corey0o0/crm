@@ -712,7 +712,7 @@ function SalesHistoryStats() {
           검색 필터
         </Typography>
 
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={4} sx={{ mb: 3 }} justifyContent="flex-start" alignItems="center">
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mb: 3, alignItems: 'flex-start' }}>
           {/* 연도 선택 */}
           <Box>
             <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
@@ -774,7 +774,6 @@ function SalesHistoryStats() {
               ))}
             </ButtonGroup>
           </Box>
-        </Stack>
 
         {/* 필터 옵션 및 조회 버튼 */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
@@ -820,6 +819,7 @@ function SalesHistoryStats() {
             label={<Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: showProfit ? '#2e7d32' : 'text.secondary' }}>영업이익 보기</Typography>}
             sx={{ ml: 'auto' }}
           />
+        </Box>
         </Box>
       </Paper>
 

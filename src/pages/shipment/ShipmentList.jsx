@@ -1736,45 +1736,38 @@ function ShipmentList() {
         </ToggleButtonGroup>
       </Box>
 
-      <Box sx={{ mb: 2 }}>
-        <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} sm={6} lg={3}>
-            <Stack direction="row" spacing={1}>
-              <FormControl size="small" sx={{ width: 150 }}>
-                <InputLabel>상태</InputLabel>
-                <Select
-                  value={statusFilter}
-                  label="상태"
-                  onChange={handleStatusFilterChange}
-                >
-                  <MenuItem value="all">전체 상태</MenuItem>
-                  <MenuItem value="준비중">준비중</MenuItem>
-                  <MenuItem value="부품준비">부품준비</MenuItem>
-                  <MenuItem value="검수완료">검수완료</MenuItem>
-                  <MenuItem value="출고대기">출고대기</MenuItem>
-                  <MenuItem value="출고완료">출고완료</MenuItem>
-                </Select>
-              </FormControl>
+      <Box sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
+          <FormControl size="small" sx={{ width: 150 }}>
+            <InputLabel>상태</InputLabel>
+            <Select
+              value={statusFilter}
+              label="상태"
+              onChange={handleStatusFilterChange}
+            >
+              <MenuItem value="all">전체 상태</MenuItem>
+              <MenuItem value="준비중">준비중</MenuItem>
+              <MenuItem value="부품준비">부품준비</MenuItem>
+              <MenuItem value="검수완료">검수완료</MenuItem>
+              <MenuItem value="출고대기">출고대기</MenuItem>
+              <MenuItem value="출고완료">출고완료</MenuItem>
+            </Select>
+          </FormControl>
 
-              <FormControl size="small" sx={{ width: 150 }}>
-                <InputLabel>판매처</InputLabel>
-                <Select
-                  value={sellerFilter}
-                  label="판매처"
-                  onChange={handleSellerFilterChange}
-                >
-                  <MenuItem value="all">전체 판매처</MenuItem>
-                  {sellers.map(seller => (
-                    <MenuItem key={seller} value={seller}>{seller}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Stack>
-          </Grid>
+          <FormControl size="small" sx={{ width: 150 }}>
+            <InputLabel>판매처</InputLabel>
+            <Select
+              value={sellerFilter}
+              label="판매처"
+              onChange={handleSellerFilterChange}
+            >
+              <MenuItem value="all">전체 판매처</MenuItem>
+              {sellers.map(seller => (
+                <MenuItem key={seller} value={seller}>{seller}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
 
-          <Grid item xs={12} sm={6} lg={9}>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
-              <FormControl size="small" sx={{ width: 150 }}>
+          <FormControl size="small" sx={{ width: 150 }}>
                 <InputLabel>날짜 유형</InputLabel>
                 <Select
                   value={dateFilter.type}
@@ -1833,9 +1826,6 @@ function ShipmentList() {
                   )}
                 </Box>
               </LocalizationProvider>
-            </Stack>
-          </Grid>
-        </Grid>
       </Box>
 
       <Box sx={{ mb: 2 }}>
