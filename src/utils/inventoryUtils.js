@@ -34,7 +34,7 @@ export const getBrandSettings = async (brandCode) => {
  * @param {string} changeType - 변경 타입 ('shipment_complete', 'service_complete', 'shipment_revert', 'service_revert')
  * @param {boolean} isRevert - 복구 여부 (true: 재고 증가, false: 재고 차감)
  */
-export const processInventory = async (defaultWarehouseId, parts, brandCode, referenceId, referenceType, changeType, isRevert = false) => {
+export const processInventory = async (defaultWarehouseId, parts, brandCode, referenceId, referenceType, changeType, isRevert = false, customerName = '') => {
   if (!defaultWarehouseId) {
     return {
       success: false,
@@ -71,8 +71,8 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
           to_location: isRevert ? (part.warehouse_id || defaultWarehouseId) : '외부(고객)',
           date: new Date().toISOString().split('T')[0],
           note: isRevert 
-            ? `${referenceType === 'shipment' ? '[매장출고 취소]' : '[A/S 취소]'} 단순 기록 (Ref: ${referenceId})`
-            : `${referenceType === 'shipment' ? '[매장출고 완료]' : '[A/S 완료]'} 단순 기록 (Ref: ${referenceId})`,
+            ? `${referenceType === 'shipment' ? '[매장출고 취소]' : '[A/S 취소]'} 단순 기록 (Ref: ${referenceId}${customerName ? `, ${customerName}` : ''})`
+            : `${referenceType === 'shipment' ? '[매장출고 완료]' : '[A/S 완료]'} 단순 기록 (Ref: ${referenceId}${customerName ? `, ${customerName}` : ''})`,
           is_grouped: true,
           status: '완료'
         });
@@ -171,8 +171,8 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
             to_location: isRevert ? (part.warehouse_id || defaultWarehouseId) : '외부(고객)',
             date: new Date().toISOString().split('T')[0],
             note: isRevert 
-              ? `${referenceType === 'shipment' ? '[매장출고 취소]' : '[A/S 취소]'} 재고 복구 (Ref: ${referenceId})`
-              : `${referenceType === 'shipment' ? '[매장출고 완료]' : '[A/S 완료]'} 재고 차감 (Ref: ${referenceId})`,
+              ? `${referenceType === 'shipment' ? '[매장출고 취소]' : '[A/S 취소]'} 재고 복구 (Ref: ${referenceId}${customerName ? `, ${customerName}` : ''})`
+              : `${referenceType === 'shipment' ? '[매장출고 완료]' : '[A/S 완료]'} 재고 차감 (Ref: ${referenceId}${customerName ? `, ${customerName}` : ''})`,
             is_grouped: true,
             status: '완료' // 확정 후 처리이므로 항상 완료
           });
@@ -299,7 +299,8 @@ export const processShipmentCompletion = async (shipmentId, brandCode) => {
       shipmentId,
       'shipment',
       'shipment_complete',
-      false // 차감
+      false, // 차감
+      shipment.customer_name || ''
     );
 
     return {
@@ -321,7 +322,7 @@ export const processShipmentRevert = async (shipmentId, brandCode) => {
 
     const { data: shipment, error: shipErr } = await supabase
        .from('shipments')
-       .select('id')
+       .select('id, customer_name')
        .eq('id', shipmentId)
        .single();
     if (shipErr || !shipment) throw new Error('출고 정보 없음');
@@ -348,7 +349,7 @@ export const processShipmentRevert = async (shipmentId, brandCode) => {
     
     if (parts.length === 0) return { success: false, message: '부품 매칭 실패' };
 
-    const result = await processInventory(warehouseId, parts, brandCode, shipmentId, 'shipment', 'shipment_revert', true);
+    const result = await processInventory(warehouseId, parts, brandCode, shipmentId, 'shipment', 'shipment_revert', true, shipment.customer_name || '');
     return result;
   } catch (err) {
     return { success: false, message: `오류: ${err.message}`, errors: [err.message] };
@@ -590,6 +591,15 @@ export const processPartialReturn = async (sourceType, orderId, recordId, quanti
 
     if (!finalPartId) throw new Error('실제 재고 부품 ID를 찾을 수 없습니다.');
 
+    let customerName = '';
+    if (sourceType === 'shipment') {
+      const { data: sData } = await supabase.from('shipments').select('customer_name').eq('id', orderId).maybeSingle();
+      if (sData) customerName = sData.customer_name;
+    } else {
+      const { data: sData } = await supabase.from('services').select('customer_name').eq('id', orderId).maybeSingle();
+      if (sData) customerName = sData.customer_name;
+    }
+
     const result = await processInventory(
       warehouseId,
       [{ part_id: finalPartId, quantity: quantity, part_name: finalName, part_code: finalCode }],
@@ -597,7 +607,8 @@ export const processPartialReturn = async (sourceType, orderId, recordId, quanti
       orderId,
       sourceType,
       sourceType === 'shipment' ? 'shipment_cancel' : 'service_cancel',
-      true // isRevert = true -> 창고로 다시 입고(+)
+      true, // isRevert = true -> 창고로 다시 입고(+)
+      customerName || ''
     );
 
     if (!result.success) throw new Error(result.message);

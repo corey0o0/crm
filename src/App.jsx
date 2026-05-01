@@ -32,7 +32,12 @@ import StockList from './components/Stock/StockList';
 import ServiceAnalysis from './components/Service/ServiceAnalysis';
 import BrandSettings from './components/Settings/BrandSettings';
 import InventoryLogs from './components/Inventory/InventoryLogs';
-import InventoryManagement from './components/Inventory/InventoryManagement';
+import InventoryLayout from './pages/inventory/InventoryLayout';
+import InventoryHistory from './pages/inventory/InventoryHistory';
+import InventoryStatus from './pages/inventory/InventoryStatus';
+import StoreOnlineOutboundTab from './components/Inventory/tabs/StoreOnlineOutboundTab';
+import BoxStatusTab from './components/Inventory/tabs/BoxStatusTab';
+import InventoryLocations from './pages/inventory/InventoryLocations';
 // import RoleManagement from './components/Settings/RoleManagement'; // 제거됨 - 이메일 기반으로 대체
 import BackupManager from './components/Backup/BackupManager';
 // import PermissionRoute from './components/Auth/PermissionRoute'; // 제거됨 - 이메일 기반으로 대체
@@ -128,7 +133,14 @@ function AppRouter() {
           <Route path="stats/service" element={<ServiceStats />} />
           <Route path="brand-settings" element={<BrandSettings />} />
           <Route path="inventory-logs" element={<InventoryLogs />} />
-          <Route path="inventory-management" element={<InventoryManagement />} />
+          <Route path="inventory-management" element={<InventoryLayout />}>
+            <Route index element={<Navigate to="history" replace />} />
+            <Route path="history" element={<InventoryHistory />} />
+            <Route path="scan" element={<StoreOnlineOutboundTab />} />
+            <Route path="status" element={<InventoryStatus />} />
+            <Route path="boxes" element={<BoxStatusTab />} />
+            <Route path="locations" element={<InventoryLocations />} />
+          </Route>
           
           {/* 데이터 백업/복원 */}
           <Route path="backup" element={<BackupManager />} />

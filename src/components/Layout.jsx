@@ -309,7 +309,7 @@ function Layout() {
         { text: 'A/S 관리', icon: <BuildIcon />, path: '/services', key: 'services' },
         { text: '매장 출고관리', icon: <LocalShippingIcon />, path: '/shipment', key: 'shipment' },
         { text: '온라인 주문관리', icon: <ShoppingCartOutlinedIcon />, path: '/cafe24/orders', key: 'cafe24_orders' },
-        { text: '출고 검수', icon: <CalendarTodayIcon />, path: '/inventory-management?tab=outbound_scan', key: 'outbound_scan' },
+        { text: '출고 검수', icon: <CalendarTodayIcon />, path: '/inventory-management/scan', key: 'outbound_scan' },
         { text: '수기 판매관리', icon: <LocalShippingIcon />, path: '/sales/manual', key: 'sales_manual' },
         { text: '판매 현황', icon: <HistoryIcon />, path: '/sales/history', key: 'sales_history' },
         // { text: '세금계산서 발행', icon: <ReceiptIcon />, path: '/sales/tax-invoice', key: 'tax_invoice' }
@@ -323,9 +323,10 @@ function Layout() {
       key: 'inventory_group',
       children: [
         { text: '매장 재고 관리', icon: <InventoryIcon />, path: '/stocks', key: 'stocks' },
-        { text: '입출고 관리', icon: <InventoryIcon />, path: '/inventory-management', key: 'inventory_management' },
-        { text: '재고 현황', icon: <AssessmentIcon />, path: '/inventory-management?tab=inventory_status', key: 'inventory_status' }
-        // { text: '입출고 통계', icon: <AnalyticsIcon />, path: '/inventory-management?tab=inventory_stats', key: 'inventory_stats' }
+        { text: '입출고 내역', icon: <HistoryIcon />, path: '/inventory-management/history', key: 'inventory_history' },
+        { text: '재고 현황', icon: <AssessmentIcon />, path: '/inventory-management/status', key: 'inventory_status' },
+        { text: '박스 상태 관리', icon: <InventoryIcon />, path: '/inventory-management/boxes', key: 'inventory_boxes' },
+        { text: '창고/대리점 관리', icon: <StoreIcon />, path: '/inventory-management/locations', key: 'inventory_locations' }
       ]
     },
     // 📊 통계 & 분석
@@ -678,7 +679,7 @@ function Layout() {
             {menuItems.map((item) => {
               const isOpen = item.children && openSubMenus[item.key];
               return (
-              <Box key={item.key || item.text} sx={{ mb: 0.5, bgcolor: isOpen ? 'rgba(0, 0, 0, 0.03)' : 'transparent', borderRadius: isOpen ? '8px' : '0px', mx: isOpen ? 0.5 : 0, py: isOpen ? 0.5 : 0 }}>
+              <Box key={item.key || item.text} sx={{ mb: 0.5, bgcolor: isOpen ? 'rgba(0, 0, 0, 0.06)' : 'transparent', borderRadius: isOpen ? '8px' : '0px', mx: isOpen ? 0.5 : 0, py: isOpen ? 0.5 : 0 }}>
                 <ListItem
                   button
                   onClick={() => handleMenuClick(item)}
@@ -760,7 +761,7 @@ function Layout() {
             {menuItems.map((item) => {
               const isOpen = item.children && openSubMenus[item.key];
               return (
-              <Box key={item.key || item.text} sx={{ mb: 0.5, bgcolor: isOpen ? 'rgba(0, 0, 0, 0.03)' : 'transparent', borderRadius: isOpen ? '8px' : '0px', mx: isOpen ? 0.5 : 0, py: isOpen ? 0.5 : 0 }}>
+              <Box key={item.key || item.text} sx={{ mb: 0.5, bgcolor: isOpen ? 'rgba(0, 0, 0, 0.06)' : 'transparent', borderRadius: isOpen ? '8px' : '0px', mx: isOpen ? 0.5 : 0, py: isOpen ? 0.5 : 0 }}>
                 <ListItem
                   button
                   onClick={() => handleMenuClick(item)}
