@@ -652,10 +652,21 @@ function ShipmentForm() {
         await supabase.from('transactions').delete().eq('group_id', shipmentId);
         
         const transactionsToInsert = selectedParts.map(part => {
+          let realPartId = null;
+          const matchedPart = allParts.find(p => 
+            (part.part_code && p.code === part.part_code) ||
+            (p.name === part.part_name)
+          );
+          if (matchedPart) {
+            realPartId = matchedPart.id;
+          }
+
+          if (!realPartId) return null;
+
           return {
             group_id: shipmentId,
             type: 'out',
-            product_id: part.part_id || part.id, // 부품 고유 ID
+            product_id: realPartId, // 부품 고유 ID
             product_name: part.part_name,
             product_code: part.part_code || '',
             quantity: part.quantity || 1,
@@ -664,7 +675,7 @@ function ShipmentForm() {
             note: `[일반 출고] ${shipmentData.customer_name}`,
             status: '완료' // 확정 시 바로 차감
           };
-        });
+        }).filter(Boolean);
 
         if (transactionsToInsert.length > 0) {
           const { error: txErr } = await supabase.from('transactions').insert(transactionsToInsert);
