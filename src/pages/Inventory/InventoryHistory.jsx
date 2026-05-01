@@ -22,6 +22,9 @@ export default function InventoryHistory() {
     handleMultipleSubmit, addIoProductRow, removeIoProductRow, updateIoProductRow, excelUploadOpen,
     handleCloseExcelUpload, handleExcelFileUpload, excelFile, excelUploadType, setExcelUploadType,
     handleExcelUploadSubmit, handleOpenExcelUpload, transactionDetailOpen, closeTransactionDetail,
+    selectedTransaction, startEditTransaction
+  } = context;
+
   return (
 
         <Box>

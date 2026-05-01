@@ -266,8 +266,8 @@ export default function Cafe24OrderList() {
       const { data, error: dbErr } = await supabase
         .from('cafe24_orders')
         .select('*')
-        .gte('order_date', `${startDate}T00:00:00Z`)
-        .lte('order_date', `${endDate}T23:59:59Z`)
+        .gte('order_date', `${startDate}T00:00:00+09:00`)
+        .lte('order_date', `${endDate}T23:59:59+09:00`)
         .order('order_date', { ascending: false })
         .limit(3000);
 
@@ -590,7 +590,7 @@ export default function Cafe24OrderList() {
     setConfirmDialog({
       open: true,
       title: '판매 반영 예외 처리 (무시)',
-      message: `선택한 ${ordersToIgnore.length}건을 매출 및 재고 변동 없이 [전송 완료] 처리하여 리스트에서 넘기시겠습니까? \\n(실제 재고는 차감되지 않습니다.)`,
+      message: `선택한 ${ordersToIgnore.length}건을 매출 및 재고 변동 없이 [전송 완료] 처리하여 리스트에서 넘기시겠습니까? \n(실제 재고는 차감되지 않습니다.)`,
       onConfirm: async () => {
         try {
           setLoading(true);
@@ -680,7 +680,7 @@ export default function Cafe24OrderList() {
     setConfirmDialog({
       open: true,
       title: '판매 반영 예외 처리 (무시)',
-      message: `주문(Cafe24 ID: ${order.order_id})을 매출 및 재고 변동 없이 [전송 완료] 처리하여 리스트에서 넘기시겠습니까? \\n(실제 재고는 차감되지 않습니다.)`,
+      message: `주문(Cafe24 ID: ${order.order_id})을 매출 및 재고 변동 없이 [전송 완료] 처리하여 리스트에서 넘기시겠습니까? \n(실제 재고는 차감되지 않습니다.)`,
       onConfirm: async () => {
         try {
           setLoading(true);
@@ -714,7 +714,7 @@ export default function Cafe24OrderList() {
     setConfirmDialog({
       open: true,
       title: '판매 반영 취소',
-      message: `선택한 ${ordersToCancel.length}건의 주문에 대해 판매 반영 및 모든 입출고 내역/통계를 취소하시겠습니까?\\n(청담 창고에서 이미 검수 완료된 건은 자동 제외됩니다.)`,
+      message: `선택한 ${ordersToCancel.length}건의 주문에 대해 판매 반영 및 모든 입출고 내역/통계를 취소하시겠습니까?\n(청담 창고에서 이미 검수 완료된 건은 자동 제외됩니다.)`,
       onConfirm: async () => {
         setLoading(true);
         try {
@@ -740,7 +740,7 @@ export default function Cafe24OrderList() {
     setConfirmDialog({
       open: true,
       title: '판매 반영 취소',
-      message: `주문(Cafe24 ID: ${order.order_id})의 판매 반영 내역(입출고 등)을 취소하고 미전송 상태로 되돌리시겠습니까?\\n(청담 창고에서 이미 검수 완료된 건은 초기화할 수 없습니다.)`,
+      message: `주문(Cafe24 ID: ${order.order_id})의 판매 반영 내역(입출고 등)을 취소하고 미전송 상태로 되돌리시겠습니까?\n(청담 창고에서 이미 검수 완료된 건은 초기화할 수 없습니다.)`,
       onConfirm: async () => {
         setLoading(true);
         try {
@@ -964,7 +964,7 @@ export default function Cafe24OrderList() {
         if (updatedOrders && updatedOrders.length > 0) {
           for (const order of updatedOrders) {
             await supabase.from('transactions')
-              .update({ to_location: selectedAgency.id })
+              .update({ to_location: `대리점:${selectedAgency.name}` })
               .like('note', `%주문: ${order.order_id}%`);
           }
         }
@@ -981,7 +981,7 @@ export default function Cafe24OrderList() {
 
         // 이미 전송된 단일 주문의 트랜잭션 기록 업데이트
         await supabase.from('transactions')
-          .update({ to_location: selectedAgency.id })
+          .update({ to_location: `대리점:${selectedAgency.name}` })
           .like('note', `%주문: ${selectedOrderForAgencyMatch.order_id}%`);
 
         alert('선택한 주문의 결제/출고용 거래처(판매 기록 포함)가 성공적으로 변경되었습니다.');

@@ -99,34 +99,37 @@ function SalesHistory() {
     }
     setStartDate(start);
     setEndDate(end);
+    fetchSales(start, end);
   };
 
   // ── 데이터 패치 ────────────────────────────────────────
-  const fetchSales = async () => {
+  const fetchSales = async (overrideStart, overrideEnd) => {
     setLoading(true);
+
+    const activeStart = overrideStart !== undefined ? overrideStart : startDate;
+    const activeEnd = overrideEnd !== undefined ? overrideEnd : endDate;
 
     let shipQuery = supabase
       .from('shipments')
       .select('id, order_date, customer_name, price, sales_channel, status, note, warehouse_id, shipment_parts(id, part_name, quantity, price, total_price)')
       .in('status', ['출고완료', '완료'])
-      .order('order_date', { ascending: false })
-      .limit(800);
+      .order('order_date', { ascending: false });
 
-    if (startDate) shipQuery = shipQuery.gte('order_date', format(startDate, 'yyyy-MM-dd'));
-    if (endDate)   shipQuery = shipQuery.lte('order_date', format(endDate, 'yyyy-MM-dd') + 'T23:59:59');
+    if (activeStart) shipQuery = shipQuery.gte('order_date', format(activeStart, 'yyyy-MM-dd') + 'T00:00:00+09:00');
+    if (activeEnd)   shipQuery = shipQuery.lte('order_date', format(activeEnd, 'yyyy-MM-dd') + 'T23:59:59+09:00');
 
     let asQuery = supabase
       .from('services')
       .select('id, reception_date, completion_date, customer_name, status, note')
       .ilike('status', '%완료%')
-      .order('completion_date', { ascending: false })
-      .limit(800);
-    if (startDate) {
-      const sDate = format(startDate, 'yyyy-MM-dd');
+      .order('completion_date', { ascending: false });
+
+    if (activeStart) {
+      const sDate = format(activeStart, 'yyyy-MM-dd') + 'T00:00:00+09:00';
       asQuery = asQuery.or(`completion_date.gte.${sDate},and(completion_date.is.null,reception_date.gte.${sDate})`);
     }
-    if (endDate) {
-      const eDate = format(endDate, 'yyyy-MM-dd') + 'T23:59:59';
+    if (activeEnd) {
+      const eDate = format(activeEnd, 'yyyy-MM-dd') + 'T23:59:59+09:00';
       asQuery = asQuery.or(`completion_date.lte.${eDate},and(completion_date.is.null,reception_date.lte.${eDate})`);
     }
 
@@ -134,11 +137,10 @@ function SalesHistory() {
       .from('cafe24_orders')
       .select('id, order_id, order_date, buyer_name, total_amount, order_items, status, shipping_fee, used_points, agencies(name)')
       .eq('is_transferred', true)
-      .order('order_date', { ascending: false })
-      .limit(800);
+      .order('order_date', { ascending: false });
 
-    if (startDate) cafeQuery = cafeQuery.gte('order_date', format(startDate, 'yyyy-MM-dd'));
-    if (endDate)   cafeQuery = cafeQuery.lte('order_date', format(endDate, 'yyyy-MM-dd') + 'T23:59:59');
+    if (activeStart) cafeQuery = cafeQuery.gte('order_date', format(activeStart, 'yyyy-MM-dd') + 'T00:00:00+09:00');
+    if (activeEnd)   cafeQuery = cafeQuery.lte('order_date', format(activeEnd, 'yyyy-MM-dd') + 'T23:59:59+09:00');
 
     // 주문번호를 note에서 파싱하는 헬퍼
     const parseOrderNo = (note, id, prefix) => {
@@ -343,6 +345,7 @@ function SalesHistory() {
         order_no: orderNo,
       };
       if (parts.length > 0) {
+        let pushedAny = false;
         parts.forEach((sp, idx) => {
           // A/S에서 실제 청구된 금액(sp.price)을 사용 (0원이면 워런티 등 무상수리)
           const unitPrice = sp.price !== undefined && sp.price !== null ? Number(sp.price) : Number(sp.parts?.price || 0);
@@ -364,6 +367,7 @@ function SalesHistory() {
           const qty = Math.max(0, Number(sp.quantity || 1) - returnedQty);
           const total = unitPrice * qty;
           if (qty > 0) {
+            pushedAny = true;
             const pName = sp.parts?.name || '부품';
             const cat = resolveCategory(pName, '', '', sp.part_id);
             const brand = resolveBrand(pName, '', '', sp.part_id);
@@ -376,6 +380,11 @@ function SalesHistory() {
             rows.push({ ...baseFields, warehouse_name: itemWarehouseName, _id: `as_${s.id}_${sp.id || idx}`, part_name: pName, part_category: cat, part_brand: brand, quantity: qty, unit_price: unitPrice, total_price: total });
           }
         });
+        if (!pushedAny) {
+           rows.push({ ...baseFields, warehouse_name: fallbackWhName, _id: `as_${s.id}_none`, part_name: '(품목 미기재/전부반품)', part_category: '기타', part_brand: '-', quantity: 0, unit_price: 0, total_price: 0 });
+        }
+      } else {
+        rows.push({ ...baseFields, warehouse_name: fallbackWhName, _id: `as_${s.id}_none`, part_name: '(품목 미기재)', part_category: '기타', part_brand: '-', quantity: 0, unit_price: 0, total_price: 0 });
       }
     });
 
@@ -583,22 +592,21 @@ function SalesHistory() {
   });
 
   // ── 페이지네이션 ─────────────────────────────────────
-  // 월별 합계 행을 삽입한 렌더 목록 생성
-  const renderRows = [];
-  let prevMonth = null;
-  filtered.forEach(r => {
-    const month = r.date_val ? format(new Date(r.date_val), 'yyyy/MM') : '';
-    if (prevMonth && month !== prevMonth) {
-      renderRows.push({ _isMonthSummary: true, _month: prevMonth, ...monthlyTotals[prevMonth] });
+  const paginatedItems = filtered.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  
+  const paginated = [];
+  paginatedItems.forEach((r, idx) => {
+    paginated.push(r);
+    const globalIdx = page * rowsPerPage + idx;
+    const currentMonth = r.date_val ? format(new Date(r.date_val), 'yyyy/MM') : '';
+    const nextItem = filtered[globalIdx + 1];
+    const nextMonth = nextItem?.date_val ? format(new Date(nextItem.date_val), 'yyyy/MM') : '';
+    
+    // 월이 바뀌거나 마지막 항목인 경우에만 해당 월의 요약행 삽입
+    if (currentMonth && currentMonth !== nextMonth) {
+      paginated.push({ _isMonthSummary: true, _month: currentMonth, ...monthlyTotals[currentMonth] });
     }
-    renderRows.push(r);
-    prevMonth = month;
   });
-  if (prevMonth) {
-    renderRows.push({ _isMonthSummary: true, _month: prevMonth, ...monthlyTotals[prevMonth] });
-  }
-
-  const paginated = renderRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
   // ── 행 클릭 ─────────────────────────────────────────
   const handleRowClick = (row) => {
@@ -966,7 +974,7 @@ function SalesHistory() {
       {/* 페이지네이션 */}
       <TablePagination
         component="div"
-        count={renderRows.length}
+        count={filtered.length}
         page={page}
         onPageChange={(_, p) => setPage(p)}
         rowsPerPage={rowsPerPage}
