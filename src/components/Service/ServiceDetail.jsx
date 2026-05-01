@@ -1500,7 +1500,7 @@ function ServiceDetail() {
           maxWidth="md"
           fullWidth
         >
-          <DialogTitle>영수증 미리보기</DialogTitle>
+          <DialogTitle>이미지 미리보기</DialogTitle>
           <DialogContent>
             <Box sx={{ width: '100%', mt: 2 }}>
               <img
@@ -3562,7 +3562,7 @@ function ServiceDetail() {
         >
           <DialogTitle>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography>영수증 미리보기</Typography>
+              <Typography>이미지 미리보기</Typography>
               <IconButton onClick={() => setPreviewOpen(false)}>
                 <CloseIcon />
               </IconButton>

@@ -3488,7 +3488,7 @@ function AddService() {
       >
         <DialogTitle>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography>영수증 미리보기</Typography>
+            <Typography>이미지 미리보기</Typography>
             <IconButton onClick={() => setPreviewOpen(false)}>
               <CloseIcon />
             </IconButton>

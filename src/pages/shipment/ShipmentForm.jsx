@@ -100,10 +100,10 @@ function ShipmentForm({ isManualB2B = false }) {
     order_date: new Date().toISOString().split('T')[0],
     shipment_date: new Date().toISOString().split('T')[0],
     status: isManualB2B ? '출고완료' : '준비중',
-    delivery_method: isManualB2B ? '수기판매' : '택배',
+    delivery_method: isManualB2B ? '수기판매' : '방문수령',
     tracking_number: '',
     note: isManualB2B ? '[B2B수기판매] ' : '',
-    sales_channel: isManualB2B ? '[B2B수기]' : '공홈',
+    sales_channel: isManualB2B ? '[B2B수기]' : '청담매장',
     warehouse_id: ''
   });
 
@@ -427,10 +427,10 @@ function ShipmentForm({ isManualB2B = false }) {
           order_date: new Date().toISOString().split('T')[0],
           shipment_date: new Date().toISOString().split('T')[0],
           status: '준비중',
-          delivery_method: '택배',
+          delivery_method: '방문수령',
           tracking_number: '',
           note: '',
-          sales_channel: '공홈',
+          sales_channel: '청담매장',
           order_no: ''
         },
         selectedParts: []

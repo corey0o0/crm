@@ -99,10 +99,10 @@ function ShipmentForm() {
     order_date: new Date().toISOString().split('T')[0],
     shipment_date: new Date().toISOString().split('T')[0],
     status: '준비중',
-    delivery_method: '택배',
+    delivery_method: '방문수령',
     tracking_number: '',
     note: '',
-    sales_channel: '공홈',
+    sales_channel: '청담매장',
     warehouse_id: ''
   });
 
@@ -401,10 +401,10 @@ function ShipmentForm() {
           order_date: new Date().toISOString().split('T')[0],
           shipment_date: new Date().toISOString().split('T')[0],
           status: '준비중',
-          delivery_method: '택배',
+          delivery_method: '방문수령',
           tracking_number: '',
           note: '',
-          sales_channel: '공홈'
+          sales_channel: '청담매장'
         },
         selectedParts: []
       });
