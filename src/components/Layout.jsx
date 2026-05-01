@@ -351,7 +351,7 @@ function Layout() {
       key: 'board_group',
       children: [
         { text: '내부 게시판', icon: <ForumIcon />, path: '/board?tab=internal', key: 'board_internal' },
-        { text: '카페24 게시판', icon: <StoreIcon />, path: '/board?tab=cafe24', key: 'board_cafe24' }
+        // { text: '카페24 게시판', icon: <StoreIcon />, path: '/board?tab=cafe24', key: 'board_cafe24' }
       ]
     },
 

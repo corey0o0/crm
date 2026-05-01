@@ -69,8 +69,8 @@ function SalesHistoryStats() {
   };
 
   const fetchTotalsForRange = async (start, end) => {
-    const sDate = startOfDay(start).toISOString();
-    const eDate = endOfDay(end).toISOString();
+    const sDate = format(start, 'yyyy-MM-dd') + 'T00:00:00+09:00';
+    const eDate = format(end, 'yyyy-MM-dd') + 'T23:59:59+09:00';
     
     // Shipments
     const { data: shipRows } = await supabase.from('shipments').select('price').gte('order_date', sDate).lte('order_date', eDate).in('status', ['출고완료', '완료']);
@@ -134,8 +134,8 @@ function SalesHistoryStats() {
       .in('status', ['출고완료', '완료'])
       .order('order_date', { ascending: false });
 
-    if (startDate) shipQuery = shipQuery.gte('order_date', startOfDay(startDate).toISOString());
-    if (endDate)   shipQuery = shipQuery.lte('order_date', endOfDay(endDate).toISOString());
+    if (startDate) shipQuery = shipQuery.gte('order_date', format(startDate, 'yyyy-MM-dd') + 'T00:00:00+09:00');
+    if (endDate)   shipQuery = shipQuery.lte('order_date', format(endDate, 'yyyy-MM-dd') + 'T23:59:59+09:00');
 
     let asQuery = supabase
       .from('services')
@@ -144,11 +144,11 @@ function SalesHistoryStats() {
       .order('completion_date', { ascending: false });
 
     if (startDate) {
-      const sDate = startOfDay(startDate).toISOString();
+      const sDate = format(startDate, 'yyyy-MM-dd') + 'T00:00:00+09:00';
       asQuery = asQuery.or(`completion_date.gte.${sDate},and(completion_date.is.null,reception_date.gte.${sDate})`);
     }
     if (endDate) {
-      const eDate = endOfDay(endDate).toISOString();
+      const eDate = format(endDate, 'yyyy-MM-dd') + 'T23:59:59+09:00';
       asQuery = asQuery.or(`completion_date.lte.${eDate},and(completion_date.is.null,reception_date.lte.${eDate})`);
     }
 
@@ -158,8 +158,8 @@ function SalesHistoryStats() {
       .eq('is_transferred', true)
       .order('order_date', { ascending: false });
 
-    if (startDate) cafeQuery = cafeQuery.gte('order_date', startOfDay(startDate).toISOString());
-    if (endDate)   cafeQuery = cafeQuery.lte('order_date', endOfDay(endDate).toISOString());
+    if (startDate) cafeQuery = cafeQuery.gte('order_date', format(startDate, 'yyyy-MM-dd') + 'T00:00:00+09:00');
+    if (endDate)   cafeQuery = cafeQuery.lte('order_date', format(endDate, 'yyyy-MM-dd') + 'T23:59:59+09:00');
 
     const [shipRes, asRes, cafeRes, whRes, partsRes, agenciesRes, invRes] = await Promise.all([
       shipQuery, asQuery, cafeQuery,

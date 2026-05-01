@@ -61,7 +61,7 @@ const AVAILABLE_PERMISSIONS = [
   { key: 'sales_stats', label: '매장 매출통계' },
   { key: 'board_group', label: '게시판 메뉴 전체' },
   { key: 'board_internal', label: '내부 게시판' },
-  { key: 'board_cafe24', label: '카페24 게시판' },
+  // { key: 'board_cafe24', label: '카페24 게시판' },
   { key: 'role_settings', label: '권한 설정' },
   { key: 'backup_management', label: '데이터 백업/복원' },
   { key: 'receipts', label: '영수증 스캐너' },
