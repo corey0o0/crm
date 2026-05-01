@@ -8,7 +8,7 @@ import {
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ko } from 'date-fns/locale';
-import { startOfMonth, endOfMonth, format, startOfYear, endOfYear, getWeek, startOfWeek, endOfWeek, startOfQuarter, endOfQuarter, setMonth } from 'date-fns';
+import { startOfMonth, endOfMonth, format, startOfYear, endOfYear, getWeek, startOfWeek, endOfWeek, startOfQuarter, endOfQuarter, setMonth, startOfDay, endOfDay } from 'date-fns';
 import { supabase } from '../../lib/supabaseClient';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -71,8 +71,8 @@ function SalesHistoryStats() {
   };
 
   const fetchTotalsForRange = async (start, end) => {
-    const sDate = format(start, 'yyyy-MM-dd') + ' 00:00:00';
-    const eDate = format(end, 'yyyy-MM-dd') + ' 23:59:59';
+    const sDate = startOfDay(start).toISOString();
+    const eDate = endOfDay(end).toISOString();
     
     // Shipments
     const { data: shipRows } = await supabase.from('shipments').select('price').gte('order_date', sDate).lte('order_date', eDate).in('status', ['출고완료', '완료']);
@@ -136,8 +136,8 @@ function SalesHistoryStats() {
       .in('status', ['출고완료', '완료'])
       .order('order_date', { ascending: false });
 
-    if (startDate) shipQuery = shipQuery.gte('order_date', format(startDate, 'yyyy-MM-dd'));
-    if (endDate)   shipQuery = shipQuery.lte('order_date', format(endDate, 'yyyy-MM-dd') + 'T23:59:59');
+    if (startDate) shipQuery = shipQuery.gte('order_date', startOfDay(startDate).toISOString());
+    if (endDate)   shipQuery = shipQuery.lte('order_date', endOfDay(endDate).toISOString());
 
     let asQuery = supabase
       .from('services')
@@ -146,11 +146,11 @@ function SalesHistoryStats() {
       .order('completion_date', { ascending: false });
 
     if (startDate) {
-      const sDate = format(startDate, 'yyyy-MM-dd');
+      const sDate = startOfDay(startDate).toISOString();
       asQuery = asQuery.or(`completion_date.gte.${sDate},and(completion_date.is.null,reception_date.gte.${sDate})`);
     }
     if (endDate) {
-      const eDate = format(endDate, 'yyyy-MM-dd') + 'T23:59:59';
+      const eDate = endOfDay(endDate).toISOString();
       asQuery = asQuery.or(`completion_date.lte.${eDate},and(completion_date.is.null,reception_date.lte.${eDate})`);
     }
 
@@ -160,8 +160,8 @@ function SalesHistoryStats() {
       .eq('is_transferred', true)
       .order('order_date', { ascending: false });
 
-    if (startDate) cafeQuery = cafeQuery.gte('order_date', format(startDate, 'yyyy-MM-dd'));
-    if (endDate)   cafeQuery = cafeQuery.lte('order_date', format(endDate, 'yyyy-MM-dd') + 'T23:59:59');
+    if (startDate) cafeQuery = cafeQuery.gte('order_date', startOfDay(startDate).toISOString());
+    if (endDate)   cafeQuery = cafeQuery.lte('order_date', endOfDay(endDate).toISOString());
 
     const [shipRes, asRes, cafeRes, whRes, partsRes, agenciesRes, invRes] = await Promise.all([
       shipQuery, asQuery, cafeQuery,
