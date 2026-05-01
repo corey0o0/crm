@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
+import { processShipmentCompletion } from '../../utils/inventoryUtils';
 import { 
   Box, Typography, Button, Paper, Tabs, Tab, Container,
   Grid, TextField, CircularProgress, Snackbar, Alert,
@@ -147,12 +148,8 @@ function SingleEntryForm({ agencies, parts, setSnackbar }) {
       }));
       await supabase.from('shipment_parts').insert(pData);
 
-      // 3. Transactions (out)
-      const txData = selectedItems.map(it => ({
-        group_id: sid, type: 'out', product_id: it.part_id, product_name: it.name, quantity: it.qty, from_location: 'DEFAULT', date: format(formData.order_date, 'yyyy-MM-dd'),
-        status: '완료', note: '[빠른판매] ' + (formData.buyer_name || agencyName || '비회원')
-      }));
-      await supabase.from('transactions').insert(txData);
+      // 3. Transactions & Inventory via inventoryUtils
+      await processShipmentCompletion(sid, 'XRB');
 
       setSnackbar({ open: true, message: '판매가 등록되었습니다.', severity: 'success' });
       setFormData({ order_date: new Date(), buyer_name: '', agency_id: '', note: '' });
@@ -320,10 +317,8 @@ function ExcelBatchUpload({ agencies, parts, setSnackbar }) {
            await supabase.from('shipment_parts').insert([{
               shipment_id: sid, part_name: matchedPart.name, part_code: matchedPart.code, quantity: qty, price, total_price: total
            }]);
-           await supabase.from('transactions').insert([{
-              group_id: sid, type: 'out', product_id: matchedPart.id, product_name: matchedPart.name, quantity: qty, from_location: 'DEFAULT', 
-              date: orderDate, status: '완료', note: '[엑셀등록]'
-           }]);
+           // 트랜잭션 및 재고 차감 통합 처리
+           await processShipmentCompletion(sid, 'XRB');
          }
       }
       setSnackbar({ open: true, message: `${successCount}건 대량 등록 완료!`, severity: 'success' });
