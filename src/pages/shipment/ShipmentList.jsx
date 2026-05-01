@@ -54,7 +54,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { fetchShipments as fetchShipmentsAPI, countShipments, countPendingAndShippingByBrand } from '../../utils/restApiUtils';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-  format, parseISO, isValid,
+  format, parseISO, isValid, startOfDay, endOfDay,
   startOfMonth, endOfMonth, startOfWeek, endOfWeek,
   addDays, subDays, subMonths, addMonths, isSameMonth, isSameDay, isToday
 } from 'date-fns';
@@ -325,8 +325,8 @@ function ShipmentList() {
       let processedDateFilter = {};
       if (dateFilter.startDate && dateFilter.endDate) {
         processedDateFilter = {
-          startDate: format(new Date(dateFilter.startDate), 'yyyy-MM-dd 00:00:00'),
-          endDate: format(new Date(dateFilter.endDate), 'yyyy-MM-dd 23:59:59'),
+          startDate: startOfDay(new Date(dateFilter.startDate)).toISOString(),
+          endDate: endOfDay(new Date(dateFilter.endDate)).toISOString(),
           type: dateFilter.type
         };
       }
@@ -452,8 +452,8 @@ function ShipmentList() {
       let processedDateFilter = {};
       if (dateFilter.startDate && dateFilter.endDate) {
         processedDateFilter = {
-          startDate: format(new Date(dateFilter.startDate), 'yyyy-MM-dd 00:00:00'),
-          endDate: format(new Date(dateFilter.endDate), 'yyyy-MM-dd 23:59:59'),
+          startDate: startOfDay(new Date(dateFilter.startDate)).toISOString(),
+          endDate: endOfDay(new Date(dateFilter.endDate)).toISOString(),
           type: dateFilter.type
         };
       }

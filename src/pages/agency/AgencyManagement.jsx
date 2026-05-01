@@ -317,7 +317,7 @@ export default function AgencyManagement() {
             <TableRow>
               <TableCell padding="checkbox">
                 <Checkbox
-                  checked={agencies.length > 0 && selectedItems.length === filteredData.length}
+                  checked={filteredData.length > 0 && selectedItems.length === filteredData.length}
                   onChange={(e) => {
                     if (e.target.checked) {
                       setSelectedItems(filteredData.map(v => v.id));
@@ -667,9 +667,10 @@ function AgencyHistoryDialog({ open, agency, onClose }) {
     }
   };
 
-  const filteredTransactions = transactions.filter(t => 
-    t.date >= startDate && t.date <= endDate
-  );
+  const filteredTransactions = transactions.filter(t => {
+    const tDate = t.date ? (t.date.includes('T') ? t.date.split('T')[0] : t.date) : '';
+    return tDate >= startDate && tDate <= endDate;
+  });
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
@@ -812,10 +813,10 @@ function AgencyCafe24OrdersDialog({ open, agency, onClose }) {
   const uniqueMalls = Array.from(new Set(orders.map(o => o.mall_id).filter(Boolean)));
 
   const filteredOrders = orders.filter(o => {
-    const orderDate = o.order_date;
+    const orderDate = o.order_date ? o.order_date.split('T')[0] : '';
     if (orderDate) {
       if (startDate && orderDate < startDate) return false;
-      if (endDate && orderDate > `${endDate}T23:59:59`) return false;
+      if (endDate && orderDate > endDate) return false;
     }
     if (selectedMall !== 'all' && o.mall_id !== selectedMall) return false;
     

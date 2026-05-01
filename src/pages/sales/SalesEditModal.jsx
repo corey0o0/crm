@@ -168,11 +168,46 @@ export default function SalesEditModal({ open, onClose, orderId, orderType, onRe
               total_price: Number(item.total_price),
             }).eq('id', item.id);
 
-            // 장부(transactions) 수량 동기화
-            await supabase.from('transactions')
-              .update({ quantity: Number(item.quantity) })
+            // 트랜잭션 원본 조회 (수량 차이 계산 위해)
+            const { data: txData } = await supabase.from('transactions')
+              .select('id, quantity, product_id, from_location')
               .eq('group_id', orderId)
-              .eq('product_name', item.part_name);
+              .eq('product_name', item.part_name)
+              .limit(1)
+              .single();
+
+            if (txData) {
+              const oldQty = txData.quantity || 0;
+              const newQty = Number(item.quantity) || 0;
+              const diff = newQty - oldQty;
+
+              // 장부(transactions) 수량 동기화
+              await supabase.from('transactions')
+                .update({ quantity: newQty })
+                .eq('id', txData.id);
+
+              // 재고 갱신 (product_id가 있는 경우에만)
+              if (txData.product_id && diff !== 0) {
+                 const { data: invData } = await supabase.from('inventory')
+                    .select('id, quantity')
+                    .eq('product_id', txData.product_id)
+                    .eq('warehouse_id', txData.from_location)
+                    .limit(1)
+                    .single();
+                 
+                 if (invData) {
+                    await supabase.from('inventory')
+                      .update({ quantity: invData.quantity - diff })
+                      .eq('id', invData.id);
+                 }
+              }
+            } else {
+              // 트랜잭션이 없는 경우, 단순 수량 업데이트 (fall-back)
+              await supabase.from('transactions')
+                .update({ quantity: Number(item.quantity) })
+                .eq('group_id', orderId)
+                .eq('product_name', item.part_name);
+            }
           }
         }
       } else if (orderType === 'service') {
@@ -186,13 +221,49 @@ export default function SalesEditModal({ open, onClose, orderId, orderType, onRe
           if (item.id) {
             await supabase.from('service_parts').update({
               quantity: Number(item.quantity),
+              price: Number(item.price),
             }).eq('id', item.id);
 
-            // 장부(transactions) 수량 동기화
-            await supabase.from('transactions')
-              .update({ quantity: Number(item.quantity) })
+            // 트랜잭션 원본 조회 (수량 차이 계산 위해)
+            const { data: txData } = await supabase.from('transactions')
+              .select('id, quantity, product_id, from_location')
               .eq('group_id', orderId)
-              .eq('product_name', item.part_name);
+              .eq('product_name', item.part_name)
+              .limit(1)
+              .single();
+
+            if (txData) {
+              const oldQty = txData.quantity || 0;
+              const newQty = Number(item.quantity) || 0;
+              const diff = newQty - oldQty;
+
+              // 장부(transactions) 수량 동기화
+              await supabase.from('transactions')
+                .update({ quantity: newQty })
+                .eq('id', txData.id);
+
+              // 재고 갱신 (product_id가 있는 경우에만)
+              if (txData.product_id && diff !== 0) {
+                 const { data: invData } = await supabase.from('inventory')
+                    .select('id, quantity')
+                    .eq('product_id', txData.product_id)
+                    .eq('warehouse_id', txData.from_location)
+                    .limit(1)
+                    .single();
+                 
+                 if (invData) {
+                    await supabase.from('inventory')
+                      .update({ quantity: invData.quantity - diff })
+                      .eq('id', invData.id);
+                 }
+              }
+            } else {
+              // 트랜잭션이 없는 경우, 단순 수량 업데이트 (fall-back)
+              await supabase.from('transactions')
+                .update({ quantity: Number(item.quantity) })
+                .eq('group_id', orderId)
+                .eq('product_name', item.part_name);
+            }
           }
         }
       } else if (orderType === 'cafe24') {

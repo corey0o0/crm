@@ -225,7 +225,7 @@ function SalesHistoryStats() {
     const serviceTxMap = {};
     if (asIds.length > 0) {
       const [{ data: spData }, { data: txData }] = await Promise.all([
-        supabase.from('service_parts').select('id, service_id, quantity, part_id, usage, parts(name, price)').in('service_id', asIds),
+        supabase.from('service_parts').select('id, service_id, quantity, price, part_id, usage, parts(name, price)').in('service_id', asIds),
         supabase.from('transactions').select('group_id, product_id, from_location').in('group_id', asIds.map(String)).eq('type', 'out')
       ]);
       (spData || []).forEach(sp => {
@@ -315,7 +315,7 @@ function SalesHistoryStats() {
           }
           const effectiveQty = Math.max(0, Number(sp.quantity || 1) - returnedQty);
 
-          const unitPrice = Number(sp.parts?.price || 0);
+          const unitPrice = sp.price !== undefined && sp.price !== null ? Number(sp.price) : Number(sp.parts?.price || 0);
           const total = unitPrice * effectiveQty;
           if (effectiveQty > 0 || Number(sp.quantity || 1) > 0) {
             const pName = sp.parts?.name || '부품';

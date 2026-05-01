@@ -1169,6 +1169,14 @@ function ServiceList() {
           updated_at: new Date().toISOString()
         };
 
+        // 상태가 '완료'로 변경될 때 완료일이 없으면 오늘 날짜로 설정
+        if (!wasCompleted && isNowCompleted && !updateData.completion_date) {
+          const now = new Date();
+          updateData.completion_date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+          updateData.completion_time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+        }
+
+
         const { error: updateError } = await supabase
           .from('services')
           .update(updateData)

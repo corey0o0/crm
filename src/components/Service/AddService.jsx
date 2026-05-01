@@ -443,7 +443,7 @@ function AddService() {
         .from('services')
         .select('*')
         .eq('brand', selectedBrand)
-        .order('created_at', { ascending: false });
+        .order('reception_date', { ascending: false });
 
       if (error) throw error;
       setServices(data || []);
@@ -1555,12 +1555,12 @@ function AddService() {
         const { data: recentServices, error: recentServicesError } = await supabase
           .from('services')
           .select('customer_name, customer_phone, customer_address, brand, product_name, seller')
-          .order('created_at', { ascending: false })
+          .order('reception_date', { ascending: false })
           .limit(10);
         const { data: recentShipments, error: recentShipmentsError } = await supabase
           .from('shipments')
           .select('customer_name, customer_phone, customer_address, brand, product_name')
-          .order('created_at', { ascending: false })
+          .order('order_date', { ascending: false })
           .limit(10);
         if (recentServicesError) throw recentServicesError;
         if (recentShipmentsError) throw recentShipmentsError;
@@ -1628,14 +1628,14 @@ function AddService() {
           .from('services')
           .select('customer_name, customer_phone, customer_address, brand, product_name, seller')
           .or(`customer_phone.ilike."%${safeCleanSearchTerm}%",customer_phone.ilike."%${safeSearchTerm}%"`)
-          .order('created_at', { ascending: false })
+          .order('reception_date', { ascending: false })
           .abortSignal(signal);
           
         shipmentQuery = supabase
           .from('shipments')
           .select('customer_name, customer_phone, customer_address, brand, product_name')
           .or(`customer_phone.ilike."%${safeCleanSearchTerm}%",customer_phone.ilike."%${safeSearchTerm}%"`)
-          .order('created_at', { ascending: false })
+          .order('order_date', { ascending: false })
           .abortSignal(signal);
       } else {
         // 이름 검색 + 혼합 검색
@@ -1643,14 +1643,14 @@ function AddService() {
           .from('services')
           .select('customer_name, customer_phone, customer_address, brand, product_name, seller')
           .or(`customer_name.ilike."%${safeSearchTerm}%",customer_phone.ilike."%${safeCleanSearchTerm}%",customer_phone.ilike."%${safeSearchTerm}%"`)
-          .order('created_at', { ascending: false })
+          .order('reception_date', { ascending: false })
           .abortSignal(signal);
           
         shipmentQuery = supabase
           .from('shipments')
           .select('customer_name, customer_phone, customer_address, brand, product_name')
           .or(`customer_name.ilike."%${safeSearchTerm}%",customer_phone.ilike."%${safeCleanSearchTerm}%",customer_phone.ilike."%${safeSearchTerm}%"`)
-          .order('created_at', { ascending: false })
+          .order('order_date', { ascending: false })
           .abortSignal(signal);
       }
       
@@ -1810,7 +1810,7 @@ function AddService() {
         .select('*')
         .eq('customer_phone', customer.phone)
         .eq('customer_name', customer.name)
-        .order('created_at', { ascending: false })
+        .order('reception_date', { ascending: false })
         .limit(10);
 
       console.log('A/S 이력 조회 결과:', { serviceHistory, serviceError });
@@ -1830,7 +1830,7 @@ function AddService() {
         .select('*')
         .eq('customer_phone', customer.phone)
         .eq('customer_name', customer.name)
-        .order('created_at', { ascending: false })
+        .order('order_date', { ascending: false })
         .limit(10);
 
       console.log('출고 이력 조회 결과:', { shipmentHistory, shipmentError });

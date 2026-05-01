@@ -62,10 +62,10 @@ export default function TaxInvoiceManagement() {
       }
 
       if (dateFilter.startDate) {
-        query = query.gte(dateFilter.type, `${dateFilter.startDate}T00:00:00`);
+        query = query.gte(dateFilter.type, `${dateFilter.startDate}T00:00:00+09:00`);
       }
       if (dateFilter.endDate) {
-        query = query.lte(dateFilter.type, `${dateFilter.endDate}T23:59:59`);
+        query = query.lte(dateFilter.type, `${dateFilter.endDate}T23:59:59+09:00`);
       }
 
       if (searchTerm) {

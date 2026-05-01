@@ -111,7 +111,7 @@ function SalesHistory() {
 
     let shipQuery = supabase
       .from('shipments')
-      .select('id, order_date, customer_name, price, sales_channel, status, note, warehouse_id, shipment_parts(id, part_name, quantity, price, total_price)')
+      .select('id, order_date, customer_name, price, sales_channel, status, note, warehouse_id, shipment_parts(id, part_name, quantity, price, total_price, note)')
       .in('status', ['출고완료', '완료'])
       .order('order_date', { ascending: false });
 
@@ -310,18 +310,36 @@ function SalesHistory() {
         rows.push({ ...baseFields, _id: `ship_${s.id}_none`, part_name: '(품목 미기재)', part_category: '기타', quantity: 0, unit_price: 0, total_price: Number(s.price || 0) });
       } else {
         parts.forEach((p, idx) => {
-          const total = Number(p.total_price || (Number(p.price || 0) * Number(p.quantity || 1)));
-          const pName = p.part_name || '상품';
-          const pCode = p.part_code || '';
-          
-          let cat = p.part_category;
-          if (cat === '파츠') cat = '부품'; // 통계 용어 통일
-          if (!cat || cat === '-' || cat === '알수없음') {
-            cat = resolveCategory(pName, pCode, '', p.part_id);
+          let returnedQty = 0;
+          if (p.note && p.note.includes('[반품완료]')) {
+            returnedQty = p.quantity;
+          } else if (p.note && p.note.includes('[부분반품:')) {
+            const matches = p.note.match(/\[부분반품:(\d+)개\]/g);
+            if (matches) {
+              matches.forEach(m => {
+                const qtyMatch = m.match(/\[부분반품:(\d+)개\]/);
+                if (qtyMatch && qtyMatch[1]) {
+                  returnedQty += parseInt(qtyMatch[1], 10);
+                }
+              });
+            }
           }
+          const effectiveQty = Math.max(0, Number(p.quantity || 1) - returnedQty);
+          const total = Number(p.price || 0) * effectiveQty;
           
-          const brand = resolveBrand(pName, pCode, '', p.part_id);
-          rows.push({ ...baseFields, _id: `ship_${s.id}_${p.id || idx}`, part_name: pName, part_category: cat, part_brand: brand, quantity: Number(p.quantity || 1), unit_price: Number(p.price || 0), total_price: total });
+          if (effectiveQty > 0) {
+            const pName = p.part_name || '상품';
+            const pCode = p.part_code || '';
+            
+            let cat = p.part_category;
+            if (cat === '파츠') cat = '부품'; // 통계 용어 통일
+            if (!cat || cat === '-' || cat === '알수없음') {
+              cat = resolveCategory(pName, pCode, '', p.part_id);
+            }
+            
+            const brand = resolveBrand(pName, pCode, '', p.part_id);
+            rows.push({ ...baseFields, _id: `ship_${s.id}_${p.id || idx}`, part_name: pName, part_category: cat, part_brand: brand, quantity: effectiveQty, unit_price: Number(p.price || 0), total_price: total });
+          }
         });
       }
     });
@@ -393,6 +411,10 @@ function SalesHistory() {
       const items = o.order_items || [];
       const orderNo = o.order_id;
       const fallbackWid = cafeWarehouseMap[o.id];
+      
+      // "반영 예외(무시)" 처리된 건은 제외
+      const hasWarehouseInfo = items.some(item => item._warehouse_id) || fallbackWid;
+      if (!hasWarehouseInfo) return;
       
       const fallbackWarehouseName = fallbackWid && warehouseMap[fallbackWid] ? warehouseMap[fallbackWid] : '온라인출고';
       
