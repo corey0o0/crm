@@ -1343,15 +1343,16 @@ function ShipmentList() {
           <Table sx={{ minWidth: 650, width: '100%', tableLayout: 'fixed', border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
             <TableHead>
               <TableRow>
-                <TableCell width="10%">주문일자</TableCell>
-                <TableCell width="10%">출고일자</TableCell>
-                <TableCell width="10%">고객명</TableCell>
-                <TableCell width="12%">연락처</TableCell>
-                <TableCell width="20%">제품정보</TableCell>
-                <TableCell width="10%">판매처</TableCell>
-                <TableCell width="20%">배송정보</TableCell>
-                <TableCell width="8%">상태</TableCell>
-                <TableCell width="10%">관리</TableCell>
+                <TableCell width="9%">주문일자</TableCell>
+                <TableCell width="9%">출고일자</TableCell>
+                <TableCell width="9%">고객명</TableCell>
+                <TableCell width="11%">연락처</TableCell>
+                <TableCell width="16%">제품정보</TableCell>
+                <TableCell width="11%">주문번호</TableCell>
+                <TableCell width="9%">판매처</TableCell>
+                <TableCell width="16%">배송정보</TableCell>
+                <TableCell width="6%">상태</TableCell>
+                <TableCell width="4%">관리</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -1365,6 +1366,7 @@ function ShipmentList() {
                     <Skeleton variant="text" width="100%" />
                     <Skeleton variant="text" width="70%" />
                   </TableCell>
+                  <TableCell><Skeleton variant="text" width="90%" /></TableCell>
                   <TableCell><Skeleton variant="rectangular" width={60} height={24} /></TableCell>
                   <TableCell>
                     <Skeleton variant="text" width="80%" />
@@ -1972,15 +1974,16 @@ function ShipmentList() {
               <Table sx={{ minWidth: 650, width: '100%', tableLayout: 'fixed', border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                 <TableHead>
                   <TableRow>
-                    <TableCell width="10%">주문일자</TableCell>
-                    <TableCell width="10%">출고일자</TableCell>
-                    <TableCell width="10%">고객명</TableCell>
-                    <TableCell width="12%">연락처</TableCell>
-                    <TableCell width="20%">제품정보</TableCell>
-                    <TableCell width="10%">판매처</TableCell>
-                    <TableCell width="20%">배송정보</TableCell>
-                    <TableCell width="8%">상태</TableCell>
-                    <TableCell width="10%">관리</TableCell>
+                    <TableCell width="9%">주문일자</TableCell>
+                    <TableCell width="9%">출고일자</TableCell>
+                    <TableCell width="9%">고객명</TableCell>
+                    <TableCell width="11%">연락처</TableCell>
+                    <TableCell width="16%">제품정보</TableCell>
+                    <TableCell width="11%">주문번호</TableCell>
+                    <TableCell width="9%">판매처</TableCell>
+                    <TableCell width="16%">배송정보</TableCell>
+                    <TableCell width="6%">상태</TableCell>
+                    <TableCell width="4%">관리</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -2040,6 +2043,11 @@ function ShipmentList() {
                           </Tooltip>
                           <Typography variant="body2" color="text.secondary">
                             {shipment.quantity}개 / {shipment.price?.toLocaleString()}원
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="caption" sx={{ wordBreak: 'break-all', display: 'block', lineHeight: 1.2 }}>
+                            {shipment.note ? (shipment.note.match(/\[주문:(.*?)\]/)?.[1] || shipment.note.match(/20\d{6}-\d{7}/)?.[0] || `SHP-${shipment.id.slice(0, 8).toUpperCase()}`) : `SHP-${shipment.id.slice(0, 8).toUpperCase()}`}
                           </Typography>
                         </TableCell>
                         <TableCell>

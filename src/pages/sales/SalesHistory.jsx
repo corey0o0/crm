@@ -142,6 +142,11 @@ function SalesHistory() {
 
     // 주문번호를 note에서 파싱하는 헬퍼
     const parseOrderNo = (note, id, prefix) => {
+      // 매장출고(SHP)의 경우 무조건 SHP-xxxx ID 형식 사용 (온라인 주문번호 무시)
+      if (prefix === 'SHP') {
+        return `${prefix}-${(id || '').toString().slice(0, 8).toUpperCase()}`;
+      }
+      
       if (note) {
         const m = note.match(/20\d{6}-\d{7}/);
         if (m) return m[0];
