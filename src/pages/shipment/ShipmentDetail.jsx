@@ -155,7 +155,12 @@ function ShipmentDetail() {
         .single();
 
       if (error) throw error;
-      setShipmentData(shipment);
+
+      const parsedShipment = {
+        ...shipment,
+        order_no: shipment.note ? (shipment.note.match(/\[주문:(.*?)\]/)?.[1] || shipment.note.match(/20\d{6}-\d{7}/)?.[0] || '') : ''
+      };
+      setShipmentData(parsedShipment);
 
       // 부품 정보 조회
       try {
@@ -1406,7 +1411,13 @@ function ShipmentDetail() {
                       );
                     })()}
                   </Grid>
-                  <Grid item xs={8}>
+                  <Grid item xs={4}>
+                    <Typography variant="body2" color="text.secondary">주문번호</Typography>
+                    <Typography variant="body1" sx={{ wordBreak: 'break-all' }}>
+                      {shipmentData.order_no || '-'}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={4}>
                     <Typography variant="body2" color="text.secondary">송장번호</Typography>
                     <Typography variant="body1">
                       {shipmentData.tracking_number || '-'}
