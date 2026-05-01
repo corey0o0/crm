@@ -3461,6 +3461,14 @@ function InventoryLayout() {
         </DialogActions>
       </Dialog>
 
+      {/* 창고/매장 상세 모달 */}
+      {warehouseDetailOpen && warehouseDetailTarget && (
+        <LocationManagement
+          open={warehouseDetailOpen}
+          onClose={closeWarehouseDetail}
+          locationId={warehouseDetailTarget.id}
+          locationName={warehouseDetailTarget.name}
+          locationType={warehouseDetailTarget.type}
           products={products}
           warehouses={warehouses}
           recalculatedInventory={inventory}
