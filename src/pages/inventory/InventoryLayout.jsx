@@ -2069,7 +2069,8 @@ function InventoryLayout() {
                          group.items.some(item => 
                            (item.note || '').toLowerCase().includes(filter.note.toLowerCase())
                          ) ||
-                         (group.note || '').toLowerCase().includes(filter.note.toLowerCase());
+                         (group.note || '').toLowerCase().includes(filter.note.toLowerCase()) ||
+                         String(group.id).toLowerCase().includes(filter.note.toLowerCase());
       
       const matchesDateFrom = !filter.dateFrom || group.date >= filter.dateFrom;
       const matchesDateTo = !filter.dateTo || group.date <= filter.dateTo;
