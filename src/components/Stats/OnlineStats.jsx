@@ -34,7 +34,7 @@ import { getCafe24Malls } from '../../utils/cafe24Api';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { ko } from 'date-fns/locale';
-import { format, startOfMonth, endOfMonth, parseISO, startOfYear, endOfYear, getMonth } from 'date-fns';
+import { format, startOfMonth, endOfMonth, parseISO, startOfYear, endOfYear, getMonth, startOfDay, endOfDay } from 'date-fns';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import {
   BarChart,
@@ -141,8 +141,8 @@ function OnlineStats() {
     fetchData(startDate, endDate, brand);
   };
 
-  const formatDateToStartOfDay = (date) => format(date, 'yyyy-MM-dd') + ' 00:00:00';
-  const formatDateToEndOfDay = (date) => format(date, 'yyyy-MM-dd') + ' 23:59:59';
+  const formatDateToStartOfDay = (date) => startOfDay(date).toISOString();
+  const formatDateToEndOfDay = (date) => endOfDay(date).toISOString();
 
   const fetchData = async (qStart, qEnd, qBrand = selectedBrand, qMall = selectedMall) => {
     setLoading(true);
@@ -275,6 +275,24 @@ function OnlineStats() {
 
                 const isGeneral = !o.agency_id;
                 const customerType = isGeneral ? 'general' : 'agency';
+
+                if (isGeneral) {
+                    if (isAirframe) {
+                        totalB2CAirframeQty += qty;
+                        totalB2CAirframeAmt += amount;
+                    } else {
+                        totalB2CPartsQty += qty;
+                        totalB2CPartsAmt += amount;
+                    }
+                } else {
+                    if (isAirframe) {
+                        totalB2BAirframeQty += qty;
+                        totalB2BAirframeAmt += amount;
+                    } else {
+                        totalB2BPartsQty += qty;
+                        totalB2BPartsAmt += amount;
+                    }
+                }
 
                 if (!brandStats[customerType]) {
                   brandStats[customerType] = {};

@@ -84,9 +84,9 @@ function ServiceStats() {
       // A/S 데이터 조회
       let query = supabase
         .from('services')
-        .select('*')
-        .gte('created_at', startDate.toISOString())
-        .lte('created_at', endDate.toISOString());
+        .select('*, service_parts(price, quantity)')
+        .gte('reception_date', startDate.toISOString())
+        .lte('reception_date', endDate.toISOString());
       
       if (selectedBrand !== '전체') {
         query = query.eq('brand', selectedBrand);
@@ -100,13 +100,16 @@ function ServiceStats() {
       const months = eachMonthOfInterval({ start: startDate, end: endDate });
       const monthlyStats = months.map(month => {
         const monthServices = services.filter(service => 
-          format(parseISO(service.created_at), 'yyyy-MM') === format(month, 'yyyy-MM')
+          format(parseISO(service.reception_date || service.created_at), 'yyyy-MM') === format(month, 'yyyy-MM')
         );
         
         return {
           month: format(month, 'yyyy-MM'),
           count: monthServices.length,
-          amount: monthServices.reduce((sum, service) => sum + (service.cost || 0), 0)
+          amount: monthServices.reduce((sum, service) => {
+            const partsCost = service.service_parts?.reduce((pSum, part) => pSum + ((part.price || 0) * (part.quantity || 0)), 0) || 0;
+            return sum + partsCost;
+          }, 0)
         };
       });
 
@@ -157,8 +160,9 @@ function ServiceStats() {
       const brandCounts = {};
       const brandAmounts = {};
       services.forEach(service => {
+        const partsCost = service.service_parts?.reduce((sum, part) => sum + ((part.price || 0) * (part.quantity || 0)), 0) || 0;
         brandCounts[service.brand] = (brandCounts[service.brand] || 0) + 1;
-        brandAmounts[service.brand] = (brandAmounts[service.brand] || 0) + (service.cost || 0);
+        brandAmounts[service.brand] = (brandAmounts[service.brand] || 0) + partsCost;
       });
       
       const brandStats = Object.entries(brandCounts).map(([brand, count]) => ({
@@ -170,12 +174,12 @@ function ServiceStats() {
 
       // 평균 처리 시간 계산 (완료된 건만)
       const completedServices = services.filter(service => 
-        service.status === '완료' && service.completed_at
+        service.status && service.status.includes('완료') && service.completion_date
       );
       
       const totalProcessingTime = completedServices.reduce((sum, service) => {
-        const start = parseISO(service.created_at);
-        const end = parseISO(service.completed_at);
+        const start = parseISO(service.reception_date || service.created_at);
+        const end = parseISO(service.completion_date);
         return sum + (end - start);
       }, 0);
       
@@ -185,12 +189,15 @@ function ServiceStats() {
 
       // 최근 A/S 목록
       const recentServices = [...services]
-        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        .sort((a, b) => new Date(b.reception_date || b.created_at) - new Date(a.reception_date || a.created_at))
         .slice(0, 5);
 
       setStatsData({
         totalCount: services.length,
-        totalAmount: services.reduce((sum, service) => sum + (service.cost || 0), 0),
+        totalAmount: services.reduce((sum, service) => {
+          const partsCost = service.service_parts?.reduce((pSum, part) => pSum + ((part.price || 0) * (part.quantity || 0)), 0) || 0;
+          return sum + partsCost;
+        }, 0),
         monthlyStats,
         statusStats,
         typeStats,
@@ -509,19 +516,21 @@ function ServiceStats() {
       <Paper sx={{ p: 3 }}>
         <Typography variant="h6" gutterBottom>최근 A/S 현황</Typography>
         <Timeline>
-          {statsData.recentServices.map((service) => (
+          {statsData.recentServices.map((service) => {
+            const serviceCost = service.service_parts?.reduce((sum, part) => sum + ((part.price || 0) * (part.quantity || 0)), 0) || 0;
+            return (
             <TimelineItem key={service.id}>
               <TimelineSeparator>
                 <TimelineDot color={
-                  service.status === '완료' ? 'success' :
-                  service.status === '진행중' ? 'primary' :
+                  service.status && service.status.includes('완료') ? 'success' :
+                  service.status && service.status.includes('진행중') ? 'primary' :
                   'grey'
                 } />
                 <TimelineConnector />
               </TimelineSeparator>
               <TimelineContent>
                 <Typography variant="subtitle2">
-                  {format(parseISO(service.created_at), 'yyyy년 M월 d일')}
+                  {format(parseISO(service.reception_date || service.created_at), 'yyyy년 M월 d일')}
                 </Typography>
                 <Typography>
                   {service.customer_name} - {service.type}
@@ -529,9 +538,9 @@ function ServiceStats() {
                 <Typography variant="body2" color="textSecondary">
                   {service.description}
                 </Typography>
-                {service.cost > 0 && (
+                {serviceCost > 0 && (
                   <Typography variant="body2" color="primary">
-                    비용: {service.cost.toLocaleString()}원
+                    비용: {serviceCost.toLocaleString()}원
                   </Typography>
                 )}
                 {service.tags && service.tags.length > 0 && (
@@ -548,7 +557,8 @@ function ServiceStats() {
                 )}
               </TimelineContent>
             </TimelineItem>
-          ))}
+            );
+          })}
         </Timeline>
       </Paper>
     </Box>

@@ -36,7 +36,7 @@ import MenuItem from '@mui/material/MenuItem';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { ko } from 'date-fns/locale';
-import { format, startOfMonth, endOfMonth, parseISO, setMonth, getMonth, startOfWeek, endOfWeek, addWeeks, startOfYear, endOfYear, getWeekOfMonth } from 'date-fns';
+import { format, startOfMonth, endOfMonth, parseISO, setMonth, getMonth, startOfWeek, endOfWeek, addWeeks, startOfYear, endOfYear, getWeekOfMonth, startOfDay, endOfDay } from 'date-fns';
 import {
   BarChart,
   Bar,
@@ -205,13 +205,12 @@ function SalesStats() {
     return '미지정'; // 모든 조건에 해당하지 않으면 '미지정'으로 처리
   };
 
-  // 날짜를 'YYYY-MM-DD 00:00:00'로 변환
+  // 날짜를 ISO 포맷으로 변환 (타임존 이슈 방지)
   const formatDateToStartOfDay = (date) => {
-    return format(date, 'yyyy-MM-dd') + ' 00:00:00';
+    return startOfDay(date).toISOString();
   };
-  // 날짜를 'YYYY-MM-DD 23:59:59'로 변환
   const formatDateToEndOfDay = (date) => {
-    return format(date, 'yyyy-MM-dd') + ' 23:59:59';
+    return endOfDay(date).toISOString();
   };
 
   const fetchSalesData = async (periodInfo) => {
@@ -272,7 +271,8 @@ function SalesStats() {
           customer_phone
         `)
         .gte('order_date', startDateTime)
-        .lte('order_date', endDateTime);
+        .lte('order_date', endDateTime)
+        .in('status', ['출고완료', '완료']);
 
       if (forceRefresh > 0) {
         shipmentQuery = shipmentQuery.options({
@@ -589,10 +589,21 @@ function SalesStats() {
         });
       }
 
-      // partsData 상태 업데이트 시 shipmentPartsByDate에 가공된 데이터 할당
+      // tempShipmentPartsByDate 병합
+      const mergedShipmentPartsByDate = { ...shipmentPartsByDate };
+      Object.entries(tempShipmentPartsByDate).forEach(([date, parts]) => {
+        if (!mergedShipmentPartsByDate[date]) mergedShipmentPartsByDate[date] = [];
+        parts.forEach(p => {
+          if (!mergedShipmentPartsByDate[date].some(existing => existing.shipment_item_key === p.shipment_item_key)) {
+            mergedShipmentPartsByDate[date].push(p);
+          }
+        });
+      });
+
+      // partsData 상태 업데이트 시 가공된 데이터 할당
       setPartsData({
         servicePartsByDate,
-        shipmentPartsByDate // shipment_parts 기준으로 반드시 반영
+        shipmentPartsByDate: mergedShipmentPartsByDate
       });
 
       // 베스트 상품 Top 5 (출고 기준) 계산 - 브랜드 구분 포함
