@@ -57,13 +57,10 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
       );
 
       if (!part.part_id) {
-        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(referenceId));
-        const txGroupId = isUUID ? null : parseInt(referenceId, 10);
-        
         const quantityChange = isRevert ? part.quantity : -part.quantity;
         // 트랜잭션만 기록
         const { error: txError } = await supabase.from('transactions').insert({
-          group_id: isNaN(txGroupId) ? null : txGroupId,
+          group_id: referenceId || null,
           type: isRevert ? 'in' : 'out',
           product_id: null,
           product_name: part.part_name,
@@ -107,9 +104,7 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
           console.error(`[Inventory] 재고 조회 에러 (부품: ${part.part_name}):`, stockGrpError);
         }
 
-        const previousQuantity = currentInv ? currentInv.quantity : 0;
         const quantityChange = isRevert ? part.quantity : -part.quantity;
-        const newQuantity = previousQuantity + quantityChange; // 0 아래로 떨어질 수 있도록 제한 해제
 
         // 연동된 파츠 조회
         const syncedParts = await getSyncedParts(part.part_id);
@@ -117,23 +112,11 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
 
         // 모든 파츠(기본 + 연동) 재고 업데이트 (inventory 테이블)
         const updatePromises = allPartIds.map(async (pId) => {
-           // 먼저 해당 아이템의 기존 재고 조회
-           const { data: pInv } = await supabase
-             .from('inventory')
-             .select('quantity')
-             .eq('warehouse_id', part.warehouse_id || defaultWarehouseId)
-             .eq('product_id', pId)
-             .maybeSingle();
-           
-           const pPrev = pInv ? pInv.quantity : 0;
-           const pNew = pPrev + quantityChange;
-
-           return supabase.from('inventory').upsert({
-             warehouse_id: part.warehouse_id || defaultWarehouseId,
-             product_id: pId,
-             quantity: pNew,
-             updated_at: new Date().toISOString()
-           }, { onConflict: 'warehouse_id,product_id' });
+           return supabase.rpc('adjust_inventory', {
+             p_warehouse_id: part.warehouse_id || defaultWarehouseId,
+             p_product_id: pId,
+             p_quantity_change: quantityChange
+           });
         });
 
         const updateResults = await Promise.all(updatePromises);
@@ -144,6 +127,11 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
           errors.push(`부품 ${part.part_name} 및 연동 파츠 재고 업데이트 실패: ${errorMessages}`);
           continue;
         }
+
+        // RPC 결과에서 메인 파츠의 실제 결과(새 수량) 추출
+        const mainPartResult = updateResults.find((r, idx) => allPartIds[idx] === part.part_id)?.data?.[0];
+        const newQuantity = mainPartResult ? mainPartResult.quantity : 0;
+        const previousQuantity = newQuantity - quantityChange;
 
         // 재고 로그 기록
         const { error: logError } = await supabase

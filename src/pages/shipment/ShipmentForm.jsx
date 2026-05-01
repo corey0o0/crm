@@ -555,6 +555,7 @@ function ShipmentForm({ isManualB2B = false }) {
   };
 
   const handleSubmit = async () => {
+    if (saving) return; // 이중 클릭 방지
     // 필수 입력값 검증
     const requiredFields = [
       { field: 'customer_name', label: '고객명' },

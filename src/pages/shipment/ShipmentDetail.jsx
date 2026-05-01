@@ -435,6 +435,7 @@ function ShipmentDetail() {
 
   // 출고 삭제 함수
   const handleDeleteShipment = async () => {
+    if (saving || loading) return; // 이중 클릭 방지
     if (!isMaster && ['부품준비', '검수완료', '출고대기', '출고완료'].includes(shipmentData.status)) {
       setSnackbar({
         open: true,
@@ -446,6 +447,15 @@ function ShipmentDetail() {
 
     setLoading(true);
     try {
+      // 1. 재고 먼저 복구 (출고완료 상태였을 경우)
+      if (shipmentData.status === '출고완료') {
+        const revertResult = await processShipmentRevert(id, shipmentData.brand);
+        if (!revertResult.success) {
+           throw new Error(`출고 취소로 인한 재고 복구 중 오류: ${revertResult.message}`);
+        }
+      }
+
+      // 2. 부품 삭제
       const { error: deletePartsError } = await supabase
         .from('shipment_parts')
         .delete()
@@ -512,6 +522,7 @@ function ShipmentDetail() {
 
   // 상태 변경 및 재고 처리
   const handleStatusChange = async (newStatus) => {
+    if (saving) return; // 이중 클릭 방지
     setSaving(true);
     try {
       const previousStatus = shipmentData.status;

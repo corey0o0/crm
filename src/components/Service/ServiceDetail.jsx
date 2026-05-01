@@ -830,6 +830,7 @@ function ServiceDetail() {
 
   const handleSubmit = async (e, overrideData = {}) => {
     if (e) e.preventDefault();
+    if (submitting) return; // 이중 클릭 방지
     setSubmitting(true);
     setIsFormSubmitted(true); // 폼 제출 상태로 변경
 
