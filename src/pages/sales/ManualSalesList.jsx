@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Button, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Alert, TextField, Stack, TablePagination, Grid, FormControl, InputLabel, Select, MenuItem, ButtonGroup, Checkbox, Tooltip } from '@mui/material';
+import { Box, Typography, Button, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableFooter, Chip, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Alert, TextField, Stack, TablePagination, Grid, FormControl, InputLabel, Select, MenuItem, ButtonGroup, Checkbox, Tooltip } from '@mui/material';
 import { Add as AddIcon, Search as SearchIcon, Delete as DeleteIcon, Edit as EditIcon, CloudUpload as CloudUploadIcon, FileDownload as FileDownloadIcon } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
 import { useNavigate } from 'react-router-dom';
@@ -18,6 +18,7 @@ export default function ManualSalesList({ isEmbedded = false }) {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(20);
   const [totalCount, setTotalCount] = useState(0);
+  const [totalAmount, setTotalAmount] = useState(0);
   
   const [deleteDialog, setDeleteDialog] = useState(false);
   const [targetToDelete, setTargetToDelete] = useState(null);
@@ -104,6 +105,26 @@ export default function ManualSalesList({ isEmbedded = false }) {
       setShipments(data || []);
       setSelectedItems([]);
       setTotalCount(count || 0);
+
+      // 전체 합계 계산 (현재 필터 조건 반영)
+      let sumQuery = supabase.from('shipments').select('price').or(condition);
+      if (statusFilter !== 'all') sumQuery = sumQuery.eq('status', statusFilter);
+      if (sellerFilter !== 'all') sumQuery = sumQuery.eq('sales_channel', sellerFilter);
+      if (customerFilter !== 'all') sumQuery = sumQuery.eq('customer_name', customerFilter);
+      if (dateFilter.startDate) sumQuery = sumQuery.gte(dateFilter.type, `${dateFilter.startDate}T00:00:00+09:00`);
+      if (dateFilter.endDate) sumQuery = sumQuery.lte(dateFilter.type, `${dateFilter.endDate}T23:59:59+09:00`);
+      if (searchTerm) {
+        let orQuery = `customer_name.ilike.%${searchTerm}%,sales_channel.ilike.%${searchTerm}%,note.ilike.%${searchTerm}%,tracking_number.ilike.%${searchTerm}%`;
+        const cleanTerm = searchTerm.replace(/^(shp-|SHP-)/i, '').trim();
+        if (cleanTerm && /^[0-9a-fA-F-]+$/.test(cleanTerm)) {
+           orQuery += `,id::text.ilike.%${cleanTerm}%`;
+        }
+        sumQuery = sumQuery.or(orQuery);
+      }
+      
+      const { data: sumData } = await sumQuery;
+      const calcTotal = (sumData || []).reduce((acc, curr) => acc + Number(curr.price || 0), 0);
+      setTotalAmount(calcTotal);
 
       // 판매처 목록 동적 수집 (B2B 수기판매 대상 한정)
       if (sellers.length === 1 && data && data.length > 0) {
@@ -772,6 +793,13 @@ export default function ManualSalesList({ isEmbedded = false }) {
               )
             })}
           </TableBody>
+          <TableFooter>
+            <TableRow sx={{ bgcolor: '#f8f9fa' }}>
+              <TableCell colSpan={7} align="right" sx={{ fontWeight: 'bold', py: 2 }}>검색 결과 총 합계</TableCell>
+              <TableCell align="right" sx={{ fontWeight: 'bold', color: '#1976d2', py: 2 }}>{totalAmount.toLocaleString()}원</TableCell>
+              <TableCell colSpan={2}></TableCell>
+            </TableRow>
+          </TableFooter>
         </Table>
         <TablePagination
           component="div"
