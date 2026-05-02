@@ -417,21 +417,22 @@ function SalesHistoryStats() {
               if (iPrice === 0) iPrice = Math.round(paymentAmt / itemQty);
           } else {
               let itemWeight = iPrice * itemQty;
+              const distributableAmount = Math.max(0, Number(o.total_amount || 0) - Number(o.shipping_fee || 0));
 
                if (totalWeight > 0) {
-                 total = Math.floor((itemWeight / totalWeight) * Number(o.total_amount || 0));
+                 total = Math.floor((itemWeight / totalWeight) * distributableAmount);
                  if (idx === items.length - 1) {
                     let previousTotals = items.slice(0, items.length - 1).reduce((acc, prevItem) => {
                        let prevQty = Number(prevItem.quantity || 1);
                        let prevWeight = Number(prevItem.product_price || prevItem.price || 0) * prevQty;
-                       return acc + Math.floor((prevWeight / totalWeight) * Number(o.total_amount || 0));
+                       return acc + Math.floor((prevWeight / totalWeight) * distributableAmount);
                     }, 0);
-                    total = Number(o.total_amount || 0) - previousTotals;
+                    total = distributableAmount - previousTotals;
                  }
               } else {
-                 total = Math.floor(Number(o.total_amount || 0) / items.length);
+                 total = Math.floor(distributableAmount / items.length);
                  if (idx === items.length - 1) {
-                    total = Number(o.total_amount || 0) - (total * (items.length - 1));
+                    total = distributableAmount - (total * (items.length - 1));
                  }
               }
               if (iPrice === 0 && total > 0) iPrice = Math.round(total / itemQty);
@@ -444,6 +445,18 @@ function SalesHistoryStats() {
              rows.push({ ...baseFields, part_name: pName, part_category: cat, part_brand: brand, quantity: itemQty, total_price: total, total_cost: unitCost * itemQty });
           }
         });
+
+        if (Number(o.shipping_fee) > 0) {
+          rows.push({
+            ...baseFields,
+            part_name: '배송비',
+            part_category: '기타',
+            part_brand: '-',
+            quantity: 1,
+            total_price: Number(o.shipping_fee),
+            total_cost: 0
+          });
+        }
       }
     });
 

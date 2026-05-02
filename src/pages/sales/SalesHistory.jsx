@@ -512,22 +512,23 @@ function SalesHistory() {
               }, 0);
 
               let itemWeight = iPrice * itemQty;
+              const distributableAmount = Math.max(0, Number(o.total_amount || 0) - Number(o.shipping_fee || 0));
 
               if (totalWeight > 0) {
-                 total = Math.floor((itemWeight / totalWeight) * Number(o.total_amount || 0));
+                 total = Math.floor((itemWeight / totalWeight) * distributableAmount);
                  if (idx === validItems.length - 1) {
                     let previousTotals = validItems.slice(0, validItems.length - 1).reduce((acc, prevItem) => {
                        let prevQty = Number(prevItem.quantity || 1);
                        let prevWeight = Number(prevItem.product_price || prevItem.price || 0) * prevQty;
-                       return acc + Math.floor((prevWeight / totalWeight) * Number(o.total_amount || 0));
+                       return acc + Math.floor((prevWeight / totalWeight) * distributableAmount);
                     }, 0);
-                    total = Number(o.total_amount || 0) - previousTotals;
+                    total = distributableAmount - previousTotals;
                  }
               } else {
                  // 모든 품목의 가격이 0원인데 total_amount가 0이 아닌 경우 균등 분배
-                 total = Math.floor(Number(o.total_amount || 0) / validItems.length);
+                 total = Math.floor(distributableAmount / validItems.length);
                  if (idx === validItems.length - 1) {
-                    total = Number(o.total_amount || 0) - (total * (validItems.length - 1));
+                    total = distributableAmount - (total * (validItems.length - 1));
                  }
               }
               if (iPrice === 0 && total > 0) iPrice = Math.round(total / itemQty);
@@ -545,6 +546,21 @@ function SalesHistory() {
 
           rows.push({ ...baseFields, warehouse_name: itemWarehouseName, _id: `cafe_${o.id}_${idx}`, part_name: pName, part_category: cat, part_brand: brand, quantity: itemQty, unit_price: iPrice, unit_shipping_fee: shipFee, total_price: total });
         });
+
+        if (Number(o.shipping_fee) > 0) {
+          rows.push({
+            ...baseFields,
+            warehouse_name: fallbackWarehouseName,
+            _id: `cafe_${o.id}_shipping`,
+            part_name: '배송비',
+            part_category: '기타',
+            part_brand: '-',
+            quantity: 1,
+            unit_price: Number(o.shipping_fee),
+            unit_shipping_fee: 0,
+            total_price: Number(o.shipping_fee)
+          });
+        }
       }
     });
 
