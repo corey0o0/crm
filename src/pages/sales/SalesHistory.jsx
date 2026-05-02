@@ -578,6 +578,8 @@ function SalesHistory() {
              orderBrand = brand;
           }
           
+          orderItemsSum += total;
+
           if (isDuplicate && pCodeCheck) {
               const firstRow = orderRows.find(r => r._pCode === pCodeCheck);
               if (firstRow) {
@@ -585,8 +587,6 @@ function SalesHistory() {
                   total = 0;
               }
           }
-          
-          orderItemsSum += total;
 
           if (!['C11', 'C40', 'R40', 'E40'].includes(item.order_status)) {
              orderRows.push({ ...baseFields, warehouse_name: itemWarehouseName, _id: `cafe_${o.id}_${idx}`, part_name: pName, part_category: cat, part_brand: brand, quantity: statQty, unit_price: iPrice, unit_shipping_fee: shipFee, total_price: total, _pCode: pCodeCheck });

@@ -462,6 +462,7 @@ function SalesHistoryStats() {
           if (idx === 0) {
              orderBrand = brand;
           }
+          
           let statQty = itemQty;
           const pCode = String(item.product_code || '').trim();
           let isDuplicate = false;
@@ -474,6 +475,8 @@ function SalesHistoryStats() {
               }
           }
           
+          orderItemsSum += total;
+
           if (isDuplicate && pCode) {
               const firstRow = orderRows.find(r => r._pCode === pCode);
               if (firstRow) {
@@ -481,8 +484,6 @@ function SalesHistoryStats() {
                   total = 0;
               }
           }
-          
-          orderItemsSum += total;
           
           if (!['C11', 'C40', 'R40', 'E40'].includes(item.order_status)) {
              orderRows.push({ ...baseFields, part_name: pName, part_category: cat, part_brand: brand, quantity: statQty, total_price: total, total_cost: unitCost * itemQty, _pCode: pCode });
