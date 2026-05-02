@@ -322,7 +322,7 @@ export default function SalesEditModal({ open, onClose, orderId, orderType, onRe
                   <TextField label="일자" size="small" fullWidth value={dateStr} disabled />
                 </Grid>
                 <Grid item xs={6} sm={2}>
-                  <TextField label="주문번호" size="small" fullWidth value={orderData?.order_id || orderId || ''} disabled />
+                  <TextField label="주문번호" size="small" fullWidth value={orderData?.order_no || orderData?.order_id || (orderType === 'shipment' && orderId ? `SHP-${String(orderId).slice(0, 8).toUpperCase()}` : orderId) || ''} disabled />
                 </Grid>
                 <Grid item xs={6} sm={2}>
                   <TextField label="브랜드" size="small" fullWidth value={orderBrand} disabled={orderType === 'cafe24'} onChange={e => setOrderBrand(e.target.value)} />
