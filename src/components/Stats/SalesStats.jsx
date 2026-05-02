@@ -365,26 +365,71 @@ function SalesStats() {
         const date = format(parseISO(shipment.order_date), 'yyyy-MM-dd');
         // shipmentPartsByDate에 이미 해당 출고건이 있으면 skip
         if (shipmentPartsByDate[date] && shipmentPartsByDate[date].some(p => p.shipment_id === shipment.id)) return;
-        // fallback: 기존 임의 분배/추정 로직 (단일 품목만 처리)
-        const productNames = (shipment.product_name || '').split(',').map(pn => pn.trim()).filter(pn => pn);
-        if (productNames.length === 1) {
-          const partInfo = partsPriceMap.get(productNames[0]);
+        
+        if (!fallbackShipmentPartsByDate[date]) fallbackShipmentPartsByDate[date] = [];
+        const salesChannel = extractSalesChannel(shipment.note, shipment.sales_channel);
+
+        const productNames = (shipment.product_name || "").split(',').map(pn => pn.trim()).filter(pn => pn);
+        const numIndividualProducts = productNames.length > 0 ? productNames.length : 1;
+
+        const originalShipmentTotal = shipment.price || 0;
+        const originalShipmentQuantity = shipment.quantity || 0;
+
+        if (productNames.length === 0) { // product_name이 비어있거나 단일 항목이지만 분리 안된 경우
+          const productNameTrimmed = (shipment.product_name || '').trim();
+          const partInfo = productNameTrimmed ? partsPriceMap.get(productNameTrimmed) : undefined;
           const unitPriceFromMap = partInfo ? partInfo.price : undefined;
-          const actualQuantity = shipment.quantity || 1;
-          let displayedUnitPrice = typeof unitPriceFromMap === 'number' ? unitPriceFromMap : (shipment.price || 0) / actualQuantity;
-          if (!fallbackShipmentPartsByDate[date]) fallbackShipmentPartsByDate[date] = [];
+
+          let displayedUnitPrice;
+          const actualQuantity = originalShipmentQuantity || 1;
+
+          if (typeof unitPriceFromMap === 'number') {
+            displayedUnitPrice = unitPriceFromMap;
+          } else {
+            displayedUnitPrice = actualQuantity > 0 ? originalShipmentTotal / actualQuantity : 0;
+          }
+
           fallbackShipmentPartsByDate[date].push({
             shipment_id: shipment.id,
-            name: productNames[0],
+            name: shipment.product_name || 'N/A',
             code: '',
             quantity: actualQuantity,
             price: displayedUnitPrice,
-            total: shipment.price || 0,
+            total: originalShipmentTotal,
             brand: shipment.brand,
             customer_name: shipment.customer_name,
             customer_phone: shipment.customer_phone,
-            sales_channel: extractSalesChannel(shipment.note, shipment.sales_channel),
-            shipment_item_key: `${shipment.id}-fallback`,
+            sales_channel: salesChannel,
+            shipment_item_key: `${shipment.id}-0`,
+          });
+        } else {
+          productNames.forEach((individualName, index) => {
+            const partInfo = partsPriceMap.get(individualName);
+            const unitPriceFromMap = partInfo ? partInfo.price : undefined;
+            const actualSetQuantity = originalShipmentQuantity || 1;
+
+            let displayedUnitPrice;
+
+            if (typeof unitPriceFromMap === 'number') {
+              displayedUnitPrice = unitPriceFromMap;
+            } else {
+              const allocatedAmountForThisItem = numIndividualProducts > 0 ? originalShipmentTotal / numIndividualProducts : 0;
+              displayedUnitPrice = actualSetQuantity > 0 ? allocatedAmountForThisItem / actualSetQuantity : 0;
+            }
+
+            fallbackShipmentPartsByDate[date].push({
+              shipment_id: shipment.id,
+              name: individualName,
+              code: '',
+              quantity: 1, // 개별 부품으로 세분화
+              price: displayedUnitPrice,
+              total: displayedUnitPrice,
+              brand: shipment.brand,
+              customer_name: shipment.customer_name,
+              customer_phone: shipment.customer_phone,
+              sales_channel: salesChannel,
+              shipment_item_key: `${shipment.id}-${index}`,
+            });
           });
         }
       });
@@ -435,7 +480,6 @@ function SalesStats() {
 
       // 데이터를 저장할 객체 초기화
       const servicePartsByDate = {};
-      const tempShipmentPartsByDate = {}; // 임시 객체 사용
 
       // A/S 부품 데이터 가공
       if (servicePartsData) {
@@ -490,115 +534,8 @@ function SalesStats() {
         });
       }
 
-      // 출고 데이터 가공 (수정된 로직)
-      if (shipmentsData) {
-        shipmentsData.forEach(shipment => {
-          const date = format(parseISO(shipment.order_date), 'yyyy-MM-dd');
-          if (!tempShipmentPartsByDate[date]) {
-            tempShipmentPartsByDate[date] = [];
-          }
-          const salesChannel = extractSalesChannel(shipment.note, shipment.sales_channel);
-
-          // 청담매장 출고 데이터 가공 디버깅
-          if (salesChannel === '청담매장' || salesChannel.includes('청담')) {
-            debugLog('청담매장 출고 데이터 가공:', {
-              shipment_id: shipment.id,
-              date: date,
-              customer: shipment.customer_name,
-              product_name: shipment.product_name,
-              price: shipment.price,
-              quantity: shipment.quantity,
-              sales_channel_field: shipment.sales_channel,
-              note: shipment.note,
-              extracted_channel: salesChannel
-            });
-          }
-
-          const productNames = (shipment.product_name || "").split(',').map(pn => pn.trim()).filter(pn => pn);
-          const numIndividualProducts = productNames.length > 0 ? productNames.length : 1;
-
-          const originalShipmentTotal = shipment.price || 0;
-          const originalShipmentQuantity = shipment.quantity || 0;
-
-          if (productNames.length === 0) { // product_name이 비어있거나 단일 항목이지만 분리 안된 경우 (예: 이전 데이터)
-            const productNameTrimmed = (shipment.product_name || '').trim();
-            const partInfo = productNameTrimmed ? partsPriceMap.get(productNameTrimmed) : undefined;
-            const unitPriceFromMap = partInfo ? partInfo.price : undefined;
-
-            let displayedUnitPrice; // 부품 1개당 단가
-            const actualQuantity = originalShipmentQuantity || 1; // 실제 출고된 수량 (단일 품목이므로 세트 수량과 동일)
-
-            if (typeof unitPriceFromMap === 'number') {
-              displayedUnitPrice = unitPriceFromMap;
-            } else {
-              // parts에 단가 정보 없으면, (총액 / 수량)을 추정 단가로 사용
-              displayedUnitPrice = actualQuantity > 0 ? originalShipmentTotal / actualQuantity : 0;
-            }
-
-            tempShipmentPartsByDate[date].push({
-              shipment_id: shipment.id,
-              name: shipment.product_name || 'N/A',
-              code: '',
-              quantity: actualQuantity, // 단일 품목이므로 실제 출고 수량 표시
-              price: displayedUnitPrice,
-              total: originalShipmentTotal, // 단일 품목이므로 해당 출고 건의 총액
-              status: shipment.status,
-              note: shipment.note,
-              sales_channel: salesChannel,
-              customer_name: shipment.customer_name,
-              customer_phone: shipment.customer_phone,
-              shipment_item_key: `${shipment.id}-0`,
-            });
-          } else {
-            productNames.forEach((individualName, index) => {
-              const partInfo = partsPriceMap.get(individualName);
-              const unitPriceFromMap = partInfo ? partInfo.price : undefined;
-              const actualSetQuantity = originalShipmentQuantity || 1; // 실제 출고된 세트 수량
-
-              let displayedUnitPrice; // '단가' 컬럼에 표시될 값 (부품 1개당 단가)
-              // let lineTotal;          // '합계' 컬럼에 표시될 값 (부품단가 * 세트수량 또는 할당금액) <- 이 부분을 수정
-
-              if (typeof unitPriceFromMap === 'number') {
-                displayedUnitPrice = unitPriceFromMap; // parts에서 찾은 단가
-                // lineTotal = displayedUnitPrice * actualSetQuantity; // 단가 * 세트 수량 <- 이 계산 방식을 변경
-              } else {
-                // parts에 단가 정보가 없는 경우: 
-                // 해당 제품라인에 할당된 금액을 lineTotal로 사용
-                const allocatedAmountForThisItem = numIndividualProducts > 0 ? originalShipmentTotal / numIndividualProducts : 0;
-                // lineTotal = allocatedAmountForThisItem;
-                // 추정 단가는 (할당된 금액 / 세트 수량)으로 계산
-                displayedUnitPrice = actualSetQuantity > 0 ? allocatedAmountForThisItem / actualSetQuantity : 0;
-              }
-
-              tempShipmentPartsByDate[date].push({
-                shipment_id: shipment.id,
-                name: individualName,
-                code: '', // 부품 코드가 필요하다면 partsPriceMap에서 함께 가져와야 함
-                quantity: 1, // 여러 부품으로 구성된 경우, 각 라인의 수량은 1로 표시 (세트 내 1개 의미)
-                price: displayedUnitPrice,
-                total: displayedUnitPrice, // 여러 부품 세트의 경우, '합계'는 해당 부품 1개의 '단가'와 동일하게 표시
-                status: shipment.status,
-                note: index === 0 ? shipment.note : '',
-                sales_channel: salesChannel,
-                customer_name: shipment.customer_name,
-                customer_phone: shipment.customer_phone,
-                shipment_item_key: `${shipment.id}-${index}`,
-              });
-            });
-          }
-        });
-      }
-
-      // tempShipmentPartsByDate 병합
+      // (중복 처리 로직이었던 tempShipmentPartsByDate 블록 제거됨)
       const mergedShipmentPartsByDate = { ...shipmentPartsByDate };
-      Object.entries(tempShipmentPartsByDate).forEach(([date, parts]) => {
-        if (!mergedShipmentPartsByDate[date]) mergedShipmentPartsByDate[date] = [];
-        parts.forEach(p => {
-          if (!mergedShipmentPartsByDate[date].some(existing => existing.shipment_item_key === p.shipment_item_key)) {
-            mergedShipmentPartsByDate[date].push(p);
-          }
-        });
-      });
 
       // partsData 상태 업데이트 시 가공된 데이터 할당
       setPartsData({
