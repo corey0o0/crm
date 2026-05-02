@@ -218,6 +218,14 @@ function SalesHistoryStats() {
     const resolveBrand = (name, code = '') => {
       if (code && partsBrandByCode[code]) return partsBrandByCode[code];
       if (name && partsBrandMap[name]) return partsBrandMap[name];
+      
+      const c = (code || '').toUpperCase();
+      const n = (name || '').toLowerCase();
+      if (c.startsWith('XRB')) return 'XRB';
+      if (c.startsWith('NB')) return 'NEARBIKE';
+      if (n.includes('xrb') || n.includes('엑스알비')) return 'XRB';
+      if (n.includes('nearbike') || n.includes('니어바이크') || n.includes('전동포')) return 'NEARBIKE';
+      
       return '-';
     };
 
@@ -468,7 +476,17 @@ function SalesHistoryStats() {
   };
 
   const currentFiltered = flatRows.filter(r => {
-    if (filterType !== 'all' && r._type !== filterType) return false;
+    if (filterType !== 'all') {
+      const isAgency = r.sales_channel && !['고객', '-', '일반출고(공홈)', '온라인주문', '매장출고', '청담매장', '기타', '본점'].includes(r.sales_channel) && (agenciesList.includes(r.sales_channel) || r.sales_channel?.includes('대리점'));
+      
+      if (filterType === 'agency') {
+        if (!isAgency) return false;
+      } else if (filterType === 'shipment') {
+        if (r._type !== 'shipment' || isAgency) return false;
+      } else {
+        if (r._type !== filterType) return false;
+      }
+    }
     if (filterBrand !== '전체' && r.part_brand !== filterBrand) return false;
     return true;
   });
@@ -823,11 +841,12 @@ function SalesHistoryStats() {
             />
           </LocalizationProvider>
 
-          <FormControl size="small" sx={{ width: 120 }}>
+          <FormControl size="small" sx={{ width: 130 }}>
             <InputLabel>구분</InputLabel>
             <Select value={filterType} label="구분" onChange={(e) => setFilterType(e.target.value)}>
               <MenuItem value="all">전체</MenuItem>
               <MenuItem value="shipment">매장출고</MenuItem>
+              <MenuItem value="agency">대리점출고</MenuItem>
               <MenuItem value="cafe24">온라인주문</MenuItem>
               <MenuItem value="service">A/S</MenuItem>
             </Select>
