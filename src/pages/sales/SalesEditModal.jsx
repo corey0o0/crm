@@ -126,6 +126,11 @@ export default function SalesEditModal({ open, onClose, orderId, orderType, onRe
         setOrderBrand(cBrand);
 
         const validItems = orderItems.filter(item => !['C11', 'C40', 'R40', 'E40'].includes(item.order_status));
+        validItems.sort((a, b) => {
+             const amtA = Number(a.payment_amount !== undefined && a.payment_amount !== null ? a.payment_amount : (a.product_price || a.price || 0));
+             const amtB = Number(b.payment_amount !== undefined && b.payment_amount !== null ? b.payment_amount : (b.product_price || b.price || 0));
+             return amtB - amtA;
+        });
         const mappedItems = [];
         const seenProductCodes = new Set();
         validItems.forEach((item, i) => {

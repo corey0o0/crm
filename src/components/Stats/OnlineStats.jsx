@@ -243,8 +243,11 @@ function OnlineStats() {
                }
                
                let amount = 0;
+               let isExplicitlyZero = item.payment_amount !== undefined && item.payment_amount !== null && Number(item.payment_amount) === 0;
                if (item.payment_amount !== undefined && item.payment_amount !== null && Number(item.payment_amount) > 0) {
                    amount = Number(item.payment_amount);
+               } else if (isExplicitlyZero) {
+                   amount = 0;
                } else if (totalWeight > 0) {
                    const pPrice = Number(item.product_price || item.price || (p ? p.price : 0));
                    amount = Math.floor(((pPrice * qty) / totalWeight) * Number(o.total_amount || 0));

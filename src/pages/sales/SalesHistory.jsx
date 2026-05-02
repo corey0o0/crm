@@ -483,6 +483,11 @@ function SalesHistory() {
         let orderItemsSum = 0;
         let seenProductCodes = new Set();
         const validItems = items.filter(item => !['C11', 'C40', 'R40', 'E40'].includes(item.order_status));
+        validItems.sort((a, b) => {
+             const amtA = Number(a.payment_amount !== undefined && a.payment_amount !== null ? a.payment_amount : (a.product_price || a.price || 0));
+             const amtB = Number(b.payment_amount !== undefined && b.payment_amount !== null ? b.payment_amount : (b.product_price || b.price || 0));
+             return amtB - amtA;
+        });
         if (validItems.length === 0) return; // 전액/전부 취소건은 리스트에서 제외
         
         const orderRows = [];

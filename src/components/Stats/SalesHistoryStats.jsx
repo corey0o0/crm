@@ -397,6 +397,11 @@ function SalesHistoryStats() {
         let orderItemsSum = 0;
         let seenProductCodes = new Set();
         const validItems = items.filter(item => !['C11', 'C40', 'R40', 'E40'].includes(item.order_status));
+        validItems.sort((a, b) => {
+             const amtA = Number(a.payment_amount !== undefined && a.payment_amount !== null ? a.payment_amount : (a.product_price || a.price || 0));
+             const amtB = Number(b.payment_amount !== undefined && b.payment_amount !== null ? b.payment_amount : (b.product_price || b.price || 0));
+             return amtB - amtA;
+        });
         if (validItems.length === 0) {
           // 유효 항목이 없으면 건너뛰거나 기본값 처리
           return;

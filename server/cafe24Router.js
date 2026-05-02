@@ -480,7 +480,7 @@ module.exports = function(supabaseAdmin) {
             item_discount: itemDiscount,
             bundle_discount: bundleDiscount,
             discount_amount: itemDiscount + bundleDiscount,
-            payment_amount: (item.payment_amount !== null && item.payment_amount !== undefined && Number(item.payment_amount) > 0) 
+            payment_amount: (item.payment_amount !== null && item.payment_amount !== undefined) 
               ? Number(item.payment_amount) 
               : Math.max(0, (Number(item.product_price || 0) * Number(item.quantity || 1)) - itemDiscount - bundleDiscount),
             options: item.option_value || '',
