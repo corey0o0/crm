@@ -1358,7 +1358,7 @@ function ShipmentDetail() {
                   출고 ID
                 </Typography>
                 <Typography variant="body2" sx={{ fontWeight: 'medium', fontFamily: 'monospace', fontSize: '0.875rem' }}>
-                  {shipmentData.id}
+                  {`SHP-${String(shipmentData.id).slice(0, 8).toUpperCase()}`}
                 </Typography>
               </Box>
             </Box>
