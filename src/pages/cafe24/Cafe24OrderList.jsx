@@ -1825,7 +1825,7 @@ export default function Cafe24OrderList() {
 
           <Autocomplete
             options={agencies}
-            getOptionLabel={(option) => `${option.name} ${option.business_number ? `(${option.business_number})` : ''}`}
+            getOptionLabel={(option) => `${option.name} ${option.ceo_name ? `[${option.ceo_name}]` : ''} ${option.business_number ? `(${option.business_number})` : ''}`}
             isOptionEqualToValue={(option, value) => option.id === value?.id}
             value={selectedAgency}
             onChange={(event, newValue) => setSelectedAgency(newValue)}
@@ -1835,7 +1835,8 @@ export default function Cafe24OrderList() {
               return (
                 <li key={option.id || key} {...otherProps}>
                   <Box>
-                    <Typography variant="body1">{option.name}</Typography>
+                    <Typography variant="body1">{option.name} {option.ceo_name && <span style={{fontSize:'0.85em', color:'gray'}}>[{option.ceo_name}]</span>}</Typography>
+                    <Typography variant="caption" color="text.secondary" display="block">주소: {option.address || '미등록'}</Typography>
                     <Typography variant="caption" color="text.secondary">사업자번호: {option.business_number || '없음'} | 연동ID: {option.cafe24_member_id || '미연동'}</Typography>
                   </Box>
                 </li>
