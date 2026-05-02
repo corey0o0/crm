@@ -467,6 +467,7 @@ function SalesHistory() {
       if (items.length === 0) {
         rows.push({ ...baseFields, warehouse_name: fallbackWarehouseName, _id: `cafe_${o.id}_none`, part_name: '(품목 미기재)', part_category: '기타', part_brand: '-', quantity: 0, unit_price: 0, total_price: Number(o.total_amount || 0) });
       } else {
+        let orderBrand = '-';
         const validItems = items.filter(item => !['C11', 'C40', 'R40', 'E40'].includes(item.order_status));
         if (validItems.length === 0) return; // 전액/전부 취소건은 리스트에서 제외
 
@@ -543,6 +544,10 @@ function SalesHistory() {
 
           const cat = resolveCategory(pName, customCode, pCode, item.part_id);
           const brand = resolveBrand(pName, customCode, pCode, item.part_id);
+          
+          if (idx === 0) {
+             orderBrand = brand;
+          }
 
           rows.push({ ...baseFields, warehouse_name: itemWarehouseName, _id: `cafe_${o.id}_${idx}`, part_name: pName, part_category: cat, part_brand: brand, quantity: itemQty, unit_price: iPrice, unit_shipping_fee: shipFee, total_price: total });
         });
@@ -554,7 +559,7 @@ function SalesHistory() {
             _id: `cafe_${o.id}_shipping`,
             part_name: '배송비',
             part_category: '기타',
-            part_brand: '-',
+            part_brand: orderBrand,
             quantity: 1,
             unit_price: Number(o.shipping_fee),
             unit_shipping_fee: 0,
