@@ -509,6 +509,12 @@ module.exports = function(supabaseAdmin) {
           return acc + (isCancelled ? 0 : Number(item.payment_amount || 0));
         }, 0);
       }
+      
+      const paymentMethodStr = order.payment_method_name ? order.payment_method_name.join(',') : (order.payment_method ? order.payment_method.join(',') : '');
+      if (paymentMethodStr.includes('예치금') && !paymentMethodStr.includes('적립금')) {
+          total_amount = items_payment_sum + shipping_fee;
+      }
+      
       const used_points = Math.max(0, items_payment_sum + shipping_fee - Number(total_amount));
 
       const payload = {
