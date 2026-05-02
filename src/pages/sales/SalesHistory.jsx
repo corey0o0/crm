@@ -590,11 +590,12 @@ function SalesHistory() {
       if (r._orderId) uniqueGroups.service.add(r._orderId);
       groupAmounts.service += price;
     } else {
-      const isAgency = r.sales_channel && !['고객', '-', '일반출고(공홈)', '공홈', '온라인주문', '매장출고', '청담매장', '기타', '본점'].includes(r.sales_channel);
+      const nonAgencyChannels = ['공홈', '청담매장', '라이클-우리', '스마트할부', '스마트스토어', '기타', '온라인주문', '고객', '-', '본사/기본', '과거 이카운트 이관', '일반출고(공홈)', '매장출고', '본점'];
+      const isAgency = r.sales_channel && !nonAgencyChannels.includes(r.sales_channel);
       if (isAgency) {
         if (r._orderId) uniqueGroups.agency.add(r._orderId);
         groupAmounts.agency += price;
-      } else if (r.sales_channel === '온라인주문' || r.sales_channel === '공홈' || r.sales_channel === '일반출고(공홈)' || r._type === 'cafe24') {
+      } else if (r._type === 'cafe24' || ['온라인주문', '공홈', '일반출고(공홈)', '라이클-우리', '스마트할부', '스마트스토어'].includes(r.sales_channel)) {
         if (r._orderId) uniqueGroups.online.add(r._orderId);
         groupAmounts.online += price;
       } else {

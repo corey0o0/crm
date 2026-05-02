@@ -564,6 +564,11 @@ function ShipmentForm() {
     try {
       // 판매처 정보를 메모에 포함
       let finalNote = shipmentData.note || '';
+
+      if (!finalNote.includes('[수기판매]')) {
+        finalNote = `[수기판매] ${finalNote}`.trim();
+      }
+
       if (shipmentData.sales_channel) {
         if (finalNote.includes('[판매처:')) {
           finalNote = finalNote.replace(/\[판매처: .*?\]/, `[판매처: ${shipmentData.sales_channel}]`);
