@@ -51,7 +51,7 @@ import {
   NavigateNext as NavigateNextIcon
 } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
-import warehouseApi from '../../api/warehouseApi';
+import { warehouseApi } from '../../api/warehouseApi';
 import { fetchShipments as fetchShipmentsAPI, countShipments, countPendingAndShippingByBrand } from '../../utils/restApiUtils';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
