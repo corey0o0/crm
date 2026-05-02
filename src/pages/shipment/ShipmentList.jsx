@@ -325,8 +325,8 @@ function ShipmentList() {
       let processedDateFilter = {};
       if (dateFilter.startDate && dateFilter.endDate) {
         processedDateFilter = {
-          startDate: startOfDay(new Date(dateFilter.startDate)).toISOString(),
-          endDate: endOfDay(new Date(dateFilter.endDate)).toISOString(),
+          startDate: format(new Date(dateFilter.startDate), 'yyyy-MM-dd') + 'T00:00:00+09:00',
+          endDate: format(new Date(dateFilter.endDate), 'yyyy-MM-dd') + 'T23:59:59+09:00',
           type: dateFilter.type
         };
       }
@@ -452,8 +452,8 @@ function ShipmentList() {
       let processedDateFilter = {};
       if (dateFilter.startDate && dateFilter.endDate) {
         processedDateFilter = {
-          startDate: startOfDay(new Date(dateFilter.startDate)).toISOString(),
-          endDate: endOfDay(new Date(dateFilter.endDate)).toISOString(),
+          startDate: format(new Date(dateFilter.startDate), 'yyyy-MM-dd') + 'T00:00:00+09:00',
+          endDate: format(new Date(dateFilter.endDate), 'yyyy-MM-dd') + 'T23:59:59+09:00',
           type: dateFilter.type
         };
       }
@@ -955,7 +955,7 @@ function ShipmentList() {
               phone: item['연락처'],
               address: item['주소'] || ''
             },
-            orderDate: item['주문일'] || new Date().toISOString().split('T')[0],
+            orderDate: item['주문일'] || format(new Date(), 'yyyy-MM-dd'),
             shipmentDate: item['출고일'] || '',
             note: item['메모'] || '',
             salesChannel: item['판매처'] || '공홈',
@@ -1052,7 +1052,7 @@ function ShipmentList() {
             quantity: product.quantity,
             from_location: 'DEFAULT', // 이카운트 이전 데이터용 가상 창고
             to_location: '외부(고객)',
-            date: groupData.orderDate || new Date().toISOString().split('T')[0],
+            date: groupData.orderDate || format(new Date(), 'yyyy-MM-dd'),
             note: `[이카운트 이전] ${groupData.customer.name}`,
             is_grouped: groupData.products.length > 1,
             status: '완료' // 완료 처리하여 입출고 내역에 표시

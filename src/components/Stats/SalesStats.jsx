@@ -207,10 +207,10 @@ function SalesStats() {
 
   // 날짜를 ISO 포맷으로 변환 (타임존 이슈 방지)
   const formatDateToStartOfDay = (date) => {
-    return startOfDay(date).toISOString();
+    return format(date, 'yyyy-MM-dd') + 'T00:00:00+09:00';
   };
   const formatDateToEndOfDay = (date) => {
-    return endOfDay(date).toISOString();
+    return format(date, 'yyyy-MM-dd') + 'T23:59:59+09:00';
   };
 
   const fetchSalesData = async (periodInfo) => {

@@ -30,6 +30,7 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ko } from 'date-fns/locale';
+import { format } from 'date-fns';
 
 const InventoryLogs = () => {
   const [currentTab, setCurrentTab] = useState(0);
@@ -72,12 +73,10 @@ const InventoryLogs = () => {
         query = query.ilike('part_name', `%${filters.partName}%`);
       }
       if (filters.startDate) {
-        query = query.gte('created_at', filters.startDate.toISOString());
+        query = query.gte('created_at', format(filters.startDate, 'yyyy-MM-dd') + 'T00:00:00+09:00');
       }
       if (filters.endDate) {
-        const endDate = new Date(filters.endDate);
-        endDate.setHours(23, 59, 59, 999);
-        query = query.lte('created_at', endDate.toISOString());
+        query = query.lte('created_at', format(filters.endDate, 'yyyy-MM-dd') + 'T23:59:59+09:00');
       }
 
       const { data, error, count } = await query;
@@ -113,12 +112,10 @@ const InventoryLogs = () => {
         query = query.ilike('parts.name', `%${filters.partName}%`);
       }
       if (filters.startDate) {
-        query = query.gte('created_at', filters.startDate.toISOString());
+        query = query.gte('created_at', format(filters.startDate, 'yyyy-MM-dd') + 'T00:00:00+09:00');
       }
       if (filters.endDate) {
-        const endDate = new Date(filters.endDate);
-        endDate.setHours(23, 59, 59, 999);
-        query = query.lte('created_at', endDate.toISOString());
+        query = query.lte('created_at', format(filters.endDate, 'yyyy-MM-dd') + 'T23:59:59+09:00');
       }
 
       const { data, error, count } = await query;

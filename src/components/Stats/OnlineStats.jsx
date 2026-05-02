@@ -141,8 +141,8 @@ function OnlineStats() {
     fetchData(startDate, endDate, brand);
   };
 
-  const formatDateToStartOfDay = (date) => startOfDay(date).toISOString();
-  const formatDateToEndOfDay = (date) => endOfDay(date).toISOString();
+  const formatDateToStartOfDay = (date) => format(date, 'yyyy-MM-dd') + 'T00:00:00+09:00';
+  const formatDateToEndOfDay = (date) => format(date, 'yyyy-MM-dd') + 'T23:59:59+09:00';
 
   const fetchData = async (qStart, qEnd, qBrand = selectedBrand, qMall = selectedMall) => {
     setLoading(true);
