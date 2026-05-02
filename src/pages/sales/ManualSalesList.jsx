@@ -9,6 +9,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ko } from 'date-fns/locale';
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO } from 'date-fns';
+import { processShipmentRevert, processShipmentCompletion } from '../../utils/inventoryUtils';
 
 export default function ManualSalesList({ isEmbedded = false }) {
   const [loading, setLoading] = useState(true);
@@ -79,10 +80,10 @@ export default function ManualSalesList({ isEmbedded = false }) {
       }
 
       if (dateFilter.startDate) {
-        query = query.gte(dateFilter.type, `${dateFilter.startDate}T00:00:00`);
+        query = query.gte(dateFilter.type, `${dateFilter.startDate}T00:00:00+09:00`);
       }
       if (dateFilter.endDate) {
-        query = query.lte(dateFilter.type, `${dateFilter.endDate}T23:59:59`);
+        query = query.lte(dateFilter.type, `${dateFilter.endDate}T23:59:59+09:00`);
       }
 
       if (searchTerm) {
@@ -214,7 +215,11 @@ export default function ManualSalesList({ isEmbedded = false }) {
   const handleDeleteConfirm = async () => {
     try {
       // 1. Transaction(수불부) 연동 삭제
-      await supabase.from('transactions').delete().eq('group_id', targetToDelete.id);
+      if (targetToDelete.status === '출고완료') {
+        await processShipmentRevert(targetToDelete.id, targetToDelete.brand);
+      } else {
+        await supabase.from('transactions').delete().eq('group_id', targetToDelete.id);
+      }
       
       // 2. 부품 내역 삭제
       await supabase.from('shipment_parts').delete().eq('shipment_id', targetToDelete.id);
@@ -383,6 +388,9 @@ export default function ManualSalesList({ isEmbedded = false }) {
         }
 
         // 기존 부품 정보 삭제
+        if (shipment.status === '출고완료') {
+          await processShipmentRevert(shipment.id, shipment.brand);
+        }
         await supabase.from('shipment_parts').delete().eq('shipment_id', shipment.id);
         
         // 새 부품 정보 삽입
@@ -403,26 +411,7 @@ export default function ManualSalesList({ isEmbedded = false }) {
 
         // 출고 완료인 경우 수불부 재동기화
         if (shipment.status === '출고완료') {
-          await supabase.from('transactions').delete().eq('group_id', shipment.id);
-          
-          const transactionsToInsert = newParts.map(part => {
-            return {
-              group_id: shipment.id,
-              type: 'out',
-              product_id: part._part_id || null, // 부품 고유 ID
-              product_name: part.part_name,
-              product_code: part.part_code || '',
-              quantity: part.quantity || 1,
-              from_location: shipment.warehouse_id || 'DEFAULT',
-              date: shipment.shipment_date || new Date().toISOString().split('T')[0],
-              note: `[일반 출고] ${shipment.customer_name}`,
-              status: '완료'
-            };
-          }); // product_id가 null이더라도 기록을 남김
-
-          if (transactionsToInsert.length > 0) {
-            await supabase.from('transactions').insert(transactionsToInsert);
-          }
+          await processShipmentCompletion(shipment.id, shipment.brand);
         }
 
         currentIdx++;
@@ -445,7 +434,14 @@ export default function ManualSalesList({ isEmbedded = false }) {
     try {
       setLoading(true);
       // 1. Transaction(수불부) 연동 삭제
-      await supabase.from('transactions').delete().in('group_id', selectedItems);
+      const shipmentsToDelete = shipments.filter(s => selectedItems.includes(s.id));
+      for (const shipment of shipmentsToDelete) {
+        if (shipment.status === '출고완료') {
+          await processShipmentRevert(shipment.id, shipment.brand);
+        } else {
+          await supabase.from('transactions').delete().eq('group_id', shipment.id);
+        }
+      }
       // 2. 부품 내역 삭제
       await supabase.from('shipment_parts').delete().in('shipment_id', selectedItems);
       // 3. 전표(Shipment) 본체 삭제
@@ -477,8 +473,8 @@ export default function ManualSalesList({ isEmbedded = false }) {
 
         if (statusFilter !== 'all') query = query.eq('status', statusFilter);
         if (sellerFilter !== 'all') query = query.eq('sales_channel', sellerFilter);
-        if (dateFilter.startDate) query = query.gte(dateFilter.type, `${dateFilter.startDate}T00:00:00`);
-        if (dateFilter.endDate) query = query.lte(dateFilter.type, `${dateFilter.endDate}T23:59:59`);
+        if (dateFilter.startDate) query = query.gte(dateFilter.type, `${dateFilter.startDate}T00:00:00+09:00`);
+        if (dateFilter.endDate) query = query.lte(dateFilter.type, `${dateFilter.endDate}T23:59:59+09:00`);
         if (searchTerm) {
           let orQuery = `customer_name.ilike.%${searchTerm}%,sales_channel.ilike.%${searchTerm}%,note.ilike.%${searchTerm}%,tracking_number.ilike.%${searchTerm}%`;
           const cleanTerm = searchTerm.replace(/^(shp-|SHP-)/i, '').trim();

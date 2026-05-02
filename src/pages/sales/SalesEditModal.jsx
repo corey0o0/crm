@@ -62,13 +62,13 @@ export default function SalesEditModal({ open, onClose, orderId, orderType, onRe
       } else if (orderType === 'service') {
         const { data, error } = await supabase
           .from('services')
-          .select('*, service_parts(id, quantity, part_id, parts(name, price))')
+          .select('*, service_parts(id, quantity, price, part_id, parts(name, price))')
           .eq('id', orderId)
           .single();
         if (error) throw error;
         setOrderData(data);
         setItems((data.service_parts || []).map(sp => {
-          const unitPrice = Number(sp.parts?.price || 0);
+          const unitPrice = (sp.price !== null && sp.price !== undefined) ? Number(sp.price) : Number(sp.parts?.price || 0);
           const qty = Number(sp.quantity || 1);
           return {
             id: sp.id,
