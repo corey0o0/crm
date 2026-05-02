@@ -1371,15 +1371,14 @@ function ShipmentList() {
               <TableRow>
                 <TableCell width="8%">주문일자</TableCell>
                 <TableCell width="8%">출고일자</TableCell>
-                <TableCell width="8%">고객명</TableCell>
+                <TableCell width="9%">고객명</TableCell>
                 <TableCell width="10%">연락처</TableCell>
                 <TableCell width="16%">제품정보</TableCell>
-                <TableCell width="10%">주문번호</TableCell>
                 <TableCell width="8%">판매처</TableCell>
-                <TableCell width="8%">출고처</TableCell>
-                <TableCell width="14%">배송정보</TableCell>
-                <TableCell width="6%">상태</TableCell>
-                <TableCell width="4%">관리</TableCell>
+                <TableCell width="13%">출고처</TableCell>
+                <TableCell width="16%">배송정보</TableCell>
+                <TableCell width="7%">상태</TableCell>
+                <TableCell width="5%">관리</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -1393,9 +1392,11 @@ function ShipmentList() {
                     <Skeleton variant="text" width="100%" />
                     <Skeleton variant="text" width="70%" />
                   </TableCell>
-                  <TableCell><Skeleton variant="text" width="90%" /></TableCell>
                   <TableCell><Skeleton variant="rectangular" width={60} height={24} /></TableCell>
-                  <TableCell><Skeleton variant="text" width="80%" /></TableCell>
+                  <TableCell>
+                    <Skeleton variant="text" width="60%" />
+                    <Skeleton variant="text" width="90%" />
+                  </TableCell>
                   <TableCell>
                     <Skeleton variant="text" width="80%" />
                     <Skeleton variant="text" width="60%" />
@@ -1992,16 +1993,16 @@ function ShipmentList() {
               <Table sx={{ minWidth: 650, width: '100%', tableLayout: 'fixed', border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                 <TableHead>
                   <TableRow>
-                    <TableCell width="9%">주문일자</TableCell>
-                    <TableCell width="9%">출고일자</TableCell>
+                    <TableCell width="8%">주문일자</TableCell>
+                    <TableCell width="8%">출고일자</TableCell>
                     <TableCell width="9%">고객명</TableCell>
-                    <TableCell width="11%">연락처</TableCell>
+                    <TableCell width="10%">연락처</TableCell>
                     <TableCell width="16%">제품정보</TableCell>
-                    <TableCell width="11%">주문번호</TableCell>
-                    <TableCell width="9%">판매처</TableCell>
+                    <TableCell width="8%">판매처</TableCell>
+                    <TableCell width="13%">출고처</TableCell>
                     <TableCell width="16%">배송정보</TableCell>
-                    <TableCell width="6%">상태</TableCell>
-                    <TableCell width="4%">관리</TableCell>
+                    <TableCell width="7%">상태</TableCell>
+                    <TableCell width="5%">관리</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -2064,11 +2065,6 @@ function ShipmentList() {
                           </Typography>
                         </TableCell>
                         <TableCell>
-                          <Typography variant="caption" sx={{ wordBreak: 'break-all', display: 'block', lineHeight: 1.2 }}>
-                            {shipment.note ? (shipment.note.match(/\[주문:(.*?)\]/)?.[1] || shipment.note.match(/20\d{6}-\d{7}/)?.[0] || `SHP-${shipment.id.slice(0, 8).toUpperCase()}`) : `SHP-${shipment.id.slice(0, 8).toUpperCase()}`}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
                           {(() => {
                             const salesChannel = getSalesChannel(shipment.note);
                             const colorInfo = getChannelColorInfo(salesChannel);
@@ -2093,7 +2089,16 @@ function ShipmentList() {
                         <TableCell>
                           {(() => {
                             const wh = warehouses.find(w => w.id === shipment.warehouse_id);
-                            return wh ? wh.name : (shipment.warehouse_id ? '알수없음' : '-');
+                            const whName = wh ? wh.name : (shipment.warehouse_id ? '알수없음' : '-');
+                            const orderNum = shipment.note ? (shipment.note.match(/\[주문:(.*?)\]/)?.[1] || shipment.note.match(/20\d{6}-\d{7}/)?.[0] || `SHP-${shipment.id.slice(0, 8).toUpperCase()}`) : `SHP-${shipment.id.slice(0, 8).toUpperCase()}`;
+                            return (
+                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 500 }}>{whName}</Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ wordBreak: 'break-all', lineHeight: 1.1 }}>
+                                  {orderNum}
+                                </Typography>
+                              </Box>
+                            );
                           })()}
                         </TableCell>
                         <TableCell>
