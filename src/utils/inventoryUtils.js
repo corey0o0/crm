@@ -500,6 +500,7 @@ export const processServiceCompletion = async (serviceId, brandCode) => {
  * A/S 복구 시
  */
 export const processServiceRevert = async (serviceId, brandCode) => {
+  try {
     const { data: service, error: srvErr } = await supabase.from('services').select('id, warehouse_id').eq('id', serviceId).single();
     if (srvErr || !service) throw new Error('A/S를 찾을 수 없음');
 

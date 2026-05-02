@@ -879,18 +879,14 @@ module.exports = function(supabaseAdmin) {
       // 4. 일괄 데이터 준비 (메모리 연산)
       const transactionsToInsert = [];
       const inventoryLogsToInsert = [];
-      const inventoryToUpsertMap = {}; 
-      
-      const orderGroupIds = {};
-      orders.forEach(o => { orderGroupIds[o.id] = crypto.randomUUID(); });
-      
+      const inventoryToUpsertMap = {};
       
       itemsToDeduct.forEach(({ order, item, wid, mappedPartId, supplier }) => {
          const orderDateStr = order.order_date ? new Date(order.order_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
          const wName = warehouseMap[wid] || '기본창고';
          
          transactionsToInsert.push({
-            group_id: orderGroupIds[order.id],
+            group_id: String(order.id),
             type: 'out',
             product_id: mappedPartId,
             product_name: item.name,
@@ -1155,7 +1151,7 @@ module.exports = function(supabaseAdmin) {
           // c. 트랜잭션 기록 (입고)
           const wName = warehouseMap[wid] || '기본창고';
           await supabaseAdmin.from('transactions').insert({
-            group_id: crypto.randomUUID(),
+            group_id: null,
             type: 'in',
             product_id: mappedPartId,
             product_name: item.name,

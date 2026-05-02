@@ -1,11 +1,9 @@
-const { createClient } = require('@supabase/supabase-js');
-const dotenv = require('dotenv');
-dotenv.config({ path: 'server/.env' });
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
+dotenv.config({ path: '.env' });
+const supabase = createClient(process.env.REACT_APP_SUPABASE_URL, process.env.REACT_APP_SUPABASE_ANON_KEY);
 async function run() {
-  const { data } = await supabase.from('shipments').select('*').limit(1);
-  console.log(Object.keys(data[0] || {}));
+  const { data } = await supabase.from('cafe24_orders').select('id').limit(1);
+  console.log(data);
 }
 run();
