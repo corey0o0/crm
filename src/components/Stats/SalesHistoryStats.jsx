@@ -258,10 +258,36 @@ function SalesHistoryStats() {
       }
     }
 
+    // === BUG 2 FIX: Deduplicate shipments that have Cafe24 order numbers in note ===
+    const duplicatedCafeOrderNos = new Set();
+    const shipmentCafeOrderNos = (shipRes.data || []).map(s => {
+      const m = s.note ? String(s.note).match(/(20\d{6}-\d{7})/) : null;
+      return m ? m[0] : null;
+    }).filter(Boolean);
+
+    if (shipmentCafeOrderNos.length > 0) {
+      // 100개 단위로 끊어서 조회 (Supabase 필터 길이 제한 대비)
+      for (let i = 0; i < shipmentCafeOrderNos.length; i += 100) {
+        const chunk = shipmentCafeOrderNos.slice(i, i + 100);
+        const { data: dupCafeOrders } = await supabase
+          .from('cafe24_orders')
+          .select('order_id')
+          .in('order_id', chunk)
+          .eq('is_deleted', false)
+          .eq('is_transferred', true);
+        (dupCafeOrders || []).forEach(o => duplicatedCafeOrderNos.add(o.order_id));
+      }
+    }
+    // =================================================================================
+
     const rows = [];
 
     // 출고 건
     (shipRes.data || []).forEach(s => {
+      const match = s.note ? String(s.note).match(/(20\d{6}-\d{7})/) : null;
+      if (match && duplicatedCafeOrderNos.has(match[0])) {
+         return; // 중복 집계 방지 (Bug 2)
+      }
       const parts = s.shipment_parts || [];
       const baseFields = {
         _id: s.id, _type: 'shipment', date_val: s.order_date, sales_channel: s.sales_channel || '매장출고', customer_name: s.customer_name || '-'
