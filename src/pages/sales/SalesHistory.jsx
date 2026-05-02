@@ -641,27 +641,59 @@ function SalesHistory() {
     try {
       const { downloadExcel } = await import('../../utils/excelUtils');
       const headers = [
-        { key: 'date_val', label: '주문/출고일자' },
-        { key: 'customer_name', label: '고객명/거래처' },
-        { key: 'sales_channel', label: '판매처' },
-        { key: '_type', label: '분류' },
-        { key: 'part_name', label: '품목명(옵션)' },
-        { key: 'part_code', label: '품목코드' },
-        { key: 'brand', label: '브랜드' },
+        { key: 'date_val', label: '일자' },
+        { key: 'cLabel', label: '구분' },
+        { key: 'sales_channel_display', label: '채널(대리점)' },
+        { key: 'customer_name', label: '고객명/수령인' },
+        { key: 'warehouse_name', label: '출고창고' },
+        { key: 'order_no', label: '주문번호' },
+        { key: 'part_category', label: '품목구분' },
+        { key: 'part_brand', label: '브랜드' },
+        { key: 'part_name', label: '품목명' },
         { key: 'quantity', label: '수량' },
-        { key: 'unit_price', label: '개별단가' },
-        { key: 'total_price', label: '합산금액' },
+        { key: 'unit_price', label: '단가' },
         { key: 'supply', label: '공급가액' },
         { key: 'vat', label: '부가세' },
-        { key: 'status', label: '상태' }
+        { key: 'total_price', label: '합계' }
       ];
 
-      const excelData = filtered.map(r => {
-        const amtInfo = calcVAT(r.total_price);
+      const excelData = filtered.map(row => {
+        const amtInfo = calcVAT(row.total_price);
+        const isService = row._type === 'service';
+        const isCafe = row._type === 'cafe24';
+        
+        let cLabel = '일반출고';
+        const isEcount = row._type === 'shipment' && row.note && row.note.includes('이카운트');
+        const startsWithDate = row.order_no && /^(20[2-9]\d[0-1]\d[0-3]\d)/.test(row.order_no);
+
+        if (isCafe) {
+          cLabel = '온라인주문';
+        } else if (isService) {
+          cLabel = 'A/S';
+        } else if (isEcount) {
+          if (startsWithDate) {
+            cLabel = '온라인주문';
+          } else {
+            cLabel = '기타';
+          }
+        } else {
+          if (row.sales_channel === '온라인주문') {
+            cLabel = '온라인주문';
+          } else if (row.sales_channel === '고객') {
+            cLabel = '고객';
+          } else if (row.sales_channel && row.sales_channel !== '-' && row.sales_channel !== '본사/기본' && row.sales_channel !== '과거 이카운트 이관') {
+            cLabel = row.sales_channel;
+          }
+        }
+
+        const sales_channel_display = row.sales_channel && row.sales_channel !== '-' && row.sales_channel !== '온라인주문' ? row.sales_channel : (isCafe ? '온라인몰' : '본사/기본');
+
         return {
-          ...r,
-          date_val: format(new Date(r.date_val), 'yyyy-MM-dd'),
-          _type: r._type === 'cafe24' ? '온라인주문' : r._type === 'shipment' ? '일반출고(수기)' : 'A/S수리',
+          ...row,
+          date_val: row.date_val ? format(new Date(row.date_val), 'yyyy-MM-dd') : '-',
+          cLabel,
+          sales_channel_display,
+          part_brand: row.part_brand || '-',
           supply: amtInfo.supply,
           vat: amtInfo.vat
         };
