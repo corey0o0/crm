@@ -814,13 +814,8 @@ function ServiceDetail() {
   const handleCompleteInspection = async () => {
     try {
       setAddingToQueue(true);
-      const inventoryResult = await processServiceCompletion(id, formData.brand);
-      if (inventoryResult.success) {
-        await handleStatusChange('처리중');
-        setSnackbar({ open: true, message: '부품 검수가 완료되어 재고가 차감되었으며, 상태가 처리중으로 변경되었습니다.', severity: 'success' });
-      } else {
-        setSnackbar({ open: true, message: '재고 차감 오류: ' + inventoryResult.message, severity: 'error' });
-      }
+      await handleStatusChange('처리중');
+      setSnackbar({ open: true, message: '상태가 처리중으로 변경되었습니다. 저장 버튼을 눌러 확정해주세요.', severity: 'info' });
     } catch(e) {
       setSnackbar({ open: true, message: '오류 발생: ' + e.message, severity: 'error' });
     } finally {
@@ -863,6 +858,7 @@ function ServiceDetail() {
         seller: formData.seller,
         mileage: formData.mileage,
         writer: formData.writer,
+        warehouse_id: formData.warehouse_id || null,
         reception_type: formData.reception_type,
         ...overrideData,
         updated_at: new Date().toISOString()
@@ -897,7 +893,7 @@ function ServiceDetail() {
           quantity: part.quantity,
           price: part.price,
           usage: part.usage || 'A/S',
-        //  warehouse_id: formData.warehouse_id || null // 파츠에도 창고 반영 삭제
+          warehouse_id: formData.warehouse_id || null
         }));
 
         const { error: insertPartsError } = await supabase
@@ -1235,8 +1231,8 @@ function ServiceDetail() {
   const handleDelete = async () => {
     setConfirmDialog({
       open: true,
-      title: '출고 정보 삭제',
-      message: '해당 출고 정보를 삭제하시겠습니까?',
+      title: 'A/S 정보 삭제',
+      message: '해당 A/S 정보를 삭제하시겠습니까?\n(차감된 재고가 있다면 자동으로 입고 복구됩니다)',
       onConfirm: async () => {
         try {
           setSubmitting(true);
@@ -3159,9 +3155,24 @@ function ServiceDetail() {
                           onChange={handleChange}
                         >
                           <MenuItem value="방문수령">방문수령</MenuItem>
-                          <MenuItem value="택배">택배</MenuItem>
                           <MenuItem value="퀵-선불">퀵-선불</MenuItem>
                           <MenuItem value="퀵-착불">퀵-착불</MenuItem>
+                        </TextField>
+                      </Grid>
+                      <Grid item xs={12}>
+                        <TextField
+                          select
+                          fullWidth
+                          size="small"
+                          name="warehouse_id"
+                          label="A/S 담당 창고"
+                          value={formData.warehouse_id || ''}
+                          onChange={handleChange}
+                        >
+                          <MenuItem value=""><em>지정 안 함</em></MenuItem>
+                          {warehouses.map((w) => (
+                            <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>
+                          ))}
                         </TextField>
                       </Grid>
                     </Grid>
@@ -3391,9 +3402,8 @@ function ServiceDetail() {
               <Button
                 onClick={handleDelete}
                 startIcon={<DeleteIcon />}
-                disabled={['처리중', '완료', '수령대기', '결제대기', '수령완료', '출고완료', '취소'].includes(formData?.status)}
                 sx={{
-                  color: ['처리중', '완료', '수령대기', '결제대기', '수령완료', '출고완료', '취소'].includes(formData?.status) ? '#9e9e9e' : '#dc3545',
+                  color: '#dc3545',
                   fontSize: '0.95rem',
                   fontWeight: 600,
                   textTransform: 'none',

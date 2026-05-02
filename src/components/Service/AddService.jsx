@@ -923,7 +923,7 @@ function AddService() {
         seller: formData.seller,
         receipt_link: receiptLink,
         writer: formData.writer || '관리자',
-        // warehouse_id: formData.warehouse_id || null, // A/S 처리 창고 지정 임시 비활성화
+        warehouse_id: formData.warehouse_id || null,
         updated_at: new Date().toISOString()
       };
 
@@ -999,7 +999,7 @@ function AddService() {
           quantity: part.quantity,
           price: part.price,
           usage: part.usage || 'A/S',
-        //  warehouse_id: formData.warehouse_id || null
+          warehouse_id: formData.warehouse_id || null
         }));
         const { error: partsError } = await supabase.from('service_parts').insert(partsToInsert);
         if (partsError) {
@@ -2870,6 +2870,22 @@ function AddService() {
                         >
                           {DELIVERY_METHODS.map((method) => (
                             <MenuItem key={method} value={method}>{method}</MenuItem>
+                          ))}
+                        </TextField>
+                      </Grid>
+                      <Grid item xs={12}>
+                        <TextField
+                          select
+                          fullWidth
+                          size="small"
+                          name="warehouse_id"
+                          label="A/S 담당 창고"
+                          value={formData.warehouse_id || ''}
+                          onChange={handleInputChange}
+                        >
+                          <MenuItem value=""><em>지정 안 함</em></MenuItem>
+                          {warehouses.map((w) => (
+                            <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>
                           ))}
                         </TextField>
                       </Grid>

@@ -630,7 +630,12 @@ function ShipmentForm({ isManualB2B = false }) {
         updated_at: new Date().toISOString()
       };
 
-      const wasCompleted = isEditMode && initialData?.shipmentData?.status === '출고완료';
+      let currentStatus = null;
+      if (isEditMode && shipmentId) {
+        const { data: currentShipment } = await supabase.from('shipments').select('status').eq('id', shipmentId).single();
+        currentStatus = currentShipment?.status;
+      }
+      const wasCompleted = isEditMode && currentStatus === '출고완료';
       const isNowCompleted = shipmentSaveData.status === '출고완료';
 
       // 1. 만약 기존 상태가 '출고완료'였다면, DB를 업데이트하기 '전에' 기존 재고 차감을 복구(Revert)합니다.

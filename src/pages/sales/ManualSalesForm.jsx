@@ -601,7 +601,12 @@ function ShipmentForm() {
         updated_at: new Date().toISOString()
       };
 
-      const wasCompleted = isEditMode && initialData?.shipmentData?.status === '출고완료';
+      let currentStatus = null;
+      if (isEditMode && shipmentId) {
+        const { data: currentShipment } = await supabase.from('shipments').select('status').eq('id', shipmentId).single();
+        currentStatus = currentShipment?.status;
+      }
+      const wasCompleted = isEditMode && currentStatus === '출고완료';
       const isNowCompleted = shipmentSaveData.status === '출고완료';
 
       if (wasCompleted && shipmentId) {
