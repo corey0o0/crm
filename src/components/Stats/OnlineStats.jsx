@@ -88,7 +88,7 @@ function OnlineStats() {
     setStartDate(newStartDate);
     setEndDate(newEndDate);
     setSelectedMonth(null);
-    fetchData(newStartDate, newEndDate);
+    fetchData(newStartDate, newEndDate, selectedBrand);
   };
 
   // 월 선택 핸들러
@@ -208,7 +208,9 @@ function OnlineStats() {
           const agName = o.agency_id ? (agencyMap[o.agency_id] || `미등록 대리점`) : '일반 주문';
           if (!agencyStats[agName]) agencyStats[agName] = { amount: 0, count: 0, airframe: 0, airframeAmount: 0, parts: 0, partsAmount: 0 };
 
-          const validItems = o.order_items || [];
+          const validItems = (o.order_items || []).filter(
+            item => !['C11', 'C40', 'R40', 'E40'].includes(item.order_status)
+          );
           let totalWeight = 0;
           validItems.forEach(i => {
               const pCode = String(i.custom_product_code || i.product_code || '').trim();
@@ -218,8 +220,8 @@ function OnlineStats() {
           });
           const totalQty = validItems.reduce((acc, i) => acc + Number(i.quantity || 1), 0);
 
-          if (o.order_items && Array.isArray(o.order_items)) {
-             o.order_items.forEach((item, idx) => {
+          if (validItems.length > 0) {
+             validItems.forEach((item, idx) => {
                const pCode = String(item.custom_product_code || item.product_code || '').trim();
                const pName = item.name || item.product_name || '';
                const p = item.part_id ? partMapById[item.part_id] : (pCode ? partMapByCode[pCode] : null);
@@ -250,7 +252,7 @@ function OnlineStats() {
                    }
                }
                item._calculated_amount = amount;
-               const isAirframe = p ? (p.note === '기체') : (pName.includes('기체') || pName.includes('차체'));
+               const isAirframe = p ? (p.note?.includes('기체')) : (pName.includes('기체') || pName.includes('차체'));
                let sup = p ? (p.brand || '') : '';
                if (!sup || sup.trim() === '' || sup === '기타 브랜드') {
                   if (o.mall_id === 'slimpack79') sup = 'XRB';
@@ -493,14 +495,22 @@ function OnlineStats() {
             <DatePicker
               label="시작일"
               value={startDate}
-              onChange={(newValue) => { setStartDate(newValue); setSelectedMonth(null); }}
-              renderInput={(params) => <TextField {...params} size="small" sx={{ width: 140 }} />}
+              onChange={(newValue) => { 
+                setStartDate(newValue); 
+                setSelectedMonth(null); 
+                fetchData(newValue, endDate, selectedBrand, selectedMall); 
+              }}
+              slotProps={{ textField: { size: 'small', sx: { width: 140 } } }}
             />
             <DatePicker
               label="종료일"
               value={endDate}
-              onChange={(newValue) => { setEndDate(newValue); setSelectedMonth(null); }}
-              renderInput={(params) => <TextField {...params} size="small" sx={{ width: 140 }} />}
+              onChange={(newValue) => { 
+                setEndDate(newValue); 
+                setSelectedMonth(null); 
+                fetchData(startDate, newValue, selectedBrand, selectedMall); 
+              }}
+              slotProps={{ textField: { size: 'small', sx: { width: 140 } } }}
             />
           </LocalizationProvider>
 
