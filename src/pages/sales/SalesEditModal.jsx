@@ -93,29 +93,91 @@ export default function SalesEditModal({ open, onClose, orderId, orderType, onRe
           order_date: data.order_date
         });
         const orderItems = data.order_items || [];
-        setItems(orderItems.map((item, i) => {
-          const qty = Number(item.quantity || 1);
-          const price = Number(item.product_price || item.price || 0);
-          return {
-            id: `cafe_item_${i}`,
-            part_name: item.product_name || item.name || '온라인상품',
-            quantity: qty,
-            price: price,
-            total_price: qty * price
-          };
-        }));
         
         let cBrand = '-';
         const pcodes = orderItems.map(i => i.custom_product_code || i.product_code).filter(Boolean);
-        if (pcodes.length > 0) {
-          const { data: pData } = await supabase.from('parts').select('brand').in('code', pcodes);
-          if (pData && pData.length > 0 && pData[0].brand) cBrand = pData[0].brand;
-          else {
-            const { data: pData2 } = await supabase.from('parts').select('brand').in('barcode', pcodes);
-            if (pData2 && pData2.length > 0 && pData2[0].brand) cBrand = pData2[0].brand;
+        const partIds = orderItems.map(i => i.part_id).filter(Boolean);
+        const nameMap = {};
+        
+        if (pcodes.length > 0 || partIds.length > 0) {
+          let query = supabase.from('parts').select('id, code, barcode, name, brand');
+          const conditions = [];
+          if (pcodes.length > 0) {
+              const codeList = pcodes.map(c => `'${c}'`).join(',');
+              conditions.push(`code.in.(${codeList})`);
+              conditions.push(`barcode.in.(${codeList})`);
+          }
+          if (partIds.length > 0) {
+              conditions.push(`id.in.(${partIds.join(',')})`);
+          }
+          if (conditions.length > 0) {
+              const { data: pData } = await query.or(conditions.join(','));
+              if (pData && pData.length > 0) {
+                  const firstBrand = pData.find(p => p.brand)?.brand;
+                  if (firstBrand) cBrand = firstBrand;
+                  pData.forEach(p => {
+                      nameMap[`id_${p.id}`] = p.name;
+                      if (p.code) nameMap[`code_${p.code}`] = p.name;
+                      if (p.barcode) nameMap[`code_${p.barcode}`] = p.name;
+                  });
+              }
           }
         }
         setOrderBrand(cBrand);
+
+        const validItems = orderItems.filter(item => !['C11', 'C40', 'R40', 'E40'].includes(item.order_status));
+        const mappedItems = [];
+        const seenProductCodes = new Set();
+        validItems.forEach((item, i) => {
+            const qty = Number(item.quantity || 1);
+            let paymentAmt = 0;
+            if (item.payment_amount !== undefined && item.payment_amount !== null) {
+                paymentAmt = Number(item.payment_amount);
+            } else {
+                paymentAmt = Number(item.product_price || item.price || 0) * qty;
+            }
+            
+            let statQty = qty;
+            let total = paymentAmt;
+            const pCode = String(item.product_code || '').trim();
+            let isDuplicate = false;
+            if (pCode) {
+                if (seenProductCodes.has(pCode)) {
+                    statQty = 0;
+                    isDuplicate = true;
+                } else {
+                    seenProductCodes.add(pCode);
+                }
+            }
+            
+            if (isDuplicate && pCode) {
+                const firstRow = mappedItems.find(r => r._pCode === pCode);
+                if (firstRow) {
+                    firstRow.total_price += total;
+                    total = 0;
+                }
+            }
+            
+            let baseName = item.product_name || item.name || '온라인상품';
+            if (item.part_id && nameMap[`id_${item.part_id}`]) baseName = nameMap[`id_${item.part_id}`];
+            else {
+                const c = item.custom_product_code || item.product_code;
+                if (c && nameMap[`code_${c}`]) baseName = nameMap[`code_${c}`];
+            }
+            const optStr = item.option_value || item.options;
+            if (optStr && String(optStr).trim() !== '') baseName = `${baseName} [${String(optStr).trim()}]`;
+
+            mappedItems.push({
+                id: `cafe_item_${i}`,
+                part_name: baseName,
+                quantity: statQty,
+                price: Number(item.product_price || item.price || 0),
+                total_price: total,
+                _pCode: pCode
+            });
+        });
+        
+        setItems(mappedItems);
       }
     } catch (err) {
       console.error(err);
