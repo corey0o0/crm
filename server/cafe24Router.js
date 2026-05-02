@@ -879,7 +879,7 @@ module.exports = function(supabaseAdmin) {
          const wName = warehouseMap[wid] || '기본창고';
          
          transactionsToInsert.push({
-            group_id: order.agency_id && !isNaN(order.agency_id) ? Number(order.agency_id) : null,
+            group_id: String(order.id),
             type: 'out',
             product_id: mappedPartId,
             product_name: item.name,

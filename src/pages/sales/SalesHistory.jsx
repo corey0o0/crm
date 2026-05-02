@@ -514,7 +514,9 @@ function SalesHistory() {
               }, 0);
 
               let itemWeight = iPrice * itemQty;
-              const distributableAmount = Math.max(0, Number(o.total_amount || 0) - Number(o.shipping_fee || 0));
+              const canceledItems = (items || []).filter(it => ['C11', 'C40', 'R40', 'E40'].includes(it.order_status));
+              const canceledAmount = canceledItems.reduce((acc, it) => acc + (Number(it.product_price || it.price || 0) * Number(it.quantity || 1)), 0);
+              const distributableAmount = Math.max(0, Number(o.total_amount || 0) - Number(o.shipping_fee || 0) - canceledAmount);
 
               if (totalWeight > 0) {
                  total = Math.floor((itemWeight / totalWeight) * distributableAmount);
