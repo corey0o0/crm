@@ -400,7 +400,7 @@ export default function SalesEditModal({ open, onClose, orderId, orderType, onRe
                             size="small"
                             value={item.price}
                             onChange={e => handleItemChange(idx, 'price', e.target.value)}
-                            inputProps={{ style: { textAlign: 'right', width: 90 } }}
+                            inputProps={{ style: { textAlign: 'right', width: 120 } }}
                             disabled={orderType !== 'shipment'}
                           />
                         </TableCell>
@@ -413,7 +413,7 @@ export default function SalesEditModal({ open, onClose, orderId, orderType, onRe
                             size="small"
                             value={item.total_price}
                             onChange={e => handleItemChange(idx, 'total_price', e.target.value)}
-                            inputProps={{ style: { textAlign: 'right', width: 100, fontWeight: 'bold' } }}
+                            inputProps={{ style: { textAlign: 'right', width: 130, fontWeight: 'bold' } }}
                             disabled={orderType !== 'shipment'}
                           />
                         </TableCell>

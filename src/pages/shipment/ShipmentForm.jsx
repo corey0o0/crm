@@ -1772,7 +1772,7 @@ function ShipmentForm({ isManualB2B = false }) {
                           inputProps: { min: 0, style: { textAlign: 'right', padding: '4px 8px' } },
                           endAdornment: <InputAdornment position="end">원</InputAdornment>
                         }}
-                        sx={{ width: '120px' }}
+                        sx={{ width: '160px' }}
                       />
                     </TableCell>
                     <TableCell align="right">{part.totalPrice?.toLocaleString() || calculateTotal(part).toLocaleString()}원</TableCell>

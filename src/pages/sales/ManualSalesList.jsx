@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Button, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Alert, TextField, Stack, TablePagination, Grid, FormControl, InputLabel, Select, MenuItem, ButtonGroup, Checkbox } from '@mui/material';
+import { Box, Typography, Button, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Alert, TextField, Stack, TablePagination, Grid, FormControl, InputLabel, Select, MenuItem, ButtonGroup, Checkbox, Tooltip } from '@mui/material';
 import { Add as AddIcon, Search as SearchIcon, Delete as DeleteIcon, Edit as EditIcon, CloudUpload as CloudUploadIcon, FileDownload as FileDownloadIcon } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
 import { useNavigate } from 'react-router-dom';
@@ -694,20 +694,21 @@ export default function ManualSalesList({ isEmbedded = false }) {
                 />
               </TableCell>
               <TableCell width="11%">주문/출고일자</TableCell>
-              <TableCell width="13%">주문번호</TableCell>
-              <TableCell width="13%">거래처(요청채널)</TableCell>
+              <TableCell width="11%">주문번호(ID)</TableCell>
+              <TableCell width="12%">거래처(요청채널)</TableCell>
               <TableCell width="10%">출고처(창고)</TableCell>
-              <TableCell width="25%">대표 품목</TableCell>
-              <TableCell width="10%" align="right">금액</TableCell>
-              <TableCell width="8%" align="center">상태</TableCell>
-              <TableCell width="10%" align="center">관리</TableCell>
+              <TableCell width="18%">대표 품목</TableCell>
+              <TableCell width="15%">메모</TableCell>
+              <TableCell width="8%" align="right">금액</TableCell>
+              <TableCell width="7%" align="center">상태</TableCell>
+              <TableCell width="8%" align="center">관리</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={8} align="center">로딩 중...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={10} align="center">로딩 중...</TableCell></TableRow>
             ) : shipments.length === 0 ? (
-              <TableRow><TableCell colSpan={8} align="center">등록된 수기 판매 내역이 없습니다.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={10} align="center">등록된 수기 판매 내역이 없습니다.</TableCell></TableRow>
             ) : shipments.map(s => {
               const isItemSelected = selectedItems.indexOf(s.id) !== -1;
               const partCount = s.shipment_parts?.length || 0;
@@ -732,6 +733,9 @@ export default function ManualSalesList({ isEmbedded = false }) {
                     <Typography variant="body2" color="primary" sx={{ fontSize: '0.85rem' }}>
                       {s.tracking_number || (s.note?.match(/20\d{6}-\d{7}/) ? s.note.match(/20\d{6}-\d{7}/)[0] : '-')}
                     </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                      ID: {s.id}
+                    </Typography>
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2" fontWeight="bold">{s.customer_name}</Typography>
@@ -743,6 +747,13 @@ export default function ManualSalesList({ isEmbedded = false }) {
                     </Typography>
                   </TableCell>
                   <TableCell>{partCount > 1 ? `${repPart} 외 ${partCount - 1}건` : repPart}</TableCell>
+                  <TableCell>
+                    <Tooltip title={s.note || ''}>
+                      <Typography variant="body2" sx={{ fontSize: '0.8rem', color: 'text.secondary', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                        {s.note || '-'}
+                      </Typography>
+                    </Tooltip>
+                  </TableCell>
                   <TableCell align="right">{Number(s.price || 0).toLocaleString()}원</TableCell>
                   <TableCell align="center"><Chip label={s.status} size="small" color={s.status === '출고완료' ? 'success' : 'default'} /></TableCell>
                   <TableCell align="center">
