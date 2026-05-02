@@ -385,6 +385,7 @@ function SalesHistoryStats() {
         rows.push({ ...baseFields, part_category: '기타', part_brand: '-', quantity: 0, total_price: Number(o.total_amount || 0), total_cost: 0 });
       } else {
         let orderBrand = '-';
+        let orderItemsSum = 0;
         const validItems = items.filter(item => !['C11', 'C40', 'R40', 'E40'].includes(item.order_status));
         if (validItems.length === 0) {
           // 유효 항목이 없으면 건너뛰거나 기본값 처리
@@ -446,20 +447,37 @@ function SalesHistoryStats() {
           if (idx === 0) {
              orderBrand = brand;
           }
+          orderItemsSum += total;
           
           if (!['C11', 'C40', 'R40', 'E40'].includes(item.order_status)) {
              rows.push({ ...baseFields, part_name: pName, part_category: cat, part_brand: brand, quantity: itemQty, total_price: total, total_cost: unitCost * itemQty });
           }
         });
 
-        if (Number(o.shipping_fee) > 0) {
+        const shipFee = Number(o.shipping_fee || 0);
+        const calculatedUsedPoints = Math.max(0, orderItemsSum + shipFee - Number(o.total_amount || 0));
+        const displayUsedPoints = Number(o.used_points !== undefined && o.used_points !== null ? o.used_points : calculatedUsedPoints);
+
+        if (shipFee > 0) {
           rows.push({
             ...baseFields,
             part_name: '배송비',
             part_category: '기타',
             part_brand: orderBrand,
             quantity: 1,
-            total_price: Number(o.shipping_fee),
+            total_price: shipFee,
+            total_cost: 0
+          });
+        }
+        
+        if (displayUsedPoints > 0) {
+          rows.push({
+            ...baseFields,
+            part_name: '적립금 사용(할인)',
+            part_category: '기타',
+            part_brand: orderBrand,
+            quantity: 1,
+            total_price: -displayUsedPoints,
             total_cost: 0
           });
         }

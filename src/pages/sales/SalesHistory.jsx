@@ -468,6 +468,7 @@ function SalesHistory() {
         rows.push({ ...baseFields, warehouse_name: fallbackWarehouseName, _id: `cafe_${o.id}_none`, part_name: '(품목 미기재)', part_category: '기타', part_brand: '-', quantity: 0, unit_price: 0, total_price: Number(o.total_amount || 0) });
       } else {
         let orderBrand = '-';
+        let orderItemsSum = 0;
         const validItems = items.filter(item => !['C11', 'C40', 'R40', 'E40'].includes(item.order_status));
         if (validItems.length === 0) return; // 전액/전부 취소건은 리스트에서 제외
 
@@ -548,11 +549,16 @@ function SalesHistory() {
           if (idx === 0) {
              orderBrand = brand;
           }
+          orderItemsSum += total;
 
           rows.push({ ...baseFields, warehouse_name: itemWarehouseName, _id: `cafe_${o.id}_${idx}`, part_name: pName, part_category: cat, part_brand: brand, quantity: itemQty, unit_price: iPrice, unit_shipping_fee: shipFee, total_price: total });
         });
 
-        if (Number(o.shipping_fee) > 0) {
+        const shipFee = Number(o.shipping_fee || 0);
+        const calculatedUsedPoints = Math.max(0, orderItemsSum + shipFee - Number(o.total_amount || 0));
+        const displayUsedPoints = Number(o.used_points !== undefined && o.used_points !== null ? o.used_points : calculatedUsedPoints);
+
+        if (shipFee > 0) {
           rows.push({
             ...baseFields,
             warehouse_name: fallbackWarehouseName,
@@ -563,7 +569,22 @@ function SalesHistory() {
             quantity: 1,
             unit_price: Number(o.shipping_fee),
             unit_shipping_fee: 0,
-            total_price: Number(o.shipping_fee)
+            total_price: shipFee
+          });
+        }
+        
+        if (displayUsedPoints > 0) {
+          rows.push({
+            ...baseFields,
+            warehouse_name: fallbackWarehouseName,
+            _id: `cafe_${o.id}_used_points`,
+            part_name: '적립금 사용(할인)',
+            part_category: '기타',
+            part_brand: orderBrand,
+            quantity: 1,
+            unit_price: -displayUsedPoints,
+            unit_shipping_fee: 0,
+            total_price: -displayUsedPoints
           });
         }
       }
