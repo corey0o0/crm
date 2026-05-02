@@ -800,7 +800,11 @@ function SalesHistory() {
         const isOnline = row._type === 'cafe24';
 
         if (isAgency) {
-          cLabel = `대리점-${channel}`;
+          if (isOnline || (isEcount && startsWithDate)) {
+             cLabel = '대리점-온라인';
+          } else {
+             cLabel = '대리점-일반';
+          }
         } else if (isOnline || (isEcount && startsWithDate)) {
           cLabel = '고객-온라인';
         } else if (isService) {
@@ -1059,7 +1063,11 @@ function SalesHistory() {
                 const isOnline = row._type === 'cafe24';
 
                 if (isAgency) {
-                  cLabel = `대리점-${channel}`;
+                  if (isOnline || (isEcount && startsWithDate)) {
+                     cLabel = '대리점-온라인';
+                  } else {
+                     cLabel = '대리점-일반';
+                  }
                   cColor = 'info';
                 } else if (isOnline || (isEcount && startsWithDate)) {
                   cLabel = '고객-온라인';
