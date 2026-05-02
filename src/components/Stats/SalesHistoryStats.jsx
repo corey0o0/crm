@@ -401,6 +401,8 @@ function SalesHistoryStats() {
           // 유효 항목이 없으면 건너뛰거나 기본값 처리
           return;
         }
+        
+        const orderRows = [];
 
         let totalWeight = validItems.reduce((acc, i) => {
            let qty = Number(i.quantity || 1);
@@ -460,22 +462,34 @@ function SalesHistoryStats() {
           if (idx === 0) {
              orderBrand = brand;
           }
-          orderItemsSum += total;
-          
           let statQty = itemQty;
           const pCode = String(item.product_code || '').trim();
+          let isDuplicate = false;
           if (pCode) {
               if (seenProductCodes.has(pCode)) {
                   statQty = 0;
+                  isDuplicate = true;
               } else {
                   seenProductCodes.add(pCode);
               }
           }
           
+          if (isDuplicate && pCode) {
+              const firstRow = orderRows.find(r => r._pCode === pCode);
+              if (firstRow) {
+                  firstRow.total_price += total;
+                  total = 0;
+              }
+          }
+          
+          orderItemsSum += total;
+          
           if (!['C11', 'C40', 'R40', 'E40'].includes(item.order_status)) {
-             rows.push({ ...baseFields, part_name: pName, part_category: cat, part_brand: brand, quantity: statQty, total_price: total, total_cost: unitCost * itemQty });
+             orderRows.push({ ...baseFields, part_name: pName, part_category: cat, part_brand: brand, quantity: statQty, total_price: total, total_cost: unitCost * itemQty, _pCode: pCode });
           }
         });
+        
+        orderRows.forEach(r => rows.push(r));
 
         const shipFee = Number(o.shipping_fee || 0);
         const calculatedUsedPoints = Math.max(0, orderItemsSum + shipFee - Number(o.total_amount || 0));

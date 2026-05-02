@@ -484,6 +484,8 @@ function SalesHistory() {
         let seenProductCodes = new Set();
         const validItems = items.filter(item => !['C11', 'C40', 'R40', 'E40'].includes(item.order_status));
         if (validItems.length === 0) return; // 전액/전부 취소건은 리스트에서 제외
+        
+        const orderRows = [];
 
         validItems.forEach((item, idx) => {
           const itemCode = item.custom_product_code || item.product_code || '';
@@ -502,9 +504,11 @@ function SalesHistory() {
           const itemQty = Number(item.quantity || 1);
           let statQty = itemQty;
           const pCodeCheck = String(item.product_code || '').trim();
+          let isDuplicate = false;
           if (pCodeCheck) {
               if (seenProductCodes.has(pCodeCheck)) {
                   statQty = 0;
+                  isDuplicate = true;
               } else {
                   seenProductCodes.add(pCodeCheck);
               }
@@ -573,10 +577,23 @@ function SalesHistory() {
           if (idx === 0) {
              orderBrand = brand;
           }
+          
+          if (isDuplicate && pCodeCheck) {
+              const firstRow = orderRows.find(r => r._pCode === pCodeCheck);
+              if (firstRow) {
+                  firstRow.total_price += total;
+                  total = 0;
+              }
+          }
+          
           orderItemsSum += total;
 
-          rows.push({ ...baseFields, warehouse_name: itemWarehouseName, _id: `cafe_${o.id}_${idx}`, part_name: pName, part_category: cat, part_brand: brand, quantity: statQty, unit_price: iPrice, unit_shipping_fee: shipFee, total_price: total });
+          if (!['C11', 'C40', 'R40', 'E40'].includes(item.order_status)) {
+             orderRows.push({ ...baseFields, warehouse_name: itemWarehouseName, _id: `cafe_${o.id}_${idx}`, part_name: pName, part_category: cat, part_brand: brand, quantity: statQty, unit_price: iPrice, unit_shipping_fee: shipFee, total_price: total, _pCode: pCodeCheck });
+          }
         });
+        
+        orderRows.forEach(r => rows.push(r));
 
         const shipFee = Number(o.shipping_fee || 0);
         const calculatedUsedPoints = Math.max(0, orderItemsSum + shipFee - Number(o.total_amount || 0));
