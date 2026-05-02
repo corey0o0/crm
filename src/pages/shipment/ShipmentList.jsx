@@ -569,11 +569,15 @@ function ShipmentList() {
 
     // 검색
     if (searchTerm) {
+      const q = searchTerm.toLowerCase();
+      const cleanQ = q.replace(/^(shp-|SHP-)/i, '').trim();
       filtered = filtered.filter(shipment =>
-        shipment.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        shipment.customer_phone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        shipment.product_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        shipment.id?.toLowerCase().includes(searchTerm.toLowerCase())
+        shipment.customer_name?.toLowerCase().includes(q) ||
+        shipment.customer_phone?.toLowerCase().includes(q) ||
+        shipment.product_name?.toLowerCase().includes(q) ||
+        shipment.id?.toLowerCase().includes(cleanQ) ||
+        shipment.order_no?.toLowerCase().includes(q) ||
+        shipment.tracking_number?.toLowerCase().includes(q)
       );
     }
 

@@ -86,7 +86,12 @@ export default function ManualSalesList({ isEmbedded = false }) {
       }
 
       if (searchTerm) {
-        query = query.or(`customer_name.ilike.%${searchTerm}%,sales_channel.ilike.%${searchTerm}%,note.ilike.%${searchTerm}%`);
+        let orQuery = `customer_name.ilike.%${searchTerm}%,sales_channel.ilike.%${searchTerm}%,note.ilike.%${searchTerm}%,tracking_number.ilike.%${searchTerm}%`;
+        const cleanTerm = searchTerm.replace(/^(shp-|SHP-)/i, '').trim();
+        if (cleanTerm && /^[0-9a-fA-F-]+$/.test(cleanTerm)) {
+           orQuery += `,id::text.ilike.%${cleanTerm}%`;
+        }
+        query = query.or(orQuery);
       }
 
       query = query.order('order_date', { ascending: false })
@@ -474,7 +479,14 @@ export default function ManualSalesList({ isEmbedded = false }) {
         if (sellerFilter !== 'all') query = query.eq('sales_channel', sellerFilter);
         if (dateFilter.startDate) query = query.gte(dateFilter.type, `${dateFilter.startDate}T00:00:00`);
         if (dateFilter.endDate) query = query.lte(dateFilter.type, `${dateFilter.endDate}T23:59:59`);
-        if (searchTerm) query = query.or(`customer_name.ilike.%${searchTerm}%,sales_channel.ilike.%${searchTerm}%,note.ilike.%${searchTerm}%`);
+        if (searchTerm) {
+          let orQuery = `customer_name.ilike.%${searchTerm}%,sales_channel.ilike.%${searchTerm}%,note.ilike.%${searchTerm}%,tracking_number.ilike.%${searchTerm}%`;
+          const cleanTerm = searchTerm.replace(/^(shp-|SHP-)/i, '').trim();
+          if (cleanTerm && /^[0-9a-fA-F-]+$/.test(cleanTerm)) {
+             orQuery += `,id::text.ilike.%${cleanTerm}%`;
+          }
+          query = query.or(orQuery);
+        }
       }
 
       query = query.order('order_date', { ascending: false });
