@@ -1428,7 +1428,7 @@ function SalesStats() {
                           <TableRow key={`servicepart-${part.service_id}-${part.code}-${index}`}> {/* 키를 더 고유하게 만듭니다. */}
                             <TableCell>
                               <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
-                                {part.service_id ? String(part.service_id).slice(-8) : '-'}
+                                {part.service_id ? `AS-${part.service_id}` : '-'}
                               </Typography>
                             </TableCell>
                             <TableCell>{part.name}</TableCell> {/* Tooltip과 스타일 없이 직접 표시 */}
@@ -1544,7 +1544,7 @@ function SalesStats() {
                       <TableRow key={part.shipment_item_key || idx}>
                         <TableCell>
                           <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
-                            {part.shipment_id ? String(part.shipment_id).slice(-8) : '-'}
+                            {part.shipment_id ? `SHP-${String(part.shipment_id).slice(0, 8).toUpperCase()}` : '-'}
                           </Typography>
                         </TableCell>
                         <TableCell>{part.name}</TableCell>

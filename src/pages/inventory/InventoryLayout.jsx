@@ -3195,7 +3195,7 @@ function InventoryLayout() {
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                               <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                                 <Typography variant="body2" color="text.secondary">거래 ID:</Typography>
-                                <Typography variant="body2" fontWeight="medium">{selectedTransaction.id}</Typography>
+                                <Typography variant="body2" fontWeight="medium">{`TRX-${String(selectedTransaction.id).slice(0, 8).toUpperCase()}`}</Typography>
                               </Box>
                               <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                                 <Typography variant="body2" color="text.secondary">거래 유형:</Typography>
