@@ -188,11 +188,20 @@ function SalesHistoryStats() {
     const partsNameByCode = {};
     const partsCostMap = {};
     const partsCostByCode = {};
+    const partsById = {};
+    const partsBrandById = {};
+    const partsNameById = {};
+    const partsCostById = {};
 
     (partsRes.data || []).forEach(p => {
       const cat = formatCategory(p.note);
       const brand = p.brand || '-';
       const cost = Number(p.supply_price || 0);
+
+      partsById[p.id] = cat;
+      partsBrandById[p.id] = brand;
+      partsNameById[p.id] = p.name;
+      partsCostById[p.id] = cost;
       if (p.name) { partsMap[p.name] = cat; partsBrandMap[p.name] = brand; partsCostMap[p.name] = cost; }
       if (p.code) { partsByCode[p.code] = cat; partsBrandByCode[p.code] = brand; partsNameByCode[p.code] = p.name; partsCostByCode[p.code] = cost; }
       if (p.barcode) { partsByCode[p.barcode] = cat; partsBrandByCode[p.barcode] = brand; partsNameByCode[p.barcode] = p.name; partsCostByCode[p.barcode] = cost; }
@@ -401,7 +410,8 @@ function SalesHistoryStats() {
         items.forEach((item, idx) => {
           const itemCode = item.custom_product_code || item.product_code || '';
           let pName = item.product_name || item.name || '상품';
-          if (itemCode && partsNameByCode[itemCode]) pName = partsNameByCode[itemCode];
+          if (item.part_id && partsNameById[item.part_id]) pName = partsNameById[item.part_id];
+          else if (itemCode && partsNameByCode[itemCode]) pName = partsNameByCode[itemCode];
           const itemQty = Number(item.quantity || 1);
           
           let paymentAmt = 0;

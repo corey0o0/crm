@@ -189,12 +189,15 @@ function SalesHistory() {
     const partsBrandByCode = {};
     const partsById = {};
     const partsBrandById = {};
+    const partsNameById = {};
+    const partsNameByCode = {};
 
     (partsRes.data || []).forEach(p => {
       const cat = formatCategory(p.note);
       const brand = p.brand || '-';
       partsById[p.id] = cat;
       partsBrandById[p.id] = brand;
+      partsNameById[p.id] = p.name;
 
       if (p.name) {
         partsMap[p.name] = cat;
@@ -203,12 +206,21 @@ function SalesHistory() {
       if (p.code) {
         partsByCode[p.code] = cat;
         partsBrandByCode[p.code] = brand;
+        partsNameByCode[p.code] = p.name;
       }
       if (p.barcode) {
         partsByCode[p.barcode] = cat;
         partsBrandByCode[p.barcode] = brand;
+        partsNameByCode[p.barcode] = p.name;
       }
     });
+
+    const resolvePartName = (originalName, customCode = '', productCode = '', partId = null) => {
+      if (partId && partsNameById[partId]) return partsNameById[partId];
+      if (customCode && partsNameByCode[customCode]) return partsNameByCode[customCode];
+      if (productCode && partsNameByCode[productCode]) return partsNameByCode[productCode];
+      return originalName;
+    };
 
     const resolveCategory = (name, customCode = '', productCode = '', partId = null) => {
       if (partId && partsById[partId]) return partsById[partId];
@@ -481,7 +493,7 @@ function SalesHistory() {
           if (wid === 'DEFAULT') itemWarehouseName = '청담본점';
           else if (wid && warehouseMap[wid]) itemWarehouseName = warehouseMap[wid];
           
-          let pName = item.product_name || item.name || '상품';
+          let pName = resolvePartName(item.product_name || item.name || '상품', item.custom_product_code, item.product_code, item.part_id);
           const optStr = item.option_value || item.options;
           if (optStr && String(optStr).trim() !== '') {
             pName = `${pName} [${String(optStr).trim()}]`;
