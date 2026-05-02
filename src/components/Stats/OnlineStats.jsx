@@ -154,7 +154,7 @@ function OnlineStats() {
       const yearEnd = formatDateToEndOfDay(endOfYear(qStart || startDate));
 
       let orderQuery = supabase.from('cafe24_orders').select('*').gte('order_date', startDateTime).lte('order_date', endDateTime).eq('is_deleted', false).eq('is_transferred', true);
-      let chartQuery = supabase.from('cafe24_orders').select('order_date, total_amount').gte('order_date', yearStart).lte('order_date', yearEnd).eq('is_deleted', false).eq('is_transferred', true);
+      let chartQuery = supabase.from('cafe24_orders').select('order_date, total_amount, mall_id').gte('order_date', yearStart).lte('order_date', yearEnd).eq('is_deleted', false).eq('is_transferred', true);
       
       if (qMall !== 'all') {
         orderQuery = orderQuery.eq('mall_id', qMall);
@@ -186,7 +186,7 @@ function OnlineStats() {
         setRawOrders(cafe24Orders);
         const partMapById = {};
         const partMapByCode = {};
-        const brandSet = new Set();
+        const brandSet = new Set(['XRB', 'NB']);
         partsData?.forEach(p => { 
           partMapById[p.id] = p; 
           if (p.code) partMapByCode[String(p.code).trim()] = p;
@@ -250,9 +250,13 @@ function OnlineStats() {
                    }
                }
                item._calculated_amount = amount;
-               
                const isAirframe = p ? (p.note === '기체') : (pName.includes('기체') || pName.includes('차체'));
-               const sup = p ? (p.brand || '기타 브랜드') : '기타 브랜드';
+               let sup = p ? (p.brand || '') : '';
+               if (!sup || sup.trim() === '' || sup === '기타 브랜드') {
+                  if (o.mall_id === 'slimpack79') sup = 'XRB';
+                  else if (o.mall_id === 'nearbike') sup = 'NB';
+                  else sup = '기타 브랜드';
+               }
                item._brand = sup;
                item._isAirframe = isAirframe;
 
@@ -381,6 +385,8 @@ function OnlineStats() {
         for (let i = 1; i <= 12; i++) monthlyMap[i] = { month: `${i}월`, sales: 0 };
         if (chartDataRaw) {
           chartDataRaw.forEach(o => {
+            if (qBrand === 'XRB' && o.mall_id !== 'slimpack79') return;
+            if (qBrand === 'NB' && o.mall_id !== 'nearbike') return;
             const m = new Date(o.order_date).getMonth() + 1;
             monthlyMap[m].sales += Number(o.total_amount || 0);
           });
