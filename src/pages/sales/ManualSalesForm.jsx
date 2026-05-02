@@ -592,6 +592,7 @@ function ShipmentForm() {
         delivery_method: shipmentData.delivery_method,
         tracking_number: shipmentData.tracking_number?.trim() || '',
         note: finalNote.trim(),
+        sales_channel: shipmentData.sales_channel,
         product_name: combinedProductName,
         product_code: selectedParts[0]?.part_code || '',
         quantity: totalQuantity,

@@ -542,7 +542,7 @@ function SalesHistory() {
     
     if (sellerFilter !== 'all' && sellerFilter !== '전체 판매처') {
       if (sellerFilter === '전체 대리점') {
-        const isAgency = r.sales_channel && !['고객', '-', '일반출고(공홈)', '공홈', '온라인주문', '매장출고', '청담매장', '기타', '본점'].includes(r.sales_channel);
+        const isAgency = r.sales_channel && !['고객', '-', '일반출고(공홈)', '공홈', '온라인주문', '매장출고', '청담매장', '기타', '본점', '라이클', '라이클-우리', '스마트할부'].includes(r.sales_channel);
         if (!isAgency) return false;
       } else if (r.sales_channel !== sellerFilter) {
         return false;
@@ -590,12 +590,12 @@ function SalesHistory() {
       if (r._orderId) uniqueGroups.service.add(r._orderId);
       groupAmounts.service += price;
     } else {
-      const nonAgencyChannels = ['공홈', '청담매장', '라이클-우리', '스마트할부', '스마트스토어', '기타', '온라인주문', '고객', '-', '본사/기본', '과거 이카운트 이관', '일반출고(공홈)', '매장출고', '본점'];
+      const nonAgencyChannels = ['공홈', '청담매장', '라이클', '라이클-우리', '스마트할부', '스마트스토어', '기타', '온라인주문', '고객', '-', '본사/기본', '과거 이카운트 이관', '일반출고(공홈)', '매장출고', '본점', '매장'];
       const isAgency = r.sales_channel && !nonAgencyChannels.includes(r.sales_channel);
       if (isAgency) {
         if (r._orderId) uniqueGroups.agency.add(r._orderId);
         groupAmounts.agency += price;
-      } else if (r._type === 'cafe24' || ['온라인주문', '공홈', '일반출고(공홈)', '라이클-우리', '스마트할부', '스마트스토어'].includes(r.sales_channel)) {
+      } else if (r._type === 'cafe24') {
         if (r._orderId) uniqueGroups.online.add(r._orderId);
         groupAmounts.online += price;
       } else {
@@ -677,13 +677,13 @@ function SalesHistory() {
         const startsWithDate = row.order_no && /^(20[2-9]\d[0-1]\d[0-3]\d)/.test(row.order_no);
         const channel = row.sales_channel || '';
         
-        const nonAgencyChannels = ['공홈', '청담매장', '라이클-우리', '스마트할부', '스마트스토어', '기타', '온라인주문', '고객', '-', '본사/기본', '과거 이카운트 이관'];
+        const nonAgencyChannels = ['공홈', '청담매장', '라이클', '라이클-우리', '스마트할부', '스마트스토어', '기타', '온라인주문', '고객', '-', '본사/기본', '과거 이카운트 이관', '일반출고(공홈)', '매장출고', '본점', '매장'];
         const isAgency = channel && !nonAgencyChannels.includes(channel);
-        const onlineChannels = ['공홈', '스마트스토어', '라이클-우리', '스마트할부', '온라인주문'];
+        const isOnline = row._type === 'cafe24';
 
         if (isAgency) {
           cLabel = `대리점-${channel}`;
-        } else if (isCafe || onlineChannels.includes(channel) || (isEcount && startsWithDate)) {
+        } else if (isOnline || (isEcount && startsWithDate)) {
           cLabel = '고객-온라인';
         } else if (isService) {
           cLabel = '고객-A/S';
@@ -936,14 +936,14 @@ function SalesHistory() {
                 const startsWithDate = row.order_no && /^(20[2-9]\d[0-1]\d[0-3]\d)/.test(row.order_no);
                 const channel = row.sales_channel || '';
                 
-                const nonAgencyChannels = ['공홈', '청담매장', '라이클-우리', '스마트할부', '스마트스토어', '기타', '온라인주문', '고객', '-', '본사/기본', '과거 이카운트 이관'];
+                const nonAgencyChannels = ['공홈', '청담매장', '라이클', '라이클-우리', '스마트할부', '스마트스토어', '기타', '온라인주문', '고객', '-', '본사/기본', '과거 이카운트 이관', '일반출고(공홈)', '매장출고', '본점', '매장'];
                 const isAgency = channel && !nonAgencyChannels.includes(channel);
-                const onlineChannels = ['공홈', '스마트스토어', '라이클-우리', '스마트할부', '온라인주문'];
+                const isOnline = row._type === 'cafe24';
 
                 if (isAgency) {
                   cLabel = `대리점-${channel}`;
                   cColor = 'info';
-                } else if (isCafe || onlineChannels.includes(channel) || (isEcount && startsWithDate)) {
+                } else if (isOnline || (isEcount && startsWithDate)) {
                   cLabel = '고객-온라인';
                   cColor = 'success';
                 } else if (isService) {

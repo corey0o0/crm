@@ -113,14 +113,16 @@ function OnlineStats() {
     const items = [];
     rawOrders.forEach(o => {
       const agName = o.agency_id ? (agencyMapGlobal[o.agency_id] || '미등록 대리점') : '일반 주문';
-      o.order_items?.forEach(item => {
+      (o.order_items || []).forEach(item => {
         if (dataFilter(o, agName, item, item._isAirframe, item._brand)) {
+           const isCancelled = ['C11', 'C40', 'R40', 'E40'].includes(item.order_status);
            items.push({
              ...item,
              order_id: o.order_id,
              order_date: o.order_date,
              buyer_name: o.buyer_name,
              agency_name: agName,
+             isCancelled,
              total_price: item._calculated_amount !== undefined ? item._calculated_amount : (Number(item.quantity || 1) * Number(item.product_price || item.price || 0))
            });
         }
@@ -211,17 +213,20 @@ function OnlineStats() {
           const validItems = (o.order_items || []).filter(
             item => !['C11', 'C40', 'R40', 'E40'].includes(item.order_status)
           );
+          if (validItems.length === 0) return; // 전액 취소건은 제외
+          
           let totalWeight = 0;
-          validItems.forEach(i => {
+          (o.order_items || []).forEach(i => {
               const pCode = String(i.custom_product_code || i.product_code || '').trim();
               const p = i.part_id ? partMapById[i.part_id] : (pCode ? partMapByCode[pCode] : null);
               const pPrice = Number(i.product_price || i.price || (p ? p.price : 0));
               totalWeight += pPrice * Number(i.quantity || 1);
           });
-          const totalQty = validItems.reduce((acc, i) => acc + Number(i.quantity || 1), 0);
+          const totalQty = (o.order_items || []).reduce((acc, i) => acc + Number(i.quantity || 1), 0);
 
-          if (validItems.length > 0) {
-             validItems.forEach((item, idx) => {
+          if ((o.order_items || []).length > 0) {
+             const allItems = o.order_items || [];
+             allItems.forEach((item, idx) => {
                const pCode = String(item.custom_product_code || item.product_code || '').trim();
                const pName = item.name || item.product_name || '';
                const p = item.part_id ? partMapById[item.part_id] : (pCode ? partMapByCode[pCode] : null);
@@ -233,8 +238,8 @@ function OnlineStats() {
                } else if (totalWeight > 0) {
                    const pPrice = Number(item.product_price || item.price || (p ? p.price : 0));
                    amount = Math.floor(((pPrice * qty) / totalWeight) * Number(o.total_amount || 0));
-                   if (idx === validItems.length - 1) {
-                       const prevTotal = validItems.slice(0, validItems.length - 1).reduce((acc, prev) => {
+                   if (idx === allItems.length - 1) {
+                       const prevTotal = allItems.slice(0, allItems.length - 1).reduce((acc, prev) => {
                            const prevPCode = String(prev.custom_product_code || prev.product_code || '').trim();
                            const prevP = prev.part_id ? partMapById[prev.part_id] : (prevPCode ? partMapByCode[prevPCode] : null);
                            const prevPrice = Number(prev.product_price || prev.price || (prevP ? prevP.price : 0));
@@ -244,13 +249,15 @@ function OnlineStats() {
                    }
                } else if (totalQty > 0) {
                    amount = Math.floor((qty / totalQty) * Number(o.total_amount || 0));
-                   if (idx === validItems.length - 1) {
-                       const prevTotal = validItems.slice(0, validItems.length - 1).reduce((acc, prev) => {
+                   if (idx === allItems.length - 1) {
+                       const prevTotal = allItems.slice(0, allItems.length - 1).reduce((acc, prev) => {
                            return acc + Math.floor((Number(prev.quantity || 1) / totalQty) * Number(o.total_amount || 0));
                        }, 0);
                        amount = Number(o.total_amount || 0) - prevTotal;
                    }
                }
+               
+               // 취소된 항목에도 일단 _calculated_amount를 계산해두기 위해 전체 order_items를 순회하도록 수정
                item._calculated_amount = amount;
                const isAirframe = p ? (p.note?.includes('기체')) : (pName.includes('기체') || pName.includes('차체'));
                let sup = p ? (p.brand || '') : '';
@@ -264,6 +271,12 @@ function OnlineStats() {
 
                if (qBrand !== '전체' && sup !== qBrand) {
                  return; // 현재 선택된 브랜드가 아니면 패스
+               }
+
+               // 취소된 항목은 통계 집계에서 제외
+               const isCancelled = ['C11', 'C40', 'R40', 'E40'].includes(item.order_status);
+               if (isCancelled) {
+                 return;
                }
 
                hasMatchingBrand = true;
@@ -861,12 +874,17 @@ function OnlineStats() {
               </TableHead>
               <TableBody>
                 {modalData.length > 0 ? modalData.map((row, idx) => (
-                  <TableRow key={idx} hover>
+                  <TableRow key={idx} hover sx={{ opacity: row.isCancelled ? 0.6 : 1 }}>
                     <TableCell>{row.order_date ? row.order_date.split('T')[0] : ''}</TableCell>
                     <TableCell>{row.order_id}</TableCell>
-                    <TableCell>{row._resolvedName || row.name || row.product_name}</TableCell>
-                    <TableCell align="right">{row.quantity}개</TableCell>
-                    <TableCell align="right">{formatCurrency(row.total_price)}</TableCell>
+                    <TableCell>
+                       {row.isCancelled && <Box component="span" sx={{ color: 'error.main', fontWeight: 'bold', mr: 1 }}>[취소/반품]</Box>}
+                       <span style={{ textDecoration: row.isCancelled ? 'line-through' : 'none' }}>
+                         {row._resolvedName || row.name || row.product_name}
+                       </span>
+                    </TableCell>
+                    <TableCell align="right" sx={{ textDecoration: row.isCancelled ? 'line-through' : 'none' }}>{row.quantity}개</TableCell>
+                    <TableCell align="right" sx={{ textDecoration: row.isCancelled ? 'line-through' : 'none' }}>{formatCurrency(row.total_price)}</TableCell>
                   </TableRow>
                 )) : (
                   <TableRow><TableCell colSpan={5} align="center">판매 내역이 없습니다.</TableCell></TableRow>
@@ -874,14 +892,14 @@ function OnlineStats() {
               </TableBody>
               <TableFooter>
                 <TableRow sx={{ bgcolor: 'grey.200' }}>
-                  <TableCell colSpan={3} align="right" sx={{ fontWeight: 'bold' }}>기체 총합</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 'bold' }}>{modalData.filter(i => i._isAirframe).reduce((sum, i) => sum + Number(i.quantity || 1), 0)}대</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(modalData.filter(i => i._isAirframe).reduce((sum, i) => sum + i.total_price, 0))}</TableCell>
+                  <TableCell colSpan={3} align="right" sx={{ fontWeight: 'bold' }}>기체 총합 (취소 제외)</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 'bold' }}>{modalData.filter(i => i._isAirframe && !i.isCancelled).reduce((sum, i) => sum + Number(i.quantity || 1), 0)}대</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(modalData.filter(i => i._isAirframe && !i.isCancelled).reduce((sum, i) => sum + i.total_price, 0))}</TableCell>
                 </TableRow>
                 <TableRow sx={{ bgcolor: 'grey.200' }}>
-                  <TableCell colSpan={3} align="right" sx={{ fontWeight: 'bold' }}>파츠 총합</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 'bold' }}>{modalData.filter(i => !i._isAirframe).reduce((sum, i) => sum + Number(i.quantity || 1), 0)}개</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(modalData.filter(i => !i._isAirframe).reduce((sum, i) => sum + i.total_price, 0))}</TableCell>
+                  <TableCell colSpan={3} align="right" sx={{ fontWeight: 'bold' }}>파츠 총합 (취소 제외)</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 'bold' }}>{modalData.filter(i => !i._isAirframe && !i.isCancelled).reduce((sum, i) => sum + Number(i.quantity || 1), 0)}개</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(modalData.filter(i => !i._isAirframe && !i.isCancelled).reduce((sum, i) => sum + i.total_price, 0))}</TableCell>
                 </TableRow>
               </TableFooter>
             </Table>

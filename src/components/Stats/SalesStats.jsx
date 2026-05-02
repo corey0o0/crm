@@ -289,13 +289,10 @@ function SalesStats() {
         throw shipmentsError;
       }
       
-      // 매장 매출통계이므로 대리점(B2B) 및 온라인 매출은 제외하고 순수 매장 출고건만 필터링
       const shipmentsData = (rawShipmentsData || []).filter(shipment => {
         const channel = extractSalesChannel(shipment.note, shipment.sales_channel);
-        // 온라인 제외
-        if (channel === '온라인주문' || channel === '공홈' || channel === '일반출고(공홈)' || channel === '스마트스토어' || channel === '쿠팡' || channel === '네이버') return false;
         // 대리점 제외 (지정된 매장 관련 채널이 아니면 대리점으로 간주)
-        const isAgency = channel && !['고객', '-', '일반출고(공홈)', '공홈', '온라인주문', '매장출고', '청담매장', '기타', '본점'].includes(channel);
+        const isAgency = channel && !['고객', '-', '일반출고(공홈)', '공홈', '온라인주문', '매장출고', '매장', '청담매장', '기타', '본점', '스마트할부', '라이클', '라이클-우리', '스마트스토어'].includes(channel);
         if (isAgency) return false;
         return true;
       });

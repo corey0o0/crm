@@ -349,13 +349,13 @@ function SalesHistoryStats() {
           return;
         }
 
-        let totalWeight = validItems.reduce((acc, i) => {
+        let totalWeight = items.reduce((acc, i) => {
            let qty = Number(i.quantity || 1);
            let p = Number(i.product_price || i.price || 0) * qty;
            return acc + p;
         }, 0);
 
-        validItems.forEach((item, idx) => {
+        items.forEach((item, idx) => {
           const itemCode = item.custom_product_code || item.product_code || '';
           let pName = item.product_name || item.name || '상품';
           if (itemCode && partsNameByCode[itemCode]) pName = partsNameByCode[itemCode];
@@ -377,10 +377,10 @@ function SalesHistoryStats() {
           } else {
               let itemWeight = iPrice * itemQty;
 
-              if (totalWeight > 0) {
+               if (totalWeight > 0) {
                  total = Math.floor((itemWeight / totalWeight) * Number(o.total_amount || 0));
-                 if (idx === validItems.length - 1) {
-                    let previousTotals = validItems.slice(0, validItems.length - 1).reduce((acc, prevItem) => {
+                 if (idx === items.length - 1) {
+                    let previousTotals = items.slice(0, items.length - 1).reduce((acc, prevItem) => {
                        let prevQty = Number(prevItem.quantity || 1);
                        let prevWeight = Number(prevItem.product_price || prevItem.price || 0) * prevQty;
                        return acc + Math.floor((prevWeight / totalWeight) * Number(o.total_amount || 0));
@@ -388,9 +388,9 @@ function SalesHistoryStats() {
                     total = Number(o.total_amount || 0) - previousTotals;
                  }
               } else {
-                 total = Math.floor(Number(o.total_amount || 0) / validItems.length);
-                 if (idx === validItems.length - 1) {
-                    total = Number(o.total_amount || 0) - (total * (validItems.length - 1));
+                 total = Math.floor(Number(o.total_amount || 0) / items.length);
+                 if (idx === items.length - 1) {
+                    total = Number(o.total_amount || 0) - (total * (items.length - 1));
                  }
               }
               if (iPrice === 0 && total > 0) iPrice = Math.round(total / itemQty);
@@ -399,7 +399,9 @@ function SalesHistoryStats() {
           const cat = resolveCategory(pName, itemCode);
           const brand = resolveBrand(pName, itemCode);
           const unitCost = resolveCost(pName, itemCode);
-          rows.push({ ...baseFields, part_name: pName, part_category: cat, part_brand: brand, quantity: itemQty, total_price: total, total_cost: unitCost * itemQty });
+          if (!['C11', 'C40', 'R40', 'E40'].includes(item.order_status)) {
+             rows.push({ ...baseFields, part_name: pName, part_category: cat, part_brand: brand, quantity: itemQty, total_price: total, total_cost: unitCost * itemQty });
+          }
         });
       }
     });
@@ -504,7 +506,7 @@ function SalesHistoryStats() {
       if (isAgency) {
         if (r._id) uniqueGroups.agency.add(r._id);
         groupAmounts.agency += price;
-      } else if (r.sales_channel === '온라인주문' || r._type === 'cafe24') {
+      } else if (r._type === 'cafe24') {
         if (r._id) uniqueGroups.online.add(r._id);
         groupAmounts.online += price;
       } else {
