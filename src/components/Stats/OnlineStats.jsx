@@ -226,11 +226,21 @@ function OnlineStats() {
 
           if ((o.order_items || []).length > 0) {
              const allItems = o.order_items || [];
+             let seenProductCodes = new Set();
              allItems.forEach((item, idx) => {
                const pCode = String(item.custom_product_code || item.product_code || '').trim();
                const pName = item.name || item.product_name || '';
                const p = item.part_id ? partMapById[item.part_id] : (pCode ? partMapByCode[pCode] : null);
-               const qty = Number(item.quantity || 1);
+               
+               let qty = Number(item.quantity || 1);
+               let statQty = qty;
+               if (pCode) {
+                   if (seenProductCodes.has(pCode)) {
+                       statQty = 0;
+                   } else {
+                       seenProductCodes.add(pCode);
+                   }
+               }
                
                let amount = 0;
                if (item.payment_amount !== undefined && item.payment_amount !== null && Number(item.payment_amount) > 0) {
@@ -285,10 +295,10 @@ function OnlineStats() {
                if (!agencyStats[agName]) agencyStats[agName] = { amount: 0, count: 0, airframe: 0, airframeAmount: 0, parts: 0, partsAmount: 0 };
                
                if (isAirframe) {
-                  agencyStats[agName].airframe += qty;
+                  agencyStats[agName].airframe += statQty;
                   agencyStats[agName].airframeAmount += amount;
                } else {
-                   agencyStats[agName].parts += qty;
+                   agencyStats[agName].parts += statQty;
                    agencyStats[agName].partsAmount += amount;
                 }
 
@@ -297,18 +307,18 @@ function OnlineStats() {
 
                 if (isGeneral) {
                     if (isAirframe) {
-                        totalB2CAirframeQty += qty;
+                        totalB2CAirframeQty += statQty;
                         totalB2CAirframeAmt += amount;
                     } else {
-                        totalB2CPartsQty += qty;
+                        totalB2CPartsQty += statQty;
                         totalB2CPartsAmt += amount;
                     }
                 } else {
                     if (isAirframe) {
-                        totalB2BAirframeQty += qty;
+                        totalB2BAirframeQty += statQty;
                         totalB2BAirframeAmt += amount;
                     } else {
-                        totalB2BPartsQty += qty;
+                        totalB2BPartsQty += statQty;
                         totalB2BPartsAmt += amount;
                     }
                 }
@@ -343,13 +353,13 @@ function OnlineStats() {
                      if (!brandStats[customerType][sup].airframes[modelName]) {
                         brandStats[customerType][sup].airframes[modelName] = { qty: 0, amount: 0 };
                      }
-                     brandStats[customerType][sup].airframes[modelName].qty += qty;
+                     brandStats[customerType][sup].airframes[modelName].qty += statQty;
                      brandStats[customerType][sup].airframes[modelName].amount += amount;
 
-                     brandStats[customerType][sup].airframeTotalQty += qty;
+                     brandStats[customerType][sup].airframeTotalQty += statQty;
                      brandStats[customerType][sup].airframeAmount += amount;
                   } else {
-                     brandStats[customerType][sup].parts += qty;
+                     brandStats[customerType][sup].parts += statQty;
                      brandStats[customerType][sup].partsAmount += amount;
                   }
 
@@ -358,7 +368,7 @@ function OnlineStats() {
                       if (!generalProductStats[p.id]) {
                         generalProductStats[p.id] = { name: p.name || item.name, category: p.note, quantity: 0, amount: 0 };
                       }
-                      generalProductStats[p.id].quantity += qty;
+                      generalProductStats[p.id].quantity += statQty;
                       generalProductStats[p.id].amount += amount;
                    }
              });

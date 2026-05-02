@@ -481,6 +481,7 @@ function SalesHistory() {
       } else {
         let orderBrand = '-';
         let orderItemsSum = 0;
+        let seenProductCodes = new Set();
         const validItems = items.filter(item => !['C11', 'C40', 'R40', 'E40'].includes(item.order_status));
         if (validItems.length === 0) return; // 전액/전부 취소건은 리스트에서 제외
 
@@ -499,6 +500,15 @@ function SalesHistory() {
             pName = `${pName} [${String(optStr).trim()}]`;
           }
           const itemQty = Number(item.quantity || 1);
+          let statQty = itemQty;
+          const pCodeCheck = String(item.product_code || '').trim();
+          if (pCodeCheck) {
+              if (seenProductCodes.has(pCodeCheck)) {
+                  statQty = 0;
+              } else {
+                  seenProductCodes.add(pCodeCheck);
+              }
+          }
           
           let paymentAmt = 0;
           let isExplicitlyZero = item.payment_amount !== undefined && item.payment_amount !== null && Number(item.payment_amount) === 0;
@@ -565,7 +575,7 @@ function SalesHistory() {
           }
           orderItemsSum += total;
 
-          rows.push({ ...baseFields, warehouse_name: itemWarehouseName, _id: `cafe_${o.id}_${idx}`, part_name: pName, part_category: cat, part_brand: brand, quantity: itemQty, unit_price: iPrice, unit_shipping_fee: shipFee, total_price: total });
+          rows.push({ ...baseFields, warehouse_name: itemWarehouseName, _id: `cafe_${o.id}_${idx}`, part_name: pName, part_category: cat, part_brand: brand, quantity: statQty, unit_price: iPrice, unit_shipping_fee: shipFee, total_price: total });
         });
 
         const shipFee = Number(o.shipping_fee || 0);

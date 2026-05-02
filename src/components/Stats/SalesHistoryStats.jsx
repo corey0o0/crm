@@ -395,6 +395,7 @@ function SalesHistoryStats() {
       } else {
         let orderBrand = '-';
         let orderItemsSum = 0;
+        let seenProductCodes = new Set();
         const validItems = items.filter(item => !['C11', 'C40', 'R40', 'E40'].includes(item.order_status));
         if (validItems.length === 0) {
           // 유효 항목이 없으면 건너뛰거나 기본값 처리
@@ -461,8 +462,18 @@ function SalesHistoryStats() {
           }
           orderItemsSum += total;
           
+          let statQty = itemQty;
+          const pCode = String(item.product_code || '').trim();
+          if (pCode) {
+              if (seenProductCodes.has(pCode)) {
+                  statQty = 0;
+              } else {
+                  seenProductCodes.add(pCode);
+              }
+          }
+          
           if (!['C11', 'C40', 'R40', 'E40'].includes(item.order_status)) {
-             rows.push({ ...baseFields, part_name: pName, part_category: cat, part_brand: brand, quantity: itemQty, total_price: total, total_cost: unitCost * itemQty });
+             rows.push({ ...baseFields, part_name: pName, part_category: cat, part_brand: brand, quantity: statQty, total_price: total, total_cost: unitCost * itemQty });
           }
         });
 
