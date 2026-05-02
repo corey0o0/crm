@@ -695,6 +695,10 @@ function ShipmentForm() {
       }
 
       // 변경사항 초기화
+      setInitialData({
+        shipmentData: { ...shipmentData },
+        selectedParts: [...selectedParts]
+      });
       setHasUnsavedChanges(false);
 
       setTimeout(() => {

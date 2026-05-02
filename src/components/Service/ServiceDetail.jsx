@@ -66,7 +66,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import { formatKoreanDateTime } from '../../utils/dateUtils';
 import { format } from 'date-fns';
 import { sendTelegramNotification } from '../../lib/telegram';
-import { processServiceCompletion, processPartialReturn } from '../../utils/inventoryUtils';
+import { processServiceCompletion, processPartialReturn, processServiceRevert } from '../../utils/inventoryUtils';
 import { pendingOutboundApi } from '../../api/pendingOutboundApi';
 // import { addServicePartsToPendingOrders } from '../../utils/pendingOrderUtils'; // 주문대기 기능 비활성화
 import {
@@ -1254,6 +1254,14 @@ function ServiceDetail() {
             .eq('service_id', id);
 
           if (deletePartsError) throw deletePartsError;
+
+          // A/S 삭제 전 재고 원복 처리 (기존 부품 재고를 창고로 다시 입고)
+          try {
+            await processServiceRevert(id, formData.brand);
+            console.log(`[A/S Delete] 재고 원복 완료 - 서비스ID: ${id}`);
+          } catch (revertErr) {
+            console.error('A/S 삭제 시 재고 원복 중 오류:', revertErr);
+          }
 
           const { error: txError } = await supabase
             .from('transactions')

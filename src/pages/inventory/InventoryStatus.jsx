@@ -14,7 +14,7 @@ export default function InventoryStatus() {
   } = context;
 
         const term = overallSearch.trim().toLowerCase();
-        let rows = (products || []).filter(p => !term || p.name.toLowerCase().includes(term) || p.code.toLowerCase().includes(term));
+        let rows = (products || []).filter(p => !p.is_deleted && (!term || p.name?.toLowerCase().includes(term) || p.code?.toLowerCase().includes(term)));
         rows = rows.filter(p => {
           const stocks = warehouses.map(w => (inventory[w.id]?.[p.id] || 0));
           const anyStock = stocks.some(q => q !== 0);

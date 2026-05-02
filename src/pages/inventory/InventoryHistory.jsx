@@ -299,7 +299,9 @@ export default function InventoryHistory() {
 
           {transactionViewMode === 'table' && (
             <Box>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>기간: {dateKeys[0]} ~ {dateKeys[dateKeys.length - 1]}</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                {dateKeys.length > 0 ? `기간: ${dateKeys[0]} ~ ${dateKeys[dateKeys.length - 1]}` : '기간 내역 없음'}
+              </Typography>
               <Grid container spacing={2}>
                 {warehouses.map(w => {
                   const wid = w.id;

@@ -22,6 +22,7 @@ function mapPartToProduct(part) {
     supplier: part.brand || part.supplier || null,
     discount_group: part.discount_group || null,
     status: 'active',
+    is_deleted: part.is_deleted || false,
     _source: 'parts'
   };
 }

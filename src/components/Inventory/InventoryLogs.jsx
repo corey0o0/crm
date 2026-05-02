@@ -30,7 +30,7 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ko } from 'date-fns/locale';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 
 const InventoryLogs = () => {
   const [currentTab, setCurrentTab] = useState(0);
@@ -40,6 +40,7 @@ const InventoryLogs = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [totalCount, setTotalCount] = useState(0);
+  const [brands, setBrands] = useState([]);
   const [filters, setFilters] = useState({
     brandCode: '',
     changeType: '',
@@ -76,7 +77,7 @@ const InventoryLogs = () => {
         query = query.gte('created_at', format(filters.startDate, 'yyyy-MM-dd') + 'T00:00:00+09:00');
       }
       if (filters.endDate) {
-        query = query.lte('created_at', format(filters.endDate, 'yyyy-MM-dd') + 'T23:59:59+09:00');
+        query = query.lt('created_at', format(addDays(filters.endDate, 1), 'yyyy-MM-dd') + 'T00:00:00+09:00');
       }
 
       const { data, error, count } = await query;
@@ -115,7 +116,7 @@ const InventoryLogs = () => {
         query = query.gte('created_at', format(filters.startDate, 'yyyy-MM-dd') + 'T00:00:00+09:00');
       }
       if (filters.endDate) {
-        query = query.lte('created_at', format(filters.endDate, 'yyyy-MM-dd') + 'T23:59:59+09:00');
+        query = query.lt('created_at', format(addDays(filters.endDate, 1), 'yyyy-MM-dd') + 'T00:00:00+09:00');
       }
 
       const { data, error, count } = await query;
@@ -132,6 +133,18 @@ const InventoryLogs = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const loadBrands = async () => {
+      try {
+        const { data } = await supabase.from('brand_settings').select('brand_code, brand_name');
+        if (data) setBrands(data);
+      } catch (err) {
+        console.error('브랜드 목록 조회 중 오류:', err);
+      }
+    };
+    loadBrands();
+  }, []);
 
   useEffect(() => {
     if (currentTab === 0) {
@@ -190,14 +203,8 @@ const InventoryLogs = () => {
 
 
   const getBrandName = (brandCode) => {
-    switch (brandCode) {
-      case 'XRB':
-        return 'X-RIDER';
-      case 'NB':
-        return 'NEARBIKE';
-      default:
-        return brandCode;
-    }
+    const brand = brands.find(b => b.brand_code === brandCode);
+    return brand ? brand.brand_name : brandCode;
   };
 
   const formatDateTime = (dateString) => {
@@ -251,8 +258,9 @@ const InventoryLogs = () => {
                         onChange={(e) => handleFilterChange('brandCode', e.target.value)}
                       >
                         <MenuItem value="">전체</MenuItem>
-                        <MenuItem value="XRB">X-RIDER</MenuItem>
-                        <MenuItem value="NB">NEARBIKE</MenuItem>
+                        {brands.map(b => (
+                          <MenuItem key={b.brand_code} value={b.brand_code}>{b.brand_name}</MenuItem>
+                        ))}
                       </Select>
                     </FormControl>
                   </Grid>

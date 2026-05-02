@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabaseClient';
 import { getSyncedParts } from './partSyncUtils';
+import { format } from 'date-fns';
 
 /**
  * 브랜드 설정 조회
@@ -69,7 +70,7 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
           quantity: Math.abs(quantityChange),
           from_location: isRevert ? '외부(취소/환불)' : (part.warehouse_id || defaultWarehouseId),
           to_location: isRevert ? (part.warehouse_id || defaultWarehouseId) : '외부(고객)',
-          date: new Date().toISOString().split('T')[0],
+          date: format(new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Seoul"})), 'yyyy-MM-dd'),
           note: isRevert 
             ? `${referenceType === 'shipment' ? '[매장출고 취소]' : '[A/S 취소]'} 단순 기록 (Ref: ${referenceId}${customerName ? `, ${customerName}` : ''})`
             : `${referenceType === 'shipment' ? '[매장출고 완료]' : '[A/S 완료]'} 단순 기록 (Ref: ${referenceId}${customerName ? `, ${customerName}` : ''})`,
@@ -169,7 +170,7 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
             quantity: Math.abs(quantityChange), // 항상 양수로 기록
             from_location: isRevert ? '외부(취소/환불)' : (part.warehouse_id || defaultWarehouseId),
             to_location: isRevert ? (part.warehouse_id || defaultWarehouseId) : '외부(고객)',
-            date: new Date().toISOString().split('T')[0],
+            date: format(new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Seoul"})), 'yyyy-MM-dd'),
             note: isRevert 
               ? `${referenceType === 'shipment' ? '[매장출고 취소]' : '[A/S 취소]'} 재고 복구 (Ref: ${referenceId}${customerName ? `, ${customerName}` : ''})`
               : `${referenceType === 'shipment' ? '[매장출고 완료]' : '[A/S 완료]'} 재고 차감 (Ref: ${referenceId}${customerName ? `, ${customerName}` : ''})`,
@@ -239,7 +240,7 @@ export const processShipmentCompletion = async (shipmentId, brandCode) => {
     if (shipErr || !shipment) throw new Error('출고 정보를 찾을 수 없습니다.');
     
     // 기본 창고(청담) 설정
-    const { data: fw } = await supabase.from('warehouses').select('id').ilike('name', '%청담%').maybeSingle();
+    const { data: fw } = await supabase.from('warehouses').select('id').order('id', { ascending: true }).limit(1).maybeSingle();
     const warehouseId = fw ? fw.id : null;
     if (!warehouseId) throw new Error('출고에 지정할 기준 창고(청담) 정보를 찾을 수 없습니다.');
 
@@ -327,7 +328,7 @@ export const processShipmentRevert = async (shipmentId, brandCode) => {
        .single();
     if (shipErr || !shipment) throw new Error('출고 정보 없음');
 
-    const { data: fw } = await supabase.from('warehouses').select('id').ilike('name', '%청담%').maybeSingle();
+    const { data: fw } = await supabase.from('warehouses').select('id').order('id', { ascending: true }).limit(1).maybeSingle();
     const warehouseId = fw ? fw.id : null;
     if (!warehouseId) throw new Error('기본 창고 정보 없음');
 
@@ -365,13 +366,13 @@ export const processServiceCompletion = async (serviceId, brandCode) => {
     // if (!brandSettings.auto_inventory_deduction) return { success: true, skipped: true };
 
     
-    const { data: service, error: srvErr } = await supabase.from('services').select('id').eq('id', serviceId).single();
+    const { data: service, error: srvErr } = await supabase.from('services').select('id, customer_name').eq('id', serviceId).single();
     if (srvErr || !service) throw new Error('A/S를 찾을 수 없음');
     
     // A/S에 창고 정보가 없으므로 기본(청담) 창고 할당
     let warehouseId = null;
     if (!warehouseId) {
-      const { data: fw } = await supabase.from('warehouses').select('id').ilike('name', '%청담%').maybeSingle();
+      const { data: fw } = await supabase.from('warehouses').select('id').order('id', { ascending: true }).limit(1).maybeSingle();
       warehouseId = fw ? fw.id : null;
       if(!warehouseId) throw new Error('A/S 처리에 할당된 창고가 없습니다.');
     }
@@ -445,41 +446,8 @@ export const processServiceCompletion = async (serviceId, brandCode) => {
       });
     }
 
-    // 3. 차이(Delta) 계산 및 적용
-    const partsToDeduct = [];
+    // 3. 기존 모든 차감 내역 완전 복구 (Revert All) 후 현재 상태로 신규 차감 (Re-Deduct)
     const partsToRevert = [];
-
-    // effectiveParts에 존재하는 부품 비교
-    Object.keys(effectiveParts).forEach(key => {
-      const needed = effectiveParts[key].effective_qty;
-      const deducted = netDeductions[key] ? netDeductions[key].net_qty : 0;
-      const delta = needed - deducted;
-
-      if (delta > 0) {
-        // 더 차감해야 함 (출고)
-        partsToDeduct.push({
-          part_id: effectiveParts[key].part_id,
-          part_name: effectiveParts[key].part_name,
-          part_code: effectiveParts[key].part_code,
-          quantity: delta,
-          warehouse_id: effectiveParts[key].warehouse_id
-        });
-      } else if (delta < 0) {
-        // 너무 많이 차감됨 (입고/복구)
-        partsToRevert.push({
-          part_id: effectiveParts[key].part_id,
-          part_name: effectiveParts[key].part_name,
-          part_code: effectiveParts[key].part_code,
-          quantity: Math.abs(delta),
-          warehouse_id: effectiveParts[key].warehouse_id
-        });
-      }
-      
-      // 처리한 키는 netDeductions에서 제거
-      if (netDeductions[key]) delete netDeductions[key];
-    });
-
-    // netDeductions에 남아있는 부품은 모두 복구 (effective에 없음 -> 완전 삭제됨)
     Object.keys(netDeductions).forEach(key => {
       const deducted = netDeductions[key].net_qty;
       if (deducted > 0) {
@@ -493,11 +461,25 @@ export const processServiceCompletion = async (serviceId, brandCode) => {
       }
     });
 
+    const partsToDeduct = [];
+    Object.keys(effectiveParts).forEach(key => {
+      const needed = effectiveParts[key].effective_qty;
+      if (needed > 0) {
+        partsToDeduct.push({
+          part_id: effectiveParts[key].part_id,
+          part_name: effectiveParts[key].part_name,
+          part_code: effectiveParts[key].part_code,
+          quantity: needed,
+          warehouse_id: effectiveParts[key].warehouse_id
+        });
+      }
+    });
+
     const results = [];
     
     if (partsToRevert.length > 0) {
-      console.log(`[A/S Inventory Sync] 기존 차감량 일부 복구 (${partsToRevert.length}품목)`, partsToRevert);
-      const revertResult = await processInventory(warehouseId, partsToRevert, brandCode, serviceId, 'service', 'service_revert', true);
+      console.log(`[A/S Inventory Sync] 기존 차감량 완전 복구 (${partsToRevert.length}품목)`, partsToRevert);
+      const revertResult = await processInventory(warehouseId, partsToRevert, brandCode, serviceId, 'service', 'service_revert', true, service.customer_name || '');
       if (!revertResult.success) {
         console.error('재고 복구(Delta) 중 오류 발생:', revertResult);
         return revertResult;
@@ -506,8 +488,8 @@ export const processServiceCompletion = async (serviceId, brandCode) => {
     }
 
     if (partsToDeduct.length > 0) {
-      console.log(`[A/S Inventory Sync] 신규 필요 수량 차감 (${partsToDeduct.length}품목)`, partsToDeduct);
-      const deductResult = await processInventory(warehouseId, partsToDeduct, brandCode, serviceId, 'service', 'service_complete', false);
+      console.log(`[A/S Inventory Sync] 현재 필요 수량 전면 재차감 (${partsToDeduct.length}품목)`, partsToDeduct);
+      const deductResult = await processInventory(warehouseId, partsToDeduct, brandCode, serviceId, 'service', 'service_complete', false, service.customer_name || '');
       if (!deductResult.success) {
         console.error('재고 차감(Delta) 중 오류 발생:', deductResult);
         return deductResult;
@@ -532,7 +514,7 @@ export const processServiceRevert = async (serviceId, brandCode) => {
     await supabase.from('services').select('id').eq('id', serviceId).single(); // validate existence
     let warehouseId = null;
     if (!warehouseId) {
-       const { data: fw } = await supabase.from('warehouses').select('id').ilike('name', '%청담%').maybeSingle();
+       const { data: fw } = await supabase.from('warehouses').select('id').order('id', { ascending: true }).limit(1).maybeSingle();
        warehouseId = fw ? fw.id : null;
        if(!warehouseId) throw new Error('창고 미지정');
     }
@@ -555,7 +537,7 @@ export const processPartialReturn = async (sourceType, orderId, recordId, quanti
     // const brandSettings = await getBrandSettings(brandCode);
     // if (!brandSettings.auto_inventory_deduction) return { success: true, skipped: true };
 
-    const { data: fw } = await supabase.from('warehouses').select('id').ilike('name', '%청담%').maybeSingle();
+    const { data: fw } = await supabase.from('warehouses').select('id').order('id', { ascending: true }).limit(1).maybeSingle();
     const warehouseId = fw ? fw.id : null;
     if (!warehouseId) throw new Error('기본 창고 정보 없음');
 

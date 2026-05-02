@@ -1,3 +1,4 @@
+import { format } from 'date-fns';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import ExcelJS from 'exceljs';
 import BarcodeInspectTab from './tabs/BarcodeInspectTab';
@@ -144,9 +145,7 @@ function InventoryManagement() {
       setTransactions(updatedTransactions);
       setSelectedTransactions([]);
       
-      setTimeout(() => {
-        recalculateInventoryFromTransactions();
-      }, 100);
+      recalculateInventoryFromTransactions(updatedTransactions);
       
       showSnackbar(`선택한 거래내역이 삭제되었습니다.`, 'success');
     } catch (error) {
@@ -190,7 +189,7 @@ function InventoryManagement() {
     fromLocation: '',
     toLocation: '',
     note: '',
-    date: new Date().toISOString().split('T')[0]
+    date: format(new Date(), 'yyyy-MM-dd')
   });
 
   // 다중 상품 입출고용 단일 데이터 (통합)
@@ -242,7 +241,7 @@ function InventoryManagement() {
 
   const handleViewOriginal = async () => {
     if (!selectedTransaction) return;
-    const groupId = selectedTransaction.group_id || selectedTransaction.id;
+    const groupId = selectedTransaction.group_id || selectedTransaction.groupId || selectedTransaction.id;
     if (!groupId || groupId === 'none') {
       setSnackbar({ open: true, message: '원본 전표를 찾을 수 없는 단일 입출고 건입니다.', severity: 'warning' });
       return;
@@ -423,19 +422,19 @@ function InventoryManagement() {
     
     switch (filterType) {
       case 'today':
-        dateFrom = today.toISOString().split('T')[0];
-        dateTo = today.toISOString().split('T')[0];
+        dateFrom = format(today, 'yyyy-MM-dd');
+        dateTo = format(today, 'yyyy-MM-dd');
         break;
       case 'week':
         const startOfWeek = new Date(today);
         startOfWeek.setDate(today.getDate() - today.getDay());
-        dateFrom = startOfWeek.toISOString().split('T')[0];
-        dateTo = today.toISOString().split('T')[0];
+        dateFrom = format(startOfWeek, 'yyyy-MM-dd');
+        dateTo = format(today, 'yyyy-MM-dd');
         break;
       case 'month':
         const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-        dateFrom = startOfMonth.toISOString().split('T')[0];
-        dateTo = today.toISOString().split('T')[0];
+        dateFrom = format(startOfMonth, 'yyyy-MM-dd');
+        dateTo = format(today, 'yyyy-MM-dd');
         break;
       default:
         dateFrom = '';
@@ -453,7 +452,7 @@ function InventoryManagement() {
   const handleTableCellClick = useCallback((warehouseId, productId, date) => {
     const dayTransactions = transactions.filter(tx => {
       if (!tx || !tx.date) return false;
-      const txDate = typeof tx.date === 'string' ? tx.date.split('T')[0] : new Date(tx.date).toISOString().split('T')[0];
+      const txDate = typeof tx.date === 'string' ? tx.date.split('T')[0] : format(new Date(tx.date), 'yyyy-MM-dd');
       return txDate === date && 
              (tx.toLocation === warehouseId || tx.fromLocation === warehouseId) &&
              tx.productId === productId;
@@ -469,7 +468,7 @@ function InventoryManagement() {
   const handleTableCellHover = useCallback((event, warehouseId, productId, date) => {
     const dayTransactions = transactions.filter(tx => {
       if (!tx || !tx.date) return false;
-      const txDate = typeof tx.date === 'string' ? tx.date.split('T')[0] : new Date(tx.date).toISOString().split('T')[0];
+      const txDate = typeof tx.date === 'string' ? tx.date.split('T')[0] : format(new Date(tx.date), 'yyyy-MM-dd');
       return txDate === date && 
              (tx.toLocation === warehouseId || tx.fromLocation === warehouseId) &&
              tx.productId === productId;
@@ -660,9 +659,7 @@ function InventoryManagement() {
       await fetchWarehouses();
       await fetchDealers();
       // 재고도 다시 초기화
-      setTimeout(() => {
-        recalculateInventoryFromTransactions();
-      }, 100);
+      recalculateInventoryFromTransactions(transactions);
     } catch (error) {
       console.error('위치 정보 업데이트 실패:', error);
     }
@@ -702,9 +699,7 @@ function InventoryManagement() {
       );
       
       // 연동 상태 변경 시 재고 재초기화
-      setTimeout(() => {
-        recalculateInventoryFromTransactions();
-      }, 100);
+      recalculateInventoryFromTransactions(transactions);
     } catch (error) {
       console.error('창고 연동 설정 변경 실패:', error);
       showSnackbar('창고 연동 설정 변경에 실패했습니다.', 'error');
@@ -811,7 +806,7 @@ function InventoryManagement() {
       const isGroup = Array.isArray(selectedTransaction.items) && selectedTransaction.items.length >= 1;
       if (isGroup) {
         // 그룹 편집: 기존 그룹 삭제 후 재생성
-        const groupId = selectedTransaction.groupId || selectedTransaction.id;
+        const groupId = selectedTransaction.group_id || selectedTransaction.groupId || selectedTransaction.id;
         await transactionApi.deleteByGroupId(groupId);
 
         const baseDate = editFormData.date || selectedTransaction.date;
@@ -880,9 +875,7 @@ function InventoryManagement() {
       showSnackbar('거래내역이 수정되었습니다.', 'success');
 
       // 재고 재계산
-      setTimeout(() => {
-        recalculateInventoryFromTransactions();
-      }, 100);
+      recalculateInventoryFromTransactions(latest);
 
       // 상세 모달 닫기
       closeTransactionDetail();
@@ -903,9 +896,7 @@ function InventoryManagement() {
       setTransactions(updatedTransactions);
       
       // 삭제 후 재고 재계산
-      setTimeout(() => {
-        recalculateInventoryFromTransactions();
-      }, 100);
+      recalculateInventoryFromTransactions(updatedTransactions);
       
       showSnackbar('거래내역이 삭제되었습니다.', 'success');
     } catch (error) {
@@ -951,9 +942,7 @@ function InventoryManagement() {
       setProducts(latestProducts);
       
       // 새로운 상품이 추가되었거나 기존 상품이 변경된 경우 재고 재초기화
-      setTimeout(() => {
-        initializeInventory();
-      }, 100);
+      initializeInventory();
       
       showSnackbar(`상품관리 모듈에서 최신 전체 상품 데이터를 동기화했습니다. (총 ${latestProducts.length}개)`, 'success');
     } catch (error) {
@@ -996,7 +985,7 @@ function InventoryManagement() {
       fromLocation: '',
       toLocation: '',
       note: '',
-      date: new Date().toISOString().split('T')[0]
+      date: format(new Date(), 'yyyy-MM-dd')
     });
     // 다중 상품 데이터 초기화 (통합)
     setMultipleIoProducts([
@@ -1017,7 +1006,7 @@ function InventoryManagement() {
     // 통합 제출: 각 행의 fromLocation이 창고이면 '출고', 아니면 '입고'로 판단
     // 유효성 검사
     const invalidItems = multipleIoProducts.filter(item => {
-      if (!item.productId || !item.quantity) return true;
+      if (!item.productId || !item.quantity || parseInt(item.quantity) <= 0) return true;
       const isOutbound = warehouses.find(w => w.id === item.fromLocation);
       if (isOutbound) {
         // 출고: 출발지(창고) 필수, 목적지 필수
@@ -1028,7 +1017,8 @@ function InventoryManagement() {
         // if (isToWarehouse && !item.boxNo) return true;
 
         const available = (inventory[item.fromLocation]?.[parseInt(item.productId) || 0]) || 0;
-        return (parseInt(item.quantity) || 0) > available;
+        const pending = (pendingInventory[item.fromLocation]?.[parseInt(item.productId) || 0]) || 0;
+        return (parseInt(item.quantity) || 0) > (available - pending);
       }
       // 입고: 목적지는 창고여야 함
       const toIsWarehouse = warehouses.find(w => w.id === item.toLocation);
@@ -1040,7 +1030,7 @@ function InventoryManagement() {
       return;
     }
 
-    const groupId = Date.now();
+    const groupId = crypto.randomUUID();
     const newTransactions = [];
 
     multipleIoProducts.forEach((item, index) => {
@@ -1078,8 +1068,23 @@ function InventoryManagement() {
       await transactionApi.createMany(newTransactions);
       const updatedTransactions = [...newTransactions, ...transactions];
       setTransactions(updatedTransactions);
-      for (const t of newTransactions) {
-        await updateInventory(t);
+      const successfulTransactions = [];
+      try {
+        for (const t of newTransactions) {
+          await updateInventory(t);
+          successfulTransactions.push(t);
+        }
+      } catch (innerErr) {
+        // 롤백 수행
+        for (const t of successfulTransactions) {
+          const inverseT = { ...t, type: t.type === 'in' ? 'out' : 'in' };
+          await updateInventory(inverseT).catch(e => console.error('롤백 실패:', e));
+        }
+        await transactionApi.deleteByGroupId(groupId).catch(e => console.error('트랜잭션 롤백 삭제 실패:', e));
+        
+        // 현재 상태 원복
+        setTransactions(transactions);
+        throw innerErr;
       }
       showSnackbar(`입출고 등록이 완료되었습니다. (${newTransactions.length}개 상품)`, 'success');
       handleCloseDialog();
@@ -1342,7 +1347,7 @@ function InventoryManagement() {
       return;
     }
 
-    const groupId = Date.now();
+    const groupId = crypto.randomUUID();
     const newTransactions = [];
     const inventoryUpdates = [];
     let inboundCount = 0;
@@ -1354,12 +1359,14 @@ function InventoryManagement() {
         if (p.barcode && String(p.barcode) === String(item.productCode)) return true;
         
         // 파츠 이름으로 매칭 시도 (공백 및 대소문자 무시)
-        const dbNameStr = (p.name || '').replace(/\s+/g, '').toLowerCase();
-        const searchStr = (item.parsedColName || item.productName || item.productCode || '').replace(/\s+/g, '').toLowerCase();
+        // 1. 정확한 코드 매칭
+        if (p.code && searchStr === p.code.toLowerCase()) return true;
         
-        if (dbNameStr && searchStr && (dbNameStr === searchStr || dbNameStr.includes(searchStr) || searchStr.includes(dbNameStr))) {
+        // 2. 정확한 이름 매칭 (공백 제거 후 일치)
+        if (dbNameStr && searchStr && dbNameStr === searchStr) {
           return true;
         }
+        
         return false;
       });
       
@@ -1407,9 +1414,21 @@ function InventoryManagement() {
       const updatedTransactions = [...newTransactions, ...transactions];
       setTransactions(updatedTransactions);
       
-      // 재고 업데이트
-      for (const transaction of inventoryUpdates) {
-        await updateInventory(transaction);
+      // 재고 업데이트 (롤백 지원)
+      const successfulTransactions = [];
+      try {
+        for (const transaction of inventoryUpdates) {
+          await updateInventory(transaction);
+          successfulTransactions.push(transaction);
+        }
+      } catch (innerErr) {
+        for (const t of successfulTransactions) {
+          const inverseT = { ...t, type: t.type === 'in' ? 'out' : 'in' };
+          await updateInventory(inverseT).catch(e => console.error('엑셀 업로드 롤백 실패:', e));
+        }
+        await transactionApi.deleteByGroupId(groupId).catch(e => console.error('엑셀 트랜잭션 롤백 삭제 실패:', e));
+        setTransactions(transactions);
+        throw innerErr;
       }
       
       const resultMessage = `총 ${newTransactions.length}개 상품 처리 완료 (입고: ${inboundCount}개, 출고: ${outboundCount}개)`;
@@ -1678,7 +1697,7 @@ function InventoryManagement() {
   const getDateKey = (date, period) => {
     const d = new Date(date);
     if (period === 'day') {
-      return d.toISOString().split('T')[0];
+      return format(d, 'yyyy-MM-dd');
     } else if (period === 'week') {
       const year = d.getFullYear();
       const startOfYear = new Date(year, 0, 1);
@@ -1690,7 +1709,7 @@ function InventoryManagement() {
     } else if (period === 'year') {
       return d.getFullYear().toString();
     }
-    return d.toISOString().split('T')[0];
+    return format(d, 'yyyy-MM-dd');
   };
 
   // 대리점별 입출고 통계 계산 (→대리점: 출고, ←대리점: 입고) (날짜 필터 적용)
@@ -1993,7 +2012,7 @@ function InventoryManagement() {
   const dateKeys = useMemo(() => {
     const result = [];
     const today = new Date();
-    const toKey = (d) => d.toISOString().split('T')[0];
+    const toKey = (d) => format(d, 'yyyy-MM-dd');
     let start = filter.dateFrom ? new Date(filter.dateFrom) : new Date(today);
     if (!filter.dateFrom) {
       start.setDate(start.getDate() - 13); // 최근 14일
@@ -2019,7 +2038,7 @@ function InventoryManagement() {
     const acc = {};
     transactions.forEach(tx => {
       if (!tx || !tx.date) return;
-      const key = typeof tx.date === 'string' ? tx.date.split('T')[0] : new Date(tx.date).toISOString().split('T')[0];
+      const key = typeof tx.date === 'string' ? tx.date.split('T')[0] : format(new Date(tx.date), 'yyyy-MM-dd');
       if (!set.has(key)) return;
       
       // 입고: 목적지가 창고인 경우
@@ -2118,10 +2137,10 @@ function InventoryManagement() {
 
   // 대시보드 통계 데이터 (useMemo로 메모이제이션)
   const dashboardStats = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = format(new Date(), 'yyyy-MM-dd');
     const thisWeek = new Date();
     thisWeek.setDate(thisWeek.getDate() - thisWeek.getDay());
-    const weekStart = thisWeek.toISOString().split('T')[0];
+    const weekStart = format(thisWeek, 'yyyy-MM-dd');
     
     // 오늘 거래 통계
     const todayTransactions = transactions.filter(tx => tx.date === today);
@@ -2190,7 +2209,16 @@ function InventoryManagement() {
   // 필터 변경 시 첫 페이지로 이동
   useEffect(() => {
     setCurrentPage(1);
-  }, [filter]);
+  }, [filter, dateFilter, transactionViewMode]);
+
+  // 페이지 범위를 벗어날 경우 자동 보정
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    } else if (totalPages === 0 && currentPage !== 1) {
+      setCurrentPage(1);
+    }
+  }, [totalPages, currentPage]);
 
   // 키보드 단축키 지원 (useEffect로 전역 키보드 이벤트 처리)
   useEffect(() => {
@@ -2389,12 +2417,9 @@ function InventoryManagement() {
           </Button>
           <Button
             variant="outlined"
-            onClick={() => {
-              fetchProducts();
-              fetchTransactions();
-              setTimeout(() => {
-                recalculateInventoryFromTransactions();
-              }, 100);
+            onClick={async () => {
+              await Promise.all([fetchProducts(), fetchTransactions()]);
+              recalculateInventoryFromTransactions();
             }}
           >
             새로고침
@@ -2920,7 +2945,7 @@ function InventoryManagement() {
                                     // 해당 날짜/창고의 거래에서 출발지/목적지 정보 수집
                                     const dayTransactions = transactions.filter(tx => {
                                       if (!tx || !tx.date) return false;
-                                      const txDate = typeof tx.date === 'string' ? tx.date.split('T')[0] : new Date(tx.date).toISOString().split('T')[0];
+                                      const txDate = typeof tx.date === 'string' ? tx.date.split('T')[0] : format(new Date(tx.date), 'yyyy-MM-dd');
                                       return txDate === dk && (tx.toLocation === wid || tx.fromLocation === wid);
                                     });
                                     const fromSet = new Set();
