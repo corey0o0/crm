@@ -497,7 +497,7 @@ function SalesHistoryStats() {
   };
 
   currentFiltered.forEach(r => {
-    const price = Number(r.total_price || 0);
+    const price = Number(r.total_price || 0) + Number(r.unit_shipping_fee || 0);
     if (r._type === 'service') {
       if (r._id) uniqueGroups.service.add(r._id);
       groupAmounts.service += price;
