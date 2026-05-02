@@ -124,11 +124,14 @@ function SalesHistory() {
       .ilike('status', '%완료%')
       .order('completion_date', { ascending: false });
 
-    if (activeStart) {
+    if (activeStart && activeEnd) {
+      const sDate = format(activeStart, 'yyyy-MM-dd') + 'T00:00:00+09:00';
+      const eDate = format(activeEnd, 'yyyy-MM-dd') + 'T23:59:59+09:00';
+      asQuery = asQuery.or(`and(completion_date.gte.${sDate},completion_date.lte.${eDate}),and(completion_date.is.null,reception_date.gte.${sDate},reception_date.lte.${eDate})`);
+    } else if (activeStart) {
       const sDate = format(activeStart, 'yyyy-MM-dd') + 'T00:00:00+09:00';
       asQuery = asQuery.or(`completion_date.gte.${sDate},and(completion_date.is.null,reception_date.gte.${sDate})`);
-    }
-    if (activeEnd) {
+    } else if (activeEnd) {
       const eDate = format(activeEnd, 'yyyy-MM-dd') + 'T23:59:59+09:00';
       asQuery = asQuery.or(`completion_date.lte.${eDate},and(completion_date.is.null,reception_date.lte.${eDate})`);
     }
@@ -136,6 +139,7 @@ function SalesHistory() {
     let cafeQuery = supabase
       .from('cafe24_orders')
       .select('id, order_id, order_date, buyer_name, total_amount, order_items, status, shipping_fee, used_points, agencies(name)')
+      .eq('is_deleted', false)
       .eq('is_transferred', true)
       .order('order_date', { ascending: false });
 

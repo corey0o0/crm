@@ -83,7 +83,7 @@ function SalesHistoryStats() {
     const asTotal = (asRows || []).reduce((acc, r) => acc + (Number(r.price || 0) * Number(r.quantity || 1)), 0);
 
     // Cafe24
-    const { data: cafeRows } = await supabase.from('cafe24_orders').select('total_amount').gte('order_date', sDate).lte('order_date', eDate).eq('is_transferred', true);
+    const { data: cafeRows } = await supabase.from('cafe24_orders').select('total_amount').gte('order_date', sDate).lte('order_date', eDate).eq('is_deleted', false).eq('is_transferred', true);
     const cafeTotal = (cafeRows || []).reduce((acc, r) => acc + Number(r.total_amount || 0), 0);
 
     return shipTotal + asTotal + cafeTotal;
@@ -155,6 +155,7 @@ function SalesHistoryStats() {
     let cafeQuery = supabase
       .from('cafe24_orders')
       .select('id, order_id, order_date, buyer_name, total_amount, order_items, status')
+      .eq('is_deleted', false)
       .eq('is_transferred', true)
       .order('order_date', { ascending: false });
 
