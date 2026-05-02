@@ -738,7 +738,7 @@ function SalesStats() {
 
       // 총 건수 계산
       newTotalServiceCount = uniqueServiceIds.size;
-      newTotalShipmentCount = new Set(Object.values(tempShipmentPartsByDate)
+      newTotalShipmentCount = new Set(Object.values(mergedShipmentPartsByDate)
         .flatMap(parts => parts.map(p => p.shipment_id))).size;
 
       // A/S 매출 총계 계산 (공임 + AS부품 + 판매부품)
