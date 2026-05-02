@@ -154,7 +154,7 @@ function SalesHistoryStats() {
 
     let cafeQuery = supabase
       .from('cafe24_orders')
-      .select('id, order_id, order_date, buyer_name, total_amount, order_items, status')
+      .select('id, order_id, order_date, buyer_name, total_amount, order_items, status, mall_id')
       .eq('is_deleted', false)
       .eq('is_transferred', true)
       .order('order_date', { ascending: false });
@@ -215,18 +215,24 @@ function SalesHistoryStats() {
       return '기타';
     };
 
-    const resolveBrand = (name, code = '') => {
+    const resolveBrand = (name, code = '', mallId = '') => {
       if (code && partsBrandByCode[code]) return partsBrandByCode[code];
       if (name && partsBrandMap[name]) return partsBrandMap[name];
       
       const c = (code || '').toUpperCase();
       const n = (name || '').toLowerCase();
       if (c.startsWith('XRB')) return 'XRB';
-      if (c.startsWith('NB')) return 'NEARBIKE';
+      if (c.startsWith('NB')) return 'NB';
       if (n.includes('xrb') || n.includes('엑스알비')) return 'XRB';
-      if (n.includes('nearbike') || n.includes('니어바이크') || n.includes('전동포')) return 'NEARBIKE';
+      if (n.includes('nearbike') || n.includes('니어바이크') || n.includes('전동포')) return 'NB';
       
-      return '-';
+      if (mallId) {
+        const m = mallId.toLowerCase();
+        if (m === 'slimpack79') return 'XRB';
+        if (m === 'nearbike') return 'NB';
+      }
+      
+      return '기타';
     };
 
     const asIds = (asRes.data || []).map(s => s.id);
@@ -432,7 +438,7 @@ function SalesHistoryStats() {
           }
 
           const cat = resolveCategory(pName, itemCode);
-          const brand = resolveBrand(pName, itemCode);
+          const brand = resolveBrand(pName, itemCode, o.mall_id);
           const unitCost = resolveCost(pName, itemCode);
           if (!['C11', 'C40', 'R40', 'E40'].includes(item.order_status)) {
              rows.push({ ...baseFields, part_name: pName, part_category: cat, part_brand: brand, quantity: itemQty, total_price: total, total_cost: unitCost * itemQty });
@@ -857,7 +863,7 @@ function SalesHistoryStats() {
             <Select value={filterBrand} label="브랜드" onChange={(e) => setFilterBrand(e.target.value)}>
               <MenuItem value="전체">전체</MenuItem>
               <MenuItem value="XRB">XRB</MenuItem>
-              <MenuItem value="NEARBIKE">NEARBIKE</MenuItem>
+              <MenuItem value="NB">NEARBIKE (NB)</MenuItem>
               <MenuItem value="기타">기타</MenuItem>
             </Select>
           </FormControl>
