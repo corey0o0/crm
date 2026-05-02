@@ -144,9 +144,14 @@ function SalesHistory() {
 
     // 주문번호를 note에서 파싱하는 헬퍼
     const parseOrderNo = (note, id, prefix) => {
-      // 매장출고(SHP)의 경우 무조건 SHP-xxxx ID 형식 사용 (온라인 주문번호 무시)
+      // 매장출고(SHP)의 경우 무조건 SHP-xxxx ID 형식 사용 (온라인 주문번호 병기)
       if (prefix === 'SHP') {
-        return `${prefix}-${(id || '').toString().slice(0, 8).toUpperCase()}`;
+        const shpId = `${prefix}-${(id || '').toString().slice(0, 8).toUpperCase()}`;
+        if (note) {
+          const m = note.match(/20\d{6}-\d{7}/);
+          if (m) return `${shpId} (${m[0]})`;
+        }
+        return shpId;
       }
       
       if (note) {
@@ -452,8 +457,12 @@ function SalesHistory() {
           const itemQty = Number(item.quantity || 1);
           
           let paymentAmt = 0;
+          let isExplicitlyZero = item.payment_amount !== undefined && item.payment_amount !== null && Number(item.payment_amount) === 0;
+
           if (item.payment_amount !== undefined && item.payment_amount !== null && Number(item.payment_amount) > 0) {
              paymentAmt = Number(item.payment_amount);
+          } else if (isExplicitlyZero) {
+             paymentAmt = 0;
           } else {
              paymentAmt = Number(item.product_price || item.price || 0) * itemQty;
           }
@@ -461,9 +470,9 @@ function SalesHistory() {
           
           let total = 0;
 
-          if (paymentAmt > 0) {
+          if (paymentAmt > 0 || isExplicitlyZero) {
               total = paymentAmt;
-              if (iPrice === 0) iPrice = Math.round(paymentAmt / itemQty);
+              if (iPrice === 0 && paymentAmt > 0) iPrice = Math.round(paymentAmt / itemQty);
           } else {
               // 전체 유효 품목의 원래 가격(MSRP) 총합 계산
               let totalWeight = validItems.reduce((acc, i) => {

@@ -828,6 +828,8 @@ module.exports = function(supabaseAdmin) {
 
           let wid = (warehouseConfig && warehouseConfig[order.id] && warehouseConfig[order.id][index]) || 'DEFAULT';
           
+          if (wid === 'EXCLUDE') return;
+
           let mappedPartId = item.part_id;
           if (!mappedPartId) {
             const pCode = item.custom_product_code || item.product_code || '';

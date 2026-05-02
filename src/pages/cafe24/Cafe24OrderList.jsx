@@ -372,7 +372,7 @@ export default function Cafe24OrderList() {
 
   const filteredOrders = baseFilteredOrders.filter(order => {
     if (transferFilter === 'ignored') {
-      return order.is_deleted === true;
+      return order.is_deleted === true || (order.order_items && order.order_items.some(item => item._warehouse_id === 'EXCLUDE'));
     }
     // For all other filters, hide ignored
     if (order.is_deleted) return false;
@@ -471,7 +471,8 @@ export default function Cafe24OrderList() {
     for (const order of ordersToTransfer) {
       const items = order.order_items || [];
       for (let i = 0; i < items.length; i++) {
-        if (!warehouseConfig[order.id] || !warehouseConfig[order.id][i]) {
+        const val = warehouseConfig[order.id] && warehouseConfig[order.id][i];
+        if (!val) {
           missingWarehouse = true;
           break;
         }
@@ -534,7 +535,8 @@ export default function Cafe24OrderList() {
     for (let i = 0; i < items.length; i++) {
       const isCancelled = ['C11', 'C40', 'R40', 'E40'].includes(items[i].order_status);
       if (isCancelled) continue;
-      if (!warehouseConfig[order.id] || !warehouseConfig[order.id][i]) {
+      const val = warehouseConfig[order.id] && warehouseConfig[order.id][i];
+      if (!val) {
         missingWarehouse = true;
         break;
       }
@@ -1146,6 +1148,7 @@ export default function Cafe24OrderList() {
               label="선택 일괄 창고지정"
             >
               <MenuItem value=""><em>미선택</em></MenuItem>
+              <MenuItem value="EXCLUDE" sx={{ color: 'error.main' }}>🚫 전송 제외</MenuItem>
               {warehouses.map(w => <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>)}
             </Select>
           </FormControl>
@@ -1612,6 +1615,7 @@ export default function Cafe24OrderList() {
                               const wid = (warehouseConfig[order.id] && warehouseConfig[order.id][idx] !== undefined) 
                                 ? String(warehouseConfig[order.id][idx]) 
                                 : (item._warehouse_id ? String(item._warehouse_id) : '');
+                              if (wid === 'EXCLUDE') return <span style={{ color: '#d32f2f' }}>전송 제외됨</span>;
                               if (wid && wid !== 'DEFAULT') {
                                 return warehouses.find(w => String(w.id) === wid)?.name || '전송완료';
                               }
@@ -1634,6 +1638,7 @@ export default function Cafe24OrderList() {
                                 sx={{ fontSize: '0.8rem', height: 28 }}
                              >
                                <MenuItem value="" disabled><em>선택안됨</em></MenuItem>
+                               <MenuItem value="EXCLUDE" sx={{ color: 'error.main' }}>🚫 전송 제외</MenuItem>
                                {warehouses.map(w => <MenuItem key={w.id} value={String(w.id)}>{w.name}</MenuItem>)}
                              </Select>
                           </FormControl>
