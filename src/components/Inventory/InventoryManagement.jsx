@@ -1359,8 +1359,11 @@ function InventoryManagement() {
         if (p.barcode && String(p.barcode) === String(item.productCode)) return true;
         
         // 파츠 이름으로 매칭 시도 (공백 및 대소문자 무시)
+        const searchStr = item.productName ? item.productName.replace(/[\s\-]/g, '').toLowerCase() : '';
+        const dbNameStr = p.name ? p.name.replace(/[\s\-]/g, '').toLowerCase() : '';
+
         // 1. 정확한 코드 매칭
-        if (p.code && searchStr === p.code.toLowerCase()) return true;
+        if (p.code && searchStr && searchStr === p.code.replace(/[\s\-]/g, '').toLowerCase()) return true;
         
         // 2. 정확한 이름 매칭 (공백 제거 후 일치)
         if (dbNameStr && searchStr && dbNameStr === searchStr) {

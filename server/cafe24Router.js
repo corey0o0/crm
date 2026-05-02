@@ -937,20 +937,23 @@ module.exports = function(supabaseAdmin) {
       // 5. DB 일괄 업데이트 실행 (Bulk Execution)
       if (transactionsToInsert.length > 0) {
         for (let i = 0; i < transactionsToInsert.length; i += 500) {
-           await supabaseAdmin.from('transactions').insert(transactionsToInsert.slice(i, i + 500));
+           const { error: txErr } = await supabaseAdmin.from('transactions').insert(transactionsToInsert.slice(i, i + 500));
+           if (txErr) throw new Error(`거래내역 저장 실패: ${txErr.message}`);
         }
       }
 
       const invUpsertArray = Object.values(inventoryToUpsertMap);
       if (invUpsertArray.length > 0) {
         for (let i = 0; i < invUpsertArray.length; i += 500) {
-           await supabaseAdmin.from('inventory').upsert(invUpsertArray.slice(i, i + 500), { onConflict: 'warehouse_id,product_id' });
+           const { error: invErr } = await supabaseAdmin.from('inventory').upsert(invUpsertArray.slice(i, i + 500), { onConflict: 'warehouse_id,product_id' });
+           if (invErr) throw new Error(`재고 저장 실패: ${invErr.message}`);
         }
       }
 
       if (inventoryLogsToInsert.length > 0) {
         for (let i = 0; i < inventoryLogsToInsert.length; i += 500) {
-           await supabaseAdmin.from('inventory_logs').insert(inventoryLogsToInsert.slice(i, i + 500));
+           const { error: logErr } = await supabaseAdmin.from('inventory_logs').insert(inventoryLogsToInsert.slice(i, i + 500));
+           if (logErr) throw new Error(`재고 로그 저장 실패: ${logErr.message}`);
         }
       }
 
@@ -1053,7 +1056,7 @@ module.exports = function(supabaseAdmin) {
         }
 
         // 4. 거래내역(transactions) 취소 기록 삭제
-        await supabaseAdmin.from('transactions').delete().like('note', `%주문: ${order.order_id}%`);
+        await supabaseAdmin.from('transactions').delete().eq('group_id', String(order.id));
 
         // 5. 생성된 배송/출고 기록(shipments) 삭제
         const { data: shipments } = await supabaseAdmin.from('shipments').select('id').eq('tracking_number', order.order_id);
