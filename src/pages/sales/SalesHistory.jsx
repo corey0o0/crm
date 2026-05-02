@@ -662,31 +662,26 @@ function SalesHistory() {
         const isService = row._type === 'service';
         const isCafe = row._type === 'cafe24';
         
-        let cLabel = '일반출고';
+        let cLabel = '고객-출고';
         const isEcount = row._type === 'shipment' && row.note && row.note.includes('이카운트');
         const startsWithDate = row.order_no && /^(20[2-9]\d[0-1]\d[0-3]\d)/.test(row.order_no);
+        const channel = row.sales_channel || '';
+        
+        const nonAgencyChannels = ['공홈', '청담매장', '라이클-우리', '스마트할부', '스마트스토어', '기타', '온라인주문', '고객', '-', '본사/기본', '과거 이카운트 이관'];
+        const isAgency = channel && !nonAgencyChannels.includes(channel);
+        const onlineChannels = ['공홈', '스마트스토어', '라이클-우리', '스마트할부', '온라인주문'];
 
-        if (isCafe) {
-          cLabel = '온라인주문';
+        if (isAgency) {
+          cLabel = `대리점-${channel}`;
+        } else if (isCafe || onlineChannels.includes(channel) || (isEcount && startsWithDate)) {
+          cLabel = '고객-온라인';
         } else if (isService) {
-          cLabel = 'A/S';
-        } else if (isEcount) {
-          if (startsWithDate) {
-            cLabel = '온라인주문';
-          } else {
-            cLabel = '기타';
-          }
+          cLabel = '고객-A/S';
         } else {
-          if (row.sales_channel === '온라인주문') {
-            cLabel = '온라인주문';
-          } else if (row.sales_channel === '고객') {
-            cLabel = '고객';
-          } else if (row.sales_channel && row.sales_channel !== '-' && row.sales_channel !== '본사/기본' && row.sales_channel !== '과거 이카운트 이관') {
-            cLabel = row.sales_channel;
-          }
+          cLabel = '고객-출고';
         }
 
-        const sales_channel_display = row.sales_channel && row.sales_channel !== '-' && row.sales_channel !== '온라인주문' ? row.sales_channel : (isCafe ? '온라인몰' : '본사/기본');
+        const sales_channel_display = cLabel;
 
         return {
           ...row,
@@ -925,6 +920,30 @@ function SalesHistory() {
                   text: row.part_category === '기체' ? '#1976d2' : row.part_category === '부품' ? '#7b1fa2' : row.part_category === '공임' ? '#2e7d32' : '#616161'
                 };
 
+                let cLabel = '고객-출고';
+                let cColor = 'primary';
+                const isEcount = row._type === 'shipment' && row.note && row.note.includes('이카운트');
+                const startsWithDate = row.order_no && /^(20[2-9]\d[0-1]\d[0-3]\d)/.test(row.order_no);
+                const channel = row.sales_channel || '';
+                
+                const nonAgencyChannels = ['공홈', '청담매장', '라이클-우리', '스마트할부', '스마트스토어', '기타', '온라인주문', '고객', '-', '본사/기본', '과거 이카운트 이관'];
+                const isAgency = channel && !nonAgencyChannels.includes(channel);
+                const onlineChannels = ['공홈', '스마트스토어', '라이클-우리', '스마트할부', '온라인주문'];
+
+                if (isAgency) {
+                  cLabel = `대리점-${channel}`;
+                  cColor = 'info';
+                } else if (isCafe || onlineChannels.includes(channel) || (isEcount && startsWithDate)) {
+                  cLabel = '고객-온라인';
+                  cColor = 'success';
+                } else if (isService) {
+                  cLabel = '고객-A/S';
+                  cColor = 'warning';
+                } else {
+                  cLabel = '고객-출고';
+                  cColor = 'primary';
+                }
+
                 return (
                   <TableRow
                     key={row._id}
@@ -936,44 +955,10 @@ function SalesHistory() {
                       {row.date_val ? format(new Date(row.date_val), 'yyyy-MM-dd') : '-'}
                     </TableCell>
                     <TableCell>
-                      {(() => {
-                        let cLabel = '일반출고';
-                        let cColor = 'primary';
-                        
-                        const isEcount = row._type === 'shipment' && row.note && row.note.includes('이카운트');
-                        const startsWithDate = row.order_no && /^(20[2-9]\d[0-1]\d[0-3]\d)/.test(row.order_no);
-
-                        if (isCafe) {
-                          cLabel = '온라인주문';
-                          cColor = 'success';
-                        } else if (isService) {
-                          cLabel = 'A/S';
-                          cColor = 'warning';
-                        } else if (isEcount) {
-                          if (startsWithDate) {
-                            cLabel = '온라인주문';
-                            cColor = 'success';
-                          } else {
-                            cLabel = '기타';
-                            cColor = 'default';
-                          }
-                        } else {
-                          // 수기 입력 등 Ecount 외의 경우
-                          if (row.sales_channel === '온라인주문') {
-                            cLabel = '온라인주문';
-                            cColor = 'success';
-                          } else if (row.sales_channel === '고객') {
-                            cLabel = '고객';
-                          } else if (row.sales_channel && row.sales_channel !== '-' && row.sales_channel !== '본사/기본' && row.sales_channel !== '과거 이카운트 이관') {
-                            cLabel = row.sales_channel;
-                          }
-                        }
-                        
-                        return <Chip size="small" label={cLabel} color={cColor} variant="outlined" sx={{ maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis' }} />;
-                      })()}
+                      <Chip size="small" label={cLabel} color={cColor} variant="outlined" sx={{ maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis' }} />
                     </TableCell>
                     <TableCell sx={{ fontSize: '0.85rem', color: '#1976d2', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                       {row.sales_channel && row.sales_channel !== '-' && row.sales_channel !== '온라인주문' ? row.sales_channel : (isCafe ? '온라인몰' : '본사/기본')}
+                       {cLabel}
                     </TableCell>
                     <TableCell sx={{ fontWeight: 500 }}>
                       <div style={{ display: 'flex', flexDirection: 'column' }}>

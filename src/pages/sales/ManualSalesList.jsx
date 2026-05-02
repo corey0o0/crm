@@ -734,7 +734,7 @@ export default function ManualSalesList({ isEmbedded = false }) {
                       {s.tracking_number || (s.note?.match(/20\d{6}-\d{7}/) ? s.note.match(/20\d{6}-\d{7}/)[0] : '-')}
                     </Typography>
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                      ID: {s.id}
+                      {`SHP-${s.id.slice(0, 8).toUpperCase()}`}
                     </Typography>
                   </TableCell>
                   <TableCell>
