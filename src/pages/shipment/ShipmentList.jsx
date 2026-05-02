@@ -51,6 +51,7 @@ import {
   NavigateNext as NavigateNextIcon
 } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
+import warehouseApi from '../../api/warehouseApi';
 import { fetchShipments as fetchShipmentsAPI, countShipments, countPendingAndShippingByBrand } from '../../utils/restApiUtils';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -114,6 +115,7 @@ function ShipmentList() {
 
   // 엑셀 업로드 관련 상태 추가
   const [excelUploadDialog, setExcelUploadDialog] = useState(false);
+  const [warehouses, setWarehouses] = useState([]);
   const [uploadedData, setUploadedData] = useState([]);
   const [previewData, setPreviewData] = useState([]);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -223,6 +225,18 @@ function ShipmentList() {
     // 주기적으로 갱신 (30초마다)
     const interval = setInterval(fetchBrandCounts, 30000);
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const fetchWarehouses = async () => {
+      try {
+        const data = await warehouseApi.getAll();
+        setWarehouses(data || []);
+      } catch (err) {
+        console.error('Failed to load warehouses:', err);
+      }
+    };
+    fetchWarehouses();
   }, []);
 
   // 출고 정보 변경 시 건수 갱신
@@ -1355,14 +1369,15 @@ function ShipmentList() {
           <Table sx={{ minWidth: 650, width: '100%', tableLayout: 'fixed', border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
             <TableHead>
               <TableRow>
-                <TableCell width="9%">주문일자</TableCell>
-                <TableCell width="9%">출고일자</TableCell>
-                <TableCell width="9%">고객명</TableCell>
-                <TableCell width="11%">연락처</TableCell>
+                <TableCell width="8%">주문일자</TableCell>
+                <TableCell width="8%">출고일자</TableCell>
+                <TableCell width="8%">고객명</TableCell>
+                <TableCell width="10%">연락처</TableCell>
                 <TableCell width="16%">제품정보</TableCell>
-                <TableCell width="11%">주문번호</TableCell>
-                <TableCell width="9%">판매처</TableCell>
-                <TableCell width="16%">배송정보</TableCell>
+                <TableCell width="10%">주문번호</TableCell>
+                <TableCell width="8%">판매처</TableCell>
+                <TableCell width="8%">출고처</TableCell>
+                <TableCell width="14%">배송정보</TableCell>
                 <TableCell width="6%">상태</TableCell>
                 <TableCell width="4%">관리</TableCell>
               </TableRow>
@@ -1380,6 +1395,7 @@ function ShipmentList() {
                   </TableCell>
                   <TableCell><Skeleton variant="text" width="90%" /></TableCell>
                   <TableCell><Skeleton variant="rectangular" width={60} height={24} /></TableCell>
+                  <TableCell><Skeleton variant="text" width="80%" /></TableCell>
                   <TableCell>
                     <Skeleton variant="text" width="80%" />
                     <Skeleton variant="text" width="60%" />
@@ -2072,6 +2088,12 @@ function ShipmentList() {
                                 }}
                               />
                             );
+                          })()}
+                        </TableCell>
+                        <TableCell>
+                          {(() => {
+                            const wh = warehouses.find(w => w.id === shipment.warehouse_id);
+                            return wh ? wh.name : (shipment.warehouse_id ? '알수없음' : '-');
                           })()}
                         </TableCell>
                         <TableCell>
