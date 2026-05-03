@@ -1011,8 +1011,10 @@ module.exports = function(supabaseAdmin) {
 
         // 2. 대기열(pending_outbounds) 삭제 (연관 items 포함)
         if (poHeader) {
-           await supabaseAdmin.from('pending_outbound_items').delete().eq('pending_id', poHeader.id);
-           await supabaseAdmin.from('pending_outbounds').delete().eq('id', poHeader.id);
+           const { error: poItemErr } = await supabaseAdmin.from('pending_outbound_items').delete().eq('pending_id', poHeader.id);
+           if (poItemErr) throw new Error(`대기열 아이템 삭제 실패: ${poItemErr.message}`);
+           const { error: poErr } = await supabaseAdmin.from('pending_outbounds').delete().eq('id', poHeader.id);
+           if (poErr) throw new Error(`대기열 삭제 실패: ${poErr.message}`);
         }
 
         // 3. 기타 창고 즉시 차감분 인벤토리 롤백 (inventory_logs 역추적)
@@ -1056,14 +1058,17 @@ module.exports = function(supabaseAdmin) {
         }
 
         // 4. 거래내역(transactions) 취소 기록 삭제
-        await supabaseAdmin.from('transactions').delete().eq('group_id', String(order.id));
+        const { error: txDelErr } = await supabaseAdmin.from('transactions').delete().eq('group_id', String(order.id));
+        if (txDelErr) throw new Error(`거래내역 삭제 실패: ${txDelErr.message}`);
 
         // 5. 생성된 배송/출고 기록(shipments) 삭제
         const { data: shipments } = await supabaseAdmin.from('shipments').select('id').eq('tracking_number', order.order_id);
         if (shipments && shipments.length > 0) {
            for (const s of shipments) {
-              await supabaseAdmin.from('shipment_parts').delete().eq('shipment_id', s.id);
-              await supabaseAdmin.from('shipments').delete().eq('id', s.id);
+              const { error: spErr } = await supabaseAdmin.from('shipment_parts').delete().eq('shipment_id', s.id);
+              if (spErr) throw new Error(`배송 파츠 삭제 실패: ${spErr.message}`);
+              const { error: sErr } = await supabaseAdmin.from('shipments').delete().eq('id', s.id);
+              if (sErr) throw new Error(`배송 기록 삭제 실패: ${sErr.message}`);
            }
         }
 
