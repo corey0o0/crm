@@ -22,13 +22,16 @@ export default function ProductComparisonDashboard() {
       const { data: crmParts, error: crmErr } = await supabase.from('parts').select('*');
       if (crmErr) throw crmErr;
 
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+
       // 2. Fetch Ecount Products
-      const ecountRes = await fetch(`${BACKEND_URL}/api/ecount/products`);
+      const ecountRes = await fetch(`${BACKEND_URL}/api/ecount/products`, { headers });
       const ecountData = await ecountRes.json();
       if (!ecountData.success) throw new Error(ecountData.error || '이카운트 조회 실패');
 
       // 3. Fetch Cafe24 Products
-      const cafe24Res = await fetch(`${BACKEND_URL}/api/cafe24/products`);
+      const cafe24Res = await fetch(`${BACKEND_URL}/api/cafe24/products`, { headers });
       const cafe24Data = await cafe24Res.json();
       if (!cafe24Data.success) throw new Error(cafe24Data.error || '카페24 조회 실패');
 

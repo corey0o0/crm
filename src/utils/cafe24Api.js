@@ -6,6 +6,15 @@ import { supabase } from '../lib/supabaseClient';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001';
 
+async function fetchWithAuth(url, options = {}) {
+  const { data: { session } } = await supabase.auth.getSession();
+  const headers = {
+    ...options.headers,
+    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
+  };
+  return fetch(url, { ...options, headers });
+}
+
 export async function getCafe24Malls() {
   try {
     const { data, error } = await supabase.from('cafe24_settings').select('*').order('created_at', { ascending: true });
@@ -32,7 +41,7 @@ export async function getCafe24Malls() {
 }
 
 export async function addCafe24Mall({ mall_id, client_id, client_secret }) {
-  const resp = await fetch(`${BACKEND_URL}/api/cafe24/malls`, {
+  const resp = await fetchWithAuth(`${BACKEND_URL}/api/cafe24/malls`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ mall_id, client_id, client_secret })
@@ -45,13 +54,13 @@ export async function addCafe24Mall({ mall_id, client_id, client_secret }) {
 }
 
 export async function deleteCafe24Mall(mall_id) {
-  const resp = await fetch(`${BACKEND_URL}/api/cafe24/malls/${mall_id}`, { method: 'DELETE' });
+  const resp = await fetchWithAuth(`${BACKEND_URL}/api/cafe24/malls/${mall_id}`, { method: 'DELETE' });
   if (!resp.ok) throw new Error('쇼핑몰 삭제 실패');
   return resp.json();
 }
 
 export async function updateCafe24BoardNo(mall_id, board_no) {
-  const resp = await fetch(`${BACKEND_URL}/api/cafe24/malls/${mall_id}/board`, {
+  const resp = await fetchWithAuth(`${BACKEND_URL}/api/cafe24/malls/${mall_id}/board`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ board_no })
@@ -86,7 +95,7 @@ export function openCafe24AuthPopup({ mallId, clientId, redirectUri }) {
 }
 
 export async function exchangeCafe24Code({ code, redirectUri, mallId }) {
-  const resp = await fetch(`${BACKEND_URL}/api/cafe24/auth/callback`, {
+  const resp = await fetchWithAuth(`${BACKEND_URL}/api/cafe24/auth/callback`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ code, redirect_uri: redirectUri, mall_id: mallId })
@@ -100,7 +109,7 @@ export async function exchangeCafe24Code({ code, redirectUri, mallId }) {
 }
 
 export async function getCafe24Boards(mall_id) {
-  const resp = await fetch(`${BACKEND_URL}/api/cafe24/boards/${mall_id}`);
+  const resp = await fetchWithAuth(`${BACKEND_URL}/api/cafe24/boards/${mall_id}`);
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
     throw new Error(err.error || '게시판 목록 조회 실패');
@@ -109,7 +118,7 @@ export async function getCafe24Boards(mall_id) {
 }
 
 export async function syncCafe24Posts(mall_id, board_no) {
-  const resp = await fetch(`${BACKEND_URL}/api/cafe24/sync/${mall_id}`, {
+  const resp = await fetchWithAuth(`${BACKEND_URL}/api/cafe24/sync/${mall_id}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ board_no })
@@ -123,7 +132,7 @@ export async function syncCafe24Posts(mall_id, board_no) {
 }
 
 export async function postCafe24Comment({ mall_id, board_no, article_no, content }) {
-  const resp = await fetch(
+  const resp = await fetchWithAuth(
     `${BACKEND_URL}/api/cafe24/boards/${mall_id}/${board_no}/articles/${article_no}/comments`,
     {
       method: 'POST',
@@ -140,7 +149,7 @@ export async function postCafe24Comment({ mall_id, board_no, article_no, content
 }
 
 export async function syncCafe24Orders(mall_id, startDate, endDate) {
-  const resp = await fetch(`${BACKEND_URL}/api/cafe24/sync/orders/${mall_id}`, {
+  const resp = await fetchWithAuth(`${BACKEND_URL}/api/cafe24/sync/orders/${mall_id}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ start_date: startDate, end_date: endDate })
@@ -154,7 +163,7 @@ export async function syncCafe24Orders(mall_id, startDate, endDate) {
 }
 
 export async function addCafe24ProductMapping(mall_id, cafe24_product_code, part_id) {
-  const resp = await fetch(`${BACKEND_URL}/api/cafe24/mappings`, {
+  const resp = await fetchWithAuth(`${BACKEND_URL}/api/cafe24/mappings`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ mall_id, cafe24_product_code, part_id })
@@ -168,7 +177,7 @@ export async function addCafe24ProductMapping(mall_id, cafe24_product_code, part
 }
 
 export async function transferCafe24Orders(orderIds, warehouseConfig = {}) {
-  const resp = await fetch(`${BACKEND_URL}/api/cafe24/transfer/orders`, {
+  const resp = await fetchWithAuth(`${BACKEND_URL}/api/cafe24/transfer/orders`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ orderIds, warehouseConfig })
@@ -182,7 +191,7 @@ export async function transferCafe24Orders(orderIds, warehouseConfig = {}) {
 }
 
 export async function cancelSalesTransfer(orderIds) {
-  const resp = await fetch(`${BACKEND_URL}/api/cafe24/transfer/cancel`, {
+  const resp = await fetchWithAuth(`${BACKEND_URL}/api/cafe24/transfer/cancel`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ orderIds })
@@ -196,7 +205,7 @@ export async function cancelSalesTransfer(orderIds) {
 }
 
 export async function compareCafe24Inventory(mall_id) {
-  const resp = await fetch(`${BACKEND_URL}/api/cafe24/inventory/compare/${mall_id}`);
+  const resp = await fetchWithAuth(`${BACKEND_URL}/api/cafe24/inventory/compare/${mall_id}`);
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
     throw new Error(err.error || '재고 비교 실패');
@@ -205,7 +214,7 @@ export async function compareCafe24Inventory(mall_id) {
 }
 
 export async function returnCafe24Inventory(orderIds) {
-  const resp = await fetch(`${BACKEND_URL}/api/cafe24/transfer/return-inventory`, {
+  const resp = await fetchWithAuth(`${BACKEND_URL}/api/cafe24/transfer/return-inventory`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ orderIds })
@@ -219,7 +228,7 @@ export async function returnCafe24Inventory(orderIds) {
 }
 
 export async function getCafe24ProductMappings() {
-  const resp = await fetch(`${BACKEND_URL}/api/cafe24/mappings`);
+  const resp = await fetchWithAuth(`${BACKEND_URL}/api/cafe24/mappings`);
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
     throw new Error(err.error || `수동 매핑 목록 조회 실패 (HTTP ${resp.status})`);
@@ -228,7 +237,7 @@ export async function getCafe24ProductMappings() {
 }
 
 export async function deleteCafe24ProductMapping(mall_id, cafe24_product_code) {
-  const resp = await fetch(`${BACKEND_URL}/api/cafe24/mappings`, {
+  const resp = await fetchWithAuth(`${BACKEND_URL}/api/cafe24/mappings`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ mall_id, cafe24_product_code })

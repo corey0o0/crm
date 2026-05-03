@@ -4,6 +4,25 @@ const crypto = require('crypto');
 module.exports = function(supabaseAdmin) {
   const router = require('express').Router();
 
+  // JWT 인증 미들웨어 (RLS 우회 방지 및 API 보안)
+  const requireAuth = async (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, error: '인증 토큰이 제공되지 않았습니다.' });
+    }
+    const token = authHeader.split(' ')[1];
+    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+    
+    if (error || !user) {
+      return res.status(401).json({ success: false, error: '유효하지 않거나 만료된 토큰입니다.' });
+    }
+    req.user = user;
+    next();
+  };
+
+  // 모든 cafe24 라우트에 인증 적용
+  router.use(requireAuth);
+
   // 1. 몰 관리 API
   router.get('/malls', async (req, res) => {
     try {
