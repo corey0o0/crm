@@ -163,6 +163,13 @@ module.exports = function(supabaseAdmin) {
       console.error('[Cafe24 Refresh Token Error]', e.response?.data || e.message);
       // If refresh token is expired or invalid, we should clear the token or prompt re-auth
       if (e.response && (e.response.status === 400 || e.response.status === 401)) {
+        // [방어 로직] 다중 서버 실행 시 토큰 경합 방지
+        const { data: latestMall } = await supabaseAdmin.from('cafe24_settings').select('refresh_token').eq('mall_id', mall.mall_id).single();
+        if (latestMall && latestMall.refresh_token !== mall.refresh_token) {
+          console.log(`[Cafe24] ${mall.mall_id} 토큰 갱신 실패(400)했으나, DB의 최신 토큰이 다름. 다른 프로세스가 이미 갱신한 것으로 간주하여 토큰을 삭제하지 않습니다.`);
+          throw new Error(`${mall.mall_id}: 다른 시스템에서 토큰을 갱신 중입니다. 잠시 후 다시 시도해주세요.`);
+        }
+
         await supabaseAdmin.from('cafe24_settings').update({
           access_token: null,
           token_expires_at: null

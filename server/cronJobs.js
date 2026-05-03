@@ -2,6 +2,13 @@ const cron = require('node-cron');
 const { executeBackup } = require('./backupService');
 
 module.exports = function(supabaseAdmin, cafe24Router) {
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.ENABLE_CRON === 'true';
+
+  if (!isProduction) {
+    console.log('[Cron] 로컬 개발 환경이므로 백그라운드 스케줄러를 비활성화합니다. (다중 서버 갱신 경합 방지)');
+    return;
+  }
+
   // 매 정시마다 스케줄러 실행 (예: 0분 0초)
   // '* * * * *' -> 매분마다
   // '0 * * * *' -> 매시간 정각마다

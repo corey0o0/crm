@@ -131,7 +131,7 @@ function Cafe24Settings() {
 
   return (
     <Box sx={{ p: 3, maxWidth: 900 }}>
-      <Typography variant="h5" sx={{ mb: 1, fontWeight: 700 }}>🛒 다중 카페24 게시판 연동 관리</Typography>
+      <Typography variant="h5" sx={{ mb: 1, fontWeight: 700 }}>연동 관리</Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         여러 개의 카페24 쇼핑몰을 등록하고 각 쇼핑몰의 상품/게시판을 CRM 한 곳에서 관리하세요.
       </Typography>
