@@ -228,7 +228,7 @@ function InventoryLayout() {
   
   // 페이지네이션 상태
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(50); // 페이지당 50개 항목
+  const [itemsPerPage, setItemsPerPage] = useState(50); // 페이지당 50개 항목
   
   // 바코드 스캔 상태
   const [barcodeScannerOpen, setBarcodeScannerOpen] = useState(false);
@@ -2214,7 +2214,7 @@ function InventoryLayout() {
     editProducts, setEditProducts, dialogType, setDialogType, transactions, setTransactions, inventory, setInventory,
     pendingInventory, setPendingInventory, loading, setLoading, snackbar, setSnackbar, warehouses, setWarehouses,
     dealers, setDealers, formData, setFormData, multipleIoProducts, setMultipleIoProducts, products, setProducts,
-    filter, setFilter, dateFilter, setDateFilter, currentPage, setCurrentPage, barcodeScannerOpen, setBarcodeScannerOpen,
+    filter, setFilter, dateFilter, setDateFilter, currentPage, setCurrentPage, itemsPerPage, setItemsPerPage, barcodeScannerOpen, setBarcodeScannerOpen,
     currentScanningRow, setCurrentScanningRow, isDragOver, setIsDragOver, groupedTransactions, dealerStats,
     warehouseStats, totalInboundStats, productStats, locationMappings, dateKeys, ioByWarehouseProductDate,
     filteredTransactions, dashboardStats, paginatedTransactions, fetchProducts, fetchWarehouses, fetchDealers,

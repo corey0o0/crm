@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import {
-  Box, Paper, Grid, Stack, FormControl, InputLabel, Select, MenuItem, ButtonGroup, Button, TextField, Typography, TableContainer, Table, TableHead, TableRow, TableCell, Checkbox, TableBody, Chip, Tooltip, Pagination, TableFooter, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Card, CardContent
+  Box, Paper, Grid, Stack, FormControl, InputLabel, Select, MenuItem, ButtonGroup, Button, TextField, Typography, TableContainer, Table, TableHead, TableRow, TableCell, Checkbox, TableBody, Chip, Tooltip, Pagination, TablePagination, TableFooter, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Card, CardContent
 } from '@mui/material';
 import { Close as CloseIcon, Download as DownloadIcon, Remove as RemoveIcon, Add as AddIcon, Refresh as RefreshIcon, Store as StoreIcon, Sync as SyncIcon, SyncDisabled as SyncDisabledIcon } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
@@ -11,7 +11,7 @@ export default function InventoryHistory() {
   const {
     filter, setFilter, dateFilter, setDateFilter, handleDateFilterClick, transactionViewMode, setTransactionViewMode,
     selectedTransactions, setSelectedTransactions, handleDeleteSelectedTransactions,
-    filteredTransactions, itemsPerPage, pendingInventory, paginatedTransactions, getTransactionTypeInfo, products, formatLocationName, warehouses, dealers,
+    filteredTransactions, itemsPerPage, setItemsPerPage, setCurrentPage, pendingInventory, paginatedTransactions, getTransactionTypeInfo, products, formatLocationName, warehouses, dealers,
     openTransactionDetail, handleTableCellHover, handleTableCellHoverLeave, handleTableCellClick,
     hoverAnchorEl, hoverTransactions, dateKeys, ioByWarehouseProductDate, totalPages, currentPage,
     handlePageChange, showSnackbar, tableModalOpen, setTableModalOpen, selectedTableTransactions,
@@ -280,17 +280,35 @@ export default function InventoryHistory() {
               </Table>
             </TableContainer>
             
-            {/* 페이지네이션 */}
-            {filteredTransactions.length > itemsPerPage && (
-              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-                <Pagination
-                  count={totalPages}
-                  page={currentPage}
-                  onChange={handlePageChange}
-                  color="primary"
-                  size="large"
-                  showFirstButton
-                  showLastButton
+            {/* 페이지네이션 (A/S관리 스타일) */}
+            {filteredTransactions.length > 0 && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2, mb: 2 }}>
+                <TablePagination
+                  component="div"
+                  count={filteredTransactions.length}
+                  page={currentPage - 1}
+                  onPageChange={(event, newPage) => {
+                    setCurrentPage(newPage + 1);
+                  }}
+                  rowsPerPage={itemsPerPage}
+                  onRowsPerPageChange={(event) => {
+                    setItemsPerPage(parseInt(event.target.value, 10));
+                    setCurrentPage(1);
+                  }}
+                  rowsPerPageOptions={[20, 50, 100, 200, 500]}
+                  labelRowsPerPage="페이지당 행 수"
+                  labelDisplayedRows={({ from, to, count }) => 
+                    `${count}개 중 ${from}-${to}`
+                  }
+                  sx={{
+                    '.MuiTablePagination-select': {
+                      paddingTop: '6px',
+                      paddingBottom: '6px',
+                    },
+                    '.MuiTablePagination-selectLabel, .MuiTablePagination-displayedRows': {
+                      fontSize: '0.875rem',
+                    }
+                  }}
                 />
               </Box>
             )}
