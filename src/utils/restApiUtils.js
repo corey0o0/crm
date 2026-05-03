@@ -49,10 +49,6 @@ export const fetchFromSupabase = async (table, options = {}) => {
     signal = null
   } = options;
 
-  // Egress 절감을 위한 안전장치: limit이 명시되지 않으면 기본값 1000 적용
-  // 무제한 조회를 방지하여 예상치 못한 대량 데이터 전송 방지
-  const safeLimit = limit !== null ? limit : 1000;
-
   // URL 구성
   let url = `${supabaseUrl}/rest/v1/${table}?select=${encodeURIComponent(select)}`;
 
@@ -64,9 +60,10 @@ export const fetchFromSupabase = async (table, options = {}) => {
     url += `&order=${encodeURIComponent(order)}`;
   }
 
-  // limit이 null이어도 기본값 적용
-  url += `&limit=${safeLimit}`;
-  if (offset && Number.isFinite(offset) && offset > 0) {
+  if (limit !== null && limit !== undefined && limit !== 'none') {
+    url += `&limit=${limit}`;
+  }
+  if (offset !== null && offset !== undefined && offset > 0) {
     url += `&offset=${offset}`;
   }
 

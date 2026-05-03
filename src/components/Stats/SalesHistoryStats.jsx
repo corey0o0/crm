@@ -59,32 +59,95 @@ function SalesHistoryStats() {
 
   useEffect(() => {
     fetchSales();
+  }, [startDate, endDate]);
+
+  useEffect(() => {
     fetchCompareStats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startDate, endDate]);
+  }, [startDate, endDate, filterBrand]);
 
   const percentChange = (current, previous) => {
     if (previous === 0 || previous === null || previous === undefined) return null;
     return ((current - previous) / previous) * 100;
   };
 
-  const fetchTotalsForRange = async (start, end) => {
+  const fetchTotalsForRange = async (start, end, targetBrand) => {
     const sDate = format(start, 'yyyy-MM-dd') + 'T00:00:00+09:00';
     const eDate = format(end, 'yyyy-MM-dd') + 'T23:59:59+09:00';
     
-    // Shipments
-    const { data: shipRows } = await supabase.from('shipments').select('price').gte('order_date', sDate).lte('order_date', eDate).in('status', ['출고완료', '완료']);
-    const shipTotal = (shipRows || []).reduce((acc, r) => acc + Number(r.price || 0), 0);
-    
-    // Services
-    const { data: asRows } = await supabase.from('service_parts')
-      .select('price, quantity, services!inner(completion_date, status)')
-      .gte('services.completion_date', sDate).lte('services.completion_date', eDate).ilike('services.status', '%완료%');
-    const asTotal = (asRows || []).reduce((acc, r) => acc + (Number(r.price || 0) * Number(r.quantity || 1)), 0);
+    if (!targetBrand || targetBrand === '전체') {
+      // Shipments
+      const { data: shipRows } = await supabase.from('shipments').select('price').gte('order_date', sDate).lte('order_date', eDate).in('status', ['출고완료', '완료']);
+      const shipTotal = (shipRows || []).reduce((acc, r) => acc + Number(r.price || 0), 0);
+      
+      // Services
+      const { data: asRows } = await supabase.from('service_parts')
+        .select('price, quantity, services!inner(completion_date, status)')
+        .gte('services.completion_date', sDate).lte('services.completion_date', eDate).ilike('services.status', '%완료%');
+      const asTotal = (asRows || []).reduce((acc, r) => acc + (Number(r.price || 0) * Number(r.quantity || 1)), 0);
 
-    // Cafe24
-    const { data: cafeRows } = await supabase.from('cafe24_orders').select('total_amount').gte('order_date', sDate).lte('order_date', eDate).eq('is_deleted', false).eq('is_transferred', true);
-    const cafeTotal = (cafeRows || []).reduce((acc, r) => acc + Number(r.total_amount || 0), 0);
+      // Cafe24
+      const { data: cafeRows } = await supabase.from('cafe24_orders').select('total_amount').gte('order_date', sDate).lte('order_date', eDate).eq('is_deleted', false).eq('is_transferred', true);
+      const cafeTotal = (cafeRows || []).reduce((acc, r) => acc + Number(r.total_amount || 0), 0);
+
+      return shipTotal + asTotal + cafeTotal;
+    }
+
+    // 브랜드 필터가 적용된 경우
+    // 1. Shipments (parts 테이블 조인하여 브랜드 확인)
+    const { data: shipRows } = await supabase.from('shipments')
+      .select('id, shipment_parts(quantity, price, total_price, part_name, parts(brand))')
+      .gte('order_date', sDate).lte('order_date', eDate).in('status', ['출고완료', '완료']);
+    
+    let shipTotal = 0;
+    (shipRows || []).forEach(s => {
+      (s.shipment_parts || []).forEach(p => {
+        let b = p.parts?.brand;
+        if (!b) {
+          const n = p.part_name || '';
+          if (n.toUpperCase().includes('XRB') || n.includes('엑스알비')) b = 'XRB';
+          else if (n.toUpperCase().includes('NB') || n.includes('니어바이크') || n.includes('전동포')) b = 'NB';
+          else b = '기타';
+        }
+        if (b === targetBrand) {
+          shipTotal += Number(p.total_price || (Number(p.price || 0) * Number(p.quantity || 1)));
+        }
+      });
+    });
+
+    // 2. Services
+    const { data: asRows } = await supabase.from('service_parts')
+      .select('price, quantity, parts(brand, name), services!inner(completion_date, status)')
+      .gte('services.completion_date', sDate).lte('services.completion_date', eDate).ilike('services.status', '%완료%');
+    
+    let asTotal = 0;
+    (asRows || []).forEach(sp => {
+        let b = sp.parts?.brand;
+        if (!b) {
+          const n = sp.parts?.name || '';
+          if (n.toUpperCase().includes('XRB') || n.includes('엑스알비')) b = 'XRB';
+          else if (n.toUpperCase().includes('NB') || n.includes('니어바이크') || n.includes('전동포')) b = 'NB';
+          else b = '기타';
+        }
+        if (b === targetBrand) {
+          const unitPrice = Number(sp.price || sp.parts?.price || 0);
+          asTotal += (unitPrice * Number(sp.quantity || 1));
+        }
+    });
+
+    // 3. Cafe24 (mall_id 기준 필터링)
+    let cafeTotal = 0;
+    let targetMallId = null;
+    if (targetBrand === 'XRB') targetMallId = 'slimpack79';
+    if (targetBrand === 'NB') targetMallId = 'nearbike';
+    
+    if (targetMallId) {
+      const { data: cafeRows } = await supabase.from('cafe24_orders')
+        .select('total_amount')
+        .gte('order_date', sDate).lte('order_date', eDate)
+        .eq('is_deleted', false).eq('is_transferred', true).eq('mall_id', targetMallId);
+      cafeTotal = (cafeRows || []).reduce((acc, r) => acc + Number(r.total_amount || 0), 0);
+    }
 
     return shipTotal + asTotal + cafeTotal;
   };
@@ -96,7 +159,7 @@ function SalesHistoryStats() {
                         format(endDate, 'yyyy-MM-dd') === format(endOfMonth(startDate), 'yyyy-MM-dd');
     const isApproxWeek = days >= 7 && days <= 8;
 
-    const currentTotal = await fetchTotalsForRange(startDate, endDate);
+    const currentTotal = await fetchTotalsForRange(startDate, endDate, filterBrand);
 
     if (isFullMonth) {
       const prevMonthStart = startOfMonth(setMonth(startDate, startDate.getMonth() - 1));
@@ -105,8 +168,8 @@ function SalesHistoryStats() {
       const lastYearMonthEnd = endOfMonth(lastYearMonthStart);
 
       const [prev, yoyBase] = await Promise.all([
-        fetchTotalsForRange(prevMonthStart, prevMonthEnd),
-        fetchTotalsForRange(lastYearMonthStart, lastYearMonthEnd)
+        fetchTotalsForRange(prevMonthStart, prevMonthEnd, filterBrand),
+        fetchTotalsForRange(lastYearMonthStart, lastYearMonthEnd, filterBrand)
       ]);
       setCompareStats({ context: 'month', mom: percentChange(currentTotal, prev), yoy: percentChange(currentTotal, yoyBase), wow: null, yoyWeek: null });
     } else if (isApproxWeek) {
@@ -116,8 +179,8 @@ function SalesHistoryStats() {
       const lastYearWeekEnd = endOfWeek(lastYearWeekStart, { weekStartsOn: 1 });
 
       const [prev, yoyBase] = await Promise.all([
-        fetchTotalsForRange(prevWeekStart, prevWeekEnd),
-        fetchTotalsForRange(lastYearWeekStart, lastYearWeekEnd)
+        fetchTotalsForRange(prevWeekStart, prevWeekEnd, filterBrand),
+        fetchTotalsForRange(lastYearWeekStart, lastYearWeekEnd, filterBrand)
       ]);
       setCompareStats({ context: 'week', mom: null, yoy: null, wow: percentChange(currentTotal, prev), yoyWeek: percentChange(currentTotal, yoyBase) });
     } else {
