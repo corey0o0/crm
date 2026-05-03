@@ -29,7 +29,8 @@ export const transactionApi = {
       const { data, error } = await supabase
         .from('transactions')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(999999);
       
       if (error) throw error;
       return (data || []).map(this._mapRow);
