@@ -30,7 +30,7 @@ export const transactionApi = {
         .from('transactions')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(500);
+        .limit(999999);
       
       if (error) throw error;
       return (data || []).map(this._mapRow);
