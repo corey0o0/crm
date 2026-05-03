@@ -570,7 +570,7 @@ function InventoryManagement() {
         });
       });
       if (updates.length > 0) {
-        await inventoryApi.upsertMany(updates);
+        // await inventoryApi.upsertMany(updates); // DEAD CODE: Disabled to prevent DB overwrite
       }
       
       console.log('거래내역 기반으로 재고를 재계산하고 서버에 반영했습니다.');
@@ -2384,7 +2384,7 @@ function InventoryManagement() {
                     });
                   });
                   if (updates.length > 0) {
-                    await inventoryApi.upsertMany(updates);
+                    // await inventoryApi.upsertMany(updates); // DEAD CODE: Disabled to prevent DB overwrite
                   }
                   showSnackbar('재고가 초기화되었습니다.', 'success');
                 } catch (e) {

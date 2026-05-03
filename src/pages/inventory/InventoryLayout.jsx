@@ -145,7 +145,7 @@ function InventoryLayout() {
       setSelectedTransactions([]);
       
       setTimeout(() => {
-        recalculateInventoryFromTransactions();
+        fetchInventoryData();
       }, 100);
       
       showSnackbar(`선택한 거래내역이 삭제되었습니다.`, 'success');
@@ -319,14 +319,14 @@ function InventoryLayout() {
   }, [products, warehouses]);
 
   useEffect(() => {
-    if (products.length > 0 && warehouses.length > 0 && transactions.length >= 0) {
-      // 거래내역을 기반으로 재고 계산
+    if (products.length > 0 && warehouses.length > 0) {
+      // 컴포넌트 마운트 및 기초 데이터 로딩 완료 시 서버에서 재고 조회
       const timer = setTimeout(() => {
-        recalculateInventoryFromTransactions();
+        fetchInventoryData();
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [warehouses, dealers, products, transactions]);
+  }, [warehouses, dealers, products]);
 
   // 상품 데이터 가져오기 (상품관리와 연동)
   const fetchProducts = async () => {
@@ -486,170 +486,63 @@ function InventoryLayout() {
     setHoverTransactions([]);
   }, []);
 
-  // 거래내역을 기반으로 창고 재고 재계산
-  const recalculateInventoryFromTransactions = async () => {
-    let latestTransactions = [];
-    
+  // 서버 DB(inventory 테이블)에서 최신 재고 데이터를 단일 진실 공급원(SSOT)으로 조회
+  const fetchInventoryData = async () => {
     try {
-      // 1) 서버에서 최신 거래내역 다시 가져오기
-      latestTransactions = await transactionApi.getAll();
-
-      // 2) 베이스 인벤토리 생성 (연동 창고는 상품 재고, 독립 창고는 0)
-      const recalculatedInventory = {};
-      const recalculatedPendingInventory = {};
+      // 1) inventory 테이블에서 최신 재고 직접 조회
+      const invData = await inventoryApi.getAll();
+      const newInventory = {};
+      
+      // 창고별 재고 객체 초기화
       warehouses.forEach(warehouse => {
-        recalculatedInventory[warehouse.id] = {};
-        recalculatedPendingInventory[warehouse.id] = {};
+        newInventory[warehouse.id] = {};
         products.forEach(product => {
-          recalculatedInventory[warehouse.id][product.id] = warehouse.syncWithProductStock
-            ? (product.stock || 0)
-            : 0;
-          recalculatedPendingInventory[warehouse.id][product.id] = 0;
+          newInventory[warehouse.id][product.id] = 0;
+        });
+      });
+      
+      // DB 데이터를 로컬 state로 매핑
+      invData.forEach(row => {
+        if (!newInventory[row.warehouse_id]) {
+          newInventory[row.warehouse_id] = {};
+        }
+        newInventory[row.warehouse_id][row.product_id] = row.quantity;
+      });
+      
+      // 2) 출고 대기 수량 집계를 위해 status='대기'인 트랜잭션만 가볍게 조회
+      const { data: pendingTxs, error } = await supabase
+        .from('transactions')
+        .select('from_location, product_id, quantity, type')
+        .eq('status', '대기');
+        
+      if (error) console.error('대기 트랜잭션 조회 에러:', error);
+        
+      const newPendingInventory = {};
+      warehouses.forEach(warehouse => {
+        newPendingInventory[warehouse.id] = {};
+        products.forEach(product => {
+          newPendingInventory[warehouse.id][product.id] = 0;
         });
       });
 
-      // 3) 거래내역을 날짜순으로 적용하여 재고 재계산
-      const sorted = [...latestTransactions].sort((a, b) => new Date(a.date) - new Date(b.date));
-      sorted.forEach(transaction => {
-        // 출고 대기 수량 집계 (type='out' && status='대기')
-        if (transaction.type === 'out' && transaction.status === '대기') {
-          if (warehouses.find(w => w.id === transaction.fromLocation)) {
-            if (!recalculatedPendingInventory[transaction.fromLocation]) recalculatedPendingInventory[transaction.fromLocation] = {};
-            if (!recalculatedPendingInventory[transaction.fromLocation][transaction.productId]) recalculatedPendingInventory[transaction.fromLocation][transaction.productId] = 0;
-            recalculatedPendingInventory[transaction.fromLocation][transaction.productId] += transaction.quantity;
+      if (pendingTxs) {
+        pendingTxs.forEach(tx => {
+          if (tx.type === 'out' && warehouses.find(w => w.id === tx.from_location)) {
+            const qty = Number(tx.quantity) || 0;
+            if (!newPendingInventory[tx.from_location]) {
+              newPendingInventory[tx.from_location] = {};
+            }
+            newPendingInventory[tx.from_location][tx.product_id] = 
+              (newPendingInventory[tx.from_location][tx.product_id] || 0) + qty;
           }
-        }
-        if (transaction.type === 'in') {
-          // 목적지가 창고인 경우 증가
-          if (warehouses.find(w => w.id === transaction.toLocation)) {
-            if (!recalculatedInventory[transaction.toLocation]) {
-              recalculatedInventory[transaction.toLocation] = {};
-            }
-            if (!recalculatedInventory[transaction.toLocation][transaction.productId]) {
-              recalculatedInventory[transaction.toLocation][transaction.productId] = 0;
-            }
-            recalculatedInventory[transaction.toLocation][transaction.productId] += transaction.quantity;
-          }
-          // 출발지가 창고인 경우 차감
-          if (warehouses.find(w => w.id === transaction.fromLocation)) {
-            if (recalculatedInventory[transaction.fromLocation] &&
-                typeof recalculatedInventory[transaction.fromLocation][transaction.productId] === 'number') {
-              recalculatedInventory[transaction.fromLocation][transaction.productId] -= transaction.quantity;
-            }
-          }
-        } else {
-          // 출고: 출발지가 창고인 경우 차감
-          if (warehouses.find(w => w.id === transaction.fromLocation)) {
-            if (recalculatedInventory[transaction.fromLocation] &&
-                typeof recalculatedInventory[transaction.fromLocation][transaction.productId] === 'number') {
-              recalculatedInventory[transaction.fromLocation][transaction.productId] -= transaction.quantity;
-            }
-          }
-          // 목적지가 창고인 경우 증가 (창고 간 이동)
-          if (warehouses.find(w => w.id === transaction.toLocation)) {
-            if (!recalculatedInventory[transaction.toLocation]) {
-              recalculatedInventory[transaction.toLocation] = {};
-            }
-            if (!recalculatedInventory[transaction.toLocation][transaction.productId]) {
-              recalculatedInventory[transaction.toLocation][transaction.productId] = 0;
-            }
-            recalculatedInventory[transaction.toLocation][transaction.productId] += transaction.quantity;
-          }
-        }
-      });
-
-      // 4) 로컬 상태 업데이트
-      setInventory(recalculatedInventory);
-      setPendingInventory(recalculatedPendingInventory);
-      setTransactions(sorted);
-
-      // 5) 서버에 일괄 반영 (0 포함하여 완전 동기화)
-      const updates = [];
-      Object.entries(recalculatedInventory).forEach(([warehouseId, productMap]) => {
-        Object.entries(productMap).forEach(([productId, quantity]) => {
-          updates.push({ warehouse_id: warehouseId, product_id: parseInt(productId, 10), quantity });
         });
-      });
-      if (updates.length > 0) {
-        await inventoryApi.upsertMany(updates);
       }
-      
-      console.log('거래내역 기반으로 재고를 재계산하고 서버에 반영했습니다.');
+
+      setInventory(newInventory);
+      setPendingInventory(newPendingInventory);
+      console.log('서버 DB(inventory)에서 최신 재고 정보를 성공적으로 불러왔습니다.');
     } catch (error) {
-      console.error('재고 재계산 실패:', error);
-      // 서버 실패 시 기존 방식으로 재계산
-      const recalculatedInventory = {};
-      const recalculatedPendingInventory = {};
-      
-      // 창고별 재고 초기화
-      warehouses.forEach(warehouse => {
-        recalculatedInventory[warehouse.id] = {};
-        recalculatedPendingInventory[warehouse.id] = {};
-        products.forEach(product => {
-          if (warehouse.syncWithProductStock) {
-            recalculatedInventory[warehouse.id][product.id] = product.stock || 0;
-          } else {
-            recalculatedInventory[warehouse.id][product.id] = 0;
-          }
-          recalculatedPendingInventory[warehouse.id][product.id] = 0;
-        });
-      });
-
-      // 거래내역을 시간순으로 정렬하여 재고 계산 (로컬 상태 사용)
-      const sortedTransactions = [...transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
-      
-      sortedTransactions.forEach(transaction => {
-        if (transaction.type === 'out' && transaction.status === '대기') {
-          if (warehouses.find(w => w.id === transaction.fromLocation)) {
-            if (!recalculatedPendingInventory[transaction.fromLocation]) recalculatedPendingInventory[transaction.fromLocation] = {};
-            if (!recalculatedPendingInventory[transaction.fromLocation][transaction.productId]) recalculatedPendingInventory[transaction.fromLocation][transaction.productId] = 0;
-            recalculatedPendingInventory[transaction.fromLocation][transaction.productId] += transaction.quantity;
-          }
-        }
-        if (transaction.type === 'in') {
-          // 입고 처리
-          if (warehouses.find(w => w.id === transaction.toLocation)) {
-            if (!recalculatedInventory[transaction.toLocation]) {
-              recalculatedInventory[transaction.toLocation] = {};
-            }
-            if (!recalculatedInventory[transaction.toLocation][transaction.productId]) {
-              recalculatedInventory[transaction.toLocation][transaction.productId] = 0;
-            }
-            recalculatedInventory[transaction.toLocation][transaction.productId] += transaction.quantity;
-          }
-          
-          // 출발지가 창고인 경우 재고 차감
-          if (warehouses.find(w => w.id === transaction.fromLocation)) {
-            if (recalculatedInventory[transaction.fromLocation] && 
-                recalculatedInventory[transaction.fromLocation][transaction.productId]) {
-              recalculatedInventory[transaction.fromLocation][transaction.productId] -= transaction.quantity;
-            }
-          }
-        } else {
-          // 출고 처리
-          if (warehouses.find(w => w.id === transaction.fromLocation)) {
-            if (recalculatedInventory[transaction.fromLocation] && 
-                recalculatedInventory[transaction.fromLocation][transaction.productId]) {
-              recalculatedInventory[transaction.fromLocation][transaction.productId] -= transaction.quantity;
-            }
-          }
-          
-          // 목적지가 창고인 경우 재고 증가
-          if (warehouses.find(w => w.id === transaction.toLocation)) {
-            if (!recalculatedInventory[transaction.toLocation]) {
-              recalculatedInventory[transaction.toLocation] = {};
-            }
-            if (!recalculatedInventory[transaction.toLocation][transaction.productId]) {
-              recalculatedInventory[transaction.toLocation][transaction.productId] = 0;
-            }
-            recalculatedInventory[transaction.toLocation][transaction.productId] += transaction.quantity;
-          }
-        }
-      });
-
-      setInventory(recalculatedInventory);
-      setPendingInventory(recalculatedPendingInventory);
-      console.log('거래내역을 기반으로 창고 재고를 재계산했습니다.');
+      console.error('재고 정보 로딩 실패:', error);
     }
   };
 
@@ -661,7 +554,7 @@ function InventoryLayout() {
       await fetchDealers();
       // 재고도 다시 초기화
       setTimeout(() => {
-        recalculateInventoryFromTransactions();
+        fetchInventoryData();
       }, 100);
     } catch (error) {
       console.error('위치 정보 업데이트 실패:', error);
@@ -703,7 +596,7 @@ function InventoryLayout() {
       
       // 연동 상태 변경 시 재고 재초기화
       setTimeout(() => {
-        recalculateInventoryFromTransactions();
+        fetchInventoryData();
       }, 100);
     } catch (error) {
       console.error('창고 연동 설정 변경 실패:', error);
@@ -881,7 +774,7 @@ function InventoryLayout() {
 
       // 재고 재계산
       setTimeout(() => {
-        recalculateInventoryFromTransactions();
+        fetchInventoryData();
       }, 100);
 
       // 상세 모달 닫기
@@ -904,7 +797,7 @@ function InventoryLayout() {
       
       // 삭제 후 재고 재계산
       setTimeout(() => {
-        recalculateInventoryFromTransactions();
+        fetchInventoryData();
       }, 100);
       
       showSnackbar('거래내역이 삭제되었습니다.', 'success');
@@ -2325,7 +2218,7 @@ function InventoryLayout() {
     currentScanningRow, setCurrentScanningRow, isDragOver, setIsDragOver, groupedTransactions, dealerStats,
     warehouseStats, totalInboundStats, productStats, locationMappings, dateKeys, ioByWarehouseProductDate,
     filteredTransactions, dashboardStats, paginatedTransactions, fetchProducts, fetchWarehouses, fetchDealers,
-    fetchTransactions, recalculateInventoryFromTransactions, handleLocationUpdate, toggleWarehouseSync,
+    fetchTransactions, fetchInventoryData, handleLocationUpdate, toggleWarehouseSync,
     openWarehouseDetail, closeWarehouseDetail, openTransactionDetail, closeTransactionDetail, startEditTransaction,
     cancelEditTransaction, addEditProduct, removeEditProduct, updateEditProduct, saveEditTransaction,
     handleCloseDialog, handleOpenDialog, addIoProductRow, removeIoProductRow,
@@ -2415,7 +2308,7 @@ function InventoryLayout() {
               fetchProducts();
               fetchTransactions();
               setTimeout(() => {
-                recalculateInventoryFromTransactions();
+                fetchInventoryData();
               }, 100);
             }}
           >
