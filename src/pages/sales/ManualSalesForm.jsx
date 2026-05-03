@@ -428,9 +428,22 @@ function ShipmentForm() {
 
   // 브랜드 변경 시 부품 목록 가져오기
   useEffect(() => {
-    // 브랜드가 변경되면 부품 목록 다시 가져오기
-    fetchAllParts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let active = true;
+    const fetchParts = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('parts')
+          .select('*')
+          .in('brand', [shipmentData.brand, 'COMMON'])
+          .order('name');
+        if (error) throw error;
+        if (active) setAllParts(data || []);
+      } catch (error) {
+        console.error('Error fetching parts:', error);
+      }
+    };
+    fetchParts();
+    return () => { active = false; };
   }, [shipmentData.brand]);
 
 
@@ -797,7 +810,7 @@ function ShipmentForm() {
               .from('parts')
               .select('*')
               .eq('brand', shipment.brand)
-              .ilike('name', `% ${part.part_name}% `)
+              .ilike('name', `%\${part.part_name}%`)
               .limit(1);
 
             if (partialMatchParts && partialMatchParts.length > 0) {
@@ -903,7 +916,7 @@ function ShipmentForm() {
               .from('parts')
               .select('*')
               .eq('brand', shipment.brand)
-              .ilike('name', `% ${productName}% `)
+              .ilike('name', `%\${productName}%`)
               .limit(1);
 
             if (partialMatchParts && partialMatchParts.length > 0) {
@@ -1005,7 +1018,7 @@ function ShipmentForm() {
             .from('parts')
             .select('*')
             .eq('brand', shipment.brand)
-            .ilike('name', `% ${shipment.product_name}% `)
+            .ilike('name', `%\${shipment.product_name}%`)
             .limit(1);
 
           if (partialMatchParts && partialMatchParts.length > 0) {

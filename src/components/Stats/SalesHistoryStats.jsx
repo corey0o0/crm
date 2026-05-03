@@ -478,7 +478,7 @@ function SalesHistoryStats() {
            return acc + p;
         }, 0);
 
-        items.forEach((item, idx) => {
+        validItems.forEach((item, idx) => {
           const itemCode = item.custom_product_code || item.product_code || '';
           let pName = item.product_name || item.name || '상품';
           if (item.part_id && partsNameById[item.part_id]) pName = partsNameById[item.part_id];
@@ -506,8 +506,8 @@ function SalesHistoryStats() {
 
                if (totalWeight > 0) {
                  total = Math.floor((itemWeight / totalWeight) * distributableAmount);
-                 if (idx === items.length - 1) {
-                    let previousTotals = items.slice(0, items.length - 1).reduce((acc, prevItem) => {
+                 if (idx === validItems.length - 1) {
+                    let previousTotals = validItems.slice(0, validItems.length - 1).reduce((acc, prevItem) => {
                        let prevQty = Number(prevItem.quantity || 1);
                        let prevWeight = Number(prevItem.product_price || prevItem.price || 0) * prevQty;
                        return acc + Math.floor((prevWeight / totalWeight) * distributableAmount);
@@ -515,9 +515,9 @@ function SalesHistoryStats() {
                     total = distributableAmount - previousTotals;
                  }
               } else {
-                 total = Math.floor(distributableAmount / items.length);
-                 if (idx === items.length - 1) {
-                    total = distributableAmount - (total * (items.length - 1));
+                 total = Math.floor(distributableAmount / validItems.length);
+                 if (idx === validItems.length - 1) {
+                    total = distributableAmount - (total * (validItems.length - 1));
                  }
               }
               if (iPrice === 0 && total > 0) iPrice = Math.round(total / itemQty);
@@ -553,9 +553,7 @@ function SalesHistoryStats() {
               }
           }
           
-          if (!['C11', 'C40', 'R40', 'E40'].includes(item.order_status)) {
-             orderRows.push({ ...baseFields, part_name: pName, part_category: cat, part_brand: brand, quantity: statQty, total_price: total, total_cost: unitCost * itemQty, _pCode: pCode });
-          }
+          orderRows.push({ ...baseFields, part_name: pName, part_category: cat, part_brand: brand, quantity: statQty, total_price: total, total_cost: unitCost * itemQty, _pCode: pCode });
         });
         
         orderRows.forEach(r => rows.push(r));

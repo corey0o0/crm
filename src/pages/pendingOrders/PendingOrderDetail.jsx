@@ -78,6 +78,15 @@ function PendingOrderDetail() {
     severity: 'success'
   });
 
+  const isMounted = React.useRef(true);
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
   useEffect(() => {
     fetchPendingOrderDetail();
     checkServerStatus();
@@ -85,6 +94,7 @@ function PendingOrderDetail() {
 
   const checkServerStatus = async () => {
     const status = await checkBackendServer();
+    if (!isMounted.current) return;
     setServerStatus({
       checked: true,
       online: status.success,
@@ -103,6 +113,7 @@ function PendingOrderDetail() {
     try {
       setLoading(true);
       const result = await getPendingOrders({});
+      if (!isMounted.current) return;
       
       if (result.success) {
         const order = result.data.find(o => o.id === id);
@@ -118,13 +129,15 @@ function PendingOrderDetail() {
       }
     } catch (error) {
       console.error('주문대기 상세 조회 중 오류:', error);
-      setSnackbar({
-        open: true,
-        message: `주문대기 상세 조회 실패: ${error.message}`,
-        severity: 'error'
-      });
+      if (isMounted.current) {
+        setSnackbar({
+          open: true,
+          message: `주문대기 상세 조회 실패: ${error.message}`,
+          severity: 'error'
+        });
+      }
     } finally {
-      setLoading(false);
+      if (isMounted.current) setLoading(false);
     }
   };
 

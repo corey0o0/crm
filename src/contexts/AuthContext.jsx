@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { getAppSetting } from '../api/settingsApi';
+import { hasMenuAccess } from '../config/menuConfig';
 
 const AuthContext = createContext({});
 
@@ -142,11 +143,17 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const hasPermission = (menuKey) => {
+    if (!user?.email) return false;
+    return hasMenuAccess(user.email, menuKey, userMenuPermissions);
+  };
+
   const value = {
     user,
     session,
     loading,
     userMenuPermissions,
+    hasPermission,
     refreshMenuPermissions: loadMenuPermissions,
     signIn,
     signOut

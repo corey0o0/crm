@@ -585,6 +585,29 @@ function ShipmentForm({ isManualB2B = false }) {
       return;
     }
 
+    // 데이터 무결성 검증 (서버 검증 대체용)
+    for (const part of selectedParts) {
+      const qty = Number(part.quantity);
+      if (!Number.isInteger(qty) || qty < 1) {
+        setSnackbar({
+          open: true,
+          message: `잘못된 수량입니다 (${part.part_name}): 수량은 1 이상의 정수여야 합니다.`,
+          severity: 'error'
+        });
+        return;
+      }
+      
+      const price = Number(part.price);
+      if (isNaN(price) || price < 0) {
+        setSnackbar({
+          open: true,
+          message: `잘못된 단가입니다 (${part.part_name}): 단가는 0 이상의 숫자여야 합니다.`,
+          severity: 'error'
+        });
+        return;
+      }
+    }
+
     setSaving(true);
     setIsFormSubmitted(true); // 폼 제출 상태로 변경
     let shipmentId = id;

@@ -31,6 +31,7 @@ export default function AgencyManagement() {
   const [agencies, setAgencies] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedItems, setSelectedItems] = useState([]);
+  const [isProcessing, setIsProcessing] = useState(false);
   
   // Modals
   const [openForm, setOpenForm] = useState(false);
@@ -63,7 +64,10 @@ export default function AgencyManagement() {
   };
 
   const handleDelete = async (id) => {
+    if (isProcessing) return;
     if (!window.confirm('선택한 거래처를 삭제하시겠습니까?')) return;
+    
+    setIsProcessing(true);
     try {
       const { error } = await supabase.from('agencies').delete().eq('id', id);
       if (error) throw error;
@@ -71,13 +75,16 @@ export default function AgencyManagement() {
       setSelectedItems(prev => prev.filter(item => item !== id));
     } catch (err) {
       alert('삭제 실패했습니다: ' + err.message);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const handleDeleteSelected = async () => {
-    if (selectedItems.length === 0) return;
+    if (selectedItems.length === 0 || isProcessing) return;
     if (!window.confirm(`선택한 ${selectedItems.length}개 거래처를 삭제하시겠습니까?`)) return;
     
+    setIsProcessing(true);
     try {
       const { error } = await supabase.from('agencies').delete().in('id', selectedItems);
       if (error) throw error;
@@ -85,18 +92,31 @@ export default function AgencyManagement() {
       fetchAgencies();
     } catch (err) {
       alert('삭제 중 오류가 발생했습니다: ' + err.message);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const handleExcelUpload = (e) => {
+    if (isProcessing) return;
     const file = e.target.files[0];
     if (!file) return;
 
+    // Validate file extension
+    const validExtensions = ['.xlsx', '.xls', '.csv'];
+    const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+    if (!validExtensions.includes(fileExtension)) {
+      alert('유효하지 않은 파일 형식입니다. 엑셀(.xlsx, .xls) 또는 CSV 파일만 업로드 가능합니다.');
+      e.target.value = '';
+      return;
+    }
+
+    setIsProcessing(true);
     const reader = new FileReader();
     reader.onload = async (evt) => {
       try {
-        const bstr = evt.target.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
+        const data = new Uint8Array(evt.target.result);
+        const wb = XLSX.read(data, { type: 'array' });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
         
@@ -162,10 +182,12 @@ export default function AgencyManagement() {
       } catch (err) {
         console.error('Excel upload error:', err);
         alert('엑셀 업로드 중 오류가 발생했습니다. 파일 형식을 확인해주세요.');
+      } finally {
+        setIsProcessing(false);
       }
       if (fileInputRef.current) fileInputRef.current.value = '';
     };
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
   };
 
   const handleExcelDownload = () => {
@@ -292,6 +314,7 @@ export default function AgencyManagement() {
               color="error"
               size="small"
               onClick={handleDeleteSelected}
+              disabled={isProcessing}
               startIcon={<DeleteIcon />}
             >
               선택 삭제 ({selectedItems.length})
@@ -418,7 +441,7 @@ export default function AgencyManagement() {
                   <IconButton size="small" onClick={() => { setEditData(row); setOpenForm(true); }}>
                     <EditIcon fontSize="small" />
                   </IconButton>
-                  <IconButton size="small" color="error" onClick={() => handleDelete(row.id)}>
+                  <IconButton size="small" color="error" onClick={() => handleDelete(row.id)} disabled={isProcessing}>
                     <DeleteIcon fontSize="small" />
                   </IconButton>
                 </TableCell>

@@ -99,9 +99,11 @@ function ServiceStats() {
       // 월별 통계 계산
       const months = eachMonthOfInterval({ start: startDate, end: endDate });
       const monthlyStats = months.map(month => {
-        const monthServices = services.filter(service => 
-          format(parseISO(service.reception_date || service.created_at), 'yyyy-MM') === format(month, 'yyyy-MM')
-        );
+        const monthServices = services.filter(service => {
+          const dateStr = service.reception_date || service.created_at;
+          if (!dateStr) return false;
+          return format(parseISO(dateStr), 'yyyy-MM') === format(month, 'yyyy-MM');
+        });
         
         return {
           month: format(month, 'yyyy-MM'),
@@ -178,7 +180,9 @@ function ServiceStats() {
       );
       
       const totalProcessingTime = completedServices.reduce((sum, service) => {
-        const start = parseISO(service.reception_date || service.created_at);
+        const dateStr = service.reception_date || service.created_at;
+        if (!dateStr) return sum;
+        const start = parseISO(dateStr);
         const end = parseISO(service.completion_date);
         return sum + (end - start);
       }, 0);
@@ -189,6 +193,7 @@ function ServiceStats() {
 
       // 최근 A/S 목록
       const recentServices = [...services]
+        .filter(s => s.reception_date || s.created_at)
         .sort((a, b) => new Date(b.reception_date || b.created_at) - new Date(a.reception_date || a.created_at))
         .slice(0, 5);
 
@@ -530,7 +535,9 @@ function ServiceStats() {
               </TimelineSeparator>
               <TimelineContent>
                 <Typography variant="subtitle2">
-                  {format(parseISO(service.reception_date || service.created_at), 'yyyy년 M월 d일')}
+                  {(service.reception_date || service.created_at) 
+                    ? format(parseISO(service.reception_date || service.created_at), 'yyyy년 M월 d일')
+                    : '날짜 미상'}
                 </Typography>
                 <Typography>
                   {service.customer_name} - {service.type}

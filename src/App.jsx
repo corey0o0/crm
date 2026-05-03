@@ -40,7 +40,8 @@ import BoxStatusTab from './components/Inventory/tabs/BoxStatusTab';
 import InventoryLocations from './pages/inventory/InventoryLocations';
 // import RoleManagement from './components/Settings/RoleManagement'; // 제거됨 - 이메일 기반으로 대체
 import BackupManager from './components/Backup/BackupManager';
-// import PermissionRoute from './components/Auth/PermissionRoute'; // 제거됨 - 이메일 기반으로 대체
+import PermissionRoute from './components/Auth/PermissionRoute';
+import { MENU_KEYS } from './config/menuConfig';
 // import XRiderManual from './components/Manual/XRiderManual';
 // import NewManual from './components/Manual/NewManual';
 
@@ -96,13 +97,13 @@ function AppRouter() {
       <Routes>
         <Route path="/login" element={!session ? <Login /> : <Navigate to="/" />} />
         <Route path="/" element={session ? <Layout /> : <Navigate to="/login" />}>
-          <Route index element={<Dashboard />} />
-          <Route path="customers" element={<CustomerManagement />} />
-          <Route path="services" element={<ServiceList />} />
-          <Route path="services/:id" element={<ServiceDetail />} />
-          <Route path="add-service" element={<AddService />} />
-          <Route path="service-statistics" element={<ServiceStatistics />} />
-          <Route path="parts" element={<PartsManagement />} />
+          <Route index element={<PermissionRoute requiredPermission={MENU_KEYS.DASHBOARD}><Dashboard /></PermissionRoute>} />
+          <Route path="customers" element={<PermissionRoute requiredPermission={MENU_KEYS.CUSTOMERS}><CustomerManagement /></PermissionRoute>} />
+          <Route path="services" element={<PermissionRoute requiredPermission={MENU_KEYS.SERVICES}><ServiceList /></PermissionRoute>} />
+          <Route path="services/:id" element={<PermissionRoute requiredPermission={MENU_KEYS.SERVICES}><ServiceDetail /></PermissionRoute>} />
+          <Route path="add-service" element={<PermissionRoute requiredPermission={MENU_KEYS.SERVICES}><AddService /></PermissionRoute>} />
+          <Route path="service-statistics" element={<PermissionRoute requiredPermission={MENU_KEYS.SERVICES}><ServiceStatistics /></PermissionRoute>} />
+          <Route path="parts" element={<PermissionRoute requiredPermission={MENU_KEYS.PARTS}><PartsManagement /></PermissionRoute>} />
 
           {/* 기존 출고 관리 페이지 */}
           <Route path="shipments" element={<ProductShipment />} />
@@ -113,63 +114,63 @@ function AppRouter() {
           <Route path="agencies" element={<AgencyManagement />} />
 
           {/* 새로운 출고 관리 페이지 라우팅 */}
-          <Route path="shipment" element={<ShipmentList />} />
-          <Route path="shipment/new" element={<ShipmentForm />} />
-          <Route path="shipment/edit/:id" element={<ShipmentForm />} />
-          <Route path="shipment/:id" element={<ShipmentDetail />} />
+          <Route path="shipment" element={<PermissionRoute requiredPermission={MENU_KEYS.SHIPMENT}><ShipmentList /></PermissionRoute>} />
+          <Route path="shipment/new" element={<PermissionRoute requiredPermission={MENU_KEYS.SHIPMENT}><ShipmentForm /></PermissionRoute>} />
+          <Route path="shipment/edit/:id" element={<PermissionRoute requiredPermission={MENU_KEYS.SHIPMENT}><ShipmentForm /></PermissionRoute>} />
+          <Route path="shipment/:id" element={<PermissionRoute requiredPermission={MENU_KEYS.SHIPMENT}><ShipmentDetail /></PermissionRoute>} />
 
-          <Route path="receipts" element={<ReceiptScanner />} />
-          <Route path="system-health-check" element={<SystemHealthCheck />} />
-          <Route path="telegram-test" element={<TelegramTest />} />
-          <Route path="service" element={<ServiceList />} />
-          <Route path="service/add" element={<AddService />} />
-          <Route path="service/stats" element={<ServiceStats />} />
-          <Route path="service/analysis" element={<ServiceAnalysis />} />
-          <Route path="service/:id" element={<ServiceDetail />} />
-          <Route path="sales/stats" element={<SalesStats />} />
-          <Route path="sales/history-stats" element={<SalesHistoryStats />} />
-          <Route path="online/stats" element={<OnlineStats />} />
-          <Route path="stocks" element={<StockList />} />
-          <Route path="stats/service" element={<ServiceStats />} />
-          <Route path="brand-settings" element={<BrandSettings />} />
-          <Route path="inventory-logs" element={<InventoryLogs />} />
-          <Route path="inventory-management" element={<InventoryLayout />}>
+          <Route path="receipts" element={<PermissionRoute requiredPermission={MENU_KEYS.ADMIN_TOOLS}><ReceiptScanner /></PermissionRoute>} />
+          <Route path="system-health-check" element={<PermissionRoute requiredPermission={MENU_KEYS.ADMIN_TOOLS}><SystemHealthCheck /></PermissionRoute>} />
+          <Route path="telegram-test" element={<PermissionRoute requiredPermission={MENU_KEYS.ADMIN_TOOLS}><TelegramTest /></PermissionRoute>} />
+          <Route path="service" element={<PermissionRoute requiredPermission={MENU_KEYS.SERVICES}><ServiceList /></PermissionRoute>} />
+          <Route path="service/add" element={<PermissionRoute requiredPermission={MENU_KEYS.SERVICES}><AddService /></PermissionRoute>} />
+          <Route path="service/stats" element={<PermissionRoute requiredPermission={MENU_KEYS.SERVICES}><ServiceStats /></PermissionRoute>} />
+          <Route path="service/analysis" element={<PermissionRoute requiredPermission={MENU_KEYS.SERVICES}><ServiceAnalysis /></PermissionRoute>} />
+          <Route path="service/:id" element={<PermissionRoute requiredPermission={MENU_KEYS.SERVICES}><ServiceDetail /></PermissionRoute>} />
+          <Route path="sales/stats" element={<PermissionRoute requiredPermission={MENU_KEYS.SALES_STATS}><SalesStats /></PermissionRoute>} />
+          <Route path="sales/history-stats" element={<PermissionRoute requiredPermission={MENU_KEYS.SALES_HISTORY_STATS}><SalesHistoryStats /></PermissionRoute>} />
+          <Route path="online/stats" element={<PermissionRoute requiredPermission={MENU_KEYS.ONLINE_STATS}><OnlineStats /></PermissionRoute>} />
+          <Route path="stocks" element={<PermissionRoute requiredPermission={MENU_KEYS.STOCKS}><StockList /></PermissionRoute>} />
+          <Route path="stats/service" element={<PermissionRoute requiredPermission={MENU_KEYS.SERVICES}><ServiceStats /></PermissionRoute>} />
+          <Route path="brand-settings" element={<PermissionRoute requiredPermission={MENU_KEYS.ADMIN_TOOLS}><BrandSettings /></PermissionRoute>} />
+          <Route path="inventory-logs" element={<PermissionRoute requiredPermission={MENU_KEYS.INVENTORY_HISTORY}><InventoryLogs /></PermissionRoute>} />
+          <Route path="inventory-management" element={<PermissionRoute requiredPermission={MENU_KEYS.INVENTORY}><InventoryLayout /></PermissionRoute>}>
             <Route index element={<Navigate to="history" replace />} />
-            <Route path="history" element={<InventoryHistory />} />
-            <Route path="scan" element={<StoreOnlineOutboundTab />} />
-            <Route path="status" element={<InventoryStatus />} />
-            <Route path="boxes" element={<BoxStatusTab />} />
-            <Route path="locations" element={<InventoryLocations />} />
+            <Route path="history" element={<PermissionRoute requiredPermission={MENU_KEYS.INVENTORY_HISTORY}><InventoryHistory /></PermissionRoute>} />
+            <Route path="scan" element={<PermissionRoute requiredPermission={MENU_KEYS.INVENTORY_SCAN}><StoreOnlineOutboundTab /></PermissionRoute>} />
+            <Route path="status" element={<PermissionRoute requiredPermission={MENU_KEYS.INVENTORY_STATUS}><InventoryStatus /></PermissionRoute>} />
+            <Route path="boxes" element={<PermissionRoute requiredPermission={MENU_KEYS.INVENTORY_BOXES}><BoxStatusTab /></PermissionRoute>} />
+            <Route path="locations" element={<PermissionRoute requiredPermission={MENU_KEYS.INVENTORY_LOCATIONS}><InventoryLocations /></PermissionRoute>} />
           </Route>
           
           {/* 데이터 백업/복원 */}
-          <Route path="backup" element={<BackupManager />} />
+          <Route path="backup" element={<PermissionRoute requiredPermission={MENU_KEYS.BACKUP}><BackupManager /></PermissionRoute>} />
 
           {/* 관리자 도구 */}
-          <Route path="admin/tools" element={<AdminTools />} />
+          <Route path="admin/tools" element={<PermissionRoute requiredPermission={MENU_KEYS.ADMIN_TOOLS}><AdminTools /></PermissionRoute>} />
 
           {/* 카페24 연동 설정 */}
-          <Route path="settings/ecount-uploader" element={<EcountDataUploader />} />
-          <Route path="settings/cafe24" element={<Cafe24Settings />} />
-          <Route path="cafe24/orders" element={<Cafe24OrderList />} />
-          <Route path="settings/product-sync" element={<ProductComparisonDashboard />} />
+          <Route path="settings/ecount-uploader" element={<PermissionRoute requiredPermission={MENU_KEYS.ADMIN_TOOLS}><EcountDataUploader /></PermissionRoute>} />
+          <Route path="settings/cafe24" element={<PermissionRoute requiredPermission={MENU_KEYS.ADMIN_TOOLS}><Cafe24Settings /></PermissionRoute>} />
+          <Route path="cafe24/orders" element={<PermissionRoute requiredPermission={MENU_KEYS.CAFE24_ORDERS}><Cafe24OrderList /></PermissionRoute>} />
+          <Route path="settings/product-sync" element={<PermissionRoute requiredPermission={MENU_KEYS.ADMIN_TOOLS}><ProductComparisonDashboard /></PermissionRoute>} />
 
           {/* 게시판 */}
-          <Route path="board" element={<BoardList />} />
-          <Route path="board/new" element={<BoardNew />} />
-          <Route path="board/:id" element={<BoardDetail />} />
-          <Route path="board/:id/edit" element={<BoardEdit />} />
+          <Route path="board" element={<PermissionRoute requiredPermission={MENU_KEYS.BOARD_GROUP}><BoardList /></PermissionRoute>} />
+          <Route path="board/new" element={<PermissionRoute requiredPermission={MENU_KEYS.BOARD_GROUP}><BoardNew /></PermissionRoute>} />
+          <Route path="board/:id" element={<PermissionRoute requiredPermission={MENU_KEYS.BOARD_GROUP}><BoardDetail /></PermissionRoute>} />
+          <Route path="board/:id/edit" element={<PermissionRoute requiredPermission={MENU_KEYS.BOARD_GROUP}><BoardEdit /></PermissionRoute>} />
 
           {/* 출고/판매 관리 */}
-          <Route path="sales/entry" element={<SalesEntry />} />
-          <Route path="sales/history" element={<SalesHistory />} />
-          <Route path="sales/manual" element={<ManualSalesList />} />
-          <Route path="sales/manual/new" element={<ShipmentForm isManualB2B={true} />} />
-          <Route path="sales/manual/edit/:id" element={<ShipmentForm isManualB2B={true} />} />
-          <Route path="sales/tax-invoice" element={<TaxInvoiceManagement />} />
+          <Route path="sales/entry" element={<PermissionRoute requiredPermission={MENU_KEYS.SALES_ENTRY}><SalesEntry /></PermissionRoute>} />
+          <Route path="sales/history" element={<PermissionRoute requiredPermission={MENU_KEYS.SALES_HISTORY}><SalesHistory /></PermissionRoute>} />
+          <Route path="sales/manual" element={<PermissionRoute requiredPermission={MENU_KEYS.MANUAL_SALES}><ManualSalesList /></PermissionRoute>} />
+          <Route path="sales/manual/new" element={<PermissionRoute requiredPermission={MENU_KEYS.MANUAL_SALES}><ShipmentForm isManualB2B={true} /></PermissionRoute>} />
+          <Route path="sales/manual/edit/:id" element={<PermissionRoute requiredPermission={MENU_KEYS.MANUAL_SALES}><ShipmentForm isManualB2B={true} /></PermissionRoute>} />
+          <Route path="sales/tax-invoice" element={<PermissionRoute requiredPermission={MENU_KEYS.ADMIN_TOOLS}><TaxInvoiceManagement /></PermissionRoute>} />
           
-          <Route path="pending-orders" element={<PendingOrderList />} />
-          <Route path="pending-orders/:id" element={<PendingOrderDetail />} />
+          <Route path="pending-orders" element={<PermissionRoute requiredPermission={MENU_KEYS.PENDING_ORDERS}><PendingOrderList /></PermissionRoute>} />
+          <Route path="pending-orders/:id" element={<PermissionRoute requiredPermission={MENU_KEYS.PENDING_ORDERS}><PendingOrderDetail /></PermissionRoute>} />
         </Route>
       </Routes>
     </Router>

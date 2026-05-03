@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { Box, Paper, Typography, TextField, Button, Stack, LinearProgress } from '@mui/material';
 import { useNavigate, useParams } from 'react-router-dom';
 import QuillEditor from '../../components/common/QuillEditor';
+import DOMPurify from 'dompurify';
 
 function BoardEdit() {
   const { id } = useParams();
@@ -95,7 +96,7 @@ function BoardEdit() {
       }
       if (uploaded.length > 0) {
         const linksHtml = uploaded.map((f) => `<p><a href="${f.url}" target="_blank" rel="noopener noreferrer">${f.name}</a></p>`).join('');
-        setContent((prev) => (prev || '') + linksHtml);
+        setContent((prev) => (prev || '') + DOMPurify.sanitize(linksHtml));
       }
     } catch (err) {
       console.error('첨부 처리 오류:', err);

@@ -216,18 +216,17 @@ function OnlineStats() {
           if (validItems.length === 0) return; // 전액 취소건은 제외
           
           let totalWeight = 0;
-          (o.order_items || []).forEach(i => {
+          validItems.forEach(i => {
               const pCode = String(i.custom_product_code || i.product_code || '').trim();
               const p = i.part_id ? partMapById[i.part_id] : (pCode ? partMapByCode[pCode] : null);
               const pPrice = Number(i.product_price || i.price || (p ? p.price : 0));
               totalWeight += pPrice * Number(i.quantity || 1);
           });
-          const totalQty = (o.order_items || []).reduce((acc, i) => acc + Number(i.quantity || 1), 0);
+          const totalQty = validItems.reduce((acc, i) => acc + Number(i.quantity || 1), 0);
 
-          if ((o.order_items || []).length > 0) {
-             const allItems = o.order_items || [];
+          if (validItems.length > 0) {
              let seenProductCodes = new Set();
-             allItems.forEach((item, idx) => {
+             validItems.forEach((item, idx) => {
                const pCode = String(item.custom_product_code || item.product_code || '').trim();
                const pName = item.name || item.product_name || '';
                const p = item.part_id ? partMapById[item.part_id] : (pCode ? partMapByCode[pCode] : null);
@@ -251,8 +250,8 @@ function OnlineStats() {
                } else if (totalWeight > 0) {
                    const pPrice = Number(item.product_price || item.price || (p ? p.price : 0));
                    amount = Math.floor(((pPrice * qty) / totalWeight) * Number(o.total_amount || 0));
-                   if (idx === allItems.length - 1) {
-                       const prevTotal = allItems.slice(0, allItems.length - 1).reduce((acc, prev) => {
+                   if (idx === validItems.length - 1) {
+                       const prevTotal = validItems.slice(0, validItems.length - 1).reduce((acc, prev) => {
                            const prevPCode = String(prev.custom_product_code || prev.product_code || '').trim();
                            const prevP = prev.part_id ? partMapById[prev.part_id] : (prevPCode ? partMapByCode[prevPCode] : null);
                            const prevPrice = Number(prev.product_price || prev.price || (prevP ? prevP.price : 0));
@@ -262,15 +261,14 @@ function OnlineStats() {
                    }
                } else if (totalQty > 0) {
                    amount = Math.floor((qty / totalQty) * Number(o.total_amount || 0));
-                   if (idx === allItems.length - 1) {
-                       const prevTotal = allItems.slice(0, allItems.length - 1).reduce((acc, prev) => {
+                   if (idx === validItems.length - 1) {
+                       const prevTotal = validItems.slice(0, validItems.length - 1).reduce((acc, prev) => {
                            return acc + Math.floor((Number(prev.quantity || 1) / totalQty) * Number(o.total_amount || 0));
                        }, 0);
                        amount = Number(o.total_amount || 0) - prevTotal;
                    }
                }
                
-               // 취소된 항목에도 일단 _calculated_amount를 계산해두기 위해 전체 order_items를 순회하도록 수정
                item._calculated_amount = amount;
                const isAirframe = p ? (p.note?.includes('기체')) : (pName.includes('기체') || pName.includes('차체'));
                let sup = p ? (p.brand || '') : '';
