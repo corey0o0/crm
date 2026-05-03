@@ -91,7 +91,7 @@ const PartsSelectionDialog = ({
                     <TableCell>{part.name}</TableCell>
                     <TableCell>{part.code}</TableCell>
                     <TableCell>{part.brand}</TableCell>
-                    <TableCell align="right">{part.price.toLocaleString()}원</TableCell>
+                    <TableCell align="right">{(part.price || 0).toLocaleString()}원</TableCell>
                   </TableRow>
                 ))
               )}

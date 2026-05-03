@@ -38,14 +38,22 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
     setLoadingData(true);
     setError(null);
     try {
-      // 1. 모든 몰의 재고 정보 병렬로 가져오기
-      const mallVariants = await Promise.all(malls.map(async m => {
+      // 1. 모든 몰의 재고 정보 병렬로 가져오기 (부분 실패 허용)
+      const settledResults = await Promise.allSettled(malls.map(async m => {
         const res = await compareCafe24Inventory(m.mall_id);
         return { 
           mall_id: m.mall_id, 
           variants: (res.success && res.cafe24Variants) ? res.cafe24Variants : [] 
         };
       }));
+
+      const mallVariants = settledResults.map((result, index) => {
+        if (result.status === 'fulfilled') {
+          return result.value;
+        }
+        console.error(`Failed to fetch variants for mall ${malls[index].mall_id}`, result.reason);
+        return { mall_id: malls[index].mall_id, variants: [] };
+      });
 
       // 2. 공임(note === '공임') 성격의 파츠는 재고 비교에서 제외
       const nonLaborProducts = products.filter(p => p.note !== '공임');
@@ -80,7 +88,7 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
               anyDisabled = true;
               allMatch = false;
             } else {
-              mallStock = parseInt(matchedVariant.quantity || 0);
+              mallStock = parseInt(matchedVariant.quantity, 10) || 0;
               if (mallStock === totalCrmStock) {
                 mallMatchStatus = '일치';
               } else {

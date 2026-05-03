@@ -563,7 +563,7 @@ function ServiceDetail() {
         }
       }
 
-      if (serviceData.service_tags) {
+      if (Array.isArray(serviceData.service_tags)) {
         setTags(serviceData.service_tags.map(t => t.tag_name));
       }
 
@@ -617,7 +617,7 @@ function ServiceDetail() {
         // 파일 로딩 실패는 무시하고 진행
       }
 
-      if (serviceData.service_parts?.length > 0) {
+      if (Array.isArray(serviceData.service_parts) && serviceData.service_parts.length > 0) {
         const partIds = serviceData.service_parts.map(sp => sp.part_id);
         const { data: partsData, error: partsError } = await supabase
           .from('parts')
@@ -659,7 +659,7 @@ function ServiceDetail() {
             price: part.price,
             usage: part.usage
           })),
-          tags: serviceData.service_tags ? serviceData.service_tags.map(t => t.tag_name).sort() : [],
+          tags: Array.isArray(serviceData.service_tags) ? serviceData.service_tags.map(t => t.tag_name).sort() : [],
           receiptLink: serviceData.receipt_link || ''
         });
       } else {
@@ -676,7 +676,7 @@ function ServiceDetail() {
             mileage: mileage
           },
           selectedParts: [],
-          tags: serviceData.service_tags ? serviceData.service_tags.map(t => t.tag_name).sort() : [],
+          tags: Array.isArray(serviceData.service_tags) ? serviceData.service_tags.map(t => t.tag_name).sort() : [],
           receiptLink: serviceData.receipt_link || ''
         });
       }
@@ -2179,12 +2179,12 @@ function ServiceDetail() {
           <div class="estimate-amount">
             견적금액: 일금 ${selectedParts.reduce((sum, p) => {
               const rQty = getReturnedQty(p.usage);
-              const effective = rQty === -1 ? 0 : Math.max(0, (p.quantity || 1) - rQty);
-              return sum + (p.price || 0) * effective;
+              const effective = rQty === -1 ? 0 : Math.max(0, (Number(p.quantity) || 1) - rQty);
+              return sum + (Number(p.price) || 0) * effective;
             }, 0).toLocaleString()}원 (￦${selectedParts.reduce((sum, p) => {
               const rQty = getReturnedQty(p.usage);
-              const effective = rQty === -1 ? 0 : Math.max(0, (p.quantity || 1) - rQty);
-              return sum + (p.price || 0) * effective;
+              const effective = rQty === -1 ? 0 : Math.max(0, (Number(p.quantity) || 1) - rQty);
+              return sum + (Number(p.price) || 0) * effective;
             }, 0).toLocaleString()}) ※ 부가세포함
           </div>
 
@@ -2214,8 +2214,8 @@ function ServiceDetail() {
                 <td colspan="3" style="text-align:center;">합계</td>
                 <td class="amount-cell">${selectedParts.reduce((sum, p) => {
               const rQty = getReturnedQty(p.usage);
-              const effective = rQty === -1 ? 0 : Math.max(0, (p.quantity || 1) - rQty);
-              return sum + (p.price || 0) * effective;
+              const effective = rQty === -1 ? 0 : Math.max(0, (Number(p.quantity) || 1) - rQty);
+              return sum + (Number(p.price) || 0) * effective;
             }, 0).toLocaleString()}</td>
               </tr>
             </tbody>
@@ -2606,8 +2606,8 @@ function ServiceDetail() {
                 <Typography variant="subtitle2">
                   {selectedParts.reduce((sum, p) => {
                     const rQty = getReturnedQty(p.usage);
-                    const effective = rQty === -1 ? 0 : Math.max(0, (p.quantity || 1) - rQty);
-                    return sum + (p.price || 0) * effective;
+                    const effective = rQty === -1 ? 0 : Math.max(0, (Number(p.quantity) || 1) - rQty);
+                    return sum + (Number(p.price) || 0) * effective;
                   }, 0).toLocaleString()}원
                 </Typography>
               </TableCell>

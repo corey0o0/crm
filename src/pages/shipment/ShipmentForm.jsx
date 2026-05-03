@@ -285,10 +285,7 @@ function ShipmentForm({ isManualB2B = false }) {
 
   // 메모이제이션된 필터링 함수
   const filteredParts = useMemo(() => {
-    setIsSearching(true);
-
     if (!searchTerm) {
-      setIsSearching(false);
       return allParts.slice(0, 50); // 검색어 없을 때는 처음 50개만 표시
     }
 
@@ -298,7 +295,6 @@ function ShipmentForm({ isManualB2B = false }) {
       (part.code && part.code.toLowerCase().includes(searchLower))
     ).slice(0, 100); // 최대 100개 결과로 제한
 
-    setIsSearching(false);
     return filtered;
   }, [searchTerm, allParts]);
 

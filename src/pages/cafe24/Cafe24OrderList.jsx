@@ -965,9 +965,14 @@ export default function Cafe24OrderList() {
         // 3. 이미 전송된 주문의 트랜잭션 기록도 함께 업데이트
         if (updatedOrders && updatedOrders.length > 0) {
           for (const order of updatedOrders) {
-            await supabase.from('transactions')
-              .update({ to_location: `대리점:${selectedAgency.name}` })
-              .like('note', `%주문: ${order.order_id}%`);
+            try {
+              const { error: txErr } = await supabase.from('transactions')
+                .update({ to_location: `대리점:${selectedAgency.name}` })
+                .like('note', `%주문: ${order.order_id}%`);
+              if (txErr) console.error(`Failed to update transaction for order ${order.order_id}:`, txErr);
+            } catch (err) {
+              console.error(`Exception updating transaction for order ${order.order_id}:`, err);
+            }
           }
         }
 

@@ -22,6 +22,8 @@ import axios from 'axios';
 import * as XLSX from 'xlsx';
 import { transactionApi } from '../../api/transactionApi';
 import { supabase } from '../../lib/supabaseClient';
+import { useAuth } from '../../contexts/AuthContext';
+import { MASTER_ACCOUNTS } from '../../config/menuConfig';
 
 const api = axios.create({
   baseURL: process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001'
@@ -32,6 +34,8 @@ export default function AgencyManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedItems, setSelectedItems] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const { user } = useAuth();
+  const isMaster = MASTER_ACCOUNTS.includes(user?.email);
   
   // Modals
   const [openForm, setOpenForm] = useState(false);
@@ -65,6 +69,10 @@ export default function AgencyManagement() {
 
   const handleDelete = async (id) => {
     if (isProcessing) return;
+    if (!isMaster) {
+      alert('삭제 권한이 없습니다. 관리자에게 문의하세요.');
+      return;
+    }
     if (!window.confirm('선택한 거래처를 삭제하시겠습니까?')) return;
     
     setIsProcessing(true);
@@ -82,6 +90,10 @@ export default function AgencyManagement() {
 
   const handleDeleteSelected = async () => {
     if (selectedItems.length === 0 || isProcessing) return;
+    if (!isMaster) {
+      alert('삭제 권한이 없습니다. 관리자에게 문의하세요.');
+      return;
+    }
     if (!window.confirm(`선택한 ${selectedItems.length}개 거래처를 삭제하시겠습니까?`)) return;
     
     setIsProcessing(true);

@@ -311,14 +311,23 @@ function SalesHistory() {
     if (shipmentCafeOrderNos.length > 0) {
       // 100개 단위로 끊어서 조회 (Supabase 필터 길이 제한 대비)
       for (let i = 0; i < shipmentCafeOrderNos.length; i += 100) {
-        const chunk = shipmentCafeOrderNos.slice(i, i + 100);
-        const { data: dupCafeOrders } = await supabase
-          .from('cafe24_orders')
-          .select('order_id')
-          .in('order_id', chunk)
-          .eq('is_deleted', false)
-          .eq('is_transferred', true);
-        (dupCafeOrders || []).forEach(o => duplicatedCafeOrderNos.add(o.order_id));
+        try {
+          const chunk = shipmentCafeOrderNos.slice(i, i + 100);
+          const { data: dupCafeOrders, error } = await supabase
+            .from('cafe24_orders')
+            .select('order_id')
+            .in('order_id', chunk)
+            .eq('is_deleted', false)
+            .eq('is_transferred', true);
+          
+          if (error) {
+            console.error('Error fetching duplicate cafe orders chunk:', error);
+            continue;
+          }
+          (dupCafeOrders || []).forEach(o => duplicatedCafeOrderNos.add(o.order_id));
+        } catch (err) {
+          console.error('Exception fetching duplicate cafe orders chunk:', err);
+        }
       }
     }
     // =================================================================================
@@ -535,7 +544,7 @@ function SalesHistory() {
 
           if (paymentAmt > 0 || isExplicitlyZero) {
               total = paymentAmt;
-              if (iPrice === 0 && paymentAmt > 0) iPrice = Math.round(paymentAmt / itemQty);
+              if (iPrice === 0 && paymentAmt > 0) iPrice = itemQty > 0 ? Math.round(paymentAmt / itemQty) : 0;
           } else {
               // 전체 유효 품목의 원래 가격(MSRP) 총합 계산
               let totalWeight = validItems.reduce((acc, i) => {
@@ -566,7 +575,7 @@ function SalesHistory() {
                     total = distributableAmount - (total * (validItems.length - 1));
                  }
               }
-              if (iPrice === 0 && total > 0) iPrice = Math.round(total / itemQty);
+              if (iPrice === 0 && total > 0) iPrice = itemQty > 0 ? Math.round(total / itemQty) : 0;
           }
 
           let shipFee = 0;

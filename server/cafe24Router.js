@@ -1,5 +1,34 @@
 const axios = require('axios');
 const crypto = require('crypto');
+const ENCRYPTION_SECRET = process.env.CAFE24_ENCRYPTION_SECRET || process.env.SUPABASE_SERVICE_KEY || 'default_secret';
+const ENCRYPTION_SALT = process.env.CAFE24_ENCRYPTION_SALT || 'salt';
+const ENCRYPTION_KEY = crypto.scryptSync(ENCRYPTION_SECRET, ENCRYPTION_SALT, 32);
+
+function encrypt(text) {
+  if (!text) return text;
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv('aes-256-cbc', ENCRYPTION_KEY, iv);
+  let encrypted = cipher.update(text);
+  encrypted = Buffer.concat([encrypted, cipher.final()]);
+  return iv.toString('hex') + ':' + encrypted.toString('hex');
+}
+
+function decrypt(text) {
+  if (!text) return text;
+  const textParts = text.split(':');
+  if (textParts.length !== 2) return text; // Fallback for existing plaintext secrets
+  const iv = Buffer.from(textParts[0], 'hex');
+  const encryptedText = Buffer.from(textParts[1], 'hex');
+  try {
+    const decipher = crypto.createDecipheriv('aes-256-cbc', ENCRYPTION_KEY, iv);
+    let decrypted = decipher.update(encryptedText);
+    decrypted = Buffer.concat([decrypted, decipher.final()]);
+    return decrypted.toString();
+  } catch (err) {
+    console.error('Decryption error:', err.message);
+    return text;
+  }
+}
 
 module.exports = function(supabaseAdmin) {
   const router = require('express').Router();
@@ -52,7 +81,7 @@ module.exports = function(supabaseAdmin) {
       if (!mall_id || !client_id || !client_secret) return res.status(400).json({ error: 'Missing fields' });
       
       const { error } = await supabaseAdmin.from('cafe24_settings').upsert({
-        mall_id, client_id, client_secret_encrypted: client_secret
+        mall_id, client_id, client_secret_encrypted: encrypt(client_secret)
       }, { onConflict: 'mall_id' });
       if (error) throw error;
       res.json({ success: true, message: '쇼핑몰이 등록되었습니다.' });
@@ -135,7 +164,8 @@ module.exports = function(supabaseAdmin) {
 
   // 2. OAuth 토큰 갱신 헬퍼
   async function refreshCafe24Token(mall) {
-    const credentials = Buffer.from(`${mall.client_id}:${mall.client_secret_encrypted}`).toString('base64');
+    const secret = decrypt(mall.client_secret_encrypted);
+    const credentials = Buffer.from(`${mall.client_id}:${secret}`).toString('base64');
     try {
       const resp = await axios.post(
         `https://${mall.mall_id}.cafe24api.com/api/v2/oauth/token`,
@@ -208,7 +238,8 @@ module.exports = function(supabaseAdmin) {
       const { data: mall } = await supabaseAdmin.from('cafe24_settings').select('*').eq('mall_id', mall_id).single();
       if (!mall) return res.status(404).json({ error: 'DB 속 쇼핑몰 정보가 없습니다.' });
 
-      const credentials = Buffer.from(`${mall.client_id}:${mall.client_secret_encrypted}`).toString('base64');
+      const secret = decrypt(mall.client_secret_encrypted);
+      const credentials = Buffer.from(`${mall.client_id}:${secret}`).toString('base64');
       const resp = await axios.post(
         `https://${mall_id}.cafe24api.com/api/v2/oauth/token`,
         `grant_type=authorization_code&code=${code}&redirect_uri=${encodeURIComponent(redirect_uri)}`,

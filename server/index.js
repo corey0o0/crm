@@ -29,11 +29,15 @@ const allowedOrigins = [
 app.use((req, res, next) => { console.log(req.method, req.url); next(); });
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
+    // 서버 간 요청이거나 도메인 없는 요청은 개발 환경에서만 허용 (필요에 따라 정책 변경)
+    if (!origin && process.env.NODE_ENV !== 'production') return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
+    console.warn(`[CORS Blocked] Origin: ${origin}`);
     callback(new Error('CORS 정책에 의해 차단되었습니다'));
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 app.use(express.json());
 
@@ -189,7 +193,19 @@ const handleMulterError = (err, req, res, next) => {
 // 업로드된 이미지 제공 엔드포인트
 app.get('/api/uploads/:filename', (req, res) => {
   const filename = req.params.filename;
-  const filePath = path.join(__dirname, 'uploads', filename);
+  
+  // 1. 파일명 유효성 검증 (디렉토리 이동 문자 차단)
+  if (!filename || filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+    return res.status(400).json({ error: '잘못된 파일명입니다.' });
+  }
+
+  const uploadDir = path.resolve(__dirname, 'uploads');
+  const filePath = path.resolve(uploadDir, filename);
+  
+  // 2. 최종 경로가 uploads 디렉토리 내부인지 엄격하게 확인 (Path Traversal 방어)
+  if (!filePath.startsWith(uploadDir)) {
+    return res.status(403).json({ error: '접근이 거부되었습니다.' });
+  }
   
   if (fs.existsSync(filePath)) {
     res.sendFile(filePath);

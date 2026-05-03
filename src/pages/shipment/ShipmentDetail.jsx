@@ -1040,10 +1040,7 @@ function ShipmentDetail() {
 
   // 메모이제이션된 필터링 함수
   const filteredParts = useMemo(() => {
-    setIsSearching(true);
-
     if (!searchTerm) {
-      setIsSearching(false);
       return availableParts.slice(0, 50); // 검색어 없을 때는 처음 50개만 표시
     }
 
@@ -1053,7 +1050,6 @@ function ShipmentDetail() {
       (part.code && part.code.toLowerCase().includes(searchLower))
     ).slice(0, 100); // 최대 100개 결과로 제한
 
-    setIsSearching(false);
     return filtered;
   }, [searchTerm, availableParts]);
 
@@ -1533,7 +1529,7 @@ function ShipmentDetail() {
                               />
                             </TableCell>
                             <TableCell align="right">
-                              {(part.total_price || (part.price * part.quantity)).toLocaleString()}원
+                              {calculateTotal(part).toLocaleString()}원
                             </TableCell>
                             <TableCell align="center">
                               <IconButton
@@ -1557,7 +1553,7 @@ function ShipmentDetail() {
                             -
                           </TableCell>
                           <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                            {sortedEditableParts.reduce((sum, part) => sum + (part.total_price || (part.price * part.quantity)), 0).toLocaleString()}원
+                            {sortedEditableParts.reduce((sum, part) => sum + calculateTotal(part), 0).toLocaleString()}원
                           </TableCell>
                           <TableCell></TableCell>
                         </TableRow>
@@ -1620,7 +1616,7 @@ function ShipmentDetail() {
                           <TableCell>{part.quantity}</TableCell>
                           <TableCell>{part.price?.toLocaleString()}원</TableCell>
                           <TableCell sx={{ fontWeight: 600 }}>
-                            {(part.price * part.quantity)?.toLocaleString()}원
+                            {calculateTotal(part).toLocaleString()}원
                           </TableCell>
                           <TableCell align="center">
                             {shipmentData?.status === '출고완료' && !(part.note && part.note.includes('[반품완료]')) && (
@@ -1649,7 +1645,7 @@ function ShipmentDetail() {
                           -
                         </TableCell>
                         <TableCell sx={{ fontWeight: 700, bgcolor: '#e9ecef' }}>
-                          {shipmentParts.reduce((sum, p) => p.note && p.note.includes('[반품완료]') ? sum : sum + (p.price * p.quantity), 0).toLocaleString()}원
+                          {shipmentParts.reduce((sum, p) => p.note && p.note.includes('[반품완료]') ? sum : sum + calculateTotal(p), 0).toLocaleString()}원
                         </TableCell>
                       </TableRow>
                     </TableBody>

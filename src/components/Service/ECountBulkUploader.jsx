@@ -68,10 +68,10 @@ const ECountBulkUploader = ({ onUploadSuccess }) => {
       supabase.from('agencies').select('id, name'),
       supabase.from('warehouses').select('id, name')
     ]);
-    const parts = partsRes.data || [];
+    const parts = partsRes?.data || [];
     setDbParts(parts);
-    setDbAgencies(agenciesRes.data || []);
-    setDbWarehouses(whRes.data || []);
+    setDbAgencies(agenciesRes?.data || []);
+    setDbWarehouses(whRes?.data || []);
     return { parts };
   };
 

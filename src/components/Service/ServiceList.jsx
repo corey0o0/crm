@@ -1418,10 +1418,13 @@ function ServiceList() {
   // 브랜드별 접수/처리중 건수 조회
   const fetchBrandCounts = async () => {
     try {
-      const [xrbCounts, nbCounts] = await Promise.all([
+      const results = await Promise.allSettled([
         countServiceStatusByBrand('XRB'),
         countServiceStatusByBrand('NB')
       ]);
+      
+      const xrbCounts = results[0].status === 'fulfilled' ? results[0].value : { reception: 0, processing: 0 };
+      const nbCounts = results[1].status === 'fulfilled' ? results[1].value : { reception: 0, processing: 0 };
       
       setBrandCounts({
         XRB: xrbCounts,
