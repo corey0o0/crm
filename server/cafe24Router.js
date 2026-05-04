@@ -940,6 +940,9 @@ module.exports = function(supabaseAdmin) {
           if (wid === 'EXCLUDE') return;
 
           let mappedPartId = item.part_id;
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          if (mappedPartId && !uuidRegex.test(mappedPartId)) mappedPartId = null;
+
           if (!mappedPartId) {
             const pCode = item.custom_product_code || item.product_code || '';
             if (pCode && partsCacheByCode[String(pCode).trim()]) {
@@ -1066,6 +1069,9 @@ module.exports = function(supabaseAdmin) {
           if (wid === 'DEFAULT' || !wid) wid = defaultWarehouseId;
           
           let mappedPartId = item.part_id;
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          if (mappedPartId && !uuidRegex.test(mappedPartId)) mappedPartId = null;
+
           if (!mappedPartId) {
             const pCode = item.custom_product_code || item.product_code || '';
             if (pCode && partsCacheByCode[String(pCode).trim()]) {
@@ -1235,7 +1241,10 @@ module.exports = function(supabaseAdmin) {
         for (const item of items) {
           let wid = item._warehouse_id || defaultWhId;
           if (!wid || wid === 'DEFAULT') wid = defaultWhId;
-          const mappedPartId = item.part_id;
+          let mappedPartId = item.part_id;
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          if (mappedPartId && !uuidRegex.test(mappedPartId)) mappedPartId = null;
+
           
           if (!mappedPartId || !wid) continue;
 
