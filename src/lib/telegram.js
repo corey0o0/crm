@@ -27,7 +27,7 @@ export const sendTelegramNotification = async (notificationData, options = {}) =
   // 백엔드 주소 (개발/운영 환경별 자동 분기)
   const baseUrl = process.env.REACT_APP_BACKEND_URL || (process.env.NODE_ENV === 'production' 
     ? 'https://crm-production-067b.up.railway.app' 
-    : 'http://localhost:5001');
+    : `http://${typeof window !== 'undefined' ? window.location.hostname : 'localhost'}:5001`);
 
   let textToSend = notificationData.message;
 

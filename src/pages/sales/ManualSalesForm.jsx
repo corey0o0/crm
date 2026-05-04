@@ -700,12 +700,12 @@ function ShipmentForm() {
         severity: 'success'
       });
 
-      // 텔레그램 알림 전송
+      // 텔레그램 알림 전송 (비동기 처리로 화면 멈춤 방지)
       if (shipmentId) {
         try {
           const eventType = isEditMode ? 'shipment_edit' : 'shipment_add';
           const title = isEditMode ? '출고 정보 수정' : '출고 등록';
-          await sendTelegramNotification({
+          sendTelegramNotification({
             message: `${title}(SHP-${String(shipmentId).slice(0, 8).toUpperCase()}) - 고객: ${shipmentData.customer_name}, 연락처: ${shipmentData.customer_phone}, 제품: ${combinedProductName}`,
             link: `/shipment/${shipmentId}`
           }, { eventType });
