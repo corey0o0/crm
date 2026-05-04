@@ -875,6 +875,10 @@ module.exports = function(supabaseAdmin) {
         }
       });
       if (!defaultWarehouseId && warehouses && warehouses.length > 0) defaultWarehouseId = warehouses[0].id;
+      
+      if (!defaultWarehouseId) {
+        throw new Error("등록된 창고가 없습니다. 출고를 진행할 수 없습니다.");
+      }
 
       // 2. 주문 목록 가져오기 (원자적 업데이트로 Race Condition 방지)
       const { data: orders, error: fetchErr } = await supabaseAdmin
@@ -957,9 +961,7 @@ module.exports = function(supabaseAdmin) {
           if (mappedPartId) {
              const supplier = partsCacheById[mappedPartId]?.brand || 'XRB';
              itemsToDeduct.push({ order, item, wid, mappedPartId, supplier });
-             if (wid !== 'DEFAULT') {
-               requiredInventoryKeys.add(`${wid}_${mappedPartId}`);
-             }
+             requiredInventoryKeys.add(`${wid}_${mappedPartId}`);
           }
         });
       });
@@ -1009,16 +1011,15 @@ module.exports = function(supabaseAdmin) {
             product_supplier: supplier,
             quantity: Number(item.quantity || 1),
             to_location: String(order.agency_id || 'B2C'),
-            from_location: wid !== 'DEFAULT' ? wid : 'NEARBIKE',
+            from_location: wid,
             date: orderDateStr,
             note: `[카페24 ${order.agency_id ? 'B2B 자동전송' : 'B2C 전송'}] 주문: ${order.order_id} (출고처:${wName})`,
             is_grouped: (order.order_items || []).length > 1,
             status: '완료'
          });
 
-         if (wid !== 'DEFAULT') {
-            const invKey = `${wid}_${mappedPartId}`;
-            // 누적 계산을 위해 map에 들어있는 최신 개수 확인
+         const invKey = `${wid}_${mappedPartId}`;
+         // 누적 계산을 위해 map에 들어있는 최신 개수 확인
             let prevQty = currentInventoryMap[invKey] || 0;
             if (inventoryToUpsertMap[invKey] !== undefined) {
                prevQty = inventoryToUpsertMap[invKey].quantity;
@@ -1046,7 +1047,6 @@ module.exports = function(supabaseAdmin) {
                reference_type: 'cafe24_order',
                notes: `온라인 주문 즉시 재고 차감 (주문번호: ${order.order_id})`
             });
-         }
       });
 
       // 5. DB 일괄 업데이트 실행 (Bulk Execution)
