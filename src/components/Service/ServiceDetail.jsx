@@ -573,6 +573,12 @@ function ServiceDetail() {
       // 초기 상태 저장
       setInitialStatus(serviceData.status || '접수');
 
+      let defaultWarehouseId = serviceData.warehouse_id;
+      if (!defaultWarehouseId) {
+        const { data: defaultWh } = await supabase.from('warehouses').select('id').ilike('name', '%청담%').limit(1).maybeSingle();
+        if (defaultWh) defaultWarehouseId = defaultWh.id;
+      }
+
       setFormData({
         ...serviceData,
         reception_date: receptionDate,
@@ -581,7 +587,8 @@ function ServiceDetail() {
         completion_time: completionTime,
         service_parts: serviceData.service_parts || [],
         writer: serviceData.writer || '관리자',
-        mileage: mileage
+        mileage: mileage,
+        warehouse_id: defaultWarehouseId
       });
 
       console.log('Loaded reception data:', {

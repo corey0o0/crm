@@ -478,8 +478,9 @@ function AddService() {
     try {
       const { data } = await supabase.from('warehouses').select('*').order('name');
       setWarehouses(data || []);
-      if (data) {
-         // 창고 자동 선택 로직 임시 비활성화
+      if (data && data.length > 0 && !formData.warehouse_id) {
+         const defaultWh = data.find(w => w.name.includes('청담')) || data[0];
+         setFormData(prev => ({ ...prev, warehouse_id: defaultWh.id }));
       }
     } catch (e) {
       console.error('창고 로딩 에러:', e);
