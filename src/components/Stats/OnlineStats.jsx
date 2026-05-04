@@ -219,7 +219,7 @@ function OnlineStats() {
           validItems.forEach(i => {
               const pCode = String(i.custom_product_code || i.product_code || '').trim();
               const p = i.part_id ? partMapById[i.part_id] : (pCode ? partMapByCode[pCode] : null);
-              const pPrice = Number(i.product_price || i.price || (p ? p.price : 0));
+              const pPrice = i.product_price !== undefined && i.product_price !== null ? Number(i.product_price) : (i.price !== undefined && i.price !== null ? Number(i.price) : Number(p ? p.price : 0));
               totalWeight += pPrice * Number(i.quantity || 1);
           });
           const totalQty = validItems.reduce((acc, i) => acc + Number(i.quantity || 1), 0);
@@ -249,17 +249,20 @@ function OnlineStats() {
                    amount = 0;
                } else {
                    const canceledItems = (o.order_items || []).filter(it => ['C11', 'C40', 'R40', 'E40'].includes(it.order_status));
-                   const canceledAmount = canceledItems.reduce((acc, it) => acc + (Number(it.product_price || it.price || 0) * Number(it.quantity || 1)), 0);
+                   const canceledAmount = canceledItems.reduce((acc, it) => {
+                       const cp = it.product_price !== undefined && it.product_price !== null ? Number(it.product_price) : (it.price !== undefined && it.price !== null ? Number(it.price) : 0);
+                       return acc + (cp * Number(it.quantity || 1));
+                   }, 0);
                    const distributableAmount = Math.max(0, Number(o.total_amount || 0) - Number(o.shipping_fee || 0) - canceledAmount);
                    
                    if (totalWeight > 0) {
-                       const pPrice = Number(item.product_price || item.price || (p ? p.price : 0));
+                       const pPrice = item.product_price !== undefined && item.product_price !== null ? Number(item.product_price) : (item.price !== undefined && item.price !== null ? Number(item.price) : Number(p ? p.price : 0));
                        amount = Math.floor(((pPrice * qty) / totalWeight) * distributableAmount);
                        if (idx === validItems.length - 1) {
                            const prevTotal = validItems.slice(0, validItems.length - 1).reduce((acc, prev) => {
                                const prevPCode = String(prev.custom_product_code || prev.product_code || '').trim();
                                const prevP = prev.part_id ? partMapById[prev.part_id] : (prevPCode ? partMapByCode[prevPCode] : null);
-                               const prevPrice = Number(prev.product_price || prev.price || (prevP ? prevP.price : 0));
+                               const prevPrice = prev.product_price !== undefined && prev.product_price !== null ? Number(prev.product_price) : (prev.price !== undefined && prev.price !== null ? Number(prev.price) : Number(prevP ? prevP.price : 0));
                                return acc + Math.floor(((prevPrice * Number(prev.quantity || 1)) / totalWeight) * distributableAmount);
                            }, 0);
                            amount = distributableAmount - prevTotal;
@@ -430,7 +433,10 @@ function OnlineStats() {
             const items = o.order_items || [];
             const validItems = items.filter(item => !['C11', 'C40', 'R40', 'E40'].includes(item.order_status));
             let orderItemsSum = 0;
-            let totalWeight = validItems.reduce((acc, i) => acc + (Number(i.product_price || i.price || 0) * Number(i.quantity || 1)), 0);
+            let totalWeight = validItems.reduce((acc, i) => {
+               const cp = i.product_price !== undefined && i.product_price !== null ? Number(i.product_price) : (i.price !== undefined && i.price !== null ? Number(i.price) : 0);
+               return acc + (cp * Number(i.quantity || 1));
+            }, 0);
             const totalQty = validItems.reduce((acc, i) => acc + Number(i.quantity || 1), 0);
 
             let brandMatchedAmount = 0;
@@ -452,15 +458,19 @@ function OnlineStats() {
                    amount = 0;
                } else {
                    const canceledItems = items.filter(it => ['C11', 'C40', 'R40', 'E40'].includes(it.order_status));
-                   const canceledAmount = canceledItems.reduce((acc, it) => acc + (Number(it.product_price || it.price || 0) * Number(it.quantity || 1)), 0);
+                   const canceledAmount = canceledItems.reduce((acc, it) => {
+                       const cp = it.product_price !== undefined && it.product_price !== null ? Number(it.product_price) : (it.price !== undefined && it.price !== null ? Number(it.price) : 0);
+                       return acc + (cp * Number(it.quantity || 1));
+                   }, 0);
                    const distributableAmount = Math.max(0, Number(o.total_amount || 0) - Number(o.shipping_fee || 0) - canceledAmount);
                    
                    if (totalWeight > 0) {
-                       const pPrice = Number(item.product_price || item.price || 0);
+                       const pPrice = item.product_price !== undefined && item.product_price !== null ? Number(item.product_price) : (item.price !== undefined && item.price !== null ? Number(item.price) : 0);
                        amount = Math.floor(((pPrice * qty) / totalWeight) * distributableAmount);
                        if (idx === validItems.length - 1) {
                            const prevTotal = validItems.slice(0, validItems.length - 1).reduce((acc, prev) => {
-                               return acc + Math.floor(((Number(prev.product_price || prev.price || 0) * Number(prev.quantity || 1)) / totalWeight) * distributableAmount);
+                               const prevPrice = prev.product_price !== undefined && prev.product_price !== null ? Number(prev.product_price) : (prev.price !== undefined && prev.price !== null ? Number(prev.price) : 0);
+                               return acc + Math.floor(((prevPrice * Number(prev.quantity || 1)) / totalWeight) * distributableAmount);
                            }, 0);
                            amount = distributableAmount - prevTotal;
                        }
