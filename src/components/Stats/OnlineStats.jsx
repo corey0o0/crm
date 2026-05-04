@@ -445,8 +445,11 @@ function OnlineStats() {
 
                const qty = Number(item.quantity || 1);
                let amount = 0;
+               let isExplicitlyZero = item.payment_amount !== undefined && item.payment_amount !== null && Number(item.payment_amount) === 0;
                if (item.payment_amount !== undefined && item.payment_amount !== null && Number(item.payment_amount) > 0) {
                    amount = Number(item.payment_amount);
+               } else if (isExplicitlyZero) {
+                   amount = 0;
                } else {
                    const canceledItems = items.filter(it => ['C11', 'C40', 'R40', 'E40'].includes(it.order_status));
                    const canceledAmount = canceledItems.reduce((acc, it) => acc + (Number(it.product_price || it.price || 0) * Number(it.quantity || 1)), 0);
