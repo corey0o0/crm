@@ -700,20 +700,18 @@ function ShipmentForm() {
         severity: 'success'
       });
 
-      // 텔레그램 알림 전송 (비동기 처리)
+      // 텔레그램 알림 전송
       if (shipmentId) {
-        Promise.resolve().then(async () => {
-          try {
-            const eventType = isEditMode ? 'shipment_edit' : 'shipment_add';
-            const title = isEditMode ? '출고 정보 수정' : '출고 등록';
-            await sendTelegramNotification({
-              message: `${title}(SHP-${String(shipmentId).slice(0, 8).toUpperCase()}) - 고객: ${shipmentData.customer_name}, 연락처: ${shipmentData.customer_phone}, 제품: ${combinedProductName}`,
-              link: `/shipment/${shipmentId}`
-            }, { eventType });
-          } catch (telegramError) {
-            console.error('출고 텔레그램 알림 전송 중 오류:', telegramError);
-          }
-        });
+        try {
+          const eventType = isEditMode ? 'shipment_edit' : 'shipment_add';
+          const title = isEditMode ? '출고 정보 수정' : '출고 등록';
+          await sendTelegramNotification({
+            message: `${title}(SHP-${String(shipmentId).slice(0, 8).toUpperCase()}) - 고객: ${shipmentData.customer_name}, 연락처: ${shipmentData.customer_phone}, 제품: ${combinedProductName}`,
+            link: `/shipment/${shipmentId}`
+          }, { eventType });
+        } catch (telegramError) {
+          console.error('출고 텔레그램 알림 전송 중 오류:', telegramError);
+        }
       }
 
       // 변경사항 초기화
@@ -723,11 +721,13 @@ function ShipmentForm() {
       });
       setHasUnsavedChanges(false);
 
-      if (submitActionRef.current === 'detail' && shipmentId) {
-        navigate(`/shipment/${shipmentId}`);
-      } else {
-        navigate('/shipment');
-      }
+      setTimeout(() => {
+        if (submitActionRef.current === 'detail' && shipmentId) {
+          navigate(`/shipment/${shipmentId}`);
+        } else {
+          navigate('/shipment');
+        }
+      }, 500);
 
     } catch (error) {
       console.error('Error in handleSubmit:', error);
