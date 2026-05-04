@@ -1029,7 +1029,7 @@ module.exports = function(supabaseAdmin) {
                quantity_change: -(Number(item.quantity || 1)),
                previous_quantity: prevQty,
                new_quantity: newQty,
-               reference_id: order.id,
+               reference_id: null, // UUID 타입 충돌 방지
                reference_type: 'cafe24_order',
                notes: `온라인 주문 즉시 재고 차감 (주문번호: ${order.order_id})`
             });
@@ -1288,7 +1288,7 @@ module.exports = function(supabaseAdmin) {
             quantity_change: qtyToReturn,
             previous_quantity: currentQty,
             new_quantity: newQty,
-            reference_id: order.id,
+            reference_id: null, // UUID 타입 충돌 방지
             reference_type: 'cafe24_return',
             notes: `온라인 주문 반품으로 인한 창고 재입고 처리 (주문번호: ${order.order_id})`
           });
