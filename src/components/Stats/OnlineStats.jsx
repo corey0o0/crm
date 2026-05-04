@@ -938,6 +938,19 @@ function OnlineStats() {
                   <TableRow><TableCell colSpan={4} align="center" sx={{ py: 3 }}>일반 고객 주문 데이터가 없습니다.</TableCell></TableRow>
                 )}
               </TableBody>
+              {Object.entries(stats.generalProductStats || {}).length > 0 && (
+                <TableFooter>
+                  <TableRow sx={{ bgcolor: 'grey.200' }}>
+                    <TableCell colSpan={2} align="center" sx={{ fontWeight: 'bold' }}>총합</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.dark' }}>
+                      {Object.values(stats.generalProductStats).reduce((sum, item) => sum + item.quantity, 0)}개
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.dark' }}>
+                      {formatCurrency(Object.values(stats.generalProductStats).reduce((sum, item) => sum + item.amount, 0))}
+                    </TableCell>
+                  </TableRow>
+                </TableFooter>
+              )}
             </Table>
           </TableContainer>
 
