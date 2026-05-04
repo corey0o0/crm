@@ -754,6 +754,7 @@ function AddService() {
       
       const directUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
       const response = await fetch(directUrl);
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const blob = await response.blob();
       return blob;
     } catch (error) {

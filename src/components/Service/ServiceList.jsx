@@ -156,11 +156,7 @@ function ServiceList() {
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [activeStep, setActiveStep] = useState(0);
-  const [ocrProgress, setOcrProgress] = useState(0);
-  const [ocrResults, setOcrResults] = useState([]);
-  const [selectedOcrItems, setSelectedOcrItems] = useState({});
-  const [ocrBoxes, setOcrBoxes] = useState([]);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+          const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [orderBy, setOrderBy] = useState('reception_date');
   const [order, setOrder] = useState('desc');
@@ -1227,180 +1223,17 @@ function ServiceList() {
     }
   };
 
-  const processImage = async (file) => {
-    try {
-      // 이미지를 base64로 변환
-      const base64Image = await convertToBase64(file);
-      
-      // Google Cloud Vision API 요청 데이터 준비
-      const requestData = {
-        requests: [
-          {
-            image: {
-              content: base64Image.split(',')[1]
-            },
-            features: [
-              {
-                type: 'TEXT_DETECTION',
-                maxResults: 50
-              }
-            ],
-            imageContext: {
-              languageHints: ['ko', 'en']
-            }
-          }
-        ]
-      };
+  
 
-      // API 호출
-      const response = await fetch(
-        `https://vision.googleapis.com/v1/images:annotate?key=${process.env.REACT_APP_GOOGLE_CLOUD_API_KEY}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(requestData)
-        }
-      );
+  
 
-      const result = await response.json();
-      
-      if (result.responses && result.responses[0].textAnnotations) {
-        return processOcrResult(result.responses[0].textAnnotations);
-      } else {
-        throw new Error('텍스트를 찾을 수 없습니다.');
-      }
-    } catch (error) {
-      console.error('OCR 처리 실패:', error);
-      throw error;
-    }
-  };
+  
 
-  const convertToBase64 = (file) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  };
+  
 
-  const processOcrResult = (annotations) => {
-    const extractedItems = [];
-    let currentItem = null;
-    
-    annotations.slice(1).forEach(annotation => {
-      const text = annotation.description;
-      const bbox = annotation.boundingPoly.vertices;
-      
-      const pricePattern = /(\d{1,3}(,\d{3})*원|\d+원)/;
-      const partNamePattern = /[가-힣a-zA-Z0-9\s]+/;
+  
 
-      if (pricePattern.test(text)) {
-        if (currentItem) {
-          currentItem.price = parseInt(text.replace(/[^0-9]/g, ''));
-          currentItem.box = bbox;
-          extractedItems.push(currentItem);
-          currentItem = null;
-        }
-      } else if (partNamePattern.test(text) && !currentItem) {
-        currentItem = {
-          id: extractedItems.length + 1,
-          name: text,
-          box: bbox
-        };
-      }
-    });
-
-    return extractedItems;
-  };
-
-  const handleFileUpload = async (event) => {
-    const files = event.target.files;
-    if (!files.length) return;
-
-    try {
-      const file = files[0];
-      setActiveStep(1);
-
-      // OCR 처리
-      setActiveStep(2);
-      const result = await processImage(file);
-      
-      // OCR 결과 처리
-      const extractedItems = result;
-      
-      // 신뢰도가 높은 항목만 필터링 (70% 이상)
-      const filteredResults = extractedItems.filter(item => item.confidence > 0.7);
-      
-      setOcrResults(filteredResults);
-      setOcrBoxes(filteredResults.map(item => ({
-        ...item.box,
-        id: item.id,
-        isHighlighted: false,
-        confidence: item.confidence
-      })));
-
-      // 신뢰도 높은 항목 자동 선택
-      const initialSelection = {};
-      filteredResults.forEach(item => {
-        initialSelection[item.id] = item.confidence > 0.9;
-      });
-      setSelectedOcrItems(initialSelection);
-
-      // 파일 저장
-      setUploadedFiles([{
-        url: URL.createObjectURL(file),
-        name: file.name,
-        type: 'image'
-      }]);
-
-      setActiveStep(3);
-
-    } catch (error) {
-      console.error('OCR 처리 중 오류:', error);
-      setSnackbar({
-        open: true,
-        message: 'OCR 처리 중 오류가 발생했습니다.',
-        severity: 'error'
-      });
-      setActiveStep(0);
-    }
-
-    setUploadProgress(0);
-    setOcrProgress(0);
-  };
-
-  const handleOcrItemHover = (itemId, isHovered) => {
-    setOcrBoxes(prev => 
-      prev.map(box => ({
-        ...box,
-        isHighlighted: box.id === itemId ? isHovered : box.isHighlighted
-      }))
-    );
-  };
-
-  const handleOcrItemSelect = (itemId) => {
-    setSelectedOcrItems(prev => ({
-      ...prev,
-      [itemId]: !prev[itemId]
-    }));
-  };
-
-  const handleApplyOcrResults = () => {
-    // 선택된 항목만 파츠에 추가
-    const selectedParts = ocrResults.filter(item => selectedOcrItems[item.id]);
-    
-    setSelectedService(prev => ({
-      ...prev,
-      parts: [...(prev.parts || []), ...selectedParts]
-    }));
-
-    // OCR 결과 초기화
-    setOcrResults([]);
-    setSelectedOcrItems({});
-  };
+  
 
   const handleServiceChange = (event) => {
     const { name, value } = event.target;
@@ -4094,145 +3927,7 @@ function ServiceList() {
                 </Box>
               )}
 
-              {ocrProgress > 0 && (
-                <Box sx={{ mb: 2 }}>
-                  <LinearProgress 
-                    variant="determinate" 
-                    value={ocrProgress} 
-                    color="secondary"
-                    sx={{ mb: 1 }}
-                  />
-                  <Typography variant="body2" color="text.secondary">
-                    OCR 처리 중... {ocrProgress}%
-                  </Typography>
-                </Box>
-              )}
-
-              {/* 파일 업로드 버튼 */}
-              <Box sx={{ mb: 2 }}>
-                <input
-                  type="file"
-                  accept="image/*,.pdf"
-                  multiple
-                  id="file-upload"
-                  style={{ display: 'none' }}
-                  onChange={handleFileUpload}
-                />
-                <label htmlFor="file-upload">
-                  <Button
-                    variant="outlined"
-                    component="span"
-                    startIcon={<CloudUploadIcon />}
-                  >
-                    파일 업로드
-                  </Button>
-                </label>
-                <Typography variant="caption" color="textSecondary" sx={{ ml: 2 }}>
-                  * 영수증 이미지 업로드 시 자동으로 항목을 인식합니다.
-                </Typography>
-              </Box>
-
-              {/* 업로드된 파일 목록 */}
-              {uploadedFiles.length > 0 && (
-                <Box sx={{ position: 'relative', mb: 2 }}>
-                  <ImageList sx={{ maxHeight: 400 }} cols={1} rowHeight={400}>
-                    {uploadedFiles.map((file, index) => (
-                      <ImageListItem key={index} sx={{ position: 'relative' }}>
-                        {file.type === 'image' ? (
-                          <>
-                            <img
-                              src={file.url}
-                              alt={file.name}
-                              loading="lazy"
-                              style={{ objectFit: 'contain' }}
-                            />
-                            {/* OCR 인식 영역 표시 */}
-                            {ocrBoxes.map((box) => (
-                              <Box
-                                key={box.id}
-                                sx={{
-                                  position: 'absolute',
-                                  left: `${box.x}px`,
-                                  top: `${box.y}px`,
-                                  width: `${box.width}px`,
-                                  height: `${box.height}px`,
-                                  border: '2px solid',
-                                  borderColor: box.isHighlighted ? 'primary.main' : 'success.main',
-                                  backgroundColor: box.isHighlighted ? 'rgba(25, 118, 210, 0.1)' : 'transparent',
-                                  transition: 'all 0.2s',
-                                  pointerEvents: 'none'
-                                }}
-                              />
-                            ))}
-                          </>
-                        ) : (
-                          <Box
-                            sx={{
-                              height: '100%',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              bgcolor: 'grey.100'
-                            }}
-                          >
-                            <DescriptionIcon sx={{ fontSize: 40 }} />
-                          </Box>
-                        )}
-                        <IconButton
-                          sx={{
-                            position: 'absolute',
-                            top: 5,
-                            right: 5,
-                            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                            '&:hover': {
-                              backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                            },
-                          }}
-                          size="small"
-                          onClick={() => {
-                            setUploadedFiles(prev => 
-                              prev.filter((_, i) => i !== index)
-                            );
-                            setOcrBoxes([]);
-                            setOcrResults([]);
-                          }}
-                        >
-                          <DeleteIcon sx={{ color: 'white' }} />
-                        </IconButton>
-                      </ImageListItem>
-                    ))}
-                  </ImageList>
-                </Box>
-              )}
-            </Grid>
-            <Grid item xs={12}>
-              <Typography variant="subtitle1" gutterBottom>
-                사용 파츠
-              </Typography>
-              <TableContainer component={Paper} variant="outlined">
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>품목</TableCell>
-                      <TableCell align="right">가격</TableCell>
-                      <TableCell align="right">작업</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {selectedService?.parts?.map((part, index) => (
-                      <TableRow key={index}>
-                        <TableCell>{part.name}</TableCell>
-                        <TableCell align="right">
-                          {part.price?.toLocaleString()}원
-                        </TableCell>
-                        <TableCell align="right">
-                          <IconButton 
-                            size="small" 
-                            onClick={() => {
-                              setSelectedService({
-                                ...selectedService,
-                                parts: selectedService.parts.filter(p => p.id !== part.id)
-                              });
+              ;
                             }}
                           >
                             <DeleteIcon fontSize="small" />
@@ -4253,50 +3948,7 @@ function ServiceList() {
                 </Table>
               </TableContainer>
             </Grid>
-            <Grid item xs={12}>
-              <Alert 
-                severity="success" 
-                action={
-                  <Button 
-                    color="inherit" 
-                    size="small" 
-                    onClick={handleApplyOcrResults}
-                  >
-                    파츠에 추가
-                  </Button>
-                }
-                sx={{ mb: 2 }}
-              >
-                영수증에서 다음 항목들이 인식되었습니다.
-              </Alert>
-              
-              <List>
-                {ocrResults.map((item) => (
-                  <ListItem 
-                    key={item.id} 
-                    dense
-                    onMouseEnter={() => handleOcrItemHover(item.id, true)}
-                    onMouseLeave={() => handleOcrItemHover(item.id, false)}
-                    sx={{
-                      cursor: 'pointer',
-                      '&:hover': {
-                        backgroundColor: 'action.hover'
-                      }
-                    }}
-                  >
-                    <Checkbox
-                      edge="start"
-                      checked={selectedOcrItems[item.id] || false}
-                      onChange={() => handleOcrItemSelect(item.id)}
-                    />
-                    <ListItemText
-                      primary={item.name}
-                      secondary={`${item.price.toLocaleString()}원`}
-                    />
-                  </ListItem>
-                ))}
-              </List>
-            </Grid>
+            
           </Grid>
         </DialogContent>
         <DialogActions>

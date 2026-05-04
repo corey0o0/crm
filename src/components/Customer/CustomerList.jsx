@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Table,
   TableBody,
@@ -59,6 +59,12 @@ import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../../utils/
 import { handlePhoneInput, normalizePhoneNumber, isValidPhoneNumber } from '../../utils/phoneUtils';
 
 function CustomerList({ refreshTrigger, onRefresh }) {
+  const isMounted = useRef(true);
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [customers, setCustomers] = useState([]);
@@ -323,11 +329,15 @@ function CustomerList({ refreshTrigger, onRefresh }) {
         tags: (tagsData || []).filter(t => t.service_id === service.id).map(t => t.tag_name)
       }));
 
-      setServiceHistory(servicesWithTags);
-      setShipmentHistory(shipmentsData);
+      if (isMounted.current) {
+        setServiceHistory(servicesWithTags);
+        setShipmentHistory(shipmentsData);
+      }
     } catch (err) {
       console.error('Error fetching history:', err);
-      setError(err.message);
+      if (isMounted.current) {
+        setError(err.message);
+      }
     }
   };
 
