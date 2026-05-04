@@ -690,6 +690,8 @@ function SalesHistory() {
        if (r.status) uniqueStatuses.add(r.status);
        if (r.part_brand && r.part_brand !== '-') uniqueBrands.add(r.part_brand);
     });
+    // Ensure '고객' is always present as a group filter option
+    uniqueSellers.add('고객');
     setSellers(['all', '전체 대리점', ...Array.from(uniqueSellers)]);
     setStatuses(['all', ...Array.from(uniqueStatuses)]);
     setBrands(['all', ...Array.from(uniqueBrands)]);
@@ -705,9 +707,13 @@ function SalesHistory() {
     if (statusFilter !== 'all' && statusFilter !== '전체 상태' && r.status !== statusFilter) return false;
     
     if (sellerFilter !== 'all' && sellerFilter !== '전체 판매처') {
+      const nonAgencyChannels = ['고객', '-', '일반출고(공홈)', '공홈', '온라인주문', '매장출고', '청담매장', '기타', '본점', '라이클', '라이클-우리', '스마트할부'];
       if (sellerFilter === '전체 대리점') {
-        const isAgency = r.sales_channel && !['고객', '-', '일반출고(공홈)', '공홈', '온라인주문', '매장출고', '청담매장', '기타', '본점', '라이클', '라이클-우리', '스마트할부'].includes(r.sales_channel);
+        const isAgency = r.sales_channel && !nonAgencyChannels.includes(r.sales_channel);
         if (!isAgency) return false;
+      } else if (sellerFilter === '고객') {
+        const isB2C = r.sales_channel && nonAgencyChannels.includes(r.sales_channel);
+        if (!isB2C) return false;
       } else if (r.sales_channel !== sellerFilter) {
         return false;
       }
