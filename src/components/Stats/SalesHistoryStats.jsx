@@ -544,8 +544,12 @@ function SalesHistoryStats() {
           const itemQty = Number(item.quantity || 1);
           
           let paymentAmt = 0;
+          let isExplicitlyZero = item.payment_amount !== undefined && item.payment_amount !== null && Number(item.payment_amount) === 0;
+
           if (item.payment_amount !== undefined && item.payment_amount !== null && Number(item.payment_amount) > 0) {
              paymentAmt = Number(item.payment_amount);
+          } else if (isExplicitlyZero) {
+             paymentAmt = 0;
           } else {
              paymentAmt = Number(item.product_price || item.price || 0) * itemQty;
           }
@@ -553,9 +557,9 @@ function SalesHistoryStats() {
           
           let total = 0;
 
-          if (paymentAmt > 0) {
+          if (paymentAmt > 0 || isExplicitlyZero) {
               total = paymentAmt;
-              if (iPrice === 0) iPrice = Math.round(paymentAmt / itemQty);
+              if (iPrice === 0 && paymentAmt > 0) iPrice = itemQty > 0 ? Math.round(paymentAmt / itemQty) : 0;
           } else {
               let itemWeight = iPrice * itemQty;
               const canceledItems = (items || []).filter(it => ['C11', 'C40', 'R40', 'E40'].includes(it.order_status));
