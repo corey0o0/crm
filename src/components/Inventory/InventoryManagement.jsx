@@ -3804,14 +3804,8 @@ function InventoryManagement() {
                       <Grid item xs={12} md={1.5}>
                       <TextField
                         fullWidth
-                        label={
-                          (() => {
-                            const isToWarehouse = warehouses.find(w => w.id === product.toLocation);
-                            return isToWarehouse ? "박스 번호 (필수)" : "박스 번호 (선택)";
-                          })()
-                        }
+                        label="박스 번호 (선택)"
                         size="small"
-                        required={!!warehouses.find(w => w.id === product.toLocation)}
                         value={product.boxNo || ''}
                       onChange={(e) => updateIoProductRow(product.id, 'boxNo', e.target.value)}
                         placeholder="박스 묶음"
