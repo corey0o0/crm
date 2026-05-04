@@ -600,13 +600,8 @@ module.exports = function(supabaseAdmin) {
       
       const used_points = Math.max(0, items_payment_sum + shipping_fee - Number(total_amount));
       
-      // Audit Log 출력
-      console.log(`[Amount Audit] Order ID: ${order.order_id} | Path: ${amount_decision_path} | Total: ${total_amount} | Breakdown:`, {
-         pg_payment, actual_deposit, shipping_fee, items_payment_sum, used_points,
-         order_actual_payment: order.actual_order_amount?.payment_amount,
-         order_total_price: order.total_order_price,
-         isFullPoints, paymentMethodStr
-      });
+      // Audit Log 출력 제한 (로그 과다 방지)
+      // console.log(`[Amount Audit] Order ID: ${order.order_id} | Path: ${amount_decision_path} | Total: ${total_amount}`);
 
       const payload = {
         mall_id: mall_id,
@@ -914,7 +909,7 @@ module.exports = function(supabaseAdmin) {
           const chunkStr = chunk.map(c => `"${String(c).replace(/"/g, '')}"`).join(',');
           fetchPromises.push(
             supabaseAdmin.from('parts')
-              .select('id, code, barcode, supplier')
+              .select('id, code, barcode, brand')
               .or(`code.in.(${chunkStr}),barcode.in.(${chunkStr})`)
           );
         }
@@ -957,7 +952,7 @@ module.exports = function(supabaseAdmin) {
           }
 
           if (mappedPartId) {
-             const supplier = partsCacheById[mappedPartId]?.supplier || 'XRB';
+             const supplier = partsCacheById[mappedPartId]?.brand || 'XRB';
              itemsToDeduct.push({ order, item, wid, mappedPartId, supplier });
              if (wid !== 'DEFAULT') {
                requiredInventoryKeys.add(`${wid}_${mappedPartId}`);
@@ -1036,7 +1031,7 @@ module.exports = function(supabaseAdmin) {
             };
 
             inventoryLogsToInsert.push({
-               part_id: mappedPartId,
+               part_id: null, // workaround: inventory_logs.part_id is UUID but parts.id is INTEGER
                part_name: item.name,
                part_code: item.custom_product_code || item.product_code || '',
                brand_code: ((item.custom_product_code || item.product_code || '').toUpperCase().startsWith('NB') || (item.custom_product_code || item.product_code || '').toUpperCase().includes('NEARBIKE')) || (item.name && (item.name.toUpperCase().startsWith('NB') || item.name.includes('니어'))) ? 'NB' : 'XRB',
@@ -1044,7 +1039,7 @@ module.exports = function(supabaseAdmin) {
                quantity_change: -(Number(item.quantity || 1)),
                previous_quantity: prevQty,
                new_quantity: newQty,
-               reference_id: order.order_id,
+               reference_id: order.id || null,
                reference_type: 'cafe24_order',
                notes: `온라인 주문 즉시 재고 차감 (주문번호: ${order.order_id})`
             });
@@ -1166,7 +1161,7 @@ module.exports = function(supabaseAdmin) {
 
              await supabaseAdmin.from('inventory_logs').insert({
                warehouse_id: log.warehouse_id,
-               part_id: log.part_id,
+               part_id: null, // workaround
                part_name: log.part_name,
                part_code: log.part_code,
                brand_code: (log.part_code && (log.part_code.toUpperCase().startsWith('NB') || log.part_code.toUpperCase().includes('NEARBIKE'))) || (log.part_name && (log.part_name.toUpperCase().startsWith('NB') || log.part_name.includes('니어'))) ? 'NB' : 'XRB',
@@ -1258,7 +1253,6 @@ module.exports = function(supabaseAdmin) {
           if (!wid || wid === 'DEFAULT') wid = defaultWhId;
           let mappedPartId = item.part_id;
 
-          
           if (!mappedPartId || !wid) continue;
 
           const qtyToReturn = Number(item.quantity || 1);
@@ -1302,7 +1296,7 @@ module.exports = function(supabaseAdmin) {
           // d. 인벤토리 로그 기록
           await supabaseAdmin.from('inventory_logs').insert({
             warehouse_id: wid,
-            part_id: mappedPartId,
+            part_id: null, // workaround
             part_name: item.name,
             part_code: item.custom_product_code || item.product_code || '',
             brand_code: ((item.custom_product_code || item.product_code || '').toUpperCase().startsWith('NB') || (item.custom_product_code || item.product_code || '').toUpperCase().includes('NEARBIKE')) || (item.name && (item.name.toUpperCase().startsWith('NB') || item.name.includes('니어'))) ? 'NB' : 'XRB',
@@ -1310,7 +1304,7 @@ module.exports = function(supabaseAdmin) {
             quantity_change: qtyToReturn,
             previous_quantity: currentQty,
             new_quantity: newQty,
-            reference_id: order.order_id,
+            reference_id: order.id || null,
             reference_type: 'cafe24_return',
             notes: `온라인 주문 반품으로 인한 창고 재입고 처리 (주문번호: ${order.order_id})`
           });

@@ -26,7 +26,8 @@ const allowedOrigins = [
   process.env.REACT_APP_FRONTEND_URL
 ].filter(Boolean);
 
-app.use((req, res, next) => { console.log(req.method, req.url); next(); });
+// Global request logger commented out to reduce logging rate (Railway limit)
+// app.use((req, res, next) => { console.log(req.method, req.url); next(); });
 app.use(cors({
   origin: function (origin, callback) {
     // 서버 간 요청이거나 도메인 없는 요청은 개발 환경에서만 허용 (필요에 따라 정책 변경)
