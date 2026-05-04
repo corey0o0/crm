@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Paper, Button, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Chip, CircularProgress, Alert, Stack, Dialog, DialogTitle,
-  DialogContent, DialogActions, Autocomplete, TextField, Tabs, Tab, Select, MenuItem, FormControl, FormControlLabel, InputLabel, Checkbox, IconButton, Tooltip, InputAdornment, TablePagination, ToggleButton, ToggleButtonGroup, TableFooter, Grid, ButtonGroup
+  DialogContent, DialogActions, Autocomplete, TextField, Tabs, Tab, Select, MenuItem, FormControl, FormControlLabel, InputLabel, Checkbox, IconButton, Tooltip, InputAdornment, TablePagination, ToggleButton, ToggleButtonGroup, TableFooter, Grid, ButtonGroup, Backdrop
 } from '@mui/material';
 import { Sync as SyncIcon, PersonAdd as PersonAddIcon, Search as SearchIcon, Edit as EditIcon, PlaylistAdd as PlaylistAddIcon, Close as CloseIcon, FileDownload as FileDownloadIcon, CallSplit as CallSplitIcon } from '@mui/icons-material';
 import Cafe24Settings from '../../components/Settings/Cafe24Settings';
@@ -55,6 +55,7 @@ export default function Cafe24OrderList() {
   const [orders, setOrders] = useState([]);
   const [malls, setMalls] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isTransferring, setIsTransferring] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState(null);
   const [warehouses, setWarehouses] = useState([]);
@@ -510,7 +511,7 @@ export default function Cafe24OrderList() {
       message: transferMessage,
       onConfirm: async () => {
         try {
-          setLoading(true);
+          setIsTransferring(true);
           await transferCafe24Orders(ordersToTransfer.map(o => o.id), warehouseConfig);
           setAlertDialog({ open: true, title: '성공', message: '전송이 완료되었습니다.' });
           setSelectedOrders([]);
@@ -522,7 +523,8 @@ export default function Cafe24OrderList() {
         } catch (err) {
           console.error(err);
           setAlertDialog({ open: true, title: '전송 실패', message: err.message });
-          setLoading(false);
+        } finally {
+          setIsTransferring(false);
         }
       }
     });
@@ -562,7 +564,7 @@ export default function Cafe24OrderList() {
       message: transferMessage,
       onConfirm: async () => {
         try {
-          setLoading(true);
+          setIsTransferring(true);
           await transferCafe24Orders([order.id], warehouseConfig);
           setAlertDialog({ open: true, title: '성공', message: '전송이 완료되었습니다.' });
           setWarehouseConfig(prev => {
@@ -574,7 +576,7 @@ export default function Cafe24OrderList() {
           console.error(err);
           setAlertDialog({ open: true, title: '전송 실패', message: err.message });
         } finally {
-          setLoading(false);
+          setIsTransferring(false);
         }
       }
     });
@@ -2093,6 +2095,14 @@ export default function Cafe24OrderList() {
           </Button>
         </DialogActions>
       </Dialog>
+      
+      <Backdrop
+        sx={{ color: '#fff', zIndex: (theme) => Math.max(theme.zIndex.drawer, theme.zIndex.modal) + 1, display: 'flex', flexDirection: 'column', gap: 2 }}
+        open={isTransferring}
+      >
+        <CircularProgress color="inherit" />
+        <Typography variant="h6">판매 반영 등록 중입니다...</Typography>
+      </Backdrop>
     </Box>
   );
 }
