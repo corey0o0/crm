@@ -831,13 +831,15 @@ function SalesHistoryStats() {
     // 대리점 매출 집계 (모든 브랜드 종합)
     const isAgency = r.sales_channel && !B2C_CHANNELS.includes(r.sales_channel);
     if (isAgency) {
-      let agencyName = r.customer_name || r.sales_channel || '기타 대리점';
-      if (!agencyName || agencyName === '대리점출고') {
-         agencyName = r.sales_channel !== '대리점출고' ? r.sales_channel : r.customer_name;
-         if (!agencyName) agencyName = '기타 대리점';
+      let agencyName = r.customer_name && r.customer_name !== '-' ? r.customer_name : r.sales_channel;
+      if (agencyName === '대리점출고' || agencyName === '수기판매') {
+         agencyName = r.customer_name !== '-' && r.customer_name ? r.customer_name : null;
       }
-      if (!channelMap[agencyName]) channelMap[agencyName] = { name: agencyName, value: 0 };
-      channelMap[agencyName].value += Number(r.total_price || 0);
+      
+      if (agencyName && agencyName !== '수기판매' && agencyName !== '대리점출고' && agencyName !== '기타 대리점' && agencyName !== '-') {
+         if (!channelMap[agencyName]) channelMap[agencyName] = { name: agencyName, value: 0 };
+         channelMap[agencyName].value += Number(r.total_price || 0);
+      }
     }
     let c = '';
     if (r._type === 'service') {
