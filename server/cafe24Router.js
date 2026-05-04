@@ -32,6 +32,13 @@ function decrypt(text) {
 
 module.exports = function(supabaseAdmin) {
   const router = require('express').Router();
+  const rateLimit = require('express-rate-limit');
+
+  const syncLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 10, // Limit each IP to 10 requests per window
+    message: { error: '동기화 요청이 너무 많습니다. 1분 후 다시 시도해주세요.' }
+  });
 
   // JWT 인증 미들웨어 (RLS 우회 방지 및 API 보안)
   const requireAuth = async (req, res, next) => {
@@ -285,7 +292,7 @@ module.exports = function(supabaseAdmin) {
     }
   });
 
-  router.post('/sync/:mall_id', async (req, res) => {
+  router.post('/sync/:mall_id', syncLimiter, async (req, res) => {
     try {
       const { mall_id } = req.params;
       const { board_no } = req.body;
@@ -549,6 +556,9 @@ module.exports = function(supabaseAdmin) {
         });
       }
 
+      // 총 결제액 구성요소 명확화:
+      // pg_payment: 실제 카드/PG 결제금액 + 네이버페이 등 외부 포인트 + 선결제금액
+      // actual_deposit: 쇼핑몰 자체 예치금(적립금/마일리지) 사용액
       const pg_payment = Number(order.payment_amount || 0) + Number(order.naver_point || 0) + Number(order.prepaid_amount || 0);
       const actual_deposit = Number(order.deposit || (order.actual_order_amount && order.actual_order_amount.deposit) || 0);
       
@@ -696,7 +706,7 @@ module.exports = function(supabaseAdmin) {
   };
 
   // 3-2. 주문 수동 동기화 API
-  router.post('/sync/orders/:mall_id', async (req, res) => {
+  router.post('/sync/orders/:mall_id', syncLimiter, async (req, res) => {
     try {
       const { mall_id } = req.params;
       const { start_date, end_date } = req.body;
@@ -835,10 +845,17 @@ module.exports = function(supabaseAdmin) {
         return res.status(400).json({ error: '주문 ID가 제공되지 않았습니다.' });
       }
 
-      // 1. 창고 정보 조회 (청담 판별용)
-      const { data: warehouses } = await supabaseAdmin.from('warehouses').select('id, name');
+      // 1. 창고 정보 조회 (청담 판별용 및 DEFAULT 폴백용)
+      const { data: warehouses } = await supabaseAdmin.from('warehouses').select('id, name, is_default');
       const warehouseMap = {};
-      (warehouses || []).forEach(w => { warehouseMap[w.id] = w.name; });
+      let defaultWarehouseId = null;
+      (warehouses || []).forEach(w => { 
+        warehouseMap[w.id] = w.name;
+        if (w.is_default || w.name.includes('본점') || w.name.includes('청담')) {
+          if (!defaultWarehouseId) defaultWarehouseId = w.id;
+        }
+      });
+      if (!defaultWarehouseId && warehouses && warehouses.length > 0) defaultWarehouseId = warehouses[0].id;
 
       // 2. 주문 목록 가져오기
       const { data: orders, error: fetchErr } = await supabaseAdmin
@@ -892,6 +909,10 @@ module.exports = function(supabaseAdmin) {
 
           let wid = (warehouseConfig && warehouseConfig[order.id] && warehouseConfig[order.id][index]) || 'DEFAULT';
           
+          if (wid === 'DEFAULT' || !wid) {
+             wid = defaultWarehouseId;
+          }
+
           if (wid === 'EXCLUDE') return;
 
           let mappedPartId = item.part_id;
@@ -1017,7 +1038,8 @@ module.exports = function(supabaseAdmin) {
       // 최종 상태 변경 (개별 order_items에 _warehouse_id 및 part_id 기록)
       for (const order of orders) {
         const updatedItems = (order.order_items || []).map((item, index) => {
-          const wid = (warehouseConfig && warehouseConfig[order.id] && warehouseConfig[order.id][index]) || 'DEFAULT';
+          let wid = (warehouseConfig && warehouseConfig[order.id] && warehouseConfig[order.id][index]) || 'DEFAULT';
+          if (wid === 'DEFAULT' || !wid) wid = defaultWarehouseId;
           
           let mappedPartId = item.part_id;
           if (!mappedPartId) {

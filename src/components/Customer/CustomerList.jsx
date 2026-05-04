@@ -308,10 +308,19 @@ function CustomerList({ refreshTrigger, onRefresh }) {
       console.log('[CustomerList] Service history:', servicesData?.length || 0, 'items');
       console.log('[CustomerList] Shipment history:', shipmentsData?.length || 0, 'items');
 
+      const serviceIds = servicesData.map(s => s.id);
+      let tagsData = [];
+      if (serviceIds.length > 0) {
+        tagsData = await fetchFromSupabase('service_tags', {
+          select: '*',
+          filter: `service_id=in.(${serviceIds.join(',')})`
+        });
+      }
+
       // 태그 데이터 처리
       const servicesWithTags = servicesData.map(service => ({
         ...service,
-        tags: [] // REST API에서는 관계 데이터를 별도로 조회해야 함
+        tags: (tagsData || []).filter(t => t.service_id === service.id).map(t => t.tag_name)
       }));
 
       setServiceHistory(servicesWithTags);

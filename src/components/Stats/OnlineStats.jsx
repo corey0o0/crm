@@ -247,25 +247,31 @@ function OnlineStats() {
                    amount = Number(item.payment_amount);
                } else if (isExplicitlyZero) {
                    amount = 0;
-               } else if (totalWeight > 0) {
-                   const pPrice = Number(item.product_price || item.price || (p ? p.price : 0));
-                   amount = Math.floor(((pPrice * qty) / totalWeight) * Number(o.total_amount || 0));
-                   if (idx === validItems.length - 1) {
-                       const prevTotal = validItems.slice(0, validItems.length - 1).reduce((acc, prev) => {
-                           const prevPCode = String(prev.custom_product_code || prev.product_code || '').trim();
-                           const prevP = prev.part_id ? partMapById[prev.part_id] : (prevPCode ? partMapByCode[prevPCode] : null);
-                           const prevPrice = Number(prev.product_price || prev.price || (prevP ? prevP.price : 0));
-                           return acc + Math.floor(((prevPrice * Number(prev.quantity || 1)) / totalWeight) * Number(o.total_amount || 0));
-                       }, 0);
-                       amount = Number(o.total_amount || 0) - prevTotal;
-                   }
-               } else if (totalQty > 0) {
-                   amount = Math.floor((qty / totalQty) * Number(o.total_amount || 0));
-                   if (idx === validItems.length - 1) {
-                       const prevTotal = validItems.slice(0, validItems.length - 1).reduce((acc, prev) => {
-                           return acc + Math.floor((Number(prev.quantity || 1) / totalQty) * Number(o.total_amount || 0));
-                       }, 0);
-                       amount = Number(o.total_amount || 0) - prevTotal;
+               } else {
+                   const canceledItems = (o.order_items || []).filter(it => ['C11', 'C40', 'R40', 'E40'].includes(it.order_status));
+                   const canceledAmount = canceledItems.reduce((acc, it) => acc + (Number(it.product_price || it.price || 0) * Number(it.quantity || 1)), 0);
+                   const distributableAmount = Math.max(0, Number(o.total_amount || 0) - Number(o.shipping_fee || 0) - canceledAmount);
+                   
+                   if (totalWeight > 0) {
+                       const pPrice = Number(item.product_price || item.price || (p ? p.price : 0));
+                       amount = Math.floor(((pPrice * qty) / totalWeight) * distributableAmount);
+                       if (idx === validItems.length - 1) {
+                           const prevTotal = validItems.slice(0, validItems.length - 1).reduce((acc, prev) => {
+                               const prevPCode = String(prev.custom_product_code || prev.product_code || '').trim();
+                               const prevP = prev.part_id ? partMapById[prev.part_id] : (prevPCode ? partMapByCode[prevPCode] : null);
+                               const prevPrice = Number(prev.product_price || prev.price || (prevP ? prevP.price : 0));
+                               return acc + Math.floor(((prevPrice * Number(prev.quantity || 1)) / totalWeight) * distributableAmount);
+                           }, 0);
+                           amount = distributableAmount - prevTotal;
+                       }
+                   } else if (totalQty > 0) {
+                       amount = Math.floor((qty / totalQty) * distributableAmount);
+                       if (idx === validItems.length - 1) {
+                           const prevTotal = validItems.slice(0, validItems.length - 1).reduce((acc, prev) => {
+                               return acc + Math.floor((Number(prev.quantity || 1) / totalQty) * distributableAmount);
+                           }, 0);
+                           amount = distributableAmount - prevTotal;
+                       }
                    }
                }
                
@@ -292,6 +298,9 @@ function OnlineStats() {
 
                hasMatchingBrand = true;
                orderTotalForBrand += amount;
+               
+               if (!o._validOrderTotal) o._validOrderTotal = 0;
+               o._validOrderTotal += amount;
                
                if (!agencyStats[agName]) agencyStats[agName] = { amount: 0, count: 0, airframe: 0, airframeAmount: 0, parts: 0, partsAmount: 0 };
                
@@ -376,10 +385,12 @@ function OnlineStats() {
           }
 
           if (hasMatchingBrand) {
+              const validOrderTotal = (o._validOrderTotal || 0) + Number(o.shipping_fee || 0);
+              
               if (qBrand === '전체') {
-                 total += Number(o.total_amount || 0);
+                 total += validOrderTotal;
                  if (agencyStats[agName]) {
-                    agencyStats[agName].amount += Number(o.total_amount || 0);
+                    agencyStats[agName].amount += validOrderTotal;
                     agencyStats[agName].count += 1;
                  }
               } else {
@@ -409,12 +420,53 @@ function OnlineStats() {
 
         const monthlyMap = {};
         for (let i = 1; i <= 12; i++) monthlyMap[i] = { month: `${i}월`, sales: 0 };
-        if (chartDataRaw) {
-          chartDataRaw.forEach(o => {
+        if (cafe24Orders) {
+          cafe24Orders.forEach(o => {
             if (qBrand === 'XRB' && o.mall_id !== 'slimpack79') return;
             if (qBrand === 'NB' && o.mall_id !== 'nearbike') return;
+            
+            // Re-calculate valid total for monthly chart since chartDataRaw lacks items
+            const items = o.order_items || [];
+            const validItems = items.filter(item => !['C11', 'C40', 'R40', 'E40'].includes(item.order_status));
+            let orderItemsSum = 0;
+            let totalWeight = validItems.reduce((acc, i) => acc + (Number(i.product_price || i.price || 0) * Number(i.quantity || 1)), 0);
+            const totalQty = validItems.reduce((acc, i) => acc + Number(i.quantity || 1), 0);
+
+            validItems.forEach((item, idx) => {
+               const qty = Number(item.quantity || 1);
+               let amount = 0;
+               if (item.payment_amount !== undefined && item.payment_amount !== null && Number(item.payment_amount) > 0) {
+                   amount = Number(item.payment_amount);
+               } else {
+                   const canceledItems = items.filter(it => ['C11', 'C40', 'R40', 'E40'].includes(it.order_status));
+                   const canceledAmount = canceledItems.reduce((acc, it) => acc + (Number(it.product_price || it.price || 0) * Number(it.quantity || 1)), 0);
+                   const distributableAmount = Math.max(0, Number(o.total_amount || 0) - Number(o.shipping_fee || 0) - canceledAmount);
+                   
+                   if (totalWeight > 0) {
+                       const pPrice = Number(item.product_price || item.price || 0);
+                       amount = Math.floor(((pPrice * qty) / totalWeight) * distributableAmount);
+                       if (idx === validItems.length - 1) {
+                           const prevTotal = validItems.slice(0, validItems.length - 1).reduce((acc, prev) => {
+                               return acc + Math.floor(((Number(prev.product_price || prev.price || 0) * Number(prev.quantity || 1)) / totalWeight) * distributableAmount);
+                           }, 0);
+                           amount = distributableAmount - prevTotal;
+                       }
+                   } else if (totalQty > 0) {
+                       amount = Math.floor((qty / totalQty) * distributableAmount);
+                       if (idx === validItems.length - 1) {
+                           const prevTotal = validItems.slice(0, validItems.length - 1).reduce((acc, prev) => {
+                               return acc + Math.floor((Number(prev.quantity || 1) / totalQty) * distributableAmount);
+                           }, 0);
+                           amount = distributableAmount - prevTotal;
+                       }
+                   }
+               }
+               orderItemsSum += amount;
+            });
+            const validOrderTotal = orderItemsSum + Number(o.shipping_fee || 0);
+
             const m = new Date(o.order_date).getMonth() + 1;
-            monthlyMap[m].sales += Number(o.total_amount || 0);
+            monthlyMap[m].sales += validOrderTotal;
           });
         }
         setMonthlyStats(Object.values(monthlyMap));

@@ -68,6 +68,13 @@ const ECountBulkUploader = ({ onUploadSuccess }) => {
       supabase.from('agencies').select('id, name'),
       supabase.from('warehouses').select('id, name')
     ]);
+
+    if (partsRes.error || agenciesRes.error || whRes.error) {
+      const errMsg = partsRes.error?.message || agenciesRes.error?.message || whRes.error?.message;
+      showMessage(`기본 데이터 로드 실패: ${errMsg}`, 'error');
+      return { parts: [] };
+    }
+
     const parts = partsRes?.data || [];
     setDbParts(parts);
     setDbAgencies(agenciesRes?.data || []);

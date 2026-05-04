@@ -479,6 +479,7 @@ function ServiceDetail() {
             // 에러 메시지 없이 바로 새로고침 (로딩 상태 유지)
             setTimeout(() => {
               console.log('[ServiceDetail] 자동 페이지 새로고침 실행');
+              window.alert('데이터 로딩 지연으로 인해 페이지를 새로고침합니다.');
               window.location.reload();
             }, 500); // 0.5초 후 새로고침
             return;
@@ -892,8 +893,7 @@ function ServiceDetail() {
           part_id: part.id,
           quantity: part.quantity,
           price: part.price,
-          usage: part.usage || 'A/S',
-          warehouse_id: formData.warehouse_id || null
+          usage: part.usage || 'A/S'
         }));
 
         const { error: insertPartsError } = await supabase

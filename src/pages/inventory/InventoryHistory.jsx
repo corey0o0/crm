@@ -260,7 +260,7 @@ export default function InventoryHistory() {
                           )}
                         </TableCell>
                         <TableCell align="center">{group.items.length}</TableCell>
-                        <TableCell align="center">{group.items.length === 1 ? group.items[0].quantity : group.items.reduce((sum, item) => sum + item.quantity, 0)}</TableCell>
+                        <TableCell align="center">{group.items.length === 1 ? group.items[0].quantity : group.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0)}</TableCell>
                         <TableCell sx={{ fontWeight: 700 }}>
                           {group.items.length === 1 ? formatLocationName(group.items[0].fromLocation, warehouses, dealers) : (() => { const fromLocs = [...new Set(group.items.map(item => formatLocationName(item.fromLocation, warehouses, dealers)))]; return fromLocs.length === 1 ? fromLocs[0] : '다양'; })()}
                         </TableCell>

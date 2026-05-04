@@ -383,18 +383,22 @@ function SalesHistory() {
           const effectiveQty = Math.max(0, Number(p.quantity || 1) - returnedQty);
           const total = Number(p.price || 0) * effectiveQty;
           
+          const pName = p.part_name || '상품';
+          const pCode = p.part_code || '';
+          
+          let cat = p.part_category;
+          if (cat === '파츠') cat = '부품'; // 통계 용어 통일
+          if (!cat || cat === '-' || cat === '알수없음') {
+            cat = resolveCategory(pName, pCode, '', p.part_id);
+          }
+          const brand = resolveBrand(pName, pCode, '', p.part_id);
+          
           if (effectiveQty > 0) {
-            const pName = p.part_name || '상품';
-            const pCode = p.part_code || '';
-            
-            let cat = p.part_category;
-            if (cat === '파츠') cat = '부품'; // 통계 용어 통일
-            if (!cat || cat === '-' || cat === '알수없음') {
-              cat = resolveCategory(pName, pCode, '', p.part_id);
-            }
-            
-            const brand = resolveBrand(pName, pCode, '', p.part_id);
             rows.push({ ...baseFields, _id: `ship_${s.id}_${p.id || idx}`, part_name: pName, part_category: cat, part_brand: brand, quantity: effectiveQty, unit_price: Number(p.price || 0), total_price: total });
+          }
+          
+          if (returnedQty > 0) {
+            rows.push({ ...baseFields, _id: `ship_${s.id}_${p.id || idx}_ret`, part_name: `[반품] ${pName}`, part_category: cat, part_brand: brand, quantity: returnedQty, unit_price: Number(p.price || 0), total_price: 0, isCancelled: true });
           }
         });
       }
@@ -440,18 +444,24 @@ function SalesHistory() {
           }
           const qty = Math.max(0, Number(sp.quantity || 1) - returnedQty);
           const total = unitPrice * qty;
+          
+          const pName = sp.parts?.name || '부품';
+          const cat = resolveCategory(pName, '', '', sp.part_id);
+          const brand = resolveBrand(pName, '', '', sp.part_id);
+          
+          let wid = serviceTxMap[`${s.id}_${sp.part_id}`];
+          if (!wid) wid = fallbackWhId;
+          let itemWarehouseName = fallbackWhName;
+          if (wid && warehouseMap[wid]) itemWarehouseName = warehouseMap[wid];
+
           if (qty > 0) {
             pushedAny = true;
-            const pName = sp.parts?.name || '부품';
-            const cat = resolveCategory(pName, '', '', sp.part_id);
-            const brand = resolveBrand(pName, '', '', sp.part_id);
-            
-            let wid = serviceTxMap[`${s.id}_${sp.part_id}`];
-            if (!wid) wid = fallbackWhId;
-            let itemWarehouseName = fallbackWhName;
-            if (wid && warehouseMap[wid]) itemWarehouseName = warehouseMap[wid];
-
             rows.push({ ...baseFields, warehouse_name: itemWarehouseName, _id: `as_${s.id}_${sp.id || idx}`, part_name: pName, part_category: cat, part_brand: brand, quantity: qty, unit_price: unitPrice, total_price: total });
+          }
+          
+          if (returnedQty > 0) {
+            pushedAny = true;
+            rows.push({ ...baseFields, warehouse_name: itemWarehouseName, _id: `as_${s.id}_${sp.id || idx}_ret`, part_name: `[반품] ${pName}`, part_category: cat, part_brand: brand, quantity: returnedQty, unit_price: unitPrice, total_price: 0, isCancelled: true });
           }
         });
         if (!pushedAny) {
@@ -608,6 +618,33 @@ function SalesHistory() {
         });
         
         orderRows.forEach(r => rows.push(r));
+        
+        const canceledItems = items.filter(item => ['C11', 'C40', 'R40', 'E40'].includes(item.order_status));
+        canceledItems.forEach((item, idx) => {
+          let pName = resolvePartName(item.product_name || item.name || '상품', item.custom_product_code, item.product_code, item.part_id);
+          const optStr = item.option_value || item.options;
+          if (optStr && String(optStr).trim() !== '') {
+            pName = `${pName} [${String(optStr).trim()}]`;
+          }
+          const customCode = item.custom_product_code || '';
+          const pCode = item.product_code || '';
+          const cat = resolveCategory(pName, customCode, pCode, item.part_id);
+          const brand = resolveBrand(pName, customCode, pCode, item.part_id);
+          
+          rows.push({
+             ...baseFields,
+             warehouse_name: fallbackWarehouseName,
+             _id: `cafe_${o.id}_${idx}_canc`,
+             part_name: `[취소/반품] ${pName}`,
+             part_category: cat,
+             part_brand: brand,
+             quantity: Number(item.quantity || 1),
+             unit_price: Number(item.product_price || item.price || 0),
+             total_price: 0,
+             unit_shipping_fee: 0,
+             isCancelled: true
+          });
+        });
 
         const shipFee = Number(o.shipping_fee || 0);
         const calculatedUsedPoints = Math.max(0, orderItemsSum + shipFee - Number(o.total_amount || 0));
@@ -1123,14 +1160,14 @@ function SalesHistory() {
                       {row.part_brand || '-'}
                     </TableCell>
                     <TableCell sx={{ minWidth: 150 }}>
-                      <Typography variant="body2">{row.part_name}</Typography>
+                      <Typography variant="body2" sx={{ textDecoration: row.isCancelled ? 'line-through' : 'none', color: row.isCancelled ? 'text.secondary' : 'inherit' }}>{row.part_name}</Typography>
                       {row.unit_shipping_fee > 0 && <Typography variant="caption" color="textSecondary">배송비 포함</Typography>}
                     </TableCell>
-                    <TableCell align="right">{Number(row.quantity).toLocaleString()}</TableCell>
-                    <TableCell align="right">{Number(row.unit_price).toLocaleString()}</TableCell>
-                    {showTaxDetails && <TableCell align="right">{supply.toLocaleString()}</TableCell>}
-                    {showTaxDetails && <TableCell align="right">{vat.toLocaleString()}</TableCell>}
-                    <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                    <TableCell align="right" sx={{ textDecoration: row.isCancelled ? 'line-through' : 'none', color: row.isCancelled ? 'text.secondary' : 'inherit' }}>{Number(row.quantity).toLocaleString()}</TableCell>
+                    <TableCell align="right" sx={{ textDecoration: row.isCancelled ? 'line-through' : 'none', color: row.isCancelled ? 'text.secondary' : 'inherit' }}>{Number(row.unit_price).toLocaleString()}</TableCell>
+                    {showTaxDetails && <TableCell align="right" sx={{ textDecoration: row.isCancelled ? 'line-through' : 'none', color: row.isCancelled ? 'text.secondary' : 'inherit' }}>{supply.toLocaleString()}</TableCell>}
+                    {showTaxDetails && <TableCell align="right" sx={{ textDecoration: row.isCancelled ? 'line-through' : 'none', color: row.isCancelled ? 'text.secondary' : 'inherit' }}>{vat.toLocaleString()}</TableCell>}
+                    <TableCell align="right" sx={{ fontWeight: row.isCancelled ? 'normal' : 'bold', textDecoration: row.isCancelled ? 'line-through' : 'none', color: row.isCancelled ? 'text.secondary' : 'inherit' }}>
                       {Number(row.total_price).toLocaleString()}
                     </TableCell>
                   </TableRow>

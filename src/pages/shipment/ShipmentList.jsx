@@ -35,7 +35,6 @@ import {
   DialogContent,
   Snackbar,
   Alert,
-  Grid,
   Tooltip,
   Divider
 } from '@mui/material';
@@ -44,7 +43,6 @@ import {
   Search as SearchIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  CloudUpload as CloudUploadIcon,
   Clear as ClearIcon,
   Download as DownloadIcon,
   NavigateBefore as NavigateBeforeIcon,
@@ -55,12 +53,10 @@ import { warehouseApi } from '../../api/warehouseApi';
 import { fetchShipments as fetchShipmentsAPI, countShipments, countPendingAndShippingByBrand } from '../../utils/restApiUtils';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-  format, parseISO, isValid, startOfDay, endOfDay,
-  startOfMonth, endOfMonth, startOfWeek, endOfWeek,
-  addDays, subDays, subMonths, addMonths, isSameMonth, isSameDay, isToday
+  format, parseISO, isValid, subDays, addDays
 } from 'date-fns';
 import { processShipmentRevert } from '../../utils/inventoryUtils';
-import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
+import { downloadExcel } from '../../utils/excelUtils';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -135,7 +131,7 @@ function ShipmentList() {
 
   // 페이징 상태 추가
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(30);
+  const [rowsPerPage] = useState(30);
 
   // 지연 로딩 관련 상태 추가
   const [firstPageLoaded, setFirstPageLoaded] = useState(false);
@@ -147,9 +143,9 @@ function ShipmentList() {
   const [retryCount, setRetryCount] = useState(0);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
-  const [backgroundLoading, setBackgroundLoading] = useState(false);
-  const [loadProgress, setLoadProgress] = useState(0);
-  const [searchLoading, setSearchLoading] = useState(false);
+  const [backgroundLoading] = useState(false);
+  const [loadProgress] = useState(0);
+  const [searchLoading] = useState(false);
   const [hasActiveSearch, setHasActiveSearch] = useState(false);
 
   // 브랜드별 준비중+출고대기 건수
@@ -283,6 +279,7 @@ function ShipmentList() {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shipments.length]);
 
   useEffect(() => {

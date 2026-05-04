@@ -31,7 +31,6 @@ import {
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
-  Save as SaveIcon,
   Add as AddIcon,
   Delete as DeleteIcon,
   Search as SearchIcon,
@@ -139,7 +138,7 @@ function ShipmentForm({ isManualB2B = false }) {
   const isMaster = MASTER_ACCOUNTS.includes(user?.email);
 
   // 검색을 위한 상태 수정
-  const [isSearching, setIsSearching] = useState(false);
+  const [isSearching] = useState(false);
 
   // 변경사항 감지를 위한 상태 추가
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -724,7 +723,10 @@ function ShipmentForm({ isManualB2B = false }) {
         }
       } else if (shipmentId && !isNowCompleted) {
         // 출고완료가 아니면 (준비중 등) 기존 트랜잭션이 있을 경우 방어적으로 삭제
-        await supabase.from('transactions').delete().eq('group_id', shipmentId);
+        const { error: txDelErr } = await supabase.from('transactions').delete().eq('group_id', shipmentId);
+        if (txDelErr) {
+          console.error('[Inventory Transaction Delete Error]:', txDelErr.message);
+        }
       }
       // ==== 재고 차감 끝 ====
 
@@ -832,14 +834,14 @@ function ShipmentForm({ isManualB2B = false }) {
           let updatedPart = { ...part };
 
           // 1. 올인원 검색 (바코드, 코드, 제품명)
-          const searchName = part.part_name ? part.part_name.replace(/[\s\-]/g, '').toLowerCase() : '';
+          const searchName = part.part_name ? part.part_name.replace(/[\s-]/g, '').toLowerCase() : '';
           foundPart = allParts.find(p => 
             (part.part_code && p.code === part.part_code) ||
             (part.part_code && p.barcode === part.part_code) ||
             (p.code === part.part_name) ||
             (p.barcode === part.part_name) ||
             (p.name === part.part_name) ||
-            (searchName && p.name && searchName.includes(p.name.replace(/[\s\-]/g, '').toLowerCase()))
+            (searchName && p.name && searchName.includes(p.name.replace(/[\s-]/g, '').toLowerCase()))
           );
 
           // 상품 관리에서 해당 부품을 찾았다면 가격 제외한 정보 업데이트
@@ -930,14 +932,14 @@ function ShipmentForm({ isManualB2B = false }) {
           let partFromDB = null;
 
           // 1. 올인원 검색 (바코드, 코드, 제품명)
-          const searchName = productName ? productName.replace(/[\s\-]/g, '').toLowerCase() : '';
+          const searchName = productName ? productName.replace(/[\s-]/g, '').toLowerCase() : '';
           partFromDB = allParts.find(p => 
             (partCode && p.code === partCode) ||
             (partCode && p.barcode === partCode) ||
             (p.code === productName) ||
             (p.barcode === productName) ||
             (p.name === productName) ||
-            (searchName && p.name && searchName.includes(p.name.replace(/[\s\-]/g, '').toLowerCase()))
+            (searchName && p.name && searchName.includes(p.name.replace(/[\s-]/g, '').toLowerCase()))
           );
 
           if (partFromDB) {
@@ -1019,14 +1021,14 @@ function ShipmentForm({ isManualB2B = false }) {
         let partFromDB = null;
 
         // 1. 올인원 검색 (바코드, 코드, 제품명)
-        const searchName = shipment.product_name ? shipment.product_name.replace(/[\s\-]/g, '').toLowerCase() : '';
+        const searchName = shipment.product_name ? shipment.product_name.replace(/[\s-]/g, '').toLowerCase() : '';
         partFromDB = allParts.find(p => 
           (partCode && p.code === partCode) ||
           (partCode && p.barcode === partCode) ||
           (p.code === shipment.product_name) ||
           (p.barcode === shipment.product_name) ||
           (p.name === shipment.product_name) ||
-          (searchName && p.name && searchName.includes(p.name.replace(/[\s\-]/g, '').toLowerCase()))
+          (searchName && p.name && searchName.includes(p.name.replace(/[\s-]/g, '').toLowerCase()))
         );
 
         if (partFromDB) {
@@ -1175,14 +1177,14 @@ function ShipmentForm({ isManualB2B = false }) {
         const excelBarcode = item['바코드'] || item['제품코드'] || '';
 
         // DB 부품과 매칭 시도 (바코드, 코드, 제품명)
-        const searchName = finalPartName.replace(/[\s\-]/g, '').toLowerCase();
+        const searchName = finalPartName.replace(/[\s-]/g, '').toLowerCase();
         const foundPart = allParts.find(p => 
           (excelBarcode && p.code === excelBarcode) ||
           (excelBarcode && p.barcode === excelBarcode) ||
           (finalPartCode && p.code === finalPartCode) ||
           (finalPartCode && p.barcode === finalPartCode) ||
           (p.name === finalPartName) ||
-          (searchName && p.name && searchName.includes(p.name.replace(/[\s\-]/g, '').toLowerCase()))
+          (searchName && p.name && searchName.includes(p.name.replace(/[\s-]/g, '').toLowerCase()))
         );
 
         if (foundPart) {

@@ -19,7 +19,7 @@ export default function EcountDataUploader() {
   const [warehouses, setWarehouses] = useState([]);
   const [manualWarehouseId, setManualWarehouseId] = useState('');
   const [agencies, setAgencies] = useState([]);
-  const { user } = useAuth();
+  const { user } = useAuth(); // eslint-disable-line no-unused-vars
 
   React.useEffect(() => {
     async function fetchBaseData() {
@@ -112,7 +112,7 @@ export default function EcountDataUploader() {
         }
 
         // 날짜 추출 (가장 앞의 10자리 YYYY-MM-DD 형식만 추출하여 타임존 에러 방지)
-        let orderDate = String(dateNo).trim().substring(0, 10).replace(/[\/\.]/g, '-');
+        let orderDate = String(dateNo).trim().substring(0, 10).replace(/[/.]/g, '-');
 
         // 유효한 날짜가 없거나 형식이 맞지 않으면 현재 날짜로 폴백
         if (!/^\d{4}-\d{2}-\d{2}$/.test(orderDate)) {
@@ -129,7 +129,7 @@ export default function EcountDataUploader() {
         const matchedPart = dbParts.find(p => 
            (excelCode && (p.code === excelCode || p.barcode === excelCode)) ||
            (excelBarcode && (p.barcode === excelBarcode || p.code === excelBarcode)) ||
-           (p.name && partName && partName.replace(/[\s\-]/g, '').includes(p.name.replace(/[\s\-]/g, ''))) // 엑셀명(옵션포함) 안에 DB품목명이 포함되는지 확인
+           (p.name && partName && partName.replace(/[\s-]/g, '').includes(p.name.replace(/[\s-]/g, ''))) // 엑셀명(옵션포함) 안에 DB품목명이 포함되는지 확인
         );
 
         if (matchedPart) {

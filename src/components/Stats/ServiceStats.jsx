@@ -179,16 +179,20 @@ function ServiceStats() {
         service.status && service.status.includes('완료') && service.completion_date
       );
       
+      let validCompletedCount = 0;
       const totalProcessingTime = completedServices.reduce((sum, service) => {
         const dateStr = service.reception_date || service.created_at;
         if (!dateStr) return sum;
-        const start = parseISO(dateStr);
-        const end = parseISO(service.completion_date);
+        const start = new Date(dateStr).getTime();
+        const end = new Date(service.completion_date).getTime();
+        if (isNaN(start) || isNaN(end)) return sum;
+        
+        validCompletedCount++;
         return sum + (end - start);
       }, 0);
       
-      const avgProcessingTime = completedServices.length > 0
-        ? totalProcessingTime / completedServices.length / (1000 * 60 * 60 * 24) // 일 단위로 변환
+      const avgProcessingTime = validCompletedCount > 0
+        ? totalProcessingTime / validCompletedCount / (1000 * 60 * 60 * 24) // 일 단위로 변환
         : 0;
 
       // 최근 A/S 목록

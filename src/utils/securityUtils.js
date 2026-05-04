@@ -2,6 +2,9 @@
  * 보안 관련 유틸리티 함수들
  * API 키 보호, 민감한 정보 마스킹, 보안 헤더 관리
  */
+import CryptoJS from 'crypto-js';
+
+const SECRET_KEY = process.env.REACT_APP_ENCRYPTION_SECRET || 'crm_local_secure_key_2026';
 
 /**
  * API 키 마스킹 (로깅용)
@@ -96,7 +99,10 @@ export const sanitizeUrl = (url) => {
  */
 export const safeSetItem = (key, value, encrypt = false) => {
   try {
-    const data = encrypt ? btoa(JSON.stringify(value)) : JSON.stringify(value);
+    const stringValue = JSON.stringify(value);
+    const data = encrypt 
+      ? CryptoJS.AES.encrypt(stringValue, SECRET_KEY).toString() 
+      : stringValue;
     localStorage.setItem(key, data);
   } catch (error) {
     console.error('localStorage 저장 실패:', error);
@@ -114,7 +120,15 @@ export const safeGetItem = (key, decrypt = false) => {
     const data = localStorage.getItem(key);
     if (!data) return null;
     
-    const parsed = decrypt ? JSON.parse(atob(data)) : JSON.parse(data);
+    let parsed;
+    if (decrypt) {
+      const bytes = CryptoJS.AES.decrypt(data, SECRET_KEY);
+      const decryptedString = bytes.toString(CryptoJS.enc.Utf8);
+      if (!decryptedString) throw new Error('복호화 실패 (잘못된 키 혹은 데이터)');
+      parsed = JSON.parse(decryptedString);
+    } else {
+      parsed = JSON.parse(data);
+    }
     return parsed;
   } catch (error) {
     console.error('localStorage 조회 실패:', error);

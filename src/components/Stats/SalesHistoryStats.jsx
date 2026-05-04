@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Paper, Grid, Card, CardContent, CircularProgress,
-  FormControl, Select, MenuItem, InputLabel, Button, Divider, TextField,
+  FormControl, Select, MenuItem, InputLabel, Button, Divider,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Tabs, Tab, ButtonGroup, Stack, Switch, FormControlLabel
 } from '@mui/material';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ko } from 'date-fns/locale';
-import { startOfMonth, endOfMonth, format, startOfYear, endOfYear, getWeek, startOfWeek, endOfWeek, startOfQuarter, endOfQuarter, setMonth, startOfDay, endOfDay } from 'date-fns';
+import { startOfMonth, endOfMonth, format, startOfYear, endOfYear, startOfWeek, endOfWeek, setMonth } from 'date-fns';
 import { supabase } from '../../lib/supabaseClient';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -18,6 +18,20 @@ import SearchIcon from '@mui/icons-material/Search';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 
 const COLORS = ['#1976d2', '#2e7d32', '#ed6c02', '#9c27b0', '#d32f2f', '#0288d1', '#7b1fa2'];
+
+export const getBrandFallback = (brand, name, code = '', mallId = '') => {
+  if (brand && brand !== '-' && brand !== '기타') return brand;
+  const c = (code || '').toUpperCase();
+  const n = (name || '').toLowerCase();
+  if (c.startsWith('XRB') || n.includes('xrb') || n.includes('엑스알비')) return 'XRB';
+  if (c.startsWith('NB') || n.includes('nearbike') || n.includes('니어바이크') || n.includes('전동포')) return 'NB';
+  if (mallId) {
+    const m = mallId.toLowerCase();
+    if (m === 'slimpack79') return 'XRB';
+    if (m === 'nearbike') return 'NB';
+  }
+  return '기타';
+};
 
 function SalesHistoryStats() {
   const [loading, setLoading] = useState(true);
@@ -59,6 +73,7 @@ function SalesHistoryStats() {
 
   useEffect(() => {
     fetchSales();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startDate, endDate]);
 
   useEffect(() => {
@@ -72,92 +87,145 @@ function SalesHistoryStats() {
   };
 
   const fetchTotalsForRange = async (start, end, targetBrand) => {
-    const sDate = format(start, 'yyyy-MM-dd') + 'T00:00:00+09:00';
-    const eDate = format(end, 'yyyy-MM-dd') + 'T23:59:59+09:00';
-    
-    if (!targetBrand || targetBrand === '전체') {
-      // Shipments
-      const { data: shipRows } = await supabase.from('shipments').select('price').gte('order_date', sDate).lte('order_date', eDate).in('status', ['출고완료', '완료']);
-      const shipTotal = (shipRows || []).reduce((acc, r) => acc + Number(r.price || 0), 0);
+    try {
+      const sDate = format(start, 'yyyy-MM-dd') + 'T00:00:00+09:00';
+      const eDate = format(end, 'yyyy-MM-dd') + 'T23:59:59+09:00';
       
-      // Services
-      const { data: asRows } = await supabase.from('service_parts')
-        .select('price, quantity, services!inner(completion_date, status)')
-        .gte('services.completion_date', sDate).lte('services.completion_date', eDate).ilike('services.status', '%완료%');
-      const asTotal = (asRows || []).reduce((acc, r) => acc + (Number(r.price || 0) * Number(r.quantity || 1)), 0);
+      let shipTotal = 0;
+      let asTotal = 0;
+      let cafeTotal = 0;
 
-      // Cafe24
-      const { data: cafeRows } = await supabase.from('cafe24_orders').select('total_amount').gte('order_date', sDate).lte('order_date', eDate).eq('is_deleted', false).eq('is_transferred', true);
-      const cafeTotal = (cafeRows || []).reduce((acc, r) => acc + Number(r.total_amount || 0), 0);
-
-      return shipTotal + asTotal + cafeTotal;
-    }
-
-    // 브랜드 필터가 적용된 경우
-    // 1. Shipments (parts 테이블 조인하여 브랜드 확인)
-    const { data: shipRows } = await supabase.from('shipments')
-      .select('id, shipment_parts(quantity, price, total_price, part_name, parts(brand))')
-      .gte('order_date', sDate).lte('order_date', eDate).in('status', ['출고완료', '완료']);
-    
-    let shipTotal = 0;
-    (shipRows || []).forEach(s => {
-      (s.shipment_parts || []).forEach(p => {
-        let b = p.parts?.brand;
-        if (!b) {
-          const n = p.part_name || '';
-          if (n.toUpperCase().includes('XRB') || n.includes('엑스알비')) b = 'XRB';
-          else if (n.toUpperCase().includes('NB') || n.includes('니어바이크') || n.includes('전동포')) b = 'NB';
-          else b = '기타';
-        }
-        if (b === targetBrand) {
-          shipTotal += Number(p.total_price || (Number(p.price || 0) * Number(p.quantity || 1)));
+      // 1. Shipments
+      const { data: shipRows, error: shipErr } = await supabase.from('shipments')
+        .select('id, price, shipment_parts(quantity, price, total_price, part_name, part_code, note)')
+        .gte('order_date', sDate).lte('order_date', eDate).in('status', ['출고완료', '완료']);
+      if (shipErr) console.error('Shipments fetch error:', shipErr);
+      
+      (shipRows || []).forEach(s => {
+        const parts = s.shipment_parts || [];
+        if (parts.length === 0) {
+           if (!targetBrand || targetBrand === '전체') shipTotal += Number(s.price || 0);
+        } else {
+           parts.forEach(p => {
+             let returnedQty = 0;
+             if (p.note && p.note.includes('[반품완료]')) returnedQty = p.quantity;
+             else if (p.note && p.note.includes('[부분반품:')) {
+               const matches = p.note.match(/\[부분반품:(\d+)개\]/g);
+               if (matches) matches.forEach(m => {
+                 const qtyMatch = m.match(/\[부분반품:(\d+)개\]/);
+                 if (qtyMatch && qtyMatch[1]) returnedQty += parseInt(qtyMatch[1], 10);
+               });
+             }
+             const effectiveQty = Math.max(0, Number(p.quantity || 1) - returnedQty);
+             const b = getBrandFallback(null, p.part_name, p.part_code);
+             if (!targetBrand || targetBrand === '전체' || b === targetBrand) {
+                const pPrice = Number(p.price || 0);
+                shipTotal += pPrice * effectiveQty;
+             }
+           });
         }
       });
-    });
 
-    // 2. Services
-    const { data: asRows } = await supabase.from('service_parts')
-      .select('price, quantity, parts(brand, name), services!inner(completion_date, status)')
-      .gte('services.completion_date', sDate).lte('services.completion_date', eDate).ilike('services.status', '%완료%');
-    
-    let asTotal = 0;
-    (asRows || []).forEach(sp => {
-        let b = sp.parts?.brand;
-        if (!b) {
-          const n = sp.parts?.name || '';
-          if (n.toUpperCase().includes('XRB') || n.includes('엑스알비')) b = 'XRB';
-          else if (n.toUpperCase().includes('NB') || n.includes('니어바이크') || n.includes('전동포')) b = 'NB';
-          else b = '기타';
-        }
-        if (b === targetBrand) {
-          const unitPrice = Number(sp.price || sp.parts?.price || 0);
-          asTotal += (unitPrice * Number(sp.quantity || 1));
-        }
-    });
+      // 2. Services
+      const { data: asRows, error: asErr } = await supabase.from('service_parts')
+        .select('price, quantity, usage, parts(brand, name, code), services!inner(completion_date, status)')
+        .gte('services.completion_date', sDate).lte('services.completion_date', eDate).ilike('services.status', '%완료%');
+      if (asErr) console.error('Services fetch error:', asErr);
+      
+      (asRows || []).forEach(sp => {
+          let returnedQty = 0;
+          if (sp.usage && sp.usage.includes('[반품완료]')) returnedQty = sp.quantity;
+          else if (sp.usage && sp.usage.includes('[부분반품:')) {
+             const matches = sp.usage.match(/\[부분반품:(\d+)개\]/g);
+             if (matches) matches.forEach(m => {
+                const qtyMatch = m.match(/\[부분반품:(\d+)개\]/);
+                if (qtyMatch && qtyMatch[1]) returnedQty += parseInt(qtyMatch[1], 10);
+             });
+          }
+          const effectiveQty = Math.max(0, Number(sp.quantity || 1) - returnedQty);
+          const b = getBrandFallback(sp.parts?.brand, sp.parts?.name, sp.parts?.code);
+          if (!targetBrand || targetBrand === '전체' || b === targetBrand) {
+            const unitPrice = Number(sp.price || sp.parts?.price || 0);
+            asTotal += (unitPrice * effectiveQty);
+          }
+      });
 
-    // 3. Cafe24 (mall_id 기준 필터링)
-    let cafeTotal = 0;
-    let targetMallId = null;
-    if (targetBrand === 'XRB') targetMallId = 'slimpack79';
-    if (targetBrand === 'NB') targetMallId = 'nearbike';
-    
-    if (targetMallId) {
-      const { data: cafeRows } = await supabase.from('cafe24_orders')
-        .select('total_amount')
+      // 3. Cafe24
+      const { data: cafeRows, error: cafeErr } = await supabase.from('cafe24_orders')
+        .select('total_amount, shipping_fee, order_items, mall_id')
         .gte('order_date', sDate).lte('order_date', eDate)
-        .eq('is_deleted', false).eq('is_transferred', true).eq('mall_id', targetMallId);
-      cafeTotal = (cafeRows || []).reduce((acc, r) => acc + Number(r.total_amount || 0), 0);
-    }
+        .eq('is_deleted', false).eq('is_transferred', true);
+      if (cafeErr) console.error('Cafe24 fetch error:', cafeErr);
+      
+      (cafeRows || []).forEach(o => {
+         const items = o.order_items || [];
+         if (items.length === 0) {
+            if (!targetBrand || targetBrand === '전체' || getBrandFallback('', '', '', o.mall_id) === targetBrand) {
+               cafeTotal += Number(o.total_amount || 0);
+            }
+         } else {
+            const validItems = items.filter(item => !['C11', 'C40', 'R40', 'E40'].includes(item.order_status));
+            if (validItems.length === 0) return;
 
-    return shipTotal + asTotal + cafeTotal;
+            let orderItemsSum = 0;
+            let brandMatchedAmount = 0;
+            let totalWeight = validItems.reduce((acc, i) => acc + (Number(i.product_price || i.price || 0) * Number(i.quantity || 1)), 0);
+
+            validItems.forEach((item, idx) => {
+               const pName = item.product_name || item.name || '';
+               const pCode = item.custom_product_code || item.product_code || '';
+               const b = getBrandFallback('', pName, pCode, o.mall_id);
+               const qty = Number(item.quantity || 1);
+               let amount = 0;
+               if (item.payment_amount !== undefined && item.payment_amount !== null && Number(item.payment_amount) > 0) {
+                   amount = Number(item.payment_amount);
+               } else {
+                   let iPrice = Number(item.product_price || item.price || 0);
+                   const canceledItems = (items || []).filter(it => ['C11', 'C40', 'R40', 'E40'].includes(it.order_status));
+                   const canceledAmount = canceledItems.reduce((acc, it) => acc + (Number(it.product_price || it.price || 0) * Number(it.quantity || 1)), 0);
+                   const distributableAmount = Math.max(0, Number(o.total_amount || 0) - Number(o.shipping_fee || 0) - canceledAmount);
+                   if (totalWeight > 0) {
+                       amount = Math.floor(((iPrice * qty) / totalWeight) * distributableAmount);
+                       if (idx === validItems.length - 1) {
+                           let previousTotals = validItems.slice(0, validItems.length - 1).reduce((acc, prevItem) => {
+                               return acc + Math.floor(((Number(prevItem.product_price || prevItem.price || 0) * Number(prevItem.quantity || 1)) / totalWeight) * distributableAmount);
+                           }, 0);
+                           amount = distributableAmount - previousTotals;
+                       }
+                   } else {
+                       amount = Math.floor(distributableAmount / validItems.length);
+                       if (idx === validItems.length - 1) amount = distributableAmount - (amount * (validItems.length - 1));
+                   }
+               }
+               orderItemsSum += amount;
+               if (b === targetBrand) brandMatchedAmount += amount;
+            });
+            
+            if (!targetBrand || targetBrand === '전체') {
+               cafeTotal += orderItemsSum + Number(o.shipping_fee || 0);
+            } else {
+               cafeTotal += brandMatchedAmount;
+               // Include shipping fee in brand total only if brand matches the primary mall brand
+               if (getBrandFallback('', '', '', o.mall_id) === targetBrand) {
+                  cafeTotal += Number(o.shipping_fee || 0);
+               }
+            }
+         }
+      });
+
+      return shipTotal + asTotal + cafeTotal;
+    } catch (error) {
+      console.error('Error in fetchTotalsForRange:', error);
+      return 0;
+    }
   };
 
   const fetchCompareStats = async () => {
     if (!startDate || !endDate) return;
-    const days = Math.floor((endDate - startDate) / (24 * 60 * 60 * 1000)) + 1;
+    const days = Math.round((endDate - startDate) / (24 * 60 * 60 * 1000)) + 1;
     const isFullMonth = format(startDate, 'yyyy-MM-dd') === format(startOfMonth(startDate), 'yyyy-MM-dd') &&
                         format(endDate, 'yyyy-MM-dd') === format(endOfMonth(startDate), 'yyyy-MM-dd');
-    const isApproxWeek = days >= 7 && days <= 8;
+    const isApproxWeek = days === 7;
 
     const currentTotal = await fetchTotalsForRange(startDate, endDate, filterBrand);
 
@@ -288,23 +356,10 @@ function SalesHistoryStats() {
     };
 
     const resolveBrand = (name, code = '', mallId = '') => {
-      if (code && partsBrandByCode[code]) return partsBrandByCode[code];
-      if (name && partsBrandMap[name]) return partsBrandMap[name];
-      
-      const c = (code || '').toUpperCase();
-      const n = (name || '').toLowerCase();
-      if (c.startsWith('XRB')) return 'XRB';
-      if (c.startsWith('NB')) return 'NB';
-      if (n.includes('xrb') || n.includes('엑스알비')) return 'XRB';
-      if (n.includes('nearbike') || n.includes('니어바이크') || n.includes('전동포')) return 'NB';
-      
-      if (mallId) {
-        const m = mallId.toLowerCase();
-        if (m === 'slimpack79') return 'XRB';
-        if (m === 'nearbike') return 'NB';
-      }
-      
-      return '기타';
+      let b = '';
+      if (code && partsBrandByCode[code]) b = partsBrandByCode[code];
+      else if (name && partsBrandMap[name]) b = partsBrandMap[name];
+      return getBrandFallback(b, name, code, mallId);
     };
 
     const asIds = (asRes.data || []).map(s => s.id);
@@ -375,8 +430,9 @@ function SalesHistoryStats() {
          return; // 중복 집계 방지 (Bug 2)
       }
       const parts = s.shipment_parts || [];
+      const isManual = s.note && String(s.note).includes('[수기판매]');
       const baseFields = {
-        _id: s.id, _type: 'shipment', date_val: s.order_date, sales_channel: s.sales_channel || '매장출고', customer_name: s.customer_name || '-'
+        _id: s.id, _type: 'shipment', date_val: s.order_date, sales_channel: isManual ? '수기판매' : (s.sales_channel || '매장출고'), customer_name: s.customer_name || '-'
       };
       if (parts.length === 0) {
         rows.push({ ...baseFields, part_category: '기타', part_brand: '-', quantity: 0, total_price: Number(s.price || 0), total_cost: 0 });

@@ -998,8 +998,7 @@ function AddService() {
           part_id: part.id,
           quantity: part.quantity,
           price: part.price,
-          usage: part.usage || 'A/S',
-          warehouse_id: formData.warehouse_id || null
+          usage: part.usage || 'A/S'
         }));
         const { error: partsError } = await supabase.from('service_parts').insert(partsToInsert);
         if (partsError) {
