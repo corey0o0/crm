@@ -910,16 +910,19 @@ module.exports = function(supabaseAdmin) {
         const codesArray = Array.from(uniqueProductCodes);
         const fetchPromises = [];
         for(let i=0; i<codesArray.length; i+=200) {
+          const chunk = codesArray.slice(i, i+200);
+          const chunkStr = chunk.map(c => `"${String(c).replace(/"/g, '')}"`).join(',');
           fetchPromises.push(
             supabaseAdmin.from('parts')
-              .select('id, code, supplier')
-              .in('code', codesArray.slice(i, i+200))
+              .select('id, code, barcode, supplier')
+              .or(`code.in.(${chunkStr}),barcode.in.(${chunkStr})`)
           );
         }
         const results = await Promise.all(fetchPromises);
         results.forEach(({ data: pData }) => {
           (pData || []).forEach(p => {
-            partsCacheByCode[String(p.code).trim()] = p;
+            if (p.code) partsCacheByCode[String(p.code).trim()] = p;
+            if (p.barcode) partsCacheByCode[String(p.barcode).trim()] = p;
             partsCacheById[p.id] = p;
           });
         });
@@ -945,8 +948,6 @@ module.exports = function(supabaseAdmin) {
           if (wid === 'EXCLUDE') return;
 
           let mappedPartId = item.part_id;
-          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-          if (mappedPartId && !uuidRegex.test(mappedPartId)) mappedPartId = null;
 
           if (!mappedPartId) {
             const pCode = item.custom_product_code || item.product_code || '';
@@ -1043,7 +1044,7 @@ module.exports = function(supabaseAdmin) {
                quantity_change: -(Number(item.quantity || 1)),
                previous_quantity: prevQty,
                new_quantity: newQty,
-               reference_id: null, // UUID 타입 충돌 방지
+               reference_id: order.order_id,
                reference_type: 'cafe24_order',
                notes: `온라인 주문 즉시 재고 차감 (주문번호: ${order.order_id})`
             });
@@ -1080,8 +1081,6 @@ module.exports = function(supabaseAdmin) {
           if (wid === 'DEFAULT' || !wid) wid = defaultWarehouseId;
           
           let mappedPartId = item.part_id;
-          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-          if (mappedPartId && !uuidRegex.test(mappedPartId)) mappedPartId = null;
 
           if (!mappedPartId) {
             const pCode = item.custom_product_code || item.product_code || '';
@@ -1258,8 +1257,6 @@ module.exports = function(supabaseAdmin) {
           let wid = item._warehouse_id || defaultWhId;
           if (!wid || wid === 'DEFAULT') wid = defaultWhId;
           let mappedPartId = item.part_id;
-          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-          if (mappedPartId && !uuidRegex.test(mappedPartId)) mappedPartId = null;
 
           
           if (!mappedPartId || !wid) continue;
@@ -1313,7 +1310,7 @@ module.exports = function(supabaseAdmin) {
             quantity_change: qtyToReturn,
             previous_quantity: currentQty,
             new_quantity: newQty,
-            reference_id: null, // UUID 타입 충돌 방지
+            reference_id: order.order_id,
             reference_type: 'cafe24_return',
             notes: `온라인 주문 반품으로 인한 창고 재입고 처리 (주문번호: ${order.order_id})`
           });
