@@ -48,9 +48,7 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import SearchIcon from '@mui/icons-material/Search';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import ReceiptIcon from '@mui/icons-material/Receipt';
 import CloseIcon from '@mui/icons-material/Close';
-import ReceiptScanner from '../Receipt/ReceiptScanner';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
 import 'react-pdf/dist/esm/Page/TextLayer.css';
@@ -59,6 +57,7 @@ import {
   ZoomIn as ZoomInIcon,
   Preview as PreviewIcon,
   Print as PrintIcon,
+  Description as DescriptionIcon,
   CloudDone as CloudDoneIcon
 } from '@mui/icons-material';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
@@ -138,7 +137,6 @@ function ServiceDetail() {
   ]);
   const [submitting, setSubmitting] = useState(false);
   const [addingToQueue, setAddingToQueue] = useState(false);
-  const [openReceiptDialog, setOpenReceiptDialog] = useState(false);
 
   const handleAddToPendingOutbounds = async () => {
     const partsToInspect = selectedParts.filter(part => !part.record_id && !(part.usage && part.usage.includes('[반품완료]')));
@@ -204,8 +202,6 @@ function ServiceDetail() {
   const [modifiedPrice, setModifiedPrice] = useState('');
   const [partDialogOpen, setPartDialogOpen] = useState(false);
   const [tag, setTag] = useState('');
-  const [receiptLink, setReceiptLink] = useState('');
-  const [receiptPreviewAnchor, setReceiptPreviewAnchor] = useState(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [numPages, setNumPages] = useState(null);
   const [pageNumber, setPageNumber] = useState(1);
@@ -255,8 +251,7 @@ function ServiceDetail() {
     {
       formData,
       selectedParts,
-      tags,
-      receiptLink
+      tags
     },
     `serviceDetail_${id}`,
     30000, // 30초
@@ -276,13 +271,12 @@ function ServiceDetail() {
         price: part.price,
         usage: part.usage
       })),
-      tags: tags.slice().sort(),
-      receiptLink
+      tags: tags.slice().sort()
     };
 
     const hasChanges = JSON.stringify(currentData) !== JSON.stringify(initialData);
     setHasUnsavedChanges(hasChanges);
-  }, [formData, selectedParts, tags, receiptLink, initialData, isFormSubmitted, isEditing]);
+  }, [formData, selectedParts, tags, initialData, isFormSubmitted, isEditing]);
 
   // 폼 데이터 변경 감지
   useEffect(() => {
@@ -668,7 +662,6 @@ function ServiceDetail() {
             usage: part.usage
           })),
           tags: Array.isArray(serviceData.service_tags) ? serviceData.service_tags.map(t => t.tag_name).sort() : [],
-          receiptLink: serviceData.receipt_link || ''
         });
       } else {
         // 부품이 없는 경우에도 초기 데이터 설정
@@ -685,7 +678,6 @@ function ServiceDetail() {
           },
           selectedParts: [],
           tags: Array.isArray(serviceData.service_tags) ? serviceData.service_tags.map(t => t.tag_name).sort() : [],
-          receiptLink: serviceData.receipt_link || ''
         });
       }
     } catch (err) {
@@ -736,9 +728,6 @@ function ServiceDetail() {
   }, [id, fetchServiceDetail]);
 
   useEffect(() => {
-    if (formData?.receipt_link) {
-      setReceiptLink(formData.receipt_link);
-    }
   }, [formData]);
 
   const getCurrentTimeForCompletion = () => {
@@ -862,7 +851,6 @@ function ServiceDetail() {
         solution: formData.solution,
         status: formData.status,
         note: formData.note,
-        receipt_link: formData.receipt_link,
         seller: formData.seller,
         mileage: formData.mileage,
         writer: formData.writer,
@@ -1383,15 +1371,6 @@ function ServiceDetail() {
     }
   };
 
-  const handleReceiptMouseEnter = (event) => {
-    if (receiptLink) {
-      setReceiptPreviewAnchor(event.currentTarget);
-    }
-  };
-
-  const handleReceiptMouseLeave = () => {
-    setReceiptPreviewAnchor(null);
-  };
 
   const onDocumentLoadSuccess = ({ numPages }) => {
     setNumPages(numPages);
@@ -1470,80 +1449,6 @@ function ServiceDetail() {
     return url;
   };
 
-  const ReceiptPreview = ({ url }) => {
-    const [open, setOpen] = useState(false);
-    const [previewUrl, setPreviewUrl] = useState('');
-
-    useEffect(() => {
-      if (url) {
-        if (url.includes('drive.google.com')) {
-          setPreviewUrl(getGoogleDriveImageUrl(url));
-        } else {
-          setPreviewUrl(url);
-        }
-      }
-    }, [url]);
-
-    if (!url) return null;
-
-    return (
-      <>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-          <Link href={url} target="_blank" rel="noopener noreferrer">
-            {url}
-          </Link>
-          <Tooltip title="미리보기">
-            <IconButton size="small" onClick={() => setOpen(true)}>
-              <PreviewIcon />
-            </IconButton>
-          </Tooltip>
-        </Box>
-        <Dialog
-          open={open}
-          onClose={() => setOpen(false)}
-          maxWidth="md"
-          fullWidth
-        >
-          <DialogTitle>이미지 미리보기</DialogTitle>
-          <DialogContent>
-            <Box sx={{ width: '100%', mt: 2 }}>
-              <img
-                src={previewUrl}
-                alt="영수증"
-                style={{ width: '100%', height: 'auto' }}
-                onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = '/placeholder-image.png';
-                  console.error('이미지 로드 실패');
-                }}
-              />
-            </Box>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setOpen(false)}>닫기</Button>
-            <Button
-              component="a"
-              href={url}
-              target="_blank"
-              rel="noopener noreferrer"
-              variant="contained"
-            >
-              원본 보기
-            </Button>
-          </DialogActions>
-        </Dialog>
-      </>
-    );
-  };
-
-  const handleReceiptLinkChange = (e) => {
-    const newLink = e.target.value;
-    setReceiptLink(newLink);
-    setFormData(prev => ({
-      ...prev,
-      receipt_link: newLink
-    }));
-  };
 
   const fetchProductNames = async () => {
     try {
@@ -2271,8 +2176,7 @@ function ServiceDetail() {
           price: part.price,
           usage: part.usage
         })),
-        tags: tags.slice().sort(),
-        receiptLink
+        tags: tags.slice().sort()
       });
     }
   };
@@ -2399,66 +2303,6 @@ function ServiceDetail() {
           >
             수동으로 부품 추가
           </Button>
-          <Button
-            startIcon={<ReceiptIcon />}
-            variant="outlined"
-            onClick={() => setOpenReceiptDialog(true)}
-            sx={{
-              color: '#3182f6',
-              borderColor: '#3182f6',
-              '&:hover': {
-                bgcolor: 'rgba(49, 130, 246, 0.04)',
-                borderColor: '#1b64da'
-              }
-            }}
-          >
-            영수증으로 부품 추가
-          </Button>
-        </Box>
-        <Box sx={{ flex: 1 }}>
-          <TextField
-            size="small"
-            label="영수증"
-            name="receipt_link"
-            value={receiptLink}
-            onChange={handleReceiptLinkChange}
-            sx={{
-              '& .MuiInputBase-root': {
-                bgcolor: '#ffffff'
-              },
-              width: '100%',
-              maxWidth: '400px',
-              ml: 'auto'
-            }}
-            InputProps={{
-              endAdornment: receiptLink && (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => window.open(receiptLink, '_blank')}
-                    size="small"
-                    title="새 창에서 보기"
-                    disabled={!receiptLink}
-                  >
-                    <OpenInNewIcon />
-                  </IconButton>
-                  <IconButton
-                    onClick={() => {
-                      if (!receiptLink) return;
-                      const previewUrl = receiptLink.includes('drive.google.com')
-                        ? receiptLink.replace('/view?usp=sharing', '/preview')
-                        : receiptLink;
-                      window.open(previewUrl, '_blank', 'width=800,height=600');
-                    }}
-                    size="small"
-                    title="미리보기"
-                    disabled={!receiptLink}
-                  >
-                    <VisibilityIcon />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
-          />
         </Box>
       </Stack>
 
@@ -2695,34 +2539,6 @@ function ServiceDetail() {
         </DialogActions>
       </Dialog>
 
-      <Dialog
-        open={openReceiptDialog}
-        onClose={() => setOpenReceiptDialog(false)}
-        maxWidth="xl"
-        fullWidth
-      >
-        <DialogTitle sx={{
-          pb: 1,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          영수증으로 부품 추가
-          <IconButton onClick={() => setOpenReceiptDialog(false)}>
-            <CloseIcon />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent sx={{ p: 0 }}>
-          <ReceiptScanner
-            onPartsSelected={(selectedParts) => {
-              setSelectedParts(prev => [...prev, ...selectedParts]);
-              setOpenReceiptDialog(false);
-            }}
-            currentServiceId={id}
-            isDialogMode={true}
-          />
-        </DialogContent>
-      </Dialog>
     </Box>
   );
 
@@ -3448,7 +3264,7 @@ function ServiceDetail() {
               </Button>
               <Button
                 onClick={handlePrintEstimate}
-                startIcon={<ReceiptIcon />}
+                startIcon={<DescriptionIcon />}
                 sx={{
                   color: '#3182f6',
                   fontSize: '0.95rem',
@@ -3605,7 +3421,7 @@ function ServiceDetail() {
               ) : (
                 <img
                   src={previewUrl}
-                  alt="영수증 이미지"
+                  alt="첨부파일 이미지"
                   style={{
                     maxWidth: '100%',
                     maxHeight: '100%',

@@ -22,7 +22,6 @@ import ServiceStatistics from './components/Statistics/ServiceStatistics';
 import PartsManagement from './components/Service/PartsManagement';
 import ProductShipment from './components/Product/ProductShipment';
 import ManualSalesList from './pages/sales/ManualSalesList';
-import ReceiptScanner from './components/Receipt/ReceiptScanner';
 import SystemHealthCheck from './components/Test/SystemHealthCheck';
 import TelegramTest from './components/Test/TelegramTest';
 import ServiceStats from './components/Stats/ServiceStats';
@@ -119,7 +118,6 @@ function AppRouter() {
           <Route path="shipment/edit/:id" element={<PermissionRoute requiredPermission={MENU_KEYS.SHIPMENT}><ShipmentForm /></PermissionRoute>} />
           <Route path="shipment/:id" element={<PermissionRoute requiredPermission={MENU_KEYS.SHIPMENT}><ShipmentDetail /></PermissionRoute>} />
 
-          <Route path="receipts" element={<PermissionRoute requiredPermission={MENU_KEYS.ADMIN_TOOLS}><ReceiptScanner /></PermissionRoute>} />
           <Route path="system-health-check" element={<PermissionRoute requiredPermission={MENU_KEYS.ADMIN_TOOLS}><SystemHealthCheck /></PermissionRoute>} />
           <Route path="telegram-test" element={<PermissionRoute requiredPermission={MENU_KEYS.ADMIN_TOOLS}><TelegramTest /></PermissionRoute>} />
           <Route path="service" element={<PermissionRoute requiredPermission={MENU_KEYS.SERVICES}><ServiceList /></PermissionRoute>} />

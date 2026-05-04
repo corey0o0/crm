@@ -920,8 +920,8 @@ function InventoryLayout() {
         const isToWarehouse = warehouses.find(w => w.id === item.toLocation);
         // if (isToWarehouse && !item.boxNo) return true;
 
-        const available = (inventory[item.fromLocation]?.[parseInt(item.productId) || 0]) || 0;
-        return (parseInt(item.quantity) || 0) > available;
+        const available = (inventory[item.fromLocation]?.[parseInt(item.productId, 10) || 0]) || 0;
+        return (parseInt(item.quantity, 10) || 0) > available;
       }
       // 입고: 목적지는 창고여야 함
       const toIsWarehouse = warehouses.find(w => w.id === item.toLocation);
@@ -945,11 +945,11 @@ function InventoryLayout() {
         id: groupId + index,
         groupId,
         type: isOutbound ? 'out' : 'in',
-        productId: parseInt(item.productId),
+        productId: parseInt(item.productId, 10),
         productName: product.name,
         productCode: product.code,
         productSupplier: product.supplier || '-',
-        quantity: parseInt(item.quantity),
+        quantity: parseInt(item.quantity, 10),
         fromLocation: isOutbound ? item.fromLocation : (item.fromLocation || '외부'),
         toLocation: item.toLocation,
         date: formData.date,
@@ -984,34 +984,45 @@ function InventoryLayout() {
 
   const updateInventory = async (transaction) => {
     let nextInventory = null;
+    let inventoryError = null;
     
     // 1. 로컬 상태 계산
     await new Promise(resolve => {
       setInventory(prev => {
         const newInventory = JSON.parse(JSON.stringify(prev || {}));
         
-        if (transaction.type === 'in') {
-          if (warehouses.find(w => w.id === transaction.toLocation)) {
-            if (!newInventory[transaction.toLocation]) newInventory[transaction.toLocation] = {};
-            if (!newInventory[transaction.toLocation][transaction.productId]) newInventory[transaction.toLocation][transaction.productId] = 0;
-            newInventory[transaction.toLocation][transaction.productId] += transaction.quantity;
-          }
-          if (warehouses.find(w => w.id === transaction.fromLocation)) {
-            if (newInventory[transaction.fromLocation] && newInventory[transaction.fromLocation][transaction.productId]) {
-              newInventory[transaction.fromLocation][transaction.productId] -= transaction.quantity;
+        try {
+          if (transaction.type === 'in') {
+            if (warehouses.find(w => w.id === transaction.toLocation)) {
+              if (!newInventory[transaction.toLocation]) newInventory[transaction.toLocation] = {};
+              if (!newInventory[transaction.toLocation][transaction.productId]) newInventory[transaction.toLocation][transaction.productId] = 0;
+              newInventory[transaction.toLocation][transaction.productId] += transaction.quantity;
+            }
+            if (warehouses.find(w => w.id === transaction.fromLocation)) {
+              if (newInventory[transaction.fromLocation] && newInventory[transaction.fromLocation][transaction.productId]) {
+                const current = newInventory[transaction.fromLocation][transaction.productId];
+                if (current < transaction.quantity) throw new Error(`재고 부족: [${transaction.fromLocation}]에서 [${transaction.productName}]의 재고가 부족합니다. (현재: ${current})`);
+                newInventory[transaction.fromLocation][transaction.productId] -= transaction.quantity;
+              }
+            }
+          } else {
+            if (warehouses.find(w => w.id === transaction.fromLocation)) {
+              if (newInventory[transaction.fromLocation] && newInventory[transaction.fromLocation][transaction.productId]) {
+                const current = newInventory[transaction.fromLocation][transaction.productId];
+                if (current < transaction.quantity) throw new Error(`재고 부족: [${transaction.fromLocation}]에서 [${transaction.productName}]의 재고가 부족합니다. (현재: ${current})`);
+                newInventory[transaction.fromLocation][transaction.productId] -= transaction.quantity;
+              }
+            }
+            if (warehouses.find(w => w.id === transaction.toLocation)) {
+              if (!newInventory[transaction.toLocation]) newInventory[transaction.toLocation] = {};
+              if (!newInventory[transaction.toLocation][transaction.productId]) newInventory[transaction.toLocation][transaction.productId] = 0;
+              newInventory[transaction.toLocation][transaction.productId] += transaction.quantity;
             }
           }
-        } else {
-          if (warehouses.find(w => w.id === transaction.fromLocation)) {
-            if (newInventory[transaction.fromLocation] && newInventory[transaction.fromLocation][transaction.productId]) {
-              newInventory[transaction.fromLocation][transaction.productId] -= transaction.quantity;
-            }
-          }
-          if (warehouses.find(w => w.id === transaction.toLocation)) {
-            if (!newInventory[transaction.toLocation]) newInventory[transaction.toLocation] = {};
-            if (!newInventory[transaction.toLocation][transaction.productId]) newInventory[transaction.toLocation][transaction.productId] = 0;
-            newInventory[transaction.toLocation][transaction.productId] += transaction.quantity;
-          }
+        } catch (e) {
+          inventoryError = e;
+          resolve();
+          return prev;
         }
         
         nextInventory = newInventory;
@@ -1019,6 +1030,8 @@ function InventoryLayout() {
         return newInventory;
       });
     });
+
+    if (inventoryError) throw inventoryError;
 
     // 2. 서버 재고 업데이트 및 동기화 (await 적용)
     if (transaction.type === 'in') {
@@ -1159,7 +1172,7 @@ function InventoryLayout() {
           if (!orderNumber || orderNumber.toString().trim() === '') return;
           
           dynamicProductColumns.forEach(product => {
-            const quantity = parseInt(rowData[product.col]) || 0;
+            const quantity = parseInt(rowData[product.col], 10) || 0;
             if (quantity !== 0) {
               const item = {
                 productCode: product.code, // 추후 handleExcelDataSubmit 에서 products와 매칭
@@ -1187,7 +1200,7 @@ function InventoryLayout() {
             const item = {
               productCode: rowData[2] || '', // C열: 상품코드
               productName: rowData[3] || '', // D열: 상품명
-              quantity: parseInt(rowData[4]) || 0, // E열: 수량
+              quantity: parseInt(rowData[4], 10) || 0, // E열: 수량
               fromLocation: rowData[5] || '', // F열: 출발지
               toLocation: rowData[6] || '', // G열: 목적지
               note: rowData[7] || '', // H열: 메모
@@ -1247,7 +1260,7 @@ function InventoryLayout() {
           id: groupId + index,
           groupId: groupId,
           type: transactionType,
-          productId: parseInt(product.id),
+          productId: parseInt(product.id, 10),
           productName: product.name,
           productCode: product.code,
           productSupplier: product.supplier || '-',
@@ -1961,7 +1974,7 @@ function InventoryLayout() {
           case 'date': return g.date || '';
           case 'type': return g.type || '';
           case 'product': return g.items.length === 1 ? (g.items[0].productName || '') : `${g.items.length}개 상품`;
-          case 'quantity': return g.items.length === 1 ? (parseInt(g.items[0].quantity) || 0) : g.items.reduce((s, it) => s + (parseInt(it.quantity) || 0), 0);
+          case 'quantity': return g.items.length === 1 ? (parseInt(g.items[0].quantity, 10) || 0) : g.items.reduce((s, it) => s + (parseInt(it.quantity, 10) || 0), 0);
           case 'from':
             if (g.items.length === 1) return g.items[0].fromLocation || '';
             {
@@ -2404,7 +2417,7 @@ function InventoryLayout() {
                           const srcId = product.fromLocation;
                           const isOutbound = warehouses.find(w => w.id === srcId);
                           if (!isOutbound) return '';
-                          const pid = parseInt(product.productId) || 0;
+                          const pid = parseInt(product.productId, 10) || 0;
                           const available = (inventory[srcId]?.[pid]) || 0;
                           return `가용: ${available.toLocaleString()}개`;
                         })()}
@@ -2553,7 +2566,7 @@ function InventoryLayout() {
               }}>
                 <Typography variant="h6" color="primary" fontWeight="bold">
                 총 수량: {multipleIoProducts.reduce((sum, product) => {
-                    const quantity = parseInt(product.quantity) || 0;
+                    const quantity = parseInt(product.quantity, 10) || 0;
                     return sum + quantity;
                   }, 0).toLocaleString()}개
                 </Typography>
@@ -2694,7 +2707,7 @@ function InventoryLayout() {
                                 type="number"
                                 size="small"
                                 value={product.quantity}
-                                onChange={(e) => updateEditProduct(index, 'quantity', parseInt(e.target.value) || 0)}
+                                onChange={(e) => updateEditProduct(index, 'quantity', parseInt(e.target.value, 10) || 0)}
                                 inputProps={{ min: 1 }}
                               />
                             </Grid>
@@ -2798,7 +2811,7 @@ function InventoryLayout() {
                       
                       <Box sx={{ mt: 2, p: 2, backgroundColor: '#f5f5f5', borderRadius: 1 }}>
                         <Typography variant="body2" color="text.secondary">
-                          총 수량: {editProducts.reduce((sum, product) => sum + (parseInt(product.quantity) || 0), 0)}개
+                          총 수량: {editProducts.reduce((sum, product) => sum + (parseInt(product.quantity, 10) || 0), 0)}개
                         </Typography>
                       </Box>
                     </Box>
@@ -2870,7 +2883,7 @@ function InventoryLayout() {
                     <Box sx={{ mt: 2, p: 2, backgroundColor: '#f5f5f5', borderRadius: 1 }}>
                       <Typography variant="body2" color="text.secondary">
                         총 수량: {selectedTransaction.items.reduce((sum, item) => {
-                          const quantity = parseInt(item.quantity) || 0;
+                          const quantity = parseInt(item.quantity, 10) || 0;
                           return sum + quantity;
                         }, 0).toLocaleString()}개
                       </Typography>
@@ -2953,7 +2966,7 @@ function InventoryLayout() {
                                 type="number"
                                 size="small"
                                 value={product.quantity}
-                                onChange={(e) => updateEditProduct(index, 'quantity', parseInt(e.target.value) || 0)}
+                                onChange={(e) => updateEditProduct(index, 'quantity', parseInt(e.target.value, 10) || 0)}
                                 inputProps={{ min: 1 }}
                               />
                             </Grid>
@@ -3056,7 +3069,7 @@ function InventoryLayout() {
                       
                       <Box sx={{ mt: 2, p: 2, backgroundColor: '#f5f5f5', borderRadius: 1 }}>
                         <Typography variant="body2" color="text.secondary">
-                          총 수량: {editProducts.reduce((sum, product) => sum + (parseInt(product.quantity) || 0), 0)}개
+                          총 수량: {editProducts.reduce((sum, product) => sum + (parseInt(product.quantity, 10) || 0), 0)}개
                         </Typography>
                       </Box>
                     </Box>

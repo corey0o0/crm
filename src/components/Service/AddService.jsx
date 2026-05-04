@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
 import { readExcelFile } from '../../utils/excelUtils';
-import ReceiptScanner from '../Receipt/ReceiptScanner';
 import CustomerHistoryDialog from './CustomerHistoryDialog';
 import CustomerSearchModal from './CustomerSearchModal';
 import PartsSelectionDialog from './PartsSelectionDialog';
@@ -53,10 +52,9 @@ import {
   Delete as DeleteIcon,
   Search as SearchIcon,
   Add as AddIcon,
-  Receipt as ReceiptIcon,
+  Description as DescriptionIcon,
   CloudUpload as CloudUploadIcon,
   Close as CloseIcon,
-  OpenInNew as OpenInNewIcon,
   Visibility as VisibilityIcon,
   CloudDone as CloudDoneIcon
 } from '@mui/icons-material';
@@ -126,7 +124,6 @@ function AddService() {
     message: '',
     severity: 'success'
   });
-  const [openReceiptDialog, setOpenReceiptDialog] = useState(false);
   const [openPartsDialog, setOpenPartsDialog] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [availableParts, setAvailableParts] = useState([]);
@@ -137,8 +134,6 @@ function AddService() {
     '배터리스위치','전체점검', '브레이크-패드', '브레이크-로터', '브레이크-교체', '배터리',
     '충전기', '모터', '워런티', '사고-보험', 'E07','E09','E010','배터리스위치'
   ]);
-  const [receiptLink, setReceiptLink] = useState('');
-  const [receiptPreviewAnchor, setReceiptPreviewAnchor] = useState(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const searchAbortControllerRef = React.useRef(null);
   
@@ -153,8 +148,7 @@ function AddService() {
     {
       formData,
       selectedParts,
-      tags,
-      receiptLink
+      tags
     },
     'addService_draft',
     30000, // 30초
@@ -256,13 +250,12 @@ function AddService() {
         usage: part.usage
       })),
       tags: tags.slice().sort(),
-      receiptLink,
       status
     };
     
     const hasChanges = JSON.stringify(currentData) !== JSON.stringify(initialData);
     setHasUnsavedChanges(hasChanges);
-  }, [formData, selectedParts, tags, receiptLink, status, initialData, isFormSubmitted]);
+  }, [formData, selectedParts, tags, status, initialData, isFormSubmitted]);
 
   // 페이지 로드 시 자동저장 데이터 복구 확인
   useEffect(() => {
@@ -377,7 +370,6 @@ function AddService() {
         },
         selectedParts: [],
         tags: [],
-        receiptLink: '',
         status: '접수'
       });
     }
@@ -602,89 +594,6 @@ function AddService() {
     setSelectedParts(prev => prev.filter(p => p.id !== partId));
   };
 
-  // 영수증 이미지 분석 함수
-  const analyzeReceiptImage = async (imageData) => {
-    try {
-      const base64Image = await convertToBase64(imageData);
-      
-      const response = await fetch(API_CONFIG.OPENAI_API_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${API_CONFIG.OPENAI_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: "gpt-4-vision-preview",
-          messages: [
-            {
-              role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: "이 영수증 이미지에서 다음 정보를 추출해주세요: 상품명, 수량, 금액. JSON 형식으로 응답해주세요."
-                },
-                {
-                  type: "image_url",
-                  image_url: {
-                    url: base64Image
-                  }
-                }
-              ]
-            }
-          ],
-          max_tokens: 4000
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('영수증 분석 API 호출 실패');
-      }
-
-      const result = await response.json();
-      return result;
-    } catch (error) {
-      console.error('영수증 분석 중 오류:', error);
-      throw error;
-    }
-  };
-
-  // 파츠 매칭 함수
-  const matchPartsWithItems = async (items) => {
-    try {
-      const { data: parts, error } = await supabase
-        .from('parts')
-        .select('*')
-        .eq('brand', selectedBrand);
-
-      if (error) throw error;
-
-      return items.map(item => {
-        const matchedPart = parts.find(part => 
-          part.name.toLowerCase().includes(item.name.toLowerCase()) ||
-          item.name.toLowerCase().includes(part.name.toLowerCase())
-        );
-
-        return matchedPart ? {
-          part_id: matchedPart.id,
-          quantity: item.quantity || 1,
-          price: matchedPart.price
-        } : null;
-      }).filter(Boolean);
-    } catch (error) {
-      console.error('파츠 매칭 중 오류:', error);
-      return [];
-    }
-  };
-
-  // Base64 변환 함수
-  const convertToBase64 = async (file) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = error => reject(error);
-      reader.readAsDataURL(file);
-    });
-  };
 
   // 엑셀 템플릿 다운로드 함수
   const handleDownloadTemplate = () => {
@@ -745,23 +654,6 @@ function AddService() {
     }
   };
 
-  // 영수증 이미지 URL에서 이미지 데이터 가져오기
-  const fetchImageFromUrl = async (url) => {
-    try {
-      // Cloudflare R2 공유 링크를 직접 다운로드 링크로 변환
-      const fileId = url.match(/\/d\/(.*?)\/view/)?.[1];
-      if (!fileId) throw new Error('Invalid Cloudflare R2 URL');
-      
-      const directUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
-      const response = await fetch(directUrl);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const blob = await response.blob();
-      return blob;
-    } catch (error) {
-      console.error('Error fetching image:', error);
-      return null;
-    }
-  };
 
   // 날짜 변환 함수 수정
   const parseDate = (dateStr) => {
@@ -823,7 +715,6 @@ function AddService() {
           solution: row['처리내역'] || '',
           status: row['상태'] || '접수',
           note: row['메모'] || '',
-          receipt_link: row['JPG'] || '',
           seller: row['구매처'] || '',
           created_at: new Date().toISOString()
         };
@@ -924,7 +815,6 @@ function AddService() {
         status: formData.status,
         delivery_method: formData.delivery_method,
         seller: formData.seller,
-        receipt_link: receiptLink,
         writer: formData.writer || '관리자',
         warehouse_id: formData.warehouse_id || null,
         updated_at: new Date().toISOString()
@@ -1329,13 +1219,6 @@ function AddService() {
     }
   };
 
-  const handleOpenReceiptScanner = () => {
-    setOpenReceiptDialog(true);
-  };
-
-  const handleCloseReceiptScanner = () => {
-    setOpenReceiptDialog(false);
-  };
 
   const handlePartsSelected = async (selectedParts) => {
     // 선택된 파츠를 현재 선택된 파츠 목록에 추가
@@ -1360,7 +1243,6 @@ function AddService() {
       return updatedParts;
     });
     
-    handleCloseReceiptScanner();
   };
 
   // 스타일 상수 추가
@@ -1390,15 +1272,6 @@ function AddService() {
   };
 
   // 영수증 미리보기 핸들러
-  const handleReceiptMouseEnter = (event) => {
-    if (receiptLink) {
-      setReceiptPreviewAnchor(event.currentTarget);
-    }
-  };
-
-  const handleReceiptMouseLeave = () => {
-    setReceiptPreviewAnchor(null);
-  };
 
   // PDF 로드 성공 핸들러
   const onDocumentLoadSuccess = ({ numPages }) => {
@@ -2202,7 +2075,7 @@ function AddService() {
       </Button>
       <Button 
         onClick={handlePrintEstimate}
-        startIcon={<ReceiptIcon />}
+        startIcon={<DescriptionIcon />}
         sx={{
           color: '#3182f6',
           fontSize: '0.95rem',
@@ -2256,22 +2129,20 @@ function AddService() {
       formData,
       selectedParts,
       tags,
-      receiptLink,
       status
     };
     localStorage.setItem(TEMP_KEY, JSON.stringify(temp));
     setHasTempData(true);
-  }, [formData, selectedParts, tags, receiptLink, status]);
+  }, [formData, selectedParts, tags, status]);
 
   // 임시 데이터 불러오기
   const loadTempData = () => {
     const temp = localStorage.getItem(TEMP_KEY);
     if (temp) {
-      const { formData, selectedParts, tags, receiptLink, status } = JSON.parse(temp);
+      const { formData, selectedParts, tags, status } = JSON.parse(temp);
       setFormData(formData);
       setSelectedParts(selectedParts);
       setTags(tags);
-      setReceiptLink(receiptLink);
       setStatus(status);
     }
   };
@@ -2292,7 +2163,7 @@ function AddService() {
     if (hasUnsavedChanges && !isFormSubmitted) {
       saveTempData();
     }
-  }, [formData, selectedParts, tags, receiptLink, status, hasUnsavedChanges, isFormSubmitted, saveTempData]);
+  }, [formData, selectedParts, tags, status, hasUnsavedChanges, isFormSubmitted, saveTempData]);
 
   // 정상 등록 시 임시 데이터 삭제
   useEffect(() => {
@@ -3096,59 +2967,6 @@ function AddService() {
                   >
                     수동으로 부품 추가
                   </Button>
-                  <Button
-                    startIcon={<ReceiptIcon />}
-                    variant="outlined"
-                    onClick={handleOpenReceiptScanner}
-                    sx={{ 
-                      color: '#3182f6',
-                      borderColor: '#3182f6',
-                      '&:hover': { 
-                        bgcolor: 'rgba(49, 130, 246, 0.04)',
-                        borderColor: '#1b64da'
-                      }
-                    }}
-                  >
-                    영수증으로 부품 추가
-                  </Button>
-                </Box>
-                <Box sx={{ flex: 1 }}>
-                  <TextField
-                    label="영수증 링크"
-                    value={receiptLink}
-                    onChange={(e) => setReceiptLink(e.target.value)}
-                    onMouseEnter={handleReceiptMouseEnter}
-                    onMouseLeave={handleReceiptMouseLeave}
-                    sx={{ 
-                      width: '100%',
-                      maxWidth: '400px',
-                      ml: 'auto',
-                      '& .MuiOutlinedInput-root': {
-                        bgcolor: '#ffffff'
-                      }
-                    }}
-                    size="small"
-                    InputProps={{
-                      endAdornment: receiptLink && (
-                        <InputAdornment position="end">
-                          <IconButton
-                            onClick={() => window.open(receiptLink, '_blank')}
-                            size="small"
-                            title="새 창에서 보기"
-                          >
-                            <OpenInNewIcon />
-                          </IconButton>
-                          <IconButton
-                            onClick={() => handlePreview(receiptLink)}
-                            size="small"
-                            title="미리보기"
-                          >
-                            <VisibilityIcon />
-                          </IconButton>
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
                 </Box>
               </Stack>
 
@@ -3302,7 +3120,7 @@ function AddService() {
               </Button>
               <Button 
                 onClick={handlePrintEstimate}
-                startIcon={<ReceiptIcon />}
+                startIcon={<DescriptionIcon />}
                 sx={{
                   color: '#3182f6',
                   fontSize: '0.95rem',
@@ -3399,21 +3217,7 @@ function AddService() {
         </Alert>
       </Snackbar>
 
-      {/* 영수증 스캐너 다이얼로그 */}
-      <Dialog
-        open={openReceiptDialog}
-        onClose={handleCloseReceiptScanner}
-        maxWidth="lg"
-        fullWidth
-      >
-        <DialogTitle>영수증 스캔</DialogTitle>
-        <DialogContent>
-          <ReceiptScanner
-            onPartsSelected={handlePartsSelected}
-            isDialogMode={true}
-          />
-        </DialogContent>
-      </Dialog>
+
 
       {/* 파일 미리보기 다이얼로그 */}
       <Dialog
@@ -3623,7 +3427,6 @@ function AddService() {
                 setFormData(savedData.formData || formData);
                 setSelectedParts(savedData.selectedParts || []);
                 setTags(savedData.tags || []);
-                setReceiptLink(savedData.receiptLink || '');
                 console.log('[AddService] 자동저장 데이터 복구됨');
                 setSnackbar({
                   open: true,

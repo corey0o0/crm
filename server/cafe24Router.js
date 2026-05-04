@@ -304,7 +304,7 @@ module.exports = function(supabaseAdmin) {
     try {
       const { mall_id } = req.params;
       const { board_no } = req.body;
-      const boardNos = typeof board_no === 'string' ? board_no.split(',').map(n => n.trim()) : [board_no];
+      const boardNos = typeof board_no === 'string' ? board_no.split(',').map(n => n.trim()).filter(Boolean) : [board_no].filter(Boolean);
       
       const token = await getValidToken(mall_id);
       let totalInserted = 0, totalSkipped = 0;
@@ -864,7 +864,7 @@ module.exports = function(supabaseAdmin) {
   router.post('/transfer/orders', async (req, res) => {
     try {
       const { orderIds, warehouseConfig } = req.body;
-      if (!orderIds || !orderIds.length) {
+      if (!orderIds || !Array.isArray(orderIds) || !orderIds.length) {
         return res.status(400).json({ error: '주문 ID가 제공되지 않았습니다.' });
       }
 
@@ -1089,7 +1089,7 @@ module.exports = function(supabaseAdmin) {
   router.post('/transfer/cancel', async (req, res) => {
     try {
       const { orderIds } = req.body;
-      if (!orderIds || orderIds.length === 0) {
+      if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
         return res.status(400).json({ error: '취소할 주문 ID 목록이 없습니다.' });
       }
 
@@ -1197,7 +1197,7 @@ module.exports = function(supabaseAdmin) {
   router.post('/transfer/return-inventory', async (req, res) => {
     try {
       const { orderIds } = req.body;
-      if (!orderIds || !orderIds.length) {
+      if (!orderIds || !Array.isArray(orderIds) || !orderIds.length) {
         return res.status(400).json({ error: '주문 ID가 제공되지 않았습니다.' });
       }
 

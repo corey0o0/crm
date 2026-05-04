@@ -153,9 +153,7 @@ function ServiceList() {
     message: '',
     severity: 'success'
   });
-  const [uploadedFiles, setUploadedFiles] = useState([]);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [activeStep, setActiveStep] = useState(0);
+
           const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [orderBy, setOrderBy] = useState('reception_date');
@@ -276,12 +274,7 @@ function ServiceList() {
     }
   };
 
-  const steps = [
-    '파일 선택',
-    '업로드 중',
-    'OCR 처리 중',
-    '처리 완료'
-  ];
+
 
   // 무한 로딩 방지를 위한 감시 타이머
   const loadingWatchdogRef = useRef(null);
@@ -3900,54 +3893,7 @@ function ServiceList() {
                 <MenuItem value="완료">완료</MenuItem>
               </TextField>
             </Grid>
-            <Grid item xs={12}>
-              <Typography variant="subtitle1" gutterBottom>
-                영수증/이미지 업로드
-              </Typography>
-              
-              {/* 업로드 진행 상태 */}
-              <Stepper activeStep={activeStep} sx={{ mb: 2 }}>
-                {steps.map((label) => (
-                  <Step key={label}>
-                    <StepLabel>{label}</StepLabel>
-                  </Step>
-                ))}
-              </Stepper>
 
-              {uploadProgress > 0 && (
-                <Box sx={{ mb: 2 }}>
-                  <LinearProgress 
-                    variant="determinate" 
-                    value={uploadProgress} 
-                    sx={{ mb: 1 }}
-                  />
-                  <Typography variant="body2" color="text.secondary">
-                    업로드 중... {uploadProgress}%
-                  </Typography>
-                </Box>
-              )}
-
-              ;
-                            }}
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                  <TableFooter>
-                    <TableRow>
-                      <TableCell>총합</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                        {calculatePartsTotal(selectedService?.parts).toLocaleString()}원
-                      </TableCell>
-                      <TableCell />
-                    </TableRow>
-                  </TableFooter>
-                </Table>
-              </TableContainer>
-            </Grid>
             
           </Grid>
         </DialogContent>

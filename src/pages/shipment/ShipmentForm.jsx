@@ -151,15 +151,22 @@ function ShipmentForm({ isManualB2B = false }) {
   // 창고 및 대리점 목록 불러오기
   const fetchWarehouses = async () => {
     try {
-      const [{ data: whData }, { data: agData }] = await Promise.all([
+      const [whRes, agRes] = await Promise.all([
         supabase.from('warehouses').select('*').order('name'),
         supabase.from('agencies').select('*').order('name')
       ]);
-      setWarehouses(whData || []);
-      setAgencies(agData || []);
+
+      if (whRes.error) console.error('창고 로딩 에러:', whRes.error);
+      if (agRes.error) console.error('대리점 로딩 에러:', agRes.error);
+
+      const whData = whRes.data || [];
+      const agData = agRes.data || [];
+
+      setWarehouses(whData);
+      setAgencies(agData);
       
       // 새 출고 등록 시 기본 창고(청담) 설정
-      if (!isEditMode && whData) {
+      if (!isEditMode && whData.length > 0) {
          const cheongdam = whData.find(w => w.name.includes('청담'));
          if (cheongdam) {
            setShipmentData(prev => ({ ...prev, warehouse_id: cheongdam.id }));
@@ -737,12 +744,12 @@ function ShipmentForm({ isManualB2B = false }) {
         severity: 'success'
       });
 
-      // 텔레그램 알림 전송 (비동기 처리로 화면 멈춤 방지)
+      // 텔레그램 알림 전송
       if (shipmentId) {
         try {
           const eventType = isEditMode ? 'shipment_edit' : 'shipment_add';
           const title = isEditMode ? '출고 정보 수정' : '출고 등록';
-          sendTelegramNotification({
+          await sendTelegramNotification({
             message: `${title}(SHP-${String(shipmentId).slice(0, 8).toUpperCase()}) - 고객: ${shipmentData.customer_name}, 연락처: ${shipmentData.customer_phone}, 제품: ${combinedProductName}`,
             link: `/shipment/${shipmentId}`
           }, { eventType });
