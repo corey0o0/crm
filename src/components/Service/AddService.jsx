@@ -2965,7 +2965,7 @@ function AddService() {
                       '&:hover': { bgcolor: '#1b64da' }
                     }}
                   >
-                    수동으로 부품 추가
+                    부품 추가
                   </Button>
                 </Box>
               </Stack>

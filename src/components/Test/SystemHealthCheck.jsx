@@ -128,7 +128,6 @@ const SystemHealthCheck = () => {
     ];
 
     const optionalVars = [
-      'REACT_APP_CLOUDMARSSIVE_API_KEY',
       'REACT_APP_GOOGLE_DRIVE_ROOT_FOLDER_ID',
       'REACT_APP_TELEGRAM_CHAT_ID'
     ];
