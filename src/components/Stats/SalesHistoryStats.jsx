@@ -33,6 +33,8 @@ export const getBrandFallback = (brand, name, code = '', mallId = '') => {
   return '기타';
 };
 
+const B2C_CHANNELS = ['공홈', '청담매장', '라이클', '라이클-우리', '스마트할부', '스마트스토어', '기타', '온라인주문', '고객', '-', '본사/기본', '과거 이카운트 이관', '일반출고(공홈)', '매장출고', '본점', '매장'];
+
 function SalesHistoryStats() {
   const [loading, setLoading] = useState(true);
   const [flatRows, setFlatRows] = useState([]);
@@ -722,7 +724,7 @@ function SalesHistoryStats() {
 
   const currentFiltered = flatRows.filter(r => {
     if (filterType !== 'all') {
-      const isAgency = (r.sales_channel && !['고객', '-', '일반출고(공홈)', '온라인주문', '매장출고', '청담매장', '기타', '본점'].includes(r.sales_channel) && (agenciesList.includes(r.sales_channel) || r.sales_channel?.includes('대리점'))) || (r.original_channel && (agenciesList.includes(r.original_channel) || r.original_channel.includes('대리점')));
+      const isAgency = r.sales_channel && !B2C_CHANNELS.includes(r.sales_channel);
       
       if (filterType === 'agency') {
         if (!isAgency) return false;
@@ -792,7 +794,7 @@ function SalesHistoryStats() {
       if (r._id) uniqueGroups.service.add(r._id);
       groupAmounts.service += price;
     } else {
-      const isAgency = (r.sales_channel && !['고객', '-', '일반출고(공홈)', '온라인주문', '매장출고', '청담매장', '기타', '본점'].includes(r.sales_channel) && (agenciesList.includes(r.sales_channel) || r.sales_channel?.includes('대리점'))) || (r.original_channel && (agenciesList.includes(r.original_channel) || r.original_channel.includes('대리점')));
+      const isAgency = r.sales_channel && !B2C_CHANNELS.includes(r.sales_channel);
       if (isAgency) {
         if (r._id) uniqueGroups.agency.add(r._id);
         groupAmounts.agency += price;
@@ -823,7 +825,7 @@ function SalesHistoryStats() {
     dailyMap[dStr].amount += Number(r.total_price || 0);
 
     // 대리점 매출 집계 (모든 브랜드 종합)
-    const isAgency = (r.sales_channel && !['고객', '-', '일반출고(공홈)', '온라인주문', '매장출고', '청담매장', '기타', '본점'].includes(r.sales_channel) && (agenciesList.includes(r.sales_channel) || r.sales_channel?.includes('대리점'))) || (r.original_channel && (agenciesList.includes(r.original_channel) || r.original_channel.includes('대리점')));
+    const isAgency = r.sales_channel && !B2C_CHANNELS.includes(r.sales_channel);
     if (isAgency) {
       let agencyName = r.customer_name || r.sales_channel || '기타 대리점';
       if (!agencyName || agencyName === '대리점출고') {
@@ -887,7 +889,7 @@ function SalesHistoryStats() {
       if (r._type === 'service') {
         customerType = 'A/S 매출';
       } else {
-        const isAgency = agenciesList.some(a => r.customer_name?.includes(a) || r.sales_channel?.includes(a) || r.original_channel?.includes(a)) || ch.includes('대리점') || (r.original_channel && r.original_channel.includes('대리점'));
+        const isAgency = r.sales_channel && !B2C_CHANNELS.includes(r.sales_channel);
         if (isAgency) {
           customerType = '대리점 매출';
         } else {
