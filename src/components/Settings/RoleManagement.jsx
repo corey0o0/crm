@@ -64,7 +64,7 @@ const AVAILABLE_PERMISSIONS = [
   // { key: 'board_cafe24', label: '카페24 게시판' },
   { key: 'role_settings', label: '권한 설정' },
   { key: 'backup_management', label: '데이터 백업/복원' },
-  { key: 'google_drive_test', label: 'Cloudflare R2 테스트' },
+  { key: 'cloudflare_r2_test', label: 'Cloudflare R2 테스트' },
   { key: 'brand_settings', label: '브랜드 설정' }
 ];
 

@@ -55,10 +55,6 @@
         REACT_APP_OPENAI_API_KEY: getBuildTimeValue('%REACT_APP_OPENAI_API_KEY%', 'REACT_APP_OPENAI_API_KEY'),
         REACT_APP_SUPABASE_URL: getBuildTimeValue('%REACT_APP_SUPABASE_URL%', 'REACT_APP_SUPABASE_URL'),
         REACT_APP_SUPABASE_ANON_KEY: getBuildTimeValue('%REACT_APP_SUPABASE_ANON_KEY%', 'REACT_APP_SUPABASE_ANON_KEY'),
-        REACT_APP_CLOUDMARSSIVE_API_KEY: getBuildTimeValue('%REACT_APP_CLOUDMARSSIVE_API_KEY%', 'REACT_APP_CLOUDMARSSIVE_API_KEY'),
-        REACT_APP_GOOGLE_CLIENT_ID: getBuildTimeValue('%REACT_APP_GOOGLE_CLIENT_ID%', 'REACT_APP_GOOGLE_CLIENT_ID'),
-        REACT_APP_GOOGLE_DRIVE_ROOT_FOLDER_ID: getBuildTimeValue('%REACT_APP_GOOGLE_DRIVE_ROOT_FOLDER_ID%', 'REACT_APP_GOOGLE_DRIVE_ROOT_FOLDER_ID'),
-        REACT_APP_GOOGLE_DRIVE_SUBFOLDER: getBuildTimeValue('%REACT_APP_GOOGLE_DRIVE_SUBFOLDER%', 'REACT_APP_GOOGLE_DRIVE_SUBFOLDER'),
         REACT_APP_TELEGRAM_BOT_TOKEN: getBuildTimeValue('%REACT_APP_TELEGRAM_BOT_TOKEN%', 'REACT_APP_TELEGRAM_BOT_TOKEN'),
         REACT_APP_TELEGRAM_CHAT_ID: getBuildTimeValue('%REACT_APP_TELEGRAM_CHAT_ID%', 'REACT_APP_TELEGRAM_CHAT_ID'),
         REACT_APP_BASE_URL: getBuildTimeValue('%REACT_APP_BASE_URL%', 'REACT_APP_BASE_URL')
@@ -66,31 +62,10 @@
       
       // 디버깅: 환경 변수 로드 확인
       console.log('[Env Load] 환경 변수 로드 완료:', {
-        googleClientId: window._env_.REACT_APP_GOOGLE_CLIENT_ID,
         allKeys: Object.keys(window._env_),
         envJsLoaded: !!window._env_,
         fullEnv: window._env_
       });
-      
-      // 클라이언트 ID 검증 및 강제 수정
-      const expectedClientId = '858601328382-kpeaafkvvqaepgii0e79riruh8c642ei.apps.googleusercontent.com';
-      const oldClientId = '291524102200-u2ogome9r6r99klqh6foslt26nj5ndmg.apps.googleusercontent.com';
-      
-      if (window._env_.REACT_APP_GOOGLE_CLIENT_ID === oldClientId) {
-        console.error('⚠️ 이전 클라이언트 ID가 감지되었습니다. 강제로 수정합니다.');
-        window._env_.REACT_APP_GOOGLE_CLIENT_ID = expectedClientId;
-        console.log('✅ 클라이언트 ID가 강제로 업데이트되었습니다.');
-      } else if (window._env_.REACT_APP_GOOGLE_CLIENT_ID === expectedClientId) {
-        console.log('✅ 올바른 클라이언트 ID가 로드되었습니다.');
-      } else if (!window._env_.REACT_APP_GOOGLE_CLIENT_ID) {
-        console.warn('⚠️ 클라이언트 ID가 없습니다. 기본값으로 설정합니다.');
-        window._env_.REACT_APP_GOOGLE_CLIENT_ID = expectedClientId;
-      } else {
-        console.warn('⚠️ 예상하지 못한 클라이언트 ID:', window._env_.REACT_APP_GOOGLE_CLIENT_ID);
-        // 예상하지 못한 값이어도 올바른 값으로 강제 설정
-        window._env_.REACT_APP_GOOGLE_CLIENT_ID = expectedClientId;
-        console.log('✅ 클라이언트 ID가 올바른 값으로 강제 설정되었습니다.');
-      }
     </script>
   </head>
   <body>

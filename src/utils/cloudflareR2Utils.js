@@ -24,10 +24,9 @@ const initR2Client = () => {
 const r2Client = initR2Client();
 
 /**
- * 구글 드라이브 findOrCreateFolder의 Drop-in 대체제
- * R2는 폴더(디렉토리) 개념 대신 Prefix(접두사) 경로를 사용하므로 Prefix 경로만 조립해서 반환합니다.
+ * R2에서 폴더(디렉토리) 개념 대신 Prefix(접두사) 경로를 사용하므로 Prefix 경로만 조립해서 반환합니다.
  */
-export const findOrCreateFolder = async (folderName, parentFolderId = null, accessToken = null) => {
+export const findOrCreateFolder = async (folderName, parentFolderId = null) => {
   let prefix = "";
   if (parentFolderId && parentFolderId !== "root") {
     // 이미 부모가 경로 형태인 경우 처리
@@ -43,9 +42,9 @@ const getR2PublicUrl = () => {
 };
 
 /**
- * 구글 드라이브 uploadFileToGoogleDrive의 Drop-in 대체제
+ * Cloudflare R2에 파일 업로드
  */
-export const uploadFileToGoogleDrive = async (file, folderPrefix = null, accessToken = null) => {
+export const uploadFileToR2 = async (file, folderPrefix = null) => {
   if (!r2Client) throw new Error("R2 클라이언트가 초기화되지 않았습니다.");
   
   // 한글 깨짐 및 공백 처리
@@ -74,7 +73,7 @@ export const uploadFileToGoogleDrive = async (file, folderPrefix = null, accessT
     const publicUrl = `${r2PublicUrl}/${key}`;
     console.log("R2 업로드 완료:", publicUrl);
     
-    // 기존 구글 드라이브 응답 구조를 유지하여 컴포넌트 수정을 최소화합니다.
+    // 기존 응답 구조를 유지하여 컴포넌트 수정을 최소화합니다.
     return {
       fileId: key,
       id: key,
@@ -93,9 +92,9 @@ export const uploadFileToGoogleDrive = async (file, folderPrefix = null, accessT
 };
 
 /**
- * 구글 드라이브 deleteGoogleDriveFile의 Drop-in 대체제
+ * Cloudflare R2에서 파일 삭제
  */
-export const deleteGoogleDriveFile = async (fileKey, accessToken = null) => {
+export const deleteFileFromR2 = async (fileKey) => {
   if (!r2Client) return true;
   try {
     const params = { Bucket: "crm-img", Key: fileKey };
@@ -109,40 +108,22 @@ export const deleteGoogleDriveFile = async (fileKey, accessToken = null) => {
 };
 
 /**
- * getGoogleDriveFileInfo 대체제 (R2에서는 URL만 만들어서 반환)
+ * R2 파일 정보 조회 (URL 생성)
  */
-export const getGoogleDriveFileInfo = async (fileKey, accessToken = null) => {
+export const getR2FileInfo = async (fileKey) => {
    const r2PublicUrl = getR2PublicUrl();
    const publicUrl = `${r2PublicUrl}/${fileKey}`;
    return { id: fileKey, webViewLink: publicUrl };
 };
 
-export const getGoogleDriveDownloadUrl = (fileKey) => {
+export const getR2DownloadUrl = (fileKey) => {
     const r2PublicUrl = getR2PublicUrl();
     return `${r2PublicUrl}/${fileKey}`;
 };
 
-export const getGoogleDrivePreviewUrl = (fileKey) => {
+export const getR2PreviewUrl = (fileKey) => {
     const r2PublicUrl = getR2PublicUrl();
     return `${r2PublicUrl}/${fileKey}`;
-};
-
-/**
- * 구글 드라이브 shareGoogleDriveFile 대체제 (R2는 public url이므로 기본 true 반환)
- */
-export const shareGoogleDriveFile = async (fileKey, accessToken, role, type) => {
-    return true; // R2 버킷은 이미 Public으로 설정되어 있으므로 별도 권한 설정 불필요
-};
-
-/**
- * googleDriveConfig.js의 uploadToGoogleDrive 대체제 (영수증 업로드용)
- */
-export const uploadToGoogleDrive = async (file, fileName) => {
-    let uploadFile = file;
-    if (fileName && file.name !== fileName) {
-        uploadFile = new File([file], fileName, { type: file.type });
-    }
-    return await uploadFileToGoogleDrive(uploadFile, "receipts");
 };
 
 export const getFixedR2Url = (url) => {
@@ -153,8 +134,6 @@ export const getFixedR2Url = (url) => {
         fixedUrl = fixedUrl.replace('undefined/', `${r2Url}/`);
     }
     // 이전에 환경변수 미적용으로 인해 DB에 하드코딩된 폴더명이 들어갔을 경우, Cloudflare에서 %RE 에러(400)가 발생하므로 강제 인코딩
-    if (fixedUrl.includes('%REACT_APP_GOOGLE_DRIVE_SUBFOLDER%')) {
-        fixedUrl = fixedUrl.replace(/%REACT_APP_GOOGLE_DRIVE_SUBFOLDER%/g, '%25REACT_APP_GOOGLE_DRIVE_SUBFOLDER%25');
-    }
+
     return fixedUrl;
 };

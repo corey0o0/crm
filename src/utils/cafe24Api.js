@@ -4,7 +4,7 @@
 
 import { supabase } from '../lib/supabaseClient';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001';
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 
 async function fetchWithAuth(url, options = {}) {
   const { data: { session } } = await supabase.auth.getSession();

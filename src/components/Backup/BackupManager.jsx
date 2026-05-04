@@ -89,7 +89,7 @@ const BackupManager = () => {
     enabled: false,
     frequency: 'daily',
     backup_time: '02:00:00',
-    google_drive_folder_id: '',
+    cloudflare_r2_folder_id: '',
     retention_count: 10
   });
   const [autoBackupDialogOpen, setAutoBackupDialogOpen] = useState(false);
@@ -111,7 +111,7 @@ const BackupManager = () => {
             enabled: settings.enabled || false,
             frequency: settings.frequency || 'daily',
             backup_time: settings.backup_time || '02:00:00',
-            google_drive_folder_id: settings.google_drive_folder_id || '',
+            cloudflare_r2_folder_id: settings.cloudflare_r2_folder_id || '',
             retention_count: settings.retention_count || 10
           });
         }
@@ -184,7 +184,7 @@ const BackupManager = () => {
       }
 
       setIsBackingUp(true);
-      const uploadResult = await uploadBackupToCloudflareR2(backupData, autoBackupSettings.google_drive_folder_id);
+      const uploadResult = await uploadBackupToCloudflareR2(backupData, autoBackupSettings.cloudflare_r2_folder_id);
       
       // 백업 이력 저장
       const { data: { user } } = await supabase.auth.getUser();
@@ -192,8 +192,8 @@ const BackupManager = () => {
         await saveBackupHistory(user.id, {
           backup_type: 'manual',
           file_name: uploadResult.fileName,
-          google_drive_file_id: uploadResult.fileId,
-          google_drive_file_link: uploadResult.webViewLink,
+          cloudflare_r2_file_id: uploadResult.fileId,
+          cloudflare_r2_file_link: uploadResult.webViewLink,
           file_size: uploadResult.fileSize,
           total_tables: backupData.metadata.totalTables,
           total_records: backupData.metadata.totalRecords,
@@ -814,10 +814,10 @@ const BackupManager = () => {
               <TextField
                 fullWidth
                 label="클라우드 플레어 R2 폴더 ID (선택사항)"
-                value={autoBackupSettings.google_drive_folder_id}
+                value={autoBackupSettings.cloudflare_r2_folder_id}
                 onChange={(e) => setAutoBackupSettings(prev => ({
                   ...prev,
-                  google_drive_folder_id: e.target.value
+                  cloudflare_r2_folder_id: e.target.value
                 }))}
                 sx={{ mt: 2 }}
                 helperText="특정 폴더에 저장하려면 폴더 ID를 입력하세요. 비워두면 기본 백업 폴더에 저장됩니다."
@@ -917,10 +917,10 @@ const BackupManager = () => {
                         />
                       </TableCell>
                       <TableCell>
-                        {history.google_drive_file_link ? (
+                        {history.cloudflare_r2_file_link ? (
                           <Button
                             size="small"
-                            href={history.google_drive_file_link}
+                            href={history.cloudflare_r2_file_link}
                             target="_blank"
                             rel="noopener noreferrer"
                           >

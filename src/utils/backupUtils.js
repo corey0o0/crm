@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
-import { uploadFileToGoogleDrive as uploadFileToR2, findOrCreateFolder } from './cloudflareR2Utils';
+import { uploadFileToR2, findOrCreateFolder } from './cloudflareR2Utils';
 
 /**
  * 복원 순서: 외래 키 의존성을 고려한 순서
@@ -526,7 +526,7 @@ export const uploadBackupToCloudflareR2 = async (backupData, folderId = null) =>
     // 폴더 Prefix가 없으면 기본 백업 폴더 경로 생성
     let targetFolderId = folderId;
     if (!targetFolderId) {
-      const rootFolderId = process.env.REACT_APP_GOOGLE_DRIVE_ROOT_FOLDER_ID || 'backups';
+      const rootFolderId = 'backups';
       const backupFolderName = 'CRM_Backups';
       
       const folder = await findOrCreateFolder(backupFolderName, rootFolderId);
@@ -583,7 +583,7 @@ export const getBackupSettings = async (userId) => {
  */
 export const saveBackupSettings = async (userId, settings) => {
   try {
-    const { enabled, frequency, backup_time, google_drive_folder_id, retention_count } = settings;
+    const { enabled, frequency, backup_time, cloudflare_r2_folder_id, retention_count } = settings;
     
     // 다음 백업 시간 계산
     const nextBackupAt = enabled ? calculateNextBackupTime(frequency, backup_time) : null;
@@ -593,7 +593,7 @@ export const saveBackupSettings = async (userId, settings) => {
       enabled: enabled || false,
       frequency: frequency || 'daily',
       backup_time: backup_time || '02:00:00',
-      google_drive_folder_id: google_drive_folder_id || null,
+      cloudflare_r2_folder_id: cloudflare_r2_folder_id || null,
       retention_count: retention_count || 10,
       next_backup_at: nextBackupAt
     };
@@ -679,8 +679,8 @@ export const saveBackupHistory = async (userId, backupInfo) => {
     const {
       backup_type = 'manual',
       file_name,
-      google_drive_file_id,
-      google_drive_file_link,
+      cloudflare_r2_file_id,
+      cloudflare_r2_file_link,
       file_size,
       total_tables,
       total_records,
@@ -694,8 +694,8 @@ export const saveBackupHistory = async (userId, backupInfo) => {
         user_id: userId,
         backup_type,
         file_name,
-        google_drive_file_id,
-        google_drive_file_link,
+        cloudflare_r2_file_id,
+        cloudflare_r2_file_link,
         file_size,
         total_tables,
         total_records,
@@ -759,15 +759,15 @@ export const runAutomaticBackup = async (userId) => {
     // R2에 업로드
     const uploadResult = await uploadBackupToCloudflareR2(
       backupData,
-      settings.google_drive_folder_id
+      settings.cloudflare_r2_folder_id
     );
 
     // 백업 이력 저장
     const history = await saveBackupHistory(userId, {
       backup_type: 'automatic',
       file_name: uploadResult.fileName,
-      google_drive_file_id: uploadResult.fileId,
-      google_drive_file_link: uploadResult.webViewLink,
+      cloudflare_r2_file_id: uploadResult.fileId,
+      cloudflare_r2_file_link: uploadResult.webViewLink,
       file_size: uploadResult.fileSize,
       total_tables: backupData.metadata.totalTables,
       total_records: backupData.metadata.totalRecords,
@@ -827,7 +827,7 @@ const cleanupOldBackups = async (userId, retentionCount) => {
     // 최신 백업 이력 조회
     const { data: history, error } = await supabase
       .from('backup_history')
-      .select('id, google_drive_file_id')
+      .select('id, cloudflare_r2_file_id')
       .eq('user_id', userId)
       .eq('status', 'success')
       .order('created_at', { ascending: false });

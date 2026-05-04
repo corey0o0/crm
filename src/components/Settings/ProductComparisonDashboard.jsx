@@ -7,7 +7,7 @@ import { supabase } from '../../lib/supabaseClient';
 
 const BACKEND_URL = process.env.NODE_ENV === 'production' 
   ? 'https://crm-production-067b.up.railway.app' 
-  : 'http://localhost:5001';
+  : '';
 
 export default function ProductComparisonDashboard() {
   const [loading, setLoading] = useState(false);

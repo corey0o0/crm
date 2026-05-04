@@ -26,7 +26,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { MASTER_ACCOUNTS } from '../../config/menuConfig';
 
 const api = axios.create({
-  baseURL: process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001'
+  baseURL: process.env.REACT_APP_BACKEND_URL || ''
 });
 
 export default function AgencyManagement() {

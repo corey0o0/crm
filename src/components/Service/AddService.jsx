@@ -64,10 +64,9 @@ import { formatKoreanDateTime } from '../../utils/dateUtils';
 import { format } from 'date-fns';
 import { sendTelegramNotification } from '../../lib/telegram'; // 텔레그램 유틸리티 함수 import
 import { 
-  uploadFileToGoogleDrive, 
+  uploadFileToR2, 
   findOrCreateFolder, 
-  shareGoogleDriveFile,
-  deleteGoogleDriveFile 
+  deleteFileFromR2 
 } from '../../utils/cloudflareR2Utils';
 import imageCompression from 'browser-image-compression';
 
@@ -1096,9 +1095,7 @@ function AddService() {
       setUploadingFiles(true);
       
       // 업로드 서브 폴더 설정
-      const subFolderName = process.env.REACT_APP_GOOGLE_DRIVE_SUBFOLDER || 
-                           (typeof window !== 'undefined' && window._env_ && window._env_.REACT_APP_GOOGLE_DRIVE_SUBFOLDER) || 
-                           'upload_crm';
+      const subFolderName = 'upload_crm';
 
       // 서브폴더(upload_crm)를 생성/탐색
       const subRootFolder = await findOrCreateFolder(subFolderName, null, null);
@@ -1118,10 +1115,7 @@ function AddService() {
           }
 
           // 파일 업로드
-          const uploadResult = await uploadFileToGoogleDrive(fileToUpload, tempFolder.id, null);
-          
-          // 파일 공유 설정
-          await shareGoogleDriveFile(uploadResult.id, null, 'reader', 'anyone');
+          const uploadResult = await uploadFileToR2(fileToUpload, tempFolder.id);
           
           uploadResults.push({
             id: uploadResult.id,
@@ -1172,7 +1166,7 @@ function AddService() {
     try {
       // 보관소(R2)에서 파일 삭제
       try {
-        await deleteGoogleDriveFile(fileId, null);
+        await deleteFileFromR2(fileId);
         console.log('[AddService] 파일 보관소(R2) 파일 삭제 완료:', fileId);
       } catch (driveError) {
         console.warn('[AddService] 파일 보관소(R2) 파일 삭제 실패 (무시):', driveError);

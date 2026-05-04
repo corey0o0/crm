@@ -29,7 +29,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { serviceApi } from '../../api/services';
 import { inventoryApi } from '../../api/inventoryApi';
 import { productApi } from '../../api/productApi';
-import { initializeGoogleAPI } from '../../lib/googleDriveConfig';
+
 
 const SystemHealthCheck = () => {
   const { user } = useAuth();
@@ -122,13 +122,11 @@ const SystemHealthCheck = () => {
       'REACT_APP_SUPABASE_URL',
       'REACT_APP_SUPABASE_ANON_KEY',
       'REACT_APP_OPENAI_API_KEY',
-      'REACT_APP_GOOGLE_CLIENT_ID',
       'REACT_APP_TELEGRAM_BOT_TOKEN',
       'REACT_APP_BASE_URL'
     ];
 
     const optionalVars = [
-      'REACT_APP_GOOGLE_DRIVE_ROOT_FOLDER_ID',
       'REACT_APP_TELEGRAM_CHAT_ID'
     ];
 
@@ -379,25 +377,7 @@ const SystemHealthCheck = () => {
   const checkExternalServices = async () => {
     const checks = {};
 
-    // Cloudflare R2 확인
-    try {
-      // 5초 타임아웃 설정
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Google API 초기화 시간 초과 (5초)')), 5000)
-      );
 
-      await Promise.race([initializeGoogleAPI(), timeoutPromise]);
-
-      checks.googleDrive = {
-        status: STATUS.SUCCESS,
-        message: 'Cloudflare R2 API 초기화 성공'
-      };
-    } catch (error) {
-      checks.googleDrive = {
-        status: STATUS.WARNING,
-        message: `Cloudflare R2 API 초기화 실패: ${error.message}`
-      };
-    }
 
     // Telegram 확인 (API 키만 확인)
     const telegramToken = window._env_?.REACT_APP_TELEGRAM_BOT_TOKEN || process.env.REACT_APP_TELEGRAM_BOT_TOKEN;

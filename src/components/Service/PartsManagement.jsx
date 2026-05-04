@@ -62,7 +62,7 @@ import { sendTelegramNotification } from '../../lib/telegram';
 import { getErrorMessage, isOffline, safeRetry } from '../../utils/networkUtils';
 import { getSyncedParts, createSyncRelation, deleteSyncRelationById } from '../../utils/partSyncUtils';
 import Barcode from 'react-barcode';
-import { uploadFileToGoogleDrive as uploadToR2 } from '../../utils/cloudflareR2Utils';
+import { uploadFileToR2 as uploadToR2 } from '../../utils/cloudflareR2Utils';
 import { CloudUpload as CloudUploadIcon } from '@mui/icons-material';
 
 const BRANDS = ['XRB', 'NB', 'COMMON'];

@@ -69,10 +69,8 @@ import { processServiceCompletion, processPartialReturn, processServiceRevert } 
 import { pendingOutboundApi } from '../../api/pendingOutboundApi';
 // import { addServicePartsToPendingOrders } from '../../utils/pendingOrderUtils'; // 주문대기 기능 비활성화
 import {
-  uploadFileToGoogleDrive,
+  uploadFileToR2,
   findOrCreateFolder,
-  shareGoogleDriveFile,
-  getGoogleDrivePreviewUrl,
   getFixedR2Url
 } from '../../utils/cloudflareR2Utils';
 
@@ -1441,13 +1439,7 @@ function ServiceDetail() {
     }
   };
 
-  const getGoogleDriveImageUrl = (url) => {
-    const fileId = url.match(/[-\w]{25,}/);
-    if (fileId && fileId[0]) {
-      return `https://drive.google.com/uc?export=view&id=${fileId[0]}`;
-    }
-    return url;
-  };
+
 
 
   const fetchProductNames = async () => {
@@ -1694,9 +1686,7 @@ function ServiceDetail() {
       setUploadingFiles(true);
 
       // 업로드 서브 폴더 설정 (환경변수 활용)
-      const subFolderName = process.env.REACT_APP_GOOGLE_DRIVE_SUBFOLDER ||
-        (typeof window !== 'undefined' && window._env_ && window._env_.REACT_APP_GOOGLE_DRIVE_SUBFOLDER) ||
-        'upload_crm';
+      const subFolderName = 'upload_crm';
 
       // 서브폴더(upload_crm)를 생성/탐색
       const subRootFolder = await findOrCreateFolder(subFolderName, null, null);
@@ -1710,10 +1700,7 @@ function ServiceDetail() {
       for (const file of files) {
         try {
           // 파일 업로드
-          const uploadResult = await uploadFileToGoogleDrive(file, serviceFolder.id, null);
-
-          // 파일 공유 설정 (링크로 접근 가능하도록)
-          await shareGoogleDriveFile(uploadResult.id, null, 'reader', 'anyone');
+          const uploadResult = await uploadFileToR2(file, serviceFolder.id);
 
           uploadResults.push({
             id: uploadResult.id,
@@ -1821,8 +1808,8 @@ function ServiceDetail() {
 
       // Cloudflare R2에서 파일 삭제
       try {
-        const { deleteGoogleDriveFile } = await import('../../utils/cloudflareR2Utils');
-        await deleteGoogleDriveFile(fileId, null);
+        const { deleteFileFromR2 } = await import('../../utils/cloudflareR2Utils');
+        await deleteFileFromR2(fileId);
         console.log('[ServiceDetail] 파일 보관소(R2) 삭제 완료:', fileId);
       } catch (driveError) {
         console.warn('[ServiceDetail] 파일 보관소(R2) 삭제 실패 (무시):', driveError);
