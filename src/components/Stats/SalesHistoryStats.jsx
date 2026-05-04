@@ -205,9 +205,9 @@ function SalesHistoryStats() {
                cafeTotal += orderItemsSum + Number(o.shipping_fee || 0);
             } else {
                cafeTotal += brandMatchedAmount;
-               // Include shipping fee in brand total only if brand matches the primary mall brand
-               if (getBrandFallback('', '', '', o.mall_id) === targetBrand) {
-                  cafeTotal += Number(o.shipping_fee || 0);
+               // 비율에 따른 배송비 배분
+               if (orderItemsSum > 0) {
+                  cafeTotal += Math.floor(Number(o.shipping_fee || 0) * (brandMatchedAmount / orderItemsSum));
                }
             }
          }
@@ -432,7 +432,7 @@ function SalesHistoryStats() {
       const parts = s.shipment_parts || [];
       const isManual = s.note && String(s.note).includes('[수기판매]');
       const baseFields = {
-        _id: s.id, _type: 'shipment', date_val: s.order_date, sales_channel: isManual ? '수기판매' : (s.sales_channel || '매장출고'), customer_name: s.customer_name || '-'
+        _id: s.id, _type: 'shipment', date_val: s.order_date, sales_channel: isManual ? '수기판매' : (s.sales_channel || '매장출고'), original_channel: s.sales_channel, customer_name: s.customer_name || '-'
       };
       if (parts.length === 0) {
         rows.push({ ...baseFields, part_category: '기타', part_brand: '-', quantity: 0, total_price: Number(s.price || 0), total_cost: 0 });
@@ -619,27 +619,69 @@ function SalesHistoryStats() {
         const displayUsedPoints = Number(o.used_points !== undefined && o.used_points !== null ? o.used_points : calculatedUsedPoints);
 
         if (shipFee > 0) {
-          rows.push({
-            ...baseFields,
-            part_name: '배송비',
-            part_category: '기타',
-            part_brand: orderBrand,
-            quantity: 1,
-            total_price: shipFee,
-            total_cost: 0
-          });
+           const brandTotals = {};
+           orderRows.forEach(r => {
+              if (!brandTotals[r.part_brand]) brandTotals[r.part_brand] = 0;
+              brandTotals[r.part_brand] += r.total_price;
+           });
+           
+           let remainingShipFee = shipFee;
+           const brands = Object.keys(brandTotals);
+           brands.forEach((br, idx) => {
+              if (orderItemsSum > 0) {
+                 let apportioned = Math.floor(shipFee * (brandTotals[br] / orderItemsSum));
+                 if (idx === brands.length - 1) apportioned = remainingShipFee;
+                 
+                 if (apportioned > 0) {
+                    rows.push({
+                      ...baseFields,
+                      part_name: '배송비',
+                      part_category: '기타',
+                      part_brand: br,
+                      quantity: 1,
+                      total_price: apportioned,
+                      total_cost: 0
+                    });
+                 }
+                 remainingShipFee -= apportioned;
+              }
+           });
+           if (orderItemsSum === 0) {
+              rows.push({ ...baseFields, part_name: '배송비', part_category: '기타', part_brand: orderBrand, quantity: 1, total_price: shipFee, total_cost: 0 });
+           }
         }
         
         if (displayUsedPoints > 0) {
-          rows.push({
-            ...baseFields,
-            part_name: '적립금 사용(할인)',
-            part_category: '기타',
-            part_brand: orderBrand,
-            quantity: 1,
-            total_price: -displayUsedPoints,
-            total_cost: 0
-          });
+           const brandTotals = {};
+           orderRows.forEach(r => {
+              if (!brandTotals[r.part_brand]) brandTotals[r.part_brand] = 0;
+              brandTotals[r.part_brand] += r.total_price;
+           });
+           
+           let remainingPoints = displayUsedPoints;
+           const brands = Object.keys(brandTotals);
+           brands.forEach((br, idx) => {
+              if (orderItemsSum > 0) {
+                 let apportioned = Math.floor(displayUsedPoints * (brandTotals[br] / orderItemsSum));
+                 if (idx === brands.length - 1) apportioned = remainingPoints;
+                 
+                 if (apportioned > 0) {
+                    rows.push({
+                      ...baseFields,
+                      part_name: '적립금 사용(할인)',
+                      part_category: '기타',
+                      part_brand: br,
+                      quantity: 1,
+                      total_price: -apportioned,
+                      total_cost: 0
+                    });
+                 }
+                 remainingPoints -= apportioned;
+              }
+           });
+           if (orderItemsSum === 0) {
+              rows.push({ ...baseFields, part_name: '적립금 사용(할인)', part_category: '기타', part_brand: orderBrand, quantity: 1, total_price: -displayUsedPoints, total_cost: 0 });
+           }
         }
       }
     });
@@ -680,7 +722,7 @@ function SalesHistoryStats() {
 
   const currentFiltered = flatRows.filter(r => {
     if (filterType !== 'all') {
-      const isAgency = r.sales_channel && !['고객', '-', '일반출고(공홈)', '온라인주문', '매장출고', '청담매장', '기타', '본점'].includes(r.sales_channel) && (agenciesList.includes(r.sales_channel) || r.sales_channel?.includes('대리점'));
+      const isAgency = (r.sales_channel && !['고객', '-', '일반출고(공홈)', '온라인주문', '매장출고', '청담매장', '기타', '본점'].includes(r.sales_channel) && (agenciesList.includes(r.sales_channel) || r.sales_channel?.includes('대리점'))) || (r.original_channel && (agenciesList.includes(r.original_channel) || r.original_channel.includes('대리점')));
       
       if (filterType === 'agency') {
         if (!isAgency) return false;
@@ -750,7 +792,7 @@ function SalesHistoryStats() {
       if (r._id) uniqueGroups.service.add(r._id);
       groupAmounts.service += price;
     } else {
-      const isAgency = r.sales_channel && !['고객', '-', '일반출고(공홈)', '온라인주문', '매장출고', '청담매장', '기타', '본점'].includes(r.sales_channel) && (agenciesList.includes(r.sales_channel) || r.sales_channel?.includes('대리점'));
+      const isAgency = (r.sales_channel && !['고객', '-', '일반출고(공홈)', '온라인주문', '매장출고', '청담매장', '기타', '본점'].includes(r.sales_channel) && (agenciesList.includes(r.sales_channel) || r.sales_channel?.includes('대리점'))) || (r.original_channel && (agenciesList.includes(r.original_channel) || r.original_channel.includes('대리점')));
       if (isAgency) {
         if (r._id) uniqueGroups.agency.add(r._id);
         groupAmounts.agency += price;
@@ -819,7 +861,7 @@ function SalesHistoryStats() {
       if (r._type === 'service') {
         customerType = 'A/S 매출';
       } else {
-        const isAgency = agenciesList.some(a => r.customer_name?.includes(a) || r.sales_channel?.includes(a)) || ch.includes('대리점');
+        const isAgency = agenciesList.some(a => r.customer_name?.includes(a) || r.sales_channel?.includes(a) || r.original_channel?.includes(a)) || ch.includes('대리점') || (r.original_channel && r.original_channel.includes('대리점'));
         if (isAgency) {
           customerType = '대리점 매출';
         } else {

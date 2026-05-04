@@ -394,9 +394,11 @@ function OnlineStats() {
                     agencyStats[agName].count += 1;
                  }
               } else {
-                 total += orderTotalForBrand;
+                 const apportionedShipping = (o._validOrderTotal > 0) ? Math.floor(Number(o.shipping_fee || 0) * (orderTotalForBrand / o._validOrderTotal)) : 0;
+                 const adjustedTotalForBrand = orderTotalForBrand + apportionedShipping;
+                 total += adjustedTotalForBrand;
                  if (agencyStats[agName]) {
-                    agencyStats[agName].amount += orderTotalForBrand;
+                    agencyStats[agName].amount += adjustedTotalForBrand;
                     agencyStats[agName].count += 1;
                  }
               }
@@ -422,8 +424,7 @@ function OnlineStats() {
         for (let i = 1; i <= 12; i++) monthlyMap[i] = { month: `${i}월`, sales: 0 };
         if (cafe24Orders) {
           cafe24Orders.forEach(o => {
-            if (qBrand === 'XRB' && o.mall_id !== 'slimpack79') return;
-            if (qBrand === 'NB' && o.mall_id !== 'nearbike') return;
+            // 혼합 주문 처리를 위해 mall_id 기반 필터링은 제거하고, 아이템별로 검사
             
             // Re-calculate valid total for monthly chart since chartDataRaw lacks items
             const items = o.order_items || [];
@@ -432,7 +433,16 @@ function OnlineStats() {
             let totalWeight = validItems.reduce((acc, i) => acc + (Number(i.product_price || i.price || 0) * Number(i.quantity || 1)), 0);
             const totalQty = validItems.reduce((acc, i) => acc + Number(i.quantity || 1), 0);
 
+            let brandMatchedAmount = 0;
             validItems.forEach((item, idx) => {
+               const pName = item.name || item.product_name || '';
+               const pCode = String(item.custom_product_code || item.product_code || '').trim();
+               const isAirframe = pName.includes('기체') || pName.includes('차체');
+               let itemBrand = '';
+               if (o.mall_id === 'slimpack79') itemBrand = 'XRB';
+               else if (o.mall_id === 'nearbike') itemBrand = 'NB';
+               else itemBrand = '기타 브랜드';
+
                const qty = Number(item.quantity || 1);
                let amount = 0;
                if (item.payment_amount !== undefined && item.payment_amount !== null && Number(item.payment_amount) > 0) {
@@ -462,11 +472,23 @@ function OnlineStats() {
                    }
                }
                orderItemsSum += amount;
+               if (qBrand === '전체' || itemBrand === qBrand) {
+                   brandMatchedAmount += amount;
+               }
             });
-            const validOrderTotal = orderItemsSum + Number(o.shipping_fee || 0);
+            
+            let finalMonthlyAmt = 0;
+            if (qBrand === '전체') {
+                finalMonthlyAmt = orderItemsSum + Number(o.shipping_fee || 0);
+            } else {
+                const apportionedShipping = (orderItemsSum > 0) ? Math.floor(Number(o.shipping_fee || 0) * (brandMatchedAmount / orderItemsSum)) : 0;
+                finalMonthlyAmt = brandMatchedAmount + apportionedShipping;
+            }
 
-            const m = new Date(o.order_date).getMonth() + 1;
-            monthlyMap[m].sales += validOrderTotal;
+            if (finalMonthlyAmt > 0) {
+                const m = new Date(o.order_date).getMonth() + 1;
+                monthlyMap[m].sales += finalMonthlyAmt;
+            }
           });
         }
         setMonthlyStats(Object.values(monthlyMap));
