@@ -876,17 +876,20 @@ module.exports = function(supabaseAdmin) {
       });
       if (!defaultWarehouseId && warehouses && warehouses.length > 0) defaultWarehouseId = warehouses[0].id;
 
-      // 2. 주문 목록 가져오기
+      // 2. 주문 목록 가져오기 (원자적 업데이트로 Race Condition 방지)
       const { data: orders, error: fetchErr } = await supabaseAdmin
         .from('cafe24_orders')
-        .select('*')
+        .update({ is_transferred: true }) // 먼저 true로 업데이트하여 다른 요청 차단 (Lock)
         .in('id', orderIds)
-        .eq('is_transferred', false);
+        .eq('is_transferred', false)
+        .select('*');
 
       if (fetchErr) throw fetchErr;
       if (!orders || orders.length === 0) {
-        return res.json({ success: true, message: '전송할 유효한 주문이 없습니다.' });
+        return res.json({ success: true, message: '전송할 유효한 주문이 없거나 이미 처리 중입니다.' });
       }
+
+      try {
 
       // 3. 일괄 조회 (Bulk Fetch) 단계
       const uniqueProductCodes = new Set();
@@ -1095,6 +1098,12 @@ module.exports = function(supabaseAdmin) {
       }
 
       res.json({ success: true, message: `${orders.length}건 일괄 전송(출고/차감) 완료` });
+      
+      } catch (innerError) {
+        // 처리 중 에러 발생 시 Lock 해제 (롤백)
+        await supabaseAdmin.from('cafe24_orders').update({ is_transferred: false }).in('id', orders.map(o => o.id));
+        throw innerError;
+      }
     } catch (e) {
       console.error('[Transfer Error]', e);
       res.status(500).json({ error: e.message });

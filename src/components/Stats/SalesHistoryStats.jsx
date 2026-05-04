@@ -822,21 +822,47 @@ function SalesHistoryStats() {
     if (!dailyMap[dStr]) dailyMap[dStr] = { date: dStr, amount: 0 };
     dailyMap[dStr].amount += Number(r.total_price || 0);
 
-    const ch = r.sales_channel || '미지정';
-    if (!channelMap[ch]) channelMap[ch] = { name: ch, value: 0 };
-    channelMap[ch].value += Number(r.total_price || 0);
-
-    const c = r.part_category || '기타';
+    // 대리점 매출 집계 (모든 브랜드 종합)
+    const isAgency = (r.sales_channel && !['고객', '-', '일반출고(공홈)', '온라인주문', '매장출고', '청담매장', '기타', '본점'].includes(r.sales_channel) && (agenciesList.includes(r.sales_channel) || r.sales_channel?.includes('대리점'))) || (r.original_channel && (agenciesList.includes(r.original_channel) || r.original_channel.includes('대리점')));
+    if (isAgency) {
+      let agencyName = r.customer_name || r.sales_channel || '기타 대리점';
+      if (!agencyName || agencyName === '대리점출고') {
+         agencyName = r.sales_channel !== '대리점출고' ? r.sales_channel : r.customer_name;
+         if (!agencyName) agencyName = '기타 대리점';
+      }
+      if (!channelMap[agencyName]) channelMap[agencyName] = { name: agencyName, value: 0 };
+      channelMap[agencyName].value += Number(r.total_price || 0);
+    }
+    let c = '';
+    if (r._type === 'service') {
+      c = 'A/S 수리';
+    } else if (r.part_category === '기체') {
+      // 기체인 경우 기종명으로 분류 (색상/옵션 등 괄호 안 내용 제거)
+      c = (r.part_name || '기타 기체')
+        .replace(/\(.*\)/g, '')
+        .replace(/\[.*\]/g, '')
+        .split('-')[0]
+        .trim();
+      if (!c) c = '기타 기체';
+    } else {
+      c = '파츠/악세사리';
+    }
+    
     if (!catMap[c]) catMap[c] = { name: c, value: 0 };
     catMap[c].value += Number(r.total_price || 0);
 
-    const b = r.part_brand || '-';
+    let b = '';
+    if (r._type === 'cafe24') {
+      b = r.mall_id === 'nearbike' ? 'NB 사이트' : 'XRB 사이트';
+    } else {
+      b = '오프라인(A/S+매장출고)';
+    }
     if (!brandMap[b]) brandMap[b] = { name: b, value: 0 };
     brandMap[b].value += Number(r.total_price || 0);
   });
 
   const chartDaily = Object.values(dailyMap).sort((a,b) => a.date.localeCompare(b.date));
-  const chartChannel = Object.values(channelMap).sort((a,b) => b.value - a.value);
+  const chartChannel = Object.values(channelMap).sort((a,b) => b.value - a.value).slice(0, 20); // Top 20만 선별
   const chartCat = Object.values(catMap).sort((a,b) => b.value - a.value);
   const chartBrand = Object.values(brandMap).sort((a,b) => b.value - a.value);
 
@@ -1232,7 +1258,7 @@ function SalesHistoryStats() {
 
             <Grid item xs={12} md={4}>
               <Paper sx={{ p: 2, height: '100%' }}>
-                <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>품목 구분별 비중</Typography>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>품목별 비중 (기체 기종별)</Typography>
                 <Box sx={{ height: 300 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
@@ -1250,7 +1276,7 @@ function SalesHistoryStats() {
 
             <Grid item xs={12} md={4}>
               <Paper sx={{ p: 2, height: '100%' }}>
-                <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>온라인/매장/AS 비중</Typography>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>대리점 매출 Top 20</Typography>
                 <Box sx={{ height: 300 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartChannel}>
@@ -1271,7 +1297,7 @@ function SalesHistoryStats() {
 
             <Grid item xs={12} md={4}>
               <Paper sx={{ p: 2, height: '100%' }}>
-                <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>브랜드 매출 비중</Typography>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>온·오프라인 채널 비중</Typography>
                 <Box sx={{ height: 300 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
