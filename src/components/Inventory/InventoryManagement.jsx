@@ -123,6 +123,7 @@ function InventoryManagement() {
   const [selectedTableTransactions, setSelectedTableTransactions] = useState([]);
   
   const [selectedTransactions, setSelectedTransactions] = useState([]);
+  const [showNetOnly, setShowNetOnly] = useState(true);
   
   const handleDeleteSelectedTransactions = async () => {
     if (selectedTransactions.length === 0) return;
@@ -3899,11 +3900,31 @@ function InventoryManagement() {
                 // 그룹화된 거래 상세
                 <Box>
                   <Typography variant="h6" gutterBottom>
-                    {getTransactionTypeInfo(selectedTransaction).label} 상세 내역 ({editMode ? editProducts.length : selectedTransaction.items.length}개 상품)
+                    {getTransactionTypeInfo(selectedTransaction).label} 상세 내역 (
+                    {editMode ? editProducts.length : (
+                      showNetOnly ? (() => {
+                        const map = {};
+                        selectedTransaction.items.forEach(item => {
+                          const pId = item.productId || item.productCode;
+                          if (!map[pId]) map[pId] = 0;
+                          const isReturn = item.note?.includes('취소') || item.note?.includes('환불') || item.fromLocation?.includes('취소');
+                          map[pId] += isReturn ? -Number(item.quantity) : Number(item.quantity);
+                        });
+                        return Object.values(map).filter(q => q !== 0).length;
+                      })() : selectedTransaction.items.length
+                    )}개 상품)
                   </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                    거래 날짜: {selectedTransaction.date} | 처리 시간: {selectedTransaction.createdAt}
-                  </Typography>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      거래 날짜: {selectedTransaction.date} | 처리 시간: {selectedTransaction.createdAt}
+                    </Typography>
+                    {!editMode && (
+                      <FormControlLabel
+                        control={<Switch size="small" checked={showNetOnly} onChange={e => setShowNetOnly(e.target.checked)} />}
+                        label={<Typography variant="body2" fontWeight="bold">순수 변동량만 보기 (취소/복구 상계 처리)</Typography>}
+                      />
+                    )}
+                  </Box>
                   
                   {editMode ? (
                     // 수정 모드: 상품 추가/삭제 가능 + 공통 메모/날짜 수정
@@ -4102,11 +4123,29 @@ function InventoryManagement() {
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {[...selectedTransaction.items].sort((a, b) => a.productName.localeCompare(b.productName)).map((item, index) => {
-                            const isReturn = item.note?.includes('취소') || item.note?.includes('환불') || item.fromLocation?.includes('취소');
-                            return (
-                            <TableRow key={index} hover sx={{ bgcolor: isReturn ? 'rgba(244, 67, 54, 0.05)' : 'inherit' }}>
-                              <TableCell sx={{ color: isReturn ? 'text.secondary' : 'inherit' }}>{item.productName}</TableCell>
+                          {(() => {
+                            let displayItems = [...selectedTransaction.items];
+                            if (showNetOnly && !editMode) {
+                              const map = {};
+                              selectedTransaction.items.forEach(item => {
+                                const pId = item.productId || item.productCode;
+                                if (!map[pId]) {
+                                  map[pId] = { ...item, quantity: 0, _isNet: true, note: '[순수 변동량 합산]' };
+                                }
+                                const isReturn = item.note?.includes('취소') || item.note?.includes('환불') || item.fromLocation?.includes('취소');
+                                if (isReturn) {
+                                  map[pId].quantity -= Number(item.quantity);
+                                } else {
+                                  map[pId].quantity += Number(item.quantity);
+                                }
+                              });
+                              displayItems = Object.values(map).filter(i => i.quantity !== 0);
+                            }
+                            return displayItems.sort((a, b) => a.productName.localeCompare(b.productName)).map((item, index) => {
+                              const isReturn = item.note?.includes('취소') || item.note?.includes('환불') || item.fromLocation?.includes('취소');
+                              return (
+                              <TableRow key={index} hover sx={{ bgcolor: isReturn ? 'rgba(244, 67, 54, 0.05)' : 'inherit' }}>
+                                <TableCell sx={{ color: isReturn ? 'text.secondary' : 'inherit' }}>{item.productName}</TableCell>
                               <TableCell>
                                 {(() => {
                                   const p = products.find(prod => prod.id === item.productId || prod.code === item.productCode);
