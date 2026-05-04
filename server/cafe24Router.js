@@ -907,17 +907,22 @@ module.exports = function(supabaseAdmin) {
       const partsCacheByCode = {};
       const partsCacheById = {}; 
       if (uniqueProductCodes.size > 0) {
-        // 500개씩 끊어서 조회 (PostgREST URL 길이 제한 방지)
         const codesArray = Array.from(uniqueProductCodes);
+        const fetchPromises = [];
         for(let i=0; i<codesArray.length; i+=200) {
-          const { data: pData } = await supabaseAdmin.from('parts')
-            .select('id, code, supplier')
-            .in('code', codesArray.slice(i, i+200));
+          fetchPromises.push(
+            supabaseAdmin.from('parts')
+              .select('id, code, supplier')
+              .in('code', codesArray.slice(i, i+200))
+          );
+        }
+        const results = await Promise.all(fetchPromises);
+        results.forEach(({ data: pData }) => {
           (pData || []).forEach(p => {
             partsCacheByCode[String(p.code).trim()] = p;
             partsCacheById[p.id] = p;
           });
-        }
+        });
       }
 
       // 필수적으로 쓰일 트랜잭션과 인벤토리 정보 집계
@@ -966,18 +971,24 @@ module.exports = function(supabaseAdmin) {
         const wIds = Array.from(new Set(Array.from(requiredInventoryKeys).map(k => k.split('_')[0])));
         const pIds = Array.from(new Set(Array.from(requiredInventoryKeys).map(k => k.split('_')[1])));
         
-        let invDataArray = [];
+        let fetchPromises = [];
         for(let w=0; w<wIds.length; w+=100) {
           for(let p=0; p<pIds.length; p+=100) {
-             const { data: invData } = await supabaseAdmin.from('inventory')
-               .select('warehouse_id, product_id, quantity')
-               .in('warehouse_id', wIds.slice(w, w+100))
-               .in('product_id', pIds.slice(p, p+100));
-             if (invData) invDataArray = invDataArray.concat(invData);
+             fetchPromises.push(
+               supabaseAdmin.from('inventory')
+                 .select('warehouse_id, product_id, quantity')
+                 .in('warehouse_id', wIds.slice(w, w+100))
+                 .in('product_id', pIds.slice(p, p+100))
+             );
           }
         }
-        invDataArray.forEach(row => {
-           currentInventoryMap[`${row.warehouse_id}_${row.product_id}`] = row.quantity;
+        const results = await Promise.all(fetchPromises);
+        results.forEach(({ data: invData }) => {
+          if (invData) {
+            invData.forEach(row => {
+               currentInventoryMap[`${row.warehouse_id}_${row.product_id}`] = row.quantity;
+            });
+          }
         });
       }
 
@@ -1062,8 +1073,8 @@ module.exports = function(supabaseAdmin) {
         }
       }
 
-      // 최종 상태 변경 (개별 order_items에 _warehouse_id 및 part_id 기록)
-      for (const order of orders) {
+      // 최종 상태 변경 (개별 order_items에 _warehouse_id 및 part_id 기록) - 속도 최적화(병렬 처리)
+      const updatePromises = orders.map(order => {
         const updatedItems = (order.order_items || []).map((item, index) => {
           let wid = (warehouseConfig && warehouseConfig[order.id] && warehouseConfig[order.id][index]) || 'DEFAULT';
           if (wid === 'DEFAULT' || !wid) wid = defaultWarehouseId;
@@ -1081,7 +1092,12 @@ module.exports = function(supabaseAdmin) {
           
           return { ...item, _warehouse_id: wid, part_id: mappedPartId };
         });
-        await supabaseAdmin.from('cafe24_orders').update({ is_transferred: true, is_deleted: false, order_items: updatedItems }).eq('id', order.id);
+        return supabaseAdmin.from('cafe24_orders').update({ is_transferred: true, is_deleted: false, order_items: updatedItems }).eq('id', order.id);
+      });
+
+      // 50개씩 병렬 실행하여 DB 부하 및 Timeout 방지
+      for (let i = 0; i < updatePromises.length; i += 50) {
+        await Promise.all(updatePromises.slice(i, i + 50));
       }
 
       res.json({ success: true, message: `${orders.length}건 일괄 전송(출고/차감) 완료` });
