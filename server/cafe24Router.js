@@ -273,6 +273,7 @@ module.exports = function(supabaseAdmin) {
       if (!malls || malls.length === 0) return res.json({ success: true, products: [] });
 
       let allProducts = [];
+      let fetchWarnings = [];
       await Promise.all(malls.map(async m => {
         try {
           const token = await getValidToken(m.mall_id);
@@ -284,9 +285,16 @@ module.exports = function(supabaseAdmin) {
              return { ...p, _mall_id: m.mall_id };
           });
           allProducts = allProducts.concat(pds);
-        } catch(e) { console.error(`[Cafe24] ${m.mall_id} 상품 조회 실패`, e.message); }
+        } catch(e) { 
+          console.error(`[Cafe24] ${m.mall_id} 상품 조회 실패`, e.message);
+          fetchWarnings.push(`[${m.mall_id}] ${e.message}`);
+        }
       }));
-      res.json({ success: true, products: allProducts });
+      
+      if (fetchWarnings.length > 0 && allProducts.length === 0) {
+         return res.status(500).json({ success: false, error: '모든 쇼핑몰 상품 연동 실패: ' + fetchWarnings.join(', ') });
+      }
+      res.json({ success: true, products: allProducts, warnings: fetchWarnings.length > 0 ? fetchWarnings : undefined });
     } catch (e) {
       res.status(500).json({ success: false, error: e.message });
     }
@@ -565,9 +573,6 @@ module.exports = function(supabaseAdmin) {
       const isFullPoints = Number(order.actual_order_amount?.order_price_amount) > 0 && pg_payment === 0 && actual_deposit === 0;
       const isPartiallyCanceled = order.canceled === 'M' || (order.items && order.items.some(i => ['C11','C40','R40','E40'].includes(i.order_status)));
 
-      let total_amount = pg_payment > 0 || actual_deposit > 0 || isFullPoints
-        ? (pg_payment + actual_deposit) 
-        : ((order.actual_order_amount && order.actual_order_amount.payment_amount) || order.total_order_price || 0);
       const shipping_fee = Number((order.actual_order_amount && order.actual_order_amount.shipping_fee) || 0);
 
       let items_payment_sum = 0;
@@ -578,12 +583,30 @@ module.exports = function(supabaseAdmin) {
         }, 0);
       }
       
+      let total_amount = 0;
+      let amount_decision_path = '';
+
       const paymentMethodStr = order.payment_method_name ? order.payment_method_name.join(',') : (order.payment_method ? order.payment_method.join(',') : '');
       if (paymentMethodStr.includes('예치금') && !paymentMethodStr.includes('적립금')) {
           total_amount = items_payment_sum + shipping_fee;
+          amount_decision_path = '예치금 단독결제 (items_payment_sum + shipping_fee)';
+      } else if (pg_payment > 0 || actual_deposit > 0 || isFullPoints) {
+          total_amount = pg_payment + actual_deposit;
+          amount_decision_path = 'PG + Deposit 합산결제';
+      } else {
+          total_amount = (order.actual_order_amount && order.actual_order_amount.payment_amount) || order.total_order_price || 0;
+          amount_decision_path = 'Cafe24 기준 결제액 폴백';
       }
       
       const used_points = Math.max(0, items_payment_sum + shipping_fee - Number(total_amount));
+      
+      // Audit Log 출력
+      console.log(`[Amount Audit] Order ID: ${order.order_id} | Path: ${amount_decision_path} | Total: ${total_amount} | Breakdown:`, {
+         pg_payment, actual_deposit, shipping_fee, items_payment_sum, used_points,
+         order_actual_payment: order.actual_order_amount?.payment_amount,
+         order_total_price: order.total_order_price,
+         isFullPoints, paymentMethodStr
+      });
 
       const payload = {
         mall_id: mall_id,
@@ -846,12 +869,13 @@ module.exports = function(supabaseAdmin) {
       }
 
       // 1. 창고 정보 조회 (청담 판별용 및 DEFAULT 폴백용)
-      const { data: warehouses } = await supabaseAdmin.from('warehouses').select('id, name, is_default');
+      // 주의: warehouses 테이블에는 is_default 컬럼이 없으므로 select에서 제외
+      const { data: warehouses } = await supabaseAdmin.from('warehouses').select('id, name');
       const warehouseMap = {};
       let defaultWarehouseId = null;
       (warehouses || []).forEach(w => { 
         warehouseMap[w.id] = w.name;
-        if (w.is_default || w.name.includes('본점') || w.name.includes('청담')) {
+        if (w.name.includes('본점') || w.name.includes('청담') || w.id === 'W001') {
           if (!defaultWarehouseId) defaultWarehouseId = w.id;
         }
       });
