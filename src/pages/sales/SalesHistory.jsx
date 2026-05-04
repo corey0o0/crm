@@ -527,66 +527,62 @@ function SalesHistory() {
           }
           const itemQty = Number(item.quantity || 1);
           let statQty = itemQty;
-          const pCodeCheck = String(item.product_code || '').trim();
+          const pCodeCheck = (String(item.product_code || '') + '_' + String(item.custom_product_code || '') + '_' + String(item.option_value || item.options || '')).trim();
           let isDuplicate = false;
-          if (pCodeCheck) {
+          if (pCodeCheck !== '__') {
               if (seenProductCodes.has(pCodeCheck)) {
-                  statQty = 0;
                   isDuplicate = true;
               } else {
                   seenProductCodes.add(pCodeCheck);
               }
           }
           
-          let paymentAmt = 0;
+          let baseWeight = 0;
           let isExplicitlyZero = item.payment_amount !== undefined && item.payment_amount !== null && Number(item.payment_amount) === 0;
-
           if (item.payment_amount !== undefined && item.payment_amount !== null && Number(item.payment_amount) > 0) {
-             paymentAmt = Number(item.payment_amount);
-          } else if (isExplicitlyZero) {
-             paymentAmt = 0;
-          } else {
-             paymentAmt = Number(item.product_price || item.price || 0) * itemQty;
+             baseWeight = Number(item.payment_amount);
+          } else if (!isExplicitlyZero) {
+             baseWeight = Number(item.product_price || item.price || 0) * itemQty;
           }
-          let iPrice = Number(item.product_price || item.price || 0); // 항상 기준 단가(MSRP 라벨스 프라이스) 표시
-          
+          let iPrice = Number(item.product_price || item.price || 0);
+
+          const canceledItems = (items || []).filter(it => ['C11', 'C40', 'R40', 'E40'].includes(it.order_status));
+          const canceledAmount = canceledItems.reduce((acc, it) => acc + (Number(it.product_price || it.price || 0) * Number(it.quantity || 1)), 0);
+          const distributableAmount = Math.max(0, Number(o.total_amount || 0) - Number(o.shipping_fee || 0) - canceledAmount);
+
+          let totalWeight = validItems.reduce((acc, i) => {
+             let w = 0;
+             if (i.payment_amount !== undefined && i.payment_amount !== null && Number(i.payment_amount) > 0) {
+                 w = Number(i.payment_amount);
+             } else if (!(i.payment_amount !== undefined && i.payment_amount !== null && Number(i.payment_amount) === 0)) {
+                 w = Number(i.product_price || i.price || 0) * Number(i.quantity || 1);
+             }
+             return acc + w;
+          }, 0);
+
           let total = 0;
-
-          if (paymentAmt > 0 || isExplicitlyZero) {
-              total = paymentAmt;
-              if (iPrice === 0 && paymentAmt > 0) iPrice = itemQty > 0 ? Math.round(paymentAmt / itemQty) : 0;
-          } else {
-              // 전체 유효 품목의 원래 가격(MSRP) 총합 계산
-              let totalWeight = validItems.reduce((acc, i) => {
-                 let qty = Number(i.quantity || 1);
-                 let p = Number(i.product_price || i.price || 0) * qty;
-                 return acc + p;
-              }, 0);
-
-              let itemWeight = iPrice * itemQty;
-              const canceledItems = (items || []).filter(it => ['C11', 'C40', 'R40', 'E40'].includes(it.order_status));
-              const canceledAmount = canceledItems.reduce((acc, it) => acc + (Number(it.product_price || it.price || 0) * Number(it.quantity || 1)), 0);
-              const distributableAmount = Math.max(0, Number(o.total_amount || 0) - Number(o.shipping_fee || 0) - canceledAmount);
-
-              if (totalWeight > 0) {
-                 total = Math.floor((itemWeight / totalWeight) * distributableAmount);
-                 if (idx === validItems.length - 1) {
-                    let previousTotals = validItems.slice(0, validItems.length - 1).reduce((acc, prevItem) => {
-                       let prevQty = Number(prevItem.quantity || 1);
-                       let prevWeight = Number(prevItem.product_price || prevItem.price || 0) * prevQty;
-                       return acc + Math.floor((prevWeight / totalWeight) * distributableAmount);
-                    }, 0);
-                    total = distributableAmount - previousTotals;
-                 }
-              } else {
-                 // 모든 품목의 가격이 0원인데 total_amount가 0이 아닌 경우 균등 분배
-                 total = Math.floor(distributableAmount / validItems.length);
-                 if (idx === validItems.length - 1) {
-                    total = distributableAmount - (total * (validItems.length - 1));
-                 }
-              }
-              if (iPrice === 0 && total > 0) iPrice = itemQty > 0 ? Math.round(total / itemQty) : 0;
+          if (totalWeight > 0) {
+             total = Math.floor((baseWeight / totalWeight) * distributableAmount);
+             if (idx === validItems.length - 1) {
+                let previousTotals = validItems.slice(0, validItems.length - 1).reduce((acc, prevItem) => {
+                   let prevW = 0;
+                   if (prevItem.payment_amount !== undefined && prevItem.payment_amount !== null && Number(prevItem.payment_amount) > 0) {
+                       prevW = Number(prevItem.payment_amount);
+                   } else if (!(prevItem.payment_amount !== undefined && prevItem.payment_amount !== null && Number(prevItem.payment_amount) === 0)) {
+                       prevW = Number(prevItem.product_price || prevItem.price || 0) * Number(prevItem.quantity || 1);
+                   }
+                   return acc + Math.floor((prevW / totalWeight) * distributableAmount);
+                }, 0);
+                total = distributableAmount - previousTotals;
+             }
+          } else if (distributableAmount > 0) {
+             total = Math.floor(distributableAmount / validItems.length);
+             if (idx === validItems.length - 1) {
+                total = distributableAmount - (total * (validItems.length - 1));
+             }
           }
+
+          if (iPrice === 0 && total > 0) iPrice = itemQty > 0 ? Math.round(total / itemQty) : 0;
 
           let shipFee = 0;
           if (idx === 0) {
@@ -604,11 +600,13 @@ function SalesHistory() {
           
           orderItemsSum += total;
 
-          if (isDuplicate && pCodeCheck) {
+          if (isDuplicate) {
               const firstRow = orderRows.find(r => r._pCode === pCodeCheck);
               if (firstRow) {
                   firstRow.total_price += total;
+                  firstRow.quantity += itemQty;
                   total = 0;
+                  statQty = 0;
               }
           }
 
@@ -647,8 +645,6 @@ function SalesHistory() {
         });
 
         const shipFee = Number(o.shipping_fee || 0);
-        const calculatedUsedPoints = Math.max(0, orderItemsSum + shipFee - Number(o.total_amount || 0));
-        const displayUsedPoints = Number(o.used_points !== undefined && o.used_points !== null ? o.used_points : calculatedUsedPoints);
 
         if (shipFee > 0) {
           rows.push({
@@ -665,20 +661,7 @@ function SalesHistory() {
           });
         }
         
-        if (displayUsedPoints > 0) {
-          rows.push({
-            ...baseFields,
-            warehouse_name: fallbackWarehouseName,
-            _id: `cafe_${o.id}_used_points`,
-            part_name: '주문할인/적립금',
-            part_category: '기타',
-            part_brand: orderBrand,
-            quantity: 1,
-            unit_price: -displayUsedPoints,
-            unit_shipping_fee: 0,
-            total_price: -displayUsedPoints
-          });
-        }
+
       }
     });
 
