@@ -896,6 +896,7 @@ function AddService() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitting) return;
     setSubmitting(true);
     setIsFormSubmitted(true); // 폼 제출 상태로 변경
     let serviceId = null; // 등록된 서비스 ID를 저장할 변수
@@ -1024,17 +1025,7 @@ function AddService() {
       // 업로드된 파일 정보를 DB에 저장
       if (uploadedFiles.length > 0) {
         try {
-          // 서비스별 폴더 생성
-          const subFolderName = process.env.REACT_APP_GOOGLE_DRIVE_SUBFOLDER || 
-                               (typeof window !== 'undefined' && window._env_ && window._env_.REACT_APP_GOOGLE_DRIVE_SUBFOLDER) || 
-                               'upload_crm';
-          const subRootFolder = await findOrCreateFolder(subFolderName, null, null);
-          
-          const serviceFolderName = `AS_${formData.customer_name}_${formData.product_name}_${insertedService.id}`;
-          const serviceFolder = await findOrCreateFolder(serviceFolderName, subRootFolder?.id, null);
-
-          // 파일을 서비스 폴더로 이동 (선택사항 - 임시 폴더에 그대로 두어도 됨)
-          // 여기서는 DB에만 연결하고 파일은 임시 폴더에 그대로 유지
+          // 파일은 이미 구글 드라이브(또는 임시 폴더)에 업로드된 상태이므로, DB 레코드만 생성합니다.
 
           const fileRecords = uploadedFiles.map(file => ({
             service_id: parseInt(insertedService.id),
@@ -1069,47 +1060,36 @@ function AddService() {
       }
 
       let notificationSuccess = true;
-      try {
-        const notificationPayload = {
-          type: 'service_create',
-          message: `A/S 등록 (접수번호: ${insertedService.id}) - 고객: ${formData.customer_name}, 연락처: ${formData.customer_phone}`,
-          link: `/service/${insertedService.id}`
-        };
-        const { error: notificationError } = await supabase.from('notifications').insert(notificationPayload);
-        if (notificationError) {
-          console.error('Notification insert error:', notificationError);
-          notificationSuccess = false;
-        }
-      } catch (notificationCatchError) {
-        console.error('Notification insert exception:', notificationCatchError);
-        notificationSuccess = false;
-      }
-
-      // 텔레그램 알림 전송 (serviceId가 있을 경우)
-      if (insertedService && insertedService.id) {
+      // 알림 전송을 비동기 처리하여 UI 응답 속도 개선
+      Promise.resolve().then(async () => {
         try {
-          await sendTelegramNotification({
-            message: `A/S 등록 (접수번호: ${insertedService.id}) - 고객: ${formData.customer_name}, 연락처: ${formData.customer_phone}`
-          }, { eventType: 'service_add' });
-        } catch (telegramError) {
-          console.error('A/S 등록 텔레그램 알림 전송 중 오류:', telegramError);
-          // 텔레그램 전송 실패 시 스낵바 메시지 변경 또는 추가 로깅 가능
-          setSnackbar({
-            open: true,
-            message: 'A/S는 등록되었으나, 텔레그램 알림 전송에 실패했습니다.',
-            severity: 'warning'
-          });
-          // notificationSuccess 플래그를 여기서 false로 설정할 수도 있습니다.
-          // 다만, DB 알림은 성공했을 수 있으므로, 별도 관리 필요
+          const notificationPayload = {
+            type: 'service_create',
+            message: `A/S 등록 (접수번호: ${insertedService.id}) - 고객: ${formData.customer_name}, 연락처: ${formData.customer_phone}`,
+            link: `/service/${insertedService.id}`
+          };
+          await supabase.from('notifications').insert(notificationPayload);
+        } catch (e) {
+          console.error('Notification insert exception:', e);
         }
-      }
+
+        if (insertedService && insertedService.id) {
+          try {
+            await sendTelegramNotification({
+              message: `A/S 등록 (접수번호: ${insertedService.id}) - 고객: ${formData.customer_name}, 연락처: ${formData.customer_phone}`
+            }, { eventType: 'service_add' });
+          } catch (e) {
+            console.error('A/S 등록 텔레그램 알림 전송 중 오류:', e);
+          }
+        }
+      });
 
       localStorage.setItem('highlightServiceId', String(insertedService.id));
 
       setSnackbar({
         open: true,
-        message: notificationSuccess ? 'A/S가 성공적으로 등록되었습니다.' : 'A/S는 등록되었으나, 알림 등록에 실패했습니다.',
-        severity: notificationSuccess ? 'success' : 'warning'
+        message: 'A/S가 성공적으로 등록되었습니다.',
+        severity: 'success'
       });
 
       // 변경사항 초기화
@@ -1119,13 +1099,12 @@ function AddService() {
       autoSave.clear();
       console.log('[AddService] 등록 성공 - 자동저장 데이터 삭제');
 
-      setTimeout(() => {
-        if (submitActionRef.current === 'detail') {
-          navigate(`/services/${insertedService.id}`);
-        } else {
-          navigate('/services');
-        }
-      }, 1500);
+      // 등록 직후 바로 페이지 이동 (인위적 딜레이 제거)
+      if (submitActionRef.current === 'detail') {
+        navigate(`/services/${insertedService.id}`);
+      } else {
+        navigate('/services');
+      }
 
     } catch (error) {
       console.error('Error in handleSubmit:', {

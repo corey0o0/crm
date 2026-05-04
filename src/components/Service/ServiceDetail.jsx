@@ -940,36 +940,31 @@ function ServiceDetail() {
         }
       }
 
-      // A/S 수정 알림 추가 (핵심 로직과 분리)
-      let notificationSuccess = true;
-      try {
-        const notificationPayload = {
-          type: 'service_update',
-          message: `A/S 수정 (접수번호: ${id}) - 고객: ${formData.customer_name}, 연락처: ${formData.customer_phone}`,
-          link: `/service/${id}`
-        };
-        const { error: notificationError } = await supabase.from('notifications').insert(notificationPayload);
-        if (notificationError) {
-          console.error('A/S 수정 알림 등록 중 오류:', notificationError);
-          notificationSuccess = false;
-        }
-      } catch (notificationCatchError) {
-        console.error('A/S 수정 알림 등록 중 예외 발생:', notificationCatchError);
-        notificationSuccess = false;
-      }
-
-      // 텔레그램 알림 전송 (처리 상태 변경 시에만)
+      // A/S 수정 알림 및 텔레그램 전송 (비동기 처리)
       const statusChanged = initialStatus !== null && initialStatus !== formData.status;
-      if (notificationSuccess && statusChanged) {
+      Promise.resolve().then(async () => {
         try {
-          await sendTelegramNotification({
-            message: `A/S 상태 변경 (접수번호: ${id}) - 상태: ${initialStatus} → ${formData.status}, 고객: ${formData.customer_name}, 연락처: ${formData.customer_phone}`,
+          const notificationPayload = {
+            type: 'service_update',
+            message: `A/S 수정 (접수번호: ${id}) - 고객: ${formData.customer_name}, 연락처: ${formData.customer_phone}`,
             link: `/service/${id}`
-          }, { eventType: 'service_edit' });
-        } catch (telegramError) {
-          console.error('A/S 상태 변경 텔레그램 알림 전송 중 오류:', telegramError);
+          };
+          await supabase.from('notifications').insert(notificationPayload);
+        } catch (e) {
+          console.error('A/S 수정 알림 등록 중 예외 발생:', e);
         }
-      }
+
+        if (statusChanged) {
+          try {
+            await sendTelegramNotification({
+              message: `A/S 상태 변경 (접수번호: ${id}) - 상태: ${initialStatus} → ${formData.status}, 고객: ${formData.customer_name}, 연락처: ${formData.customer_phone}`,
+              link: `/service/${id}`
+            }, { eventType: 'service_edit' });
+          } catch (e) {
+            console.error('A/S 상태 변경 텔레그램 알림 전송 중 오류:', e);
+          }
+        }
+      });
 
       // 재고 차감/동기화 처리 (상태와 무관하게 부품이 있거나 기존 차감 내역이 있으면 항상 동기화)
       let inventoryMessage = '';
@@ -1002,8 +997,8 @@ function ServiceDetail() {
 
       setSnackbar({
         open: true,
-        message: (notificationSuccess ? '성공적으로 저장되었습니다.' : '저장되었으나 알림 등록에 실패했습니다.') + inventoryMessage + pendingOrderMessage,
-        severity: notificationSuccess && !inventoryMessage.includes('오류') && !pendingOrderMessage.includes('실패') ? 'success' : 'warning'
+        message: '성공적으로 저장되었습니다.' + inventoryMessage + pendingOrderMessage,
+        severity: !inventoryMessage.includes('오류') && !pendingOrderMessage.includes('실패') ? 'success' : 'warning'
       });
 
       // 변경사항 초기화
@@ -1017,9 +1012,7 @@ function ServiceDetail() {
       localStorage.setItem('highlightServiceId', id);
 
       // 성공적으로 모든 작업 완료 후 페이지 이동
-      setTimeout(() => {
-        navigate('/services');
-      }, 1500); // 사용자 메시지 인지 시간
+      navigate('/services');
 
     } catch (error) {
       console.error('Error in handleSubmit:', error);
