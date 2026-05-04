@@ -670,7 +670,7 @@ function SalesHistory() {
             ...baseFields,
             warehouse_name: fallbackWarehouseName,
             _id: `cafe_${o.id}_used_points`,
-            part_name: '적립금 사용(할인)',
+            part_name: '주문할인/적립금',
             part_category: '기타',
             part_brand: orderBrand,
             quantity: 1,

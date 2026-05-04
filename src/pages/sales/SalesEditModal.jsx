@@ -182,6 +182,35 @@ export default function SalesEditModal({ open, onClose, orderId, orderType, onRe
             });
         });
         
+        const shipFee = Number(data.shipping_fee || 0);
+        let orderItemsSum = 0;
+        mappedItems.forEach(mi => { orderItemsSum += mi.total_price; });
+        
+        const calculatedUsedPoints = Math.max(0, orderItemsSum + shipFee - Number(data.total_amount || 0));
+        const displayUsedPoints = Number(data.used_points !== undefined && data.used_points !== null ? data.used_points : calculatedUsedPoints);
+
+        if (shipFee > 0) {
+            mappedItems.push({
+                id: `cafe_shipping`,
+                part_name: '배송비',
+                quantity: 1,
+                price: shipFee,
+                total_price: shipFee,
+                _pCode: ''
+            });
+        }
+
+        if (displayUsedPoints > 0) {
+            mappedItems.push({
+                id: `cafe_discount`,
+                part_name: '주문할인/적립금',
+                quantity: 1,
+                price: -displayUsedPoints,
+                total_price: -displayUsedPoints,
+                _pCode: ''
+            });
+        }
+        
         setItems(mappedItems);
       }
     } catch (err) {
