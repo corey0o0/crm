@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   Box,
   Paper,
@@ -48,6 +49,8 @@ import {
 } from 'recharts';
 
 function OnlineStats() {
+  const { getAllowedMalls } = useAuth();
+  const allowedMalls = getAllowedMalls();
   const [loading, setLoading] = useState(true);
   const [startDate, setStartDate] = useState(startOfMonth(new Date()));
   const [endDate, setEndDate] = useState(endOfMonth(new Date()));
@@ -68,9 +71,9 @@ function OnlineStats() {
       try {
         const res = await getCafe24Malls();
         if (res.success && res.malls) {
-          setMalls(res.malls.filter(m => m.connected));
+          setMalls(res.malls.filter(m => m.connected && (allowedMalls.includes('all') || allowedMalls.includes(m.mall_id))));
         }
-      } catch (err) {}
+      } catch (err) { console.error(err); }
     };
     fetchMalls();
   }, []);
@@ -158,6 +161,11 @@ function OnlineStats() {
       let orderQuery = supabase.from('cafe24_orders').select('*').gte('order_date', startDateTime).lte('order_date', endDateTime).eq('is_deleted', false).eq('is_transferred', true);
       let chartQuery = supabase.from('cafe24_orders').select('order_date, total_amount, mall_id').gte('order_date', yearStart).lte('order_date', yearEnd).eq('is_deleted', false).eq('is_transferred', true);
       
+      if (!allowedMalls.includes('all')) {
+        orderQuery = orderQuery.in('mall_id', allowedMalls);
+        chartQuery = chartQuery.in('mall_id', allowedMalls);
+      }
+
       if (qMall !== 'all') {
         orderQuery = orderQuery.eq('mall_id', qMall);
         chartQuery = chartQuery.eq('mall_id', qMall);

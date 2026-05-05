@@ -1100,8 +1100,30 @@ module.exports = function(supabaseAdmin) {
       res.json({ success: true, message: `${orders.length}건 일괄 전송(출고/차감) 완료` });
       
       } catch (innerError) {
-        // 처리 중 에러 발생 시 Lock 해제 (롤백)
-        await supabaseAdmin.from('cafe24_orders').update({ is_transferred: false }).in('id', orders.map(o => o.id));
+        // 처리 중 에러 발생 시 Lock 해제 및 롤백 수행
+        const orderIdStrs = orders.map(o => String(o.id));
+        const orderIds = orders.map(o => o.id);
+        
+        try {
+            await supabaseAdmin.from('transactions').delete().in('group_id', orderIdStrs).in('status', ['완료']);
+            await supabaseAdmin.from('inventory_logs').delete().in('reference_id', orderIds).eq('reference_type', 'cafe24_order');
+            
+            if (Object.keys(currentInventoryMap).length > 0) {
+                const rollbackInvArray = Object.keys(currentInventoryMap).map(key => {
+                    const [wid, pid] = key.split('_');
+                    return { warehouse_id: wid, product_id: parseInt(pid, 10), quantity: currentInventoryMap[key], updated_at: new Date().toISOString() };
+                });
+                if (rollbackInvArray.length > 0) {
+                    for (let i = 0; i < rollbackInvArray.length; i += 500) {
+                        await supabaseAdmin.from('inventory').upsert(rollbackInvArray.slice(i, i + 500), { onConflict: 'warehouse_id,product_id' });
+                    }
+                }
+            }
+        } catch (rollbackErr) {
+            console.error('[Rollback Error]', rollbackErr);
+        }
+
+        await supabaseAdmin.from('cafe24_orders').update({ is_transferred: false }).in('id', orderIds);
         throw innerError;
       }
     } catch (e) {

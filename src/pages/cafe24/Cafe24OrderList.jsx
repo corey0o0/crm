@@ -10,6 +10,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { getCafe24Malls, syncCafe24Orders, addCafe24ProductMapping, getCafe24ProductMappings, deleteCafe24ProductMapping,  transferCafe24Orders, cancelSalesTransfer, returnCafe24Inventory } from '../../utils/cafe24Api';
 import { agencyApi } from '../../api/agencyApi';
 import { warehouseApi } from '../../api/warehouseApi';
+import { useAuth } from '../../contexts/AuthContext';
 
 const STATUS_KO = {
   'N00': '입금전', 'N10': '상품준비중', 'N20': '배송준비중', 'N21': '배송대기',
@@ -52,6 +53,9 @@ function formatDate(dateStr) {
 }
 
 export default function Cafe24OrderList() {
+  const { getAllowedMalls } = useAuth();
+  const allowedMalls = getAllowedMalls();
+
   const [orders, setOrders] = useState([]);
   const [malls, setMalls] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -196,7 +200,7 @@ export default function Cafe24OrderList() {
     try {
       const res = await getCafe24Malls();
       if (res.success && res.malls) {
-        setMalls(res.malls.filter(m => m.connected));
+        setMalls(res.malls.filter(m => m.connected && (allowedMalls.includes('all') || allowedMalls.includes(m.mall_id))));
       }
     } catch (err) {
       console.error(err);
@@ -342,6 +346,7 @@ export default function Cafe24OrderList() {
   };
 
   const baseFilteredOrders = orders.filter(order => {
+    if (!allowedMalls.includes('all') && !allowedMalls.includes(order.mall_id)) return false;
     if (selectedMall !== 'all' && order.mall_id !== selectedMall) return false;
     if (statusFilter !== 'all' && getKoStatus(order.status) !== statusFilter) return false;
     

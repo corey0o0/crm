@@ -58,6 +58,7 @@ import {
 import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { supabase } from '../../lib/supabaseClient';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import { sendTelegramNotification } from '../../lib/telegram';
 import { getErrorMessage, isOffline, safeRetry } from '../../utils/networkUtils';
 import { getSyncedParts, createSyncRelation, deleteSyncRelationById } from '../../utils/partSyncUtils';
@@ -634,6 +635,9 @@ function useDebounce(value, delay) {
 }
 
 function PartsManagement() {
+  const { hasActionPermission } = useAuth();
+  const canEditBasic = hasActionPermission('can_edit_basic');
+
   const [parts, setParts] = useState([]);
   const [openDialog, setOpenDialog] = useState(false);
   const [enlargedImage, setEnlargedImage] = useState(null);
@@ -1831,6 +1835,7 @@ function PartsManagement() {
       </Typography>
       <Box sx={{ mt: 3, mb: 3 }}>
         {/* 상단 액션 버튼 영역 */}
+        {canEditBasic && (
         <Paper sx={{ p: 2, mb: 2 }}>
           <Grid container spacing={2} alignItems="center">
             <Grid item>
@@ -1892,9 +1897,13 @@ function PartsManagement() {
                 label={`전체 선택 ${selectedItems.length > 0 ? `(${selectedItems.length}개)` : ''}`}
               />
             </Grid>
+          </Grid>
+        </Paper>
+        )}
 
-            <Grid item xs />
-
+        <Paper sx={{ p: 2, mb: 2 }}>
+          <Grid container spacing={2} alignItems="center">
+            {canEditBasic && (
             <Grid item>
               <Button
                 variant="outlined"
@@ -1911,6 +1920,7 @@ function PartsManagement() {
                 style={{ display: 'none' }}
               />
             </Grid>
+            )}
 
             <Grid item>
               <Button
@@ -1922,6 +1932,7 @@ function PartsManagement() {
               </Button>
             </Grid>
 
+            {canEditBasic && (
             <Grid item>
               <Button
                 variant="outlined"
@@ -1931,6 +1942,7 @@ function PartsManagement() {
                 템플릿 다운로드
               </Button>
             </Grid>
+            )}
           </Grid>
         </Paper>
 
@@ -2181,6 +2193,8 @@ function PartsManagement() {
                 </TableCell>
                 */}
                 <TableCell align="right">
+                  {canEditBasic && (
+                  <>
                   <IconButton
                     size="small"
                     onClick={() => handleOpenDialog(part)}
@@ -2209,6 +2223,8 @@ function PartsManagement() {
                   >
                     <DeleteIcon />
                   </IconButton>
+                  </>
+                  )}
                 </TableCell>
               </TableRow>
             ))}

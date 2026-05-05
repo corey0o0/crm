@@ -21,6 +21,7 @@ import {
   DialogContent,
   DialogActions,
   FormGroup,
+  Switch,
 } from '@mui/material';
 import { Delete as DeleteIcon, Add as AddIcon, Edit as EditIcon } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
@@ -48,11 +49,15 @@ const AVAILABLE_PERMISSIONS = [
   { key: 'service_analysis', label: 'A/S 분석' },
   { key: 'board_group', label: '게시판 메뉴 전체' },
   { key: 'board_internal', label: '내부 게시판' },
-  // { key: 'board_cafe24', label: '카페24 게시판' },
   { key: 'admin_tools', label: '관리자 도구 (메뉴 접근)' },
   { key: 'admin_telegram', label: '- 텔레그램 연동 관리' },
   { key: 'admin_backup', label: '- 데이터 백업/복원' },
   { key: 'admin_permissions', label: '- 사용자 권한 관리' }
+];
+
+const AVAILABLE_MALLS = [
+  { key: 'slimpack79', label: '엑스라이더 (slimpack79)' },
+  { key: 'nearbike', label: '니어바이크 (nearbike)' }
 ];
 
 export default function UserMenuSettings() {
@@ -62,11 +67,12 @@ export default function UserMenuSettings() {
   const [loading, setLoading] = useState(true);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   
-  // 새 이메일/편집 다이얼로그 상태
   const [openDialog, setOpenDialog] = useState(false);
   const [dialogMode, setDialogMode] = useState('add'); // 'add' | 'edit'
   const [targetEmail, setTargetEmail] = useState('');
   const [selectedMenus, setSelectedMenus] = useState([]);
+  const [selectedMalls, setSelectedMalls] = useState([]);
+  const [canEditBasic, setCanEditBasic] = useState(true);
 
   useEffect(() => {
     loadSettings();
@@ -92,11 +98,26 @@ export default function UserMenuSettings() {
     if (email) {
       setDialogMode('edit');
       setTargetEmail(email);
-      setSelectedMenus(permissionsMap[email] || []);
+      const p = permissionsMap[email];
+      if (Array.isArray(p)) {
+          setSelectedMenus(p);
+          setSelectedMalls([]);
+          setCanEditBasic(true);
+      } else if (p && typeof p === 'object') {
+          setSelectedMenus(p.menus || []);
+          setSelectedMalls(p.malls || []);
+          setCanEditBasic(p.actions ? p.actions.can_edit_basic !== false : true);
+      } else {
+          setSelectedMenus([]);
+          setSelectedMalls([]);
+          setCanEditBasic(true);
+      }
     } else {
       setDialogMode('add');
       setTargetEmail('');
       setSelectedMenus([]);
+      setSelectedMalls([]);
+      setCanEditBasic(true);
     }
     setOpenDialog(true);
   };
@@ -105,12 +126,20 @@ export default function UserMenuSettings() {
     setOpenDialog(false);
     setTargetEmail('');
     setSelectedMenus([]);
+    setSelectedMalls([]);
+    setCanEditBasic(true);
   };
 
   // 체크박스 토글 핸들러
   const handleToggleMenu = (menuKey) => {
     setSelectedMenus((prev) => 
       prev.includes(menuKey) ? prev.filter(k => k !== menuKey) : [...prev, menuKey]
+    );
+  };
+
+  const handleToggleMall = (mallKey) => {
+    setSelectedMalls((prev) => 
+      prev.includes(mallKey) ? prev.filter(k => k !== mallKey) : [...prev, mallKey]
     );
   };
 
@@ -122,9 +151,17 @@ export default function UserMenuSettings() {
       return;
     }
 
+    const newSettings = {
+      menus: selectedMenus,
+      malls: selectedMalls,
+      actions: {
+         can_edit_basic: canEditBasic
+      }
+    };
+
     const updatedMap = {
       ...permissionsMap,
-      [trimmedEmail]: selectedMenus
+      [trimmedEmail]: newSettings
     };
 
     setLoading(true);
@@ -194,18 +231,56 @@ export default function UserMenuSettings() {
                       primary={<Typography fontWeight="bold">{email}</Typography>}
                       secondary={
                         <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 1 }}>
-                          {permissionsMap[email]?.length > 0 ? (
-                            permissionsMap[email].map(key => {
-                              const menu = AVAILABLE_PERMISSIONS.find(p => p.key === key);
-                              return (
-                                <Typography key={key} variant="caption" sx={{ bgcolor: 'primary.light', color: 'primary.contrastText', px: 1, py: 0.5, borderRadius: 1 }}>
-                                  {menu ? menu.label : key}
-                                </Typography>
-                              );
-                            })
-                          ) : (
-                            <Typography variant="caption" color="error">권한 없음 (모든 메뉴 차단)</Typography>
-                          )}
+                          {(() => {
+                             const p = permissionsMap[email];
+                             let mList = [];
+                             let mallsList = [];
+                             let editBasic = true;
+                             if (Array.isArray(p)) {
+                               mList = p;
+                             } else if (p && typeof p === 'object') {
+                               mList = p.menus || [];
+                               mallsList = p.malls || [];
+                               editBasic = p.actions ? p.actions.can_edit_basic !== false : true;
+                             }
+                             
+                             return (
+                               <>
+                                 {mList.length > 0 ? (
+                                   mList.map(key => {
+                                     const menu = AVAILABLE_PERMISSIONS.find(m => m.key === key);
+                                     return (
+                                       <Typography key={key} variant="caption" sx={{ bgcolor: 'primary.light', color: 'primary.contrastText', px: 1, py: 0.5, borderRadius: 1 }}>
+                                         {menu ? menu.label : key}
+                                       </Typography>
+                                     );
+                                   })
+                                 ) : (
+                                   <Typography variant="caption" color="error">허용 메뉴 없음</Typography>
+                                 )}
+
+                                 <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+                                 
+                                 {mallsList.length > 0 ? (
+                                   mallsList.map(m => (
+                                     <Typography key={m} variant="caption" sx={{ bgcolor: 'secondary.light', color: 'secondary.contrastText', px: 1, py: 0.5, borderRadius: 1 }}>
+                                       {AVAILABLE_MALLS.find(x => x.key === m)?.label || m}
+                                     </Typography>
+                                   ))
+                                 ) : (
+                                   <Typography variant="caption" sx={{ bgcolor: 'secondary.light', color: 'secondary.contrastText', px: 1, py: 0.5, borderRadius: 1 }}>
+                                     모든 쇼핑몰 허용
+                                   </Typography>
+                                 )}
+
+                                 <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+                                 
+                                 <Typography variant="caption" sx={{ bgcolor: editBasic ? 'success.light' : 'error.light', color: '#fff', px: 1, py: 0.5, borderRadius: 1 }}>
+                                   {editBasic ? '기초데이터 등록/수정 O' : '기초데이터 등록/수정 금지'}
+                                 </Typography>
+                               </>
+                             );
+                          })()}
                         </Box>
                       }
                       secondaryTypographyProps={{ component: 'div' }}
@@ -264,6 +339,43 @@ export default function UserMenuSettings() {
                   </Grid>
                 ))}
               </Grid>
+            </FormGroup>
+          </Paper>
+          <Typography variant="subtitle2" gutterBottom sx={{ mt: 3 }}>쇼핑몰 데이터 접근 권한 (미선택 시 전체 허용)</Typography>
+          <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+            <FormGroup>
+              <Grid container>
+                {AVAILABLE_MALLS.map((mall) => (
+                  <Grid item xs={6} key={mall.key}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={selectedMalls.includes(mall.key)}
+                          onChange={() => handleToggleMall(mall.key)}
+                          color="secondary"
+                        />
+                      }
+                      label={<Typography variant="body2">{mall.label}</Typography>}
+                    />
+                  </Grid>
+                ))}
+              </Grid>
+            </FormGroup>
+          </Paper>
+
+          <Typography variant="subtitle2" gutterBottom>상세 동작 제어</Typography>
+          <Paper variant="outlined" sx={{ p: 2 }}>
+            <FormGroup>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={canEditBasic}
+                    onChange={(e) => setCanEditBasic(e.target.checked)}
+                    color="primary"
+                  />
+                }
+                label={<Typography variant="body2">기초 데이터(상품, 거래처, 창고 등) 등록/수정 허용 (끄면 읽기 전용)</Typography>}
+              />
             </FormGroup>
           </Paper>
         </DialogContent>

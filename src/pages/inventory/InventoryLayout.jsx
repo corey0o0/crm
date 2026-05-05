@@ -1324,28 +1324,28 @@ function InventoryLayout() {
 
     // 샘플 데이터 추가 (입고 예시)
     worksheet.addRow({
-      colA: '1',
-      colB: '1',
-      productCode: 'NB001',
-      productName: '샘플 상품 (입고)',
-      quantity: 10,
+      colA: '예시(입고)',
+      colB: '',
+      productCode: 'NB-BIKE-001',
+      productName: '레트로 20 블랙',
+      quantity: 5,
       fromLocation: '외부',
-      toLocation: 'W001',
-      note: '입고 샘플 메모',
-      additionalNote: '개별 메모'
+      toLocation: '청담본점',
+      note: '본사 입고',
+      additionalNote: '비고 입력'
     });
 
     // 샘플 데이터 추가 (출고 예시)
     worksheet.addRow({
-      colA: '2',
-      colB: '2',
-      productCode: 'NB002',
-      productName: '샘플 상품 (출고)',
-      quantity: 5,
-      fromLocation: 'W001',
-      toLocation: 'W002',
-      note: '출고 샘플 메모',
-      additionalNote: '개별 메모'
+      colA: '예시(출고)',
+      colB: '',
+      productCode: 'NB-PART-002',
+      productName: '스로틀 레버',
+      quantity: 2,
+      fromLocation: '청담본점',
+      toLocation: '외부',
+      note: '고객 발송',
+      additionalNote: 'AS 처리'
     });
 
     // 스타일 적용
@@ -3205,7 +3205,7 @@ function InventoryLayout() {
             {/* 템플릿 다운로드 */}
             <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
               <Typography variant="h6" sx={{ mb: 1 }}>
-                📋 엑셀 템플릿 다운로드
+                엑셀 템플릿 다운로드
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 아래 버튼을 클릭하여 입출고 통합 템플릿을 다운로드하세요. 출발지/목적지 정보로 입고/출고가 자동 판단됩니다.
@@ -3218,6 +3218,7 @@ function InventoryLayout() {
                 >
                   표준 템플릿
                 </Button>
+                {/* 
                 <Button
                   variant="outlined"
                   onClick={downloadNearbikeTemplate}
@@ -3225,6 +3226,7 @@ function InventoryLayout() {
                 >
                   다중 파츠 템플릿 양식
                 </Button>
+                */}
               </Box>
             </Box>
 

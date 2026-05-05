@@ -11,6 +11,7 @@ import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { ko } from 'date-fns/locale';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import SalesEditModal from './SalesEditModal';
+import { useAuth } from '../../contexts/AuthContext';
 
 // ── 공급가/부가세 역산 헬퍼 ────────────────────────────
 const calcVAT = (total) => {
@@ -42,6 +43,8 @@ const getKoStatus = (status) => {
 };
 
 function SalesHistory() {
+  const { getAllowedMalls } = useAuth();
+  const allowedMalls = getAllowedMalls();
   const [loading, setLoading] = useState(true);
   const [flatRows, setFlatRows] = useState([]);   // 품목 단위로 펼친 데이터
   const [searchTerm, setSearchTerm] = useState('');
@@ -138,10 +141,14 @@ function SalesHistory() {
 
     let cafeQuery = supabase
       .from('cafe24_orders')
-      .select('id, order_id, order_date, buyer_name, total_amount, order_items, status, shipping_fee, used_points, agencies(name)')
+      .select('id, order_id, order_date, buyer_name, total_amount, order_items, status, shipping_fee, used_points, mall_id, agencies(name)')
       .eq('is_deleted', false)
       .eq('is_transferred', true)
       .order('order_date', { ascending: false });
+
+    if (!allowedMalls.includes('all')) {
+      cafeQuery = cafeQuery.in('mall_id', allowedMalls);
+    }
 
     if (activeStart) cafeQuery = cafeQuery.gte('order_date', format(activeStart, 'yyyy-MM-dd') + 'T00:00:00+09:00');
     if (activeEnd)   cafeQuery = cafeQuery.lte('order_date', format(activeEnd, 'yyyy-MM-dd') + 'T23:59:59+09:00');
@@ -543,6 +550,7 @@ function SalesHistory() {
         }
 
         const orderRows = [];
+        let orderItemsSum = 0;
 
         validItems.forEach((item, idx) => {
           const itemCode = item.custom_product_code || item.product_code || '';
@@ -640,8 +648,8 @@ function SalesHistory() {
         
         orderRows.forEach(r => rows.push(r));
         
-        const canceledItems = items.filter(item => ['C11', 'C40', 'R40', 'E40'].includes(item.order_status));
-        canceledItems.forEach((item, idx) => {
+        const canceledItemsList = items.filter(item => ['C11', 'C40', 'R40', 'E40'].includes(item.order_status));
+        canceledItemsList.forEach((item, idx) => {
           let pName = resolvePartName(item.product_name || item.name || '상품', item.custom_product_code, item.product_code, item.part_id);
           const optStr = item.option_value || item.options;
           if (optStr && String(optStr).trim() !== '') {

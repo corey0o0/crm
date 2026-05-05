@@ -169,6 +169,10 @@ function SalesHistoryStats() {
             const validItems = items.filter(item => !['C11', 'C40', 'R40', 'E40'].includes(item.order_status));
             if (validItems.length === 0) return;
 
+            const canceledItems = items.filter(it => ['C11', 'C40', 'R40', 'E40'].includes(it.order_status));
+            const canceledAmount = canceledItems.reduce((acc, it) => acc + (Number(it.product_price || it.price || 0) * Number(it.quantity || 1)), 0);
+            const distributableAmount = Math.max(0, Number(o.total_amount || 0) - Number(o.shipping_fee || 0) - canceledAmount);
+
             let orderItemsSum = 0;
             let brandMatchedAmount = 0;
             let totalWeight = validItems.reduce((acc, i) => {
@@ -183,9 +187,8 @@ function SalesHistoryStats() {
 
             if (totalWeight === 0 && distributableAmount > 0) {
                 validItems.forEach(i => {
-                    const pCode = String(i.custom_product_code || i.product_code || '').trim();
-                    const pPrice = i.part_id ? partsPriceById[i.part_id] : (pCode ? partsPriceByCode[pCode] : 0);
-                    i._fallbackWeight = Number(pPrice || 0) * Number(i.quantity || 1);
+                    const pPrice = Number(i.product_price || i.price || 0);
+                    i._fallbackWeight = pPrice * Number(i.quantity || 1);
                     totalWeight += i._fallbackWeight;
                 });
                 if (totalWeight === 0) {

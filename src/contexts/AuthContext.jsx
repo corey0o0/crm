@@ -148,12 +148,26 @@ export const AuthProvider = ({ children }) => {
     return hasMenuAccess(user.email, menuKey, userMenuPermissions);
   };
 
+  const allowedMalls = () => {
+    if (!user?.email) return [];
+    const { getAllowedMalls } = require('../config/menuConfig');
+    return getAllowedMalls(user.email, userMenuPermissions);
+  };
+
+  const actionPermission = (actionKey) => {
+    if (!user?.email) return false;
+    const { hasActionPermission } = require('../config/menuConfig');
+    return hasActionPermission(user.email, actionKey, userMenuPermissions);
+  };
+
   const value = {
     user,
     session,
     loading,
     userMenuPermissions,
     hasPermission,
+    getAllowedMalls: allowedMalls,
+    hasActionPermission: actionPermission,
     refreshMenuPermissions: loadMenuPermissions,
     signIn,
     signOut

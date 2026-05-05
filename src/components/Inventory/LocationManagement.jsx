@@ -42,6 +42,7 @@ import {
 import * as ExcelJS from 'exceljs';
 import { warehouseApi } from '../../api/warehouseApi';
 import { dealerApi } from '../../api/dealerApi';
+import { useAuth } from '../../contexts/AuthContext';
 
 function LocationManagement({ 
   warehouses, 
@@ -54,6 +55,9 @@ function LocationManagement({
   onSyncWarehouseStock,
   loading = false
 }) {
+  const { hasActionPermission } = useAuth();
+  const canEditBasic = hasActionPermission ? hasActionPermission('can_edit_basic') : true;
+
   const [activeTab, setActiveTab] = useState(0);
   const [openDialog, setOpenDialog] = useState(false);
   const [dialogType, setDialogType] = useState(''); // 'warehouse' | 'dealer'
@@ -580,6 +584,8 @@ function LocationManagement({
               >
                 템플릿 다운로드
               </Button>
+              {canEditBasic && (
+              <>
               <Button
                 variant="outlined"
                 startIcon={<UploadIcon />}
@@ -594,6 +600,8 @@ function LocationManagement({
               >
                 새 창고 추가
               </Button>
+              </>
+              )}
             </Box>
           </Box>
 
@@ -641,6 +649,8 @@ function LocationManagement({
                         </Box>
                       </Box>
                       <Box>
+                        {canEditBasic && (
+                        <>
                         <IconButton 
                           size="small" 
                           onClick={() => handleOpenDialog('warehouse', warehouse)}
@@ -654,6 +664,8 @@ function LocationManagement({
                         >
                           <DeleteIcon />
                         </IconButton>
+                        </>
+                        )}
                       </Box>
                     </Box>
                     
@@ -712,6 +724,7 @@ function LocationManagement({
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                   새 창고를 추가하여 재고 관리를 시작하세요
                 </Typography>
+                {canEditBasic && (
                 <Button
                   variant="contained"
                   startIcon={<AddIcon />}
@@ -719,6 +732,7 @@ function LocationManagement({
                 >
                   첫 번째 창고 추가
                 </Button>
+                )}
               </CardContent>
             </Card>
           )}

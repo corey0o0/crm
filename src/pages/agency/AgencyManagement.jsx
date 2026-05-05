@@ -34,8 +34,9 @@ export default function AgencyManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedItems, setSelectedItems] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const { user } = useAuth();
+  const { user, hasActionPermission } = useAuth();
   const isMaster = MASTER_ACCOUNTS.includes(user?.email);
+  const canEditBasic = hasActionPermission ? hasActionPermission('can_edit_basic') : true;
   
   // Modals
   const [openForm, setOpenForm] = useState(false);
@@ -262,20 +263,24 @@ export default function AgencyManagement() {
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1 }}>
-          <input
-            type="file"
-            accept=".xlsx, .xls, .csv"
-            style={{ display: 'none' }}
-            ref={fileInputRef}
-            onChange={handleExcelUpload}
-          />
-          <Button
-            variant="outlined"
-            startIcon={<FileUploadIcon />}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            엑셀 업로드
-          </Button>
+          {canEditBasic && (
+            <>
+              <input
+                type="file"
+                accept=".xlsx, .xls, .csv"
+                style={{ display: 'none' }}
+                ref={fileInputRef}
+                onChange={handleExcelUpload}
+              />
+              <Button
+                variant="outlined"
+                startIcon={<FileUploadIcon />}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                엑셀 업로드
+              </Button>
+            </>
+          )}
           <Button
             variant="outlined"
             startIcon={<FileDownloadIcon />}
@@ -283,6 +288,7 @@ export default function AgencyManagement() {
           >
             엑셀 다운로드
           </Button>
+          {canEditBasic && (
           <Button
             variant="contained"
             color="primary"
@@ -294,6 +300,7 @@ export default function AgencyManagement() {
           >
             신규 등록
           </Button>
+          )}
         </Box>
       </Box>
 
@@ -320,7 +327,7 @@ export default function AgencyManagement() {
             }}
             sx={{ width: 300 }}
           />
-          {selectedItems.length > 0 && (
+          {canEditBasic && selectedItems.length > 0 && (
             <Button
               variant="outlined"
               color="error"
@@ -450,12 +457,16 @@ export default function AgencyManagement() {
                       <HistoryIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
-                  <IconButton size="small" onClick={() => { setEditData(row); setOpenForm(true); }}>
-                    <EditIcon fontSize="small" />
-                  </IconButton>
-                  <IconButton size="small" color="error" onClick={() => handleDelete(row.id)} disabled={isProcessing}>
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
+                  {canEditBasic && (
+                    <>
+                      <IconButton size="small" onClick={() => { setEditData(row); setOpenForm(true); }}>
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton size="small" color="error" onClick={() => handleDelete(row.id)} disabled={isProcessing}>
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
