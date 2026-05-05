@@ -16,6 +16,7 @@ import {
 } from 'recharts';
 import SearchIcon from '@mui/icons-material/Search';
 import AssessmentIcon from '@mui/icons-material/Assessment';
+import { useAuth } from '../../contexts/AuthContext';
 
 const COLORS = ['#1976d2', '#2e7d32', '#ed6c02', '#9c27b0', '#d32f2f', '#0288d1', '#7b1fa2'];
 
@@ -36,6 +37,8 @@ export const getBrandFallback = (brand, name, code = '', mallId = '') => {
 const B2C_CHANNELS = ['공홈', '청담매장', '라이클', '라이클-우리', '스마트할부', '스마트스토어', '기타', '온라인주문', '고객', '-', '본사/기본', '과거 이카운트 이관', '일반출고(공홈)', '매장출고', '본점', '매장'];
 
 function SalesHistoryStats() {
+  const { getAllowedMalls } = useAuth();
+  const allowedMalls = getAllowedMalls();
   const [loading, setLoading] = useState(true);
   const [flatRows, setFlatRows] = useState([]);
   const [inventoryList, setInventoryList] = useState([]); // 재고 목록 상태 추가
@@ -153,10 +156,16 @@ function SalesHistoryStats() {
       });
 
       // 3. Cafe24
-      const { data: cafeRows, error: cafeErr } = await supabase.from('cafe24_orders')
+      let cafeQuery = supabase.from('cafe24_orders')
         .select('total_amount, shipping_fee, order_items, mall_id')
         .gte('order_date', sDate).lte('order_date', eDate)
         .eq('is_deleted', false).eq('is_transferred', true);
+
+      if (!allowedMalls.includes('all')) {
+        cafeQuery = cafeQuery.in('mall_id', allowedMalls);
+      }
+
+      const { data: cafeRows, error: cafeErr } = await cafeQuery;
       if (cafeErr) console.error('Cafe24 fetch error:', cafeErr);
       
       (cafeRows || []).forEach(o => {
@@ -336,6 +345,10 @@ function SalesHistoryStats() {
 
     if (startDate) cafeQuery = cafeQuery.gte('order_date', format(startDate, 'yyyy-MM-dd') + 'T00:00:00+09:00');
     if (endDate)   cafeQuery = cafeQuery.lte('order_date', format(endDate, 'yyyy-MM-dd') + 'T23:59:59+09:00');
+
+    if (!allowedMalls.includes('all')) {
+      cafeQuery = cafeQuery.in('mall_id', allowedMalls);
+    }
 
     const [shipRes, asRes, cafeRes, whRes, partsRes, agenciesRes, invRes] = await Promise.all([
       shipQuery, asQuery, cafeQuery,

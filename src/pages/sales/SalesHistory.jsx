@@ -550,7 +550,6 @@ function SalesHistory() {
         }
 
         const orderRows = [];
-        let orderItemsSum = 0;
 
         validItems.forEach((item, idx) => {
           const itemCode = item.custom_product_code || item.product_code || '';
@@ -628,8 +627,6 @@ function SalesHistory() {
           if (idx === 0) {
              orderBrand = brand;
           }
-          
-          orderItemsSum += total;
 
           if (isDuplicate) {
               const firstRow = orderRows.find(r => r._pCode === pCodeCheck);
