@@ -190,8 +190,8 @@ function SalesHistoryStats() {
                 });
                 if (totalWeight === 0) {
                     validItems.forEach(i => {
-                        i._fallbackWeight = 1;
-                        totalWeight += 1;
+                        i._fallbackWeight = Number(i.quantity || 1);
+                        totalWeight += i._fallbackWeight;
                     });
                 }
             }
@@ -596,8 +596,8 @@ function SalesHistoryStats() {
             });
             if (totalWeight === 0) {
                 validItems.forEach(i => {
-                    i._fallbackWeight = 1;
-                    totalWeight += 1;
+                    i._fallbackWeight = Number(i.quantity || 1);
+                    totalWeight += i._fallbackWeight;
                 });
             }
         }

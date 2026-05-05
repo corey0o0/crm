@@ -244,8 +244,8 @@ function OnlineStats() {
                });
                if (totalWeight === 0) {
                    validItems.forEach(i => {
-                       i._fallbackWeight = 1;
-                       totalWeight += 1;
+                       i._fallbackWeight = Number(i.quantity || 1);
+                       totalWeight += i._fallbackWeight;
                    });
                }
            }
@@ -259,12 +259,14 @@ function OnlineStats() {
                 const pName = item.product_name || item.name || '상품';
                 const qty = Number(item.quantity || 1);
 
+                const pCodeCheck = (String(item.product_code || '') + '_' + String(item.custom_product_code || '') + '_' + String(item.option_value || item.options || '')).trim();
+
                 let statQty = qty;
-                if (pCode) {
-                    if (seenProductCodes.has(pCode)) {
+                if (pCodeCheck !== '__') {
+                    if (seenProductCodes.has(pCodeCheck)) {
                         statQty = 0;
                     } else {
-                        seenProductCodes.add(pCode);
+                        seenProductCodes.add(pCodeCheck);
                     }
                 }
                 
@@ -491,8 +493,8 @@ function OnlineStats() {
                 });
                 if (totalWeight === 0) {
                     validItems.forEach(i => {
-                        i._fallbackWeight = 1;
-                        totalWeight += 1;
+                        i._fallbackWeight = Number(i.quantity || 1);
+                        totalWeight += i._fallbackWeight;
                     });
                 }
             }
