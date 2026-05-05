@@ -36,6 +36,18 @@ export const getBrandFallback = (brand, name, code = '', mallId = '') => {
 
 const B2C_CHANNELS = ['공홈', '청담매장', '라이클', '라이클-우리', '스마트할부', '스마트스토어', '기타', '온라인주문', '고객', '-', '본사/기본', '과거 이카운트 이관', '일반출고(공홈)', '매장출고', '본점', '매장'];
 
+export const getSalesChannelName = (r) => {
+  if (r._type === 'cafe24') {
+    return r.mall_id === 'nearbike' ? '니어바이크 (온라인)' : (r.mall_id === 'slimpack79' ? '슬림팩 (온라인)' : '기타 온라인');
+  } else if (r._type === 'service') {
+    return r.sales_channel === 'A/S수리' ? '청담본점 (A/S)' : r.sales_channel; 
+  } else {
+    const isAgency = r.sales_channel && !B2C_CHANNELS.includes(r.sales_channel);
+    if (isAgency) return r.sales_channel;
+    return r.sales_channel || '수기판매';
+  }
+};
+
 function SalesHistoryStats() {
   const { getAllowedMalls } = useAuth();
   const allowedMalls = getAllowedMalls();
@@ -46,7 +58,7 @@ function SalesHistoryStats() {
   const [startDate, setStartDate] = useState(startOfMonth(new Date()));
   const [endDate, setEndDate] = useState(endOfMonth(new Date()));
   const [filterType, setFilterType] = useState('all');
-  const [filterBrand, setFilterBrand] = useState('전체');
+  const [filterChannel, setFilterChannel] = useState('전체');
   const [tabValue, setTabValue] = useState(0);
   const [showProfit, setShowProfit] = useState(false);
   const [compareStats, setCompareStats] = useState({ context: null, mom: null, yoy: null, wow: null, yoyWeek: null });
@@ -84,7 +96,7 @@ function SalesHistoryStats() {
   useEffect(() => {
     fetchCompareStats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startDate, endDate, filterBrand]);
+  }, [startDate, endDate, filterChannel]);
 
   const percentChange = (current, previous) => {
     if (previous === 0 || previous === null || previous === undefined) return null;
@@ -280,7 +292,7 @@ function SalesHistoryStats() {
                         format(endDate, 'yyyy-MM-dd') === format(endOfMonth(startDate), 'yyyy-MM-dd');
     const isApproxWeek = days === 7;
 
-    const currentTotal = await fetchTotalsForRange(startDate, endDate, filterBrand);
+    const currentTotal = await fetchTotalsForRange(startDate, endDate, filterChannel);
 
     if (isFullMonth) {
       const prevMonthStart = startOfMonth(setMonth(startDate, startDate.getMonth() - 1));
@@ -289,8 +301,8 @@ function SalesHistoryStats() {
       const lastYearMonthEnd = endOfMonth(lastYearMonthStart);
 
       const [prev, yoyBase] = await Promise.all([
-        fetchTotalsForRange(prevMonthStart, prevMonthEnd, filterBrand),
-        fetchTotalsForRange(lastYearMonthStart, lastYearMonthEnd, filterBrand)
+        fetchTotalsForRange(prevMonthStart, prevMonthEnd, filterChannel),
+        fetchTotalsForRange(lastYearMonthStart, lastYearMonthEnd, filterChannel)
       ]);
       setCompareStats({ context: 'month', mom: percentChange(currentTotal, prev), yoy: percentChange(currentTotal, yoyBase), wow: null, yoyWeek: null });
     } else if (isApproxWeek) {
@@ -300,8 +312,8 @@ function SalesHistoryStats() {
       const lastYearWeekEnd = endOfWeek(lastYearWeekStart, { weekStartsOn: 1 });
 
       const [prev, yoyBase] = await Promise.all([
-        fetchTotalsForRange(prevWeekStart, prevWeekEnd, filterBrand),
-        fetchTotalsForRange(lastYearWeekStart, lastYearWeekEnd, filterBrand)
+        fetchTotalsForRange(prevWeekStart, prevWeekEnd, filterChannel),
+        fetchTotalsForRange(lastYearWeekStart, lastYearWeekEnd, filterChannel)
       ]);
       setCompareStats({ context: 'week', mom: null, yoy: null, wow: percentChange(currentTotal, prev), yoyWeek: percentChange(currentTotal, yoyBase) });
     } else {
@@ -787,7 +799,7 @@ function SalesHistoryStats() {
         if (r._type !== filterType) return false;
       }
     }
-    if (filterBrand !== '전체' && r.part_brand !== filterBrand) return false;
+    if (filterChannel !== '전체' && getSalesChannelName(r) !== filterChannel) return false;
     return true;
   });
 
@@ -870,7 +882,7 @@ function SalesHistoryStats() {
   const dailyMap = {};
   const channelMap = {};
   const catMap = {};
-  const brandMap = {};
+  const channelPieMap = {};
 
   currentFiltered.forEach(r => {
     const dStr = format(new Date(r.date_val), 'MM-dd');
@@ -908,20 +920,15 @@ function SalesHistoryStats() {
     if (!catMap[c]) catMap[c] = { name: c, value: 0 };
     catMap[c].value += Number(r.total_price || 0);
 
-    let b = '';
-    if (r._type === 'cafe24') {
-      b = r.mall_id === 'nearbike' ? 'NB 사이트' : 'XRB 사이트';
-    } else {
-      b = '오프라인(A/S+매장출고)';
-    }
-    if (!brandMap[b]) brandMap[b] = { name: b, value: 0 };
-    brandMap[b].value += Number(r.total_price || 0);
+    let ch = getSalesChannelName(r);
+    if (!channelPieMap[ch]) channelPieMap[ch] = { name: ch, value: 0 };
+    channelPieMap[ch].value += Number(r.total_price || 0);
   });
 
   const chartDaily = Object.values(dailyMap).sort((a,b) => a.date.localeCompare(b.date));
   const chartChannel = Object.values(channelMap).sort((a,b) => b.value - a.value).slice(0, 20); // Top 20만 선별
   const chartCat = Object.values(catMap).sort((a,b) => b.value - a.value);
-  const chartBrand = Object.values(brandMap).sort((a,b) => b.value - a.value);
+  const chartChannelPie = Object.values(channelPieMap).sort((a,b) => b.value - a.value);
 
   const formatCurrency = (val) => new Intl.NumberFormat('ko-KR').format(val) + '원';
 
@@ -929,14 +936,11 @@ function SalesHistoryStats() {
     // 개편된 보고서용 다차원 그룹화 로직 (브랜드별, 채널별 종합)
   const { comprehensiveSalesGroups, comprehensiveInventoryGroups } = React.useMemo(() => {
     // 1. 판매 매출 그룹화
-    // 구조: CustomerType(대리점/일반고객/A/S) -> Brand -> ItemKey -> { qty, amount }
+    // 구조: CustomerType(대리점/일반고객/A/S) -> Channel -> ItemKey -> { qty, amount }
     const sGroupData = {};
     
     currentFiltered.forEach(r => {
-      let brand = r.part_brand || '기타';
-      if (brand === '-') brand = '기타';
-      
-      const ch = r.sales_channel || '';
+      const channel = getSalesChannelName(r);
       
       // 대분류: 대리점 / 일반고객 / A/S
       let customerType = '일반 고객 매출';
@@ -967,11 +971,11 @@ function SalesHistoryStats() {
       }
       
       const typeNode = sGroupData[customerType];
-      if (!typeNode.brands[brand]) {
-        typeNode.brands[brand] = { brand, items: {}, subtotalQty: 0, subtotalAmt: 0, subtotalCost: 0, subtotalProfit: 0 };
+      if (!typeNode.brands[channel]) {
+        typeNode.brands[channel] = { brand: channel, items: {}, subtotalQty: 0, subtotalAmt: 0, subtotalCost: 0, subtotalProfit: 0 };
       }
       
-      const brandNode = typeNode.brands[brand];
+      const brandNode = typeNode.brands[channel];
       
       let itemKey = '';
       let itemName = '';
@@ -1076,7 +1080,7 @@ function SalesHistoryStats() {
       comprehensiveSalesGroups: salesArr,
       comprehensiveInventoryGroups: invArr
     };
-  }, [currentFiltered, agenciesList, inventoryList]);
+  }, [currentFiltered, inventoryList]);
   return (
     <Box sx={{ p: 3, bgcolor: '#f4f6f8', minHeight: '100vh' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -1180,13 +1184,13 @@ function SalesHistoryStats() {
             </Select>
           </FormControl>
 
-          <FormControl size="small" sx={{ width: 120 }}>
-            <InputLabel>브랜드</InputLabel>
-            <Select value={filterBrand} label="브랜드" onChange={(e) => setFilterBrand(e.target.value)}>
+          <FormControl size="small" sx={{ width: 150 }}>
+            <InputLabel>판매처</InputLabel>
+            <Select value={filterChannel} label="판매처" onChange={(e) => setFilterChannel(e.target.value)}>
               <MenuItem value="전체">전체</MenuItem>
-              <MenuItem value="XRB">XRB</MenuItem>
-              <MenuItem value="NB">NEARBIKE (NB)</MenuItem>
-              <MenuItem value="기타">기타</MenuItem>
+              {Array.from(new Set(flatRows.map(r => getSalesChannelName(r)))).sort().map(ch => (
+                 <MenuItem key={ch} value={ch}>{ch}</MenuItem>
+              ))}
             </Select>
           </FormControl>
 
@@ -1354,12 +1358,12 @@ function SalesHistoryStats() {
 
             <Grid item xs={12} md={4}>
               <Paper sx={{ p: 2, height: '100%' }}>
-                <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>온·오프라인 채널 비중</Typography>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>판매처별 매출 비중</Typography>
                 <Box sx={{ height: 300 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie data={chartBrand} cx="50%" cy="50%" labelLine={false} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} outerRadius={100} fill="#8884d8" dataKey="value">
-                        {chartBrand.map((entry, index) => (
+                      <Pie data={chartChannelPie} cx="50%" cy="50%" labelLine={false} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} outerRadius={100} fill="#8884d8" dataKey="value">
+                        {chartChannelPie.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={COLORS[(index+4) % COLORS.length]} />
                         ))}
                       </Pie>
@@ -1397,7 +1401,7 @@ function SalesHistoryStats() {
                     <TableHead>
                       <TableRow>
                         <TableCell width={showProfit ? "15%" : "20%"}>매출 구분 (고객유형)</TableCell>
-                        <TableCell width={showProfit ? "15%" : "20%"}>브랜드</TableCell>
+                        <TableCell width={showProfit ? "15%" : "20%"}>판매처</TableCell>
                         <TableCell width={showProfit ? "25%" : "40%"}>상품명 (기종-색상 / 파츠)</TableCell>
                         <TableCell width="8%">수량</TableCell>
                         {showProfit && <TableCell width="12%">원가 총액</TableCell>}
@@ -1456,7 +1460,7 @@ function SalesHistoryStats() {
                                     )}
                                   </TableRow>
                                 ))}
-                                {/* 브랜드별 소계 행 */}
+                                {/* 판매처별 소계 행 */}
                                 <TableRow sx={{ bgcolor: '#f1f8e9' }}>
                                   <TableCell sx={{ fontWeight: 'bold', color: '#33691e', fontSize: '0.8rem' }} align="right">[{b.brand} 소계]</TableCell>
                                   <TableCell align="center" sx={{ fontWeight: 'bold', color: '#33691e' }}>{b.subtotalQty}</TableCell>
