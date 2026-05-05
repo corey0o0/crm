@@ -5,7 +5,7 @@ import BackupManager from '../../components/Backup/BackupManager';
 import UserMenuSettings from '../../components/Settings/UserMenuSettings';
 import TelegramSettings from '../../components/Settings/TelegramSettings';
 import { useAuth } from '../../contexts/AuthContext';
-import { hasMenuAccess } from '../../config/menuConfig';
+import { hasMenuAccess, MENU_KEYS } from '../../config/menuConfig';
 
 function TabPanel(props) {
     const { children, value, index, ...other } = props;
@@ -44,7 +44,7 @@ export default function AdminTools() {
 
     const email = user?.email;
     const canSeeTelegram = hasMenuAccess(email, 'admin_telegram', userMenuPermissions);
-    const canSeeBackup = hasMenuAccess(email, 'admin_backup', userMenuPermissions);
+    const canSeeBackup = hasMenuAccess(email, MENU_KEYS.BACKUP, userMenuPermissions);
     const canSeePermissions = hasMenuAccess(email, 'admin_permissions', userMenuPermissions);
     
     // Master accounts or those who specifically got permission

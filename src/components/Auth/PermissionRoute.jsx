@@ -21,8 +21,12 @@ function PermissionRoute({ children, requiredPermission, redirectTo = '/' }) {
     return children;
   }
 
-  // 권한 체크
-  if (!hasPermission(requiredPermission)) {
+  // 권한 체크 (배열인 경우 하나라도 있으면 통과, 문자열인 경우 단일 체크)
+  const isAuthorized = Array.isArray(requiredPermission) 
+    ? requiredPermission.some(perm => hasPermission(perm))
+    : hasPermission(requiredPermission);
+
+  if (!isAuthorized) {
     // 403 접근 거부 페이지 표시
     return (
       <Box

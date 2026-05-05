@@ -132,7 +132,7 @@ function AppRouter() {
           <Route path="stats/service" element={<PermissionRoute requiredPermission={MENU_KEYS.SERVICES}><ServiceStats /></PermissionRoute>} />
           <Route path="brand-settings" element={<PermissionRoute requiredPermission={MENU_KEYS.ADMIN_TOOLS}><BrandSettings /></PermissionRoute>} />
           <Route path="inventory-logs" element={<PermissionRoute requiredPermission={MENU_KEYS.INVENTORY_HISTORY}><InventoryLogs /></PermissionRoute>} />
-          <Route path="inventory-management" element={<PermissionRoute requiredPermission={MENU_KEYS.INVENTORY}><InventoryLayout /></PermissionRoute>}>
+          <Route path="inventory-management" element={<PermissionRoute requiredPermission={[MENU_KEYS.INVENTORY, MENU_KEYS.INVENTORY_HISTORY, MENU_KEYS.INVENTORY_SCAN, MENU_KEYS.INVENTORY_STATUS, MENU_KEYS.INVENTORY_BOXES, MENU_KEYS.INVENTORY_LOCATIONS]}><InventoryLayout /></PermissionRoute>}>
             <Route index element={<Navigate to="history" replace />} />
             <Route path="history" element={<PermissionRoute requiredPermission={MENU_KEYS.INVENTORY_HISTORY}><InventoryHistory /></PermissionRoute>} />
             <Route path="scan" element={<PermissionRoute requiredPermission={MENU_KEYS.INVENTORY_SCAN}><StoreOnlineOutboundTab /></PermissionRoute>} />
@@ -154,10 +154,10 @@ function AppRouter() {
           <Route path="settings/product-sync" element={<PermissionRoute requiredPermission={MENU_KEYS.ADMIN_TOOLS}><ProductComparisonDashboard /></PermissionRoute>} />
 
           {/* 게시판 */}
-          <Route path="board" element={<PermissionRoute requiredPermission={MENU_KEYS.BOARD_GROUP}><BoardList /></PermissionRoute>} />
-          <Route path="board/new" element={<PermissionRoute requiredPermission={MENU_KEYS.BOARD_GROUP}><BoardNew /></PermissionRoute>} />
-          <Route path="board/:id" element={<PermissionRoute requiredPermission={MENU_KEYS.BOARD_GROUP}><BoardDetail /></PermissionRoute>} />
-          <Route path="board/:id/edit" element={<PermissionRoute requiredPermission={MENU_KEYS.BOARD_GROUP}><BoardEdit /></PermissionRoute>} />
+          <Route path="board" element={<PermissionRoute requiredPermission={[MENU_KEYS.BOARD_GROUP, MENU_KEYS.BOARD_INTERNAL, MENU_KEYS.BOARD_CAFE24]}><BoardList /></PermissionRoute>} />
+          <Route path="board/new" element={<PermissionRoute requiredPermission={[MENU_KEYS.BOARD_GROUP, MENU_KEYS.BOARD_INTERNAL, MENU_KEYS.BOARD_CAFE24]}><BoardNew /></PermissionRoute>} />
+          <Route path="board/:id" element={<PermissionRoute requiredPermission={[MENU_KEYS.BOARD_GROUP, MENU_KEYS.BOARD_INTERNAL, MENU_KEYS.BOARD_CAFE24]}><BoardDetail /></PermissionRoute>} />
+          <Route path="board/:id/edit" element={<PermissionRoute requiredPermission={[MENU_KEYS.BOARD_GROUP, MENU_KEYS.BOARD_INTERNAL, MENU_KEYS.BOARD_CAFE24]}><BoardEdit /></PermissionRoute>} />
 
           {/* 출고/판매 관리 */}
           <Route path="sales/entry" element={<PermissionRoute requiredPermission={MENU_KEYS.SALES_ENTRY}><SalesEntry /></PermissionRoute>} />
