@@ -181,22 +181,37 @@ function SalesHistoryStats() {
                return acc + w;
             }, 0);
 
+            if (totalWeight === 0 && distributableAmount > 0) {
+                validItems.forEach(i => {
+                    const pCode = String(i.custom_product_code || i.product_code || '').trim();
+                    const pPrice = i.part_id ? partsPriceById[i.part_id] : (pCode ? partsPriceByCode[pCode] : 0);
+                    i._fallbackWeight = Number(pPrice || 0) * Number(i.quantity || 1);
+                    totalWeight += i._fallbackWeight;
+                });
+                if (totalWeight === 0) {
+                    validItems.forEach(i => {
+                        i._fallbackWeight = 1;
+                        totalWeight += 1;
+                    });
+                }
+            }
+
             validItems.forEach((item, idx) => {
                const pName = item.product_name || item.name || '';
                const pCode = item.custom_product_code || item.product_code || '';
                const b = getBrandFallback('', pName, pCode, o.mall_id);
                const qty = Number(item.quantity || 1);
                
-               const canceledItems = (items || []).filter(it => ['C11', 'C40', 'R40', 'E40'].includes(it.order_status));
-               const canceledAmount = canceledItems.reduce((acc, it) => acc + (Number(it.product_price || it.price || 0) * Number(it.quantity || 1)), 0);
-               const distributableAmount = Math.max(0, Number(o.total_amount || 0) - Number(o.shipping_fee || 0) - canceledAmount);
-
                let baseWeight = 0;
-               let isExplicitlyZero = item.payment_amount !== undefined && item.payment_amount !== null && Number(item.payment_amount) === 0;
-               if (item.payment_amount !== undefined && item.payment_amount !== null && Number(item.payment_amount) > 0) {
-                  baseWeight = Number(item.payment_amount);
-               } else if (!isExplicitlyZero) {
-                  baseWeight = Number(item.product_price || item.price || 0) * qty;
+               if (item._fallbackWeight !== undefined) {
+                   baseWeight = item._fallbackWeight;
+               } else {
+                   let isExplicitlyZero = item.payment_amount !== undefined && item.payment_amount !== null && Number(item.payment_amount) === 0;
+                   if (item.payment_amount !== undefined && item.payment_amount !== null && Number(item.payment_amount) > 0) {
+                      baseWeight = Number(item.payment_amount);
+                   } else if (!isExplicitlyZero) {
+                      baseWeight = Number(item.product_price || item.price || 0) * qty;
+                   }
                }
 
                let amount = 0;
@@ -205,10 +220,14 @@ function SalesHistoryStats() {
                    if (idx === validItems.length - 1) {
                        let previousTotals = validItems.slice(0, validItems.length - 1).reduce((acc, prevItem) => {
                            let prevW = 0;
-                           if (prevItem.payment_amount !== undefined && prevItem.payment_amount !== null && Number(prevItem.payment_amount) > 0) {
-                               prevW = Number(prevItem.payment_amount);
-                           } else if (!(prevItem.payment_amount !== undefined && prevItem.payment_amount !== null && Number(prevItem.payment_amount) === 0)) {
-                               prevW = Number(prevItem.product_price || prevItem.price || 0) * Number(prevItem.quantity || 1);
+                           if (prevItem._fallbackWeight !== undefined) {
+                               prevW = prevItem._fallbackWeight;
+                           } else {
+                               if (prevItem.payment_amount !== undefined && prevItem.payment_amount !== null && Number(prevItem.payment_amount) > 0) {
+                                   prevW = Number(prevItem.payment_amount);
+                               } else if (!(prevItem.payment_amount !== undefined && prevItem.payment_amount !== null && Number(prevItem.payment_amount) === 0)) {
+                                   prevW = Number(prevItem.product_price || prevItem.price || 0) * Number(prevItem.quantity || 1);
+                               }
                            }
                            return acc + Math.floor((prevW / totalWeight) * distributableAmount);
                        }, 0);
@@ -318,7 +337,7 @@ function SalesHistoryStats() {
     const [shipRes, asRes, cafeRes, whRes, partsRes, agenciesRes, invRes] = await Promise.all([
       shipQuery, asQuery, cafeQuery,
       supabase.from('warehouses').select('id, name'),
-      supabase.from('parts').select('id, code, barcode, name, note, brand, supply_price'),
+      supabase.from('parts').select('id, code, barcode, name, note, brand, supply_price, price'),
       supabase.from('agencies').select('name'),
       supabase.from('inventory').select('product_id, quantity')
     ]);
@@ -345,19 +364,23 @@ function SalesHistoryStats() {
     const partsBrandById = {};
     const partsNameById = {};
     const partsCostById = {};
+    const partsPriceById = {};
+    const partsPriceByCode = {};
 
     (partsRes.data || []).forEach(p => {
       const cat = formatCategory(p.note);
       const brand = p.brand || '-';
       const cost = Number(p.supply_price || 0);
+      const price = Number(p.price || 0);
 
       partsById[p.id] = cat;
       partsBrandById[p.id] = brand;
       partsNameById[p.id] = p.name;
       partsCostById[p.id] = cost;
+      partsPriceById[p.id] = price;
       if (p.name) { partsMap[p.name] = cat; partsBrandMap[p.name] = brand; partsCostMap[p.name] = cost; }
-      if (p.code) { partsByCode[p.code] = cat; partsBrandByCode[p.code] = brand; partsNameByCode[p.code] = p.name; partsCostByCode[p.code] = cost; }
-      if (p.barcode) { partsByCode[p.barcode] = cat; partsBrandByCode[p.barcode] = brand; partsNameByCode[p.barcode] = p.name; partsCostByCode[p.barcode] = cost; }
+      if (p.code) { partsByCode[p.code] = cat; partsBrandByCode[p.code] = brand; partsNameByCode[p.code] = p.name; partsCostByCode[p.code] = cost; partsPriceByCode[p.code] = price; }
+      if (p.barcode) { partsByCode[p.barcode] = cat; partsBrandByCode[p.barcode] = brand; partsNameByCode[p.barcode] = p.name; partsCostByCode[p.barcode] = cost; partsPriceByCode[p.barcode] = price; }
     });
 
     const resolveCost = (name, code = '') => {
@@ -550,6 +573,10 @@ function SalesHistoryStats() {
         
         const orderRows = [];
 
+        const canceledItems = (items || []).filter(it => ['C11', 'C40', 'R40', 'E40'].includes(it.order_status));
+        const canceledAmount = canceledItems.reduce((acc, it) => acc + (Number(it.product_price || it.price || 0) * Number(it.quantity || 1)), 0);
+        const distributableAmount = Math.max(0, Number(o.total_amount || 0) - Number(o.shipping_fee || 0) - canceledAmount);
+
         let totalWeight = validItems.reduce((acc, i) => {
            let w = 0;
            if (i.payment_amount !== undefined && i.payment_amount !== null && Number(i.payment_amount) > 0) {
@@ -560,6 +587,21 @@ function SalesHistoryStats() {
            return acc + w;
         }, 0);
 
+        if (totalWeight === 0 && distributableAmount > 0) {
+            validItems.forEach(i => {
+                const pCode = String(i.custom_product_code || i.product_code || '').trim();
+                const pPrice = i.part_id ? partsPriceById[i.part_id] : (pCode ? partsPriceByCode[pCode] : 0);
+                i._fallbackWeight = Number(pPrice || 0) * Number(i.quantity || 1);
+                totalWeight += i._fallbackWeight;
+            });
+            if (totalWeight === 0) {
+                validItems.forEach(i => {
+                    i._fallbackWeight = 1;
+                    totalWeight += 1;
+                });
+            }
+        }
+
         validItems.forEach((item, idx) => {
           const itemCode = item.custom_product_code || item.product_code || '';
           let pName = item.product_name || item.name || '상품';
@@ -568,30 +610,33 @@ function SalesHistoryStats() {
           const itemQty = Number(item.quantity || 1);
           
           let baseWeight = 0;
-          let isExplicitlyZero = item.payment_amount !== undefined && item.payment_amount !== null && Number(item.payment_amount) === 0;
-
-          if (item.payment_amount !== undefined && item.payment_amount !== null && Number(item.payment_amount) > 0) {
-             baseWeight = Number(item.payment_amount);
-          } else if (!isExplicitlyZero) {
-             baseWeight = Number(item.product_price || item.price || 0) * itemQty;
+          if (item._fallbackWeight !== undefined) {
+              baseWeight = item._fallbackWeight;
+          } else {
+              let isExplicitlyZero = item.payment_amount !== undefined && item.payment_amount !== null && Number(item.payment_amount) === 0;
+              if (item.payment_amount !== undefined && item.payment_amount !== null && Number(item.payment_amount) > 0) {
+                 baseWeight = Number(item.payment_amount);
+              } else if (!isExplicitlyZero) {
+                 baseWeight = Number(item.product_price || item.price || 0) * itemQty;
+              }
           }
           let iPrice = Number(item.product_price || item.price || 0);
           
           let total = 0;
-
-          const canceledItems = (items || []).filter(it => ['C11', 'C40', 'R40', 'E40'].includes(it.order_status));
-          const canceledAmount = canceledItems.reduce((acc, it) => acc + (Number(it.product_price || it.price || 0) * Number(it.quantity || 1)), 0);
-          const distributableAmount = Math.max(0, Number(o.total_amount || 0) - Number(o.shipping_fee || 0) - canceledAmount);
 
           if (totalWeight > 0) {
              total = Math.floor((baseWeight / totalWeight) * distributableAmount);
              if (idx === validItems.length - 1) {
                 let previousTotals = validItems.slice(0, validItems.length - 1).reduce((acc, prevItem) => {
                    let prevW = 0;
-                   if (prevItem.payment_amount !== undefined && prevItem.payment_amount !== null && Number(prevItem.payment_amount) > 0) {
-                       prevW = Number(prevItem.payment_amount);
-                   } else if (!(prevItem.payment_amount !== undefined && prevItem.payment_amount !== null && Number(prevItem.payment_amount) === 0)) {
-                       prevW = Number(prevItem.product_price || prevItem.price || 0) * Number(prevItem.quantity || 1);
+                   if (prevItem._fallbackWeight !== undefined) {
+                       prevW = prevItem._fallbackWeight;
+                   } else {
+                       if (prevItem.payment_amount !== undefined && prevItem.payment_amount !== null && Number(prevItem.payment_amount) > 0) {
+                           prevW = Number(prevItem.payment_amount);
+                       } else if (!(prevItem.payment_amount !== undefined && prevItem.payment_amount !== null && Number(prevItem.payment_amount) === 0)) {
+                           prevW = Number(prevItem.product_price || prevItem.price || 0) * Number(prevItem.quantity || 1);
+                       }
                    }
                    return acc + Math.floor((prevW / totalWeight) * distributableAmount);
                 }, 0);

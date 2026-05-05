@@ -170,7 +170,7 @@ function SalesHistory() {
       asQuery,
       cafeQuery,
       supabase.from('warehouses').select('id, name'),
-      supabase.from('parts').select('id, code, barcode, name, note, brand')
+      supabase.from('parts').select('id, code, barcode, name, note, brand, price')
     ]);
 
     // 사전 창고 맵 생성
@@ -191,6 +191,8 @@ function SalesHistory() {
     const partsBrandById = {};
     const partsNameById = {};
     const partsNameByCode = {};
+    const partsPriceById = {};
+    const partsPriceByCode = {};
 
     (partsRes.data || []).forEach(p => {
       const cat = formatCategory(p.note);
@@ -198,6 +200,7 @@ function SalesHistory() {
       partsById[p.id] = cat;
       partsBrandById[p.id] = brand;
       partsNameById[p.id] = p.name;
+      partsPriceById[p.id] = p.price || 0;
 
       if (p.name) {
         partsMap[p.name] = cat;
@@ -207,11 +210,13 @@ function SalesHistory() {
         partsByCode[p.code] = cat;
         partsBrandByCode[p.code] = brand;
         partsNameByCode[p.code] = p.name;
+        partsPriceByCode[p.code] = p.price || 0;
       }
       if (p.barcode) {
         partsByCode[p.barcode] = cat;
         partsBrandByCode[p.barcode] = brand;
         partsNameByCode[p.barcode] = p.name;
+        partsPriceByCode[p.barcode] = p.price || 0;
       }
     });
 
@@ -499,7 +504,6 @@ function SalesHistory() {
         rows.push({ ...baseFields, warehouse_name: fallbackWarehouseName, _id: `cafe_${o.id}_none`, part_name: '(품목 미기재)', part_category: '기타', part_brand: '-', quantity: 0, unit_price: 0, total_price: Number(o.total_amount || 0) });
       } else {
         let orderBrand = '-';
-        let orderItemsSum = 0;
         let seenProductCodes = new Set();
         const validItems = items.filter(item => !['C11', 'C40', 'R40', 'E40'].includes(item.order_status));
         validItems.sort((a, b) => {
@@ -509,6 +513,35 @@ function SalesHistory() {
         });
         if (validItems.length === 0) return; // 전액/전부 취소건은 리스트에서 제외
         
+        const canceledItems = (items || []).filter(it => ['C11', 'C40', 'R40', 'E40'].includes(it.order_status));
+        const canceledAmount = canceledItems.reduce((acc, it) => acc + (Number(it.product_price || it.price || 0) * Number(it.quantity || 1)), 0);
+        const distributableAmount = Math.max(0, Number(o.total_amount || 0) - Number(o.shipping_fee || 0) - canceledAmount);
+
+        let totalWeight = validItems.reduce((acc, i) => {
+           let w = 0;
+           if (i.payment_amount !== undefined && i.payment_amount !== null && Number(i.payment_amount) > 0) {
+               w = Number(i.payment_amount);
+           } else if (!(i.payment_amount !== undefined && i.payment_amount !== null && Number(i.payment_amount) === 0)) {
+               w = Number(i.product_price || i.price || 0) * Number(i.quantity || 1);
+           }
+           return acc + w;
+        }, 0);
+
+        if (totalWeight === 0 && distributableAmount > 0) {
+            validItems.forEach(i => {
+                const pCode = String(i.custom_product_code || i.product_code || '').trim();
+                const pPrice = i.part_id ? partsPriceById[i.part_id] : (pCode ? partsPriceByCode[pCode] : 0);
+                i._fallbackWeight = Number(pPrice || 0) * Number(i.quantity || 1);
+                totalWeight += i._fallbackWeight;
+            });
+            if (totalWeight === 0) {
+                validItems.forEach(i => {
+                    i._fallbackWeight = 1;
+                    totalWeight += 1;
+                });
+            }
+        }
+
         const orderRows = [];
 
         validItems.forEach((item, idx) => {
@@ -538,27 +571,17 @@ function SalesHistory() {
           }
           
           let baseWeight = 0;
-          let isExplicitlyZero = item.payment_amount !== undefined && item.payment_amount !== null && Number(item.payment_amount) === 0;
-          if (item.payment_amount !== undefined && item.payment_amount !== null && Number(item.payment_amount) > 0) {
-             baseWeight = Number(item.payment_amount);
-          } else if (!isExplicitlyZero) {
-             baseWeight = Number(item.product_price || item.price || 0) * itemQty;
+          if (item._fallbackWeight !== undefined) {
+              baseWeight = item._fallbackWeight;
+          } else {
+              let isExplicitlyZero = item.payment_amount !== undefined && item.payment_amount !== null && Number(item.payment_amount) === 0;
+              if (item.payment_amount !== undefined && item.payment_amount !== null && Number(item.payment_amount) > 0) {
+                 baseWeight = Number(item.payment_amount);
+              } else if (!isExplicitlyZero) {
+                 baseWeight = Number(item.product_price || item.price || 0) * itemQty;
+              }
           }
           let iPrice = Number(item.product_price || item.price || 0);
-
-          const canceledItems = (items || []).filter(it => ['C11', 'C40', 'R40', 'E40'].includes(it.order_status));
-          const canceledAmount = canceledItems.reduce((acc, it) => acc + (Number(it.product_price || it.price || 0) * Number(it.quantity || 1)), 0);
-          const distributableAmount = Math.max(0, Number(o.total_amount || 0) - Number(o.shipping_fee || 0) - canceledAmount);
-
-          let totalWeight = validItems.reduce((acc, i) => {
-             let w = 0;
-             if (i.payment_amount !== undefined && i.payment_amount !== null && Number(i.payment_amount) > 0) {
-                 w = Number(i.payment_amount);
-             } else if (!(i.payment_amount !== undefined && i.payment_amount !== null && Number(i.payment_amount) === 0)) {
-                 w = Number(i.product_price || i.price || 0) * Number(i.quantity || 1);
-             }
-             return acc + w;
-          }, 0);
 
           let total = 0;
           if (totalWeight > 0) {
