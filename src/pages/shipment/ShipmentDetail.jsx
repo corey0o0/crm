@@ -593,9 +593,37 @@ function ShipmentDetail() {
   // 상태 변경 및 재고 처리
   const handleStatusChange = async (newStatus) => {
     if (saving) return; // 이중 클릭 방지
+    const previousStatus = shipmentData.status;
+
+    // 1. 준비완료 -> 준비중 제한 (품목이 추가되어 있으면 반품 필요)
+    if (previousStatus === '준비완료' && newStatus === '준비중') {
+      const hasActiveParts = shipmentParts.some(p => p.status !== '반품완료' && (!p.note || !p.note.includes('[반품완료]')));
+      if (hasActiveParts) {
+        setSnackbar({
+          open: true,
+          message: '추가된 품목이 있어 준비중 상태로 변경할 수 없습니다. 품목을 먼저 부분반품 처리해주세요.',
+          severity: 'warning'
+        });
+        return; // 상태 변경 중단
+      }
+    }
+
+    // 2. 준비중 -> 준비완료 확인
+    if (previousStatus === '준비중' && newStatus === '준비완료') {
+      if (!window.confirm('출고 상태를 준비완료로 변경하시겠습니까? (하위 품목들의 상태도 함께 준비완료로 동기화됩니다)')) {
+        return;
+      }
+    }
+
+    // 3. 출고완료 확인
+    if (newStatus === '출고완료' && previousStatus !== '출고완료') {
+      if (!window.confirm('해당 출고건을 완료 처리하시겠습니까?')) {
+        return;
+      }
+    }
+
     setSaving(true);
     try {
-      const previousStatus = shipmentData.status;
 
       // 상품(부품)들의 상태값 자동 동기화 (반품완료 상태 제외)
       const partsToUpdate = shipmentParts.filter(p => p.status !== '반품완료');

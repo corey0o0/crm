@@ -495,6 +495,45 @@ function ShipmentForm({ isManualB2B = false }) {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    
+    if (name === 'status') {
+      const previousStatus = shipmentData.status;
+      const newStatus = value;
+
+      // 1. 준비완료 -> 준비중 제한
+      if (previousStatus === '준비완료' && newStatus === '준비중') {
+        const hasActiveParts = selectedParts.some(p => p.status !== '반품완료' && (!p.note || !p.note.includes('[반품완료]')));
+        if (hasActiveParts) {
+          setSnackbar({
+            open: true,
+            message: '추가된 품목이 있어 준비중 상태로 변경할 수 없습니다. 품목을 먼저 부분반품 처리해주세요.',
+            severity: 'warning'
+          });
+          return;
+        }
+      }
+
+      // 2. 준비중 -> 준비완료 확인
+      if (previousStatus === '준비중' && newStatus === '준비완료') {
+        if (!window.confirm('출고 상태를 준비완료로 변경하시겠습니까? (하위 품목들의 상태도 함께 준비완료로 동기화됩니다)')) {
+          return;
+        }
+      }
+
+      // 3. 출고완료 확인
+      if (newStatus === '출고완료' && previousStatus !== '출고완료') {
+        if (!window.confirm('해당 출고건을 완료 처리하시겠습니까?')) {
+          return;
+        }
+      }
+      
+      // 하위 품목 동기화 로직
+      setSelectedParts(prev => prev.map(p => {
+        if (p.status === '반품완료' || (p.note && p.note.includes('[반품완료]'))) return p;
+        return { ...p, status: newStatus };
+      }));
+    }
+
     setShipmentData(prev => ({
       ...prev,
       [name]: value
