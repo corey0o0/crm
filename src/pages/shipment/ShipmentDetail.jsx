@@ -585,6 +585,23 @@ function ShipmentDetail() {
     try {
       const previousStatus = shipmentData.status;
 
+      // 상품(부품)들의 상태값 자동 동기화 (반품완료 상태 제외)
+      const partsToUpdate = shipmentParts.filter(p => p.status !== '반품완료');
+      if (partsToUpdate.length > 0) {
+        const { error: partsUpdateError } = await supabase
+          .from('shipment_parts')
+          .update({ status: newStatus })
+          .eq('shipment_id', id)
+          .neq('status', '반품완료');
+          
+        if (partsUpdateError) {
+          throw new Error(`부품 상태 동기화 실패: ${partsUpdateError.message}`);
+        }
+        
+        // 로컬 상태 업데이트
+        setShipmentParts(prev => prev.map(p => p.status === '반품완료' ? p : { ...p, status: newStatus }));
+      }
+
       // === [검수 락 (관리자 바이패스 및 토글 체크)] ===
       if (isInspectionEnabled && ['출고완료', '준비완료'].includes(newStatus) && !['출고완료', '준비완료'].includes(previousStatus) && !isMaster) {
         // 출고 창고 지정 기능이 제거되었으므로, 모든 일반 계정 출고 건은 

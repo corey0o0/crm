@@ -1281,6 +1281,12 @@ function AddService() {
 
   // 상태 변경 핸들러
   const handleStatusChange = (newStatus) => {
+    // 상품(부품)들의 상태값 자동 동기화 (반품완료된 항목 제외)
+    setSelectedParts(prev => prev.map(p => {
+      if (p.status === '반품완료' || (p.usage && p.usage.includes('[반품완료]'))) return p;
+      return { ...p, status: newStatus };
+    }));
+
     if (newStatus === '출고완료') {
       setConfirmDialog({
         open: true,

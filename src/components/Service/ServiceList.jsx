@@ -1173,6 +1173,19 @@ function ServiceList() {
 
         if (updateError) throw updateError;
 
+        // 상태가 변경되었으면 관련 부품 상태도 자동 동기화 (반품완료 제외)
+        if (originalService?.status !== selectedService.status) {
+          const { error: partsError } = await supabase
+            .from('service_parts')
+            .update({ status: selectedService.status })
+            .eq('service_id', selectedService.id)
+            .neq('status', '반품완료');
+            
+          if (partsError) {
+             console.error('부품 상태 자동 동기화 오류:', partsError);
+          }
+        }
+
         // 재고 연동 로직
         if (wasCompleted && !isNowCompleted) {
            await processServiceRevert(selectedService.id, selectedBrand);
