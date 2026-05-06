@@ -1300,6 +1300,14 @@ function ServiceDetail() {
         try {
           setSubmitting(true);
 
+          // A/S 삭제 전 재고 원복 처리 (기존 부품 재고를 창고로 다시 입고)
+          try {
+            await processServiceRevert(id, formData.brand);
+            console.log(`[A/S Delete] 재고 원복 완료 - 서비스ID: ${id}`);
+          } catch (revertErr) {
+            console.error('A/S 삭제 시 재고 원복 중 오류:', revertErr);
+          }
+
           const { error: deleteTagsError } = await supabase
             .from('service_tags')
             .delete()
@@ -1313,14 +1321,6 @@ function ServiceDetail() {
             .eq('service_id', id);
 
           if (deletePartsError) throw deletePartsError;
-
-          // A/S 삭제 전 재고 원복 처리 (기존 부품 재고를 창고로 다시 입고)
-          try {
-            await processServiceRevert(id, formData.brand);
-            console.log(`[A/S Delete] 재고 원복 완료 - 서비스ID: ${id}`);
-          } catch (revertErr) {
-            console.error('A/S 삭제 시 재고 원복 중 오류:', revertErr);
-          }
 
           const { error: txError } = await supabase
             .from('transactions')
@@ -2377,7 +2377,6 @@ function ServiceDetail() {
               <TableCell align="right">수량</TableCell>
               <TableCell align="right">금액</TableCell>
               <TableCell align="right">가격 수정</TableCell>
-              <TableCell align="center">상태</TableCell>
               <TableCell align="center">용도</TableCell>
               <TableCell align="center">작업</TableCell>
             </TableRow>
@@ -2460,29 +2459,6 @@ function ServiceDetail() {
                       </Button>
                     </Box>
                   )}
-                </TableCell>
-                <TableCell align="center">
-                  <Select
-                    size="small"
-                    value={part.status || '준비중'}
-                    onChange={(e) => {
-                      const newParts = [...selectedParts];
-                      newParts[index].status = e.target.value;
-                      setSelectedParts(newParts);
-                      setHasUnsavedChanges(true);
-                    }}
-                    sx={{ minWidth: 90 }}
-                  >
-                    {(() => {
-                      const items = ['준비중', '부품준비', '준비완료', '반품완료', '출고완료'];
-                      if (part.status && !items.includes(part.status)) {
-                        items.unshift(part.status);
-                      }
-                      return items.map(s => (
-                        <MenuItem key={s} value={s}>{s}</MenuItem>
-                      ));
-                    })()}
-                  </Select>
                 </TableCell>
                 <TableCell align="center">
                   <Select
