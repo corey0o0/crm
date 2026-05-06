@@ -390,7 +390,7 @@ export const processServiceCompletion = async (serviceId, brandCode) => {
     }
 
     // 서비스 상태가 차감 대상이 아닌 경우(예: 준비중, 접수)에는 신규 차감을 하지 않음
-    const deductStatuses = ['출고완료', '준비완료', '부품준비'];
+    const deductStatuses = ['출고완료', '준비완료', '부품준비', '처리중'];
     if (!deductStatuses.includes(service.status)) {
       // 모든 effective_qty를 0으로 만들어서 차감 배열을 비움 (기존 차감분은 위 netDeductions에 의해 자동 원복됨)
       Object.keys(effectiveParts).forEach(key => {

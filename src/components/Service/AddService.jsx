@@ -826,7 +826,7 @@ function AddService() {
         updated_at: new Date().toISOString()
       };
 
-      if (formData.status === '출고완료' || formData.status === '준비완료' || formData.status === '부품준비') {
+      if (formData.status === '출고완료' || formData.status === '준비완료' || formData.status === '부품준비' || formData.status === '처리중') {
         const now = new Date();
         serviceInsertData.completion_date = format(now, 'yyyy-MM-dd');
         serviceInsertData.completion_time = format(now, 'HH:mm:ss');
@@ -907,7 +907,7 @@ function AddService() {
       }
 
       // 상태가 '출고완료'인 상태로 신규 등록 시 재고 차감 즉시 실행
-      if (formData.status === '출고완료' || formData.status === '준비완료' || formData.status === '부품준비') {
+      if (formData.status === '출고완료' || formData.status === '준비완료' || formData.status === '부품준비' || formData.status === '처리중') {
         try {
           console.log(`[AddService] A/S 완료 처리 시작 - 서비스ID: ${insertedService.id}, 브랜드: ${formData.brand}`);
           const inventoryResult = await processServiceCompletion(insertedService.id, formData.brand);
