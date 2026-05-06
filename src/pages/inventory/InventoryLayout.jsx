@@ -2058,12 +2058,15 @@ function InventoryLayout() {
                              item.productName.toLowerCase().includes(filter.product.toLowerCase())
                            );
       
+      const cleanSearchTerm = (filter.note || '').toLowerCase().replace(/^shp-/, '').trim();
+      
       const matchesNote = !filter.note || 
                          group.items.some(item => 
-                           (item.note || '').toLowerCase().includes(filter.note.toLowerCase())
+                           (item.note || '').toLowerCase().includes(cleanSearchTerm) ||
+                           String(item.id).toLowerCase().includes(cleanSearchTerm)
                          ) ||
-                         (group.note || '').toLowerCase().includes(filter.note.toLowerCase()) ||
-                         String(group.id).toLowerCase().includes(filter.note.toLowerCase());
+                         (group.note || '').toLowerCase().includes(cleanSearchTerm) ||
+                         String(group.id).toLowerCase().includes(cleanSearchTerm);
       
       const matchesDateFrom = !filter.dateFrom || group.date >= filter.dateFrom;
       const matchesDateTo = !filter.dateTo || group.date <= filter.dateTo;
