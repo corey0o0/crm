@@ -1621,10 +1621,32 @@ function InventoryLayout() {
         }
       });
 
-      // 최종 상계 수량이 0보다 큰 것만 남김
+      // 최종 상계 수량이 0이 아닌 것만 남김
       const aggregatedItems = Object.values(itemMap)
-        .filter(i => i.netQuantity > 0)
-        .map(i => ({ ...i, quantity: i.netQuantity }));
+        .filter(i => i.netQuantity !== 0)
+        .map(i => {
+          if (i.netQuantity < 0) {
+            // 상계 결과가 음수면 원래 그룹 타입의 반대 성격(예: 출고 그룹의 반대는 '입고/취소')
+            const reversedType = group.type === 'out' ? 'in' : 'out';
+            // 가장 최신의 역방향 트랜잭션 정보(from/to Location 등)를 가져오기 위함
+            const reverseItem = [...i.originalItems].reverse().find(orig => orig.type === reversedType) || i;
+            return {
+              ...reverseItem,
+              quantity: Math.abs(i.netQuantity),
+              type: reversedType,
+              note: `[상계결과] ${reverseItem.note || i.note || ''}`
+            };
+          }
+          return { ...i, quantity: i.netQuantity };
+        });
+
+      // 모든 아이템이 상계되어 남은 아이템들이 전부 역방향(예: 모두 입고)이라면 그룹 타입도 역방향으로 맞춤
+      if (aggregatedItems.length > 0) {
+        const allReversed = aggregatedItems.every(i => i.type !== group.type);
+        if (allReversed) {
+          group.type = aggregatedItems[0].type;
+        }
+      }
 
       // 모든 아이템이 상계되어 0이 되더라도, 빈 배열로 만들어서 필터링 되게 함
       return { ...group, items: aggregatedItems };
