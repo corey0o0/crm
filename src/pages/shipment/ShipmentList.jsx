@@ -917,6 +917,7 @@ function ShipmentList() {
 
   const getStatusColor = (status) => {
     switch (status) {
+      case '접수':
       case '준비중':
         return 'info';
       case '출고대기':
@@ -924,6 +925,7 @@ function ShipmentList() {
       case '부품준비':
         return 'warning';
       case '준비완료':
+      case '작업완료':
         return 'secondary';
       case '반품완료':
         return 'error';

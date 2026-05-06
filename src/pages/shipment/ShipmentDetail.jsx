@@ -488,7 +488,7 @@ function ShipmentDetail() {
       setSnackbar({
         open: true,
         message: autoDowngraded 
-          ? '제품 정보가 업데이트되었으며, 미완료 품목이 있어 상태가 준비완료로 변경되었습니다.' 
+          ? '제품 정보가 업데이트되었으며, 미완료 품목이 있어 상태가 작업완료로 변경되었습니다.' 
           : '제품 정보가 성공적으로 업데이트되었습니다.',
         severity: autoDowngraded ? 'info' : 'success'
       });
@@ -1441,9 +1441,9 @@ function ShipmentDetail() {
                   disabled={saving}
                 >
                   {(() => {
-                    const STATUS_ORDER = { '접수': 0, '부품준비': 1, '작업완료': 2, '반품완료': 3, '출고완료': 4 };
+                    const STATUS_ORDER = { '접수': 0, '부품준비': 1, '준비완료': 2, '작업완료': 3, '반품완료': 4, '출고완료': 5 };
                     const currentOrder = STATUS_ORDER[shipmentData.status] ?? 0;
-                    const items = ['접수', '부품준비', '작업완료', '반품완료', '출고완료'].filter(s => s !== '부품준비' || isInspectionEnabled);
+                    const items = ['접수', '부품준비', '준비완료', '작업완료', '반품완료', '출고완료'].filter(s => s !== '부품준비' || isInspectionEnabled);
                     
                     return items.map(status => {
                       // 마스터 권한이 아니면 이전 상태로 되돌릴 수 없음
