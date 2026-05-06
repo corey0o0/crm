@@ -1586,9 +1586,9 @@ function ShipmentForm() {
                 label="상태"
               >
                 {(() => {
-                  const STATUS_ORDER = { '준비중': 0, '부품준비': 1, '검수완료': 2, '출고대기': 3, '출고완료': 4 };
+                  const STATUS_ORDER = { '준비중': 0, '부품준비': 1, '준비완료': 2, '반품완료': 3, '출고완료': 4 };
                   const currentOrder = STATUS_ORDER[shipmentData.status] ?? 0;
-                  const items = ['준비중', '부품준비', '검수완료', '출고대기', '출고완료'];
+                  const items = ['준비중', '부품준비', '준비완료', '반품완료', '출고완료'];
                   
                   return items.map(status => {
                     const isDisabled = !isMaster && STATUS_ORDER[status] < currentOrder;
