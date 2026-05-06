@@ -1443,7 +1443,13 @@ function ShipmentDetail() {
                   {(() => {
                     const STATUS_ORDER = { '접수': 0, '부품준비': 1, '준비완료': 2, '작업완료': 3, '반품완료': 4, '출고완료': 5 };
                     const currentOrder = STATUS_ORDER[shipmentData.status] ?? 0;
-                    const items = ['접수', '부품준비', '준비완료', '작업완료', '반품완료', '출고완료'].filter(s => s !== '부품준비' || isInspectionEnabled);
+                    const baseItems = isInspectionEnabled 
+                      ? ['접수', '부품준비', '준비완료', '작업완료', '반품완료', '출고완료']
+                      : ['접수', '작업완료', '출고완료'];
+                    const items = [...baseItems];
+                    if (shipmentData.status && !items.includes(shipmentData.status)) {
+                      items.unshift(shipmentData.status);
+                    }
                     
                     return items.map(status => {
                       // 마스터 권한이 아니면 이전 상태로 되돌릴 수 없음
@@ -1644,11 +1650,18 @@ function ShipmentDetail() {
                                 onChange={(e) => handleItemStatusChange(part, e.target.value)}
                                 sx={{ width: '100px', fontSize: '0.875rem' }}
                               >
-                                {['접수', '부품준비', '준비완료', '작업완료', '출고완료']
-                                  .filter(s => s !== '부품준비' || isInspectionEnabled)
-                                  .map(s => (
+                                {(() => {
+                                  const baseItems = isInspectionEnabled 
+                                    ? ['접수', '부품준비', '준비완료', '작업완료', '출고완료']
+                                    : ['접수', '작업완료', '출고완료'];
+                                  const items = [...baseItems];
+                                  if (part.status && !items.includes(part.status) && part.status !== '반품완료') {
+                                    items.unshift(part.status);
+                                  }
+                                  return items.map(s => (
                                     <MenuItem key={s} value={s}>{s}</MenuItem>
-                                  ))}
+                                  ));
+                                })()}
                                 {part.status === '반품완료' && <MenuItem value="반품완료">반품완료</MenuItem>}
                               </Select>
                             </TableCell>
@@ -1780,11 +1793,18 @@ function ShipmentDetail() {
                                   }
                                 }}
                               >
-                                {['접수', '부품준비', '준비완료', '작업완료', '출고완료']
-                                  .filter(s => s !== '부품준비' || isInspectionEnabled)
-                                  .map(s => (
+                                {(() => {
+                                  const baseItems = isInspectionEnabled 
+                                    ? ['접수', '부품준비', '준비완료', '작업완료', '출고완료']
+                                  : ['접수', '작업완료', '출고완료'];
+                                  const items = [...baseItems];
+                                  if (part.status && !items.includes(part.status) && part.status !== '반품완료') {
+                                    items.unshift(part.status);
+                                  }
+                                  return items.map(s => (
                                     <MenuItem key={s} value={s}>{s}</MenuItem>
-                                  ))}
+                                  ));
+                                })()}
                                 {part.status === '반품완료' && <MenuItem value="반품완료">반품완료</MenuItem>}
                               </Select>
                             </TableCell>

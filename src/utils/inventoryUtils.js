@@ -2,6 +2,20 @@ import { supabase } from '../lib/supabaseClient';
 import { getSyncedParts } from './partSyncUtils';
 import { format } from 'date-fns';
 
+// 구 상태값 → 신 상태값 매핑 (DB 마이그레이션 없이 UI 정규화)
+const LEGACY_STATUS_MAP = {
+  '접수': '준비중',
+  '처리중': '준비완료',
+  '작업완료': '준비완료',
+  '완료': '출고완료',
+  '수령완료': '출고완료',
+  '수령대기': '준비완료',
+  '결제대기': '준비완료',
+};
+
+export const normalizeServiceStatus = (status) =>
+  LEGACY_STATUS_MAP[status] || status || '준비중';
+
 /**
  * 브랜드 설정 조회
  */
@@ -238,7 +252,7 @@ export const processShipmentCompletion = async (shipmentId, brandCode) => {
        .eq('id', shipmentId)
        .single();
     
-    if (shipErr || !shipment) throw new Error('출고 정보를 찾을 수 없습니다.');
+    if (shipErr || !shipment) throw new Error(`출고 정보를 찾을 수 없습니다. (ID: ${shipmentId}, 오류: ${shipErr?.message || '없음'})`);
     
     // 출고 창고 설정
     let warehouseId = shipment.warehouse_id;
@@ -273,9 +287,9 @@ export const processShipmentCompletion = async (shipmentId, brandCode) => {
     let hasError = false;
 
     for (const sp of shipmentParts) {
-      if (!sp.inventory_deducted && sp.status !== '반품 완료') {
-        // 아직 차감되지 않았고, 반품된 것도 아니라면 '작업완료' 상태로 만들면서 차감
-        const res = await updatePartStatus('shipment', shipmentId, sp.id, '작업완료', brandCode);
+      if (!sp.inventory_deducted && sp.status !== '반품완료') {
+        // 아직 차감되지 않았고, 반품된 것도 아니라면 '출고완료' 상태로 만들면서 차감
+        const res = await updatePartStatus('shipment', shipmentId, sp.id, '출고완료', brandCode);
         results.push(res);
         if (!res.success) hasError = true;
       }
@@ -389,14 +403,16 @@ export const processServiceCompletion = async (serviceId, brandCode) => {
       });
     }
 
-    // 서비스 상태가 차감 대상이 아닌 경우(예: 접수)에는 신규 차감을 하지 않음
-    const deductStatuses = ['출고완료', '작업완료', '준비완료', '부품준비', '처리중'];
-    if (!deductStatuses.includes(service.status)) {
+    // 서비스 상태가 차감 대상이 아닌 경우(예: 접수/준비중)에는 신규 차감을 하지 않음
+    // normalizeServiceStatus로 DB의 구 상태값(완료, 작업완료 등)도 처리
+    const normalizedSvcStatus = normalizeServiceStatus(service.status);
+    const deductStatuses = ['출고완료', '준비완료', '부품준비'];
+    if (!deductStatuses.includes(normalizedSvcStatus)) {
       // 모든 effective_qty를 0으로 만들어서 차감 배열을 비움 (기존 차감분은 위 netDeductions에 의해 자동 원복됨)
       Object.keys(effectiveParts).forEach(key => {
         effectiveParts[key].effective_qty = 0;
       });
-      console.log(`[A/S Inventory Sync] 상태가 '${service.status}'이므로 재고 차감 생략 (기존 차감 건이 있다면 자동 복구)`);
+      console.log(`[A/S Inventory Sync] 상태가 '${service.status}'(정규화: '${normalizedSvcStatus}')이므로 재고 차감 생략 (기존 차감 건이 있다면 자동 복구)`);
     }
 
     // 3. 기존 모든 차감 내역 완전 복구 (Revert All) 후 현재 상태로 신규 차감 (Re-Deduct)
@@ -706,7 +722,7 @@ export const updatePartStatus = async (sourceType, orderId, recordId, newStatus,
 
   } catch (err) {
     console.error('updatePartStatus error:', err);
-    return { success: false, message: err.message };
+    return { success: false, message: err?.message || JSON.stringify(err) };
   }
 };
 

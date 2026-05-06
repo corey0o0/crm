@@ -65,7 +65,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import { formatKoreanDateTime } from '../../utils/dateUtils';
 import { format } from 'date-fns';
 import { sendTelegramNotification } from '../../lib/telegram';
-import { processServiceCompletion, processPartialReturn, processServiceRevert } from '../../utils/inventoryUtils';
+import { processServiceCompletion, processPartialReturn, processServiceRevert, normalizeServiceStatus } from '../../utils/inventoryUtils';
 import { getAppSetting } from '../../api/settingsApi';
 import { useAuth } from '../../contexts/AuthContext';
 import { MASTER_ACCOUNTS } from '../../config/menuConfig';
@@ -573,8 +573,9 @@ function ServiceDetail() {
 
       const mileage = serviceData.mileage === null ? '' : serviceData.mileage;
 
-      // 초기 상태 저장
-      setInitialStatus(serviceData.status || '준비중');
+      // 초기 상태 저장 (구 상태값 정규화 포함)
+      const normalizedStatus = normalizeServiceStatus(serviceData.status);
+      setInitialStatus(normalizedStatus);
 
       let defaultWarehouseId = serviceData.warehouse_id;
       if (!defaultWarehouseId) {
@@ -584,13 +585,14 @@ function ServiceDetail() {
 
       setFormData({
         ...serviceData,
+        status: normalizedStatus,
         reception_date: receptionDate,
         reception_time: receptionTime,
         completion_date: completionDate,
         completion_time: completionTime,
         service_parts: (serviceData.service_parts || []).map(sp => ({
           ...sp,
-          status: sp.status || serviceData.status || '준비중'
+          status: normalizeServiceStatus(sp.status || serviceData.status)
         })),
         writer: serviceData.writer || '관리자',
         mileage: mileage,
@@ -647,7 +649,7 @@ function ServiceDetail() {
             record_id: sp.id,
             quantity: sp.quantity,
             price: sp.price,
-            status: sp.status || serviceData.status || '준비중',
+            status: normalizeServiceStatus(sp.status || serviceData.status),
             usage: sp.usage || 'A/S',
             total: sp.price * sp.quantity
           };

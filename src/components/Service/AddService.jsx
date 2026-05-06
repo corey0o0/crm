@@ -181,7 +181,7 @@ function AddService() {
     const checked = e.target.checked;
     setIsSimpleSale(checked);
     if (checked) {
-      handleStatusChange('처리중');
+      applyStatusChange('준비완료');
       setFormData(prev => ({
         ...prev,
         customer_name: '판매건',
@@ -189,9 +189,9 @@ function AddService() {
         product_name: selectedParts.map(p => p.name).join(', '),
         symptom: '단순 판매건',
         solution: '',
-        status: '처리중'
+        status: '준비완료'
       }));
-      setStatus('처리중');
+      setStatus('준비완료');
     } else {
       setFormData(prev => ({
         ...prev,
@@ -2291,7 +2291,7 @@ function AddService() {
                 color="primary" 
               />
             }
-            label="단순 판매 등록 (증상입력 생략 및 처리중 상태로 전환)"
+            label="단순 판매 등록 (증상입력 생략 및 준비완료 상태로 전환)"
             sx={{ ml: 2, flexGrow: 1 }}
           />
 
@@ -3114,7 +3114,7 @@ function AddService() {
                                 onChange={(e) => handlePartStatusChange(index, e.target.value)}
                                 sx={{ minWidth: 90, height: '32px' }}
                               >
-                                {['준비중', '준비완료', '출고완료'].map(s => (
+                                {['준비중', '부품준비', '준비완료', '출고완료'].map(s => (
                                   <MenuItem key={s} value={s}>{s}</MenuItem>
                                 ))}
                               </Select>

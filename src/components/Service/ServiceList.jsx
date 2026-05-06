@@ -75,7 +75,7 @@ import { getCookie, setCookie, removeCookie, getJSONCookie, setJSONCookie } from
 import { formatKoreanDateTime } from '../../utils/dateUtils';
 import { format } from 'date-fns';
 import { sendTelegramNotification } from '../../lib/telegram'; // 텔레그램 유틸리티 함수 import
-import { processServiceCompletion, processServiceRevert } from '../../utils/inventoryUtils';
+import { processServiceCompletion, processServiceRevert, normalizeServiceStatus } from '../../utils/inventoryUtils';
 
 // KST 변환 함수 추가
 // function toKST(dateString) { ... } // 삭제
@@ -388,9 +388,9 @@ function ServiceList() {
         // 첫 페이지 데이터 처리 및 즉시 표시 (REST API 버전)
         const processedServices = firstPageData.map(service => ({
           ...service,
-          status: service.status || '준비중',
+          status: normalizeServiceStatus(service.status),
           tags: service.service_tags?.map(tag => tag.tag_name) || [],
-          service_parts: service.service_parts || [] // 사용부품 정보 포함
+          service_parts: service.service_parts || []
         }));
         
         setServices(processedServices);
@@ -510,7 +510,7 @@ function ServiceList() {
       // 데이터 처리 (REST API는 이미 기본 형태로 반환됨)
       const processedServices = servicesData.map(service => ({
         ...service,
-        status: service.status || '준비중',
+        status: normalizeServiceStatus(service.status),
         tags: service.service_tags?.map(tag => tag.tag_name) || [],
         service_parts: service.service_parts || [] // 사용부품 정보 포함
       }));
@@ -901,7 +901,7 @@ function ServiceList() {
         // 검색 결과 처리 및 표시
         const processedServices = firstPageData.map(service => ({
             ...service,
-            status: service.status || '준비중',
+            status: normalizeServiceStatus(service.status),
             tags: service.service_tags?.map(tag => tag.tag_name) || [],
             service_parts: service.service_parts || [] // 사용부품 정보 포함
           }));
@@ -976,7 +976,7 @@ function ServiceList() {
           
           const processedServices = servicesData.map(service => ({
         ...service,
-        status: service.status || '준비중',
+        status: normalizeServiceStatus(service.status),
         tags: service.service_tags?.map(tag => tag.tag_name) || [],
         service_parts: service.service_parts || [] // 사용부품 정보 포함
       }));
