@@ -1615,9 +1615,12 @@ function ShipmentForm({ isManualB2B = false }) {
                 label="상태"
               >
                 {(() => {
-                  const STATUS_ORDER = { '준비중': 0, '부품준비': 1, '준비완료': 2, '반품완료': 3, '출고완료': 4 };
+                  const STATUS_ORDER = { '준비중': 0, '출고대기': 0, '부품준비': 1, '준비완료': 2, '반품완료': 3, '출고완료': 4 };
                   const currentOrder = STATUS_ORDER[shipmentData.status] ?? 0;
                   const items = ['준비중', '부품준비', '준비완료', '반품완료', '출고완료'];
+                  if (shipmentData.status && !items.includes(shipmentData.status)) {
+                    items.unshift(shipmentData.status);
+                  }
                   
                   return items.map(status => {
                     const isDisabled = !isMaster && STATUS_ORDER[status] < currentOrder;
@@ -1816,7 +1819,7 @@ function ShipmentForm({ isManualB2B = false }) {
                   <TableCell align="right">수량</TableCell>
                   <TableCell align="right">단가</TableCell>
                   <TableCell align="right">합계</TableCell>
-                  <TableCell align="right">관리</TableCell>
+                  <TableCell align="right">작업</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -1848,9 +1851,15 @@ function ShipmentForm({ isManualB2B = false }) {
                         onChange={(e) => handlePartStatusChange(part.id, e.target.value)}
                         sx={{ minWidth: 90 }}
                       >
-                        {['준비중', '부품준비', '준비완료', '반품완료', '출고완료'].map(s => (
-                          <MenuItem key={s} value={s}>{s}</MenuItem>
-                        ))}
+                        {(() => {
+                          const items = ['준비중', '부품준비', '준비완료', '반품완료', '출고완료'];
+                          if (part.status && !items.includes(part.status)) {
+                            items.unshift(part.status);
+                          }
+                          return items.map(s => (
+                            <MenuItem key={s} value={s}>{s}</MenuItem>
+                          ));
+                        })()}
                       </Select>
                     </TableCell>
                     <TableCell align="right">
