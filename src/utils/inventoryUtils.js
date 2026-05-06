@@ -377,7 +377,10 @@ export const processShipmentRevert = async (shipmentId, brandCode) => {
     if (parts.length === 0) return { success: false, message: '부품 매칭 실패' };
 
     const result = await processInventory(warehouseId, parts, brandCode, shipmentId, 'shipment', 'shipment_revert', true, shipment.customer_name || '');
-    return result;
+    return {
+      ...result,
+      message: result.success ? '재고가 성공적으로 원상복구되었습니다.' : '재고 복구 중 오류 발생.'
+    };
   } catch (err) {
     return { success: false, message: `오류: ${err.message}`, errors: [err.message] };
   }
@@ -559,7 +562,10 @@ export const processServiceRevert = async (serviceId, brandCode) => {
     }));
 
     const result = await processInventory(warehouseId, parts, brandCode, serviceId, 'service', 'service_revert', true);
-    return result;
+    return {
+      ...result,
+      message: result.success ? 'A/S 재고가 성공적으로 원상복구되었습니다.' : 'A/S 재고 복구 중 오류 발생.'
+    };
   } catch (err) {
     return { success: false, message: err.message, errors: [err.message] };
   }
