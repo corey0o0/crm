@@ -1211,7 +1211,26 @@ function InventoryLayout() {
             data.push(item);
           }
         });
+        });
       }
+
+      // 상품 매칭 검증
+      data.forEach(item => {
+        const product = products.find(p => {
+          if (p.code === item.productCode) return true;
+          if (p.barcode && String(p.barcode) === String(item.productCode)) return true;
+          const dbNameStr = (p.name || '').replace(/\s+/g, '').toLowerCase();
+          const searchStr = (item.parsedColName || item.productName || item.productCode || '').replace(/\s+/g, '').toLowerCase();
+          if (dbNameStr && searchStr && (dbNameStr === searchStr || dbNameStr.includes(searchStr) || searchStr.includes(dbNameStr))) return true;
+          return false;
+        });
+
+        if (!product) {
+          item.error = '등록되지 않은 상품(상품명/코드 불일치)';
+        } else if (!item.quantity || isNaN(item.quantity)) {
+          item.error = '수량이 올바르지 않습니다';
+        }
+      });
 
       setExcelData(data);
       const formatType = isNearbikeFormat ? '다중 파츠 형식' : '표준 형식';
@@ -1250,7 +1269,7 @@ function InventoryLayout() {
         return false;
       });
       
-      if (product) {
+      if (!item.error && product) {
         // 출발지/목적지로 입고/출고 판단
         const isInbound = item.fromLocation === '외부' || !item.fromLocation || item.fromLocation === '';
         const transactionType = isInbound ? 'in' : 'out';
@@ -1282,7 +1301,7 @@ function InventoryLayout() {
     });
 
     if (newTransactions.length === 0) {
-      showSnackbar('유효한 상품 데이터가 없습니다.', 'error');
+      showSnackbar(`유효한 상품 데이터가 없습니다. (전체 ${excelData.length}건 중 오류 ${excelData.filter(d => d.error).length}건)`, 'error');
       return;
     }
 
@@ -3339,23 +3358,33 @@ function InventoryLayout() {
                   <Table stickyHeader size="small" sx={{ borderTop: '1px solid rgba(224, 224, 224, 1)', borderLeft: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { borderRight: '1px solid rgba(224, 224, 224, 1)', borderBottom: '1px solid rgba(224, 224, 224, 1)' } }}>
                     <TableHead>
                       <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                        <TableCell>상태</TableCell>
                         <TableCell>상품코드</TableCell>
                         <TableCell>상품명</TableCell>
                         <TableCell align="right">수량</TableCell>
                         <TableCell>출발지</TableCell>
                         <TableCell>목적지</TableCell>
-                        <TableCell>메모</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
                       {excelData.slice(0, 10).map((item, index) => (
-                        <TableRow key={index}>
+                        <TableRow key={index} sx={{ bgcolor: item.error ? 'rgba(211, 47, 47, 0.08)' : 'inherit' }}>
+                          <TableCell>
+                            {item.error ? (
+                              <Typography color="error" variant="caption" sx={{ fontWeight: 'bold' }}>
+                                ⚠️ {item.error}
+                              </Typography>
+                            ) : (
+                              <Typography color="success.main" variant="caption" sx={{ fontWeight: 'bold' }}>
+                                ✅ 정상
+                              </Typography>
+                            )}
+                          </TableCell>
                           <TableCell>{item.productCode}</TableCell>
                           <TableCell>{item.productName}</TableCell>
                           <TableCell align="right">{item.quantity}</TableCell>
                           <TableCell>{item.fromLocation}</TableCell>
                           <TableCell>{item.toLocation}</TableCell>
-                          <TableCell>{item.note}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -3365,6 +3394,24 @@ function InventoryLayout() {
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                     ... 및 {excelData.length - 10}개 더
                   </Typography>
+                )}
+                
+                {/* 에러 요약본 (하단에 상세 안내) */}
+                {excelData.filter(d => d.error).length > 0 && (
+                  <Box sx={{ mt: 2, p: 2, bgcolor: '#fff4f4', borderRadius: 1, border: '1px solid #ffcdd2' }}>
+                    <Typography variant="subtitle2" color="error" sx={{ mb: 1, fontWeight: 'bold' }}>
+                      ⚠️ 다음 {excelData.filter(d => d.error).length}건은 업로드 시 무시됩니다:
+                    </Typography>
+                    <Box sx={{ maxHeight: 100, overflowY: 'auto' }}>
+                      <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '0.85rem', color: '#d32f2f' }}>
+                        {excelData.filter(d => d.error).map((errItem, idx) => (
+                          <li key={idx}>
+                            {errItem.productName || errItem.productCode || '이름없음'} - {errItem.error}
+                          </li>
+                        ))}
+                      </ul>
+                    </Box>
+                  </Box>
                 )}
               </Box>
             )}
@@ -3398,9 +3445,9 @@ function InventoryLayout() {
           <Button 
             onClick={handleExcelDataSubmit} 
             variant="contained"
-            disabled={excelData.length === 0}
+            disabled={excelData.filter(d => !d.error).length === 0}
           >
-            입출고 처리 ({excelData.length}개 상품)
+            입출고 처리 ({excelData.filter(d => !d.error).length}개 상품 정상)
           </Button>
         </DialogActions>
       </Dialog>
