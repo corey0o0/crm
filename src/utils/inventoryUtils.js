@@ -307,7 +307,7 @@ export const processServiceCompletion = async (serviceId, brandCode) => {
     // if (!brandSettings.auto_inventory_deduction) return { success: true, skipped: true };
 
     const { data: service, error: srvErr } = await supabase.from('services').select('id, warehouse_id, customer_name, service_id').eq('id', serviceId).single();
-    if (srvErr || !service) throw new Error('A/S를 찾을 수 없음');
+    if (srvErr || !service) throw new Error('A/S를 찾을 수 없음: ' + (srvErr ? srvErr.message : 'no data'));
     let warehouseId = service.warehouse_id;
     if (!warehouseId) {
       const { data: defaultWh } = await supabase.from('warehouses').select('id').ilike('name', '%청담%').limit(1).maybeSingle();
@@ -452,7 +452,7 @@ export const processServiceCompletion = async (serviceId, brandCode) => {
 export const processServiceRevert = async (serviceId, brandCode) => {
   try {
     const { data: service, error: srvErr } = await supabase.from('services').select('id, warehouse_id, service_id').eq('id', serviceId).single();
-    if (srvErr || !service) throw new Error('A/S를 찾을 수 없음');
+    if (srvErr || !service) throw new Error('A/S를 찾을 수 없음: ' + (srvErr ? srvErr.message : 'no data'));
 
     let warehouseId = service.warehouse_id;
     if (!warehouseId) {

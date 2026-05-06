@@ -524,7 +524,8 @@ function AddService() {
           quantity: partQuantity,
           price: modifiedPrice || selectedPart.price || 0,
           total: (modifiedPrice || selectedPart.price || 0) * partQuantity,
-          usage: 'A/S' // 기본값으로 A/S 설정
+          usage: 'A/S',
+          status: formData.status === '출고완료' ? '출고완료' : '준비중'
         };
         setSelectedParts(prev => [...prev, newPart]);
       }

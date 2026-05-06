@@ -588,7 +588,10 @@ function ServiceDetail() {
         reception_time: receptionTime,
         completion_date: completionDate,
         completion_time: completionTime,
-        service_parts: serviceData.service_parts || [],
+        service_parts: (serviceData.service_parts || []).map(sp => ({
+          ...sp,
+          status: sp.status || serviceData.status || '준비중'
+        })),
         writer: serviceData.writer || '관리자',
         mileage: mileage,
         warehouse_id: defaultWarehouseId
@@ -644,7 +647,7 @@ function ServiceDetail() {
             record_id: sp.id,
             quantity: sp.quantity,
             price: sp.price,
-            status: sp.status || '준비중',
+            status: sp.status || serviceData.status || '준비중',
             usage: sp.usage || 'A/S',
             total: sp.price * sp.quantity
           };
