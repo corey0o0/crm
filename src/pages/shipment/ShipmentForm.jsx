@@ -99,7 +99,7 @@ function ShipmentForm({ isManualB2B = false }) {
     customer_address: '',
     order_date: new Date().toISOString().split('T')[0],
     shipment_date: new Date().toISOString().split('T')[0],
-    status: isManualB2B ? '출고완료' : '준비중',
+    status: isManualB2B ? '출고완료' : '접수',
     delivery_method: isManualB2B ? '수기판매' : '방문수령',
     tracking_number: '',
     note: isManualB2B ? '[B2B수기판매] ' : '',
@@ -385,7 +385,7 @@ function ShipmentForm({ isManualB2B = false }) {
               quantity: part.quantity,
               price: actualPrice,
               totalPrice: actualTotalPrice,
-              status: part.status || '준비중'
+              status: part.status || '접수'
             };
           });
 
@@ -431,7 +431,7 @@ function ShipmentForm({ isManualB2B = false }) {
           customer_address: '',
           order_date: new Date().toISOString().split('T')[0],
           shipment_date: new Date().toISOString().split('T')[0],
-          status: '준비중',
+          status: '접수',
           delivery_method: '방문수령',
           tracking_number: '',
           note: '',
@@ -500,22 +500,18 @@ function ShipmentForm({ isManualB2B = false }) {
       const previousStatus = shipmentData.status;
       const newStatus = value;
 
-      // 1. 준비완료 -> 준비중 제한
-      if (previousStatus === '준비완료' && newStatus === '준비중') {
+      // 1. 작업완료 -> 접수 제한
+      if (previousStatus === '작업완료' && newStatus === '접수') {
         const hasActiveParts = selectedParts.some(p => p.status !== '반품완료' && (!p.note || !p.note.includes('[반품완료]')));
         if (hasActiveParts) {
-          setSnackbar({
-            open: true,
-            message: '추가된 품목이 있어 준비중 상태로 변경할 수 없습니다. 품목을 먼저 부분반품 처리해주세요.',
-            severity: 'warning'
-          });
+          alert('추가된 품목이 있어 접수 상태로 변경할 수 없습니다. 품목을 먼저 부분반품 처리해주세요.');
           return;
         }
       }
 
-      // 2. 준비중 -> 준비완료 확인
-      if (previousStatus === '준비중' && newStatus === '준비완료') {
-        if (!window.confirm('출고 상태를 준비완료로 변경하시겠습니까? (하위 품목들의 상태도 함께 준비완료로 동기화됩니다)')) {
+      // 2. 접수 -> 작업완료 확인
+      if (previousStatus === '접수' && newStatus === '작업완료') {
+        if (!window.confirm('출고 상태를 작업완료로 변경하시겠습니까? (하위 품목들의 상태도 함께 동기화됩니다)')) {
           return;
         }
       }
@@ -754,7 +750,7 @@ function ShipmentForm({ isManualB2B = false }) {
           price: part.price || 0,
           total_price: part.totalPrice || calculateTotal(part),
           warehouse_id: shipmentData.warehouse_id, // 이제 필수로 들어감
-          status: part.status || shipmentData.status || '준비중',
+          status: part.status || shipmentData.status || '접수',
           created_at: new Date().toISOString()
         }));
 
@@ -771,7 +767,7 @@ function ShipmentForm({ isManualB2B = false }) {
           console.error('[Inventory Deduct Error]:', deductResult.message);
         }
       } else if (shipmentId && !isNowCompleted) {
-        // 출고완료가 아니면 (준비중 등) 기존 트랜잭션이 있을 경우 방어적으로 삭제
+        // 출고완료가 아니면 (접수 등) 기존 트랜잭션이 있을 경우 방어적으로 삭제
         const { error: txDelErr } = await supabase.from('transactions').delete().eq('group_id', shipmentId);
         if (txDelErr) {
           console.error('[Inventory Transaction Delete Error]:', txDelErr.message);
@@ -1615,9 +1611,9 @@ function ShipmentForm({ isManualB2B = false }) {
                 label="상태"
               >
                 {(() => {
-                  const STATUS_ORDER = { '준비중': 0, '출고대기': 0, '부품준비': 1, '준비완료': 2, '반품완료': 3, '출고완료': 4 };
+                  const STATUS_ORDER = { '접수': 0, '출고대기': 0, '부품준비': 1, '준비완료': 2, '작업완료': 3, '반품완료': 4, '출고완료': 5 };
                   const currentOrder = STATUS_ORDER[shipmentData.status] ?? 0;
-                  const items = ['준비중', '부품준비', '준비완료', '반품완료', '출고완료'];
+                  const items = ['접수', '부품준비', '준비완료', '작업완료', '반품완료', '출고완료'];
                   if (shipmentData.status && !items.includes(shipmentData.status)) {
                     items.unshift(shipmentData.status);
                   }
@@ -1847,12 +1843,12 @@ function ShipmentForm({ isManualB2B = false }) {
                     <TableCell align="center">
                       <Select
                         size="small"
-                        value={part.status || '준비중'}
+                        value={part.status || '접수'}
                         onChange={(e) => handlePartStatusChange(part.id, e.target.value)}
                         sx={{ minWidth: 90 }}
                       >
                         {(() => {
-                          const items = ['준비중', '부품준비', '준비완료', '반품완료', '출고완료'];
+                          const items = ['접수', '부품준비', '준비완료', '작업완료', '반품완료', '출고완료'];
                           if (part.status && !items.includes(part.status)) {
                             items.unshift(part.status);
                           }

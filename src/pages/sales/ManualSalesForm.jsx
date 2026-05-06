@@ -97,7 +97,7 @@ function ShipmentForm() {
     customer_address: '',
     order_date: new Date().toISOString().split('T')[0],
     shipment_date: new Date().toISOString().split('T')[0],
-    status: '준비중',
+    status: '접수',
     delivery_method: '방문수령',
     tracking_number: '',
     note: '',
@@ -399,7 +399,7 @@ function ShipmentForm() {
           customer_address: '',
           order_date: new Date().toISOString().split('T')[0],
           shipment_date: new Date().toISOString().split('T')[0],
-          status: '준비중',
+          status: '접수',
           delivery_method: '방문수령',
           tracking_number: '',
           note: '',
@@ -1581,14 +1581,14 @@ function ShipmentForm() {
               <InputLabel>상태</InputLabel>
               <Select
                 name="status"
-                value={shipmentData.status || '준비중'}
+                value={shipmentData.status || '접수'}
                 onChange={handleChange}
                 label="상태"
               >
                 {(() => {
-                  const STATUS_ORDER = { '준비중': 0, '부품준비': 1, '검수완료': 2, '출고대기': 3, '출고완료': 4 };
+                  const STATUS_ORDER = { '접수': 0, '부품준비': 1, '검수완료': 2, '출고대기': 3, '출고완료': 4 };
                   const currentOrder = STATUS_ORDER[shipmentData.status] ?? 0;
-                  const items = ['준비중', '부품준비', '검수완료', '출고대기', '출고완료'];
+                  const items = ['접수', '부품준비', '검수완료', '출고대기', '출고완료'];
                   
                   return items.map(status => {
                     const isDisabled = !isMaster && STATUS_ORDER[status] < currentOrder;

@@ -1173,6 +1173,18 @@ function ServiceDetail() {
         message: '부품이 추가되었습니다. 계속해서 다른 부품을 추가할 수 있습니다.',
         severity: 'success'
       });
+      
+      if (formData.status === '출고완료') {
+        try {
+          supabase.from('services').update({ status: '작업완료' }).eq('id', id).then(() => {
+            setFormData(prev => ({ ...prev, status: '작업완료' }));
+            setInitialStatus('작업완료');
+            setSnackbar({ open: true, message: '부품이 추가되어 전체 진행상태가 [작업완료]로 변경되었습니다.', severity: 'success' });
+          });
+        } catch (e) {
+          console.error(e);
+        }
+      }
       // 연속 등록을 위해 다이얼로그를 닫지 않습니다.
       // handleClosePartDialog();
     }
@@ -1205,7 +1217,18 @@ function ServiceDetail() {
         p.id === part.id ? { ...p, usage: (p.usage ? p.usage + ' ' : '') + newUsageSuffix } : p
       ));
       
-      setSnackbar({ open: true, message: '부품 반품(재입고) 처리가 완료되었습니다.', severity: 'success' });
+      if (formData.status === '출고완료') {
+        try {
+          await supabase.from('services').update({ status: '작업완료' }).eq('id', id);
+          setFormData(prev => ({ ...prev, status: '작업완료' }));
+          setInitialStatus('작업완료');
+          setSnackbar({ open: true, message: '부품이 반품되어 전체 진행상태가 [작업완료]로 변경되었습니다.', severity: 'success' });
+        } catch (e) {
+          console.error(e);
+        }
+      } else {
+        setSnackbar({ open: true, message: '부품 반품(재입고) 처리가 완료되었습니다.', severity: 'success' });
+      }
     } catch (err) {
       console.error(err);
       setSnackbar({ open: true, message: '반품 처리 중 오류가 발생했습니다: ' + err.message, severity: 'error' });
@@ -1214,9 +1237,10 @@ function ServiceDetail() {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case '준비중': return 'info';
+      case '접수': return 'info';
       case '부품준비': return 'warning';
       case '준비완료': return 'secondary';
+      case '작업완료': return 'secondary';
       case '반품완료': return 'error';
       case '출고완료': return 'success';
       default: return 'info';
@@ -2801,9 +2825,10 @@ function ServiceDetail() {
                   <Grid item xs={12}>
                     <Box sx={{ display: 'flex', gap: 1, mb: 2, alignItems: 'center', justifyContent: 'space-between' }}>
                       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                        {['준비중', '부품준비', '준비완료', '출고완료']
-                          .filter(s => s !== '부품준비' || isInspectionEnabled)
-                          .map((st) => (
+                        {(isInspectionEnabled 
+                           ? ['접수', '부품준비', '준비완료', '작업완료', '출고완료'] 
+                           : ['접수', '작업완료', '출고완료']
+                         ).map((st) => (
                             <Button 
                             key={st}
                             onClick={() => handleStatusChange(st)}
@@ -3284,22 +3309,24 @@ function ServiceDetail() {
               </Button>
             </Box>
             <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-              <Button
-                onClick={handleAddToPendingOutbounds}
-                disabled={addingToQueue || isEditing}
-                startIcon={<AddIcon />}
-                sx={{
-                  color: '#9c27b0',
-                  fontSize: '0.95rem',
-                  fontWeight: 600,
-                  textTransform: 'none',
-                  '&:hover': {
-                    bgcolor: 'rgba(156, 39, 176, 0.04)'
-                  }
-                }}
-              >
-                검수 대기열 등록
-              </Button>
+              {isInspectionEnabled && (
+                <Button
+                  onClick={handleAddToPendingOutbounds}
+                  disabled={addingToQueue || isEditing}
+                  startIcon={<AddIcon />}
+                  sx={{
+                    color: '#9c27b0',
+                    fontSize: '0.95rem',
+                    fontWeight: 600,
+                    textTransform: 'none',
+                    '&:hover': {
+                      bgcolor: 'rgba(156, 39, 176, 0.04)'
+                    }
+                  }}
+                >
+                  검수 대기열 등록
+                </Button>
+              )}
               <Button
                 onClick={handlePrintEstimate}
                 startIcon={<DescriptionIcon />}

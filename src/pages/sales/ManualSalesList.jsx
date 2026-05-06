@@ -572,7 +572,7 @@ export default function ManualSalesList({ isEmbedded = false }) {
                   onChange={e => setStatusFilter(e.target.value)}
                 >
                   <MenuItem value="all">전체 상태</MenuItem>
-                  <MenuItem value="준비중">준비중</MenuItem>
+                  <MenuItem value="접수">접수</MenuItem>
                   <MenuItem value="출고대기">출고대기</MenuItem>
                   <MenuItem value="출고완료">출고완료</MenuItem>
                 </Select>

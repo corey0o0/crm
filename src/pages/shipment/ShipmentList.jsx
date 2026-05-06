@@ -978,7 +978,7 @@ function ShipmentList() {
             note: item['메모'] || '',
             salesChannel: item['판매처'] || '공홈',
             deliveryMethod: item['배송방법'] || '택배',
-            status: item['출고일'] ? '출고완료' : '준비중',
+            status: item['출고일'] ? '출고완료' : '접수',
             products: []
           };
         }
@@ -2332,7 +2332,7 @@ function ShipmentList() {
                 <Typography variant="body2">
                   • 같은 고객/주문일/판매처의 항목은 하나의 출고 정보로 그룹화됩니다.<br />
                   • 제품코드가 없는 제품도 등록이 가능하며, 카테고리가 지정되지 않은 경우 '기타'로 분류됩니다.<br />
-                  • 출고일이 지정된 항목은 '출고완료' 상태로, 그렇지 않은 항목은 '준비중' 상태로 등록됩니다.
+                  • 출고일이 지정된 항목은 '출고완료' 상태로, 그렇지 않은 항목은 '접수' 상태로 등록됩니다.
                 </Typography>
               </Alert>
             </Box>

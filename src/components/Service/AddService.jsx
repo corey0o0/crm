@@ -719,7 +719,7 @@ function AddService() {
           product_name: row['제품'] || '',
           symptom: row['문의내용'] || '',
           solution: row['처리내역'] || '',
-          status: row['상태'] || '준비중',
+          status: row['상태'] || '접수',
           note: row['메모'] || '',
           seller: row['구매처'] || '',
           created_at: new Date().toISOString()
@@ -826,7 +826,7 @@ function AddService() {
         updated_at: new Date().toISOString()
       };
 
-      if (formData.status === '출고완료' || formData.status === '준비완료' || formData.status === '부품준비' || formData.status === '처리중') {
+      if (formData.status === '출고완료' || formData.status === '작업완료' || formData.status === '부품준비' || formData.status === '처리중' || formData.status === '준비완료') {
         const now = new Date();
         serviceInsertData.completion_date = format(now, 'yyyy-MM-dd');
         serviceInsertData.completion_time = format(now, 'HH:mm:ss');
@@ -907,7 +907,7 @@ function AddService() {
       }
 
       // 상태가 '출고완료'인 상태로 신규 등록 시 재고 차감 즉시 실행
-      if (formData.status === '출고완료' || formData.status === '준비완료' || formData.status === '부품준비' || formData.status === '처리중') {
+      if (formData.status === '출고완료' || formData.status === '작업완료' || formData.status === '부품준비' || formData.status === '처리중' || formData.status === '준비완료') {
         try {
           console.log(`[AddService] A/S 완료 처리 시작 - 서비스ID: ${insertedService.id}, 브랜드: ${formData.brand}`);
           const inventoryResult = await processServiceCompletion(insertedService.id, formData.brand);
@@ -1303,7 +1303,7 @@ function AddService() {
       if (hasActiveParts) {
         setSnackbar({
           open: true,
-          message: '사용 부품이 추가되어 있어 준비중 상태로 변경할 수 없습니다. 부품을 먼저 반품해주세요.',
+          message: '사용 부품이 추가되어 있어 접수 상태로 변경할 수 없습니다. 부품을 먼저 반품해주세요.',
           severity: 'warning'
         });
         return; // 상태 변경 중단
@@ -1315,7 +1315,7 @@ function AddService() {
       setConfirmDialog({
         open: true,
         title: '상태 변경 확인',
-        message: 'A/S 상태를 준비완료로 변경하시겠습니까?',
+        message: 'A/S 상태를 작업완료로 변경하시겠습니까?',
         onConfirm: () => {
           applyStatusChange(newStatus);
           setConfirmDialog(prev => ({ ...prev, open: false }));
@@ -2426,7 +2426,7 @@ function AddService() {
                   <Grid item xs={12}>
                     <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', justifyContent: 'space-between' }}>
                       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                        {['준비중', '준비완료', '출고완료'].map((st) => (
+                        {['접수', '작업완료', '출고완료'].map((st) => (
                           <Button 
                             key={st}
                             onClick={() => handleStatusChange(st)}

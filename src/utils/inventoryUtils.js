@@ -234,7 +234,7 @@ export const processShipmentCompletion = async (shipmentId, brandCode) => {
     // shipments에서 정보 확인
     const { data: shipment, error: shipErr } = await supabase
        .from('shipments')
-       .select('status, customer_name, warehouse_id, shipment_id')
+       .select('status, customer_name, warehouse_id')
        .eq('id', shipmentId)
        .single();
     
@@ -274,8 +274,8 @@ export const processShipmentCompletion = async (shipmentId, brandCode) => {
 
     for (const sp of shipmentParts) {
       if (!sp.inventory_deducted && sp.status !== '반품 완료') {
-        // 아직 차감되지 않았고, 반품된 것도 아니라면 '준비 완료' 상태로 만들면서 차감
-        const res = await updatePartStatus('shipment', shipmentId, sp.id, '준비 완료', brandCode);
+        // 아직 차감되지 않았고, 반품된 것도 아니라면 '작업완료' 상태로 만들면서 차감
+        const res = await updatePartStatus('shipment', shipmentId, sp.id, '작업완료', brandCode);
         results.push(res);
         if (!res.success) hasError = true;
       }
@@ -389,8 +389,8 @@ export const processServiceCompletion = async (serviceId, brandCode) => {
       });
     }
 
-    // 서비스 상태가 차감 대상이 아닌 경우(예: 준비중, 접수)에는 신규 차감을 하지 않음
-    const deductStatuses = ['출고완료', '준비완료', '부품준비', '처리중'];
+    // 서비스 상태가 차감 대상이 아닌 경우(예: 접수)에는 신규 차감을 하지 않음
+    const deductStatuses = ['출고완료', '작업완료', '준비완료', '부품준비', '처리중'];
     if (!deductStatuses.includes(service.status)) {
       // 모든 effective_qty를 0으로 만들어서 차감 배열을 비움 (기존 차감분은 위 netDeductions에 의해 자동 원복됨)
       Object.keys(effectiveParts).forEach(key => {
@@ -500,13 +500,13 @@ export const processPartialReturn = async (sourceType, orderId, recordId, quanti
     let warehouseId = null;
     let displayRefId = '';
     if (sourceType === 'shipment') {
-      const { data: shipment } = await supabase.from('shipments').select('warehouse_id, shipment_id').eq('id', orderId).single();
+      const { data: shipment } = await supabase.from('shipments').select('warehouse_id').eq('id', orderId).single();
       warehouseId = shipment?.warehouse_id;
-      displayRefId = shipment?.shipment_id || '';
+      displayRefId = ''; // Removed shipment_id
     } else {
-      const { data: service } = await supabase.from('services').select('warehouse_id, service_id').eq('id', orderId).single();
+      const { data: service } = await supabase.from('services').select('warehouse_id').eq('id', orderId).single();
       warehouseId = service?.warehouse_id;
-      displayRefId = service?.service_id || '';
+      displayRefId = ''; // Removed service_id
     }
     if (!warehouseId) throw new Error('창고 정보 없음');
 
@@ -605,10 +605,10 @@ export const updatePartStatus = async (sourceType, orderId, recordId, newStatus,
     const { data: partInfo, error: partErr } = await partQuery;
     if (partErr || !partInfo) throw new Error('부품 정보를 찾을 수 없습니다.');
 
-    // 2. 부모 정보(창고, 고객명, 표시번호) 조회
+    // 2. 부모 정보(창고, 고객명) 조회
     const { data: parentInfo, error: parentErr } = await supabase
       .from(parentTableName)
-      .select(`warehouse_id, customer_name, ${parentIdColumn}`)
+      .select(`warehouse_id, customer_name`)
       .eq('id', orderId)
       .single();
     if (parentErr || !parentInfo) throw new Error('주문 정보를 찾을 수 없습니다.');
@@ -624,13 +624,13 @@ export const updatePartStatus = async (sourceType, orderId, recordId, newStatus,
       if (!warehouseId) throw new Error('창고 정보 없음');
     }
 
-    const currentStatus = partInfo.status || '준비중';
+    const currentStatus = partInfo.status || '접수';
     const isCurrentlyDeducted = partInfo.inventory_deducted || false;
     
     // 상태 변경으로 인한 재고 액션 판별
-    const needsDeduction = (newStatus === '부품 준비' || newStatus === '준비 완료');
-    const needsRevert = (newStatus === '반품 완료');
-    const isReset = (newStatus === '준비중');
+    const needsDeduction = (newStatus === '부품준비' || newStatus === '준비완료' || newStatus === '작업완료' || newStatus === '출고완료');
+    const needsRevert = (newStatus === '반품완료');
+    const isReset = (newStatus === '접수');
 
     let inventoryAction = null; // 'deduct' | 'revert' | null
 
@@ -682,7 +682,7 @@ export const updatePartStatus = async (sourceType, orderId, recordId, newStatus,
         changeTypeStr,
         isRevertAction,
         parentInfo.customer_name || '',
-        parentInfo[parentIdColumn] || ''
+        '' // No displayRefId
       );
 
       if (!result.success) {

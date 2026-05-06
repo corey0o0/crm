@@ -69,8 +69,8 @@ function ShipmentDetail() {
   const isMaster = user?.email && MASTER_ACCOUNTS.includes(user.email);
 
   const handleAddToPendingOutbounds = async () => {
-    if (shipmentData.status !== '준비중') {
-       alert("출고 상태가 '준비중'일 때만 검수 대기열에 등록할 수 있습니다.");
+    if (shipmentData.status !== '접수') {
+       alert("출고 상태가 '접수'일 때만 검수 대기열에 등록할 수 있습니다.");
        return;
     }
     if (!shipmentParts || shipmentParts.length === 0) {
@@ -265,11 +265,11 @@ function ShipmentDetail() {
   // 수정 시작 함수
   const handleStartEdit = async () => {
     if (shipmentData?.status === '출고완료') {
-      const confirmEdit = window.confirm("이미 재고가 차감 처리된 건입니다. 부품을 수정하기 위해서는 안전한 재고 연동을 위해 상태가 '준비중'으로 우선 변경되며, 현재 차감된 재고가 창고로 다시 복구됩니다.\n진행하시겠습니까?");
+      const confirmEdit = window.confirm("이미 재고가 차감 처리된 건입니다. 부품을 수정하기 위해서는 상태가 '작업완료'로 우선 변경됩니다.\n진행하시겠습니까?");
       if (!confirmEdit) return;
       
-      // 안전한 수정을 위해 강제로 준비중 상태로 돌림 (내부적으로 재고 원상복구 진행됨)
-      await handleStatusChange('준비중');
+      // 상태를 강제로 작업완료로 돌림
+      await handleStatusChange('작업완료');
     }
 
     // 현재 부품 데이터를 편집 가능한 상태로 복사
@@ -389,7 +389,17 @@ function ShipmentDetail() {
         p.id === part.id ? { ...p, note: (p.note ? p.note + ' ' : '') + newNoteSuffix } : p
       ));
       
-      setSnackbar({ open: true, message: '부품 반품(재입고) 처리가 완료되었습니다.', severity: 'success' });
+      if (shipmentData.status === '출고완료') {
+        try {
+          await supabase.from('shipments').update({ status: '작업완료' }).eq('id', id);
+          setShipmentData(prev => ({ ...prev, status: '작업완료' }));
+          setSnackbar({ open: true, message: '부품이 반품되어 전체 진행상태가 [작업완료]로 변경되었습니다.', severity: 'success' });
+        } catch (e) {
+          console.error(e);
+        }
+      } else {
+        setSnackbar({ open: true, message: '부품 반품(재입고) 처리가 완료되었습니다.', severity: 'success' });
+      }
     } catch (err) {
       console.error(err);
       setSnackbar({ open: true, message: '반품 처리 중 오류가 발생했습니다: ' + err.message, severity: 'error' });
@@ -431,7 +441,7 @@ function ShipmentDetail() {
           quantity: part.quantity || 1,
           price: part.price || 0,
           total_price: part.total_price || (part.price || 0) * (part.quantity || 1),
-          status: part.status || '준비중',
+          status: part.status || '접수',
           inventory_deducted: part.inventory_deducted || false
         };
 
@@ -458,9 +468,9 @@ function ShipmentDetail() {
 
       let autoDowngraded = false;
       if (shipmentData?.status === '출고완료') {
-        const hasUnfinished = editableParts.some(p => p.status === '준비중' || p.status === '부품준비');
+        const hasUnfinished = editableParts.some(p => p.status === '접수' || p.status === '부품준비');
         if (hasUnfinished) {
-          shipmentUpdateData.status = '준비완료';
+          shipmentUpdateData.status = '작업완료';
           autoDowngraded = true;
         }
       }
@@ -595,22 +605,22 @@ function ShipmentDetail() {
     if (saving) return; // 이중 클릭 방지
     const previousStatus = shipmentData.status;
 
-    // 1. 준비완료 -> 준비중 제한 (품목이 추가되어 있으면 반품 필요)
-    if (previousStatus === '준비완료' && newStatus === '준비중') {
+    // 1. 작업완료 -> 접수 제한 (품목이 추가되어 있으면 반품 필요)
+    if (previousStatus === '작업완료' && newStatus === '접수') {
       const hasActiveParts = shipmentParts.some(p => p.status !== '반품완료' && (!p.note || !p.note.includes('[반품완료]')));
       if (hasActiveParts) {
         setSnackbar({
           open: true,
-          message: '추가된 품목이 있어 준비중 상태로 변경할 수 없습니다. 품목을 먼저 부분반품 처리해주세요.',
+          message: '추가된 품목이 있어 접수 상태로 변경할 수 없습니다. 품목을 먼저 부분반품 처리해주세요.',
           severity: 'warning'
         });
         return; // 상태 변경 중단
       }
     }
 
-    // 2. 준비중 -> 준비완료 확인
-    if (previousStatus === '준비중' && newStatus === '준비완료') {
-      if (!window.confirm('출고 상태를 준비완료로 변경하시겠습니까? (하위 품목들의 상태도 함께 준비완료로 동기화됩니다)')) {
+    // 2. 접수 -> 작업완료 확인
+    if (previousStatus === '접수' && newStatus === '작업완료') {
+      if (!window.confirm('출고 상태를 작업완료로 변경하시겠습니까? (하위 품목들의 상태도 함께 동기화됩니다)')) {
         return;
       }
     }
@@ -643,7 +653,7 @@ function ShipmentDetail() {
       }
 
       // === [검수 락 (관리자 바이패스 및 토글 체크)] ===
-      if (isInspectionEnabled && ['출고완료', '준비완료'].includes(newStatus) && !['출고완료', '준비완료'].includes(previousStatus) && !isMaster) {
+      if (isInspectionEnabled && ['출고완료', '작업완료'].includes(newStatus) && !['출고완료', '작업완료'].includes(previousStatus) && !isMaster) {
         // 출고 창고 지정 기능이 제거되었으므로, 모든 일반 계정 출고 건은 
         // 출고 검수 탭을 통해 검수 프로세스를 거쳐야만 출고 확정이 가능하도록 기본 설정됨.
         const { data: po } = await supabase.from('pending_outbounds').select('status').eq('source_id', id).maybeSingle();
@@ -664,9 +674,9 @@ function ShipmentDetail() {
         
         if (checkErr) throw new Error(`부품 상태 확인 실패: ${checkErr.message}`);
         
-        const hasUnfinished = checkParts.some(p => p.status === '준비중' || p.status === '부품준비');
+        const hasUnfinished = checkParts.some(p => p.status === '접수' || p.status === '부품준비');
         if (hasUnfinished) {
-          alert("아직 '준비중'이거나 '부품준비' 상태인 품목이 있습니다. 모든 품목을 '준비완료' 처리한 후 출고를 확정해주세요.");
+          alert("아직 '접수'이거나 '부품준비' 상태인 품목이 있습니다. 모든 품목을 완료 처리한 후 출고를 확정해주세요.");
           setSaving(false);
           return;
         }
@@ -1095,11 +1105,11 @@ function ShipmentDetail() {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case '준비중':
+      case '접수':
         return 'info';
       case '부품준비':
         return 'secondary';
-      case '준비완료':
+      case '작업완료':
       case '반품완료':
         return 'warning';
       case '출고완료':
@@ -1283,7 +1293,7 @@ function ShipmentDetail() {
           quantity: 1,
           price: partToAdd.price || 0,
           total_price: (partToAdd.price || 0) * 1,
-          status: '준비중',
+          status: '접수',
           inventory_deducted: false
           // created_at: new Date().toISOString() // 저장 시점에 생성되므로 여기서 불필요
         };
@@ -1369,7 +1379,7 @@ function ShipmentDetail() {
                   variant="contained"
                   color="secondary"
                   onClick={handleAddToPendingOutbounds}
-                  disabled={addingToQueue || shipmentData.status !== '준비중'}
+                  disabled={addingToQueue || shipmentData.status !== '접수'}
                   sx={{ mr: 1, bgcolor: '#9c27b0', '&:hover': { bgcolor: '#7b1fa2' } }}
                 >
                   검수 대기열 등록
@@ -1431,9 +1441,9 @@ function ShipmentDetail() {
                   disabled={saving}
                 >
                   {(() => {
-                    const STATUS_ORDER = { '준비중': 0, '부품준비': 1, '준비완료': 2, '반품완료': 3, '출고완료': 4 };
+                    const STATUS_ORDER = { '접수': 0, '부품준비': 1, '작업완료': 2, '반품완료': 3, '출고완료': 4 };
                     const currentOrder = STATUS_ORDER[shipmentData.status] ?? 0;
-                    const items = ['준비중', '부품준비', '준비완료', '반품완료', '출고완료'].filter(s => s !== '부품준비' || isInspectionEnabled);
+                    const items = ['접수', '부품준비', '작업완료', '반품완료', '출고완료'].filter(s => s !== '부품준비' || isInspectionEnabled);
                     
                     return items.map(status => {
                       // 마스터 권한이 아니면 이전 상태로 되돌릴 수 없음
@@ -1630,11 +1640,11 @@ function ShipmentDetail() {
                             <TableCell>
                               <Select
                                 size="small"
-                                value={part.status || '준비중'}
+                                value={part.status || '접수'}
                                 onChange={(e) => handleItemStatusChange(part, e.target.value)}
                                 sx={{ width: '100px', fontSize: '0.875rem' }}
                               >
-                                {['준비중', '부품준비', '준비완료', '출고완료']
+                                {['접수', '부품준비', '준비완료', '작업완료', '출고완료']
                                   .filter(s => s !== '부품준비' || isInspectionEnabled)
                                   .map(s => (
                                     <MenuItem key={s} value={s}>{s}</MenuItem>
@@ -1758,7 +1768,7 @@ function ShipmentDetail() {
                             <TableCell>
                               <Select
                                 size="small"
-                                value={part.status || '준비중'}
+                                value={part.status || '접수'}
                                 onChange={(e) => handleItemStatusChange(part, e.target.value)}
                                 disabled={saving}
                                 sx={{ 
@@ -1766,11 +1776,11 @@ function ShipmentDetail() {
                                   fontSize: '0.875rem',
                                   '.MuiSelect-select': { 
                                     py: 0.5, 
-                                    color: part.status === '준비완료' ? 'success.main' : part.status === '반품완료' ? 'error.main' : 'inherit'
+                                    color: part.status === '작업완료' ? 'success.main' : part.status === '반품완료' ? 'error.main' : 'inherit'
                                   }
                                 }}
                               >
-                                {['준비중', '부품준비', '준비완료', '출고완료']
+                                {['접수', '부품준비', '준비완료', '작업완료', '출고완료']
                                   .filter(s => s !== '부품준비' || isInspectionEnabled)
                                   .map(s => (
                                     <MenuItem key={s} value={s}>{s}</MenuItem>
