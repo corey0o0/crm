@@ -2985,13 +2985,12 @@ function AddService() {
                       <TableRow>
                         <TableCell>부품명</TableCell>
                         <TableCell>코드</TableCell>
-                        <TableCell align="center">상태</TableCell>
                         <TableCell align="right">단가</TableCell>
                         <TableCell align="right">수량</TableCell>
                         <TableCell align="right">금액</TableCell>
                         <TableCell align="right">가격 수정</TableCell>
                         <TableCell align="center">용도</TableCell>
-                        <TableCell align="center">삭제</TableCell>
+                        <TableCell align="center">작업</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -2999,18 +2998,6 @@ function AddService() {
                         <TableRow key={part.id}>
                           <TableCell>{part.name}</TableCell>
                           <TableCell>{part.code}</TableCell>
-                          <TableCell align="center">
-                            <Select
-                              size="small"
-                              value={part.status || '준비중'}
-                              onChange={(e) => handlePartStatusChange(index, e.target.value)}
-                              sx={{ minWidth: 90 }}
-                            >
-                              {['준비중', '준비완료', '출고완료'].map(s => (
-                                <MenuItem key={s} value={s}>{s}</MenuItem>
-                              ))}
-                            </Select>
-                          </TableCell>
                           <TableCell align="right">
                             {part.price.toLocaleString()}원
                           </TableCell>
@@ -3080,13 +3067,25 @@ function AddService() {
                             </Select>
                           </TableCell>
                           <TableCell align="center">
-                            <IconButton
-                              size="small"
-                              onClick={() => handleRemovePart(part.id)}
-                              color="error"
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'center' }}>
+                              <Select
+                                size="small"
+                                value={part.status || '준비중'}
+                                onChange={(e) => handlePartStatusChange(index, e.target.value)}
+                                sx={{ minWidth: 90, height: '32px' }}
+                              >
+                                {['준비중', '준비완료', '출고완료'].map(s => (
+                                  <MenuItem key={s} value={s}>{s}</MenuItem>
+                                ))}
+                              </Select>
+                              <IconButton
+                                size="small"
+                                onClick={() => handleRemovePart(part.id)}
+                                color="error"
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </Box>
                           </TableCell>
                         </TableRow>
                       ))}

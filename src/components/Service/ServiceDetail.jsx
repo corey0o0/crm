@@ -2328,7 +2328,6 @@ function ServiceDetail() {
             <TableRow>
               <TableCell>부품명</TableCell>
               <TableCell>코드</TableCell>
-              <TableCell align="center">상태</TableCell>
               <TableCell align="right">단가</TableCell>
               <TableCell align="right">수량</TableCell>
               <TableCell align="right">금액</TableCell>
@@ -2347,20 +2346,6 @@ function ServiceDetail() {
               <TableRow key={part.id} sx={rowStyle}>
                 <TableCell>{part.name} {rQty > 0 && <span style={{color: '#ed6c02', fontSize: '0.8rem', marginLeft: 4}}>[{rQty}개 반품]</span>}</TableCell>
                 <TableCell>{part.code}</TableCell>
-                <TableCell align="center">
-                  <Select
-                    size="small"
-                    value={part.status || '준비중'}
-                    onChange={(e) => handlePartStatusChange(index, e.target.value)}
-                    sx={{ minWidth: 90 }}
-                  >
-                    {['준비중', '부품준비', '준비완료', '출고완료']
-                      .filter(s => s !== '부품준비' || isInspectionEnabled)
-                      .map(s => (
-                        <MenuItem key={s} value={s}>{s}</MenuItem>
-                    ))}
-                  </Select>
-                </TableCell>
                 <TableCell align="right">
                   {part.price.toLocaleString()}원
                 </TableCell>
@@ -2449,27 +2434,51 @@ function ServiceDetail() {
                   </Select>
                 </TableCell>
                 <TableCell align="center">
-                  {(!isDeducted || !part.record_id) ? (
-                    <IconButton
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'center' }}>
+                    <Select
                       size="small"
-                      onClick={() => handleRemovePart(part.id)}
-                      color="error"
+                      value={part.status || '준비중'}
+                      onChange={(e) => handlePartStatusChange(index, e.target.value)}
+                      sx={{ minWidth: 90, height: '32px' }}
                     >
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  ) : (
-                    !(part.usage && part.usage.includes('[반품완료]')) && (
-                      <Button
+                      {['준비중', '부품준비', '준비완료', '출고완료']
+                        .filter(s => s !== '부품준비' || isInspectionEnabled)
+                        .map(s => (
+                          <MenuItem key={s} value={s}>{s}</MenuItem>
+                      ))}
+                    </Select>
+                    {(!isDeducted || !part.record_id) ? (
+                      <IconButton
                         size="small"
-                        variant="outlined"
-                        color="secondary"
-                        onClick={() => handleReturnPart(part)}
-                        sx={{ whiteSpace: 'nowrap', minWidth: '70px', px: 1.5, py: 0.5 }}
+                        onClick={() => handleRemovePart(part.id)}
+                        color="error"
                       >
-                        반품
-                      </Button>
-                    )
-                  )}
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    ) : (
+                      (part.usage && part.usage.includes('[반품완료]')) ? (
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="secondary"
+                          disabled
+                          sx={{ whiteSpace: 'nowrap', minWidth: '70px', px: 1.5, py: 0.5 }}
+                        >
+                          반품완료
+                        </Button>
+                      ) : (
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="secondary"
+                          onClick={() => handleReturnPart(part)}
+                          sx={{ whiteSpace: 'nowrap', minWidth: '70px', px: 1.5, py: 0.5 }}
+                        >
+                          반품
+                        </Button>
+                      )
+                    )}
+                  </Box>
                 </TableCell>
               </TableRow>
             )})}
