@@ -752,7 +752,7 @@ function ServiceDetail() {
   };
 
   const handleStatusChange = (newStatus) => {
-    if (newStatus === '완료') {
+    if (newStatus === '출고완료') {
       setConfirmDialog({
         open: true,
         title: 'A/S 완료 확인',
@@ -1023,7 +1023,7 @@ function ServiceDetail() {
       setFormData((prev) => ({
         ...prev,
         [name]: value,
-        status: value ? '완료' : prev.status
+        status: value ? '출고완료' : prev.status
       }));
     } else {
       setFormData((prev) => ({
@@ -1425,7 +1425,7 @@ function ServiceDetail() {
       const { error } = await supabase
         .from('services')
         .update({
-          status: '완료',
+          status: '출고완료',
           completion_date: completionDate
         })
         .eq('id', id);
@@ -1434,7 +1434,7 @@ function ServiceDetail() {
 
       setFormData(prev => ({
         ...prev,
-        status: '완료',
+        status: '출고완료',
         completion_date: completionDate
       }));
 

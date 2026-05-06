@@ -825,7 +825,7 @@ function AddService() {
         updated_at: new Date().toISOString()
       };
 
-      if (formData.status === '완료') {
+      if (formData.status === '출고완료' || formData.status === '준비완료' || formData.status === '부품준비') {
         const now = new Date();
         serviceInsertData.completion_date = format(now, 'yyyy-MM-dd');
         serviceInsertData.completion_time = format(now, 'HH:mm:ss');
@@ -905,8 +905,8 @@ function AddService() {
         }
       }
 
-      // 상태가 '완료'인 상태로 신규 등록 시 재고 차감 즉시 실행
-      if (formData.status === '완료') {
+      // 상태가 '출고완료'인 상태로 신규 등록 시 재고 차감 즉시 실행
+      if (formData.status === '출고완료' || formData.status === '준비완료' || formData.status === '부품준비') {
         try {
           console.log(`[AddService] A/S 완료 처리 시작 - 서비스ID: ${insertedService.id}, 브랜드: ${formData.brand}`);
           const inventoryResult = await processServiceCompletion(insertedService.id, formData.brand);
@@ -1281,11 +1281,11 @@ function AddService() {
 
   // 상태 변경 핸들러
   const handleStatusChange = (newStatus) => {
-    if (newStatus === '완료') {
+    if (newStatus === '출고완료') {
       setConfirmDialog({
         open: true,
         title: 'A/S 완료 확인',
-        message: '해당 A/S를 완료 처리하시겠습니까?',
+        message: '해당 A/S를 출고완료 처리하시겠습니까?',
         onConfirm: () => {
           setStatus(newStatus);
           setFormData(prev => {
