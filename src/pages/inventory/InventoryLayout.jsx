@@ -1211,7 +1211,6 @@ function InventoryLayout() {
             data.push(item);
           }
         });
-        });
       }
 
       // 상품 매칭 검증
