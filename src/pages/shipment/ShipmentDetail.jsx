@@ -446,9 +446,9 @@ function ShipmentDetail() {
 
       let autoDowngraded = false;
       if (shipmentData?.status === '출고완료') {
-        const hasUnfinished = editableParts.some(p => p.status === '준비중' || p.status === '부품 준비');
+        const hasUnfinished = editableParts.some(p => p.status === '준비중' || p.status === '부품준비');
         if (hasUnfinished) {
-          shipmentUpdateData.status = '출고대기';
+          shipmentUpdateData.status = '준비완료';
           autoDowngraded = true;
         }
       }
@@ -466,7 +466,7 @@ function ShipmentDetail() {
       setSnackbar({
         open: true,
         message: autoDowngraded 
-          ? '제품 정보가 업데이트되었으며, 미완료 품목이 있어 상태가 출고대기로 변경되었습니다.' 
+          ? '제품 정보가 업데이트되었으며, 미완료 품목이 있어 상태가 준비완료로 변경되었습니다.' 
           : '제품 정보가 성공적으로 업데이트되었습니다.',
         severity: autoDowngraded ? 'info' : 'success'
       });
@@ -494,7 +494,7 @@ function ShipmentDetail() {
   // 출고 삭제 함수
   const handleDeleteShipment = async () => {
     if (saving || loading) return; // 이중 클릭 방지
-    if (!isMaster && ['부품준비', '검수완료', '출고대기', '출고완료'].includes(shipmentData.status)) {
+    if (!isMaster && ['부품준비', '준비완료', '반품완료', '출고완료'].includes(shipmentData.status)) {
       setSnackbar({
         open: true,
         message: '검수가 진행된 건은 보안을 위해 직접 삭제할 수 없습니다. (취소 필요 시 마스터 또는 관리자 문의)',
@@ -586,7 +586,7 @@ function ShipmentDetail() {
       const previousStatus = shipmentData.status;
 
       // === [검수 락 (관리자 바이패스 및 토글 체크)] ===
-      if (isInspectionEnabled && ['출고완료', '출고대기'].includes(newStatus) && !['출고완료', '출고대기'].includes(previousStatus) && !isMaster) {
+      if (isInspectionEnabled && ['출고완료', '준비완료'].includes(newStatus) && !['출고완료', '준비완료'].includes(previousStatus) && !isMaster) {
         // 출고 창고 지정 기능이 제거되었으므로, 모든 일반 계정 출고 건은 
         // 출고 검수 탭을 통해 검수 프로세스를 거쳐야만 출고 확정이 가능하도록 기본 설정됨.
         const { data: po } = await supabase.from('pending_outbounds').select('status').eq('source_id', id).maybeSingle();
@@ -607,9 +607,9 @@ function ShipmentDetail() {
         
         if (checkErr) throw new Error(`부품 상태 확인 실패: ${checkErr.message}`);
         
-        const hasUnfinished = checkParts.some(p => p.status === '준비중' || p.status === '부품 준비');
+        const hasUnfinished = checkParts.some(p => p.status === '준비중' || p.status === '부품준비');
         if (hasUnfinished) {
-          alert("아직 '준비중'이거나 '부품 준비' 상태인 품목이 있습니다. 모든 품목을 '준비 완료' 처리한 후 출고를 확정해주세요.");
+          alert("아직 '준비중'이거나 '부품준비' 상태인 품목이 있습니다. 모든 품목을 '준비완료' 처리한 후 출고를 확정해주세요.");
           setSaving(false);
           return;
         }
@@ -635,9 +635,9 @@ function ShipmentDetail() {
         updated_at: new Date().toISOString()
       };
 
-      // 출고대기/출고완료로 변경 시 출고일도 현재 시점으로 업데이트
-      // (요청사항: 출고상태가 '출고대기' 또는 '출고완료'로 변경되면 출고일을 현재 날짜로 설정)
-      if (newStatus === '출고완료' || newStatus === '출고대기') {
+      // 준비완료/출고완료로 변경 시 출고일도 현재 시점으로 업데이트
+      // (요청사항: 출고상태가 '준비완료' 또는 '출고완료'로 변경되면 출고일을 현재 날짜로 설정)
+      if (newStatus === '출고완료' || newStatus === '준비완료') {
         updateData.shipment_date = new Date().toISOString().split('T')[0];
       }
 
@@ -1042,8 +1042,8 @@ function ShipmentDetail() {
         return 'info';
       case '부품준비':
         return 'secondary';
-      case '검수완료':
-      case '출고대기':
+      case '준비완료':
+      case '반품완료':
         return 'warning';
       case '출고완료':
         return 'success';
@@ -1384,9 +1384,9 @@ function ShipmentDetail() {
                   disabled={saving}
                 >
                   {(() => {
-                    const STATUS_ORDER = { '준비중': 0, '부품준비': 1, '검수완료': 2, '출고대기': 3, '출고완료': 4 };
+                    const STATUS_ORDER = { '준비중': 0, '부품준비': 1, '준비완료': 2, '반품완료': 3, '출고완료': 4 };
                     const currentOrder = STATUS_ORDER[shipmentData.status] ?? 0;
-                    const items = ['준비중', '부품준비', '검수완료', '출고대기', '출고완료'];
+                    const items = ['준비중', '부품준비', '준비완료', '반품완료', '출고완료'];
                     
                     return items.map(status => {
                       // 마스터 권한이 아니면 이전 상태로 되돌릴 수 없음
@@ -1588,9 +1588,10 @@ function ShipmentDetail() {
                                 sx={{ width: '100px', fontSize: '0.875rem' }}
                               >
                                 <MenuItem value="준비중">준비중</MenuItem>
-                                <MenuItem value="부품 준비">부품 준비</MenuItem>
-                                <MenuItem value="준비 완료">준비 완료</MenuItem>
-                                <MenuItem value="반품 완료">반품 완료</MenuItem>
+                                <MenuItem value="부품준비">부품준비</MenuItem>
+                                <MenuItem value="준비완료">준비완료</MenuItem>
+                                <MenuItem value="반품완료">반품완료</MenuItem>
+                                <MenuItem value="출고완료">출고완료</MenuItem>
                               </Select>
                             </TableCell>
                             <TableCell align="right">

@@ -654,8 +654,8 @@ function ServiceList() {
       // 상태 필터링
       // 완료일자로 검색할 때는 처리상태가 "완료"인 것만 필터링 (기존 상태 필터 무시)
       if (dateField === 'completion_date') {
-        console.log('[ServiceList] 완료일자 검색이므로 상태 "완료" 필터 자동 적용');
-        query = query.eq('status', '완료');
+        console.log('[ServiceList] 완료일자 검색이므로 상태 "출고완료" 필터 자동 적용');
+        query = query.eq('status', '출고완료');
       } else if (searchParams.selectedStatuses && searchParams.selectedStatuses.length > 0) {
         console.log('[ServiceList] 상태 필터링 적용:', searchParams.selectedStatuses);
         query = query.in('status', searchParams.selectedStatuses);
@@ -766,8 +766,8 @@ function ServiceList() {
         // 상태 필터링 적용
         // 완료일자로 검색할 때는 처리상태가 "완료"인 것만 필터링 (기존 상태 필터 무시)
         if (dateField === 'completion_date') {
-          console.log('[ServiceList] 완료일자 검색이므로 상태 "완료" 필터 자동 적용');
-          simpleQuery = simpleQuery.eq('status', '완료');
+          console.log('[ServiceList] 완료일자 검색이므로 상태 "출고완료" 필터 자동 적용');
+          simpleQuery = simpleQuery.eq('status', '출고완료');
           console.log('[ServiceList] 상태 필터 적용 완료');
         } else if (searchParams.selectedStatuses && searchParams.selectedStatuses.length > 0) {
           console.log('[ServiceList] 상태 필터 적용 중:', searchParams.selectedStatuses);
@@ -1139,8 +1139,8 @@ function ServiceList() {
     if (selectedService) {
       try {
         const originalService = services.find(s => s.id === selectedService.id);
-        const wasCompleted = originalService?.status === '완료';
-        const isNowCompleted = selectedService.status === '완료';
+        const wasCompleted = originalService?.status === '출고완료';
+        const isNowCompleted = selectedService.status === '출고완료';
 
         const updateData = {
           reception_date: selectedService.reception_date,
@@ -1158,7 +1158,7 @@ function ServiceList() {
           updated_at: new Date().toISOString()
         };
 
-        // 상태가 '완료'로 변경될 때 완료일이 없으면 오늘 날짜로 설정
+        // 상태가 '출고완료'로 변경될 때 완료일이 없으면 오늘 날짜로 설정
         if (!wasCompleted && isNowCompleted && !updateData.completion_date) {
           const now = new Date();
           updateData.completion_date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -2658,7 +2658,7 @@ function ServiceList() {
   const [isLoadingNextChunk, setIsLoadingNextChunk] = useState(false); // 다음 청크 로딩 상태
   const [hasMoreData, setHasMoreData] = useState(true); // 더 로드할 데이터가 있는지
   
-  const statusOptions = ['준비중', '부품준비', '준비완료', '반품완료', '출고완료'];
+  const statusOptions = ['준비중', '부품준비', '준비완료', '출고완료'];
   
   // 태그 옵션을 더 안정적으로 생성 (단어 검색용)
   const tagOptions = useMemo(() => {
@@ -3888,7 +3888,6 @@ function ServiceList() {
                 <MenuItem value="준비중">준비중</MenuItem>
                 <MenuItem value="부품준비">부품준비</MenuItem>
                 <MenuItem value="준비완료">준비완료</MenuItem>
-                <MenuItem value="반품완료">반품완료</MenuItem>
                 <MenuItem value="출고완료">출고완료</MenuItem>
               </TextField>
             </Grid>
