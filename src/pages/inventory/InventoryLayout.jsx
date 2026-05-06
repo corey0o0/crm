@@ -3309,7 +3309,7 @@ function InventoryLayout() {
             {/* 파일 업로드 */}
             <Box sx={{ mb: 3 }}>
               <Typography variant="h6" sx={{ mb: 1 }}>
-                📁 엑셀 파일 업로드
+                엑셀 파일 업로드
               </Typography>
               <input
                 type="file"
@@ -3358,7 +3358,7 @@ function InventoryLayout() {
             {excelData.length > 0 && (
               <Box sx={{ mb: 3 }}>
                 <Typography variant="h6" sx={{ mb: 2 }}>
-                  📊 업로드된 데이터 미리보기 ({excelData.length}개 상품)
+                  업로드된 데이터 미리보기 ({excelData.length}개 상품)
                 </Typography>
                 <TableContainer component={Paper} sx={{ maxHeight: 300 }}>
                   <Table stickyHeader size="small" sx={{ borderTop: '1px solid rgba(224, 224, 224, 1)', borderLeft: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { borderRight: '1px solid rgba(224, 224, 224, 1)', borderBottom: '1px solid rgba(224, 224, 224, 1)' } }}>
