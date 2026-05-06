@@ -23,6 +23,22 @@ if (process.env.NODE_ENV === 'development') {
   };
 }
 
+// ResizeObserver 에러 무시 (UI 렌더링에 영향 없는 브라우저 수준의 경고)
+window.addEventListener('error', e => {
+  if (e.message === 'ResizeObserver loop completed with undelivered notifications.' || e.message === 'ResizeObserver loop limit exceeded') {
+    const resizeObserverErrDiv = document.getElementById(
+      'webpack-dev-server-client-overlay-div'
+    );
+    const resizeObserverErr = document.getElementById(
+      'webpack-dev-server-client-overlay'
+    );
+    if (resizeObserverErr) resizeObserverErr.setAttribute('style', 'display: none');
+    if (resizeObserverErrDiv) resizeObserverErrDiv.setAttribute('style', 'display: none');
+    
+    e.stopImmediatePropagation();
+  }
+});
+
 // 환경 변수 로드 대기 함수
 const waitForEnv = () => {
   return new Promise((resolve) => {

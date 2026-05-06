@@ -3028,6 +3028,7 @@ function AddService() {
                         <TableCell align="right">수량</TableCell>
                         <TableCell align="right">금액</TableCell>
                         <TableCell align="right">가격 수정</TableCell>
+                        <TableCell align="center">상태</TableCell>
                         <TableCell align="center">용도</TableCell>
                         <TableCell align="center">작업</TableCell>
                       </TableRow>
@@ -3086,6 +3087,28 @@ function AddService() {
                                 />
                               </Box>
                             )}
+                          </TableCell>
+                          <TableCell align="center">
+                            <Select
+                              size="small"
+                              value={part.status || '준비중'}
+                              onChange={(e) => {
+                                const newParts = [...selectedParts];
+                                newParts[index].status = e.target.value;
+                                setSelectedParts(newParts);
+                              }}
+                              sx={{ minWidth: 90 }}
+                            >
+                              {(() => {
+                                const items = ['준비중', '부품준비', '준비완료', '반품완료', '출고완료'];
+                                if (part.status && !items.includes(part.status)) {
+                                  items.unshift(part.status);
+                                }
+                                return items.map(s => (
+                                  <MenuItem key={s} value={s}>{s}</MenuItem>
+                                ));
+                              })()}
+                            </Select>
                           </TableCell>
                           <TableCell align="center">
                             <Select
