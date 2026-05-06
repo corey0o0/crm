@@ -124,7 +124,7 @@ function SalesHistory() {
     let asQuery = supabase
       .from('services')
       .select('id, reception_date, completion_date, customer_name, status, note')
-      .ilike('status', '%완료%')
+      .in('status', ['출고완료', '완료'])
       .order('completion_date', { ascending: false });
 
     if (activeStart && activeEnd) {
