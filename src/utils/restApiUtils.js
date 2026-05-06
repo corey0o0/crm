@@ -239,6 +239,7 @@ export const countServices = async (options = {}) => {
 export const fetchShipments = async (options = {}) => {
   const {
     selectedBrand = '',
+    searchTerm = '',
     dateFilter = {},
     page = 0,
     pageSize = 50,
@@ -264,6 +265,19 @@ export const fetchShipments = async (options = {}) => {
       filters.push(`shipment_date=gte.${startDate}`);
       filters.push(`shipment_date=lte.${endDate}`);
     }
+  }
+
+  if (searchTerm) {
+    const safeTerm = searchTerm.replace(/"/g, '');
+    const cleanTerm = safeTerm.replace(/^(shp-|SHP-)/i, '').trim();
+    
+    let idSearch = '';
+    // UUID 앞 8자리 검색 지원 (SHP-XXXX)
+    if (/^[a-fA-F0-9]{8}$/.test(cleanTerm)) {
+      idSearch = `,and(id.gte.${cleanTerm}-0000-0000-0000-000000000000,id.lte.${cleanTerm}-ffff-ffff-ffff-ffffffffffff)`;
+    }
+
+    filters.push(`or=(customer_name.ilike."*${encodeURIComponent(safeTerm)}*",product_name.ilike."*${encodeURIComponent(safeTerm)}*",customer_phone.ilike."*${encodeURIComponent(safeTerm)}*",order_no.ilike."*${encodeURIComponent(safeTerm)}*",tracking_number.ilike."*${encodeURIComponent(safeTerm)}*"${idSearch})`);
   }
 
   // B2B 수기판매, 수기판매, 과거 매출 데이터는 B2C 출고 목록에서 완전히 제외
@@ -307,6 +321,7 @@ export const fetchShipments = async (options = {}) => {
 export const countShipments = async (options = {}) => {
   const {
     selectedBrand = '',
+    searchTerm = '',
     dateFilter = {},
     signal = null
   } = options;
@@ -331,6 +346,18 @@ export const countShipments = async (options = {}) => {
       filters.push(`shipment_date=gte.${startDate}`);
       filters.push(`shipment_date=lte.${endDate}`);
     }
+  }
+
+  if (searchTerm) {
+    const safeTerm = searchTerm.replace(/"/g, '');
+    const cleanTerm = safeTerm.replace(/^(shp-|SHP-)/i, '').trim();
+    
+    let idSearch = '';
+    if (/^[a-fA-F0-9]{8}$/.test(cleanTerm)) {
+      idSearch = `,and(id.gte.${cleanTerm}-0000-0000-0000-000000000000,id.lte.${cleanTerm}-ffff-ffff-ffff-ffffffffffff)`;
+    }
+
+    filters.push(`or=(customer_name.ilike."*${encodeURIComponent(safeTerm)}*",product_name.ilike."*${encodeURIComponent(safeTerm)}*",customer_phone.ilike."*${encodeURIComponent(safeTerm)}*",order_no.ilike."*${encodeURIComponent(safeTerm)}*",tracking_number.ilike."*${encodeURIComponent(safeTerm)}*"${idSearch})`);
   }
 
   // B2B 수기판매, 수기판매, 과거 매출 데이터는 B2C 출고 목록에서 카운트 완전 제외

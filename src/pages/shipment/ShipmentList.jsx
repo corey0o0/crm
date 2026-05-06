@@ -350,11 +350,13 @@ function ShipmentList() {
       const [totalCount, firstPageData] = await Promise.all([
         countShipments({
           selectedBrand,
+          searchTerm,
           dateFilter: processedDateFilter,
           signal: controller.signal
         }),
         fetchShipmentsAPI({
           selectedBrand,
+          searchTerm,
           dateFilter: processedDateFilter,
           page: 0,
           pageSize: FIRST_PAGE_SIZE,
@@ -474,6 +476,7 @@ function ShipmentList() {
 
       const shipmentsData = await fetchShipmentsAPI({
         selectedBrand,
+        searchTerm,
         dateFilter: processedDateFilter,
         page: page,
         pageSize: CHUNK_SIZE,
