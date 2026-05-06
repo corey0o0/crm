@@ -1215,19 +1215,30 @@ function InventoryLayout() {
 
       // 상품 매칭 검증
       data.forEach(item => {
-        const reqCode = String(item.productCode || '').trim().toLowerCase();
-        const reqName = String(item.parsedColName || item.productName || item.productCode || '').toString().replace(/\s+/g, '').toLowerCase();
+        // 사용자가 입력한 상품코드, 상품명 등 가능한 모든 식별자를 모음
+        const inputs = [
+          String(item.productCode || '').trim().toLowerCase(),
+          String(item.productName || '').trim().toLowerCase(),
+          String(item.parsedColName || '').trim().toLowerCase()
+        ].filter(v => v);
 
         const product = products.find(p => {
           const dbCode = String(p.code || '').trim().toLowerCase();
           const dbBarcode = String(p.barcode || '').trim().toLowerCase();
+          const dbNameStrNoSpace = String(p.name || '').replace(/\s+/g, '').toLowerCase();
           
-          if (dbCode && dbCode === reqCode) return true;
-          if (dbBarcode && dbBarcode === reqCode) return true;
-          
-          const dbNameStr = String(p.name || '').toString().replace(/\s+/g, '').toLowerCase();
-          if (dbNameStr && reqName && (dbNameStr === reqName || dbNameStr.includes(reqName) || reqName.includes(dbNameStr))) return true;
-          return false;
+          return inputs.some(input => {
+            // 코드나 바코드와 완벽히 일치하는지 확인
+            if (dbCode && dbCode === input) return true;
+            if (dbBarcode && dbBarcode === input) return true;
+            
+            // 이름 매칭 (공백 제거 후 부분 일치 포함)
+            const inputNoSpace = input.replace(/\s+/g, '');
+            if (dbNameStrNoSpace && inputNoSpace && (dbNameStrNoSpace === inputNoSpace || dbNameStrNoSpace.includes(inputNoSpace) || inputNoSpace.includes(dbNameStrNoSpace))) {
+              return true;
+            }
+            return false;
+          });
         });
 
         if (!product) {
