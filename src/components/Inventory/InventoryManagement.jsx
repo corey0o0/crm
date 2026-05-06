@@ -1315,15 +1315,15 @@ function InventoryManagement() {
           if (rowNumber === 1) return; // 헤더 행 건너뛰기
           
           const rowData = row.values;
-          if (rowData.length >= 6 && rowData[2]) { // 최소 필수 데이터 확인
+          if (rowData[3] || rowData[4]) { // 최소 필수 데이터 확인 (상품코드나 상품명이 있어야 함)
             const item = {
-              productCode: rowData[2] || '', // C열: 상품코드
-              productName: rowData[3] || '', // D열: 상품명
-              quantity: parseInt(rowData[4]) || 0, // E열: 수량
-              fromLocation: rowData[5] || '', // F열: 출발지
-              toLocation: rowData[6] || '', // G열: 목적지
-              note: rowData[7] || '', // H열: 메모
-              additionalNote: rowData[8] || '' // I열: 개별메모
+              productCode: rowData[3] ? String(rowData[3]) : '', // C열: 상품코드
+              productName: rowData[4] ? String(rowData[4]) : '', // D열: 상품명
+              quantity: parseInt(rowData[5], 10) || 0, // E열: 수량
+              fromLocation: rowData[6] ? String(rowData[6]) : '', // F열: 출발지
+              toLocation: rowData[7] ? String(rowData[7]) : '', // G열: 목적지
+              note: rowData[8] ? String(rowData[8]) : '', // H열: 메모
+              additionalNote: rowData[9] ? String(rowData[9]) : '' // I열: 개별메모
             };
             data.push(item);
           }
@@ -1353,24 +1353,48 @@ function InventoryManagement() {
     let outboundCount = 0;
 
     excelData.forEach((item, index) => {
-      const product = products.find(p => {
-        if (p.code === item.productCode) return true;
-        if (p.barcode && String(p.barcode) === String(item.productCode)) return true;
-        
-        // 파츠 이름으로 매칭 시도 (공백 및 대소문자 무시)
-        const searchStr = item.productName ? item.productName.replace(/[\s-]/g, '').toLowerCase() : '';
-        const dbNameStr = p.name ? p.name.replace(/[\s-]/g, '').toLowerCase() : '';
+      const inputCode = String(item.productCode || '').trim().toLowerCase();
+      const inputName = String(item.productName || '').trim().toLowerCase();
+      const inputParsedCol = String(item.parsedColName || '').trim().toLowerCase();
 
-        // 1. 정확한 코드 매칭
-        if (p.code && searchStr && searchStr === p.code.replace(/[\s-]/g, '').toLowerCase()) return true;
-        
-        // 2. 정확한 이름 매칭 (공백 제거 후 일치)
-        if (dbNameStr && searchStr && dbNameStr === searchStr) {
-          return true;
+      let product = null;
+
+      // 1. 정확한 코드/바코드 매칭 (최우선)
+      const possibleCodes = [inputCode, inputName, inputParsedCol].filter(v => v);
+      for (const code of possibleCodes) {
+        product = products.find(p => {
+          const dbCode = String(p.code || '').trim().toLowerCase();
+          const dbBarcode = String(p.barcode || '').trim().toLowerCase();
+          return (dbCode && dbCode === code) || (dbBarcode && dbBarcode === code);
+        });
+        if (product) break;
+      }
+
+      // 2. 정확한 이름 매칭 (공백 제거)
+      if (!product) {
+        const possibleNames = [inputName, inputCode, inputParsedCol].filter(v => v);
+        for (const name of possibleNames) {
+          const nameNoSpace = name.replace(/\s+/g, '');
+          product = products.find(p => {
+            const dbNameNoSpace = String(p.name || '').replace(/\s+/g, '').toLowerCase();
+            return dbNameNoSpace && dbNameNoSpace === nameNoSpace;
+          });
+          if (product) break;
         }
-        
-        return false;
-      });
+      }
+
+      // 3. 부분 이름 매칭 (최소 2글자 이상일 때만)
+      if (!product) {
+        const possibleNames = [inputName, inputCode, inputParsedCol].filter(v => v && v.replace(/\s+/g, '').length >= 2);
+        for (const name of possibleNames) {
+          const nameNoSpace = name.replace(/\s+/g, '');
+          product = products.find(p => {
+            const dbNameNoSpace = String(p.name || '').replace(/\s+/g, '').toLowerCase();
+            return dbNameNoSpace && dbNameNoSpace.includes(nameNoSpace);
+          });
+          if (product) break;
+        }
+      }
       
       if (product) {
         // 출발지/목적지로 입고/출고 판단

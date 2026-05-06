@@ -1219,31 +1219,48 @@ function InventoryLayout() {
 
       // 상품 매칭 검증
       data.forEach(item => {
-        // 사용자가 입력한 상품코드, 상품명 등 가능한 모든 식별자를 모음
-        const inputs = [
-          String(item.productCode || '').trim().toLowerCase(),
-          String(item.productName || '').trim().toLowerCase(),
-          String(item.parsedColName || '').trim().toLowerCase()
-        ].filter(v => v);
+        const inputCode = String(item.productCode || '').trim().toLowerCase();
+        const inputName = String(item.productName || '').trim().toLowerCase();
+        const inputParsedCol = String(item.parsedColName || '').trim().toLowerCase();
 
-        const product = products.find(p => {
-          const dbCode = String(p.code || '').trim().toLowerCase();
-          const dbBarcode = String(p.barcode || '').trim().toLowerCase();
-          const dbNameStrNoSpace = String(p.name || '').replace(/\s+/g, '').toLowerCase();
-          
-          return inputs.some(input => {
-            // 코드나 바코드와 완벽히 일치하는지 확인
-            if (dbCode && dbCode === input) return true;
-            if (dbBarcode && dbBarcode === input) return true;
-            
-            // 이름 매칭 (공백 제거 후 부분 일치 포함)
-            const inputNoSpace = input.replace(/\s+/g, '');
-            if (dbNameStrNoSpace && inputNoSpace && (dbNameStrNoSpace === inputNoSpace || dbNameStrNoSpace.includes(inputNoSpace) || inputNoSpace.includes(dbNameStrNoSpace))) {
-              return true;
-            }
-            return false;
+        let product = null;
+
+        // 1. 정확한 코드/바코드 매칭 (최우선)
+        const possibleCodes = [inputCode, inputName, inputParsedCol].filter(v => v);
+        for (const code of possibleCodes) {
+          product = products.find(p => {
+            const dbCode = String(p.code || '').trim().toLowerCase();
+            const dbBarcode = String(p.barcode || '').trim().toLowerCase();
+            return (dbCode && dbCode === code) || (dbBarcode && dbBarcode === code);
           });
-        });
+          if (product) break;
+        }
+
+        // 2. 정확한 이름 매칭 (공백 제거)
+        if (!product) {
+          const possibleNames = [inputName, inputCode, inputParsedCol].filter(v => v);
+          for (const name of possibleNames) {
+            const nameNoSpace = name.replace(/\s+/g, '');
+            product = products.find(p => {
+              const dbNameNoSpace = String(p.name || '').replace(/\s+/g, '').toLowerCase();
+              return dbNameNoSpace && dbNameNoSpace === nameNoSpace;
+            });
+            if (product) break;
+          }
+        }
+
+        // 3. 부분 이름 매칭 (최소 2글자 이상일 때만)
+        if (!product) {
+          const possibleNames = [inputName, inputCode, inputParsedCol].filter(v => v && v.replace(/\s+/g, '').length >= 2);
+          for (const name of possibleNames) {
+            const nameNoSpace = name.replace(/\s+/g, '');
+            product = products.find(p => {
+              const dbNameNoSpace = String(p.name || '').replace(/\s+/g, '').toLowerCase();
+              return dbNameNoSpace && dbNameNoSpace.includes(nameNoSpace);
+            });
+            if (product) break;
+          }
+        }
 
         if (!product) {
           item.error = '등록되지 않은 상품(상품명/코드 불일치)';
