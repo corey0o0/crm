@@ -2347,8 +2347,10 @@ function ServiceDetail() {
                     onChange={(e) => handlePartStatusChange(index, e.target.value)}
                     sx={{ minWidth: 90 }}
                   >
-                    {['준비중', '부품준비', '준비완료', '출고완료'].map(s => (
-                      <MenuItem key={s} value={s}>{s}</MenuItem>
+                    {['준비중', '부품준비', '준비완료', '출고완료']
+                      .filter(s => s !== '부품준비' || isInspectionEnabled)
+                      .map(s => (
+                        <MenuItem key={s} value={s}>{s}</MenuItem>
                     ))}
                   </Select>
                 </TableCell>
@@ -2738,8 +2740,10 @@ function ServiceDetail() {
                   <Grid item xs={12}>
                     <Box sx={{ display: 'flex', gap: 1, mb: 2, alignItems: 'center', justifyContent: 'space-between' }}>
                       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                        {['준비중', '부품준비', '준비완료', '출고완료'].map((st) => (
-                          <Button 
+                        {['준비중', '부품준비', '준비완료', '출고완료']
+                          .filter(s => s !== '부품준비' || isInspectionEnabled)
+                          .map((st) => (
+                            <Button 
                             key={st}
                             onClick={() => handleStatusChange(st)}
                             variant={formData.status === st ? "contained" : "outlined"}

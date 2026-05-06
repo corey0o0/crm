@@ -1386,7 +1386,7 @@ function ShipmentDetail() {
                   {(() => {
                     const STATUS_ORDER = { '준비중': 0, '부품준비': 1, '준비완료': 2, '반품완료': 3, '출고완료': 4 };
                     const currentOrder = STATUS_ORDER[shipmentData.status] ?? 0;
-                    const items = ['준비중', '부품준비', '준비완료', '반품완료', '출고완료'];
+                    const items = ['준비중', '부품준비', '준비완료', '반품완료', '출고완료'].filter(s => s !== '부품준비' || isInspectionEnabled);
                     
                     return items.map(status => {
                       // 마스터 권한이 아니면 이전 상태로 되돌릴 수 없음
@@ -1587,11 +1587,12 @@ function ShipmentDetail() {
                                 onChange={(e) => handleItemStatusChange(part, e.target.value)}
                                 sx={{ width: '100px', fontSize: '0.875rem' }}
                               >
-                                <MenuItem value="준비중">준비중</MenuItem>
-                                <MenuItem value="부품준비">부품준비</MenuItem>
-                                <MenuItem value="준비완료">준비완료</MenuItem>
-                                <MenuItem value="반품완료">반품완료</MenuItem>
-                                <MenuItem value="출고완료">출고완료</MenuItem>
+                                {['준비중', '부품준비', '준비완료', '출고완료']
+                                  .filter(s => s !== '부품준비' || isInspectionEnabled)
+                                  .map(s => (
+                                    <MenuItem key={s} value={s}>{s}</MenuItem>
+                                  ))}
+                                {part.status === '반품완료' && <MenuItem value="반품완료">반품완료</MenuItem>}
                               </Select>
                             </TableCell>
                             <TableCell align="right">
@@ -1696,38 +1697,40 @@ function ShipmentDetail() {
                     </TableHead>
                     <TableBody>
                       {sortedParts.map((part, idx) => (
-                        <TableRow key={idx} sx={part.status === '반품 완료' ? { opacity: 0.5, textDecoration: 'line-through' } : {}}>
-                          <TableCell>{part.part_name}</TableCell>
-                          <TableCell>{part.part_code}</TableCell>
-                          <TableCell>
-                            <Chip
-                              label={part.part_category || '기타'}
-                              size="small"
-                              color={getCategoryColor(part.part_category || '기타')}
-                              variant="filled"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Select
-                              size="small"
-                              value={part.status || '준비중'}
-                              onChange={(e) => handleItemStatusChange(part, e.target.value)}
-                              disabled={saving}
-                              sx={{ 
-                                width: '100px', 
-                                fontSize: '0.875rem',
-                                '.MuiSelect-select': { 
-                                  py: 0.5, 
-                                  color: part.status === '준비 완료' ? 'success.main' : part.status === '반품 완료' ? 'error.main' : 'inherit'
-                                }
-                              }}
-                            >
-                              <MenuItem value="준비중">준비중</MenuItem>
-                              <MenuItem value="부품 준비">부품 준비</MenuItem>
-                              <MenuItem value="준비 완료">준비 완료</MenuItem>
-                              <MenuItem value="반품 완료">반품 완료</MenuItem>
-                            </Select>
-                          </TableCell>
+                          <TableRow key={idx} sx={part.status === '반품완료' ? { opacity: 0.5, textDecoration: 'line-through' } : {}}>
+                            <TableCell>{part.part_name}</TableCell>
+                            <TableCell>{part.part_code}</TableCell>
+                            <TableCell>
+                              <Chip
+                                label={part.part_category || '기타'}
+                                size="small"
+                                color={getCategoryColor(part.part_category || '기타')}
+                                variant="filled"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Select
+                                size="small"
+                                value={part.status || '준비중'}
+                                onChange={(e) => handleItemStatusChange(part, e.target.value)}
+                                disabled={saving}
+                                sx={{ 
+                                  width: '100px', 
+                                  fontSize: '0.875rem',
+                                  '.MuiSelect-select': { 
+                                    py: 0.5, 
+                                    color: part.status === '준비완료' ? 'success.main' : part.status === '반품완료' ? 'error.main' : 'inherit'
+                                  }
+                                }}
+                              >
+                                {['준비중', '부품준비', '준비완료', '출고완료']
+                                  .filter(s => s !== '부품준비' || isInspectionEnabled)
+                                  .map(s => (
+                                    <MenuItem key={s} value={s}>{s}</MenuItem>
+                                  ))}
+                                {part.status === '반품완료' && <MenuItem value="반품완료">반품완료</MenuItem>}
+                              </Select>
+                            </TableCell>
                           <TableCell>{part.quantity}</TableCell>
                           <TableCell>{part.price?.toLocaleString()}원</TableCell>
                           <TableCell sx={{ fontWeight: 600 }}>
