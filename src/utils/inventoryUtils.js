@@ -306,7 +306,7 @@ export const processServiceCompletion = async (serviceId, brandCode) => {
     // const brandSettings = await getBrandSettings(brandCode);
     // if (!brandSettings.auto_inventory_deduction) return { success: true, skipped: true };
 
-    const { data: service, error: srvErr } = await supabase.from('services').select('id, warehouse_id, customer_name').eq('id', serviceId).single();
+    const { data: service, error: srvErr } = await supabase.from('services').select('id, warehouse_id, customer_name, status').eq('id', serviceId).single();
     if (srvErr || !service) throw new Error('A/S를 찾을 수 없음: ' + (srvErr ? srvErr.message : 'no data'));
     let warehouseId = service.warehouse_id;
     if (!warehouseId) {
@@ -387,6 +387,16 @@ export const processServiceCompletion = async (serviceId, brandCode) => {
           effectiveParts[key].effective_qty += effectiveQty;
         }
       });
+    }
+
+    // 서비스 상태가 차감 대상이 아닌 경우(예: 준비중, 접수)에는 신규 차감을 하지 않음
+    const deductStatuses = ['출고완료', '준비완료', '부품준비'];
+    if (!deductStatuses.includes(service.status)) {
+      // 모든 effective_qty를 0으로 만들어서 차감 배열을 비움 (기존 차감분은 위 netDeductions에 의해 자동 원복됨)
+      Object.keys(effectiveParts).forEach(key => {
+        effectiveParts[key].effective_qty = 0;
+      });
+      console.log(`[A/S Inventory Sync] 상태가 '${service.status}'이므로 재고 차감 생략 (기존 차감 건이 있다면 자동 복구)`);
     }
 
     // 3. 기존 모든 차감 내역 완전 복구 (Revert All) 후 현재 상태로 신규 차감 (Re-Deduct)
