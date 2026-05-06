@@ -1057,7 +1057,7 @@ function OnlineStats() {
                 {modalData.length > 0 ? modalData.map((row, idx) => (
                   <TableRow key={idx} hover sx={{ opacity: row.isCancelled ? 0.6 : 1 }}>
                     <TableCell>{row.order_date ? row.order_date.split('T')[0] : ''}</TableCell>
-                    <TableCell>{row.order_id}</TableCell>
+                    <TableCell>{String(row.order_id || '').includes('_') ? String(row.order_id).split('_').slice(1).join('_') : row.order_id}</TableCell>
                     <TableCell>
                        {row.isCancelled && <Box component="span" sx={{ color: 'error.main', fontWeight: 'bold', mr: 1 }}>[취소/반품]</Box>}
                        <span style={{ textDecoration: row.isCancelled ? 'line-through' : 'none' }}>

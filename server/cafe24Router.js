@@ -603,9 +603,11 @@ module.exports = function(supabaseAdmin) {
       // Audit Log 출력 제한 (로그 과다 방지)
       // console.log(`[Amount Audit] Order ID: ${order.order_id} | Path: ${amount_decision_path} | Total: ${total_amount}`);
 
+      const uniqueOrderId = mall_id === 'slimpack79' ? order.order_id : `${mall_id}_${order.order_id}`;
+
       const payload = {
         mall_id: mall_id,
-        order_id: order.order_id,
+        order_id: uniqueOrderId,
         order_date: order.order_date,
         total_amount: total_amount,
         shipping_fee: shipping_fee,

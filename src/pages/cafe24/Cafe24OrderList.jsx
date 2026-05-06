@@ -1442,7 +1442,7 @@ export default function Cafe24OrderList() {
                       </TableCell>
                       <TableCell>카페24</TableCell>
                       <TableCell>카페24 - {order.mall_id}</TableCell>
-                      <TableCell sx={{ fontFamily: 'monospace' }}>{order.order_id}</TableCell>
+                      <TableCell sx={{ fontFamily: 'monospace' }}>{String(order.order_id || '').includes('_') ? String(order.order_id).split('_').slice(1).join('_') : order.order_id}</TableCell>
                       <TableCell>
                         <Box>
                           <Typography variant="body2">{order.buyer_name || '비회원'}</Typography>
@@ -1485,7 +1485,7 @@ export default function Cafe24OrderList() {
                       {idx === 0 && (
                         <TableCell rowSpan={items.length}>
                           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                            <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 500 }}>{order.order_id}</Typography>
+                            <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 500 }}>{String(order.order_id || '').includes('_') ? String(order.order_id).split('_').slice(1).join('_') : order.order_id}</Typography>
                             <Typography variant="caption" color="text.secondary">{formatDate(order.order_date)}</Typography>
                             <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
                               <Chip label={getKoStatus(order.status)} size="small" color={getBadgeColor(order.status)} variant={order.status.startsWith('N') ? 'outlined' : 'filled'} sx={{ height: 18, fontSize: '0.7rem' }} />

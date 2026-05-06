@@ -487,7 +487,7 @@ function SalesHistory() {
     // 온라인 건 → 품목 단위로 펼치기
     (cafeRes.data || []).forEach(o => {
       const items = o.order_items || [];
-      const orderNo = o.order_id;
+      const orderNo = String(o.order_id || '').includes('_') ? String(o.order_id).split('_').slice(1).join('_') : o.order_id;
       const fallbackWid = cafeWarehouseMap[o.id];
       
       // "반영 예외(무시)" 처리된 건은 제외
