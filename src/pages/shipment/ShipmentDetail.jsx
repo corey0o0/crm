@@ -49,6 +49,7 @@ import { processShipmentCompletion, processShipmentRevert, processPartialReturn,
 import { pendingOutboundApi } from '../../api/pendingOutboundApi';
 import { useAuth } from '../../contexts/AuthContext';
 import { MASTER_ACCOUNTS } from '../../config/menuConfig';
+import { getAppSetting } from '../../api/settingsApi';
 // import { addShipmentPartsToPendingOrders } from '../../utils/pendingOrderUtils'; // 주문대기 기능 비활성화
 
 function ShipmentDetail() {
@@ -141,6 +142,17 @@ function ShipmentDetail() {
     if (id) {
       fetchShipmentDetail();
     }
+    const fetchSettings = async () => {
+      try {
+        const { data } = await getAppSetting('inspection_settings');
+        if (data && typeof data.shipment_enabled !== 'undefined') {
+          setIsInspectionEnabled(!!data.shipment_enabled);
+        }
+      } catch (err) {
+        console.error('검수 설정 로딩 오류:', err);
+      }
+    };
+    fetchSettings();
   }, [id]);
 
   const fetchShipmentDetail = async () => {
@@ -1323,17 +1335,7 @@ function ShipmentDetail() {
             </>
           ) : (
             <>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={isInspectionEnabled}
-                    onChange={(e) => setIsInspectionEnabled(e.target.checked)}
-                    color="secondary"
-                  />
-                }
-                label="검수과정 사용"
-                sx={{ mr: 2 }}
-              />
+              {/* 전역 검수 설정 사용 중 (Switch 제거됨) */}
               {isInspectionEnabled && (
                 <Button
                   variant="contained"

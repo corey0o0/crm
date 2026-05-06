@@ -4,6 +4,7 @@ import TelegramTest from '../../components/Test/TelegramTest';
 import BackupManager from '../../components/Backup/BackupManager';
 import UserMenuSettings from '../../components/Settings/UserMenuSettings';
 import TelegramSettings from '../../components/Settings/TelegramSettings';
+import InspectionSettings from '../../components/Settings/InspectionSettings';
 import { useAuth } from '../../contexts/AuthContext';
 import { hasMenuAccess, MENU_KEYS } from '../../config/menuConfig';
 
@@ -60,6 +61,12 @@ export default function AdminTools() {
     }
     if (canSeePermissions) {
         tabs.push({ label: "사용자 권한 관리", component: <UserMenuSettings /> });
+    }
+    
+    // 검수 과정 관리는 권한 관리자와 동일한 권한(admin_permissions)을 사용하거나 
+    // 마스터 계정에게만 보이게 하려면 canSeePermissions 재사용
+    if (canSeePermissions) {
+        tabs.push({ label: "검수 과정 관리", component: <InspectionSettings /> });
     }
 
     // fallback if no specific permissions were granted but they still accessed admin tools

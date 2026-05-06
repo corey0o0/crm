@@ -66,6 +66,9 @@ import { formatKoreanDateTime } from '../../utils/dateUtils';
 import { format } from 'date-fns';
 import { sendTelegramNotification } from '../../lib/telegram';
 import { processServiceCompletion, processPartialReturn, processServiceRevert } from '../../utils/inventoryUtils';
+import { getAppSetting } from '../../api/settingsApi';
+import { useAuth } from '../../contexts/AuthContext';
+import { MASTER_ACCOUNTS } from '../../config/menuConfig';
 import { pendingOutboundApi } from '../../api/pendingOutboundApi';
 // import { addServicePartsToPendingOrders } from '../../utils/pendingOrderUtils'; // 주문대기 기능 비활성화
 import {
@@ -231,6 +234,13 @@ function ServiceDetail() {
 
   useEffect(() => {
     fetchWarehouses();
+    const fetchSettings = async () => {
+      const { data } = await getAppSetting('inspection_settings');
+      if (data && typeof data.as_enabled !== 'undefined') {
+        setIsInspectionEnabled(!!data.as_enabled);
+      }
+    };
+    fetchSettings();
   }, []);
 
   // 변경사항 감지를 위한 상태 추가
@@ -427,7 +437,7 @@ function ServiceDetail() {
           // 부품 정보 로딩
           const { data: partsData } = await supabase
             .from('service_parts')
-            .select('id, part_id, quantity, price, usage')
+            .select('id, part_id, quantity, price, usage, status')
             .eq('service_id', id);
 
           serviceParts = partsData || [];
@@ -752,7 +762,7 @@ function ServiceDetail() {
     return `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
   };
 
-  const handleStatusChange = (newStatus) => {
+  const applyStatusChange = (newStatus) => {
     // 상품(부품)들의 상태값 자동 동기화 (반품완료된 항목 제외)
     setSelectedParts(prev => prev.map(p => {
       if (p.status === '반품완료' || (p.usage && p.usage.includes('[반품완료]'))) return p;
@@ -760,6 +770,42 @@ function ServiceDetail() {
     }));
     setHasUnsavedChanges(true);
 
+    setFormData(prev => ({
+      ...prev,
+      status: newStatus
+    }));
+    setIsEditing(true);
+  };
+
+  const handleStatusChange = (newStatus) => {
+    // 1. 준비완료 -> 준비중 제한 (부품이 추가되어 있으면 반품 필요)
+    if (formData.status === '준비완료' && newStatus === '준비중') {
+      const hasActiveParts = selectedParts.some(p => p.status !== '반품완료' && (!p.usage || !p.usage.includes('[반품완료]')));
+      if (hasActiveParts) {
+        setSnackbar({
+          open: true,
+          message: '사용 부품이 추가되어 있어 준비중 상태로 변경할 수 없습니다. 부품을 먼저 반품해주세요.',
+          severity: 'warning'
+        });
+        return; // 상태 변경 중단
+      }
+    }
+
+    // 2. 준비중 -> 준비완료 확인 메시지
+    if (formData.status === '준비중' && newStatus === '준비완료') {
+      setConfirmDialog({
+        open: true,
+        title: '상태 변경 확인',
+        message: 'A/S 상태를 준비완료로 변경하시겠습니까?',
+        onConfirm: () => {
+          applyStatusChange(newStatus);
+          setConfirmDialog(prev => ({ ...prev, open: false }));
+        }
+      });
+      return;
+    }
+
+    // 3. 출고완료 확인 메시지
     if (newStatus === '출고완료') {
       setConfirmDialog({
         open: true,
@@ -769,6 +815,13 @@ function ServiceDetail() {
           const now = new Date();
           const dateStr = now.toISOString().slice(0, 10);
           const timeStr = getCurrentTimeForCompletion();
+          
+          setSelectedParts(prev => prev.map(p => {
+            if (p.status === '반품완료' || (p.usage && p.usage.includes('[반품완료]'))) return p;
+            return { ...p, status: newStatus };
+          }));
+          setHasUnsavedChanges(true);
+
           setFormData(prev => {
             const updatedData = { ...prev, status: newStatus, completion_date: dateStr, completion_time: timeStr };
             return updatedData;
@@ -777,13 +830,11 @@ function ServiceDetail() {
           setConfirmDialog(prev => ({ ...prev, open: false }));
         }
       });
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        status: newStatus
-      }));
-      setIsEditing(true);
+      return;
     }
+
+    // 그 외 일반적인 상태 변경
+    applyStatusChange(newStatus);
   };
 
   const formatDateWithHour = (dateStr) => {
@@ -2295,16 +2346,6 @@ function ServiceDetail() {
             />
           }
           label="가격 수정"
-        />
-        <FormControlLabel
-          control={
-            <Switch
-              checked={isInspectionEnabled}
-              onChange={e => setIsInspectionEnabled(e.target.checked)}
-              color="secondary"
-            />
-          }
-          label="검수과정 사용"
         />
       </Box>
       <Stack direction="row" spacing={2} sx={{ mb: 2 }}>

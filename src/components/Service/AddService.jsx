@@ -1280,19 +1280,60 @@ function AddService() {
   };
 
   // 상태 변경 핸들러
-  const handleStatusChange = (newStatus) => {
+  const applyStatusChange = (newStatus) => {
     // 상품(부품)들의 상태값 자동 동기화 (반품완료된 항목 제외)
     setSelectedParts(prev => prev.map(p => {
       if (p.status === '반품완료' || (p.usage && p.usage.includes('[반품완료]'))) return p;
       return { ...p, status: newStatus };
     }));
 
+    setStatus(newStatus);
+    setFormData(prev => ({
+      ...prev,
+      status: newStatus
+    }));
+  };
+
+  // 상태 변경 핸들러
+  const handleStatusChange = (newStatus) => {
+    // 1. 준비완료 -> 준비중 제한 (부품이 추가되어 있으면 반품 필요)
+    if (status === '준비완료' && newStatus === '준비중') {
+      const hasActiveParts = selectedParts.some(p => p.status !== '반품완료' && (!p.usage || !p.usage.includes('[반품완료]')));
+      if (hasActiveParts) {
+        setSnackbar({
+          open: true,
+          message: '사용 부품이 추가되어 있어 준비중 상태로 변경할 수 없습니다. 부품을 먼저 반품해주세요.',
+          severity: 'warning'
+        });
+        return; // 상태 변경 중단
+      }
+    }
+
+    // 2. 준비중 -> 준비완료 확인 메시지
+    if (status === '준비중' && newStatus === '준비완료') {
+      setConfirmDialog({
+        open: true,
+        title: '상태 변경 확인',
+        message: 'A/S 상태를 준비완료로 변경하시겠습니까?',
+        onConfirm: () => {
+          applyStatusChange(newStatus);
+          setConfirmDialog(prev => ({ ...prev, open: false }));
+        }
+      });
+      return;
+    }
+
+    // 3. 출고완료 확인 로직
     if (newStatus === '출고완료') {
       setConfirmDialog({
         open: true,
         title: 'A/S 완료 확인',
         message: '해당 A/S를 출고완료 처리하시겠습니까?',
         onConfirm: () => {
+          setSelectedParts(prev => prev.map(p => {
+            if (p.status === '반품완료' || (p.usage && p.usage.includes('[반품완료]'))) return p;
+            return { ...p, status: newStatus };
+          }));
           setStatus(newStatus);
           setFormData(prev => {
             const updatedData = { ...prev, status: newStatus };
@@ -1305,13 +1346,11 @@ function AddService() {
           setConfirmDialog(prev => ({ ...prev, open: false }));
         }
       });
-    } else {
-      setStatus(newStatus);
-      setFormData(prev => ({
-        ...prev,
-        status: newStatus
-      }));
+      return;
     }
+
+    // 그 외 일반적인 상태 변경
+    applyStatusChange(newStatus);
   };
 
   // 기존 제품명 목록 가져오기
