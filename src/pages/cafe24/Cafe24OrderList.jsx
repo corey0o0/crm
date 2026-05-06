@@ -369,10 +369,21 @@ export default function Cafe24OrderList() {
     return true;
   });
 
+  const isOrderReturned = (order) => {
+    const s = String(order.status).trim();
+    if (s.startsWith('C') || s.startsWith('R') || s.startsWith('E')) return true;
+    if (order.order_items && order.order_items.some(item => {
+      const itemStatus = String(item.order_status).trim();
+      return itemStatus.startsWith('C') || itemStatus.startsWith('R') || itemStatus.startsWith('E');
+    })) return true;
+    return false;
+  };
+
   const transferCounts = {
     all: baseFilteredOrders.filter(o => !o.is_deleted).length,
-    not_transferred: baseFilteredOrders.filter(o => !o.is_transferred && !o.is_deleted).length,
-    transferred: baseFilteredOrders.filter(o => o.is_transferred && !o.is_deleted).length,
+    not_transferred: baseFilteredOrders.filter(o => !o.is_transferred && !o.is_deleted && !isOrderReturned(o)).length,
+    transferred: baseFilteredOrders.filter(o => o.is_transferred && !o.is_deleted && !isOrderReturned(o)).length,
+    returned: baseFilteredOrders.filter(o => !o.is_deleted && isOrderReturned(o)).length,
     ignored: baseFilteredOrders.filter(o => o.is_deleted).length,
   };
 
@@ -382,6 +393,9 @@ export default function Cafe24OrderList() {
     }
     // For all other filters, hide ignored
     if (order.is_deleted) return false;
+    
+    if (transferFilter === 'returned') return isOrderReturned(order);
+    if (isOrderReturned(order) && transferFilter !== 'all') return false;
     
     if (transferFilter === 'transferred' && !order.is_transferred) return false;
     if (transferFilter === 'not_transferred' && order.is_transferred) return false;
@@ -767,6 +781,75 @@ export default function Cafe24OrderList() {
   };
 
   const handleSmartResolve = async (order) => {
+    // 교환건인지 확인
+    const isExchange = String(order.status).trim().startsWith('E') || 
+                       (order.order_items && order.order_items.some(i => String(i.order_status).trim().startsWith('E')));
+
+    if (isExchange) {
+      setConfirmDialog({
+        open: true,
+        title: '스마트 교환 처리',
+        message: '기존 전송 내역을 취소(재고 원복)하고, 최신 교환 품목 데이터를 불러온 뒤, 원래 지정했던 창고로 자동 판매반영(재고 차감)을 다시 진행하시겠습니까?',
+        onConfirm: async () => {
+          setLoading(true);
+          try {
+            // 1. Get previous warehouse configuration
+            let prevWarehouse = 'W001';
+            if (order.order_items) {
+              const prevItem = order.order_items.find(i => i._warehouse_id && i._warehouse_id !== 'EXCLUDE');
+              if (prevItem) prevWarehouse = prevItem._warehouse_id;
+            }
+
+            // 2. Rollback Transfer if it was transferred
+            if (order.is_transferred) {
+              const { data } = await supabase.from('pending_outbounds').select('status').eq('order_no', order.order_id).maybeSingle();
+              if (data && data.status === '완료') {
+                await returnCafe24Inventory([order.id]);
+              } else {
+                await cancelSalesTransfer([order.id]);
+              }
+              await supabase.from('cafe24_orders').update({ is_transferred: false }).eq('id', order.id);
+            }
+
+            // 3. Sync from Cafe24 (for the order's date)
+            const orderDateStr = order.order_date.split('T')[0];
+            await syncCafe24Orders(order.mall_id, orderDateStr, orderDateStr);
+
+            // 4. Fetch the updated order items
+            const { data: updatedOrder, error: fetchErr } = await supabase.from('cafe24_orders').select('*').eq('id', order.id).single();
+            if (fetchErr) throw fetchErr;
+
+            // 5. Build new warehouse config
+            const tempConfig = { [updatedOrder.id]: {} };
+            if (updatedOrder.order_items) {
+              updatedOrder.order_items.forEach((item, idx) => {
+                if (!['C11', 'C40', 'R40', 'E40'].includes(item.order_status)) {
+                  tempConfig[updatedOrder.id][idx] = prevWarehouse;
+                }
+              });
+            }
+
+            // 6. Transfer sales
+            await transferCafe24Orders([updatedOrder.id], tempConfig);
+
+            setAlertDialog({ open: true, title: '스마트 교환 완료', message: '교환건의 재고 복구, 새 품목 동기화, 및 새 품목의 판매반영(재고 차감)이 자동으로 완료되었습니다.' });
+            
+            setWarehouseConfig(prev => ({
+              ...prev,
+              ...tempConfig
+            }));
+            
+            fetchOrders();
+          } catch(err) {
+            setAlertDialog({ open: true, title: '교환 자동 처리 실패', message: err.message });
+          } finally {
+            setLoading(false);
+          }
+        }
+      });
+      return;
+    }
+
     // 1. 미전송 상태인 경우 무시 처리
     if (!order.is_transferred) {
       setConfirmDialog({
@@ -1249,6 +1332,9 @@ export default function Cafe24OrderList() {
                         </ToggleButton>
                         <ToggleButton value="transferred" sx={{ px: 2 }}>
                           반영 완료 <Chip label={transferCounts.transferred} size="small" sx={{ ml: 1, height: 20, fontSize: '0.75rem' }} color={transferFilter === 'transferred' ? "success" : "default"} />
+                        </ToggleButton>
+                        <ToggleButton value="returned" sx={{ px: 2 }}>
+                          반품/취소교환 <Chip label={transferCounts.returned} size="small" sx={{ ml: 1, height: 20, fontSize: '0.75rem' }} color={transferFilter === 'returned' ? "secondary" : "default"} />
                         </ToggleButton>
                         <ToggleButton value="ignored" sx={{ px: 2 }}>
                           반영 무시 <Chip label={transferCounts.ignored} size="small" sx={{ ml: 1, height: 20, fontSize: '0.75rem' }} color={transferFilter === 'ignored' ? "error" : "default"} />
