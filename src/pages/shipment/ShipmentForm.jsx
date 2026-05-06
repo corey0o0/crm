@@ -384,7 +384,8 @@ function ShipmentForm({ isManualB2B = false }) {
               category: part.part_category || '기체',
               quantity: part.quantity,
               price: actualPrice,
-              totalPrice: actualTotalPrice
+              totalPrice: actualTotalPrice,
+              status: part.status || '준비중'
             };
           });
 
@@ -399,7 +400,8 @@ function ShipmentForm({ isManualB2B = false }) {
               category: part.category,
               quantity: part.quantity,
               price: part.price,
-              totalPrice: part.totalPrice
+              totalPrice: part.totalPrice,
+              status: part.status
             }))
           });
         }
@@ -713,6 +715,7 @@ function ShipmentForm({ isManualB2B = false }) {
           price: part.price || 0,
           total_price: part.totalPrice || calculateTotal(part),
           warehouse_id: shipmentData.warehouse_id, // 이제 필수로 들어감
+          status: part.status || shipmentData.status || '준비중',
           created_at: new Date().toISOString()
         }));
 
@@ -1105,6 +1108,19 @@ function ShipmentForm({ isManualB2B = false }) {
           ...part,
           price: price,
           totalPrice: price * part.quantity
+        };
+      }
+      return part;
+    }));
+  };
+
+  // 상태 수정 함수 추가
+  const handlePartStatusChange = (id, newStatus) => {
+    setSelectedParts(prev => prev.map(part => {
+      if (part.id === id) {
+        return {
+          ...part,
+          status: newStatus
         };
       }
       return part;
@@ -1757,6 +1773,7 @@ function ShipmentForm({ isManualB2B = false }) {
                 <TableRow>
                   <TableCell>제품명</TableCell>
                   <TableCell>구분</TableCell>
+                  <TableCell align="center">상태</TableCell>
                   <TableCell align="right">수량</TableCell>
                   <TableCell align="right">단가</TableCell>
                   <TableCell align="right">합계</TableCell>
@@ -1784,6 +1801,18 @@ function ShipmentForm({ isManualB2B = false }) {
                               part.category === '공임' ? 'success' : 'default'
                         }
                       />
+                    </TableCell>
+                    <TableCell align="center">
+                      <Select
+                        size="small"
+                        value={part.status || '준비중'}
+                        onChange={(e) => handlePartStatusChange(part.id, e.target.value)}
+                        sx={{ minWidth: 90 }}
+                      >
+                        {['준비중', '부품준비', '준비완료', '반품완료', '출고완료'].map(s => (
+                          <MenuItem key={s} value={s}>{s}</MenuItem>
+                        ))}
+                      </Select>
                     </TableCell>
                     <TableCell align="right">
                       <TextField

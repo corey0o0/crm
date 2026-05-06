@@ -577,6 +577,12 @@ function AddService() {
   };
 
   // 수량 변경 핸들러
+  const handlePartStatusChange = (index, newStatus) => {
+    const updatedParts = [...selectedParts];
+    updatedParts[index].status = newStatus;
+    setSelectedParts(updatedParts);
+  };
+
   const handleQuantityChange = (index, newQuantity) => {
     const updatedParts = [...selectedParts];
     const qty = Math.max(1, Number(newQuantity) || 1);
@@ -2973,6 +2979,7 @@ function AddService() {
                       <TableRow>
                         <TableCell>부품명</TableCell>
                         <TableCell>코드</TableCell>
+                        <TableCell align="center">상태</TableCell>
                         <TableCell align="right">단가</TableCell>
                         <TableCell align="right">수량</TableCell>
                         <TableCell align="right">금액</TableCell>
@@ -2986,6 +2993,18 @@ function AddService() {
                         <TableRow key={part.id}>
                           <TableCell>{part.name}</TableCell>
                           <TableCell>{part.code}</TableCell>
+                          <TableCell align="center">
+                            <Select
+                              size="small"
+                              value={part.status || '준비중'}
+                              onChange={(e) => handlePartStatusChange(index, e.target.value)}
+                              sx={{ minWidth: 90 }}
+                            >
+                              {['준비중', '부품준비', '준비완료', '반품완료', '출고완료'].map(s => (
+                                <MenuItem key={s} value={s}>{s}</MenuItem>
+                              ))}
+                            </Select>
+                          </TableCell>
                           <TableCell align="right">
                             {part.price.toLocaleString()}원
                           </TableCell>

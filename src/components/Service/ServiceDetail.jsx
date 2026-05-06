@@ -633,6 +633,7 @@ function ServiceDetail() {
             record_id: sp.id,
             quantity: sp.quantity,
             price: sp.price,
+            status: sp.status || '준비중',
             usage: sp.usage || 'A/S',
             total: sp.price * sp.quantity
           };
@@ -657,6 +658,7 @@ function ServiceDetail() {
             part_id: part.part_id,
             quantity: part.quantity,
             price: part.price,
+            status: part.status,
             usage: part.usage
           })),
           tags: Array.isArray(serviceData.service_tags) ? serviceData.service_tags.map(t => t.tag_name).sort() : [],
@@ -886,6 +888,7 @@ function ServiceDetail() {
           part_id: part.id,
           quantity: part.quantity,
           price: part.price,
+          status: part.status || '준비중',
           usage: part.usage || 'A/S'
         }));
 
@@ -1117,7 +1120,7 @@ function ServiceDetail() {
     setSelectedParts(prev => prev.filter(part => part.id !== partId));
   };
 
-  const isDeducted = ['처리중', '완료', '수령대기', '결제대기', '수령완료', '출고완료', '취소'].includes(formData?.status);
+  const isDeducted = ['부품준비', '준비완료', '반품완료', '출고완료', '처리중', '완료', '수령대기', '결제대기', '수령완료', '취소'].includes(formData?.status);
 
   const handleReturnPart = async (part) => {
     const qtyStr = window.prompt(`'${part.name}' 총 ${part.quantity}개 중 반품(재입고)할 수량을 입력하세요:`, part.quantity);
@@ -1149,37 +1152,49 @@ function ServiceDetail() {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case '접수':
-        return 'info';
-      case '부품준비':
-        return 'secondary';
-      case '처리중':
-        return 'warning';
-      case '완료':
-        return 'success';
-      default:
-        return 'info';
+      case '준비중': return 'info';
+      case '부품준비': return 'warning';
+      case '준비완료': return 'secondary';
+      case '반품완료': return 'error';
+      case '출고완료': return 'success';
+      default: return 'info';
     }
   };
 
-  const buttonStyle = (isSelected) => ({
-    marginLeft: '8px',
-    backgroundColor: isSelected ? (
-      formData.status === '접수' ? '#1976d2' :
-        formData.status === '부품준비' ? '#9c27b0' :
-        formData.status === '처리중' ? '#ed6c02' :
-          formData.status === '완료' ? '#2e7d32' : '#3182f6'
-    ) : '#f2f4f6',
-    color: isSelected ? '#ffffff' : '#4e5968',
-    '&:hover': {
-      backgroundColor: isSelected ? (
-        formData.status === '접수' ? '#1565c0' :
-          formData.status === '부품준비' ? '#7b1fa2' :
-          formData.status === '처리중' ? '#d65f02' :
-            formData.status === '완료' ? '#1e5e20' : '#1b64da'
-      ) : '#e5e8eb'
-    }
-  });
+  const buttonStyle = (isSelected, currentStatus) => {
+    const getBgColor = () => {
+      switch (currentStatus) {
+        case '준비중': return '#1976d2';
+        case '부품준비': return '#ed6c02';
+        case '준비완료': return '#9c27b0';
+        case '반품완료': return '#d32f2f';
+        case '출고완료': return '#2e7d32';
+        default: return '#1976d2';
+      }
+    };
+
+    const getHoverBgColor = () => {
+      switch (currentStatus) {
+        case '준비중': return '#1565c0';
+        case '부품준비': return '#e65100';
+        case '준비완료': return '#7b1fa2';
+        case '반품완료': return '#c62828';
+        case '출고완료': return '#1b5e20';
+        default: return '#1565c0';
+      }
+    };
+
+    return {
+      marginRight: '8px',
+      color: isSelected ? '#fff' : getBgColor(),
+      borderColor: getBgColor(),
+      backgroundColor: isSelected ? getBgColor() : 'transparent',
+      '&:hover': {
+        backgroundColor: isSelected ? getHoverBgColor() : 'rgba(0, 0, 0, 0.04)',
+        borderColor: getHoverBgColor(),
+      }
+    };
+  };
 
   const sectionStyle = {
     pb: 1,
@@ -1479,6 +1494,13 @@ function ServiceDetail() {
       usage: newUsage
     };
     setSelectedParts(updatedParts);
+  };
+
+  const handlePartStatusChange = (index, newStatus) => {
+    const updatedParts = [...selectedParts];
+    updatedParts[index].status = newStatus;
+    setSelectedParts(updatedParts);
+    setHasUnsavedChanges(true);
   };
 
   const handleQuantityChange = (index, newQuantity) => {
@@ -2299,6 +2321,7 @@ function ServiceDetail() {
             <TableRow>
               <TableCell>부품명</TableCell>
               <TableCell>코드</TableCell>
+              <TableCell align="center">상태</TableCell>
               <TableCell align="right">단가</TableCell>
               <TableCell align="right">수량</TableCell>
               <TableCell align="right">금액</TableCell>
@@ -2317,6 +2340,18 @@ function ServiceDetail() {
               <TableRow key={part.id} sx={rowStyle}>
                 <TableCell>{part.name} {rQty > 0 && <span style={{color: '#ed6c02', fontSize: '0.8rem', marginLeft: 4}}>[{rQty}개 반품]</span>}</TableCell>
                 <TableCell>{part.code}</TableCell>
+                <TableCell align="center">
+                  <Select
+                    size="small"
+                    value={part.status || '준비중'}
+                    onChange={(e) => handlePartStatusChange(index, e.target.value)}
+                    sx={{ minWidth: 90 }}
+                  >
+                    {['준비중', '부품준비', '준비완료', '반품완료', '출고완료'].map(s => (
+                      <MenuItem key={s} value={s}>{s}</MenuItem>
+                    ))}
+                  </Select>
+                </TableCell>
                 <TableCell align="right">
                   {part.price.toLocaleString()}원
                 </TableCell>
@@ -2702,67 +2737,18 @@ function ServiceDetail() {
                   </Grid>
                   <Grid item xs={12}>
                     <Box sx={{ display: 'flex', gap: 1, mb: 2, alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Box sx={{ display: 'flex', gap: 1 }}>
-                        {(() => {
-                          const isInspectionCompleted = ['처리중', '완료', '수령대기', '결제대기', '수령완료', '출고완료', '취소'].includes(formData.status);
-                          return (
-                            <>
-                              <Button
-                                variant={formData.status === '접수' ? 'contained' : 'outlined'}
-                                onClick={() => handleStatusChange('접수')}
-                                sx={buttonStyle(formData.status === '접수')}
-                                disabled={isInspectionCompleted}
-                              >
-                                접수
-                              </Button>
-                              {isInspectionCompleted ? (
-                                <Button
-                                  variant="contained"
-                                  color="inherit"
-                                  disableElevation
-                                  disabled={true}
-                                  sx={{
-                                    ...buttonStyle(true),
-                                    bgcolor: '#e0e0e0', 
-                                    color: '#9e9e9e',
-                                    pointerEvents: 'none'
-                                  }}
-                                >
-                                  검수 완료
-                                </Button>
-                              ) : (
-                                <Button
-                                  variant={formData.status === '부품준비' ? "contained" : "outlined"}
-                                  onClick={() => {
-                                    if (formData.status !== '부품준비') {
-                                      handleStatusChange('부품준비');
-                                    }
-                                  }}
-                                  sx={{ 
-                                    ...buttonStyle(formData.status === '부품준비'),
-                                    ...(formData.status !== '부품준비' ? { color: '#9c27b0', borderColor: '#9c27b0' } : {})
-                                  }}
-                                >
-                                  부품준비
-                                </Button>
-                              )}
-                            </>
-                          );
-                        })()}
-                        <Button
-                          variant={formData.status === '처리중' ? 'contained' : 'outlined'}
-                          onClick={() => handleStatusChange('처리중')}
-                          sx={buttonStyle(formData.status === '처리중')}
-                        >
-                          처리중
-                        </Button>
-                        <Button
-                          variant={formData.status === '완료' ? 'contained' : 'outlined'}
-                          onClick={() => handleStatusChange('완료')}
-                          sx={buttonStyle(formData.status === '완료')}
-                        >
-                          완료
-                        </Button>
+                      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                        {['준비중', '부품준비', '준비완료', '반품완료', '출고완료'].map((st) => (
+                          <Button 
+                            key={st}
+                            onClick={() => handleStatusChange(st)}
+                            variant={formData.status === st ? "contained" : "outlined"}
+                            size="small"
+                            sx={buttonStyle(formData.status === st, st)}
+                          >
+                            {st}
+                          </Button>
+                        ))}
                       </Box>
                       <TextField
                         size="small"
