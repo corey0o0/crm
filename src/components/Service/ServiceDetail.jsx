@@ -470,10 +470,11 @@ function ServiceDetail() {
             console.log('[ServiceDetail] 1차 타임아웃 - 페이지 새로고침으로 즉시 복구');
             // 에러 메시지 없이 바로 새로고침 (로딩 상태 유지)
             setTimeout(() => {
-              console.log('[ServiceDetail] 자동 페이지 새로고침 실행');
-              window.alert('데이터 로딩 지연으로 인해 페이지를 새로고침합니다.');
-              window.location.reload();
-            }, 500); // 0.5초 후 새로고침
+              console.log('[ServiceDetail] 데이터 로딩 지연 확인됨');
+              window.alert('데이터 로딩 지연으로 인해 일시적인 오류가 발생했습니다. 잠시 후 새로고침(F5) 해주세요.');
+              // 자동 새로고침 비활성화
+              // window.location.reload();
+            }, 500);
             return;
           }
 

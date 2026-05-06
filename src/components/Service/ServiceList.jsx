@@ -1188,9 +1188,15 @@ function ServiceList() {
 
         // 재고 연동 로직
         if (wasCompleted && !isNowCompleted) {
-           await processServiceRevert(selectedService.id, selectedBrand);
+           const revertResult = await processServiceRevert(selectedService.id, selectedBrand);
+           if (revertResult && !revertResult.success) {
+               throw new Error(`재고 복구 실패: ${revertResult.message || '알 수 없는 오류'}`);
+           }
         } else if (!wasCompleted && isNowCompleted) {
-           await processServiceCompletion(selectedService.id, selectedBrand);
+           const inventoryResult = await processServiceCompletion(selectedService.id, selectedBrand);
+           if (inventoryResult && !inventoryResult.success) {
+               throw new Error(`재고 차감 실패: ${inventoryResult.message || '알 수 없는 오류'}`);
+           }
         }
 
         // API 호출로 데이터 업데이트
@@ -3148,12 +3154,19 @@ function ServiceList() {
     );
   }
 
-  if (error) {
-    return (
-      <Container maxWidth="md" sx={{ mt: 4, textAlign: 'center' }}>
+  // 에러 발생 시 전체 화면을 덮지 않도록 처리
+  // if (error) { ... }
+
+  return (
+    <Box sx={{ 
+      maxWidth: '1800px', 
+      width: 'auto', 
+      mx: 'auto'
+    }}>
+      {error && (
         <Alert 
           severity="error" 
-          sx={{ mb: 3 }}
+          sx={{ mb: 2 }}
           action={
             <Button color="inherit" size="small" onClick={() => {
               setError(null);
@@ -3163,34 +3176,10 @@ function ServiceList() {
             </Button>
           }
         >
-          <Typography variant="h6" gutterBottom>
-            데이터를 불러올 수 없습니다
-          </Typography>
-          <Typography variant="body2">
-            {error}
-          </Typography>
+          {error}
         </Alert>
-        
-        <Box sx={{ mt: 2 }}>
-          <Typography variant="body2" color="text.secondary" gutterBottom>
-            문제가 지속되면 다음을 확인해보세요:
-          </Typography>
-          <Box component="ul" sx={{ textAlign: 'left', maxWidth: 400, mx: 'auto' }}>
-            <li>인터넷 연결 상태</li>
-            <li>브라우저 새로고침 (Ctrl+F5)</li>
-            <li>잠시 후 다시 시도</li>
-      </Box>
-        </Box>
-      </Container>
-    );
-  }
+      )}
 
-  return (
-    <Box sx={{ 
-      maxWidth: '1800px', 
-      width: 'auto', 
-      mx: 'auto'
-    }}>
       {/* 오프라인 상태 알림 */}
       {!isOnline && (
         <Alert 
