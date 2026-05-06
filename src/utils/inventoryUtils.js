@@ -630,7 +630,7 @@ export const updatePartStatus = async (sourceType, orderId, recordId, newStatus,
     // 상태 변경으로 인한 재고 액션 판별
     const needsDeduction = (newStatus === '부품준비' || newStatus === '준비완료' || newStatus === '작업완료' || newStatus === '출고완료');
     const needsRevert = (newStatus === '반품완료');
-    const isReset = (newStatus === '접수');
+    const isReset = (newStatus === '접수' || newStatus === '준비중');
 
     let inventoryAction = null; // 'deduct' | 'revert' | null
 

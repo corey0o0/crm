@@ -1084,11 +1084,10 @@ function ServiceList() {
     if (!status) return 'default';
     if (status.includes('완료')) {
       if (status === '반품완료') return 'error'; // 빨간색
-      if (status === '작업완료') return 'secondary'; // 보라색
       return 'success';  // 출고완료 등 초록색
     }
     switch(status) {
-      case '접수':
+      case '준비중':
         return 'info';   // 파란색 계열
       case '부품준비':
         return 'warning';  // 주황색 계열
@@ -1438,7 +1437,7 @@ function ServiceList() {
             product_name: row['제품'] || '',
             symptom: row['증상'] || '',
             solution: row['처리내역'] || '',
-            status: row['상태'] || '접수',
+            status: row['상태'] || '준비중',
             note: row['메모'] || '',
             receipt_link: row['JPG'] || '',
             seller: row['구매처'] || '',
@@ -1598,7 +1597,7 @@ function ServiceList() {
                 ? '#2e7d32'
                 : row.status === '부품준비'
                   ? '#ed6c02'
-                  : row.status === '접수'
+                  : row.status === '준비중'
                     ? '#1976d2'
                     : '#757575',
             transition: 'all 0.3s ease',
@@ -1955,7 +1954,7 @@ function ServiceList() {
                   ? '#2e7d32'
                   : row.status === '부품준비'
                     ? '#ed6c02'
-                    : row.status === '접수'
+                    : row.status === '준비중'
                       ? '#1976d2'
                       : '#757575',
               transition: 'all 0.3s ease',
@@ -2285,7 +2284,7 @@ function ServiceList() {
         
         // 처리진행상황 계산
         let progressStatus = '';
-        if (service.status === '접수') {
+        if (service.status === '준비중') {
           progressStatus = '접수 완료';
         } else if (service.status === '부품준비') {
           if (service.repair_date) {
@@ -2677,7 +2676,7 @@ function ServiceList() {
   const [isLoadingNextChunk, setIsLoadingNextChunk] = useState(false); // 다음 청크 로딩 상태
   const [hasMoreData, setHasMoreData] = useState(true); // 더 로드할 데이터가 있는지
   
-  const statusOptions = ['접수', '부품준비', '준비완료', '작업완료', '출고완료'];
+  const statusOptions = ['준비중', '부품준비', '준비완료', '출고완료'];
   
   // 태그 옵션을 더 안정적으로 생성 (단어 검색용)
   const tagOptions = useMemo(() => {
@@ -3887,10 +3886,9 @@ function ServiceList() {
                 value={selectedService?.status || ''}
                 onChange={handleServiceChange}
               >
-                <MenuItem value="접수">접수</MenuItem>
+                <MenuItem value="준비중">준비중</MenuItem>
                 <MenuItem value="부품준비">부품준비</MenuItem>
                 <MenuItem value="준비완료">준비완료</MenuItem>
-                <MenuItem value="작업완료">작업완료</MenuItem>
                 <MenuItem value="출고완료">출고완료</MenuItem>
               </TextField>
             </Grid>

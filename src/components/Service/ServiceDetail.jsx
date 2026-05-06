@@ -574,7 +574,7 @@ function ServiceDetail() {
       const mileage = serviceData.mileage === null ? '' : serviceData.mileage;
 
       // 초기 상태 저장
-      setInitialStatus(serviceData.status || '접수');
+      setInitialStatus(serviceData.status || '준비중');
 
       let defaultWarehouseId = serviceData.warehouse_id;
       if (!defaultWarehouseId) {
@@ -1176,10 +1176,10 @@ function ServiceDetail() {
       
       if (formData.status === '출고완료') {
         try {
-          supabase.from('services').update({ status: '작업완료' }).eq('id', id).then(() => {
-            setFormData(prev => ({ ...prev, status: '작업완료' }));
-            setInitialStatus('작업완료');
-            setSnackbar({ open: true, message: '부품이 추가되어 전체 진행상태가 [작업완료]로 변경되었습니다.', severity: 'success' });
+          supabase.from('services').update({ status: '준비완료' }).eq('id', id).then(() => {
+            setFormData(prev => ({ ...prev, status: '준비완료' }));
+            setInitialStatus('준비완료');
+            setSnackbar({ open: true, message: '부품이 추가되어 전체 진행상태가 [준비완료]로 변경되었습니다.', severity: 'success' });
           });
         } catch (e) {
           console.error(e);
@@ -1219,10 +1219,10 @@ function ServiceDetail() {
       
       if (formData.status === '출고완료') {
         try {
-          await supabase.from('services').update({ status: '작업완료' }).eq('id', id);
-          setFormData(prev => ({ ...prev, status: '작업완료' }));
-          setInitialStatus('작업완료');
-          setSnackbar({ open: true, message: '부품이 반품되어 전체 진행상태가 [작업완료]로 변경되었습니다.', severity: 'success' });
+          await supabase.from('services').update({ status: '준비완료' }).eq('id', id);
+          setFormData(prev => ({ ...prev, status: '준비완료' }));
+          setInitialStatus('준비완료');
+          setSnackbar({ open: true, message: '부품이 반품되어 전체 진행상태가 [준비완료]로 변경되었습니다.', severity: 'success' });
         } catch (e) {
           console.error(e);
         }
@@ -1237,10 +1237,9 @@ function ServiceDetail() {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case '접수': return 'info';
+      case '준비중': return 'info';
       case '부품준비': return 'warning';
       case '준비완료': return 'secondary';
-      case '작업완료': return 'secondary';
       case '반품완료': return 'error';
       case '출고완료': return 'success';
       default: return 'info';
@@ -2826,8 +2825,8 @@ function ServiceDetail() {
                     <Box sx={{ display: 'flex', gap: 1, mb: 2, alignItems: 'center', justifyContent: 'space-between' }}>
                       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                         {(isInspectionEnabled 
-                           ? ['접수', '부품준비', '준비완료', '작업완료', '출고완료'] 
-                           : ['접수', '작업완료', '출고완료']
+                           ? ['준비중', '부품준비', '준비완료', '출고완료'] 
+                           : ['준비중', '준비완료', '출고완료']
                          ).map((st) => (
                             <Button 
                             key={st}
