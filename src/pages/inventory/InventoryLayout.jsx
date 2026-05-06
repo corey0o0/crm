@@ -1195,22 +1195,39 @@ function InventoryLayout() {
             }
           });
         });
-      } else {
         // 기존 형식 처리 (표준 템플릿)
+        // 헤더 매핑
+        const headerRowValues = worksheet.getRow(1).values;
+        const colMap = {};
+        for (let i = 1; i < headerRowValues.length; i++) {
+          const val = headerRowValues[i]?.toString().trim();
+          if (val) colMap[val] = i;
+        }
+
+        const getColVal = (row, key1, key2) => {
+          if (colMap[key1] && row.values[colMap[key1]] !== undefined) return String(row.values[colMap[key1]]);
+          if (key2 && colMap[key2] && row.values[colMap[key2]] !== undefined) return String(row.values[colMap[key2]]);
+          return '';
+        };
+
         worksheet.eachRow((row, rowNumber) => {
           if (rowNumber === 1) return; // 헤더 행 건너뛰기
           
-          const rowData = row.values;
-          // ExcelJS row.values는 1-indexed 배열 (1: A열, 2: B열, 3: C열...)
-          if (rowData[3] || rowData[4]) { // 최소 필수 데이터 확인 (상품코드나 상품명이 있어야 함)
+          const productCode = getColVal(row, '상품코드', '제품코드');
+          const barcode = getColVal(row, '바코드');
+          const productName = getColVal(row, '상품명', '제품명');
+          const qtyStr = getColVal(row, '수량');
+          
+          if (productCode || barcode || productName) {
             const item = {
-              productCode: rowData[3] ? String(rowData[3]) : '', // C열: 상품코드
-              productName: rowData[4] ? String(rowData[4]) : '', // D열: 상품명
-              quantity: parseInt(rowData[5], 10) || 0, // E열: 수량
-              fromLocation: rowData[6] ? String(rowData[6]) : '', // F열: 출발지
-              toLocation: rowData[7] ? String(rowData[7]) : '', // G열: 목적지
-              note: rowData[8] ? String(rowData[8]) : '', // H열: 메모
-              additionalNote: rowData[9] ? String(rowData[9]) : '' // I열: 개별메모
+              productCode: productCode,
+              barcode: barcode,
+              productName: productName,
+              quantity: parseInt(qtyStr, 10) || 0,
+              fromLocation: getColVal(row, '출발지', '보내는곳'),
+              toLocation: getColVal(row, '목적지', '받는곳'),
+              note: getColVal(row, '메모', '비고'),
+              additionalNote: getColVal(row, '개별메모')
             };
             data.push(item);
           }
@@ -1220,13 +1237,14 @@ function InventoryLayout() {
       // 상품 매칭 검증
       data.forEach(item => {
         const inputCode = String(item.productCode || '').trim().toLowerCase();
+        const inputBarcode = String(item.barcode || '').trim().toLowerCase();
         const inputName = String(item.productName || '').trim().toLowerCase();
         const inputParsedCol = String(item.parsedColName || '').trim().toLowerCase();
 
         let product = null;
 
         // 1. 정확한 코드/바코드 매칭 (최우선)
-        const possibleCodes = [inputCode, inputName, inputParsedCol].filter(v => v);
+        const possibleCodes = [inputCode, inputBarcode, inputName, inputParsedCol].filter(v => v);
         for (const code of possibleCodes) {
           product = products.find(p => {
             const dbCode = String(p.code || '').trim().toLowerCase();
@@ -1362,6 +1380,7 @@ function InventoryLayout() {
       { header: 'A', key: 'colA', width: 10 },
       { header: 'B', key: 'colB', width: 10 },
       { header: '상품코드', key: 'productCode', width: 15 },
+      { header: '바코드', key: 'barcode', width: 15 },
       { header: '상품명', key: 'productName', width: 20 },
       { header: '수량', key: 'quantity', width: 10 },
       { header: '출발지', key: 'fromLocation', width: 15 },
@@ -1375,6 +1394,7 @@ function InventoryLayout() {
       colA: '예시(입고)',
       colB: '',
       productCode: 'NB-BIKE-001',
+      barcode: '',
       productName: '레트로 20 블랙',
       quantity: 5,
       fromLocation: '외부',
@@ -1388,6 +1408,7 @@ function InventoryLayout() {
       colA: '예시(출고)',
       colB: '',
       productCode: 'NB-PART-002',
+      barcode: '',
       productName: '스로틀 레버',
       quantity: 2,
       fromLocation: '청담본점',

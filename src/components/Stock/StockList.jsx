@@ -915,7 +915,7 @@ function StockList() {
       console.log('업로드된 엑셀 데이터:', data);
       
       // 필수 컬럼 확인
-      const requiredColumns = ['브랜드', '제품코드', '제품명', '단가', '재고'];
+      const requiredColumns = ['브랜드', '단가', '재고'];
       const sampleRow = data[0];
       
       if (!sampleRow) {
@@ -931,9 +931,9 @@ function StockList() {
       const processedData = data.map((row, index) => {
         const lineNumber = index + 2; // 헤더를 제외한 실제 행 번호
 
-        // 필수 필드 검사
-        if (!row['브랜드'] || !row['제품코드'] || !row['제품명']) {
-          throw new Error(`${lineNumber}행: 브랜드, 제품코드, 제품명은 필수 입력 항목입니다.`);
+        // 필수 필드 검사 (식별자 중 최소 하나 필요)
+        if (!row['브랜드'] || (!row['제품코드'] && !row['제품명'] && !row['바코드'])) {
+          throw new Error(`${lineNumber}행: 브랜드와 제품 식별자(제품코드, 제품명, 바코드 중 1개 이상)는 필수 입력 항목입니다.`);
         }
 
         // 브랜드 유효성 검사
@@ -955,8 +955,9 @@ function StockList() {
 
         return {
           brand: row['브랜드'],
-          code: row['제품코드'],
-          name: row['제품명'],
+          code: row['제품코드'] || '',
+          barcode: row['바코드'] || '',
+          name: row['제품명'] || '',
           supply_price: isNaN(supply_price) ? 0 : supply_price,
           price: price,
           stock: stock,
@@ -998,12 +999,21 @@ function StockList() {
 
       for (const item of uploadedData) {
         try {
-          // 기존 제품 확인
-          const { data: existingPart, error: findError } = await supabase
-            .from('parts')
-            .select('id, stock')
-            .eq('code', item.code)
-            .single();
+          // 기존 제품 확인 (코드, 바코드, 이름 순으로 매칭)
+          let query = supabase.from('parts').select('id, stock');
+          
+          if (item.code) {
+            query = query.eq('code', item.code);
+          } else if (item.barcode) {
+            query = query.eq('barcode', item.barcode);
+          } else if (item.name) {
+            query = query.eq('name', item.name);
+          } else {
+            throw new Error('제품 식별자가 없습니다.');
+          }
+
+          const { data: existingParts, error: findError } = await query;
+          const existingPart = existingParts && existingParts.length > 0 ? existingParts[0] : null;
 
           if (findError && findError.code !== 'PGRST116') { // PGRST116은 데이터 없음 에러
             throw findError;

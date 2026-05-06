@@ -2,8 +2,8 @@ require('dotenv').config({ path: 'server/.env' });
 const { createClient } = require('@supabase/supabase-js');
 const supabaseAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 
-async function test() {
-  const { data, error } = await supabaseAdmin.from('transactions').select('*').like('note', '%20260412-0000017%');
-  console.log(data);
+async function run() {
+  const { error } = await supabaseAdmin.rpc('execute_sql', { sql: 'SELECT 1;' });
+  console.log("Error:", error);
 }
-test();
+run();

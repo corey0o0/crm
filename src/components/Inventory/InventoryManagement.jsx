@@ -1311,19 +1311,38 @@ function InventoryManagement() {
         });
       } else {
         // 기존 형식 처리
+        // 헤더 매핑
+        const headerRowValues = worksheet.getRow(1).values;
+        const colMap = {};
+        for (let i = 1; i < headerRowValues.length; i++) {
+          const val = headerRowValues[i]?.toString().trim();
+          if (val) colMap[val] = i;
+        }
+
+        const getColVal = (row, key1, key2) => {
+          if (colMap[key1] && row.values[colMap[key1]] !== undefined) return String(row.values[colMap[key1]]);
+          if (key2 && colMap[key2] && row.values[colMap[key2]] !== undefined) return String(row.values[colMap[key2]]);
+          return '';
+        };
+
         worksheet.eachRow((row, rowNumber) => {
           if (rowNumber === 1) return; // 헤더 행 건너뛰기
           
-          const rowData = row.values;
-          if (rowData[3] || rowData[4]) { // 최소 필수 데이터 확인 (상품코드나 상품명이 있어야 함)
+          const productCode = getColVal(row, '상품코드', '제품코드');
+          const barcode = getColVal(row, '바코드');
+          const productName = getColVal(row, '상품명', '제품명');
+          const qtyStr = getColVal(row, '수량');
+          
+          if (productCode || barcode || productName) {
             const item = {
-              productCode: rowData[3] ? String(rowData[3]) : '', // C열: 상품코드
-              productName: rowData[4] ? String(rowData[4]) : '', // D열: 상품명
-              quantity: parseInt(rowData[5], 10) || 0, // E열: 수량
-              fromLocation: rowData[6] ? String(rowData[6]) : '', // F열: 출발지
-              toLocation: rowData[7] ? String(rowData[7]) : '', // G열: 목적지
-              note: rowData[8] ? String(rowData[8]) : '', // H열: 메모
-              additionalNote: rowData[9] ? String(rowData[9]) : '' // I열: 개별메모
+              productCode: productCode,
+              barcode: barcode,
+              productName: productName,
+              quantity: parseInt(qtyStr, 10) || 0,
+              fromLocation: getColVal(row, '출발지', '보내는곳'),
+              toLocation: getColVal(row, '목적지', '받는곳'),
+              note: getColVal(row, '메모', '비고'),
+              additionalNote: getColVal(row, '개별메모')
             };
             data.push(item);
           }
@@ -1354,13 +1373,14 @@ function InventoryManagement() {
 
     excelData.forEach((item, index) => {
       const inputCode = String(item.productCode || '').trim().toLowerCase();
+      const inputBarcode = String(item.productBarcode || '').trim().toLowerCase();
       const inputName = String(item.productName || '').trim().toLowerCase();
       const inputParsedCol = String(item.parsedColName || '').trim().toLowerCase();
 
       let product = null;
 
       // 1. 정확한 코드/바코드 매칭 (최우선)
-      const possibleCodes = [inputCode, inputName, inputParsedCol].filter(v => v);
+      const possibleCodes = [inputCode, inputBarcode, inputName, inputParsedCol].filter(v => v);
       for (const code of possibleCodes) {
         product = products.find(p => {
           const dbCode = String(p.code || '').trim().toLowerCase();
@@ -1372,7 +1392,7 @@ function InventoryManagement() {
 
       // 2. 정확한 이름 매칭 (공백 제거)
       if (!product) {
-        const possibleNames = [inputName, inputCode, inputParsedCol].filter(v => v);
+        const possibleNames = [inputName, inputBarcode, inputCode, inputParsedCol].filter(v => v);
         for (const name of possibleNames) {
           const nameNoSpace = name.replace(/\s+/g, '');
           product = products.find(p => {
@@ -1385,7 +1405,7 @@ function InventoryManagement() {
 
       // 3. 부분 이름 매칭 (최소 2글자 이상일 때만)
       if (!product) {
-        const possibleNames = [inputName, inputCode, inputParsedCol].filter(v => v && v.replace(/\s+/g, '').length >= 2);
+        const possibleNames = [inputName, inputBarcode, inputCode, inputParsedCol].filter(v => v && v.replace(/\s+/g, '').length >= 2);
         for (const name of possibleNames) {
           const nameNoSpace = name.replace(/\s+/g, '');
           product = products.find(p => {
@@ -1476,6 +1496,7 @@ function InventoryManagement() {
       { header: 'A', key: 'colA', width: 10 },
       { header: 'B', key: 'colB', width: 10 },
       { header: '상품코드', key: 'productCode', width: 15 },
+      { header: '바코드', key: 'productBarcode', width: 15 },
       { header: '상품명', key: 'productName', width: 20 },
       { header: '수량', key: 'quantity', width: 10 },
       { header: '출발지', key: 'fromLocation', width: 15 },
@@ -1489,6 +1510,7 @@ function InventoryManagement() {
       colA: '1',
       colB: '1',
       productCode: 'NB001',
+      productBarcode: '',
       productName: '샘플 상품 (입고)',
       quantity: 10,
       fromLocation: '외부',
@@ -1501,8 +1523,9 @@ function InventoryManagement() {
     worksheet.addRow({
       colA: '2',
       colB: '2',
-      productCode: 'NB002',
-      productName: '샘플 상품 (출고)',
+      productCode: '',
+      productBarcode: '1234567890',
+      productName: '샘플 상품 (출고, 바코드로 매칭)',
       quantity: 5,
       fromLocation: 'W001',
       toLocation: 'W002',
@@ -1520,7 +1543,7 @@ function InventoryManagement() {
 
     // 설명 추가
     worksheet.addRow({});
-    worksheet.addRow({ colA: '※ 설명:', productCode: '출발지가 "외부"이거나 비어있으면 입고, 창고ID가 있으면 출고로 자동 판단됩니다.' });
+    worksheet.addRow({ colA: '※ 설명:', productCode: '상품코드, 바코드, 상품명 중 1개 이상 입력 필수. 출발지가 "외부"이거나 비어있으면 입고, 창고ID가 있으면 출고로 자동 판단됩니다.' });
 
     workbook.xlsx.writeBuffer().then(buffer => {
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });

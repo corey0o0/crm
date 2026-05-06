@@ -387,18 +387,18 @@ export const countServiceStatusByBrand = async (brand, signal = null) => {
     // 접수건: 최근 일주일 내 접수된 것만
     const receptionCount = await countFromSupabase(
       'services',
-      `brand=eq.${encodeURIComponent(brand)}&status=eq.${encodeURIComponent('접수')}&reception_date=gte.${encodeURIComponent(oneWeekAgoStr)}`,
+      `brand=eq.${encodeURIComponent(brand)}&status=eq.${encodeURIComponent('준비중')}&reception_date=gte.${encodeURIComponent(oneWeekAgoStr)}`,
       signal
     );
 
     // 처리중건: 전체
     const processingCount = await countFromSupabase(
       'services',
-      `brand=eq.${encodeURIComponent(brand)}&status=eq.${encodeURIComponent('처리중')}`,
+      `brand=eq.${encodeURIComponent(brand)}&status=eq.${encodeURIComponent('부품준비')}`,
       signal
     );
 
-    console.log(`[REST API] Brand ${brand} - 접수(최근 일주일): ${receptionCount || 0}, 처리중: ${processingCount || 0}`);
+    console.log(`[REST API] Brand ${brand} - 준비중(최근 일주일): ${receptionCount || 0}, 부품준비: ${processingCount || 0}`);
 
     return {
       reception: receptionCount || 0,

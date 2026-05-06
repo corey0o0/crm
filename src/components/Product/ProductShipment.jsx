@@ -515,10 +515,14 @@ function ProductShipment() {
     switch (status) {
       case '준비중':
         return 'info';
+      case '부품준비':
+        return 'warning';
+      case '준비완료':
+        return 'secondary';
+      case '반품완료':
+        return 'error';
       case '출고완료':
         return 'success';
-      case '출고대기':
-        return 'warning';
       default:
         return 'default';
     }
@@ -2352,12 +2356,17 @@ function ProductShipment() {
   const getRowStyle = (row) => ({
     backgroundColor: 
       row.status === '준비중' ? alpha('#42a5f5', 0.05) : // 연한 파란색
-      row.status === '출고대기' ? alpha('#ff9800', 0.05) : // 연한 주황색
+      row.status === '부품준비' ? alpha('#ff9800', 0.05) : // 연한 주황색
+      row.status === '준비완료' ? alpha('#9c27b0', 0.05) : // 보라색
+      row.status === '반품완료' ? alpha('#f44336', 0.05) : // 빨간색
       row.status === '출고완료' ? alpha('#4caf50', 0.05) : // 연한 녹색
       'transparent',
     borderLeft: 
+      row.id === highlightedId ? `4px solid ${alpha('#ffd700', 0.7)}` : // 하이라이트된 행
       row.status === '준비중' ? `4px solid ${alpha('#42a5f5', 0.7)}` : // 파란색
-      row.status === '출고대기' ? `4px solid ${alpha('#ff9800', 0.7)}` : // 주황색
+      row.status === '부품준비' ? `4px solid ${alpha('#ff9800', 0.7)}` : // 주황색
+      row.status === '준비완료' ? `4px solid ${alpha('#9c27b0', 0.7)}` : // 보라색
+      row.status === '반품완료' ? `4px solid ${alpha('#f44336', 0.7)}` : // 빨간색
       row.status === '출고완료' ? `4px solid ${alpha('#4caf50', 0.7)}` : // 녹색
       '4px solid transparent',
   });
@@ -2594,7 +2603,9 @@ function ProductShipment() {
           >
             <MenuItem value="all">전체 상태</MenuItem>
             <MenuItem value="준비중">준비중</MenuItem>
-            <MenuItem value="출고대기">출고대기</MenuItem>
+            <MenuItem value="부품준비">부품준비</MenuItem>
+            <MenuItem value="준비완료">준비완료</MenuItem>
+            <MenuItem value="반품완료">반품완료</MenuItem>
             <MenuItem value="출고완료">출고완료</MenuItem>
           </TextField>
 
@@ -3073,11 +3084,25 @@ function ProductShipment() {
                   준비중
                 </Button>
                 <Button
-                  onClick={() => handleChange({ target: { name: 'status', value: '출고대기' } })}
-                  color={selectedShipment.status === '출고대기' ? 'warning' : 'inherit'}
-                  variant={selectedShipment.status === '출고대기' ? 'contained' : 'outlined'}
+                  onClick={() => handleChange({ target: { name: 'status', value: '부품준비' } })}
+                  color={selectedShipment.status === '부품준비' ? 'warning' : 'inherit'}
+                  variant={selectedShipment.status === '부품준비' ? 'contained' : 'outlined'}
                 >
-                  출고대기
+                  부품준비
+                </Button>
+                <Button
+                  onClick={() => handleChange({ target: { name: 'status', value: '준비완료' } })}
+                  color={selectedShipment.status === '준비완료' ? 'secondary' : 'inherit'}
+                  variant={selectedShipment.status === '준비완료' ? 'contained' : 'outlined'}
+                >
+                  준비완료
+                </Button>
+                <Button
+                  onClick={() => handleChange({ target: { name: 'status', value: '반품완료' } })}
+                  color={selectedShipment.status === '반품완료' ? 'error' : 'inherit'}
+                  variant={selectedShipment.status === '반품완료' ? 'contained' : 'outlined'}
+                >
+                  반품완료
                 </Button>
                 <Button
                   onClick={() => handleChange({ target: { name: 'status', value: '출고완료' } })}

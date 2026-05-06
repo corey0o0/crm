@@ -306,7 +306,7 @@ export const processServiceCompletion = async (serviceId, brandCode) => {
     // const brandSettings = await getBrandSettings(brandCode);
     // if (!brandSettings.auto_inventory_deduction) return { success: true, skipped: true };
 
-    const { data: service, error: srvErr } = await supabase.from('services').select('id, warehouse_id, customer_name, note').eq('id', serviceId).single();
+    const { data: service, error: srvErr } = await supabase.from('services').select('id, warehouse_id, customer_name, service_id').eq('id', serviceId).single();
     if (srvErr || !service) throw new Error('A/S를 찾을 수 없음');
     let warehouseId = service.warehouse_id;
     if (!warehouseId) {
@@ -422,7 +422,7 @@ export const processServiceCompletion = async (serviceId, brandCode) => {
     
     if (partsToRevert.length > 0) {
       console.log(`[A/S Inventory Sync] 기존 차감량 완전 복구 (${partsToRevert.length}품목)`, partsToRevert);
-      const revertResult = await processInventory(warehouseId, partsToRevert, brandCode, serviceId, 'service', 'service_revert', true, service.customer_name || '', service.note || String(service.id));
+      const revertResult = await processInventory(warehouseId, partsToRevert, brandCode, serviceId, 'service', 'service_revert', true, service.customer_name || '', service.service_id || '');
       if (!revertResult.success) {
         console.error('재고 복구(Delta) 중 오류 발생:', revertResult);
         return revertResult;
@@ -432,7 +432,7 @@ export const processServiceCompletion = async (serviceId, brandCode) => {
 
     if (partsToDeduct.length > 0) {
       console.log(`[A/S Inventory Sync] 현재 필요 수량 전면 재차감 (${partsToDeduct.length}품목)`, partsToDeduct);
-      const deductResult = await processInventory(warehouseId, partsToDeduct, brandCode, serviceId, 'service', 'service_complete', false, service.customer_name || '', service.note || String(service.id));
+      const deductResult = await processInventory(warehouseId, partsToDeduct, brandCode, serviceId, 'service', 'service_complete', false, service.customer_name || '', service.service_id || '');
       if (!deductResult.success) {
         console.error('재고 차감(Delta) 중 오류 발생:', deductResult);
         return deductResult;
@@ -598,7 +598,7 @@ export const updatePartStatus = async (sourceType, orderId, recordId, newStatus,
     // 2. 부모 정보(창고, 고객명, 표시번호) 조회
     const { data: parentInfo, error: parentErr } = await supabase
       .from(parentTableName)
-      .select(`warehouse_id, customer_name, id, note`)
+      .select(`warehouse_id, customer_name, ${parentIdColumn}`)
       .eq('id', orderId)
       .single();
     if (parentErr || !parentInfo) throw new Error('주문 정보를 찾을 수 없습니다.');
@@ -672,7 +672,7 @@ export const updatePartStatus = async (sourceType, orderId, recordId, newStatus,
         changeTypeStr,
         isRevertAction,
         parentInfo.customer_name || '',
-        parentInfo.note || String(parentInfo.id)
+        parentInfo[parentIdColumn] || ''
       );
 
       if (!result.success) {

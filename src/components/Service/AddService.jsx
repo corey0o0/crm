@@ -128,7 +128,7 @@ function AddService() {
   const [availableParts, setAvailableParts] = useState([]);
   const [selectedParts, setSelectedParts] = useState([]);
   const [partQuantity, setPartQuantity] = useState(1);
-  const [status, setStatus] = useState('접수');
+  const [status, setStatus] = useState('준비중');
   const [availableTags] = useState([
     '배터리스위치','전체점검', '브레이크-패드', '브레이크-로터', '브레이크-교체', '배터리',
     '충전기', '모터', '워런티', '사고-보험', 'E07','E09','E010','배터리스위치'
@@ -200,9 +200,9 @@ function AddService() {
         product_name: '',
         symptom: '',
         solution: '',
-        status: '접수'
+        status: '준비중'
       }));
-      setStatus('접수');
+      setStatus('준비중');
     }
   };
 
@@ -365,11 +365,11 @@ function AddService() {
           note: '',
           writer: '',
           seller: '',
-          status: '접수'
+          status: '준비중'
         },
         selectedParts: [],
         tags: [],
-        status: '접수'
+        status: '준비중'
       });
     }
   }, [initialData]);
@@ -712,7 +712,7 @@ function AddService() {
           product_name: row['제품'] || '',
           symptom: row['문의내용'] || '',
           solution: row['처리내역'] || '',
-          status: row['상태'] || '접수',
+          status: row['상태'] || '준비중',
           note: row['메모'] || '',
           seller: row['구매처'] || '',
           created_at: new Date().toISOString()
@@ -1852,22 +1852,36 @@ function AddService() {
   };
 
   // 버튼 스타일 정의
-  const buttonStyle = (isSelected, currentStatus) => ({
-    marginLeft: '8px',
-    backgroundColor: isSelected ? (
-      currentStatus === '접수' ? '#1976d2' :
-      currentStatus === '처리중' ? '#ed6c02' :
-      currentStatus === '완료' ? '#2e7d32' : '#3182f6'
-    ) : '#f2f4f6',
-    color: isSelected ? '#ffffff' : '#4e5968',
-    '&:hover': {
-      backgroundColor: isSelected ? (
-        currentStatus === '접수' ? '#1565c0' :
-        currentStatus === '처리중' ? '#d65f02' :
-        currentStatus === '완료' ? '#1e5e20' : '#1b64da'
-      ) : '#e5e8eb'
-    }
-  });
+  const buttonStyle = (isSelected, currentStatus) => {
+    const getBgColor = () => {
+      switch (currentStatus) {
+        case '준비중': return '#1976d2';
+        case '부품준비': return '#ed6c02';
+        case '준비완료': return '#9c27b0';
+        case '반품완료': return '#d32f2f';
+        case '출고완료': return '#2e7d32';
+        default: return '#3182f6';
+      }
+    };
+    const getHoverBgColor = () => {
+      switch (currentStatus) {
+        case '준비중': return '#1565c0';
+        case '부품준비': return '#d65f02';
+        case '준비완료': return '#7b1fa2';
+        case '반품완료': return '#c62828';
+        case '출고완료': return '#1e5e20';
+        default: return '#1b64da';
+      }
+    };
+    return {
+      marginLeft: '8px',
+      backgroundColor: isSelected ? getBgColor() : '#f2f4f6',
+      color: isSelected ? '#ffffff' : '#4e5968',
+      '&:hover': {
+        backgroundColor: isSelected ? getHoverBgColor() : '#e5e8eb'
+      }
+    };
+  };
 
   // handlePrintEstimate 함수 교체 (ServiceDetail.jsx 참고)
   const handlePrintEstimate = () => {
@@ -2359,31 +2373,18 @@ function AddService() {
                   </Grid>
                   <Grid item xs={12}>
                     <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Box sx={{ display: 'flex', gap: 1 }}>
-                        <Button 
-                          onClick={() => handleStatusChange('접수')}
-                          variant={status === '접수' ? "contained" : "outlined"}
-                          size="small"
-                          sx={buttonStyle(status === '접수', status)}
-                        >
-                          접수
-                        </Button>
-                        <Button 
-                          onClick={() => handleStatusChange('처리중')}
-                          variant={status === '처리중' ? "contained" : "outlined"}
-                          size="small"
-                          sx={buttonStyle(status === '처리중', status)}
-                        >
-                          처리중
-                        </Button>
-                        <Button 
-                          onClick={() => handleStatusChange('완료')}
-                          variant={status === '완료' ? "contained" : "outlined"}
-                          size="small"
-                          sx={buttonStyle(status === '완료', status)}
-                        >
-                          완료
-                        </Button>
+                      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                        {['준비중', '부품준비', '준비완료', '반품완료', '출고완료'].map((st) => (
+                          <Button 
+                            key={st}
+                            onClick={() => handleStatusChange(st)}
+                            variant={status === st ? "contained" : "outlined"}
+                            size="small"
+                            sx={buttonStyle(status === st, st)}
+                          >
+                            {st}
+                          </Button>
+                        ))}
                       </Box>
                       <TextField
                         size="small"

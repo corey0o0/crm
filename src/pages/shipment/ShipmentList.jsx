@@ -1773,8 +1773,8 @@ function ShipmentList() {
               <MenuItem value="all">전체 상태</MenuItem>
               <MenuItem value="준비중">준비중</MenuItem>
               <MenuItem value="부품준비">부품준비</MenuItem>
-              <MenuItem value="검수완료">검수완료</MenuItem>
-              <MenuItem value="출고대기">출고대기</MenuItem>
+              <MenuItem value="준비완료">준비완료</MenuItem>
+              <MenuItem value="반품완료">반품완료</MenuItem>
               <MenuItem value="출고완료">출고완료</MenuItem>
             </Select>
           </FormControl>

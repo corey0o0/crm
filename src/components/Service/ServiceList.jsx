@@ -388,7 +388,7 @@ function ServiceList() {
         // 첫 페이지 데이터 처리 및 즉시 표시 (REST API 버전)
         const processedServices = firstPageData.map(service => ({
           ...service,
-          status: service.status || '접수',
+          status: service.status || '준비중',
           tags: service.service_tags?.map(tag => tag.tag_name) || [],
           service_parts: service.service_parts || [] // 사용부품 정보 포함
         }));
@@ -510,7 +510,7 @@ function ServiceList() {
       // 데이터 처리 (REST API는 이미 기본 형태로 반환됨)
       const processedServices = servicesData.map(service => ({
         ...service,
-        status: service.status || '접수',
+        status: service.status || '준비중',
         tags: service.service_tags?.map(tag => tag.tag_name) || [],
         service_parts: service.service_parts || [] // 사용부품 정보 포함
       }));
@@ -901,7 +901,7 @@ function ServiceList() {
         // 검색 결과 처리 및 표시
         const processedServices = firstPageData.map(service => ({
             ...service,
-            status: service.status || '접수',
+            status: service.status || '준비중',
             tags: service.service_tags?.map(tag => tag.tag_name) || [],
             service_parts: service.service_parts || [] // 사용부품 정보 포함
           }));
@@ -976,7 +976,7 @@ function ServiceList() {
           
           const processedServices = servicesData.map(service => ({
         ...service,
-        status: service.status || '접수',
+        status: service.status || '준비중',
         tags: service.service_tags?.map(tag => tag.tag_name) || [],
         service_parts: service.service_parts || [] // 사용부품 정보 포함
       }));
@@ -1081,17 +1081,17 @@ function ServiceList() {
   }, [services, loading, error]);
 
   const getStatusColor = (status) => {
-    if (!status) return 'default'; // null이나 undefined 처리
+    if (!status) return 'default';
     if (status.includes('완료')) {
-      return 'success';  // 완료는 초록색 계열
+      if (status === '반품완료') return 'error'; // 빨간색
+      if (status === '준비완료') return 'secondary'; // 보라색
+      return 'success';  // 출고완료 등 초록색
     }
     switch(status) {
-      case '접수':
-        return 'info';   // 접수는 파란색 계열
-      case '처리중':
-        return 'warning';  // 처리중은 주황색 계열
-      case '부분완료':
-        return 'secondary';  // 부분완료는 보라색 계열
+      case '준비중':
+        return 'info';   // 파란색 계열
+      case '부품준비':
+        return 'warning';  // 주황색 계열
       default:
         return 'default';
     }
@@ -1419,7 +1419,7 @@ function ServiceList() {
             product_name: row['제품'] || '',
             symptom: row['증상'] || '',
             solution: row['처리내역'] || '',
-            status: row['상태'] || '접수',
+            status: row['상태'] || '준비중',
             note: row['메모'] || '',
             receipt_link: row['JPG'] || '',
             seller: row['구매처'] || '',
@@ -1577,9 +1577,9 @@ function ServiceList() {
               ? '#ffd700'
               : row.status?.includes('완료') 
                 ? '#2e7d32'
-                : row.status === '처리중'
+                : row.status === '부품준비'
                   ? '#ed6c02'
-                  : row.status === '접수'
+                  : row.status === '준비중'
                     ? '#1976d2'
                     : '#757575',
             transition: 'all 0.3s ease',
@@ -1934,9 +1934,9 @@ function ServiceList() {
                 ? '#ffd700'
                 : row.status?.includes('완료') 
                   ? '#2e7d32'
-                  : row.status === '처리중'
+                  : row.status === '부품준비'
                     ? '#ed6c02'
-                    : row.status === '접수'
+                    : row.status === '준비중'
                       ? '#1976d2'
                       : '#757575',
               transition: 'all 0.3s ease',
@@ -2266,15 +2266,15 @@ function ServiceList() {
         
         // 처리진행상황 계산
         let progressStatus = '';
-        if (service.status === '접수') {
+        if (service.status === '준비중') {
           progressStatus = '접수 완료';
-        } else if (service.status === '처리중') {
+        } else if (service.status === '부품준비') {
           if (service.repair_date) {
             progressStatus = '수리 진행중';
           } else {
-            progressStatus = '접수 완료';
+            progressStatus = '부품 준비중';
           }
-        } else if (service.status === '완료') {
+        } else if (service.status?.includes('완료')) {
           if (service.completion_date) {
             progressStatus = '완료';
           } else {
@@ -2658,7 +2658,7 @@ function ServiceList() {
   const [isLoadingNextChunk, setIsLoadingNextChunk] = useState(false); // 다음 청크 로딩 상태
   const [hasMoreData, setHasMoreData] = useState(true); // 더 로드할 데이터가 있는지
   
-  const statusOptions = ['접수', '처리중', '부분완료', '완료'];
+  const statusOptions = ['준비중', '부품준비', '준비완료', '반품완료', '출고완료'];
   
   // 태그 옵션을 더 안정적으로 생성 (단어 검색용)
   const tagOptions = useMemo(() => {
@@ -3885,12 +3885,11 @@ function ServiceList() {
                 value={selectedService?.status || ''}
                 onChange={handleServiceChange}
               >
-                <MenuItem value="접수">접수</MenuItem>
+                <MenuItem value="준비중">준비중</MenuItem>
                 <MenuItem value="부품준비">부품준비</MenuItem>
-                  <MenuItem value="부품준비">부품준비</MenuItem>
-                  <MenuItem value="처리중">처리중</MenuItem>
-                <MenuItem value="부분완료">부분완료</MenuItem>
-                <MenuItem value="완료">완료</MenuItem>
+                <MenuItem value="준비완료">준비완료</MenuItem>
+                <MenuItem value="반품완료">반품완료</MenuItem>
+                <MenuItem value="출고완료">출고완료</MenuItem>
               </TextField>
             </Grid>
 

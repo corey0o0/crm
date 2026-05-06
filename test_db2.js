@@ -1,9 +1,9 @@
+require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
-require('dotenv').config({ path: 'server/.env' });
-const supabaseAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+const supabaseAdmin = createClient(process.env.REACT_APP_SUPABASE_URL, process.env.REACT_APP_SUPABASE_ANON_KEY);
 
-async function check() {
-  const { data } = await supabaseAdmin.from('inventory').select('*').limit(1);
-  console.log(Object.keys(data[0] || {}));
+async function test() {
+  const { error } = await supabaseAdmin.from('cafe24_orders').upsert([{ order_id: 'test', mall_id: 'test' }]);
+  console.log(error);
 }
-check();
+test();
