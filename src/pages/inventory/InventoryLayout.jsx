@@ -1192,20 +1192,21 @@ function InventoryLayout() {
           });
         });
       } else {
-        // 기존 형식 처리
+        // 기존 형식 처리 (표준 템플릿)
         worksheet.eachRow((row, rowNumber) => {
           if (rowNumber === 1) return; // 헤더 행 건너뛰기
           
           const rowData = row.values;
-          if (rowData.length >= 6 && rowData[2]) { // 최소 필수 데이터 확인
+          // ExcelJS row.values는 1-indexed 배열 (1: A열, 2: B열, 3: C열...)
+          if (rowData.length >= 6 && (rowData[3] || rowData[4])) { // 최소 필수 데이터 확인 (상품코드나 상품명이 있어야 함)
             const item = {
-              productCode: rowData[2] || '', // C열: 상품코드
-              productName: rowData[3] || '', // D열: 상품명
-              quantity: parseInt(rowData[4], 10) || 0, // E열: 수량
-              fromLocation: rowData[5] || '', // F열: 출발지
-              toLocation: rowData[6] || '', // G열: 목적지
-              note: rowData[7] || '', // H열: 메모
-              additionalNote: rowData[8] || '' // I열: 개별메모
+              productCode: rowData[3] || '', // C열: 상품코드
+              productName: rowData[4] || '', // D열: 상품명
+              quantity: parseInt(rowData[5], 10) || 0, // E열: 수량
+              fromLocation: rowData[6] || '', // F열: 출발지
+              toLocation: rowData[7] || '', // G열: 목적지
+              note: rowData[8] || '', // H열: 메모
+              additionalNote: rowData[9] || '' // I열: 개별메모
             };
             data.push(item);
           }
