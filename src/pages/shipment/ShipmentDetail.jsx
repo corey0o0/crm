@@ -327,6 +327,9 @@ function ShipmentDetail() {
       }));
     } else {
       // 읽기 모드에서는 바로 DB 및 재고 반영
+      if (!window.confirm(`해당 품목의 상태를 '${newStatus}'(으)로 변경하시겠습니까?`)) {
+        return;
+      }
       if (saving) return;
       setSaving(true);
       try {
@@ -618,18 +621,16 @@ function ShipmentDetail() {
       }
     }
 
-    // 2. 접수 -> 작업완료 확인
-    if (previousStatus === '접수' && newStatus === '작업완료') {
-      if (!window.confirm('출고 상태를 작업완료로 변경하시겠습니까? (하위 품목들의 상태도 함께 동기화됩니다)')) {
-        return;
-      }
+    // 상태 변경 공통 확인 메시지
+    let confirmMsg = `출고 상태를 '${newStatus}'(으)로 변경하시겠습니까?`;
+    if (newStatus === '작업완료' && previousStatus === '접수') {
+      confirmMsg = `출고 상태를 '작업완료'로 변경하시겠습니까? (하위 품목들의 상태도 함께 동기화됩니다)`;
+    } else if (newStatus === '출고완료' && previousStatus !== '출고완료') {
+      confirmMsg = `해당 출고건을 완료 처리하시겠습니까? (재고 차감이 진행됩니다)`;
     }
-
-    // 3. 출고완료 확인
-    if (newStatus === '출고완료' && previousStatus !== '출고완료') {
-      if (!window.confirm('해당 출고건을 완료 처리하시겠습니까?')) {
-        return;
-      }
+    
+    if (!window.confirm(confirmMsg)) {
+      return;
     }
 
     setSaving(true);
