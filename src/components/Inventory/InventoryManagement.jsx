@@ -1017,12 +1017,10 @@ function InventoryManagement() {
         const isToWarehouse = warehouses.find(w => w.id === item.toLocation);
         // if (isToWarehouse && !item.boxNo) return true;
 
-        const available = (inventory[item.fromLocation]?.[parseInt(item.productId) || 0]) || 0;
-        const pending = (pendingInventory[item.fromLocation]?.[parseInt(item.productId) || 0]) || 0;
-        return (parseInt(item.quantity) || 0) > (available - pending);
-      }
-      // 입고: 목적지는 창고여야 함
-      const toIsWarehouse = warehouses.find(w => w.id === item.toLocation);
+        // 가용 수량 부족하더라도 마이너스 재고 허용 (검증 제거)
+      } else {
+        // 입고: 목적지는 창고여야 함
+        const toIsWarehouse = warehouses.find(w => w.id === item.toLocation);
       return !toIsWarehouse;
     });
 

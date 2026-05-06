@@ -1311,7 +1311,7 @@ module.exports = function(supabaseAdmin) {
           // c. 트랜잭션 기록 (입고)
           const wName = warehouseMap[wid] || '기본창고';
           await supabaseAdmin.from('transactions').insert({
-            group_id: null,
+            group_id: order.id,
             type: 'in',
             product_id: mappedPartId,
             product_name: item.name,

@@ -206,6 +206,9 @@ function InventoryLayout() {
     }
   ]);
 
+  const [batchFromLocation, setBatchFromLocation] = useState('');
+  const [batchToLocation, setBatchToLocation] = useState('');
+
   // 상품 데이터
   const [products, setProducts] = useState([]);
 
@@ -909,27 +912,25 @@ function InventoryLayout() {
   const handleSubmitTransaction = useCallback(async () => {
     // 통합 제출: 각 행의 fromLocation이 창고이면 '출고', 아니면 '입고'로 판단
     // 유효성 검사
+    let errorMessage = '모든 상품의 필수 항목을 올바르게 입력해주세요.';
     const invalidItems = multipleIoProducts.filter(item => {
       if (!item.productId || !item.quantity) return true;
       const isOutbound = warehouses.find(w => w.id === item.fromLocation);
       if (isOutbound) {
         // 출고: 출발지(창고) 필수, 목적지 필수
         if (!item.fromLocation || !item.toLocation) return true;
-        
-        // 박스번호(boxNo)는 이제 선택 사항으로 변경됨
-        const isToWarehouse = warehouses.find(w => w.id === item.toLocation);
-        // if (isToWarehouse && !item.boxNo) return true;
 
-        const available = (inventory[item.fromLocation]?.[parseInt(item.productId, 10) || 0]) || 0;
-        return (parseInt(item.quantity, 10) || 0) > available;
+        // 가용 수량 부족하더라도 마이너스 재고 허용 (검증 제거)
+      } else {
+        // 입고: 목적지는 창고여야 함
+        const toIsWarehouse = warehouses.find(w => w.id === item.toLocation);
+        if (!toIsWarehouse) return true;
       }
-      // 입고: 목적지는 창고여야 함
-      const toIsWarehouse = warehouses.find(w => w.id === item.toLocation);
-      return !toIsWarehouse;
+      return false;
     });
 
     if (invalidItems.length > 0) {
-      showSnackbar('모든 상품의 필수 항목을 올바르게 입력해주세요.', 'error');
+      showSnackbar(errorMessage, 'error');
       return;
     }
 
@@ -1444,6 +1445,15 @@ function InventoryLayout() {
     });
   };
 
+  const handleBatchApplyLocation = () => {
+    if (!batchFromLocation && !batchToLocation) return;
+    setMultipleIoProducts(prev => prev.map(p => ({
+      ...p,
+      ...(batchFromLocation ? { fromLocation: batchFromLocation } : {}),
+      ...(batchToLocation ? { toLocation: batchToLocation } : {})
+    })));
+  };
+
   // 다중 상품 관리 함수들 (통합)
   const addIoProductRow = () => {
     setMultipleIoProducts(prev => [
@@ -1541,6 +1551,10 @@ function InventoryLayout() {
           };
         }
         grouped[key].items.push(transaction);
+        // 그룹 대표 속성은 'out'(출고)을 우선시함 (환입보다 원본 전송 내역 표시)
+        if (transaction.type === 'out') {
+          grouped[key].type = 'out';
+        }
       } else {
         // 개별 거래는 그대로 추가
         grouped[transaction.id] = {
@@ -1553,8 +1567,45 @@ function InventoryLayout() {
         };
       }
     });
-    
-    return Object.values(grouped);
+
+    // 최종 차감 내역만 보여주기 위한 상계(Net) 처리
+    const finalGrouped = Object.values(grouped).map(group => {
+      if (group.items.length <= 1) return group;
+
+      const itemMap = {};
+      group.items.forEach(item => {
+        // 상품별로 상계 처리 (옵션/바코드가 같은 것을 동일 상품으로 취급)
+        const pid = item.productId || item.productCode || item.productName;
+        if (!itemMap[pid]) {
+          itemMap[pid] = { ...item, netQuantity: 0, originalItems: [] };
+        }
+        itemMap[pid].originalItems.push(item);
+
+        const qty = Number(item.quantity) || 0;
+        // 그룹의 기준 타입(보통 'out')과 같으면 더하고 다르면 뺌
+        if (item.type === group.type) {
+          itemMap[pid].netQuantity += qty;
+        } else {
+          itemMap[pid].netQuantity -= qty;
+        }
+
+        // 기준 타입 아이템 정보로 덮어씌움 (반품보다는 원래 출고 정보 유지)
+        if (item.type === group.type) {
+          itemMap[pid] = { ...itemMap[pid], ...item, netQuantity: itemMap[pid].netQuantity, originalItems: itemMap[pid].originalItems };
+        }
+      });
+
+      // 최종 상계 수량이 0보다 큰 것만 남김
+      const aggregatedItems = Object.values(itemMap)
+        .filter(i => i.netQuantity > 0)
+        .map(i => ({ ...i, quantity: i.netQuantity }));
+
+      // 모든 아이템이 상계되어 0이 되더라도, 빈 배열로 만들어서 필터링 되게 함
+      return { ...group, items: aggregatedItems };
+    });
+
+    // 최종적으로 아이템이 하나도 없는 그룹(전체 환불 등)은 목록에서 제외
+    return finalGrouped.filter(g => g.items.length > 0);
   }, [transactions]);
   
   // 날짜 형식 헬퍼 함수
@@ -2343,216 +2394,215 @@ function InventoryLayout() {
                   />
                 </Grid>
               </Grid>
-            <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-              상품 목록
-              <Button
-                variant="outlined"
-                size="small"
-                onClick={addIoProductRow}
-              >
-                상품 추가
-              </Button>
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 2 }}>
+              <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                상품 목록
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={addIoProductRow}
+                >
+                  상품 추가
+                </Button>
+              </Typography>
 
-            {multipleIoProducts.map((product, index) => (
-                <Box key={product.id} sx={{ mb: 1, p: 1 }}>
-                    <Grid container spacing={1} alignItems="center">
-                      <Grid item xs={12} md={3}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, border: '1px solid #e0e0e0', borderRadius: 1, backgroundColor: '#fafafa' }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mr: 1, fontWeight: 'medium' }}>출발지/목적지 일괄 적용:</Typography>
+                <Autocomplete
+                  sx={{ width: 150 }}
+                  options={[
+                    { id: '', name: '외부 (신규입고)', type: 'external' },
+                    ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
+                    ...dealers.map(d => ({ ...d, type: 'dealer' }))
+                  ]}
+                  getOptionLabel={(option) => {
+                    if (option.type === 'external') return option.name;
+                    return `${option.name} (${option.type === 'warehouse' ? '창고' : '대리점'})`;
+                  }}
+                  value={(() => {
+                    if (!batchFromLocation || batchFromLocation === '') return { id: '', name: '외부 (신규입고)', type: 'external' };
+                    const warehouse = warehouses.find(w => w.id === batchFromLocation);
+                    if (warehouse) return { ...warehouse, type: 'warehouse' };
+                    const dealer = dealers.find(d => d.id === batchFromLocation);
+                    if (dealer) return { ...dealer, type: 'dealer' };
+                    return null;
+                  })()}
+                  onChange={(event, value) => setBatchFromLocation(value?.id || '')}
+                  renderInput={(params) => <TextField {...params} label="일괄 출발지" size="small" />}
+                  isOptionEqualToValue={(option, value) => option?.id === value?.id}
+                />
+                <Autocomplete
+                  sx={{ width: 150 }}
+                  options={[
+                    ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
+                    ...dealers.map(d => ({ ...d, type: 'dealer' }))
+                  ]}
+                  getOptionLabel={(option) => `${option.name} (${option.type === 'warehouse' ? '창고' : '대리점'})`}
+                  value={(() => {
+                    if (!batchToLocation) return null;
+                    const warehouse = warehouses.find(w => w.id === batchToLocation);
+                    if (warehouse) return { ...warehouse, type: 'warehouse' };
+                    const dealer = dealers.find(d => d.id === batchToLocation);
+                    if (dealer) return { ...dealer, type: 'dealer' };
+                    return null;
+                  })()}
+                  onChange={(event, value) => setBatchToLocation(value?.id || '')}
+                  renderInput={(params) => <TextField {...params} label="일괄 목적지" size="small" />}
+                  isOptionEqualToValue={(option, value) => option?.id === value?.id}
+                />
+                <Button variant="contained" size="small" onClick={handleBatchApplyLocation} disabled={!batchFromLocation && !batchToLocation}>
+                  적용
+                </Button>
+              </Box>
+            </Box>
+
+            <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+              <Table size="small">
+                <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
+                  <TableRow>
+                    <TableCell sx={{ minWidth: 250, fontWeight: 'bold' }}>상품 선택 (필수)</TableCell>
+                    <TableCell sx={{ width: 100, fontWeight: 'bold' }}>수량 (필수)</TableCell>
+                    <TableCell sx={{ minWidth: 150, fontWeight: 'bold' }}>출발지</TableCell>
+                    <TableCell sx={{ minWidth: 150, fontWeight: 'bold' }}>목적지 (필수)</TableCell>
+                    <TableCell sx={{ minWidth: 150, fontWeight: 'bold' }}>개별 메모</TableCell>
+                    <TableCell sx={{ minWidth: 120, fontWeight: 'bold' }}>박스 번호</TableCell>
+                    <TableCell sx={{ width: 50, fontWeight: 'bold' }}>삭제</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {multipleIoProducts.map((product, index) => (
+                    <TableRow key={product.id}>
+                      <TableCell sx={{ p: 1 }}>
                         <Autocomplete
                           fullWidth
                           options={products}
                           getOptionLabel={(option) => `${option.name} (${option.code})${option.barcode ? ` [바코드:${option.barcode}]` : ''} [${option.supplier || '-'}]`}
                           value={products.find(p => p.id === product.productId) || null}
-                          onChange={(event, value) => 
-                          updateIoProductRow(product.id, 'productId', value?.id || '')
-                          }
-                          getOptionDisabled={(option) => {
-                            const srcId = product.fromLocation;
-                            const isOutbound = warehouses.find(w => w.id === srcId);
-                            if (!isOutbound) return false;
-                            const available = (inventory[srcId]?.[option.id]) || 0;
-                            return available <= 0;
-                          }}
+                          onChange={(event, value) => updateIoProductRow(product.id, 'productId', value?.id || '')}
                           renderOption={(props, option) => (
                             <Box component="li" {...props}>
                               <Box>
                                 <Typography variant="body2" fontWeight="medium">
                                   {option.name}
                                 </Typography>
-                                  <Typography variant="caption" color="text.secondary">
-                                    {(() => {
-                                      const srcId = product.fromLocation;
-                                      const isOutbound = warehouses.find(w => w.id === srcId);
-                                      if (isOutbound) {
-                                        const available = (inventory[srcId]?.[option.id]) || 0;
-                                        return `${option.code} • ${option.category} • ${option.supplier || '-'} • ${option.price?.toLocaleString()}원 • 출발지 재고 ${available}개`;
-                                      }
-                                      return `${option.code} • ${option.category} • ${option.supplier || '-'} • ${option.price?.toLocaleString()}원`;
-                                    })()}
-                                  </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {(() => {
+                                    const srcId = product.fromLocation;
+                                    const isOutbound = warehouses.find(w => w.id === srcId);
+                                    if (isOutbound) {
+                                      const available = (inventory[srcId]?.[option.id]) || 0;
+                                      return `${option.code} • ${option.category} • ${option.supplier || '-'} • ${option.price?.toLocaleString()}원 • 출발지 재고 ${available}개`;
+                                    }
+                                    return `${option.code} • ${option.category} • ${option.supplier || '-'} • ${option.price?.toLocaleString()}원`;
+                                  })()}
+                                </Typography>
                               </Box>
                             </Box>
                           )}
                           renderInput={(params) => (
                             <TextField
                               {...params}
-                            label={`상품 선택 ${products.find(p => p.id === product.productId) ? `[${products.find(p => p.id === product.productId)?.supplier || '-'}]` : ''}`}
                               required
                               fullWidth
                               size="small"
+                              placeholder="상품 검색"
                             />
                           )}
                         />
-                      </Grid>
-                      <Grid item xs={12} md={1}>
-                      <TextField
-                        fullWidth
-                        label="수량"
-                        type="number"
-                        size="small"
-                        value={product.quantity}
-                      onChange={(e) => updateIoProductRow(product.id, 'quantity', e.target.value)}
-                        required
-                        helperText={(() => {
-                          const srcId = product.fromLocation;
-                          const isOutbound = warehouses.find(w => w.id === srcId);
-                          if (!isOutbound) return '';
-                          const pid = parseInt(product.productId, 10) || 0;
-                          const available = (inventory[srcId]?.[pid]) || 0;
-                          return `가용: ${available.toLocaleString()}개`;
-                        })()}
-                      />
-                    </Grid>
-                      <Grid item xs={12} md={2.5}>
-                      <Autocomplete
-                        options={[
-                          { id: '', name: '외부 (신규입고)', type: 'external' },
-                          ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
-                          ...dealers.map(d => ({ ...d, type: 'dealer' }))
-                        ]}
-                        getOptionLabel={(option) => {
-                          if (option.type === 'external') return option.name;
-                          return `${option.name} (${option.type === 'warehouse' ? '창고' : '대리점'})`;
-                        }}
-                        value={(() => {
-                        if (!product.fromLocation || product.fromLocation === '') return { id: '', name: '외부 (신규입고)', type: 'external' };
-                          const warehouse = warehouses.find(w => w.id === product.fromLocation);
-                          if (warehouse) return { ...warehouse, type: 'warehouse' };
-                          const dealer = dealers.find(d => d.id === product.fromLocation);
-                          if (dealer) return { ...dealer, type: 'dealer' };
-                          return null;
-                        })()}
-                        onChange={(event, value) => 
-                        updateIoProductRow(product.id, 'fromLocation', value?.id || '')
-                        }
-                        renderInput={(params) => (
-                          <TextField
-                            {...params}
-                            label="출발지"
-                            size="small"
-                            fullWidth
-                          />
-                        )}
-                        renderOption={(props, option) => (
-                          <Box component="li" {...props}>
-                            <Box>
-                              <Typography variant="body2">
-                                {option.name}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                {option.type === 'external' ? '신규입고' : 
-                                 option.type === 'warehouse' ? '창고' : '대리점'}
-                                {option.location && ` • ${option.location}`}
-                              </Typography>
-                            </Box>
-                          </Box>
-                        )}
-                        isOptionEqualToValue={(option, value) => option?.id === value?.id}
-                      />
-                    </Grid>
-                      <Grid item xs={12} md={2.5}>
-                      <Autocomplete
-                        options={[
-                          ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
-                          ...dealers.map(d => ({ ...d, type: 'dealer' }))
-                        ]}
-                        getOptionLabel={(option) => 
-                          `${option.name} (${option.type === 'warehouse' ? '창고' : '대리점'})`
-                        }
-                        value={(() => {
-                        const warehouse = warehouses.find(w => w.id === product.toLocation);
-                          if (warehouse) return { ...warehouse, type: 'warehouse' };
-                        const dealer = dealers.find(d => d.id === product.toLocation);
-                          if (dealer) return { ...dealer, type: 'dealer' };
-                          return null;
-                        })()}
-                        onChange={(event, value) => 
-                        updateIoProductRow(product.id, 'toLocation', value?.id || '')
-                        }
-                        renderInput={(params) => (
-                          <TextField
-                            {...params}
-                            label="목적지"
-                            size="small"
-                            fullWidth
-                            required
-                          />
-                        )}
-                        renderOption={(props, option) => (
-                          <Box component="li" {...props}>
-                            <Box>
-                              <Typography variant="body2">
-                                {option.name}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                {option.type === 'warehouse' ? '창고' : '대리점'} • {option.location}
-                                {option.manager && ` • 담당: ${option.manager}`}
-                              </Typography>
-                            </Box>
-                          </Box>
-                        )}
-                        isOptionEqualToValue={(option, value) => option?.id === value?.id}
-                      />
-                    </Grid>
-                      <Grid item xs={12} md={1}>
-                      <TextField
-                        fullWidth
-                        label="개별 메모"
-                        size="small"
-                        value={product.note}
-                      onChange={(e) => updateIoProductRow(product.id, 'note', e.target.value)}
-                        placeholder="개별 메모"
-                      />
-                    </Grid>
-                      <Grid item xs={12} md={1.5}>
-                      <TextField
-                        fullWidth
-                        label={
-                          (() => {
-                            const isToWarehouse = warehouses.find(w => w.id === product.toLocation);
-                            return isToWarehouse ? "박스 번호 (필수)" : "박스 번호 (선택)";
-                          })()
-                        }
-                        size="small"
-                        required={!!warehouses.find(w => w.id === product.toLocation)}
-                        value={product.boxNo || ''}
-                      onChange={(e) => updateIoProductRow(product.id, 'boxNo', e.target.value)}
-                        placeholder="박스 묶음"
-                      />
-                    </Grid>
-                      <Grid item xs={12} md={0.5}>
-                      <IconButton
-                        color="error"
-                      onClick={() => removeIoProductRow(product.id)}
-                      disabled={multipleIoProducts.length === 1}
-                        size="small"
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </Grid>
-                  </Grid>
-                </Box>
-              ))}
+                      </TableCell>
+                      <TableCell sx={{ p: 1 }}>
+                        <TextField
+                          fullWidth
+                          type="number"
+                          size="small"
+                          value={product.quantity}
+                          onChange={(e) => updateIoProductRow(product.id, 'quantity', e.target.value)}
+                          required
+                          helperText={(() => {
+                            const srcId = product.fromLocation;
+                            const isOutbound = warehouses.find(w => w.id === srcId);
+                            if (!isOutbound) return '';
+                            const pid = parseInt(product.productId, 10) || 0;
+                            const available = (inventory[srcId]?.[pid]) || 0;
+                            return `잔여:${available}`;
+                          })()}
+                          FormHelperTextProps={{ sx: { margin: 0, marginTop: '2px', fontSize: '0.7rem' } }}
+                        />
+                      </TableCell>
+                      <TableCell sx={{ p: 1 }}>
+                        <Autocomplete
+                          options={[
+                            { id: '', name: '외부 (신규입고)', type: 'external' },
+                            ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
+                            ...dealers.map(d => ({ ...d, type: 'dealer' }))
+                          ]}
+                          getOptionLabel={(option) => {
+                            if (option.type === 'external') return option.name;
+                            return `${option.name} (${option.type === 'warehouse' ? '창고' : '대리점'})`;
+                          }}
+                          value={(() => {
+                            if (!product.fromLocation || product.fromLocation === '') return { id: '', name: '외부 (신규입고)', type: 'external' };
+                            const warehouse = warehouses.find(w => w.id === product.fromLocation);
+                            if (warehouse) return { ...warehouse, type: 'warehouse' };
+                            const dealer = dealers.find(d => d.id === product.fromLocation);
+                            if (dealer) return { ...dealer, type: 'dealer' };
+                            return null;
+                          })()}
+                          onChange={(event, value) => updateIoProductRow(product.id, 'fromLocation', value?.id || '')}
+                          renderInput={(params) => <TextField {...params} size="small" fullWidth />}
+                          isOptionEqualToValue={(option, value) => option?.id === value?.id}
+                        />
+                      </TableCell>
+                      <TableCell sx={{ p: 1 }}>
+                        <Autocomplete
+                          options={[
+                            ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
+                            ...dealers.map(d => ({ ...d, type: 'dealer' }))
+                          ]}
+                          getOptionLabel={(option) => `${option.name} (${option.type === 'warehouse' ? '창고' : '대리점'})`}
+                          value={(() => {
+                            const warehouse = warehouses.find(w => w.id === product.toLocation);
+                            if (warehouse) return { ...warehouse, type: 'warehouse' };
+                            const dealer = dealers.find(d => d.id === product.toLocation);
+                            if (dealer) return { ...dealer, type: 'dealer' };
+                            return null;
+                          })()}
+                          onChange={(event, value) => updateIoProductRow(product.id, 'toLocation', value?.id || '')}
+                          renderInput={(params) => <TextField {...params} size="small" fullWidth required />}
+                          isOptionEqualToValue={(option, value) => option?.id === value?.id}
+                        />
+                      </TableCell>
+                      <TableCell sx={{ p: 1 }}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          value={product.note}
+                          onChange={(e) => updateIoProductRow(product.id, 'note', e.target.value)}
+                        />
+                      </TableCell>
+                      <TableCell sx={{ p: 1 }}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          value={product.boxNo || ''}
+                          onChange={(e) => updateIoProductRow(product.id, 'boxNo', e.target.value)}
+                        />
+                      </TableCell>
+                      <TableCell sx={{ p: 1, textAlign: 'center' }}>
+                        <IconButton
+                          color="error"
+                          onClick={() => removeIoProductRow(product.id)}
+                          disabled={multipleIoProducts.length === 1}
+                          size="small"
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
               
               {/* 전체 수량 표시 */}
               <Box sx={{ 
