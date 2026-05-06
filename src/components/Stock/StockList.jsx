@@ -999,20 +999,21 @@ function StockList() {
 
       for (const item of uploadedData) {
         try {
-          // 기존 제품 확인 (코드, 바코드, 이름 순으로 매칭)
-          let query = supabase.from('parts').select('id, stock');
-          
-          if (item.code) {
-            query = query.eq('code', item.code);
-          } else if (item.barcode) {
-            query = query.eq('barcode', item.barcode);
-          } else if (item.name) {
-            query = query.eq('name', item.name);
-          } else {
+          // 기존 제품 확인 (코드, 바코드, 이름 중 제공된 모든 조건으로 OR 매칭)
+          let orConditions = [];
+          if (item.code) orConditions.push(`code.eq.${item.code}`);
+          if (item.barcode) orConditions.push(`barcode.eq.${item.barcode}`);
+          if (item.name) orConditions.push(`name.eq.${item.name}`);
+
+          if (orConditions.length === 0) {
             throw new Error('제품 식별자가 없습니다.');
           }
 
-          const { data: existingParts, error: findError } = await query;
+          const { data: existingParts, error: findError } = await supabase
+            .from('parts')
+            .select('id, stock')
+            .or(orConditions.join(','));
+
           const existingPart = existingParts && existingParts.length > 0 ? existingParts[0] : null;
 
           if (findError && findError.code !== 'PGRST116') { // PGRST116은 데이터 없음 에러

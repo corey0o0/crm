@@ -920,10 +920,11 @@ function ShipmentList() {
       case '준비중':
         return 'info';
       case '부품준비':
-        return 'secondary';
-      case '검수완료':
-      case '출고대기':
         return 'warning';
+      case '준비완료':
+        return 'secondary';
+      case '반품완료':
+        return 'error';
       case '출고완료':
         return 'success';
       default:

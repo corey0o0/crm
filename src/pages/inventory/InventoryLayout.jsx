@@ -1195,6 +1195,7 @@ function InventoryLayout() {
             }
           });
         });
+      } else {
         // 기존 형식 처리 (표준 템플릿)
         // 헤더 매핑
         const headerRowValues = worksheet.getRow(1).values;
