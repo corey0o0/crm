@@ -181,6 +181,25 @@ function Layout() {
   const [syncStatus, setSyncStatus] = useState({});
   const { user, userMenuPermissions } = useAuth();
   const [openSubMenus, setOpenSubMenus] = useState({});
+  const [isInspectionEnabled, setIsInspectionEnabled] = useState(true);
+
+  useEffect(() => {
+    const fetchInspectionSettings = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('inspection_settings')
+          .select('shipment_enabled')
+          .single();
+          
+        if (data) {
+          setIsInspectionEnabled(!!data.shipment_enabled);
+        }
+      } catch (err) {
+        console.error('검수 설정 로드 오류:', err);
+      }
+    };
+    fetchInspectionSettings();
+  }, []);
 
   const handleMenuClick = (item) => {
     if (item.children) {
@@ -309,7 +328,7 @@ function Layout() {
         { text: 'A/S 관리', icon: <BuildIcon />, path: '/services', key: 'services' },
         { text: '매장 출고관리', icon: <LocalShippingIcon />, path: '/shipment', key: 'shipment' },
         { text: '온라인 주문관리', icon: <ShoppingCartOutlinedIcon />, path: '/cafe24/orders', key: 'cafe24_orders' },
-        { text: '출고 검수', icon: <CalendarTodayIcon />, path: '/inventory-management/scan', key: 'outbound_scan' },
+        ...(isInspectionEnabled ? [{ text: '출고 검수', icon: <CalendarTodayIcon />, path: '/inventory-management/scan', key: 'outbound_scan' }] : []),
         { text: '수기 판매관리', icon: <LocalShippingIcon />, path: '/sales/manual', key: 'sales_manual' },
         { text: '판매 현황', icon: <HistoryIcon />, path: '/sales/history', key: 'sales_history' },
         // { text: '세금계산서 발행', icon: <ReceiptIcon />, path: '/sales/tax-invoice', key: 'tax_invoice' }

@@ -237,6 +237,9 @@ function InventoryManagement() {
   // 드래그 앤 드롭 상태
   const [isDragOver, setIsDragOver] = useState(false);
 
+  // 검수 기능 사용 여부
+  const [isInspectionEnabled, setIsInspectionEnabled] = useState(true);
+
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -299,10 +302,20 @@ function InventoryManagement() {
     // API 호출을 병렬로 실행하여 초기 로딩 속도 개선
     const loadInitialData = async () => {
       try {
+        const fetchInspectionSettings = async () => {
+          try {
+            const { data } = await supabase.from('inspection_settings').select('shipment_enabled').single();
+            if (data) setIsInspectionEnabled(!!data.shipment_enabled);
+          } catch (err) {
+            console.error('검수 설정 로드 오류:', err);
+          }
+        };
+
         await Promise.all([
           fetchProducts(),
           fetchWarehouses(),
-          fetchDealers()
+          fetchDealers(),
+          fetchInspectionSettings()
         ]);
       } catch (error) {
         console.error('초기 데이터 로딩 실패:', error);
@@ -2495,9 +2508,8 @@ function InventoryManagement() {
             }
           }}
         >
-          {/* <Tab value={0} label="대시보드" /> */}
           <Tab value={1} label="거래 내역" />
-          <Tab value={2} label="출고 검수" />
+          {isInspectionEnabled && <Tab value={2} label="출고 검수" />}
           <Tab value={3} label="재고 현황" />
           <Tab value={4} label="박스 관리" />
           {/* <Tab value={5} label="입출고 통계" /> */}
@@ -4874,7 +4886,7 @@ function InventoryManagement() {
       </Dialog>
 
       {/* 출고 검수 탭 */}
-      {activeTab === 2 && (
+      {activeTab === 2 && isInspectionEnabled && (
         <StoreOnlineOutboundTab />
       )}
 
