@@ -45,7 +45,7 @@ import {
 import { supabase } from '../../lib/supabaseClient';
 import { useNavigate, useParams } from 'react-router-dom';
 import { format, parseISO, isValid } from 'date-fns';
-import { processShipmentCompletion, processShipmentRevert, processPartialReturn } from '../../utils/inventoryUtils';
+import { processShipmentCompletion, processShipmentRevert, processPartialReturn, updatePartStatus } from '../../utils/inventoryUtils';
 import { pendingOutboundApi } from '../../api/pendingOutboundApi';
 import { useAuth } from '../../contexts/AuthContext';
 import { MASTER_ACCOUNTS } from '../../config/menuConfig';
@@ -305,6 +305,49 @@ function ShipmentDetail() {
     setEditableParts(prev => prev.filter(part => part.id !== partId));
   };
 
+  // 품목 개별 상태 변경 함수 (UI 저장 전, 또는 저장 후 DB 직결)
+  const handleItemStatusChange = async (part, newStatus) => {
+    if (isEditing) {
+      // 수정 모드에서는 로컬 state만 변경
+      setEditableParts(prev => prev.map(p => {
+        if (p.id === part.id) return { ...p, status: newStatus };
+        return p;
+      }));
+    } else {
+      // 읽기 모드에서는 바로 DB 및 재고 반영
+      if (saving) return;
+      setSaving(true);
+      try {
+        let brandCode = 'XRB';
+        if (shipmentData?.product_code && (shipmentData.product_code.startsWith('NB') || shipmentData.product_code.includes('NEARBIKE'))) {
+          brandCode = 'NB';
+        } else if (shipmentParts.length > 0 && shipmentParts[0]?.part_code?.startsWith('NB')) {
+          brandCode = 'NB';
+        }
+
+        const res = await updatePartStatus('shipment', id, part.id, newStatus, brandCode);
+        if (!res.success) throw new Error(res.message);
+
+        setSnackbar({
+          open: true,
+          message: `품목 상태가 [${newStatus}]로 변경되었습니다.`,
+          severity: 'success'
+        });
+
+        await fetchShipmentDetail();
+      } catch (err) {
+        console.error(err);
+        setSnackbar({
+          open: true,
+          message: `상태 변경 중 오류: ${err.message}`,
+          severity: 'error'
+        });
+      } finally {
+        setSaving(false);
+      }
+    }
+  };
+
   const handleReturnPart = async (part) => {
     const qtyStr = window.prompt(`'${part.part_name}' 총 ${part.quantity}개 중 반품(재입고)할 수량을 입력하세요:`, part.quantity);
     if (qtyStr === null) return; // 취소
@@ -355,34 +398,38 @@ function ShipmentDetail() {
         return;
       }
 
-      const { error: deleteError } = await supabase
-        .from('shipment_parts')
-        .delete()
-        .eq('shipment_id', id);
-
-      if (deleteError) {
-        console.error("Error deleting old parts:", deleteError);
-        throw new Error(`기존 부품 정보 삭제 중 오류: ${deleteError.message}`);
+      // 1. Delete removed parts
+      const editablePartIds = editableParts.map(p => p.id);
+      const partsToDelete = shipmentParts.filter(p => !editablePartIds.includes(p.id));
+      if (partsToDelete.length > 0) {
+        const { error: deleteError } = await supabase
+          .from('shipment_parts')
+          .delete()
+          .in('id', partsToDelete.map(p => p.id));
+        if (deleteError) throw new Error(`부품 삭제 중 오류: ${deleteError.message}`);
       }
 
-      const partsData = editableParts.map(part => ({
-        shipment_id: id,
-        part_name: part.part_name,
-        part_code: part.part_code || '',
-        part_category: part.part_category || '기체',
-        quantity: part.quantity || 1,
-        price: part.price || 0,
-        total_price: part.total_price || (part.price || 0) * (part.quantity || 1),
-        created_at: new Date().toISOString()
-      }));
+      // 2. Insert new parts and update existing
+      for (const part of editableParts) {
+        const partData = {
+          shipment_id: id,
+          part_name: part.part_name,
+          part_code: part.part_code || '',
+          part_category: part.part_category || '기체',
+          quantity: part.quantity || 1,
+          price: part.price || 0,
+          total_price: part.total_price || (part.price || 0) * (part.quantity || 1),
+          status: part.status || '준비중',
+          inventory_deducted: part.inventory_deducted || false
+        };
 
-      const { error: insertError } = await supabase
-        .from('shipment_parts')
-        .insert(partsData);
-
-      if (insertError) {
-        console.error("Error inserting new parts:", insertError);
-        throw new Error(`새 부품 정보 저장 중 오류: ${insertError.message}`);
+        if (part.id.toString().length > 10) { // New part (Date.now() is 13 digits)
+          const { error: insertError } = await supabase.from('shipment_parts').insert([partData]);
+          if (insertError) throw new Error(`새 부품 추가 중 오류: ${insertError.message}`);
+        } else {
+          const { error: updateError } = await supabase.from('shipment_parts').update(partData).eq('id', part.id);
+          if (updateError) throw new Error(`부품 정보 업데이트 중 오류: ${updateError.message}`);
+        }
       }
 
       const totalQuantity = editableParts.reduce((sum, part) => sum + (parseInt(part.quantity) || 0), 0);
@@ -397,6 +444,15 @@ function ShipmentDetail() {
         updated_at: new Date().toISOString()
       };
 
+      let autoDowngraded = false;
+      if (shipmentData?.status === '출고완료') {
+        const hasUnfinished = editableParts.some(p => p.status === '준비중' || p.status === '부품 준비');
+        if (hasUnfinished) {
+          shipmentUpdateData.status = '출고대기';
+          autoDowngraded = true;
+        }
+      }
+
       const { error: updateError } = await supabase
         .from('shipments')
         .update(shipmentUpdateData)
@@ -409,8 +465,10 @@ function ShipmentDetail() {
 
       setSnackbar({
         open: true,
-        message: '제품 정보가 성공적으로 업데이트되었습니다.',
-        severity: 'success'
+        message: autoDowngraded 
+          ? '제품 정보가 업데이트되었으며, 미완료 품목이 있어 상태가 출고대기로 변경되었습니다.' 
+          : '제품 정보가 성공적으로 업데이트되었습니다.',
+        severity: autoDowngraded ? 'info' : 'success'
       });
 
       setIsEditing(false);
@@ -534,6 +592,24 @@ function ShipmentDetail() {
         const { data: po } = await supabase.from('pending_outbounds').select('status').eq('source_id', id).maybeSingle();
         if (!po || po.status !== '완료') {
           alert('출고 확정 시 반드시 [출고 검수] 탭에서 검수를 완료(' + (po?po.status:'미등록') + ')해야만 확정 처리가 가능합니다. (일반 계정 제한)');
+          setSaving(false);
+          return;
+        }
+      }
+      // ===================================
+
+      // === [출고완료 정합성 크로스체크] ===
+      if (newStatus === '출고완료') {
+        const { data: checkParts, error: checkErr } = await supabase
+          .from('shipment_parts')
+          .select('status')
+          .eq('shipment_id', id);
+        
+        if (checkErr) throw new Error(`부품 상태 확인 실패: ${checkErr.message}`);
+        
+        const hasUnfinished = checkParts.some(p => p.status === '준비중' || p.status === '부품 준비');
+        if (hasUnfinished) {
+          alert("아직 '준비중'이거나 '부품 준비' 상태인 품목이 있습니다. 모든 품목을 '준비 완료' 처리한 후 출고를 확정해주세요.");
           setSaving(false);
           return;
         }
@@ -1150,6 +1226,8 @@ function ShipmentDetail() {
           quantity: 1,
           price: partToAdd.price || 0,
           total_price: (partToAdd.price || 0) * 1,
+          status: '준비중',
+          inventory_deducted: false
           // created_at: new Date().toISOString() // 저장 시점에 생성되므로 여기서 불필요
         };
         return [...prevParts, newPartEntry];
@@ -1477,6 +1555,7 @@ function ShipmentDetail() {
                         <TableRow>
                           <TableCell>제품명</TableCell>
                           <TableCell>구분</TableCell>
+                          <TableCell>상태</TableCell>
                           <TableCell align="right">수량</TableCell>
                           <TableCell align="right">단가</TableCell>
                           <TableCell align="right">합계</TableCell>
@@ -1500,6 +1579,19 @@ function ShipmentDetail() {
                                 size="small"
                                 color={getCategoryColor(part.part_category || '기체')}
                               />
+                            </TableCell>
+                            <TableCell>
+                              <Select
+                                size="small"
+                                value={part.status || '준비중'}
+                                onChange={(e) => handleItemStatusChange(part, e.target.value)}
+                                sx={{ width: '100px', fontSize: '0.875rem' }}
+                              >
+                                <MenuItem value="준비중">준비중</MenuItem>
+                                <MenuItem value="부품 준비">부품 준비</MenuItem>
+                                <MenuItem value="준비 완료">준비 완료</MenuItem>
+                                <MenuItem value="반품 완료">반품 완료</MenuItem>
+                              </Select>
                             </TableCell>
                             <TableCell align="right">
                               <TextField
@@ -1594,6 +1686,7 @@ function ShipmentDetail() {
                         <TableCell sx={{ fontWeight: 700, width: 180 }}>제품명</TableCell>
                         <TableCell sx={{ fontWeight: 700, width: 120 }}>상품코드</TableCell>
                         <TableCell sx={{ fontWeight: 700, width: 100 }}>카테고리</TableCell>
+                        <TableCell sx={{ fontWeight: 700, width: 120 }}>상태</TableCell>
                         <TableCell sx={{ fontWeight: 700, width: 80 }}>수량</TableCell>
                         <TableCell sx={{ fontWeight: 700, width: 100 }}>단가</TableCell>
                         <TableCell sx={{ fontWeight: 700, width: 120 }}>합계</TableCell>
@@ -1602,7 +1695,7 @@ function ShipmentDetail() {
                     </TableHead>
                     <TableBody>
                       {sortedParts.map((part, idx) => (
-                        <TableRow key={idx} sx={part.note && part.note.includes('[반품완료]') ? { opacity: 0.5, textDecoration: 'line-through' } : {}}>
+                        <TableRow key={idx} sx={part.status === '반품 완료' ? { opacity: 0.5, textDecoration: 'line-through' } : {}}>
                           <TableCell>{part.part_name}</TableCell>
                           <TableCell>{part.part_code}</TableCell>
                           <TableCell>
@@ -1613,18 +1706,39 @@ function ShipmentDetail() {
                               variant="filled"
                             />
                           </TableCell>
+                          <TableCell>
+                            <Select
+                              size="small"
+                              value={part.status || '준비중'}
+                              onChange={(e) => handleItemStatusChange(part, e.target.value)}
+                              disabled={saving}
+                              sx={{ 
+                                width: '100px', 
+                                fontSize: '0.875rem',
+                                '.MuiSelect-select': { 
+                                  py: 0.5, 
+                                  color: part.status === '준비 완료' ? 'success.main' : part.status === '반품 완료' ? 'error.main' : 'inherit'
+                                }
+                              }}
+                            >
+                              <MenuItem value="준비중">준비중</MenuItem>
+                              <MenuItem value="부품 준비">부품 준비</MenuItem>
+                              <MenuItem value="준비 완료">준비 완료</MenuItem>
+                              <MenuItem value="반품 완료">반품 완료</MenuItem>
+                            </Select>
+                          </TableCell>
                           <TableCell>{part.quantity}</TableCell>
                           <TableCell>{part.price?.toLocaleString()}원</TableCell>
                           <TableCell sx={{ fontWeight: 600 }}>
                             {calculateTotal(part).toLocaleString()}원
                           </TableCell>
                           <TableCell align="center">
-                            {shipmentData?.status === '출고완료' && !(part.note && part.note.includes('[반품완료]')) && (
+                            {part.status !== '반품 완료' && (
                               <Button
                                 size="small"
                                 variant="outlined"
                                 color="secondary"
-                                onClick={() => handleReturnPart(part)}
+                                onClick={() => handleItemStatusChange(part, '반품 완료')}
                                 sx={{ whiteSpace: 'nowrap', minWidth: 'auto', p: 0.5 }}
                               >
                                 반품

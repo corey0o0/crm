@@ -263,71 +263,29 @@ export const processShipmentCompletion = async (shipmentId, brandCode) => {
 
     const { data: shipmentParts, error } = await supabase
       .from('shipment_parts')
-      .select('part_name, part_code, quantity')
+      .select('id, part_name, part_code, quantity, status, inventory_deducted')
       .eq('shipment_id', shipmentId);
 
     if (error) throw new Error(`출고 부품 조회 실패: ${error.message}`);
     if (!shipmentParts || shipmentParts.length === 0) return { success: true, message: '부품 없음', results: [] };
 
-    // part_id 매칭 처리
-    const parts = [];
+    let results = [];
+    let hasError = false;
+
     for (const sp of shipmentParts) {
-      let foundParts = null;
-      let partError = null;
-
-      if (sp.part_id) {
-        foundParts = [{ id: sp.part_id }];
-      } else if (sp.part_code) {
-        const { data, error } = await supabase.from('parts').select('id, name, code').eq('code', sp.part_code).limit(1);
-        foundParts = data;
-        partError = error;
-      }
-      if ((!foundParts || foundParts.length === 0) && sp.part_name) {
-        const { data, error } = await supabase.from('parts').select('id, name, code').eq('name', sp.part_name).limit(1);
-        foundParts = data;
-        partError = error;
-      }
-
-      if (!partError && foundParts && foundParts.length > 0) {
-        parts.push({
-          part_id: foundParts[0].id,
-          part_name: sp.part_name,
-          part_code: sp.part_code,
-          quantity: sp.quantity,
-          warehouse_id: warehouseId
-        });
-      } else {
-        parts.push({
-          part_id: null,
-          part_name: sp.part_name,
-          part_code: sp.part_code,
-          quantity: sp.quantity,
-          warehouse_id: warehouseId
-        });
+      if (!sp.inventory_deducted && sp.status !== '반품 완료') {
+        // 아직 차감되지 않았고, 반품된 것도 아니라면 '준비 완료' 상태로 만들면서 차감
+        const res = await updatePartStatus('shipment', shipmentId, sp.id, '준비 완료', brandCode);
+        results.push(res);
+        if (!res.success) hasError = true;
       }
     }
 
-    if (parts.length === 0) {
-      return { success: false, message: 'parts 매칭 부품 없음', results: [] };
+    if (hasError) {
+      return { success: false, message: '일부 품목 차감 중 오류 발생', results };
     }
 
-    // 재고 차감 실행
-    const result = await processInventory(
-      warehouseId,
-      parts,
-      brandCode,
-      shipmentId,
-      'shipment',
-      'shipment_complete',
-      false, // 차감
-      shipment.customer_name || '',
-      shipment.shipment_id || ''
-    );
-
-    return {
-      ...result,
-      message: result.success ? `성공적으로 차감되었습니다.` : `차감 중 오류 발생.`
-    };
+    return { success: true, message: '성공적으로 차감(또는 유지)되었습니다.', results };
   } catch (err) {
     return { success: false, message: `오류: ${err.message}`, errors: [err.message] };
   }
@@ -337,55 +295,7 @@ export const processShipmentCompletion = async (shipmentId, brandCode) => {
  * 출고 상태 되돌림 시 창고 재고 복구
  */
 export const processShipmentRevert = async (shipmentId, brandCode) => {
-  try {
-    // const brandSettings = await getBrandSettings(brandCode);
-    // if (!brandSettings.auto_inventory_deduction) return { success: true, skipped: true };
-
-    const { data: shipment, error: shipErr } = await supabase
-       .from('shipments')
-       .select('id, customer_name, warehouse_id, shipment_id')
-       .eq('id', shipmentId)
-       .single();
-    if (shipErr || !shipment) throw new Error('출고 정보 없음');
-
-    let warehouseId = shipment.warehouse_id;
-    if (!warehouseId) {
-      const { data: defaultWh } = await supabase.from('warehouses').select('id').ilike('name', '%청담%').limit(1).maybeSingle();
-      if (defaultWh) {
-        warehouseId = defaultWh.id;
-      } else {
-        const { data: anyWh } = await supabase.from('warehouses').select('id').limit(1).maybeSingle();
-        if (anyWh) warehouseId = anyWh.id;
-        else throw new Error('출고 정보에 등록된 창고 정보가 없습니다.');
-      }
-    }
-
-    const { data: shipmentParts } = await supabase.from('shipment_parts').select('part_name, part_code, quantity').eq('shipment_id', shipmentId);
-    if (!shipmentParts || shipmentParts.length === 0) return { success: true, results: [] };
-
-    const parts = [];
-    for (const sp of shipmentParts) {
-      let foundParts = null;
-      if (sp.part_code) foundParts = (await supabase.from('parts').select('id').eq('code', sp.part_code).limit(1)).data;
-      if ((!foundParts || foundParts.length === 0) && sp.part_name) foundParts = (await supabase.from('parts').select('id').eq('name', sp.part_name).limit(1)).data;
-      
-      if (foundParts && foundParts.length > 0) {
-        parts.push({ part_id: foundParts[0].id, part_name: sp.part_name, part_code: sp.part_code, quantity: sp.quantity, warehouse_id: warehouseId });
-      } else {
-        parts.push({ part_id: null, part_name: sp.part_name, part_code: sp.part_code, quantity: sp.quantity, warehouse_id: warehouseId });
-      }
-    }
-    
-    if (parts.length === 0) return { success: false, message: '부품 매칭 실패' };
-
-    const result = await processInventory(warehouseId, parts, brandCode, shipmentId, 'shipment', 'shipment_revert', true, shipment.customer_name || '', shipment.shipment_id || '');
-    return {
-      ...result,
-      message: result.success ? '재고가 성공적으로 원상복구되었습니다.' : '재고 복구 중 오류 발생.'
-    };
-  } catch (err) {
-    return { success: false, message: `오류: ${err.message}`, errors: [err.message] };
-  }
+  return { success: true, message: '일괄 복구는 더 이상 지원되지 않습니다. 개별 품목 반품을 이용해 주세요.' };
 };
 
 /**
@@ -662,3 +572,131 @@ export const processPartialReturn = async (sourceType, orderId, recordId, quanti
     return { success: false, message: err.message, errors: [err.message] };
   }
 };
+
+/**
+ * 개별 품목(Line-Item) 상태 변경 및 재고 연동 처리
+ * @param {string} sourceType - 'shipment' | 'service'
+ * @param {string} orderId - shipment.id 또는 service.id
+ * @param {string} recordId - shipment_parts.id 또는 service_parts.id
+ * @param {string} newStatus - '준비중', '부품 준비', '준비 완료', '반품 완료'
+ * @param {string} brandCode - 브랜드 코드
+ */
+export const updatePartStatus = async (sourceType, orderId, recordId, newStatus, brandCode) => {
+  try {
+    const tableName = sourceType === 'shipment' ? 'shipment_parts' : 'service_parts';
+    const parentTableName = sourceType === 'shipment' ? 'shipments' : 'services';
+    const parentIdColumn = sourceType === 'shipment' ? 'shipment_id' : 'service_id';
+
+    // 1. 현재 부품 정보 조회
+    let partQuery = supabase.from(tableName).select('*').eq('id', recordId).single();
+    if (sourceType === 'service') {
+      partQuery = supabase.from(tableName).select('*, parts(name, code)').eq('id', recordId).single();
+    }
+    const { data: partInfo, error: partErr } = await partQuery;
+    if (partErr || !partInfo) throw new Error('부품 정보를 찾을 수 없습니다.');
+
+    // 2. 부모 정보(창고, 고객명, 표시번호) 조회
+    const { data: parentInfo, error: parentErr } = await supabase
+      .from(parentTableName)
+      .select(`warehouse_id, customer_name, ${parentIdColumn}`)
+      .eq('id', orderId)
+      .single();
+    if (parentErr || !parentInfo) throw new Error('주문 정보를 찾을 수 없습니다.');
+
+    let warehouseId = parentInfo.warehouse_id;
+    if (!warehouseId) {
+      const { data: defaultWh } = await supabase.from('warehouses').select('id').ilike('name', '%청담%').limit(1).maybeSingle();
+      warehouseId = defaultWh ? defaultWh.id : null;
+      if (!warehouseId) {
+        const { data: anyWh } = await supabase.from('warehouses').select('id').limit(1).maybeSingle();
+        warehouseId = anyWh ? anyWh.id : null;
+      }
+      if (!warehouseId) throw new Error('창고 정보 없음');
+    }
+
+    const currentStatus = partInfo.status || '준비중';
+    const isCurrentlyDeducted = partInfo.inventory_deducted || false;
+    
+    // 상태 변경으로 인한 재고 액션 판별
+    const needsDeduction = (newStatus === '부품 준비' || newStatus === '준비 완료');
+    const needsRevert = (newStatus === '반품 완료');
+    const isReset = (newStatus === '준비중');
+
+    let inventoryAction = null; // 'deduct' | 'revert' | null
+
+    if (!isCurrentlyDeducted && needsDeduction) {
+      inventoryAction = 'deduct';
+    } else if (isCurrentlyDeducted && (needsRevert || isReset)) {
+      inventoryAction = 'revert';
+    } else if (!isCurrentlyDeducted && needsRevert) {
+      // 차감된 적 없는데 반품 완료로 변경? 재고 액션 없음, 상태만 업데이트
+      inventoryAction = null;
+    }
+
+    let finalPartId = null;
+    let finalCode = partInfo.part_code || (partInfo.parts && partInfo.parts.code) || 'Unknown';
+    let finalName = partInfo.part_name || (partInfo.parts && partInfo.parts.name) || 'Unknown';
+
+    if (sourceType === 'shipment') {
+       if (partInfo.part_code) {
+         const { data: searchRes } = await supabase.from('parts').select('id').eq('code', partInfo.part_code).limit(1).maybeSingle();
+         if (searchRes) finalPartId = searchRes.id;
+       }
+       if (!finalPartId && partInfo.part_name) {
+         const { data: searchRes2 } = await supabase.from('parts').select('id').eq('name', partInfo.part_name).limit(1).maybeSingle();
+         if (searchRes2) finalPartId = searchRes2.id;
+       }
+    } else {
+       finalPartId = partInfo.part_id;
+    }
+
+    if (inventoryAction && !finalPartId && finalName !== 'Unknown') {
+      // ID를 못찾았지만 단순 텍스트 기록용이라면 그냥 통과 (processInventory가 처리함)
+    } else if (inventoryAction && !finalPartId) {
+      throw new Error('재고 차감/복구를 위한 부품 ID를 찾을 수 없습니다.');
+    }
+
+    // 3. 재고 처리
+    if (inventoryAction) {
+      const isRevertAction = inventoryAction === 'revert';
+      const changeTypeStr = sourceType === 'shipment' 
+        ? (isRevertAction ? 'shipment_cancel' : 'shipment_complete')
+        : (isRevertAction ? 'service_cancel' : 'service_complete');
+
+      const result = await processInventory(
+        warehouseId,
+        [{ part_id: finalPartId, quantity: partInfo.quantity, part_name: finalName, part_code: finalCode }],
+        brandCode,
+        orderId,
+        sourceType,
+        changeTypeStr,
+        isRevertAction,
+        parentInfo.customer_name || '',
+        parentInfo[parentIdColumn] || ''
+      );
+
+      if (!result.success) {
+        throw new Error(`재고 처리 오류: ${result.message}`);
+      }
+    }
+
+    // 4. DB 업데이트
+    const newDeducted = needsDeduction ? true : (needsRevert || isReset ? false : isCurrentlyDeducted);
+    const { error: updateErr } = await supabase
+      .from(tableName)
+      .update({ 
+        status: newStatus,
+        inventory_deducted: newDeducted
+      })
+      .eq('id', recordId);
+
+    if (updateErr) throw new Error(`상태 업데이트 실패: ${updateErr.message}`);
+
+    return { success: true, message: '상태가 변경되었습니다.', inventoryAction };
+
+  } catch (err) {
+    console.error('updatePartStatus error:', err);
+    return { success: false, message: err.message };
+  }
+};
+
