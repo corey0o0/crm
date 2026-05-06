@@ -114,6 +114,8 @@ function InventoryLayout() {
   // 엑셀 업로드 관련 상태
   const [excelUploadOpen, setExcelUploadOpen] = useState(false);
   const [excelFile, setExcelFile] = useState(null);
+  const [showOriginalHistory, setShowOriginalHistory] = useState(false);
+
   // 거래내역 보기 모드: 'list' | 'table'
   const [transactionViewMode, setTransactionViewMode] = useState('list');
   
@@ -2725,10 +2727,19 @@ function InventoryLayout() {
               {selectedTransaction.items && selectedTransaction.items.length >= 1 ? (
                 // 그룹화된 거래 상세
                 <Box>
-                  <Typography variant="h6" gutterBottom>
-                    {getTransactionTypeInfo(selectedTransaction).label} 상세 내역 ({editMode ? editProducts.length : selectedTransaction.items.length}개 상품)
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Typography variant="h6">
+                      {getTransactionTypeInfo(selectedTransaction).label} 상세 내역 ({editMode ? editProducts.length : (showOriginalHistory && selectedTransaction.rawItems ? selectedTransaction.rawItems.length : selectedTransaction.items.length)}개 상품)
+                    </Typography>
+                    {!editMode && selectedTransaction.rawItems && selectedTransaction.rawItems.length > selectedTransaction.items.length && (
+                      <FormControlLabel
+                        control={<Switch checked={showOriginalHistory} onChange={(e) => setShowOriginalHistory(e.target.checked)} size="small" />}
+                        label={<Typography variant="body2" fontWeight="medium" sx={{ cursor: 'pointer' }}>원본 작업 전체 보기</Typography>}
+                        sx={{ m: 0 }}
+                      />
+                    )}
+                  </Box>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 3, mt: -1 }}>
                     거래 날짜: {selectedTransaction.date} | 처리 시간: {selectedTransaction.createdAt}
                   </Typography>
                   
@@ -2929,7 +2940,9 @@ function InventoryLayout() {
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {[...selectedTransaction.items].sort((a, b) => a.productName.localeCompare(b.productName)).map((item, index) => {
+                          {[...(showOriginalHistory && selectedTransaction.rawItems ? selectedTransaction.rawItems : selectedTransaction.items)]
+                            .sort((a, b) => a.productName.localeCompare(b.productName))
+                            .map((item, index) => {
                             const isReturn = item.note?.includes('취소') || item.note?.includes('환불') || item.fromLocation?.includes('취소');
                             return (
                             <TableRow key={index} hover sx={{ bgcolor: isReturn ? 'rgba(244, 67, 54, 0.05)' : 'inherit' }}>
@@ -2968,6 +2981,7 @@ function InventoryLayout() {
                               <TableCell>
                                 {item.note && <div>{item.note}</div>}
                                 {item.additionalNote && <div style={{ fontSize: '0.8em', color: '#666' }}>{item.additionalNote}</div>}
+                                {showOriginalHistory && <div style={{ fontSize: '0.75em', color: '#1976d2', marginTop: 4 }}>({item.type === 'in' ? '입고/취소' : '출고'})</div>}
                               </TableCell>
                             </TableRow>
                             );
