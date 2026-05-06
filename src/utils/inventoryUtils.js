@@ -262,7 +262,7 @@ export const processShipmentCompletion = async (shipmentId, brandCode) => {
 
     const { data: shipmentParts, error } = await supabase
       .from('shipment_parts')
-      .select('part_id, part_name, part_code, quantity, part_category')
+      .select('part_name, part_code, quantity')
       .eq('shipment_id', shipmentId);
 
     if (error) throw new Error(`출고 부품 조회 실패: ${error.message}`);
