@@ -1215,12 +1215,18 @@ function InventoryLayout() {
 
       // 상품 매칭 검증
       data.forEach(item => {
+        const reqCode = String(item.productCode || '').trim().toLowerCase();
+        const reqName = String(item.parsedColName || item.productName || item.productCode || '').toString().replace(/\s+/g, '').toLowerCase();
+
         const product = products.find(p => {
-          if (p.code && String(p.code) === String(item.productCode)) return true;
-          if (p.barcode && String(p.barcode) === String(item.productCode)) return true;
-          const dbNameStr = (p.name || '').toString().replace(/\s+/g, '').toLowerCase();
-          const searchStr = (item.parsedColName || item.productName || item.productCode || '').toString().replace(/\s+/g, '').toLowerCase();
-          if (dbNameStr && searchStr && (dbNameStr === searchStr || dbNameStr.includes(searchStr) || searchStr.includes(dbNameStr))) return true;
+          const dbCode = String(p.code || '').trim().toLowerCase();
+          const dbBarcode = String(p.barcode || '').trim().toLowerCase();
+          
+          if (dbCode && dbCode === reqCode) return true;
+          if (dbBarcode && dbBarcode === reqCode) return true;
+          
+          const dbNameStr = String(p.name || '').toString().replace(/\s+/g, '').toLowerCase();
+          if (dbNameStr && reqName && (dbNameStr === reqName || dbNameStr.includes(reqName) || reqName.includes(dbNameStr))) return true;
           return false;
         });
 
@@ -1228,6 +1234,8 @@ function InventoryLayout() {
           item.error = '등록되지 않은 상품(상품명/코드 불일치)';
         } else if (item.quantity === 0 || isNaN(item.quantity)) {
           item.error = '수량이 올바르지 않거나 0입니다';
+        } else {
+          item.product = product;
         }
       });
 
@@ -1254,19 +1262,7 @@ function InventoryLayout() {
     let outboundCount = 0;
 
     excelData.forEach((item, index) => {
-      const product = products.find(p => {
-        if (p.code === item.productCode) return true;
-        if (p.barcode && String(p.barcode) === String(item.productCode)) return true;
-        
-        // 파츠 이름으로 매칭 시도 (공백 및 대소문자 무시)
-        const dbNameStr = (p.name || '').replace(/\s+/g, '').toLowerCase();
-        const searchStr = (item.parsedColName || item.productName || item.productCode || '').replace(/\s+/g, '').toLowerCase();
-        
-        if (dbNameStr && searchStr && (dbNameStr === searchStr || dbNameStr.includes(searchStr) || searchStr.includes(dbNameStr))) {
-          return true;
-        }
-        return false;
-      });
+      const product = item.product;
       
       if (!item.error && product) {
         // 출발지/목적지로 입고/출고 판단
