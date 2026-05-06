@@ -890,10 +890,10 @@ function SalesHistoryStats() {
     dailyMap[dStr].amount += Number(r.total_price || 0);
 
     // 대리점 매출 집계 (모든 브랜드 종합)
-    const isAgency = r.sales_channel && !B2C_CHANNELS.includes(r.sales_channel);
-    if (isAgency) {
-      let agencyName = r.customer_name && r.customer_name !== '-' ? r.customer_name : r.sales_channel;
-      if (agencyName === '대리점출고' || agencyName === '수기판매') {
+    const isAgencySales = r.sales_channel && !B2C_CHANNELS.includes(r.sales_channel);
+    if (isAgencySales) {
+      let agencyName = r.sales_channel;
+      if (['대리점출고', '수기판매', '기타 대리점', '대리점'].includes(agencyName)) {
          agencyName = r.customer_name !== '-' && r.customer_name ? r.customer_name : null;
       }
       
@@ -921,6 +921,11 @@ function SalesHistoryStats() {
     catMap[c].value += Number(r.total_price || 0);
 
     let ch = getSalesChannelName(r);
+    
+    // 파이 차트용으로 대리점을 한 덩어리로 묶기
+    const isB2bAgency = r._type === 'shipment' && r.sales_channel && !B2C_CHANNELS.includes(r.sales_channel);
+    if (isB2bAgency) ch = '대리점 (B2B)';
+    
     if (!channelPieMap[ch]) channelPieMap[ch] = { name: ch, value: 0 };
     channelPieMap[ch].value += Number(r.total_price || 0);
   });
@@ -1253,6 +1258,9 @@ function SalesHistoryStats() {
                           </Typography>
                         </>
                       )}
+                      <Typography variant="caption" sx={{ display: 'block', mt: 1.5, color: 'rgba(255,255,255,0.7)', textAlign: 'right', fontStyle: 'italic' }}>
+                        * 위 증감률은 필터와 무관하게 전체 매출 기준입니다.
+                      </Typography>
                     </Box>
                   )}
                 </CardContent>
