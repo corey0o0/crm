@@ -1201,22 +1201,25 @@ function InventoryLayout() {
         const headerRowValues = worksheet.getRow(1).values;
         const colMap = {};
         for (let i = 1; i < headerRowValues.length; i++) {
-          const val = headerRowValues[i]?.toString().trim();
+          const val = headerRowValues[i]?.toString().replace(/\s+/g, '');
           if (val) colMap[val] = i;
         }
 
-        const getColVal = (row, key1, key2) => {
-          if (colMap[key1] && row.values[colMap[key1]] !== undefined) return String(row.values[colMap[key1]]);
-          if (key2 && colMap[key2] && row.values[colMap[key2]] !== undefined) return String(row.values[colMap[key2]]);
+        const getColVal = (row, ...keys) => {
+          for (const key of keys) {
+            if (colMap[key] && row.values[colMap[key]] !== undefined) {
+              return String(row.values[colMap[key]]);
+            }
+          }
           return '';
         };
 
         worksheet.eachRow((row, rowNumber) => {
           if (rowNumber === 1) return; // 헤더 행 건너뛰기
           
-          const productCode = getColVal(row, '상품코드', '제품코드');
+          const productCode = getColVal(row, '상품코드', '제품코드', '품목코드');
           const barcode = getColVal(row, '바코드');
-          const productName = getColVal(row, '상품명', '제품명');
+          const productName = getColVal(row, '상품명', '제품명', '품목명');
           const qtyStr = getColVal(row, '수량');
           
           if (productCode || barcode || productName) {
@@ -1244,12 +1247,15 @@ function InventoryLayout() {
 
         let product = null;
 
-        // 1. 정확한 코드/바코드 매칭 (최우선)
-        const possibleCodes = [inputCode, inputBarcode, inputName, inputParsedCol].filter(v => v);
+        // 1. 정확한 코드/바코드 매칭 (최우선, 공백 무시)
+        const possibleCodes = [inputCode, inputBarcode, inputName, inputParsedCol]
+          .filter(v => v)
+          .map(v => v.replace(/\s+/g, ''));
+          
         for (const code of possibleCodes) {
           product = products.find(p => {
-            const dbCode = String(p.code || '').trim().toLowerCase();
-            const dbBarcode = String(p.barcode || '').trim().toLowerCase();
+            const dbCode = String(p.code || '').replace(/\s+/g, '').toLowerCase();
+            const dbBarcode = String(p.barcode || '').replace(/\s+/g, '').toLowerCase();
             return (dbCode && dbCode === code) || (dbBarcode && dbBarcode === code);
           });
           if (product) break;

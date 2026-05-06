@@ -915,53 +915,52 @@ function StockList() {
       console.log('업로드된 엑셀 데이터:', data);
       
       // 필수 컬럼 확인
-      const requiredColumns = ['브랜드', '단가', '재고'];
-      const sampleRow = data[0];
+      // 최소 식별자 검사 (코드, 바코드, 이름 중 하나)
+      const missingIdentity = data.some(row => {
+        const hasCode = row['제품코드'] || row['상품코드'] || row['품목코드'];
+        const hasBarcode = row['바코드'];
+        const hasName = row['제품명'] || row['상품명'] || row['품목명'];
+        return !(hasCode || hasBarcode || hasName);
+      });
       
-      if (!sampleRow) {
-        throw new Error('업로드된 파일이 비어있습니다.');
-      }
-
-      const missingColumns = requiredColumns.filter(col => !(col in sampleRow));
-      if (missingColumns.length > 0) {
-        throw new Error(`필수 컬럼이 없습니다: ${missingColumns.join(', ')}`);
+      if (missingIdentity) {
+        throw new Error('모든 행에 제품 식별자(코드, 바코드, 이름 중 1개 이상)가 있어야 합니다.');
       }
 
       // 데이터 유효성 검사 및 변환
       const processedData = data.map((row, index) => {
         const lineNumber = index + 2; // 헤더를 제외한 실제 행 번호
-
-        // 필수 필드 검사 (식별자 중 최소 하나 필요)
-        if (!row['브랜드'] || (!row['제품코드'] && !row['제품명'] && !row['바코드'])) {
-          throw new Error(`${lineNumber}행: 브랜드와 제품 식별자(제품코드, 제품명, 바코드 중 1개 이상)는 필수 입력 항목입니다.`);
-        }
-
-        // 브랜드 유효성 검사
-        if (!['XRB', 'NB'].includes(row['브랜드'])) {
+        
+        const code = row['제품코드'] || row['상품코드'] || row['품목코드'] || '';
+        const name = row['제품명'] || row['상품명'] || row['품목명'] || '';
+        const barcode = row['바코드'] || '';
+        const brand = row['브랜드'] || '';
+        
+        if (brand && !['XRB', 'NB'].includes(brand)) {
           throw new Error(`${lineNumber}행: 브랜드는 'XRB' 또는 'NB'만 가능합니다.`);
         }
 
         // 숫자 필드 변환
-        const supply_price = parseFloat(row['공급가'] || 0);
-        const price = parseFloat(row['단가'] || 0);
-        const stock = parseInt(row['재고'] || 0);
+        const supply_price = row['공급가'] !== undefined ? parseFloat(row['공급가']) : undefined;
+        const price = row['단가'] !== undefined ? parseFloat(row['단가']) : undefined;
+        const stock = (row['재고'] !== undefined || row['수량'] !== undefined) ? parseInt(row['재고'] || row['수량'] || 0) : undefined;
 
-        if (isNaN(price) || price < 0) {
+        if (price !== undefined && (isNaN(price) || price < 0)) {
           throw new Error(`${lineNumber}행: 단가는 0 이상의 숫자여야 합니다.`);
         }
-        if (isNaN(stock) || stock < 0) {
+        if (stock !== undefined && (isNaN(stock) || stock < 0)) {
           throw new Error(`${lineNumber}행: 재고는 0 이상의 정수여야 합니다.`);
         }
 
         return {
-          brand: row['브랜드'],
-          code: row['제품코드'] || '',
-          barcode: row['바코드'] || '',
-          name: row['제품명'] || '',
-          supply_price: isNaN(supply_price) ? 0 : supply_price,
+          brand: brand,
+          code: code,
+          barcode: barcode,
+          name: name,
+          supply_price: supply_price,
           price: price,
           stock: stock,
-          note: row['비고'] || ''
+          note: row['비고'] || undefined
         };
       });
 
@@ -1022,22 +1021,25 @@ function StockList() {
 
           if (existingPart) {
             // 기존 제품 업데이트
-            const { error: updateError } = await supabase
-              .from('parts')
-              .update({
-                brand: item.brand,
-                name: item.name,
-                supply_price: item.supply_price,
-                price: item.price,
-                stock: item.stock,
-                note: item.note
-              })
-              .eq('id', existingPart.id);
+            const updates = {};
+            if (item.brand) updates.brand = item.brand;
+            if (item.name) updates.name = item.name;
+            if (item.supply_price !== undefined) updates.supply_price = item.supply_price;
+            if (item.price !== undefined) updates.price = item.price;
+            if (item.stock !== undefined) updates.stock = item.stock;
+            if (item.note !== undefined) updates.note = item.note;
 
-            if (updateError) throw updateError;
+            if (Object.keys(updates).length > 0) {
+              const { error: updateError } = await supabase
+                .from('parts')
+                .update(updates)
+                .eq('id', existingPart.id);
+
+              if (updateError) throw updateError;
+            }
 
             // 재고 변경 로그 기록 (재고가 변경된 경우만)
-            if (existingPart.stock !== item.stock) {
+            if (item.stock !== undefined && existingPart.stock !== item.stock) {
               await supabase
                 .from('inventory_logs')
                 .insert({
@@ -1069,16 +1071,18 @@ function StockList() {
             updatedCount++;
           } else {
             // 새 제품 추가
+            if (!item.name) throw new Error('새 제품을 추가하려면 제품명이 필수입니다.');
+            
             const { error: insertError } = await supabase
               .from('parts')
               .insert({
-                brand: item.brand,
+                brand: item.brand || 'NB',
                 code: item.code,
                 name: item.name,
-                supply_price: item.supply_price,
-                price: item.price,
-                stock: item.stock,
-                note: item.note
+                supply_price: item.supply_price || 0,
+                price: item.price || 0,
+                stock: item.stock || 0,
+                note: item.note || ''
               });
 
             if (insertError) throw insertError;
