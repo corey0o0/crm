@@ -292,7 +292,7 @@ function SalesHistoryStats() {
                         format(endDate, 'yyyy-MM-dd') === format(endOfMonth(startDate), 'yyyy-MM-dd');
     const isApproxWeek = days === 7;
 
-    const currentTotal = await fetchTotalsForRange(startDate, endDate, filterChannel);
+    const currentTotal = await fetchTotalsForRange(startDate, endDate, '전체');
 
     if (isFullMonth) {
       const prevMonthStart = startOfMonth(setMonth(startDate, startDate.getMonth() - 1));
@@ -301,8 +301,8 @@ function SalesHistoryStats() {
       const lastYearMonthEnd = endOfMonth(lastYearMonthStart);
 
       const [prev, yoyBase] = await Promise.all([
-        fetchTotalsForRange(prevMonthStart, prevMonthEnd, filterChannel),
-        fetchTotalsForRange(lastYearMonthStart, lastYearMonthEnd, filterChannel)
+        fetchTotalsForRange(prevMonthStart, prevMonthEnd, '전체'),
+        fetchTotalsForRange(lastYearMonthStart, lastYearMonthEnd, '전체')
       ]);
       setCompareStats({ context: 'month', mom: percentChange(currentTotal, prev), yoy: percentChange(currentTotal, yoyBase), wow: null, yoyWeek: null });
     } else if (isApproxWeek) {
@@ -312,8 +312,8 @@ function SalesHistoryStats() {
       const lastYearWeekEnd = endOfWeek(lastYearWeekStart, { weekStartsOn: 1 });
 
       const [prev, yoyBase] = await Promise.all([
-        fetchTotalsForRange(prevWeekStart, prevWeekEnd, filterChannel),
-        fetchTotalsForRange(lastYearWeekStart, lastYearWeekEnd, filterChannel)
+        fetchTotalsForRange(prevWeekStart, prevWeekEnd, '전체'),
+        fetchTotalsForRange(lastYearWeekStart, lastYearWeekEnd, '전체')
       ]);
       setCompareStats({ context: 'week', mom: null, yoy: null, wow: percentChange(currentTotal, prev), yoyWeek: percentChange(currentTotal, yoyBase) });
     } else {
