@@ -1198,15 +1198,15 @@ function InventoryLayout() {
           
           const rowData = row.values;
           // ExcelJS row.values는 1-indexed 배열 (1: A열, 2: B열, 3: C열...)
-          if (rowData.length >= 6 && (rowData[3] || rowData[4])) { // 최소 필수 데이터 확인 (상품코드나 상품명이 있어야 함)
+          if (rowData[3] || rowData[4]) { // 최소 필수 데이터 확인 (상품코드나 상품명이 있어야 함)
             const item = {
-              productCode: rowData[3] || '', // C열: 상품코드
-              productName: rowData[4] || '', // D열: 상품명
+              productCode: rowData[3] ? String(rowData[3]) : '', // C열: 상품코드
+              productName: rowData[4] ? String(rowData[4]) : '', // D열: 상품명
               quantity: parseInt(rowData[5], 10) || 0, // E열: 수량
-              fromLocation: rowData[6] || '', // F열: 출발지
-              toLocation: rowData[7] || '', // G열: 목적지
-              note: rowData[8] || '', // H열: 메모
-              additionalNote: rowData[9] || '' // I열: 개별메모
+              fromLocation: rowData[6] ? String(rowData[6]) : '', // F열: 출발지
+              toLocation: rowData[7] ? String(rowData[7]) : '', // G열: 목적지
+              note: rowData[8] ? String(rowData[8]) : '', // H열: 메모
+              additionalNote: rowData[9] ? String(rowData[9]) : '' // I열: 개별메모
             };
             data.push(item);
           }
@@ -1216,18 +1216,18 @@ function InventoryLayout() {
       // 상품 매칭 검증
       data.forEach(item => {
         const product = products.find(p => {
-          if (p.code === item.productCode) return true;
+          if (p.code && String(p.code) === String(item.productCode)) return true;
           if (p.barcode && String(p.barcode) === String(item.productCode)) return true;
-          const dbNameStr = (p.name || '').replace(/\s+/g, '').toLowerCase();
-          const searchStr = (item.parsedColName || item.productName || item.productCode || '').replace(/\s+/g, '').toLowerCase();
+          const dbNameStr = (p.name || '').toString().replace(/\s+/g, '').toLowerCase();
+          const searchStr = (item.parsedColName || item.productName || item.productCode || '').toString().replace(/\s+/g, '').toLowerCase();
           if (dbNameStr && searchStr && (dbNameStr === searchStr || dbNameStr.includes(searchStr) || searchStr.includes(dbNameStr))) return true;
           return false;
         });
 
         if (!product) {
           item.error = '등록되지 않은 상품(상품명/코드 불일치)';
-        } else if (!item.quantity || isNaN(item.quantity)) {
-          item.error = '수량이 올바르지 않습니다';
+        } else if (item.quantity === 0 || isNaN(item.quantity)) {
+          item.error = '수량이 올바르지 않거나 0입니다';
         }
       });
 
