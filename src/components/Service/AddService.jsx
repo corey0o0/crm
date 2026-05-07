@@ -577,8 +577,14 @@ function AddService() {
     setSelectedParts(updatedParts);
   };
 
-  // 수량 변경 핸들러
+  // 부품 상태 변경 핸들러 (준비완료 이후 변경 불가)
   const handlePartStatusChange = (index, newStatus) => {
+    const part = selectedParts[index];
+    const isLocked = part.status === '준비완료' || part.status === '출고완료' || part.status === '반품완료';
+    if (isLocked) {
+      setSnackbar({ open: true, message: '준비완료 이후에는 상태를 변경할 수 없습니다. 반품 버튼을 사용하세요.', severity: 'warning' });
+      return;
+    }
     const updatedParts = [...selectedParts];
     updatedParts[index].status = newStatus;
     setSelectedParts(updatedParts);
@@ -595,9 +601,23 @@ function AddService() {
     setSelectedParts(updatedParts);
   };
 
-  // 부품 삭제
+  // 부품 삭제 (준비중일 때만 가능)
   const handleRemovePart = (partId) => {
+    const part = selectedParts.find(p => p.id === partId);
+    if (part && part.status !== '준비중') {
+      setSnackbar({ open: true, message: '준비완료 이후에는 삭제할 수 없습니다. 반품 버튼을 사용하세요.', severity: 'warning' });
+      return;
+    }
     setSelectedParts(prev => prev.filter(p => p.id !== partId));
+  };
+
+  // 부품 반품 처리
+  const handleReturnPart = (partId) => {
+    setSelectedParts(prev => prev.map(p => {
+      if (p.id !== partId) return p;
+      return { ...p, status: '반품완료', usage: (p.usage || '') + '[반품완료]' };
+    }));
+    setSnackbar({ open: true, message: '반품 처리되었습니다. 저장 시 재고에 반영됩니다.', severity: 'info' });
   };
 
 
@@ -3112,19 +3132,42 @@ function AddService() {
                                 size="small"
                                 value={part.status || '준비중'}
                                 onChange={(e) => handlePartStatusChange(index, e.target.value)}
-                                sx={{ minWidth: 90, height: '32px' }}
+                                disabled={part.status === '준비완료' || part.status === '출고완료' || part.status === '반품완료'}
+                                sx={{
+                                  minWidth: 90, height: '32px',
+                                  opacity: (part.status === '준비완료' || part.status === '출고완료' || part.status === '반품완료') ? 0.7 : 1
+                                }}
                               >
                                 {['준비중', '부품준비', '준비완료', '출고완료'].map(s => (
                                   <MenuItem key={s} value={s}>{s}</MenuItem>
                                 ))}
+                                {part.status === '반품완료' && <MenuItem value="반품완료">반품완료</MenuItem>}
                               </Select>
-                              <IconButton
-                                size="small"
-                                onClick={() => handleRemovePart(part.id)}
-                                color="error"
-                              >
-                                <DeleteIcon fontSize="small" />
-                              </IconButton>
+                              {/* 준비중일 때만 삭제 아이콘 */}
+                              {(part.status === '준비중' || part.status === '부품준비' || !part.status) ? (
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleRemovePart(part.id)}
+                                  color="error"
+                                  title="삭제"
+                                >
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              ) : part.status !== '반품완료' ? (
+                                /* 준비완료 이후 반품 버튼 */
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  color="error"
+                                  onClick={() => handleReturnPart(part.id)}
+                                  sx={{ minWidth: '56px', height: '28px', fontSize: '11px', px: 1 }}
+                                >
+                                  반품
+                                </Button>
+                              ) : (
+                                /* 반품완료 상태 표시 */
+                                <Typography variant="caption" color="error" sx={{ fontSize: '11px', fontWeight: 'bold' }}>반품완료</Typography>
+                              )}
                             </Box>
                           </TableCell>
                         </TableRow>
