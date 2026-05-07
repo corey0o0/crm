@@ -1932,6 +1932,9 @@ function ShipmentDetail() {
           <Typography>
             정말로 이 출고 정보를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
           </Typography>
+          <Typography variant="body2" color="error" sx={{ mt: 2 }}>
+            ※ 삭제 시 연결된 재고 차감 내역(출고완료 건 등)도 함께 취소되어 재고가 자동 복구됩니다.
+          </Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setConfirmDialogOpen(false)}>취소</Button>
