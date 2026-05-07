@@ -3,7 +3,7 @@ import {
   Box, Typography, Paper, Grid, Card, CardContent, CircularProgress,
   FormControl, Select, MenuItem, InputLabel, Button, Divider,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Tabs, Tab, ButtonGroup, Stack, Switch, FormControlLabel
+  Tabs, Tab, ButtonGroup, Stack, Switch, FormControlLabel, Collapse, IconButton
 } from '@mui/material';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -16,6 +16,8 @@ import {
 } from 'recharts';
 import SearchIcon from '@mui/icons-material/Search';
 import AssessmentIcon from '@mui/icons-material/Assessment';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { useAuth } from '../../contexts/AuthContext';
 
 const COLORS = ['#1976d2', '#2e7d32', '#ed6c02', '#9c27b0', '#d32f2f', '#0288d1', '#7b1fa2'];
@@ -62,6 +64,9 @@ function SalesHistoryStats() {
   const [filterChannel, setFilterChannel] = useState('전체');
   const [tabValue, setTabValue] = useState(0);
   const [showProfit, setShowProfit] = useState(false);
+  const [showCatDetail, setShowCatDetail] = useState(false);
+  const [showChannelDetail, setShowChannelDetail] = useState(false);
+  const [showChannelPieDetail, setShowChannelPieDetail] = useState(false);
   const [compareStats, setCompareStats] = useState({ context: null, mom: null, yoy: null, wow: null, yoyWeek: null });
 
 
@@ -1369,6 +1374,28 @@ function SalesHistoryStats() {
                     </PieChart>
                   </ResponsiveContainer>
                 </Box>
+                <Button
+                  size="small"
+                  onClick={() => setShowCatDetail(!showCatDetail)}
+                  endIcon={showCatDetail ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                  sx={{ mt: 1, textTransform: 'none' }}
+                >
+                  {showCatDetail ? '상세 닫기' : '상세 보기'}
+                </Button>
+                <Collapse in={showCatDetail}>
+                  <Box sx={{ mt: 1, p: 1.5, bgcolor: '#f5f5f5', borderRadius: 1, fontSize: '0.8rem' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>기종별 비율 TOP 10</Typography>
+                    {(() => {
+                      const totalCat = chartCat.reduce((s, c) => s + c.value, 0);
+                      return chartCat.slice(0, 10).map((c, i) => (
+                        <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.3, borderBottom: '1px solid #e0e0e0' }}>
+                          <Typography variant="caption" sx={{ color: COLORS[i % COLORS.length], fontWeight: 'bold' }}>{i + 1}. {c.name}</Typography>
+                          <Typography variant="caption">{formatCurrency(c.value)} ({totalCat > 0 ? ((c.value / totalCat) * 100).toFixed(1) : 0}%)</Typography>
+                        </Box>
+                      ));
+                    })()}
+                  </Box>
+                </Collapse>
               </Paper>
             </Grid>
 
@@ -1390,6 +1417,25 @@ function SalesHistoryStats() {
                     </BarChart>
                   </ResponsiveContainer>
                 </Box>
+                <Button
+                  size="small"
+                  onClick={() => setShowChannelDetail(!showChannelDetail)}
+                  endIcon={showChannelDetail ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                  sx={{ mt: 1, textTransform: 'none' }}
+                >
+                  {showChannelDetail ? '상세 닫기' : '상세 보기'}
+                </Button>
+                <Collapse in={showChannelDetail}>
+                  <Box sx={{ mt: 1, p: 1.5, bgcolor: '#f5f5f5', borderRadius: 1, fontSize: '0.8rem' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>대리점별 판매 금액</Typography>
+                    {chartChannel.map((c, i) => (
+                      <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.3, borderBottom: '1px solid #e0e0e0' }}>
+                        <Typography variant="caption" sx={{ fontWeight: 'bold' }}>{i + 1}. {c.name}</Typography>
+                        <Typography variant="caption">{formatCurrency(c.value)}</Typography>
+                      </Box>
+                    ))}
+                  </Box>
+                </Collapse>
               </Paper>
             </Grid>
 
@@ -1408,6 +1454,28 @@ function SalesHistoryStats() {
                     </PieChart>
                   </ResponsiveContainer>
                 </Box>
+                <Button
+                  size="small"
+                  onClick={() => setShowChannelPieDetail(!showChannelPieDetail)}
+                  endIcon={showChannelPieDetail ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                  sx={{ mt: 1, textTransform: 'none' }}
+                >
+                  {showChannelPieDetail ? '상세 닫기' : '상세 보기'}
+                </Button>
+                <Collapse in={showChannelPieDetail}>
+                  <Box sx={{ mt: 1, p: 1.5, bgcolor: '#f5f5f5', borderRadius: 1, fontSize: '0.8rem' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>판매처별 비율</Typography>
+                    {(() => {
+                      const totalPie = chartChannelPie.reduce((s, c) => s + c.value, 0);
+                      return chartChannelPie.map((c, i) => (
+                        <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.3, borderBottom: '1px solid #e0e0e0' }}>
+                          <Typography variant="caption" sx={{ color: COLORS[(i+4) % COLORS.length], fontWeight: 'bold' }}>{i + 1}. {c.name}</Typography>
+                          <Typography variant="caption">{formatCurrency(c.value)} ({totalPie > 0 ? ((c.value / totalPie) * 100).toFixed(1) : 0}%)</Typography>
+                        </Box>
+                      ));
+                    })()}
+                  </Box>
+                </Collapse>
               </Paper>
             </Grid>
 
