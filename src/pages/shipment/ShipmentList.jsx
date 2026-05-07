@@ -547,47 +547,7 @@ function ShipmentList() {
     }
   };
 
-  // 페이지 변경 시 필요하면 새 청크 로딩
-  const handlePageChangeWithLoading = (event, newPage) => {
-    // 표시할 데이터가 없으면 페이지 변경하지 않음
-    if (filteredShipments.length === 0 && !hasMoreData) {
-      return;
-    }
-
-    // 전체 예상 개수를 기반으로 최대 페이지 계산 (클라이언트 필터링으로 인해 filteredShipments.length가 작을 수 있음)
-    const effectiveTotal = hasActiveSearch ? filteredShipments.length : Math.max(filteredShipments.length, totalExpected);
-    const maxPage = Math.max(0, Math.ceil(effectiveTotal / rowsPerPage) - 1);
-    const validPage = Math.min(newPage, maxPage);
-
-    setPage(validPage);
-
-    // 새 페이지를 표시하기 위해 필요한 필터링된 항목 수
-    const itemsNeeded = (validPage + 1) * rowsPerPage;
-    const currentFilteredLoaded = filteredShipments.length;
-
-    // 현재 로드된 필터링 데이터로 충분하지 않고, 더 로드할 데이터가 있으며, 현재 로딩 중이 아닐 때
-    if (itemsNeeded > currentFilteredLoaded && hasMoreData && !isLoadingNextChunk && !hasActiveSearch) {
-      console.log(`Need ${itemsNeeded} filtered items, have ${currentFilteredLoaded}. Loading next chunk...`);
-      fetchNextChunk(shipments.length);
-    }
-  };
-
-  // 클라이언트 필터링으로 인해 현재 페이지를 채울 데이터가 부족하면 자동 추가 로딩
-  useEffect(() => {
-    const itemsNeeded = (page + 1) * rowsPerPage;
-    if (!loading && !isLoadingNextChunk && hasMoreData && !hasActiveSearch && filteredShipments.length < itemsNeeded) {
-      console.log(`Auto-fetching to fill page: need ${itemsNeeded}, have ${filteredShipments.length}`);
-      fetchNextChunk(shipments.length);
-    }
-  }, [loading, isLoadingNextChunk, hasMoreData, hasActiveSearch, filteredShipments.length, page, rowsPerPage, shipments.length]);
-
-
-  // 기존 함수명 유지를 위한 래퍼
-  const fetchShipments = () => {
-    fetchFirstPage();
-  };
-
-  // filteredShipments useMemo로 계산
+  // filteredShipments useMemo로 계산 (TDZ 에러 방지를 위해 위로 끌어올림)
   const filteredShipments = useMemo(() => {
     let filtered = shipments;
 
@@ -646,6 +606,48 @@ function ShipmentList() {
 
     return filtered;
   }, [shipments, searchTerm, statusFilter, sellerFilter, dateFilter.type]);
+
+
+  // 페이지 변경 시 필요하면 새 청크 로딩
+  const handlePageChangeWithLoading = (event, newPage) => {
+    // 표시할 데이터가 없으면 페이지 변경하지 않음
+    if (filteredShipments.length === 0 && !hasMoreData) {
+      return;
+    }
+
+    // 전체 예상 개수를 기반으로 최대 페이지 계산 (클라이언트 필터링으로 인해 filteredShipments.length가 작을 수 있음)
+    const effectiveTotal = hasActiveSearch ? filteredShipments.length : Math.max(filteredShipments.length, totalExpected);
+    const maxPage = Math.max(0, Math.ceil(effectiveTotal / rowsPerPage) - 1);
+    const validPage = Math.min(newPage, maxPage);
+
+    setPage(validPage);
+
+    // 새 페이지를 표시하기 위해 필요한 필터링된 항목 수
+    const itemsNeeded = (validPage + 1) * rowsPerPage;
+    const currentFilteredLoaded = filteredShipments.length;
+
+    // 현재 로드된 필터링 데이터로 충분하지 않고, 더 로드할 데이터가 있으며, 현재 로딩 중이 아닐 때
+    if (itemsNeeded > currentFilteredLoaded && hasMoreData && !isLoadingNextChunk && !hasActiveSearch) {
+      console.log(`Need ${itemsNeeded} filtered items, have ${currentFilteredLoaded}. Loading next chunk...`);
+      fetchNextChunk(shipments.length);
+    }
+  };
+
+  // 클라이언트 필터링으로 인해 현재 페이지를 채울 데이터가 부족하면 자동 추가 로딩
+  useEffect(() => {
+    const itemsNeeded = (page + 1) * rowsPerPage;
+    if (!loading && !isLoadingNextChunk && hasMoreData && !hasActiveSearch && filteredShipments.length < itemsNeeded) {
+      console.log(`Auto-fetching to fill page: need ${itemsNeeded}, have ${filteredShipments.length}`);
+      fetchNextChunk(shipments.length);
+    }
+  }, [loading, isLoadingNextChunk, hasMoreData, hasActiveSearch, filteredShipments.length, page, rowsPerPage, shipments.length]);
+
+
+  // 기존 함수명 유지를 위한 래퍼
+  const fetchShipments = () => {
+    fetchFirstPage();
+  };
+
 
   // 검색이나 필터 변경 시에만 페이지 초기화 (청크 로딩 시에는 유지)
   useEffect(() => {
