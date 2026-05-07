@@ -1341,18 +1341,16 @@ function InventoryManagement() {
         }
         console.log('[엑셀 파싱] 헤더 컬럼 맵:', colMap);
 
+        // 원래 동작하던 row.values[] 방식 유지
         const getColVal = (row, key1, key2) => {
-          const getCellStr = (colIndex) => {
-            if (!colIndex) return '';
-            const cell = row.getCell(colIndex);
-            if (!cell || cell.value === null || cell.value === undefined) return '';
-            if (typeof cell.value === 'object' && cell.value.result !== undefined) return String(cell.value.result);
-            if (typeof cell.value === 'object' && cell.value.text !== undefined) return String(cell.value.text);
-            return String(cell.value).trim();
-          };
-          const v1 = getCellStr(colMap[key1]);
-          if (v1) return v1;
-          if (key2) return getCellStr(colMap[key2]);
+          const idx1 = colMap[key1];
+          if (idx1 && row.values[idx1] !== undefined && row.values[idx1] !== null) {
+            return String(row.values[idx1]).trim();
+          }
+          const idx2 = key2 ? colMap[key2] : undefined;
+          if (idx2 && row.values[idx2] !== undefined && row.values[idx2] !== null) {
+            return String(row.values[idx2]).trim();
+          }
           return '';
         };
 
