@@ -115,7 +115,14 @@ function InventoryManagement() {
   // 엑셀 업로드 관련 상태
   const [excelUploadOpen, setExcelUploadOpen] = useState(false);
   const [excelFile, setExcelFile] = useState(null);
-  // 거래내역 보기 모드: 'list' | 'table'
+
+  // 새 엑셀 업로드 (v2) 상태
+  const [v2ExcelOpen, setV2ExcelOpen] = useState(false);
+  const [v2ExcelData, setV2ExcelData] = useState([]);
+  const [v2ExcelDate, setV2ExcelDate] = useState(new Date().toISOString().split('T')[0]);
+  const [v2ExcelNote, setV2ExcelNote] = useState('');
+  const [v2ExcelLoading, setV2ExcelLoading] = useState(false);
+
   const [transactionViewMode, setTransactionViewMode] = useState('list');
   
   // 표보기 클릭된 거래 모달 상태
@@ -2515,7 +2522,20 @@ function InventoryManagement() {
             onClick={() => handleOpenExcelUpload('unified')}
             disabled={products.length === 0}
           >
-            엑셀 업로드
+          거래 엑셀 업로드
+          </Button>
+          <Button
+            variant="contained"
+            color="success"
+            startIcon={<UploadIcon />}
+            onClick={() => {
+              setV2ExcelData([]);
+              setV2ExcelDate(new Date().toISOString().split('T')[0]);
+              setV2ExcelNote('');
+              setV2ExcelOpen(true);
+            }}
+          >
+            일괄 입출고
           </Button>
           <Button
             variant="outlined"
@@ -4774,6 +4794,258 @@ function InventoryManagement() {
         onScan={handleBarcodeScan}
         onError={handleBarcodeScanError}
       />
+
+    </Box>
+
+      {/* ===== 새 엑셀 업로드 다이얼로그 (v2) ===== */}
+      <Dialog
+        open={v2ExcelOpen}
+        onClose={() => !v2ExcelLoading && setV2ExcelOpen(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
+        <DialogTitle sx={{ pb: 1, fontWeight: 700, fontSize: '1.2rem' }}>
+          📂 일괄 입출고 엑셀 업로드
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            헤더: A | B | 상품코드 | 바코드 | 상품명 | 수량 | 입출발지 | 목적지 | 메모 | 개별메모
+          </Typography>
+        </DialogTitle>
+        <DialogContent dividers>
+          {/* 파일 선택 */}
+          <Box sx={{ mb: 3 }}>
+            <input
+              type="file"
+              accept=".xlsx,.xls"
+              id="v2-excel-input"
+              style={{ display: 'none' }}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                try {
+                  const ExcelJS = (await import('exceljs')).default;
+                  const wb = new ExcelJS.Workbook();
+                  await wb.xlsx.load(await file.arrayBuffer());
+                  const ws = wb.getWorksheet(1);
+                  const headerVals = ws.getRow(1).values; // 1-indexed
+                  const colMap = {};
+                  for (let i = 1; i < headerVals.length; i++) {
+                    const h = headerVals[i]?.toString().trim();
+                    if (h) colMap[h] = i;
+                  }
+                  console.log('[v2 파싱] 헤더맵:', colMap);
+                  const get = (row, ...keys) => {
+                    for (const k of keys) {
+                      const idx = colMap[k];
+                      if (idx && row.values[idx] !== undefined && row.values[idx] !== null)
+                        return String(row.values[idx]).trim();
+                    }
+                    return '';
+                  };
+                  const rows = [];
+                  ws.eachRow((row, rn) => {
+                    if (rn === 1) return;
+                    const code = get(row, '상품코드', '제품코드');
+                    const barcode = get(row, '바코드');
+                    const name = get(row, '상품명', '제품명');
+                    const qty = parseInt(get(row, '수량'), 10) || 0;
+                    if (!code && !barcode && !name) return;
+                    rows.push({
+                      productCode: code,
+                      productBarcode: barcode,
+                      productName: name,
+                      quantity: qty,
+                      fromLocation: get(row, '입출발지', '출발지', '보내는곳'),
+                      toLocation: get(row, '목적지', '받는곳'),
+                      note: get(row, '메모', '비고'),
+                      additionalNote: get(row, '개별메모'),
+                    });
+                  });
+                  console.log('[v2 파싱] 샘플(3행):', rows.slice(0, 3));
+                  setV2ExcelData(rows);
+                  showSnackbar(`${rows.length}개 항목 파싱 완료`, 'success');
+                } catch (err) {
+                  console.error('[v2] 파싱 오류:', err);
+                  showSnackbar('엑셀 파일 읽기 실패: ' + err.message, 'error');
+                }
+                e.target.value = '';
+              }}
+            />
+            <Box
+              onClick={() => document.getElementById('v2-excel-input').click()}
+              sx={{
+                border: '2px dashed #90caf9',
+                borderRadius: 2,
+                p: 4,
+                textAlign: 'center',
+                cursor: 'pointer',
+                bgcolor: '#f8fbff',
+                '&:hover': { bgcolor: '#e3f2fd', borderColor: '#1976d2' },
+                transition: 'all 0.2s',
+              }}
+            >
+              <UploadIcon sx={{ fontSize: 48, color: '#1976d2', mb: 1 }} />
+              <Typography variant="h6" color="primary">
+                {v2ExcelData.length > 0
+                  ? `✅ ${v2ExcelData.length}개 항목 로드됨 (다른 파일로 교체하려면 클릭)`
+                  : '엑셀 파일을 클릭하여 선택'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">.xlsx, .xls 지원</Typography>
+            </Box>
+          </Box>
+
+          {/* 날짜 / 메모 */}
+          <Grid container spacing={2} sx={{ mb: 2 }}>
+            <Grid item xs={12} md={5}>
+              <TextField
+                fullWidth size="small" type="date" label="거래 날짜"
+                value={v2ExcelDate}
+                onChange={e => setV2ExcelDate(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
+            <Grid item xs={12} md={7}>
+              <TextField
+                fullWidth size="small" label="공통 메모"
+                value={v2ExcelNote}
+                onChange={e => setV2ExcelNote(e.target.value)}
+                placeholder="모든 항목에 적용될 메모"
+              />
+            </Grid>
+          </Grid>
+
+          {/* 파싱 데이터 미리보기 */}
+          {v2ExcelData.length > 0 && (
+            <Box>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700 }}>
+                파싱 결과 예시 ({Math.min(v2ExcelData.length, 5)}/{v2ExcelData.length}개)
+              </Typography>
+              <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 220 }}>
+                <Table stickyHeader size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>상품코드</TableCell>
+                      <TableCell>상품명</TableCell>
+                      <TableCell align="right">수량</TableCell>
+                      <TableCell>입출발지</TableCell>
+                      <TableCell>목적지</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {v2ExcelData.slice(0, 5).map((row, i) => (
+                      <TableRow key={i}>
+                        <TableCell>{row.productCode || row.productBarcode}</TableCell>
+                        <TableCell>{row.productName || '-'}</TableCell>
+                        <TableCell align="right">{row.quantity}</TableCell>
+                        <TableCell>{row.fromLocation || '외부'}</TableCell>
+                        <TableCell>{row.toLocation}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              {v2ExcelData.length > 5 && (
+                <Typography variant="caption" color="text.secondary">... 외 {v2ExcelData.length - 5}개 더</Typography>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setV2ExcelOpen(false)} disabled={v2ExcelLoading}>취소</Button>
+          <Button
+            variant="contained"
+            color="success"
+            disabled={v2ExcelData.length === 0 || v2ExcelLoading}
+            onClick={async () => {
+              setV2ExcelLoading(true);
+              const groupId = crypto.randomUUID();
+              const newTxs = [];
+              const invUpdates = [];
+              const unmatched = [];
+              let inCnt = 0, outCnt = 0;
+
+              console.log('[v2 submit] products수:', products.length, 'excelData수:', v2ExcelData.length);
+              if (v2ExcelData.length > 0) console.log('[v2 submit] 첫줄:', JSON.stringify(v2ExcelData[0]));
+
+              v2ExcelData.forEach((item, idx) => {
+                const iCode = (item.productCode || '').trim().toLowerCase();
+                const iBar = (item.productBarcode || '').trim().toLowerCase();
+                const iName = (item.productName || '').trim().toLowerCase();
+                let product = null;
+
+                // 1단계: 코드/바코드 정확 매칭
+                for (const code of [iCode, iBar].filter(Boolean)) {
+                  product = products.find(p => {
+                    const dc = (p.code || '').trim().toLowerCase();
+                    const db = (p.barcode || '').trim().toLowerCase();
+                    return (dc && dc === code) || (db && db === code);
+                  });
+                  if (product) break;
+                }
+                // 2단계: 이름 매칭
+                if (!product && iName) {
+                  const ns = iName.replace(/\s+/g, '');
+                  product = products.find(p => (p.name || '').replace(/\s+/g, '').toLowerCase() === ns)
+                    || products.find(p => (p.name || '').replace(/\s+/g, '').toLowerCase().includes(ns));
+                }
+
+                if (product) {
+                  const isIn = !item.fromLocation || item.fromLocation === '외부';
+                  if (isIn) inCnt++; else outCnt++;
+                  const tx = {
+                    id: groupId + idx,
+                    groupId,
+                    type: isIn ? 'in' : 'out',
+                    productId: parseInt(product.id),
+                    productName: product.name,
+                    productCode: product.code,
+                    productSupplier: product.supplier || '-',
+                    quantity: item.quantity,
+                    fromLocation: item.fromLocation || (isIn ? '외부' : ''),
+                    toLocation: item.toLocation,
+                    date: v2ExcelDate,
+                    note: item.note || v2ExcelNote,
+                    additionalNote: item.additionalNote || '',
+                    createdAt: new Date().toLocaleString(),
+                    isGrouped: true,
+                  };
+                  newTxs.push(tx);
+                  invUpdates.push(tx);
+                } else {
+                  unmatched.push(item.productCode || item.productName || `행 ${idx + 2}`);
+                }
+              });
+
+              if (newTxs.length === 0) {
+                showSnackbar(`매칭되는 상품이 없습니다. (${unmatched.slice(0,3).join(', ')}) \n상품코드를 확인해주세요.`, 'error');
+                setV2ExcelLoading(false);
+                return;
+              }
+              try {
+                await transactionApi.createMany(newTxs);
+                setTransactions(prev => [...newTxs, ...prev]);
+                const done = [];
+                for (const tx of invUpdates) {
+                  await updateInventory(tx);
+                  done.push(tx);
+                }
+                if (unmatched.length > 0) {
+                  showSnackbar(`✅ ${newTxs.length}개 처리완료 (입고:${inCnt} 출고:${outCnt}). 미매칭 ${unmatched.length}건 제외.`, 'warning');
+                } else {
+                  showSnackbar(`✅ ${newTxs.length}개 전체 처리완료 (입고:${inCnt} 출고:${outCnt})`, 'success');
+                }
+                setV2ExcelOpen(false);
+              } catch (err) {
+                console.error('[v2 submit] 오류:', err);
+                showSnackbar('업로드 실패: ' + err.message, 'error');
+              }
+              setV2ExcelLoading(false);
+            }}
+          >
+            {v2ExcelLoading ? '처리 중...' : `입출고 처리 (${v2ExcelData.length}개 항목)`}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
     </Box>
   );
