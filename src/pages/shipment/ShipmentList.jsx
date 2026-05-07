@@ -184,7 +184,7 @@ function ShipmentList() {
   useEffect(() => {
     fetchShipments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedBrand, dateFilter]);
+  }, [selectedBrand, dateFilter, page, rowsPerPage, statusFilter, sellerFilter, searchTerm]);
 
   // 브랜드별 준비중+출고대기 건수 조회
   const fetchBrandCounts = async () => {
@@ -1743,7 +1743,7 @@ function ShipmentList() {
             </Typography>
           ) : (
             <TableContainer component={Paper} sx={{ width: '100%', overflowX: 'auto' }}>
-              <Table sx={{ minWidth: 650, width: '100%', tableLayout: 'fixed', border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
+              <Table size="small" sx={{ minWidth: 650, width: '100%', tableLayout: 'fixed', border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)', py: 0.5, px: 1 } }}>
                 <TableHead>
                   <TableRow>
                     <TableCell width="8%">주문일자</TableCell>
@@ -1759,7 +1759,8 @@ function ShipmentList() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {shipments.map((shipment) => (
+                  {shipments
+                    .map((shipment) => (
                       <TableRow
                         key={shipment.id}
                         hover

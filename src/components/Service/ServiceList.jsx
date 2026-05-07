@@ -3696,6 +3696,10 @@ function ServiceList() {
         sx={{
           '& .MuiTableRow-root': {
             transition: 'background-color 0.3s ease',
+          },
+          '& th, & td': { 
+            py: 0.5, 
+            px: 1 
           }
         }}
       />

@@ -2529,7 +2529,7 @@ function InventoryManagement() {
               setV2ExcelOpen(true);
             }}
           >
-            엑셀업로드(신)
+            엑셀 업로드
           </Button>
           <Button
             variant="contained"
@@ -2539,14 +2539,7 @@ function InventoryManagement() {
           >
             입출고 등록
           </Button>
-          <Button
-            variant="outlined"
-            color="primary"
-            onClick={() => handleOpenExcelUpload('unified')}
-            disabled={products.length === 0}
-          >
-          거래 엑셀 업로드
-          </Button>
+
           <Button
             variant="outlined"
             onClick={async () => {
