@@ -2520,6 +2520,19 @@ function InventoryManagement() {
           )}
           <Button
             variant="contained"
+            color="success"
+            startIcon={<UploadIcon />}
+            onClick={() => {
+              setV2ExcelData([]);
+              setV2ExcelDate(new Date().toISOString().split('T')[0]);
+              setV2ExcelNote('');
+              setV2ExcelOpen(true);
+            }}
+          >
+            엑셀업로드(신)
+          </Button>
+          <Button
+            variant="contained"
             color="primary"
             onClick={handleOpenDialog}
             disabled={products.length === 0}
@@ -2533,19 +2546,6 @@ function InventoryManagement() {
             disabled={products.length === 0}
           >
           거래 엑셀 업로드
-          </Button>
-          <Button
-            variant="contained"
-            color="success"
-            startIcon={<UploadIcon />}
-            onClick={() => {
-              setV2ExcelData([]);
-              setV2ExcelDate(new Date().toISOString().split('T')[0]);
-              setV2ExcelNote('');
-              setV2ExcelOpen(true);
-            }}
-          >
-            새로운 엑셀 업로드
           </Button>
           <Button
             variant="outlined"
@@ -2902,10 +2902,12 @@ function InventoryManagement() {
                 </Button>
               )}
             </Box>
+            {/* 리스트 보기 / 표 보기 버튼 숨김 처리 
             <Box sx={{ display: 'inline-flex', border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
               <Button size="small" variant={transactionViewMode === 'list' ? 'contained' : 'text'} onClick={() => setTransactionViewMode('list')}>리스트 보기</Button>
               <Button size="small" variant={transactionViewMode === 'table' ? 'contained' : 'text'} onClick={() => setTransactionViewMode('table')}>표 보기</Button>
             </Box>
+            */}
           </Box>
 
           {transactionViewMode === 'list' && (
