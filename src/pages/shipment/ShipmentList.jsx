@@ -550,27 +550,37 @@ function ShipmentList() {
   // 페이지 변경 시 필요하면 새 청크 로딩
   const handlePageChangeWithLoading = (event, newPage) => {
     // 표시할 데이터가 없으면 페이지 변경하지 않음
-    if (filteredShipments.length === 0) {
-      console.log('No data to display, staying on current page');
+    if (filteredShipments.length === 0 && !hasMoreData) {
       return;
     }
 
-    // 현재 페이지에 표시할 데이터가 있는지 확인
-    const maxPage = Math.max(0, Math.ceil(filteredShipments.length / rowsPerPage) - 1);
+    // 전체 예상 개수를 기반으로 최대 페이지 계산 (클라이언트 필터링으로 인해 filteredShipments.length가 작을 수 있음)
+    const effectiveTotal = hasActiveSearch ? filteredShipments.length : Math.max(filteredShipments.length, totalExpected);
+    const maxPage = Math.max(0, Math.ceil(effectiveTotal / rowsPerPage) - 1);
     const validPage = Math.min(newPage, maxPage);
 
     setPage(validPage);
 
-    // 3페이지마다 새 청크 로딩 체크
+    // 새 페이지를 표시하기 위해 필요한 필터링된 항목 수
     const itemsNeeded = (validPage + 1) * rowsPerPage;
-    const currentItemsLoaded = shipments.length;
+    const currentFilteredLoaded = filteredShipments.length;
 
-    // 현재 로드된 데이터로 충분하지 않고, 더 로드할 데이터가 있으며, 현재 로딩 중이 아닐 때
-    if (itemsNeeded > currentItemsLoaded && hasMoreData && !isLoadingNextChunk && !hasActiveSearch) {
-      console.log(`Need ${itemsNeeded} items, have ${currentItemsLoaded}. Loading next chunk...`);
-      fetchNextChunk(currentItemsLoaded);
+    // 현재 로드된 필터링 데이터로 충분하지 않고, 더 로드할 데이터가 있으며, 현재 로딩 중이 아닐 때
+    if (itemsNeeded > currentFilteredLoaded && hasMoreData && !isLoadingNextChunk && !hasActiveSearch) {
+      console.log(`Need ${itemsNeeded} filtered items, have ${currentFilteredLoaded}. Loading next chunk...`);
+      fetchNextChunk(shipments.length);
     }
   };
+
+  // 클라이언트 필터링으로 인해 현재 페이지를 채울 데이터가 부족하면 자동 추가 로딩
+  useEffect(() => {
+    const itemsNeeded = (page + 1) * rowsPerPage;
+    if (!loading && !isLoadingNextChunk && hasMoreData && !hasActiveSearch && filteredShipments.length < itemsNeeded) {
+      console.log(`Auto-fetching to fill page: need ${itemsNeeded}, have ${filteredShipments.length}`);
+      fetchNextChunk(shipments.length);
+    }
+  }, [loading, isLoadingNextChunk, hasMoreData, hasActiveSearch, filteredShipments.length, page, rowsPerPage, shipments.length]);
+
 
   // 기존 함수명 유지를 위한 래퍼
   const fetchShipments = () => {
@@ -619,13 +629,6 @@ function ShipmentList() {
 
     // 정렬
     filtered.sort((a, b) => {
-      // 1. 기체 포함 여부로 먼저 정렬
-      const aHasDrone = (a.shipment_parts || []).some(part => part.part_category === '기체');
-      const bHasDrone = (b.shipment_parts || []).some(part => part.part_category === '기체');
-
-      if (aHasDrone && !bHasDrone) return -1;
-      if (!aHasDrone && bHasDrone) return 1;
-
       // 2. 그 다음 날짜로 정렬 (신규 항목은 created_at 우선)
       let dateA, dateB;
       if (dateFilter.type === 'order_date') {
