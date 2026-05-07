@@ -238,7 +238,7 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
 /**
  * 출고 완료 시 창고 재고 차감 (청담 등)
  */
-export const processShipmentCompletion = async (shipmentId, brandCode) => {
+export const processShipmentCompletion = async (shipmentId, brandCode, targetStatus = '출고완료') => {
   try {
     // const brandSettings = await getBrandSettings(brandCode);
     // if (!brandSettings.auto_inventory_deduction) {
@@ -288,8 +288,8 @@ export const processShipmentCompletion = async (shipmentId, brandCode) => {
 
     for (const sp of shipmentParts) {
       if (!sp.inventory_deducted && sp.status !== '반품완료') {
-        // 아직 차감되지 않았고, 반품된 것도 아니라면 '출고완료' 상태로 만들면서 차감
-        const res = await updatePartStatus('shipment', shipmentId, sp.id, '출고완료', brandCode);
+        // 아직 차감되지 않았고, 반품된 것도 아니라면 목표 상태(targetStatus)로 만들면서 차감
+        const res = await updatePartStatus('shipment', shipmentId, sp.id, targetStatus, brandCode);
         results.push(res);
         if (!res.success) hasError = true;
       }

@@ -731,11 +731,18 @@ function ShipmentDetail() {
       let pendingOrderMessage = '';
 
       // 재고 처리 로직
-      if (newStatus === '출고완료' && previousStatus !== '출고완료') {
-        // 출고 처리로 변경: 재고 차감
-        console.log(`출고 차감 처리 시작 - 출고ID: ${id}, 브랜드: ${brandCode}`);
+      const deductStatuses = isInspectionEnabled 
+        ? ['출고완료', '작업완료', '준비완료', '부품준비'] 
+        : ['출고완료', '작업완료'];
 
-        const inventoryResult = await processShipmentCompletion(id, brandCode);
+      const isNewDeduct = deductStatuses.includes(newStatus);
+      const isPrevDeduct = deductStatuses.includes(previousStatus);
+
+      if (isNewDeduct && !isPrevDeduct) {
+        // 출고/작업 처리로 변경: 재고 선차감
+        console.log(`출고 차감 처리 시작 - 출고ID: ${id}, 상태: ${newStatus}, 브랜드: ${brandCode}`);
+
+        const inventoryResult = await processShipmentCompletion(id, brandCode, newStatus);
 
         if (inventoryResult.success) {
           if (!inventoryResult.skipped) {
@@ -745,29 +752,8 @@ function ShipmentDetail() {
           inventoryMessage = ` (재고 차감 오류: ${inventoryResult.message})`;
           console.error('재고 차감 오류 상세:', inventoryResult.errors);
         }
-
-        // 주문대기 추가 처리 (비활성화됨)
-        // try {
-        //   console.log(`주문대기 추가 시작 - 출고ID: ${id}, 브랜드: ${brandCode}`);
-        //   
-        //   const pendingOrderResult = await addShipmentPartsToPendingOrders(id, brandCode);
-        //   
-        //   if (pendingOrderResult.success) {
-        //     if (pendingOrderResult.skipped) {
-        //       pendingOrderMessage = `, 주문대기: ${pendingOrderResult.message}`;
-        //     } else {
-        //       pendingOrderMessage = `, 주문대기: ${pendingOrderResult.message}`;
-        //     }
-        //   } else {
-        //     pendingOrderMessage = `, 주문대기 추가 실패: ${pendingOrderResult.message}`;
-        //     console.error('주문대기 추가 오류:', pendingOrderResult.message);
-        //   }
-        // } catch (pendingOrderError) {
-        //   console.error('주문대기 추가 중 예외:', pendingOrderError);
-        //   pendingOrderMessage = `, 주문대기 추가 실패: ${pendingOrderError.message}`;
-        // }
-      } else if (previousStatus === '출고완료' && newStatus !== '출고완료') {
-        // 출고 상태에서 일반 상태로 변경: 재고 복구
+      } else if (!isNewDeduct && isPrevDeduct) {
+        // 차감 대상 상태에서 일반 상태로 변경: 재고 복구
         console.log(`출고 상태 복구 처리 시작 - 출고ID: ${id}, 브랜드: ${brandCode}`);
 
         const inventoryResult = await processShipmentRevert(id, brandCode);
