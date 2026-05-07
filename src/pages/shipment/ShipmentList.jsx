@@ -190,7 +190,7 @@ function ShipmentList() {
   useEffect(() => {
     fetchShipments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedBrand, dateFilter, statusFilter, sellerFilter]);
+  }, [selectedBrand, dateFilter]);
 
   // 브랜드별 준비중+출고대기 건수 조회
   const fetchBrandCounts = async () => {
@@ -617,14 +617,17 @@ function ShipmentList() {
       if (aHasDrone && !bHasDrone) return -1;
       if (!aHasDrone && bHasDrone) return 1;
 
-      // 2. 그 다음 날짜로 정렬
+      // 2. 그 다음 날짜로 정렬 (신규 항목은 created_at 우선)
       let dateA, dateB;
       if (dateFilter.type === 'order_date') {
-        dateA = a.order_date ? new Date(a.order_date) : new Date(0);
-        dateB = b.order_date ? new Date(b.order_date) : new Date(0);
+        dateA = a.order_date ? new Date(a.order_date) : new Date(a.created_at || 0);
+        dateB = b.order_date ? new Date(b.order_date) : new Date(b.created_at || 0);
       } else if (dateFilter.type === 'completion_date') {
-        dateA = a.shipment_date ? new Date(a.shipment_date) : new Date(0);
-        dateB = b.shipment_date ? new Date(b.shipment_date) : new Date(0);
+        dateA = a.shipment_date ? new Date(a.shipment_date) : new Date(a.created_at || 0);
+        dateB = b.shipment_date ? new Date(b.shipment_date) : new Date(b.created_at || 0);
+      } else {
+        dateA = new Date(a.created_at || 0);
+        dateB = new Date(b.created_at || 0);
       }
       return dateB - dateA;
     });

@@ -695,6 +695,10 @@ export const updatePartStatus = async (sourceType, orderId, recordId, newStatus,
         ? (isRevertAction ? 'shipment_cancel' : 'shipment_complete')
         : (isRevertAction ? 'service_cancel' : 'service_complete');
 
+      const displayId = sourceType === 'shipment'
+        ? `SHP-${String(orderId).split('-')[0].toUpperCase()}`
+        : `SVC-${String(orderId).split('-')[0].toUpperCase()}`;
+
       const result = await processInventory(
         warehouseId,
         [{ part_id: finalPartId, quantity: partInfo.quantity, part_name: finalName, part_code: finalCode }],
@@ -704,7 +708,7 @@ export const updatePartStatus = async (sourceType, orderId, recordId, newStatus,
         changeTypeStr,
         isRevertAction,
         parentInfo.customer_name || '',
-        '' // No displayRefId
+        displayId   // SHP-XXXXXXXX 형식으로 note에 포함되어 검색 가능
       );
 
       if (!result.success) {

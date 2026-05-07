@@ -296,8 +296,8 @@ export const fetchShipments = async (options = {}) => {
     filter = filters.join('&');
   }
 
-  // 기준일자에 따른 DB 정렬 기준 동적 설정 (created_at 의존성 탈피)
-  let orderString = 'order_date.desc.nullslast,created_at.desc';
+  // 기준일자에 따른 DB 정렬 기준 동적 설정 (신규 항목 상단 보장)
+  let orderString = 'created_at.desc,order_date.desc.nullslast';
   if (dateFilter.type === 'completion_date') {
     orderString = 'shipment_date.desc.nullslast,created_at.desc';
   }
