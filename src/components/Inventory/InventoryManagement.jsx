@@ -1035,16 +1035,14 @@ function InventoryManagement() {
       if (isOutbound) {
         // 출고: 출발지(창고) 필수, 목적지 필수
         if (!item.fromLocation || !item.toLocation) return true;
-        
         // 박스번호(boxNo)는 이제 선택 사항으로 변경됨
-        const isToWarehouse = warehouses.find(w => w.id === item.toLocation);
-        // if (isToWarehouse && !item.boxNo) return true;
-
         // 가용 수량 부족하더라도 마이너스 재고 허용 (검증 제거)
+        return false;
       } else {
         // 입고: 목적지는 창고여야 함
         const toIsWarehouse = warehouses.find(w => w.id === item.toLocation);
-      return !toIsWarehouse;
+        return !toIsWarehouse;
+      }
     });
 
     if (invalidItems.length > 0) {
