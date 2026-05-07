@@ -1357,7 +1357,7 @@ function InventoryManagement() {
           if (productCode || barcode || productName) {
             const item = {
               productCode: productCode,
-              barcode: barcode,
+              productBarcode: barcode, // handleExcelDataSubmit에서 item.productBarcode로 읽으므로 통일
               productName: productName,
               quantity: parseInt(qtyStr, 10) || 0,
               fromLocation: getColVal(row, '출발지', '보내는곳'),
@@ -1392,6 +1392,7 @@ function InventoryManagement() {
     let inboundCount = 0;
     let outboundCount = 0;
 
+    const unmatchedItems = [];
     excelData.forEach((item, index) => {
       const inputCode = String(item.productCode || '').trim().toLowerCase();
       const inputBarcode = String(item.productBarcode || '').trim().toLowerCase();
@@ -1465,12 +1466,27 @@ function InventoryManagement() {
         
         newTransactions.push(transaction);
         inventoryUpdates.push(transaction);
+      } else {
+        // 상품 매칭 실패 → 실패 목록에 기록
+        unmatchedItems.push(
+          item.productName || item.productCode || item.productBarcode || `행 ${index + 2}`
+        );
       }
     });
 
     if (newTransactions.length === 0) {
-      showSnackbar('유효한 상품 데이터가 없습니다.', 'error');
+      showSnackbar(
+        `상품을 찾을 수 없습니다. (${unmatchedItems.slice(0, 3).join(', ')}${unmatchedItems.length > 3 ? ` 외 ${unmatchedItems.length - 3}건` : ''})\n상품코드·바코드·상품명이 재고 DB와 일치하는지 확인해주세요.`,
+        'error'
+      );
       return;
+    }
+    if (unmatchedItems.length > 0) {
+      console.warn('매칭 실패 항목:', unmatchedItems);
+      showSnackbar(
+        `⚠️ ${unmatchedItems.length}개 항목은 DB에서 상품을 찾지 못해 제외되었습니다: ${unmatchedItems.slice(0, 3).join(', ')}${unmatchedItems.length > 3 ? ' ...' : ''}`,
+        'warning'
+      );
     }
 
     try {
