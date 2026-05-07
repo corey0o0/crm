@@ -312,10 +312,19 @@ function ShipmentDetail() {
     }));
   };
 
-  // 제품 삭제 함수
+  // 잠금 상태 확인 (준비완료 이후)
+  const isPartLocked = (part) => ['준비완료', '작업완료', '출고완료', '반품완료'].includes(part.status);
+
+  // 제품 삭제 함수 (준비완료 이후 불가)
   const handleRemovePart = (partId) => {
+    const part = editableParts.find(p => p.id === partId);
+    if (part && isPartLocked(part)) {
+      alert('준비완료 이후에는 삭제할 수 없습니다. 반품 버튼을 사용하세요.');
+      return;
+    }
     setEditableParts(prev => prev.filter(part => part.id !== partId));
   };
+
 
   // 품목 개별 상태 변경 함수 (UI 저장 전, 또는 저장 후 DB 직결)
   const handleItemStatusChange = async (part, newStatus) => {
@@ -1652,15 +1661,14 @@ function ShipmentDetail() {
                                 sx={{ width: '100px', fontSize: '0.875rem' }}
                               >
                                 {(() => {
-                                  const baseItems = isInspectionEnabled 
+                                  const baseItems = isInspectionEnabled
                                     ? ['접수', '부품준비', '준비완료', '작업완료', '출고완료']
                                     : ['접수', '작업완료', '출고완료'];
-                                  const items = [...baseItems];
-                                  if (part.status && !items.includes(part.status) && part.status !== '반품완료') {
-                                    items.unshift(part.status);
-                                  }
-                                  return items.map(s => (
-                                    <MenuItem key={s} value={s}>{s}</MenuItem>
+                                  return baseItems.map(s => (
+                                    <MenuItem
+                                      key={s} value={s}
+                                      disabled={s === '접수' && isPartLocked(part)}
+                                    >{s}</MenuItem>
                                   ));
                                 })()}
                                 {part.status === '반품완료' && <MenuItem value="반품완료">반품완료</MenuItem>}
@@ -1697,13 +1705,28 @@ function ShipmentDetail() {
                               {calculateTotal(part).toLocaleString()}원
                             </TableCell>
                             <TableCell align="center">
-                              <IconButton
-                                size="small"
-                                color="error"
-                                onClick={() => handleRemovePart(part.id)}
-                              >
-                                <DeleteIcon fontSize="small" />
-                              </IconButton>
+                              {!isPartLocked(part) ? (
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  title="삭제"
+                                  onClick={() => handleRemovePart(part.id)}
+                                >
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              ) : part.status !== '반품완료' ? (
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  color="error"
+                                  onClick={() => handleReturnPart(part)}
+                                  sx={{ minWidth: '56px', height: '28px', fontSize: '11px', px: 1 }}
+                                >
+                                  반품
+                                </Button>
+                              ) : (
+                                <Typography variant="caption" color="error" sx={{ fontSize: '11px', fontWeight: 'bold' }}>반품완료</Typography>
+                              )}
                             </TableCell>
                           </TableRow>
                         ))}
