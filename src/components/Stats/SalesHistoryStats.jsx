@@ -53,6 +53,7 @@ function SalesHistoryStats() {
   const allowedMalls = getAllowedMalls();
   const [loading, setLoading] = useState(true);
   const [flatRows, setFlatRows] = useState([]);
+  const [manualFlatRows, setManualFlatRows] = useState([]); // 수기판매 별도 집계
   const [inventoryList, setInventoryList] = useState([]); // 재고 목록 상태 추가
   const [agenciesList, setAgenciesList] = useState([]);
   const [startDate, setStartDate] = useState(startOfMonth(new Date()));
@@ -192,7 +193,10 @@ function SalesHistoryStats() {
 
             const canceledItems = items.filter(it => ['C11', 'C40', 'R40', 'E40'].includes(it.order_status));
             const canceledAmount = canceledItems.reduce((acc, it) => acc + (Number(it.product_price || it.price || 0) * Number(it.quantity || 1)), 0);
-            const distributableAmount = Math.max(0, Number(o.total_amount || 0) - Number(o.shipping_fee || 0) - canceledAmount);
+            // 네이버페이 선불금 처리
+            const _ips = validItems.reduce((acc, i) => acc + Number(i.payment_amount || 0), 0);
+            const _et = Number(o.total_amount || 0) === 0 && _ips > 0 ? _ips : Number(o.total_amount || 0);
+            const distributableAmount = Math.max(0, _et - Number(o.shipping_fee || 0) - canceledAmount);
 
             let orderItemsSum = 0;
             let brandMatchedAmount = 0;
@@ -495,9 +499,30 @@ function SalesHistoryStats() {
     // =================================================================================
 
     const rows = [];
+    const manualRows = []; // 수기판매 별도 집계
 
-    // 출고 건
+    // 출고 건 (수기판매 제외 - note의 [수기판매] 태그 기준)
     (shipRes.data || []).forEach(s => {
+      if (s.note && String(s.note).includes('[수기판매]')) {
+        // 수기판매 → 별도 집계용 배열에만 추가
+        const parts = s.shipment_parts || [];
+        const baseFields = {
+          _id: s.id, _type: 'shipment', date_val: s.order_date, sales_channel: s.sales_channel || '-', customer_name: s.customer_name || '-'
+        };
+        if (parts.length === 0) {
+          manualRows.push({ ...baseFields, part_category: '기타', part_brand: '-', quantity: 0, total_price: Number(s.price || 0), total_cost: 0 });
+        } else {
+          parts.forEach(p => {
+            const effectiveQty = Math.max(0, Number(p.quantity || 1));
+            const total = Number(p.price || 0) * effectiveQty;
+            const cat = resolveCategory(p.part_name, p.part_code);
+            const brand = resolveBrand(p.part_name, p.part_code);
+            const unitCost = resolveCost(p.part_name, p.part_code);
+            manualRows.push({ ...baseFields, part_name: p.part_name || '기체/상품', part_category: cat, part_brand: brand, quantity: effectiveQty, total_price: total, total_cost: unitCost * effectiveQty });
+          });
+        }
+        return;
+      }
       const match = s.note ? String(s.note).match(/(20\d{6}-\d{7})/) : null;
       if (match && duplicatedCafeOrderNos.has(match[0])) {
          return; // 중복 집계 방지 (Bug 2)
@@ -603,7 +628,10 @@ function SalesHistoryStats() {
 
         const canceledItems = (items || []).filter(it => ['C11', 'C40', 'R40', 'E40'].includes(it.order_status));
         const canceledAmount = canceledItems.reduce((acc, it) => acc + (Number(it.product_price || it.price || 0) * Number(it.quantity || 1)), 0);
-        const distributableAmount = Math.max(0, Number(o.total_amount || 0) - Number(o.shipping_fee || 0) - canceledAmount);
+        // 네이버페이 선불금 처리
+        const _ips2 = validItems.reduce((acc, i) => acc + Number(i.payment_amount || 0), 0);
+        const _et2 = Number(o.total_amount || 0) === 0 && _ips2 > 0 ? _ips2 : Number(o.total_amount || 0);
+        const distributableAmount = Math.max(0, _et2 - Number(o.shipping_fee || 0) - canceledAmount);
 
         let totalWeight = validItems.reduce((acc, i) => {
            let w = 0;
@@ -754,6 +782,7 @@ function SalesHistoryStats() {
     });
 
     setFlatRows(rows);
+    setManualFlatRows(manualRows);
 
     // 재고(Inventory) 데이터 가공
     const invQtyMap = {};
@@ -1390,6 +1419,7 @@ function SalesHistoryStats() {
                 <Tab label="통합 매출 및 재고 보고서" icon={<AssessmentIcon />} iconPosition="start" />
                 <Tab label="월별 매출 통계" />
                 <Tab label="주별 매출 통계" />
+                <Tab label="수기판매 통계" />
               </Tabs>
             </Paper>
             
@@ -1622,6 +1652,123 @@ function SalesHistoryStats() {
                 </Table>
               </TableContainer>
             )}
+
+            {tabValue === 3 && (() => {
+              // 수기판매 집계
+              const manualByChannel = {};
+              manualFlatRows.forEach(r => {
+                const ch = r.sales_channel || '-';
+                if (!manualByChannel[ch]) manualByChannel[ch] = { qty: 0, amount: 0, cost: 0 };
+                manualByChannel[ch].qty += r.quantity || 0;
+                manualByChannel[ch].amount += r.total_price || 0;
+                manualByChannel[ch].cost += r.total_cost || 0;
+              });
+              const manualTotal = manualFlatRows.reduce((s, r) => s + (r.total_price || 0), 0);
+              const manualByBrand = {};
+              manualFlatRows.forEach(r => {
+                const b = r.part_brand || '-';
+                if (!manualByBrand[b]) manualByBrand[b] = { qty: 0, amount: 0 };
+                manualByBrand[b].qty += r.quantity || 0;
+                manualByBrand[b].amount += r.total_price || 0;
+              });
+              return (
+                <Box>
+                  <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, color: '#424242' }}>
+                    수기판매 현황 (총 합계: {formatCurrency(manualTotal)})
+                  </Typography>
+                  <Grid container spacing={3}>
+                    <Grid item xs={12} md={6}>
+                      <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold', color: '#546e7a' }}>거래처별 매출</Typography>
+                      <TableContainer component={Paper} sx={{ border: '1px solid #cfd8dc', borderRadius: 1, boxShadow: 'none' }}>
+                        <Table size="small" sx={{ '& th, & td': { border: '1px solid #cfd8dc', padding: '6px 10px' }, '& th': { bgcolor: '#eceff1', fontWeight: 'bold' }}}>
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>거래처</TableCell>
+                              <TableCell align="right">수량</TableCell>
+                              <TableCell align="right">매출액</TableCell>
+                              {showProfit && <TableCell align="right">원가</TableCell>}
+                              {showProfit && <TableCell align="right">이익</TableCell>}
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {Object.entries(manualByChannel).sort((a,b) => b[1].amount - a[1].amount).map(([ch, val]) => (
+                              <TableRow key={ch} hover>
+                                <TableCell>{ch}</TableCell>
+                                <TableCell align="right">{val.qty.toLocaleString()}개</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(val.amount)}</TableCell>
+                                {showProfit && <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatCurrency(val.cost)}</TableCell>}
+                                {showProfit && <TableCell align="right" sx={{ fontWeight: 'bold', color: val.amount - val.cost < 0 ? '#d32f2f' : '#2e7d32' }}>{formatCurrency(val.amount - val.cost)}</TableCell>}
+                              </TableRow>
+                            ))}
+                            {Object.keys(manualByChannel).length === 0 && (
+                              <TableRow><TableCell colSpan={5} align="center" sx={{ color: 'text.secondary' }}>수기판매 내역이 없습니다.</TableCell></TableRow>
+                            )}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold', color: '#546e7a' }}>브랜드별 매출</Typography>
+                      <TableContainer component={Paper} sx={{ border: '1px solid #cfd8dc', borderRadius: 1, boxShadow: 'none' }}>
+                        <Table size="small" sx={{ '& th, & td': { border: '1px solid #cfd8dc', padding: '6px 10px' }, '& th': { bgcolor: '#eceff1', fontWeight: 'bold' }}}>
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>브랜드</TableCell>
+                              <TableCell align="right">수량</TableCell>
+                              <TableCell align="right">매출액</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {Object.entries(manualByBrand).sort((a,b) => b[1].amount - a[1].amount).map(([brand, val]) => (
+                              <TableRow key={brand} hover>
+                                <TableCell>{brand}</TableCell>
+                                <TableCell align="right">{val.qty.toLocaleString()}개</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(val.amount)}</TableCell>
+                              </TableRow>
+                            ))}
+                            {Object.keys(manualByBrand).length === 0 && (
+                              <TableRow><TableCell colSpan={3} align="center" sx={{ color: 'text.secondary' }}>수기판매 내역이 없습니다.</TableCell></TableRow>
+                            )}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    </Grid>
+                    <Grid item xs={12}>
+                      <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold', color: '#546e7a' }}>상세 내역</Typography>
+                      <TableContainer component={Paper} sx={{ border: '1px solid #cfd8dc', borderRadius: 1, boxShadow: 'none', maxHeight: 400 }}>
+                        <Table size="small" stickyHeader sx={{ '& th, & td': { border: '1px solid #cfd8dc', padding: '6px 10px' }, '& th': { bgcolor: '#eceff1', fontWeight: 'bold' }}}>
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>날짜</TableCell>
+                              <TableCell>거래처</TableCell>
+                              <TableCell>상품명</TableCell>
+                              <TableCell>브랜드</TableCell>
+                              <TableCell align="right">수량</TableCell>
+                              <TableCell align="right">금액</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {manualFlatRows.sort((a,b) => (b.date_val||'').localeCompare(a.date_val||'')).map((r, i) => (
+                              <TableRow key={i} hover>
+                                <TableCell>{r.date_val ? r.date_val.slice(0,10) : '-'}</TableCell>
+                                <TableCell>{r.customer_name}</TableCell>
+                                <TableCell>{r.part_name || '-'}</TableCell>
+                                <TableCell>{r.part_brand}</TableCell>
+                                <TableCell align="right">{(r.quantity||0).toLocaleString()}</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(r.total_price)}</TableCell>
+                              </TableRow>
+                            ))}
+                            {manualFlatRows.length === 0 && (
+                              <TableRow><TableCell colSpan={6} align="center" sx={{ color: 'text.secondary' }}>수기판매 내역이 없습니다.</TableCell></TableRow>
+                            )}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    </Grid>
+                  </Grid>
+                </Box>
+              );
+            })()}
           </Box>
         </>
       )}

@@ -262,16 +262,17 @@ function InventoryManagement() {
     const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(groupId);
     
     if (isUuid) {
-       // shipments 테이블에서 is_manual_b2b 필드까지 조회해서 분기
+       // shipments 테이블에서 note 필드로 수기판매 여부 확인
        const { data: shipData } = await supabase
          .from('shipments')
-         .select('id, is_manual_b2b')
+         .select('id, note')
          .eq('id', groupId)
          .single();
        if (shipData) {
-         if (shipData.is_manual_b2b) {
-           // 수기 판매(B2B) → 목록으로 이동 (상세 라우트 없음)
-           navigate(`/sales/manual`);
+         const isManualB2B = shipData.note && String(shipData.note).includes('[수기판매]');
+         if (isManualB2B) {
+            // 수기 판매(B2B) → 편집 페이지로 이동
+            navigate(`/sales/manual/edit/${groupId}`);
          } else {
            // 일반 매장출고 → 상세 페이지로 이동
            navigate(`/shipment/${groupId}`);

@@ -259,10 +259,17 @@ function InventoryLayout() {
     const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(groupId);
     
     if (isUuid) {
-       // 먼저 수기 판매(shipments)인지 확인
-       const { data: shipData } = await supabase.from('shipments').select('id').eq('id', groupId).single();
+       // shipments 테이블에서 note 필드로 수기판매 여부 확인
+       const { data: shipData } = await supabase.from('shipments').select('id, note').eq('id', groupId).single();
        if (shipData) {
-         navigate(`/sales/manual/${groupId}`);
+         const isManualB2B = shipData.note && String(shipData.note).includes('[수기판매]');
+         if (isManualB2B) {
+           // 수기 판매(B2B) → 편집 페이지로 이동
+           navigate(`/sales/manual/edit/${groupId}`);
+         } else {
+           // 일반 매장출고 → 상세 페이지로 이동
+           navigate(`/shipment/${groupId}`);
+         }
          return;
        }
     }
@@ -2832,13 +2839,23 @@ function InventoryLayout() {
                       </Box>
                       
                       {editProducts.map((product, index) => (
-                        <Card key={index} sx={{ mb: 2, p: 2 }}>
+                        <Card key={index} sx={{ mb: 2, p: 2, border: '1px solid #e0e0e0' }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                            <Typography variant="caption" color="text.secondary" fontWeight="bold">상품 #{index + 1}</Typography>
+                            <IconButton
+                              color="error"
+                              onClick={() => removeEditProduct(index)}
+                              size="small"
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Box>
                           <Grid container spacing={2} alignItems="center">
-                            <Grid item xs={12} md={3}>
+                            <Grid item xs={12} md={5}>
                               <Autocomplete
                                 size="small"
                                 options={products}
-                                getOptionLabel={(option) => option ? `${option.name} (${option.code})${option.barcode ? ` [바코드:${option.barcode}]` : ''}` : ''}
+                                getOptionLabel={(option) => option ? `${option.name} (${option.code})${option.barcode ? ` [${option.barcode}]` : ''}` : ''}
                                 value={product.product}
                                 onChange={(event, newValue) => updateEditProduct(index, 'product', newValue)}
                                 isOptionEqualToValue={(option, value) => option?.id === value?.id}
@@ -2859,7 +2876,7 @@ function InventoryLayout() {
                                 )}
                               />
                             </Grid>
-                            <Grid item xs={12} md={1.5}>
+                            <Grid item xs={4} md={1.5}>
                               <TextField
                                 fullWidth
                                 label="수량"
@@ -2870,14 +2887,14 @@ function InventoryLayout() {
                                 inputProps={{ min: 1 }}
                               />
                             </Grid>
-                            <Grid item xs={12} md={2}>
+                            <Grid item xs={4} md={2.75}>
                               <Autocomplete
                                 size="small"
                                 options={[
                                   ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
                                   ...dealers.map(d => ({ ...d, type: 'dealer' }))
                                 ]}
-                                getOptionLabel={(option) => option ? `${option.name} (${option.id})` : ''}
+                                getOptionLabel={(option) => option ? `${option.name}` : ''}
                                 value={(() => {
                                   const w = warehouses.find(w => w.id === product.fromLocation);
                                   if (w) return { ...w, type: 'warehouse' };
@@ -2893,7 +2910,7 @@ function InventoryLayout() {
                                 renderOption={(props, option) => (
                                   <Box component="li" {...props}>
                                     <Box>
-                                      <Typography variant="body2">{option.name} ({option.id})</Typography>
+                                      <Typography variant="body2">{option.name}</Typography>
                                       <Typography variant="caption" color="text.secondary">
                                         {option.type === 'warehouse' ? '창고' : '대리점'}{option.location ? ` • ${option.location}` : ''}
                                       </Typography>
@@ -2902,14 +2919,14 @@ function InventoryLayout() {
                                 )}
                               />
                             </Grid>
-                            <Grid item xs={12} md={2}>
+                            <Grid item xs={4} md={2.75}>
                               <Autocomplete
                                 size="small"
                                 options={[
                                   ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
                                   ...dealers.map(d => ({ ...d, type: 'dealer' }))
                                 ]}
-                                getOptionLabel={(option) => option ? `${option.name} (${option.id})` : ''}
+                                getOptionLabel={(option) => option ? `${option.name}` : ''}
                                 value={(() => {
                                   const w = warehouses.find(w => w.id === product.toLocation);
                                   if (w) return { ...w, type: 'warehouse' };
@@ -2925,7 +2942,7 @@ function InventoryLayout() {
                                 renderOption={(props, option) => (
                                   <Box component="li" {...props}>
                                     <Box>
-                                      <Typography variant="body2">{option.name} ({option.id})</Typography>
+                                      <Typography variant="body2">{option.name}</Typography>
                                       <Typography variant="caption" color="text.secondary">
                                         {option.type === 'warehouse' ? '창고' : '대리점'}{option.location ? ` • ${option.location}` : ''}
                                       </Typography>
@@ -2934,7 +2951,9 @@ function InventoryLayout() {
                                 )}
                               />
                             </Grid>
-                            <Grid item xs={12} md={2}>
+                          </Grid>
+                          <Grid container spacing={2} sx={{ mt: 0.5 }}>
+                            <Grid item xs={12} md={6}>
                               <TextField
                                 fullWidth
                                 label="메모"
@@ -2944,25 +2963,15 @@ function InventoryLayout() {
                                 placeholder="메모"
                               />
                             </Grid>
-                            <Grid item xs={12} md={2.5}>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <TextField
-                                  fullWidth
-                                  label="개별 메모"
-                                  size="small"
-                                  value={product.additionalNote}
-                                  onChange={(e) => updateEditProduct(index, 'additionalNote', e.target.value)}
-                                  placeholder="개별 메모"
-                                  sx={{ flex: 1 }}
-                                />
-                                <IconButton
-                                  color="error"
-                                  onClick={() => removeEditProduct(index)}
-                                  size="small"
-                                >
-                                  <DeleteIcon />
-                                </IconButton>
-                              </Box>
+                            <Grid item xs={12} md={6}>
+                              <TextField
+                                fullWidth
+                                label="개별 메모"
+                                size="small"
+                                value={product.additionalNote}
+                                onChange={(e) => updateEditProduct(index, 'additionalNote', e.target.value)}
+                                placeholder="개별 메모"
+                              />
                             </Grid>
                           </Grid>
                         </Card>

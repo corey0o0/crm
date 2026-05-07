@@ -228,7 +228,10 @@ function OnlineStats() {
                const cp = it.product_price !== undefined && it.product_price !== null ? Number(it.product_price) : (it.price !== undefined && it.price !== null ? Number(it.price) : 0);
                return acc + (cp * Number(it.quantity || 1));
            }, 0);
-           const distributableAmount = Math.max(0, Number(o.total_amount || 0) - Number(o.shipping_fee || 0) - canceledAmount);
+           // 네이버페이 선불금 처리: total_amount=0이면 품목 payment_amount 합계 사용
+           const _itemPaySum = validItems.reduce((acc, i) => acc + Number(i.payment_amount || 0), 0);
+           const _effTotal = Number(o.total_amount || 0) === 0 && _itemPaySum > 0 ? _itemPaySum : Number(o.total_amount || 0);
+           const distributableAmount = Math.max(0, _effTotal - Number(o.shipping_fee || 0) - canceledAmount);
 
            let totalWeight = validItems.reduce((acc, i) => {
               let w = 0;
@@ -479,7 +482,10 @@ function OnlineStats() {
                 const cp = it.product_price !== undefined && it.product_price !== null ? Number(it.product_price) : (it.price !== undefined && it.price !== null ? Number(it.price) : 0);
                 return acc + (cp * Number(it.quantity || 1));
             }, 0);
-            const distributableAmount = Math.max(0, Number(o.total_amount || 0) - Number(o.shipping_fee || 0) - canceledAmount);
+            // 네이버페이 선불금 처리
+            const _itemPaySum2 = validItems.reduce((acc, i) => acc + Number(i.payment_amount || 0), 0);
+            const _effTotal2 = Number(o.total_amount || 0) === 0 && _itemPaySum2 > 0 ? _itemPaySum2 : Number(o.total_amount || 0);
+            const distributableAmount = Math.max(0, _effTotal2 - Number(o.shipping_fee || 0) - canceledAmount);
 
             let totalWeight = validItems.reduce((acc, i) => {
                let w = 0;

@@ -1333,7 +1333,7 @@ function ShipmentList() {
             해당 일자에 배정된 출고 내역이 없습니다.
           </Typography>
         ) : (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative', pl: 4 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, position: 'relative', pl: 4 }}>
             {/* 세로선 */}
             <Box sx={{
               position: 'absolute',

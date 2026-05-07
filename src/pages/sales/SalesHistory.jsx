@@ -522,7 +522,10 @@ function SalesHistory() {
         
         const canceledItems = (items || []).filter(it => ['C11', 'C40', 'R40', 'E40'].includes(it.order_status));
         const canceledAmount = canceledItems.reduce((acc, it) => acc + (Number(it.product_price || it.price || 0) * Number(it.quantity || 1)), 0);
-        const distributableAmount = Math.max(0, Number(o.total_amount || 0) - Number(o.shipping_fee || 0) - canceledAmount);
+        // 네이버페이 선불금 처리: total_amount=0이면 품목 payment_amount 합계 사용
+        const itemPaymentSum = validItems.reduce((acc, i) => acc + Number(i.payment_amount || 0), 0);
+        const effectiveTotal = Number(o.total_amount || 0) === 0 && itemPaymentSum > 0 ? itemPaymentSum : Number(o.total_amount || 0);
+        const distributableAmount = Math.max(0, effectiveTotal - Number(o.shipping_fee || 0) - canceledAmount);
 
         let totalWeight = validItems.reduce((acc, i) => {
            let w = 0;

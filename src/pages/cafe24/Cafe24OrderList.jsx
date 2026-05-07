@@ -1554,7 +1554,10 @@ export default function Cafe24OrderList() {
                     const isCancelled = ['C11', 'C40', 'R40', 'E40'].includes(it.order_status);
                     return sum + (isCancelled ? 0 : Number(it.payment_amount || 0));
                   }, 0);
-                  const calculatedUsedPoints = Math.max(0, orderItemsSum + Number(order.shipping_fee || 0) - Number(order.total_amount || 0));
+                  // 네이버페이 등 선불금 결제: total_amount=0 이면 품목 payment_amount 합계 사용
+                  const effectiveTotalAmount = Number(order.total_amount || 0) === 0 && orderItemsSum > 0 ? orderItemsSum : Number(order.total_amount || 0);
+                  const isPrepaid = Number(order.total_amount || 0) === 0 && orderItemsSum > 0;
+                  const calculatedUsedPoints = Math.max(0, orderItemsSum + Number(order.shipping_fee || 0) - effectiveTotalAmount);
                   const displayUsedPoints = Number(order.used_points !== undefined && order.used_points !== null ? order.used_points : calculatedUsedPoints);
 
                   acc.push(
@@ -1665,13 +1668,16 @@ export default function Cafe24OrderList() {
                       {idx === 0 && <TableCell align="right" rowSpan={items.length}>
                         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
                           <Box display="flex" alignItems="center" justifyContent="flex-end" gap={0.5}>
-                            <strong>{Number(order.total_amount || 0).toLocaleString()}</strong>
+                            <strong>{effectiveTotalAmount.toLocaleString()}</strong>
                             {!order.is_transferred && (
                               <IconButton size="small" onClick={() => handleOpenAmountEditModal(order)} title="금액 직접 수정" sx={{ padding: 0 }}>
                                 <EditIcon fontSize="small" color="action" />
                               </IconButton>
                             )}
                           </Box>
+                          {isPrepaid && (
+                            <Chip label="선불금 처리" size="small" color="info" variant="filled" sx={{ height: 16, fontSize: '0.6rem' }} />
+                          )}
                           {items[0]?.payment_method && (
                             <Chip label={items[0].payment_method} size="small" variant="outlined" sx={{ height: 16, fontSize: '0.65rem', color: 'text.secondary' }} />
                           )}
