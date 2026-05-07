@@ -1339,10 +1339,20 @@ function InventoryManagement() {
           const val = headerRowValues[i]?.toString().trim();
           if (val) colMap[val] = i;
         }
+        console.log('[엑셀 파싱] 헤더 컬럼 맵:', colMap);
 
         const getColVal = (row, key1, key2) => {
-          if (colMap[key1] && row.values[colMap[key1]] !== undefined) return String(row.values[colMap[key1]]);
-          if (key2 && colMap[key2] && row.values[colMap[key2]] !== undefined) return String(row.values[colMap[key2]]);
+          const getCellStr = (colIndex) => {
+            if (!colIndex) return '';
+            const cell = row.getCell(colIndex);
+            if (!cell || cell.value === null || cell.value === undefined) return '';
+            if (typeof cell.value === 'object' && cell.value.result !== undefined) return String(cell.value.result);
+            if (typeof cell.value === 'object' && cell.value.text !== undefined) return String(cell.value.text);
+            return String(cell.value).trim();
+          };
+          const v1 = getCellStr(colMap[key1]);
+          if (v1) return v1;
+          if (key2) return getCellStr(colMap[key2]);
           return '';
         };
 
@@ -1357,7 +1367,7 @@ function InventoryManagement() {
           if (productCode || barcode || productName) {
             const item = {
               productCode: productCode,
-              productBarcode: barcode, // handleExcelDataSubmit에서 item.productBarcode로 읽으므로 통일
+              productBarcode: barcode,
               productName: productName,
               quantity: parseInt(qtyStr, 10) || 0,
               fromLocation: getColVal(row, '출발지', '보내는곳'),
@@ -1368,6 +1378,7 @@ function InventoryManagement() {
             data.push(item);
           }
         });
+        console.log('[엑셀 파싱] 파싱 결과 샘플 (첫 3행):', data.slice(0, 3));
       }
 
       setExcelData(data);
@@ -4515,6 +4526,17 @@ function InventoryManagement() {
 
             {/* 업로드된 데이터 미리보기 */}
             {excelData.length > 0 && (() => {
+              // products 로딩 확인
+              if (products.length === 0) {
+                return (
+                  <Box sx={{ p: 2, bgcolor: '#fff3e0', border: '1px solid #ffb74d', borderRadius: 1, mb: 2 }}>
+                    <Typography variant="body2" color="warning.dark">
+                      ⏳ 상품 목록을 불러오는 중입니다. 잠시 후 다시 시도해주세요. ({excelData.length}개 행 파싱 완료)
+                    </Typography>
+                  </Box>
+                );
+              }
+
               // products가 로드된 상태에서 매칭 결과를 미리 계산
               const previewItems = excelData.map(item => {
                 const inputCode = String(item.productCode || '').trim().toLowerCase();
