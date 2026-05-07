@@ -64,9 +64,8 @@ export default function ManualSalesList({ isEmbedded = false }) {
     try {
       let query = supabase.from('shipments').select('*, shipment_parts(*)', { count: 'exact' });
       
-      // B2B & 과거 매출 판별 (기존 이카운트 데이터 + 대리점 매핑 데이터 + 신규 B2B태그 + 수기판매)
-      let condition = `sales_channel.eq.과거 이카운트 이관,sales_channel.eq.[B2B수기],note.ilike.%[B2B수기판매]%,note.ilike.%[과거 이카운트 이관]%,note.ilike.%[엑셀일괄등록]%,note.ilike.%[수기판매]%`;
-      query = query.or(condition);
+      // 수기 판매 및 엑셀 업로드 데이터만 조회
+      query = query.in('record_type', ['manual_sale', 'excel_upload']);
 
       if (statusFilter !== 'all') {
         query = query.eq('status', statusFilter);
@@ -107,7 +106,7 @@ export default function ManualSalesList({ isEmbedded = false }) {
       setTotalCount(count || 0);
 
       // 전체 합계 계산 (현재 필터 조건 반영)
-      let sumQuery = supabase.from('shipments').select('price').or(condition);
+      let sumQuery = supabase.from('shipments').select('price').in('record_type', ['manual_sale', 'excel_upload']);
       if (statusFilter !== 'all') sumQuery = sumQuery.eq('status', statusFilter);
       if (sellerFilter !== 'all') sumQuery = sumQuery.eq('sales_channel', sellerFilter);
       if (customerFilter !== 'all') sumQuery = sumQuery.eq('customer_name', customerFilter);
@@ -489,8 +488,7 @@ export default function ManualSalesList({ isEmbedded = false }) {
         // 선택된 항목만 다운로드
         query = query.in('id', selectedItems);
       } else {
-        let condition = `sales_channel.eq.과거 이카운트 이관,sales_channel.eq.[B2B수기],note.ilike.%[B2B수기판매]%,note.ilike.%[과거 이카운트 이관]%,note.ilike.%[엑셀일괄등록]%,note.ilike.%[수기판매]%`;
-        query = query.or(condition);
+        query = query.in('record_type', ['manual_sale', 'excel_upload']);
 
         if (statusFilter !== 'all') query = query.eq('status', statusFilter);
         if (sellerFilter !== 'all') query = query.eq('sales_channel', sellerFilter);

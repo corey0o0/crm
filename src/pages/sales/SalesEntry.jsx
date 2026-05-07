@@ -136,7 +136,7 @@ function SingleEntryForm({ agencies, parts, setSnackbar }) {
       const { data: newShipment, error: shpErr } = await supabase.from('shipments').insert([{
         brand: 'XRB', order_date: format(formData.order_date, 'yyyy-MM-dd'), shipment_date: format(formData.order_date, 'yyyy-MM-dd'),
         status: '완료', customer_name: formData.buyer_name || agencyName || '비회원', sales_channel: salesChannel,
-        product_name: combinedTitle, quantity: totalQty, price: totalAmt, note: modifiedNote
+        product_name: combinedTitle, quantity: totalQty, price: totalAmt, note: modifiedNote, record_type: 'manual_sale'
       }]).select();
       if (shpErr) throw shpErr;
 
@@ -308,7 +308,7 @@ function ExcelBatchUpload({ agencies, parts, setSnackbar }) {
            shipment_date: orderDate,
            status: '완료', customer_name: customer,
            sales_channel: customer, product_name: matchedPart?.name || pName,
-           quantity: qty, price: total, note: row['메모'] || '[엑셀일괄등록]'
+           quantity: qty, price: total, note: row['메모'] || '[엑셀일괄등록]', record_type: 'excel_upload'
          }]).select();
 
          if (!error && newShp && newShp[0] && matchedPart) {

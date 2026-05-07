@@ -236,22 +236,37 @@ export const countServices = async (options = {}) => {
 /**
  * 출고 데이터 조회 (브랜드 및 날짜 필터링 포함)
  */
-export const fetchShipments = async (options = {}) => {
+// 공통 필터 생성 유틸리티
+const buildShipmentFilters = (options) => {
   const {
     selectedBrand = '',
     searchTerm = '',
     dateFilter = {},
-    page = 0,
-    pageSize = 50,
-    signal = null
+    statusFilter = 'all',
+    sellerFilter = 'all',
+    recordType = 'store_shipment' // 기본값은 매장출고
   } = options;
 
-  // 필터 조건 구성
-  let filter = '';
   const filters = [];
 
   if (selectedBrand && selectedBrand !== 'ALL') {
     filters.push(`brand=eq.${encodeURIComponent(selectedBrand)}`);
+  }
+
+  if (recordType) {
+    filters.push(`record_type=eq.${encodeURIComponent(recordType)}`);
+  }
+
+  if (statusFilter && statusFilter !== 'all') {
+    filters.push(`status=eq.${encodeURIComponent(statusFilter)}`);
+  }
+
+  if (sellerFilter && sellerFilter !== 'all') {
+    if (sellerFilter === '공홈') {
+      filters.push(`or=(sales_channel.eq.${encodeURIComponent('공홈')},sales_channel.is.null,sales_channel.eq.)`);
+    } else {
+      filters.push(`sales_channel=eq.${encodeURIComponent(sellerFilter)}`);
+    }
   }
 
   if (dateFilter.startDate && dateFilter.endDate) {
@@ -272,7 +287,6 @@ export const fetchShipments = async (options = {}) => {
     const cleanTerm = safeTerm.replace(/^(shp-|SHP-)/i, '').trim();
     
     let idSearch = '';
-    // UUID 앞 8자리 검색 지원 (SHP-XXXX)
     if (/^[a-fA-F0-9]{8}$/.test(cleanTerm)) {
       idSearch = `,and(id.gte.${cleanTerm}-0000-0000-0000-000000000000,id.lte.${cleanTerm}-ffff-ffff-ffff-ffffffffffff)`;
     }
@@ -280,12 +294,18 @@ export const fetchShipments = async (options = {}) => {
     filters.push(`or=(customer_name.ilike."*${encodeURIComponent(safeTerm)}*",product_name.ilike."*${encodeURIComponent(safeTerm)}*",customer_phone.ilike."*${encodeURIComponent(safeTerm)}*",order_no.ilike."*${encodeURIComponent(safeTerm)}*",tracking_number.ilike."*${encodeURIComponent(safeTerm)}*"${idSearch})`);
   }
 
-  // B2B/이카운트 제외 필터는 PostgREST 중첩 문법(400 에러)으로 인해 클라이언트에서 처리
+  return filters.length > 0 ? filters.join('&') : '';
+};
 
+export const fetchShipments = async (options = {}) => {
+  const {
+    dateFilter = {},
+    page = 0,
+    pageSize = 50,
+    signal = null
+  } = options;
 
-  if (filters.length > 0) {
-    filter = filters.join('&');
-  }
+  const filter = buildShipmentFilters(options);
 
   // 기준일자에 따른 DB 정렬 기준 동적 설정 (신규 항목 상단 보장)
   let orderString = 'created_at.desc,order_date.desc.nullslast';
@@ -293,7 +313,6 @@ export const fetchShipments = async (options = {}) => {
     orderString = 'shipment_date.desc.nullslast,created_at.desc';
   }
 
-  // 페이지네이션
   const offset = page * pageSize;
 
   return fetchFromSupabase('shipments', {
@@ -310,63 +329,8 @@ export const fetchShipments = async (options = {}) => {
  * 출고 데이터 카운트 (브랜드 및 날짜 필터링 포함)
  */
 export const countShipments = async (options = {}) => {
-  const {
-    selectedBrand = '',
-    searchTerm = '',
-    dateFilter = {},
-    signal = null
-  } = options;
-
-  // 필터 조건 구성 (fetchShipments와 동일)
-  let filter = '';
-  const filters = [];
-
-  if (selectedBrand && selectedBrand !== 'ALL') {
-    filters.push(`brand=eq.${encodeURIComponent(selectedBrand)}`);
-  }
-
-  // 날짜 필터 적용
-  if (dateFilter.startDate && dateFilter.endDate) {
-    const startDate = dateFilter.startDate;
-    const endDate = dateFilter.endDate;
-
-    if (dateFilter.type === 'order_date') {
-      filters.push(`order_date=gte.${startDate}`);
-      filters.push(`order_date=lte.${endDate}`);
-    } else if (dateFilter.type === 'completion_date') {
-      filters.push(`shipment_date=gte.${startDate}`);
-      filters.push(`shipment_date=lte.${endDate}`);
-    }
-  }
-
-  if (searchTerm) {
-    const safeTerm = searchTerm.replace(/"/g, '');
-    const cleanTerm = safeTerm.replace(/^(shp-|SHP-)/i, '').trim();
-    
-    let idSearch = '';
-    if (/^[a-fA-F0-9]{8}$/.test(cleanTerm)) {
-      idSearch = `,and(id.gte.${cleanTerm}-0000-0000-0000-000000000000,id.lte.${cleanTerm}-ffff-ffff-ffff-ffffffffffff)`;
-    }
-
-    filters.push(`or=(customer_name.ilike."*${encodeURIComponent(safeTerm)}*",product_name.ilike."*${encodeURIComponent(safeTerm)}*",customer_phone.ilike."*${encodeURIComponent(safeTerm)}*",order_no.ilike."*${encodeURIComponent(safeTerm)}*",tracking_number.ilike."*${encodeURIComponent(safeTerm)}*"${idSearch})`);
-  }
-
-  // B2B 수기판매, 수기판매, 과거 매출 데이터는 B2C 출고 목록에서 카운트 완전 제외
-  const ecountTag = encodeURIComponent('과거 이카운트 이관');
-  const b2bTag1 = encodeURIComponent('[B2B수기]');
-  const b2bTag2 = encodeURIComponent('[B2B수기판매]');
-  const excelTag = encodeURIComponent('[엑셀일괄등록]');
-  const manualTag = encodeURIComponent('[수기판매]');
-  const ecountNoteTag = encodeURIComponent('이카운트');
-  const salesChannelFilter = `or(sales_channel.is.null,and(sales_channel.neq.${ecountTag},sales_channel.neq.${b2bTag1}))`;
-  const noteFilter = `or(note.is.null,and(note.not.ilike.*${b2bTag2}*,note.not.ilike.*${excelTag}*,note.not.ilike.*${manualTag}*,note.not.ilike.*${ecountNoteTag}*))`;
-
-  filters.push(`and=(${salesChannelFilter},${noteFilter})`);
-
-  if (filters.length > 0) {
-    filter = filters.join('&');
-  }
-
+  const { signal = null } = options;
+  const filter = buildShipmentFilters(options);
   return countFromSupabase('shipments', filter, signal);
 };
 

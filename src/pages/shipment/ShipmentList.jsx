@@ -114,7 +114,7 @@ function ShipmentList() {
   const [warehouses, setWarehouses] = useState([]);
   const [uploadedData, setUploadedData] = useState([]);
   const [previewData, setPreviewData] = useState([]);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [up0, setUp0] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
 
   // 마이그레이션 관련 상태 추가
@@ -134,18 +134,12 @@ function ShipmentList() {
   const [rowsPerPage] = useState(30);
 
   // 지연 로딩 관련 상태 추가
-  const [firstPageLoaded, setFirstPageLoaded] = useState(false);
-  const [totalExpected, setTotalExpected] = useState(0);
-  const [loadedChunks, setLoadedChunks] = useState(0);
-  const [isLoadingNextChunk, setIsLoadingNextChunk] = useState(false);
-  const [hasMoreData, setHasMoreData] = useState(true);
-  const [networkError, setNetworkError] = useState(false);
+    const [totalExpected, setTotalExpected] = useState(0);
+        const [networkError, setNetworkError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
-  const [backgroundLoading] = useState(false);
-  const [loadProgress] = useState(0);
-  const [searchLoading] = useState(false);
+      const [searchLoading] = useState(false);
   const [hasActiveSearch, setHasActiveSearch] = useState(false);
 
   // 브랜드별 준비중+출고대기 건수
@@ -237,10 +231,10 @@ function ShipmentList() {
 
   // 출고 정보 변경 시 건수 갱신
   useEffect(() => {
-    if (firstPageLoaded) {
+    if (!loading) {
       fetchBrandCounts();
     }
-  }, [firstPageLoaded, shipments.length]);
+  }, [!loading, shipments.length]);
 
   // 라우트 재진입/포커스/가시성 복귀 시 자동 재요청
   useEffect(() => {
@@ -264,7 +258,7 @@ function ShipmentList() {
       setNetworkError(false);
       // 데이터가 없으면 다시 로딩
       if (shipments.length === 0) {
-        fetchFirstPage();
+        fetchShipments();
       }
     };
 
@@ -307,32 +301,13 @@ function ShipmentList() {
     return '공홈';
   };
 
-  // 첫 페이지만 빠르게 로딩하는 함수
-  const fetchFirstPage = async (retryAttempt = 0) => {
+
+  const fetchShipments = async (retryAttempt = 0) => {
     try {
       setLoading(true);
       setNetworkError(false);
-      setFirstPageLoaded(false);
-      setLoadedChunks(0);
-      setHasMoreData(true);
       setHasActiveSearch(false);
 
-      // 감시 타이머 시작(15초)
-      if (loadingWatchdogRef.current) clearTimeout(loadingWatchdogRef.current);
-      loadingWatchdogRef.current = setTimeout(() => {
-        setSnackbar({ open: true, severity: 'error', message: '요청이 예상보다 오래 걸립니다. 네트워크 상태를 확인한 후 다시 시도하세요.' });
-        setLoading(false);
-      }, 15000);
-
-      if (retryAttempt === 0) {
-        setShipments([]); // 첫 번째 시도에서만 초기화
-      }
-
-      console.log('fetchFirstPage called with selectedBrand:', selectedBrand, 'retry:', retryAttempt);
-
-      const FIRST_PAGE_SIZE = 50;
-
-      // REST API로 변경 - 날짜 필터 준비
       let processedDateFilter = {};
       if (dateFilter.startDate && dateFilter.endDate) {
         processedDateFilter = {
@@ -342,312 +317,67 @@ function ShipmentList() {
         };
       }
 
-      // 총 데이터 개수와 첫 페이지 데이터를 동시에 가져오기 (Abort + timeout 적용)
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 12000);
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-      console.log('[ShipmentList] Starting Promise.all for count + first page');
-      const [totalCount, firstPageData] = await Promise.all([
+      const [totalCount, pageData] = await Promise.all([
         countShipments({
           selectedBrand,
           searchTerm,
           dateFilter: processedDateFilter,
+          statusFilter,
+          sellerFilter,
+          recordType: 'store_shipment',
           signal: controller.signal
         }),
         fetchShipmentsAPI({
           selectedBrand,
           searchTerm,
           dateFilter: processedDateFilter,
-          page: 0,
-          pageSize: FIRST_PAGE_SIZE,
+          statusFilter,
+          sellerFilter,
+          recordType: 'store_shipment',
+          page: page,
+          pageSize: rowsPerPage,
           signal: controller.signal
         })
       ]);
 
       clearTimeout(timeoutId);
 
-      console.log('[ShipmentList] REST API results - count:', totalCount, 'first page:', firstPageData?.length);
+      setTotalExpected(totalCount || 0);
+      setShipments(pageData || []);
 
-      setTotalExpected(totalCount);
-      console.log(`Total shipments: ${totalCount}, First page loaded: ${firstPageData?.length || 0}`);
-
-      if (firstPageData && firstPageData.length > 0) {
-        // 날짜 기준으로 정렬 (REST API 버전)
-        const sortedData = [...firstPageData].sort((a, b) => {
-          let dateA, dateB;
-          if (dateFilter.type === 'order_date') {
-            dateA = a.order_date ? new Date(a.order_date) : new Date(a.created_at || 0);
-            dateB = b.order_date ? new Date(b.order_date) : new Date(b.created_at || 0);
-          } else if (dateFilter.type === 'completion_date') {
-            dateA = a.shipment_date ? new Date(a.shipment_date) : new Date(a.created_at || 0);
-            dateB = b.shipment_date ? new Date(b.shipment_date) : new Date(b.created_at || 0);
-          } else {
-            dateA = new Date(a.created_at || 0);
-            dateB = new Date(b.created_at || 0);
-          }
-          return dateB - dateA;
-        });
-
-        setShipments(sortedData);
-        setFirstPageLoaded(true);
-        setLoading(false); // 첫 페이지 로딩 완료
-        setLoadedChunks(1); // 첫 번째 청크 로드 완료
-
-        // 판매처 목록 업데이트
-        const uniqueSellers = new Set(['전체']);
-        sortedData.forEach(shipment => {
+      // 판매처 목록 수집 (현재 페이지 + 기본 항목)
+      const uniqueSellers = new Set(['전체', '공홈']);
+      if (pageData) {
+        pageData.forEach(shipment => {
           uniqueSellers.add(extractSalesChannel(shipment.note, shipment.sales_channel));
         });
-        setSellers(Array.from(uniqueSellers));
-
-        // 백그라운드에서 한 청크(100건)만 더 로딩
-        if (totalCount > FIRST_PAGE_SIZE) {
-          setTimeout(() => {
-            fetchNextChunk(FIRST_PAGE_SIZE);
-          }, 200); // 200ms 후 백그라운드 로딩 시작
-        } else {
-          setHasMoreData(false);
-        }
-      } else {
-        setFirstPageLoaded(true);
-        setLoading(false);
-        setHasMoreData(false);
       }
+      setSellers(Array.from(uniqueSellers));
 
-      // 재시도 카운트 초기화
       setRetryCount(0);
-      if (loadingWatchdogRef.current) {
-        clearTimeout(loadingWatchdogRef.current);
-        loadingWatchdogRef.current = null;
-      }
+      setLoading(false);
 
     } catch (err) {
-      console.error('[ShipmentList] Error fetching first page:', err);
+      console.error('[ShipmentList] Error fetching page:', err);
       setNetworkError(true);
-      if (loadingWatchdogRef.current) {
-        clearTimeout(loadingWatchdogRef.current);
-        loadingWatchdogRef.current = null;
-      }
       if (err?.name === 'AbortError') {
-        setSnackbar({ open: true, severity: 'error', message: '요청이 시간 초과로 취소되었습니다. 다시 시도해주세요.' });
+        setSnackbar({ open: true, severity: 'error', message: '요청이 시간 초과로 취소되었습니다.' });
         setLoading(false);
         return;
       }
 
-      // Failed to fetch 계열 자동 1회 재시도
       const msg = String(err?.message || '');
-      if (retryAttempt === 0 && (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('fetch'))) {
-        console.log('[ShipmentList] Network error detected, retrying once...');
-        return fetchFirstPage(1);
+      if (retryAttempt === 0 && (msg.includes('Failed to fetch') || msg.includes('NetworkError'))) {
+        return fetchShipments(1);
       }
 
-      // 네트워크 오류가 계속되면 명확한 안내
-      setSnackbar({
-        open: true,
-        message: '네트워크 연결 문제가 발생했습니다. 브라우저 연결이 유휴 상태였다면 페이지를 새로고침해주세요.',
-        severity: 'error'
-      });
+      setSnackbar({ open: true, message: '네트워크 연결 문제가 발생했습니다.', severity: 'error' });
       setLoading(false);
     }
   };
-
-  // 다음 청크(100건) 로딩하는 함수
-  const fetchNextChunk = async (startOffset) => {
-    try {
-      setIsLoadingNextChunk(true);
-
-      const CHUNK_SIZE = 100;
-      const page = Math.floor(startOffset / CHUNK_SIZE);
-
-      console.log(`[ShipmentList] Loading next chunk: page ${page}, offset ${startOffset}`);
-
-      // REST API로 변경 - 날짜 필터 준비
-      let processedDateFilter = {};
-      if (dateFilter.startDate && dateFilter.endDate) {
-        processedDateFilter = {
-          startDate: format(new Date(dateFilter.startDate), 'yyyy-MM-dd') + 'T00:00:00+09:00',
-          endDate: format(new Date(dateFilter.endDate), 'yyyy-MM-dd') + 'T23:59:59+09:00',
-          type: dateFilter.type
-        };
-      }
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-      const shipmentsData = await fetchShipmentsAPI({
-        selectedBrand,
-        searchTerm,
-        dateFilter: processedDateFilter,
-        page: page,
-        pageSize: CHUNK_SIZE,
-        signal: controller.signal
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!shipmentsData || shipmentsData.length === 0) {
-        setHasMoreData(false);
-        return;
-      }
-
-      console.log(`[ShipmentList] Next chunk loaded: ${shipmentsData.length} items`);
-
-      // 날짜 기준으로 정렬
-      const sortedData = [...shipmentsData].sort((a, b) => {
-        let dateA, dateB;
-        if (dateFilter.type === 'order_date') {
-          dateA = a.order_date ? new Date(a.order_date) : new Date(a.created_at || 0);
-          dateB = b.order_date ? new Date(b.order_date) : new Date(a.created_at || 0);
-        } else if (dateFilter.type === 'completion_date') {
-          dateA = a.shipment_date ? new Date(a.shipment_date) : new Date(a.created_at || 0);
-          dateB = b.shipment_date ? new Date(b.shipment_date) : new Date(a.created_at || 0);
-        } else {
-          dateA = new Date(a.created_at || 0);
-          dateB = new Date(b.created_at || 0);
-        }
-        return dateB - dateA;
-      });
-
-      // 기존 데이터에 추가 (id 기준 중복 제거)
-      setShipments(prev => {
-        const byId = new Map(prev.map(item => [item.id, item]));
-        for (const item of sortedData) {
-          byId.set(item.id, item);
-        }
-        return Array.from(byId.values());
-      });
-      setLoadedChunks(prev => prev + 1);
-
-      // 판매처 목록 업데이트
-      const uniqueSellers = new Set(['전체']);
-      setShipments(currentShipments => {
-        currentShipments.forEach(shipment => {
-          uniqueSellers.add(extractSalesChannel(shipment.note, shipment.sales_channel));
-        });
-        setSellers(Array.from(uniqueSellers));
-        return currentShipments;
-      });
-
-      // 로드된 데이터가 청크 크기보다 작으면 더 이상 데이터 없음
-      if (shipmentsData.length < CHUNK_SIZE) {
-        setHasMoreData(false);
-      }
-
-      console.log(`[ShipmentList] Chunk loaded: ${shipmentsData.length} items. Total chunks: ${loadedChunks + 1}`);
-
-      console.log(`Chunk loaded: ${shipmentsData.length} items. Total chunks: ${loadedChunks + 1}`);
-
-    } catch (err) {
-      console.error('Error loading next chunk:', err);
-      if (err?.name === 'AbortError') {
-        return;
-      }
-    } finally {
-      setIsLoadingNextChunk(false);
-    }
-  };
-
-  // filteredShipments useMemo로 계산 (TDZ 에러 방지를 위해 위로 끌어올림)
-  const filteredShipments = useMemo(() => {
-    let filtered = shipments;
-
-    // 검색
-    if (searchTerm) {
-      const q = searchTerm.toLowerCase();
-      const cleanQ = q.replace(/^(shp-|SHP-)/i, '').trim();
-      filtered = filtered.filter(shipment =>
-        shipment.customer_name?.toLowerCase().includes(q) ||
-        shipment.customer_phone?.toLowerCase().includes(q) ||
-        shipment.product_name?.toLowerCase().includes(q) ||
-        shipment.id?.toLowerCase().includes(cleanQ) ||
-        shipment.order_no?.toLowerCase().includes(q) ||
-        shipment.tracking_number?.toLowerCase().includes(q)
-      );
-    }
-
-    // B2B / 이카운트 데이터 제외 (서버 필터 제거로 인해 클라이언트에서 처리)
-    const B2B_EXCLUDE_CHANNELS = ['과거 이카운트 이관', '[B2B수기]'];
-    const B2B_EXCLUDE_NOTES = ['[B2B수기판매]', '[엑셀일괄등록]', '[수기판매]', '이카운트'];
-    filtered = filtered.filter(s => {
-      if (s.sales_channel && B2B_EXCLUDE_CHANNELS.includes(s.sales_channel)) return false;
-      if (s.note && B2B_EXCLUDE_NOTES.some(tag => s.note.includes(tag))) return false;
-      return true;
-    });
-
-    // 상태 필터
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(shipment => shipment.status === statusFilter);
-    }
-
-    // 판매처 필터
-    if (sellerFilter !== 'all') {
-      filtered = filtered.filter(shipment => extractSalesChannel(shipment.note, shipment.sales_channel) === sellerFilter);
-    }
-
-    // 날짜 필터 - 메모리에서의 추가 필터링 제거
-    // DB 쿼리에서 이미 필터링된 결과만 사용
-
-    // 정렬
-    filtered.sort((a, b) => {
-      // 2. 그 다음 날짜로 정렬 (신규 항목은 created_at 우선)
-      let dateA, dateB;
-      if (dateFilter.type === 'order_date') {
-        dateA = a.order_date ? new Date(a.order_date) : new Date(a.created_at || 0);
-        dateB = b.order_date ? new Date(b.order_date) : new Date(b.created_at || 0);
-      } else if (dateFilter.type === 'completion_date') {
-        dateA = a.shipment_date ? new Date(a.shipment_date) : new Date(a.created_at || 0);
-        dateB = b.shipment_date ? new Date(b.shipment_date) : new Date(b.created_at || 0);
-      } else {
-        dateA = new Date(a.created_at || 0);
-        dateB = new Date(b.created_at || 0);
-      }
-      return dateB - dateA;
-    });
-
-    return filtered;
-  }, [shipments, searchTerm, statusFilter, sellerFilter, dateFilter.type]);
-
-
-  // 페이지 변경 시 필요하면 새 청크 로딩
-  const handlePageChangeWithLoading = (event, newPage) => {
-    // 표시할 데이터가 없으면 페이지 변경하지 않음
-    if (filteredShipments.length === 0 && !hasMoreData) {
-      return;
-    }
-
-    // 전체 예상 개수를 기반으로 최대 페이지 계산 (클라이언트 필터링으로 인해 filteredShipments.length가 작을 수 있음)
-    const effectiveTotal = hasActiveSearch ? filteredShipments.length : Math.max(filteredShipments.length, totalExpected);
-    const maxPage = Math.max(0, Math.ceil(effectiveTotal / rowsPerPage) - 1);
-    const validPage = Math.min(newPage, maxPage);
-
-    setPage(validPage);
-
-    // 새 페이지를 표시하기 위해 필요한 필터링된 항목 수
-    const itemsNeeded = (validPage + 1) * rowsPerPage;
-    const currentFilteredLoaded = filteredShipments.length;
-
-    // 현재 로드된 필터링 데이터로 충분하지 않고, 더 로드할 데이터가 있으며, 현재 로딩 중이 아닐 때
-    if (itemsNeeded > currentFilteredLoaded && hasMoreData && !isLoadingNextChunk && !hasActiveSearch) {
-      console.log(`Need ${itemsNeeded} filtered items, have ${currentFilteredLoaded}. Loading next chunk...`);
-      fetchNextChunk(shipments.length);
-    }
-  };
-
-  // 클라이언트 필터링으로 인해 현재 페이지를 채울 데이터가 부족하면 자동 추가 로딩
-  useEffect(() => {
-    const itemsNeeded = (page + 1) * rowsPerPage;
-    if (!loading && !isLoadingNextChunk && hasMoreData && !hasActiveSearch && filteredShipments.length < itemsNeeded) {
-      console.log(`Auto-fetching to fill page: need ${itemsNeeded}, have ${filteredShipments.length}`);
-      fetchNextChunk(shipments.length);
-    }
-  }, [loading, isLoadingNextChunk, hasMoreData, hasActiveSearch, filteredShipments.length, page, rowsPerPage, shipments.length]);
-
-
-  // 기존 함수명 유지를 위한 래퍼
-  const fetchShipments = () => {
-    fetchFirstPage();
-  };
-
 
   // 검색이나 필터 변경 시에만 페이지 초기화 (청크 로딩 시에는 유지)
   useEffect(() => {
@@ -856,7 +586,7 @@ function ShipmentList() {
   const handleExcelDownload = () => {
     try {
       // 필터가 적용된 현재 표시 중인 출고 데이터 사용
-      const shipmentsToExport = filteredShipments;
+      const shipmentsToExport = shipments;
 
       if (shipmentsToExport.length === 0) {
         setSnackbar({
@@ -981,7 +711,7 @@ function ShipmentList() {
     if (uploadedData.length === 0) return;
 
     setIsUploading(true);
-    setUploadProgress(0);
+    setUp0(0);
 
     try {
       // 중복 확인을 위한 고객 정보별 그룹화
@@ -1107,7 +837,7 @@ function ShipmentList() {
         }
 
         processedGroups++;
-        setUploadProgress(Math.round((processedGroups / totalGroups) * 100));
+        setUp0(Math.round((processedGroups / totalGroups) * 100));
       }
 
       // 모든 데이터 처리 완료
@@ -1356,7 +1086,7 @@ function ShipmentList() {
 
   // 스켈레톤 테이블 렌더링
   const renderSkeletonTable = () => {
-    const isInitialLoading = loading && !firstPageLoaded;
+    const isInitialLoading = loading && loading;
     const isSearchLoading = searchLoading;
 
     return (
@@ -1568,7 +1298,7 @@ function ShipmentList() {
     const targetDateStr = format(timelineDate, 'yyyy-MM-dd');
 
     // 선택된 일자의 출고건 필터링 및 시간순 정렬
-    const dayShipments = filteredShipments
+    const dayShipments = shipments
       .filter(shipment => {
         // 출고일자(shipment_date) 기준 필터링
         if (!shipment.shipment_date || !isValid(parseISO(shipment.shipment_date))) return false;
@@ -1665,7 +1395,7 @@ function ShipmentList() {
   }
 
   // 초기 로딩 중일 때 스켈레톤 표시
-  if (loading && !firstPageLoaded) {
+  if (loading && loading) {
     return (
       <Box sx={{ width: '100%', maxWidth: '1800px', mx: 'auto', p: 2 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -1948,7 +1678,7 @@ function ShipmentList() {
       )}
 
       {/* 백그라운드 로딩 상태 표시 */}
-      {(backgroundLoading || isLoadingNextChunk) && firstPageLoaded && (
+      {(false || false) && !loading && (
         <Box sx={{
           position: 'fixed',
           bottom: 20,
@@ -1975,19 +1705,19 @@ function ShipmentList() {
               <CircularProgress size={20} color="inherit" />
               <Box sx={{ flex: 1 }}>
                 <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                  {isLoadingNextChunk ? '다음 페이지 로딩 중...' : '추가 데이터 로딩 중...'}
+                  {false ? '다음 페이지 로딩 중...' : '추가 데이터 로딩 중...'}
                 </Typography>
                 <Typography variant="caption" sx={{ opacity: 0.8 }}>
                   {shipments.length}/{hasActiveSearch ? shipments.length : totalExpected}건
-                  {loadProgress > 0 && ` (${Math.round(loadProgress)}%)`}
-                  {isLoadingNextChunk && ` • 청크 ${loadedChunks + 1} 로딩`}
+                  {0 > 0 && ` (${Math.round(0)}%)`}
+                  {false && ` • 청크 ${0 + 1} 로딩`}
                 </Typography>
               </Box>
             </Box>
-            {loadProgress > 0 && (
+            {0 > 0 && (
               <LinearProgress
                 variant="determinate"
-                value={loadProgress}
+                value={0}
                 sx={{
                   width: '100%',
                   mt: 1,
@@ -2005,7 +1735,7 @@ function ShipmentList() {
         renderTimeline()
       ) : (
         <>
-          {filteredShipments.length === 0 ? (
+          {shipments.length === 0 ? (
             <Typography align="center" sx={{ mt: 3 }}>
               {searchTerm || statusFilter !== 'all' || sellerFilter !== 'all' || dateFilter.startDate || dateFilter.endDate ?
                 '검색 조건에 맞는 출고 정보가 없습니다.' :
@@ -2029,7 +1759,7 @@ function ShipmentList() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {filteredShipments
+                  {shipments
                     .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                     .map((shipment) => (
                       <TableRow
@@ -2183,9 +1913,9 @@ function ShipmentList() {
               </Table>
               <TablePagination
                 component="div"
-                count={hasActiveSearch ? filteredShipments.length : Math.max(filteredShipments.length, totalExpected)}
+                count={hasActiveSearch ? shipments.length : Math.max(shipments.length, totalExpected)}
                 page={page}
-                onPageChange={handlePageChangeWithLoading}
+                onPageChange={(e, newPage) => setPage(newPage)}
                 rowsPerPage={rowsPerPage}
                 rowsPerPageOptions={[30, 50, 100]}
                 labelRowsPerPage="페이지당 행 수"
@@ -2288,7 +2018,7 @@ function ShipmentList() {
             {isUploading && (
               <Box sx={{ width: '100%', mt: 2, mb: 2 }}>
                 <Typography variant="body2" align="center">
-                  데이터 처리 중... {uploadProgress}%
+                  데이터 처리 중... {up0}%
                 </Typography>
                 <Box
                   sx={{
@@ -2308,7 +2038,7 @@ function ShipmentList() {
                       left: 0,
                       height: '100%',
                       bgcolor: '#3182f6',
-                      width: `${uploadProgress}%`,
+                      width: `${up0}%`,
                       transition: 'width 0.3s ease-in-out'
                     }}
                   />
