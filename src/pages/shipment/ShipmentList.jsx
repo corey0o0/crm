@@ -595,6 +595,15 @@ function ShipmentList() {
       );
     }
 
+    // B2B / 이카운트 데이터 제외 (서버 필터 제거로 인해 클라이언트에서 처리)
+    const B2B_EXCLUDE_CHANNELS = ['과거 이카운트 이관', '[B2B수기]'];
+    const B2B_EXCLUDE_NOTES = ['[B2B수기판매]', '[엑셀일괄등록]', '[수기판매]', '이카운트'];
+    filtered = filtered.filter(s => {
+      if (s.sales_channel && B2B_EXCLUDE_CHANNELS.includes(s.sales_channel)) return false;
+      if (s.note && B2B_EXCLUDE_NOTES.some(tag => s.note.includes(tag))) return false;
+      return true;
+    });
+
     // 상태 필터
     if (statusFilter !== 'all') {
       filtered = filtered.filter(shipment => shipment.status === statusFilter);

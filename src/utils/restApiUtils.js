@@ -280,17 +280,8 @@ export const fetchShipments = async (options = {}) => {
     filters.push(`or=(customer_name.ilike."*${encodeURIComponent(safeTerm)}*",product_name.ilike."*${encodeURIComponent(safeTerm)}*",customer_phone.ilike."*${encodeURIComponent(safeTerm)}*",order_no.ilike."*${encodeURIComponent(safeTerm)}*",tracking_number.ilike."*${encodeURIComponent(safeTerm)}*"${idSearch})`);
   }
 
-  // B2B 수기판매, 수기판매, 과거 매출 데이터는 B2C 출고 목록에서 완전히 제외
-  const ecountTag = encodeURIComponent('과거 이카운트 이관');
-  const b2bTag1 = encodeURIComponent('[B2B수기]');
-  const b2bTag2 = encodeURIComponent('[B2B수기판매]');
-  const excelTag = encodeURIComponent('[엑셀일괄등록]');
-  const manualTag = encodeURIComponent('[수기판매]');
-  const ecountNoteTag = encodeURIComponent('이카운트');
-  const salesChannelFilter = `or(sales_channel.is.null,and(sales_channel.neq.${ecountTag},sales_channel.neq.${b2bTag1}))`;
-  const noteFilter = `or(note.is.null,and(note.not.ilike.*${b2bTag2}*,note.not.ilike.*${excelTag}*,note.not.ilike.*${manualTag}*,note.not.ilike.*${ecountNoteTag}*))`;
+  // B2B/이카운트 제외 필터는 PostgREST 중첩 문법(400 에러)으로 인해 클라이언트에서 처리
 
-  filters.push(`and=(${salesChannelFilter},${noteFilter})`);
 
   if (filters.length > 0) {
     filter = filters.join('&');
