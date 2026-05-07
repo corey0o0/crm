@@ -929,7 +929,7 @@ function ShipmentList() {
         return 'warning';
       case '준비완료':
       case '작업완료':
-        return 'secondary';
+        return 'warning';
       case '반품완료':
         return 'error';
       case '출고완료':

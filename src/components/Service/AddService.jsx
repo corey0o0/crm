@@ -1909,7 +1909,7 @@ function AddService() {
       switch (currentStatus) {
         case '준비중': return '#1976d2';
         case '부품준비': return '#ed6c02';
-        case '준비완료': return '#9c27b0';
+        case '준비완료': return '#f57c00';
         case '반품완료': return '#d32f2f';
         case '출고완료': return '#2e7d32';
         default: return '#3182f6';
@@ -1919,7 +1919,7 @@ function AddService() {
       switch (currentStatus) {
         case '준비중': return '#1565c0';
         case '부품준비': return '#d65f02';
-        case '준비완료': return '#7b1fa2';
+        case '준비완료': return '#e65100';
         case '반품완료': return '#c62828';
         case '출고완료': return '#1e5e20';
         default: return '#1b64da';

@@ -1082,6 +1082,7 @@ function ServiceList() {
 
   const getStatusColor = (status) => {
     if (!status) return 'default';
+    if (status === '준비완료') return 'warning'; // 오렌지
     if (status.includes('완료')) {
       if (status === '반품완료') return 'error'; // 빨간색
       return 'success';  // 출고완료 등 초록색

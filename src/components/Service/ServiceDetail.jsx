@@ -1241,7 +1241,7 @@ function ServiceDetail() {
     switch (status) {
       case '준비중': return 'info';
       case '부품준비': return 'warning';
-      case '준비완료': return 'secondary';
+      case '준비완료': return 'warning';
       case '반품완료': return 'error';
       case '출고완료': return 'success';
       default: return 'info';
@@ -1253,7 +1253,7 @@ function ServiceDetail() {
       switch (currentStatus) {
         case '준비중': return '#1976d2';
         case '부품준비': return '#ed6c02';
-        case '준비완료': return '#9c27b0';
+        case '준비완료': return '#f57c00';
         case '반품완료': return '#d32f2f';
         case '출고완료': return '#2e7d32';
         default: return '#1976d2';
@@ -1264,7 +1264,7 @@ function ServiceDetail() {
       switch (currentStatus) {
         case '준비중': return '#1565c0';
         case '부품준비': return '#e65100';
-        case '준비완료': return '#7b1fa2';
+        case '준비완료': return '#e65100';
         case '반품완료': return '#c62828';
         case '출고완료': return '#1b5e20';
         default: return '#1565c0';
