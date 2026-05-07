@@ -291,7 +291,7 @@ const buildShipmentFilters = (options) => {
       idSearch = `,and(id.gte.${cleanTerm}-0000-0000-0000-000000000000,id.lte.${cleanTerm}-ffff-ffff-ffff-ffffffffffff)`;
     }
 
-    filters.push(`or=(customer_name.ilike."*${encodeURIComponent(safeTerm)}*",product_name.ilike."*${encodeURIComponent(safeTerm)}*",customer_phone.ilike."*${encodeURIComponent(safeTerm)}*",order_no.ilike."*${encodeURIComponent(safeTerm)}*",tracking_number.ilike."*${encodeURIComponent(safeTerm)}*"${idSearch})`);
+    filters.push(`or=(customer_name.ilike."*${encodeURIComponent(safeTerm)}*",customer_phone.ilike."*${encodeURIComponent(safeTerm)}*",tracking_number.ilike."*${encodeURIComponent(safeTerm)}*",sales_channel.ilike."*${encodeURIComponent(safeTerm)}*",note.ilike."*${encodeURIComponent(safeTerm)}*"${idSearch})`);
   }
 
   return filters.length > 0 ? filters.join('&') : '';
