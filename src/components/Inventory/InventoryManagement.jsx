@@ -2545,7 +2545,7 @@ function InventoryManagement() {
               setV2ExcelOpen(true);
             }}
           >
-            일괄 입출고
+            새로운 엑셀 업로드
           </Button>
           <Button
             variant="outlined"
@@ -4816,7 +4816,7 @@ function InventoryManagement() {
         PaperProps={{ sx: { borderRadius: 3 } }}
       >
         <DialogTitle sx={{ pb: 1, fontWeight: 700, fontSize: '1.2rem' }}>
-          📂 일괄 입출고 엑셀 업로드
+          📂 새로운 엑셀 업로드 (일괄 입출고)
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
             헤더: A | B | 상품코드 | 바코드 | 상품명 | 수량 | 입출발지 | 목적지 | 메모 | 개별메모
           </Typography>
