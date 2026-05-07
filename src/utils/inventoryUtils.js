@@ -556,7 +556,13 @@ export const processPartialReturn = async (sourceType, orderId, recordId, quanti
        finalPartId = partInfo.part_id;
     }
 
-    if (!finalPartId) throw new Error('실제 재고 부품 ID를 찾을 수 없습니다.');
+    // part_id가 없는 경우(커스텀 텍스트로만 입력된 부품):
+    // processInventory 내부에서 part_id === null이면 재고 실물 조정 없이 트랜잭션 기록만 수행하므로
+    // 에러를 던지지 않고 그대로 통과시킨다. (updatePartStatus의 L679 패턴과 동일)
+    if (!finalPartId && finalName === 'Unknown') {
+      throw new Error('부품 정보를 찾을 수 없습니다. (부품명 및 ID 모두 없음)');
+    }
+    // finalPartId가 null이지만 부품명은 있는 경우 → 커스텀 텍스트 부품으로 처리 (트랜잭션 기록만)
 
     let customerName = '';
     if (sourceType === 'shipment') {
