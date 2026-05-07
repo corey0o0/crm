@@ -613,6 +613,7 @@ function ShipmentForm() {
         quantity: totalQuantity,
         price: totalPrice,
         warehouse_id: shipmentData.warehouse_id, // 이제 필수로 들어감
+        record_type: 'manual_sale',
         updated_at: new Date().toISOString()
       };
 

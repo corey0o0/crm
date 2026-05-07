@@ -239,7 +239,8 @@ export default function EcountDataUploader() {
            note: `[과거 이카운트 이관] ${item.note}`,
            sales_channel: finalSalesChannel, // 대리점 여부에 따라 자동 적용
            price: item.total_price,
-           warehouse_id: manualWarehouseId || item.excel_warehouse_id || null
+           warehouse_id: manualWarehouseId || item.excel_warehouse_id || null,
+           record_type: 'manual_sale'
          };
 
          const { data: newShipment, error: insertError } = await supabase

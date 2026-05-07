@@ -131,7 +131,7 @@ function ShipmentList() {
 
   // 페이징 상태 추가
   const [page, setPage] = useState(0);
-  const [rowsPerPage] = useState(30);
+  const [rowsPerPage, setRowsPerPage] = useState(30);
 
   // 지연 로딩 관련 상태 추가
     const [totalExpected, setTotalExpected] = useState(0);
@@ -778,7 +778,8 @@ function ShipmentList() {
           quantity: totalQuantity,
           price: totalPrice,
           created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
+          record_type: 'store_shipment'
         };
 
         // 출고 정보 저장
@@ -1916,6 +1917,7 @@ function ShipmentList() {
                 page={page}
                 onPageChange={(e, newPage) => setPage(newPage)}
                 rowsPerPage={rowsPerPage}
+                onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
                 rowsPerPageOptions={[30, 50, 100]}
                 labelRowsPerPage="페이지당 행 수"
                 labelDisplayedRows={({ from, to, count }) =>
