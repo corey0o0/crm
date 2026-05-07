@@ -1392,6 +1392,13 @@ function InventoryManagement() {
 
   // 엑셀 데이터로 입고/출고 처리 (통합) (useCallback으로 메모이제이션)
   const handleExcelDataSubmit = useCallback(async () => {
+    // === 디버그 로그 ===
+    console.log('[엑셀 submit] products 수:', products.length);
+    console.log('[엑셀 submit] excelData 수:', excelData.length);
+    if (excelData.length > 0) console.log('[엑셀 submit] 첫 항목:', JSON.stringify(excelData[0]));
+    if (products.length > 0) console.log('[엑셀 submit] DB 샘플(첫 3개):', products.slice(0, 3).map(p => ({ id: p.id, code: p.code, name: p.name })));
+    // ==================
+
     if (excelData.length === 0) {
       showSnackbar('처리할 데이터가 없습니다.', 'error');
       return;
