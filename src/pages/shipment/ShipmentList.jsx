@@ -1759,9 +1759,7 @@ function ShipmentList() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {shipments
-                    .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                    .map((shipment) => (
+                  {shipments.map((shipment) => (
                       <TableRow
                         key={shipment.id}
                         hover
