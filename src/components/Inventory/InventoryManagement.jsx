@@ -2200,11 +2200,21 @@ function InventoryManagement() {
                              item.productName.toLowerCase().includes(filter.product.toLowerCase())
                            );
       
+      const rawSearch = (filter.note || '').toLowerCase().trim();
+      const isShpSvcSearch = /^(shp-|svc-)/i.test(rawSearch);
+      const cleanSearch = isShpSvcSearch ? rawSearch.replace(/^(shp-|svc-)/i, '') : '';
+      
+      const checkNoteMatch = (noteText) => {
+        if (!noteText) return false;
+        const lowerNote = noteText.toLowerCase();
+        if (lowerNote.includes(rawSearch)) return true;
+        if (cleanSearch && cleanSearch.length > 0 && lowerNote.includes(cleanSearch)) return true;
+        return false;
+      };
+
       const matchesNote = !filter.note || 
-                         group.items.some(item => 
-                           (item.note || '').toLowerCase().includes(filter.note.toLowerCase())
-                         ) ||
-                         (group.note || '').toLowerCase().includes(filter.note.toLowerCase());
+                         group.items.some(item => checkNoteMatch(item.note)) ||
+                         checkNoteMatch(group.note);
       
       const matchesDateFrom = !filter.dateFrom || group.date >= filter.dateFrom;
       const matchesDateTo = !filter.dateTo || group.date <= filter.dateTo;
