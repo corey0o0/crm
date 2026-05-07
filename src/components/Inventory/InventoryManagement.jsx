@@ -255,10 +255,20 @@ function InventoryManagement() {
     const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(groupId);
     
     if (isUuid) {
-       // 먼저 수기 판매(shipments)인지 확인
-       const { data: shipData } = await supabase.from('shipments').select('id').eq('id', groupId).single();
+       // shipments 테이블에서 is_manual_b2b 필드까지 조회해서 분기
+       const { data: shipData } = await supabase
+         .from('shipments')
+         .select('id, is_manual_b2b')
+         .eq('id', groupId)
+         .single();
        if (shipData) {
-         navigate(`/sales/manual/${groupId}`);
+         if (shipData.is_manual_b2b) {
+           // 수기 판매(B2B) → 목록으로 이동 (상세 라우트 없음)
+           navigate(`/sales/manual`);
+         } else {
+           // 일반 매장출고 → 상세 페이지로 이동
+           navigate(`/shipment/${groupId}`);
+         }
          return;
        }
     }
