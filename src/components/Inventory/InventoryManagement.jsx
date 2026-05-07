@@ -4675,10 +4675,9 @@ function InventoryManagement() {
                     <Button
                       onClick={handleExcelDataSubmit}
                       variant="contained"
-                      disabled={matchedCount === 0}
-                      color={unmatchedItems.length > 0 ? 'warning' : 'primary'}
+                      color="primary"
                     >
-                      입출고 처리 ({matchedCount}개 상품 정상)
+                      입출고 처리 ({excelData.length}개 상품)
                     </Button>
                   </Box>
                 </Box>
