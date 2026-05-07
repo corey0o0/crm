@@ -828,8 +828,8 @@ function AddService() {
 
       if (formData.status === '출고완료' || formData.status === '작업완료' || formData.status === '부품준비' || formData.status === '처리중' || formData.status === '준비완료') {
         const now = new Date();
-        serviceInsertData.completion_date = format(now, 'yyyy-MM-dd');
-        serviceInsertData.completion_time = format(now, 'HH:mm:ss');
+        // completion_time 컬럼 없음 → completion_date(timestamp)에 날짜+시간 통합 저장
+        serviceInsertData.completion_date = now.toISOString();
       }
 
       console.log('[AddService] A/S 정보 등록 시작');
