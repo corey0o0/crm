@@ -4646,52 +4646,54 @@ function InventoryManagement() {
                         <Typography variant="body2" color="error" sx={{ mt: 1, fontWeight: 'bold' }}>
                           ❌ 매칭된 상품이 없습니다. 상품코드·바코드·상품명이 재고 DB와 일치하는지 확인해주세요.
                         </Typography>
-                      )}
                     </Box>
                   )}
 
-                  {/* 날짜 및 공통 메모 */}
-                  <Grid container spacing={2} sx={{ mt: 2 }}>
-                    <Grid item xs={12} md={6}>
-                      <TextField
-                        fullWidth
-                        label="거래 날짜"
-                        type="date"
-                        value={formData.date}
-                        onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                        InputLabelProps={{ shrink: true }}
-                        size="small"
-                      />
-                    </Grid>
-                    <Grid item xs={12} md={6}>
-                      <TextField
-                        fullWidth
-                        label="공통 메모"
-                        value={formData.note}
-                        onChange={(e) => setFormData(prev => ({ ...prev, note: e.target.value }))}
-                        placeholder="모든 상품에 적용될 공통 메모"
-                        size="small"
-                      />
-                    </Grid>
-                  </Grid>
-
-                  <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
-                    <Button onClick={handleCloseExcelUpload}>취소</Button>
-                    <Button
-                      onClick={handleExcelDataSubmit}
-                      variant="contained"
-                      color="primary"
-                    >
-                      입출고 처리 ({excelData.length}개 상품)
-                    </Button>
-                  </Box>
                 </Box>
               );
             })()}
 
+            {/* 날짜 및 공통 메모 - IIFE 밖에 항상 표시 */}
+            {excelData.length > 0 && (
+              <Grid container spacing={2} sx={{ mt: 2 }}>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="거래 날짜"
+                    type="date"
+                    value={formData.date}
+                    onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+                    InputLabelProps={{ shrink: true }}
+                    size="small"
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="공통 메모"
+                    value={formData.note}
+                    onChange={(e) => setFormData(prev => ({ ...prev, note: e.target.value }))}
+                    placeholder="모든 상품에 적용될 공통 메모"
+                    size="small"
+                  />
+                </Grid>
+              </Grid>
+            )}
           </Box>
         </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseExcelUpload}>취소</Button>
+          <Button
+            onClick={handleExcelDataSubmit}
+            variant="contained"
+            disabled={excelData.length === 0}
+            color="primary"
+          >
+            입출고 처리 ({excelData.length}개 상품)
+          </Button>
+        </DialogActions>
       </Dialog>
+
 
       {/* 창고/대리점 관리 탭 (마지막) */}
       {activeTab === 6 && (
