@@ -4514,79 +4514,157 @@ function InventoryManagement() {
             </Box>
 
             {/* 업로드된 데이터 미리보기 */}
-            {excelData.length > 0 && (
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="h6" sx={{ mb: 2 }}>
-                  📊 업로드된 데이터 미리보기 ({excelData.length}개 상품)
-                </Typography>
-                <TableContainer component={Paper} sx={{ maxHeight: 300 }}>
-                  <Table stickyHeader size="small" sx={{ borderTop: '1px solid rgba(224, 224, 224, 1)', borderLeft: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { borderRight: '1px solid rgba(224, 224, 224, 1)', borderBottom: '1px solid rgba(224, 224, 224, 1)' } }}>
-                    <TableHead>
-                      <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                        <TableCell>상품코드</TableCell>
-                        <TableCell>상품명</TableCell>
-                        <TableCell align="right">수량</TableCell>
-                        <TableCell>출발지</TableCell>
-                        <TableCell>목적지</TableCell>
-                        <TableCell>메모</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {excelData.slice(0, 10).map((item, index) => (
-                        <TableRow key={index}>
-                          <TableCell>{item.productCode}</TableCell>
-                          <TableCell>{item.productName}</TableCell>
-                          <TableCell align="right">{item.quantity}</TableCell>
-                          <TableCell>{item.fromLocation}</TableCell>
-                          <TableCell>{item.toLocation}</TableCell>
-                          <TableCell>{item.note}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-                {excelData.length > 10 && (
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                    ... 및 {excelData.length - 10}개 더
-                  </Typography>
-                )}
-              </Box>
-            )}
+            {excelData.length > 0 && (() => {
+              // products가 로드된 상태에서 매칭 결과를 미리 계산
+              const previewItems = excelData.map(item => {
+                const inputCode = String(item.productCode || '').trim().toLowerCase();
+                const inputBarcode = String(item.productBarcode || '').trim().toLowerCase();
+                const inputName = String(item.productName || '').trim().toLowerCase();
+                const inputParsedCol = String(item.parsedColName || '').trim().toLowerCase();
+                let matched = null;
 
-            {/* 날짜 및 공통 메모 */}
-            <Grid container spacing={2} sx={{ mb: 3 }}>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="거래 날짜"
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                  InputLabelProps={{ shrink: true }}
-                />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="공통 메모"
-                  value={formData.note}
-                  onChange={(e) => setFormData(prev => ({ ...prev, note: e.target.value }))}
-                  placeholder="모든 상품에 적용될 공통 메모"
-                />
-              </Grid>
-            </Grid>
+                // 1. 코드/바코드 정확 매칭
+                const codes = [inputCode, inputBarcode, inputName, inputParsedCol].filter(v => v);
+                for (const code of codes) {
+                  matched = products.find(p => {
+                    const dc = String(p.code || '').trim().toLowerCase();
+                    const db = String(p.barcode || '').trim().toLowerCase();
+                    return (dc && dc === code) || (db && db === code);
+                  });
+                  if (matched) break;
+                }
+
+                // 2. 이름 정확 매칭
+                if (!matched) {
+                  const names = [inputName, inputCode, inputParsedCol].filter(v => v);
+                  for (const name of names) {
+                    const ns = name.replace(/\s+/g, '');
+                    matched = products.find(p => String(p.name || '').replace(/\s+/g, '').toLowerCase() === ns);
+                    if (matched) break;
+                  }
+                }
+
+                // 3. 부분 이름 매칭
+                if (!matched) {
+                  const names = [inputName, inputCode, inputParsedCol].filter(v => v && v.replace(/\s+/g, '').length >= 2);
+                  for (const name of names) {
+                    const ns = name.replace(/\s+/g, '');
+                    matched = products.find(p => String(p.name || '').replace(/\s+/g, '').toLowerCase().includes(ns));
+                    if (matched) break;
+                  }
+                }
+
+                return { ...item, _matched: matched };
+              });
+
+              const matchedCount = previewItems.filter(i => i._matched).length;
+              const unmatchedItems = previewItems.filter(i => !i._matched);
+
+              return (
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="h6" sx={{ mb: 2 }}>
+                    📊 업로드된 데이터 미리보기 ({excelData.length}개 상품)
+                  </Typography>
+                  <TableContainer component={Paper} sx={{ maxHeight: 300 }}>
+                    <Table stickyHeader size="small">
+                      <TableHead>
+                        <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                          <TableCell sx={{ minWidth: 200 }}>상태</TableCell>
+                          <TableCell>상품코드</TableCell>
+                          <TableCell>상품명</TableCell>
+                          <TableCell align="right">수량</TableCell>
+                          <TableCell>출발지</TableCell>
+                          <TableCell>목적지</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {previewItems.slice(0, 10).map((item, index) => (
+                          <TableRow key={index} sx={{ bgcolor: item._matched ? 'transparent' : '#fff8e1' }}>
+                            <TableCell>
+                              {item._matched
+                                ? <Typography variant="caption" color="success.main">✅ {item._matched.name}</Typography>
+                                : <Typography variant="caption" color="error.main">⚠️ 등록되지 않은 상품(상품명/코드 불일치)</Typography>
+                              }
+                            </TableCell>
+                            <TableCell sx={{ color: item._matched ? 'inherit' : 'error.main' }}>{item.productCode}</TableCell>
+                            <TableCell>{item.productName}</TableCell>
+                            <TableCell align="right">{item.quantity}</TableCell>
+                            <TableCell>{item.fromLocation || '외부'}</TableCell>
+                            <TableCell>{item.toLocation}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                  {excelData.length > 10 && (
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                      ... 및 {excelData.length - 10}개 더
+                    </Typography>
+                  )}
+
+                  {/* 매칭 실패 경고 */}
+                  {unmatchedItems.length > 0 && (
+                    <Box sx={{ mt: 2, p: 2, bgcolor: '#fff3e0', border: '1px solid #ffb74d', borderRadius: 1 }}>
+                      <Typography variant="body2" color="warning.dark" fontWeight="bold" sx={{ mb: 1 }}>
+                        ⚠️ 다음 {unmatchedItems.length}건은 업로드 시 무시됩니다:
+                      </Typography>
+                      <Box sx={{ maxHeight: 120, overflowY: 'auto' }}>
+                        {unmatchedItems.map((item, i) => (
+                          <Typography key={i} variant="caption" display="block" color="error">
+                            • {item.productCode || item.productName || `행 ${i + 2}`} - 등록되지 않은 상품(상품명/코드 불일치)
+                          </Typography>
+                        ))}
+                      </Box>
+                      {matchedCount === 0 && (
+                        <Typography variant="body2" color="error" sx={{ mt: 1, fontWeight: 'bold' }}>
+                          ❌ 매칭된 상품이 없습니다. 상품코드·바코드·상품명이 재고 DB와 일치하는지 확인해주세요.
+                        </Typography>
+                      )}
+                    </Box>
+                  )}
+
+                  {/* 날짜 및 공통 메모 */}
+                  <Grid container spacing={2} sx={{ mt: 2 }}>
+                    <Grid item xs={12} md={6}>
+                      <TextField
+                        fullWidth
+                        label="거래 날짜"
+                        type="date"
+                        value={formData.date}
+                        onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+                        InputLabelProps={{ shrink: true }}
+                        size="small"
+                      />
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <TextField
+                        fullWidth
+                        label="공통 메모"
+                        value={formData.note}
+                        onChange={(e) => setFormData(prev => ({ ...prev, note: e.target.value }))}
+                        placeholder="모든 상품에 적용될 공통 메모"
+                        size="small"
+                      />
+                    </Grid>
+                  </Grid>
+
+                  <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                    <Button onClick={handleCloseExcelUpload}>취소</Button>
+                    <Button
+                      onClick={handleExcelDataSubmit}
+                      variant="contained"
+                      disabled={matchedCount === 0}
+                      color={unmatchedItems.length > 0 ? 'warning' : 'primary'}
+                    >
+                      입출고 처리 ({matchedCount}개 상품 정상)
+                    </Button>
+                  </Box>
+                </Box>
+              );
+            })()}
+
           </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseExcelUpload}>취소</Button>
-          <Button 
-            onClick={handleExcelDataSubmit} 
-            variant="contained"
-            disabled={excelData.length === 0}
-          >
-            입출고 처리 ({excelData.length}개 상품)
-          </Button>
-        </DialogActions>
       </Dialog>
 
       {/* 창고/대리점 관리 탭 (마지막) */}
