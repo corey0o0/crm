@@ -3132,15 +3132,18 @@ function AddService() {
                                 size="small"
                                 value={part.status || '준비중'}
                                 onChange={(e) => handlePartStatusChange(index, e.target.value)}
-                                disabled={part.status === '준비완료' || part.status === '출고완료' || part.status === '반품완료'}
-                                sx={{
-                                  minWidth: 90, height: '32px',
-                                  opacity: (part.status === '준비완료' || part.status === '출고완료' || part.status === '반품완료') ? 0.7 : 1
-                                }}
+                                sx={{ minWidth: 90, height: '32px' }}
                               >
-                                {['준비중', '부품준비', '준비완료', '출고완료'].map(s => (
-                                  <MenuItem key={s} value={s}>{s}</MenuItem>
-                                ))}
+                                {/* 준비완료/출고완료/반품완료 상태에서는 준비중 선택 불가 */}
+                                <MenuItem
+                                  value="준비중"
+                                  disabled={part.status === '준비완료' || part.status === '출고완료' || part.status === '반품완료'}
+                                >
+                                  준비중
+                                </MenuItem>
+                                <MenuItem value="부품준비">부품준비</MenuItem>
+                                <MenuItem value="준비완료">준비완료</MenuItem>
+                                <MenuItem value="출고완료">출고완료</MenuItem>
                                 {part.status === '반품완료' && <MenuItem value="반품완료">반품완료</MenuItem>}
                               </Select>
                               {/* 준비중일 때만 삭제 아이콘 */}
