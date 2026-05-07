@@ -136,6 +136,25 @@ function ShipmentForm({ isManualB2B = false }) {
   const isEditMode = !!id;
   const { user } = useAuth();
   const isMaster = MASTER_ACCOUNTS.includes(user?.email);
+  const [isInspectionEnabled, setIsInspectionEnabled] = useState(false);
+
+  useEffect(() => {
+    const fetchGlobalSettings = async () => {
+      try {
+        const { data } = await supabase
+          .from('global_settings')
+          .select('value')
+          .eq('key', 'shipment_inspection')
+          .maybeSingle();
+        if (data && data.value && data.value.enabled !== undefined) {
+          setIsInspectionEnabled(data.value.enabled);
+        }
+      } catch (e) {
+        console.error('검수 설정 로드 실패:', e);
+      }
+    };
+    fetchGlobalSettings();
+  }, []);
 
   // 검색을 위한 상태 수정
   const [isSearching] = useState(false);
@@ -1613,7 +1632,10 @@ function ShipmentForm({ isManualB2B = false }) {
                 {(() => {
                   const STATUS_ORDER = { '접수': 0, '출고대기': 0, '부품준비': 1, '준비완료': 2, '작업완료': 3, '반품완료': 4, '출고완료': 5 };
                   const currentOrder = STATUS_ORDER[shipmentData.status] ?? 0;
-                  const items = ['접수', '부품준비', '준비완료', '작업완료', '반품완료', '출고완료'];
+                  const baseItems = isInspectionEnabled 
+                    ? ['접수', '부품준비', '준비완료', '작업완료', '반품완료', '출고완료']
+                    : ['접수', '작업완료', '출고완료'];
+                  const items = [...baseItems];
                   if (shipmentData.status && !items.includes(shipmentData.status)) {
                     items.unshift(shipmentData.status);
                   }
@@ -1811,16 +1833,15 @@ function ShipmentForm({ isManualB2B = false }) {
                 <TableRow>
                   <TableCell>제품명</TableCell>
                   <TableCell>구분</TableCell>
-                  <TableCell align="center">상태</TableCell>
                   <TableCell align="right">수량</TableCell>
                   <TableCell align="right">단가</TableCell>
                   <TableCell align="right">합계</TableCell>
-                  <TableCell align="right">작업</TableCell>
+                  <TableCell align="center">작업</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {sortedParts.map((part) => (
-                  <TableRow key={part.id}>
+                  <TableRow key={part.id} sx={part.status === '반품완료' ? { opacity: 0.5, textDecoration: 'line-through' } : {}}>
                     <TableCell>
                       {part.part_name}
                       {part.part_code && (
@@ -1840,24 +1861,7 @@ function ShipmentForm({ isManualB2B = false }) {
                         }
                       />
                     </TableCell>
-                    <TableCell align="center">
-                      <Select
-                        size="small"
-                        value={part.status || '접수'}
-                        onChange={(e) => handlePartStatusChange(part.id, e.target.value)}
-                        sx={{ minWidth: 90 }}
-                      >
-                        {(() => {
-                          const items = ['접수', '부품준비', '준비완료', '작업완료', '반품완료', '출고완료'];
-                          if (part.status && !items.includes(part.status)) {
-                            items.unshift(part.status);
-                          }
-                          return items.map(s => (
-                            <MenuItem key={s} value={s}>{s}</MenuItem>
-                          ));
-                        })()}
-                      </Select>
-                    </TableCell>
+
                     <TableCell align="right">
                       <TextField
                         type="number"
@@ -1886,14 +1890,32 @@ function ShipmentForm({ isManualB2B = false }) {
                       />
                     </TableCell>
                     <TableCell align="right">{part.totalPrice?.toLocaleString() || calculateTotal(part).toLocaleString()}원</TableCell>
-                    <TableCell align="right">
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={() => handleRemovePart(part.id)}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
+                    <TableCell align="center">
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                        <Select
+                          size="small"
+                          value={part.status || '접수'}
+                          onChange={(e) => handlePartStatusChange(part.id, e.target.value)}
+                          sx={{ minWidth: 90 }}
+                        >
+                          {(() => {
+                            const items = ['접수', '부품준비', '준비완료', '작업완료', '반품완료', '출고완료'];
+                            if (part.status && !items.includes(part.status)) {
+                              items.unshift(part.status);
+                            }
+                            return items.map(s => (
+                              <MenuItem key={s} value={s}>{s}</MenuItem>
+                            ));
+                          })()}
+                        </Select>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => handleRemovePart(part.id)}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Box>
                     </TableCell>
                   </TableRow>
                 ))}

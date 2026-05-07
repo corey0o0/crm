@@ -1628,16 +1628,15 @@ function ShipmentDetail() {
                         <TableRow>
                           <TableCell>제품명</TableCell>
                           <TableCell>구분</TableCell>
-                          <TableCell>상태</TableCell>
                           <TableCell align="right">수량</TableCell>
                           <TableCell align="right">단가</TableCell>
                           <TableCell align="right">합계</TableCell>
-                          <TableCell align="center">삭제</TableCell>
+                          <TableCell align="center">작업</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
                         {sortedEditableParts.map((part) => (
-                          <TableRow key={part.id}>
+                          <TableRow key={part.id} sx={part.status === '반품완료' ? { opacity: 0.5, textDecoration: 'line-through' } : {}}>
                             <TableCell>
                               {part.part_name}
                               {part.part_code && (
@@ -1653,27 +1652,7 @@ function ShipmentDetail() {
                                 color={getCategoryColor(part.part_category || '기체')}
                               />
                             </TableCell>
-                            <TableCell>
-                              <Select
-                                size="small"
-                                value={part.status || '접수'}
-                                onChange={(e) => handleItemStatusChange(part, e.target.value)}
-                                sx={{ width: '100px', fontSize: '0.875rem' }}
-                              >
-                                {(() => {
-                                  const baseItems = isInspectionEnabled
-                                    ? ['접수', '부품준비', '준비완료', '작업완료', '출고완료']
-                                    : ['접수', '작업완료', '출고완료'];
-                                  return baseItems.map(s => (
-                                    <MenuItem
-                                      key={s} value={s}
-                                      disabled={s === '접수' && isPartLocked(part)}
-                                    >{s}</MenuItem>
-                                  ));
-                                })()}
-                                {part.status === '반품완료' && <MenuItem value="반품완료">반품완료</MenuItem>}
-                              </Select>
-                            </TableCell>
+
                             <TableCell align="right">
                               <TextField
                                 type="number"
@@ -1705,28 +1684,50 @@ function ShipmentDetail() {
                               {calculateTotal(part).toLocaleString()}원
                             </TableCell>
                             <TableCell align="center">
-                              {!isPartLocked(part) ? (
-                                <IconButton
+                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                                <Select
                                   size="small"
-                                  color="error"
-                                  title="삭제"
-                                  onClick={() => handleRemovePart(part.id)}
+                                  value={part.status || '접수'}
+                                  onChange={(e) => handleItemStatusChange(part, e.target.value)}
+                                  sx={{ width: '100px', fontSize: '0.875rem' }}
                                 >
-                                  <DeleteIcon fontSize="small" />
-                                </IconButton>
-                              ) : part.status !== '반품완료' ? (
-                                <Button
-                                  size="small"
-                                  variant="outlined"
-                                  color="error"
-                                  onClick={() => handleReturnPart(part)}
-                                  sx={{ minWidth: '56px', height: '28px', fontSize: '11px', px: 1 }}
-                                >
-                                  반품
-                                </Button>
-                              ) : (
-                                <Typography variant="caption" color="error" sx={{ fontSize: '11px', fontWeight: 'bold' }}>반품완료</Typography>
-                              )}
+                                  {(() => {
+                                    const baseItems = isInspectionEnabled
+                                      ? ['접수', '부품준비', '준비완료', '작업완료', '출고완료']
+                                      : ['접수', '작업완료', '출고완료'];
+                                    return baseItems.map(s => (
+                                      <MenuItem
+                                        key={s} value={s}
+                                        disabled={s === '접수' && isPartLocked(part)}
+                                      >{s}</MenuItem>
+                                    ));
+                                  })()}
+                                  {part.status === '반품완료' && <MenuItem value="반품완료">반품완료</MenuItem>}
+                                </Select>
+
+                                {!isPartLocked(part) ? (
+                                  <IconButton
+                                    size="small"
+                                    color="error"
+                                    title="삭제"
+                                    onClick={() => handleRemovePart(part.id)}
+                                  >
+                                    <DeleteIcon fontSize="small" />
+                                  </IconButton>
+                                ) : part.status !== '반품완료' ? (
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    color="error"
+                                    onClick={() => handleReturnPart(part)}
+                                    sx={{ minWidth: '56px', height: '28px', fontSize: '11px', px: 1 }}
+                                  >
+                                    반품
+                                  </Button>
+                                ) : (
+                                  <Typography variant="caption" color="error" sx={{ fontSize: '11px', fontWeight: 'bold' }}>반품완료</Typography>
+                                )}
+                              </Box>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -1782,11 +1783,10 @@ function ShipmentDetail() {
                         <TableCell sx={{ fontWeight: 700, width: 180 }}>제품명</TableCell>
                         <TableCell sx={{ fontWeight: 700, width: 120 }}>상품코드</TableCell>
                         <TableCell sx={{ fontWeight: 700, width: 100 }}>카테고리</TableCell>
-                        <TableCell sx={{ fontWeight: 700, width: 120 }}>상태</TableCell>
                         <TableCell sx={{ fontWeight: 700, width: 80 }}>수량</TableCell>
                         <TableCell sx={{ fontWeight: 700, width: 100 }}>단가</TableCell>
                         <TableCell sx={{ fontWeight: 700, width: 120 }}>합계</TableCell>
-                        <TableCell sx={{ fontWeight: 700, width: 100, textAlign: 'center' }}>작업</TableCell>
+                        <TableCell sx={{ fontWeight: 700, width: 140, textAlign: 'center' }}>작업</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -1802,7 +1802,13 @@ function ShipmentDetail() {
                                 variant="filled"
                               />
                             </TableCell>
-                            <TableCell>
+                          <TableCell>{part.quantity}</TableCell>
+                          <TableCell>{part.price?.toLocaleString()}원</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>
+                            {calculateTotal(part).toLocaleString()}원
+                          </TableCell>
+                          <TableCell align="center">
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
                               <Select
                                 size="small"
                                 value={part.status || '접수'}
@@ -1831,30 +1837,24 @@ function ShipmentDetail() {
                                 })()}
                                 {part.status === '반품완료' && <MenuItem value="반품완료">반품완료</MenuItem>}
                               </Select>
-                            </TableCell>
-                          <TableCell>{part.quantity}</TableCell>
-                          <TableCell>{part.price?.toLocaleString()}원</TableCell>
-                          <TableCell sx={{ fontWeight: 600 }}>
-                            {calculateTotal(part).toLocaleString()}원
-                          </TableCell>
-                          <TableCell align="center">
-                            {part.status !== '반품 완료' && (
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                color="secondary"
-                                onClick={() => handleItemStatusChange(part, '반품 완료')}
-                                sx={{ whiteSpace: 'nowrap', minWidth: 'auto', p: 0.5 }}
-                              >
-                                반품
-                              </Button>
-                            )}
+                              {part.status !== '반품 완료' && part.status !== '반품완료' && (
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  color="secondary"
+                                  onClick={() => handleItemStatusChange(part, '반품 완료')}
+                                  sx={{ whiteSpace: 'nowrap', minWidth: 'auto', p: 0.5 }}
+                                >
+                                  반품
+                                </Button>
+                              )}
+                            </Box>
                           </TableCell>
                         </TableRow>
                       ))}
                       {/* 총합계 */}
                       <TableRow>
-                        <TableCell colSpan={4} align="right" sx={{ fontWeight: 700, bgcolor: '#e9ecef' }}>
+                        <TableCell colSpan={3} align="right" sx={{ fontWeight: 700, bgcolor: '#e9ecef' }}>
                           총 합계
                         </TableCell>
                         <TableCell sx={{ fontWeight: 700, bgcolor: '#e9ecef' }}>
