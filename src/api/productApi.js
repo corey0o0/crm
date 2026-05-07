@@ -52,36 +52,31 @@ const tempNearbikeProducts = [
 ];
 
 export const productApi = {
-  // 모든 상품 조회 (옵션 C: parts 테이블 기반, 읽기 전용) - REST API 버전
+  // 모든 상품 조회 (parts 테이블 기반)
   getAll: async () => {
     try {
-      console.log('[ProductAPI] Fetching products via REST API...');
+      console.log('[ProductAPI] Fetching products from parts table...');
       
-      // 필터 구성
-      let filter = '';
+      let query = supabase
+        .from(PARTS_TABLE)
+        .select('*')
+        .order('name', { ascending: true });
+
       if (PARTS_BRAND) {
-        filter = `brand=eq.${encodeURIComponent(PARTS_BRAND)}`;
+        query = query.eq('brand', PARTS_BRAND);
       }
 
-      // Egress 절감을 위해 기본 limit 설정 (최대 1000개)
-      const data = await fetchFromSupabase(PARTS_TABLE, {
-        select: '*', // 컬럼명 하드코딩 제거 (discount_group 컬럼 부재 시 에러 방지)
-        filter: filter,
-        order: 'name.asc',
-        limit: 1000
-      });
+      const { data, error } = await query;
       
-      console.log('[ProductAPI] Products data received:', data?.length || 0, 'items');
-      
-      if (data && data.length > 0) {
-        console.log(`Supabase parts에서 ${data.length}개의 실제 파츠를 가져왔습니다.${PARTS_BRAND ? ` (brand=${PARTS_BRAND})` : ''}`);
-        return data.map(mapPartToProduct);
-      } else {
-        console.log('Supabase parts 결과가 비어있습니다.');
+      if (error) {
+        console.error('[ProductAPI] Supabase error:', error);
         return [];
       }
+      
+      console.log(`[ProductAPI] ${data?.length || 0}개 상품 로드 완료${PARTS_BRAND ? ` (brand=${PARTS_BRAND})` : ''}`);
+      return (data || []).map(mapPartToProduct);
     } catch (error) {
-      console.error('Error fetching products:', error)
+      console.error('[ProductAPI] Error fetching products:', error);
       return [];
     }
   },
