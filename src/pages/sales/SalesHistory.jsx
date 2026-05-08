@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Paper, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Chip, TextField, Button, Grid, Divider,
-  TablePagination, CircularProgress, FormControl, InputLabel, Select, MenuItem, Stack, ButtonGroup
+  TablePagination, CircularProgress, FormControl, InputLabel, Select, MenuItem, Stack, ButtonGroup,
+  ToggleButton, ToggleButtonGroup
 } from '@mui/material';
 import { Assessment as AssessmentIcon, FileDownload as FileDownloadIcon } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
@@ -54,6 +55,7 @@ function SalesHistory() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [sellerFilter, setSellerFilter] = useState('all');
   const [brandFilter, setBrandFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
   const [dateType, setDateType] = useState('주문/출고/완료일자');
   const [sellers, setSellers] = useState(['all']);
   const [brands, setBrands] = useState(['all']);
@@ -730,6 +732,13 @@ function SalesHistory() {
   // ── 필터 ────────────────────────────────────────────
   const filtered = flatRows.filter(r => {
     if (filterType !== 'all' && r._type !== filterType) return false;
+    if (categoryFilter !== 'all') {
+      const cat = (r.part_category || '기타').toLowerCase();
+      if (categoryFilter === '기체' && cat !== '기체') return false;
+      if (categoryFilter === '파츠' && cat !== '부품' && cat !== '파츠') return false;
+      if (categoryFilter === '공임' && cat !== '공임') return false;
+      if (categoryFilter === '기타' && cat !== '기타' && cat !== '기체' && cat !== '부품' && cat !== '파츠' && cat !== '공임') return false;
+    }
     if (statusFilter !== 'all' && statusFilter !== '전체 상태' && r.status !== statusFilter) return false;
     
     if (sellerFilter !== 'all' && sellerFilter !== '전체 판매처') {
@@ -994,6 +1003,20 @@ function SalesHistory() {
                   {brands.map(b => <MenuItem key={b} value={b}>{b === 'all' ? '전체 브랜드' : b}</MenuItem>)}
                 </Select>
               </FormControl>
+
+              <ToggleButtonGroup
+                value={categoryFilter}
+                exclusive
+                onChange={(e, val) => { if (val !== null) { setCategoryFilter(val); setPage(0); } }}
+                size="small"
+                sx={{ height: 40 }}
+              >
+                <ToggleButton value="all" sx={{ px: 1.5, fontSize: '0.8rem' }}>전체</ToggleButton>
+                <ToggleButton value="기체" sx={{ px: 1.5, fontSize: '0.8rem' }}>기체</ToggleButton>
+                <ToggleButton value="파츠" sx={{ px: 1.5, fontSize: '0.8rem' }}>파츠</ToggleButton>
+                <ToggleButton value="공임" sx={{ px: 1.5, fontSize: '0.8rem' }}>공임</ToggleButton>
+                <ToggleButton value="기타" sx={{ px: 1.5, fontSize: '0.8rem' }}>기타</ToggleButton>
+              </ToggleButtonGroup>
             </Stack>
           </Grid>
 
@@ -1051,6 +1074,7 @@ function SalesHistory() {
                 setStatusFilter('all');
                 setSellerFilter('all');
                 setFilterType('all');
+                setCategoryFilter('all');
                 setStartDate(null);
                 setEndDate(null);
                 setPage(0);
