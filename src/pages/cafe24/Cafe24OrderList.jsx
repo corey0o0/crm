@@ -1570,9 +1570,11 @@ export default function Cafe24OrderList() {
                     const isCancelled = ['C11', 'C40', 'R40', 'E40'].includes(it.order_status);
                     return sum + (isCancelled ? 0 : Number(it.item_discount || 0));
                   }, 0);
-                  // 네이버페이 등 선불금 결제: total_amount=0 이면 품목 payment_amount 합계 사용
-                  const effectiveTotalAmount = Number(order.total_amount || 0) === 0 && orderItemsSum > 0 ? orderItemsSum : Number(order.total_amount || 0);
-                  const isPrepaid = Number(order.total_amount || 0) === 0 && orderItemsSum > 0;
+                  // 선불금 결제: total_amount=0 이면 품목 payment_amount 합계 사용
+                  // 단, nearbike_ 주문은 회원할인 전액 건으로 실결제 0원이므로 제외
+                  const isNearbikeMemberDiscount = String(order.order_id || '').startsWith('nearbike_') && Number(order.total_amount || 0) === 0;
+                  const effectiveTotalAmount = !isNearbikeMemberDiscount && Number(order.total_amount || 0) === 0 && orderItemsSum > 0 ? orderItemsSum : Number(order.total_amount || 0);
+                  const isPrepaid = !isNearbikeMemberDiscount && Number(order.total_amount || 0) === 0 && orderItemsSum > 0;
                   const calculatedUsedPoints = Math.max(0, orderItemsSum + Number(order.shipping_fee || 0) - effectiveTotalAmount);
                   const displayUsedPoints = Number(order.used_points !== undefined && order.used_points !== null ? order.used_points : calculatedUsedPoints);
 
