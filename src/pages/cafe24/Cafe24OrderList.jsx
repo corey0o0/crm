@@ -369,9 +369,19 @@ export default function Cafe24OrderList() {
     return true;
   });
 
+  // 주문 전체가 반품/취소/교환인지 판별
+  // - 주문 메인 status가 C/R/E이면 무조건 반품/취소
+  // - is_transferred된 주문에서 일부 아이템만 교환/취소된 경우는 반품 건으로 보지 않음 (반영 완료로 유지)
+  // - 미반영 주문에서 아이템 일부라도 C/R/E이면 반품/취소교환으로 분류
   const isOrderReturned = (order) => {
     const s = String(order.status).trim();
+    // 1. 주문 메인 상태 자체가 취소/반품/교환이면 무조건 반품건
     if (s.startsWith('C') || s.startsWith('R') || s.startsWith('E')) return true;
+    
+    // 2. 이미 반영 완료된 주문은 일부 아이템 교환/취소가 있어도 "반영 완료"로 유지
+    if (order.is_transferred) return false;
+    
+    // 3. 미반영 주문: 아이템 중 하나라도 취소/반품/교환 상태면 반품건으로 분류
     if (order.order_items && order.order_items.some(item => {
       const itemStatus = String(item.order_status).trim();
       return itemStatus.startsWith('C') || itemStatus.startsWith('R') || itemStatus.startsWith('E');
