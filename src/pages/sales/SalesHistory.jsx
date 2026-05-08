@@ -533,7 +533,7 @@ function SalesHistory() {
         // 선불금 처리: total_amount=0이면 품목 payment_amount 합계 사용
         // 단, nearbike_ 주문은 회원할인 전액 건으로 실결제 0원이므로 제외
         const itemPaymentSum = validItems.reduce((acc, i) => acc + Number(i.payment_amount || 0), 0);
-        const isNearbikeMemberDiscount = String(orderNo).startsWith('nearbike_') && Number(o.total_amount || 0) === 0;
+        const isNearbikeMemberDiscount = String(o.order_id || '').startsWith('nearbike_') && Number(o.total_amount || 0) === 0;
         const effectiveTotal = !isNearbikeMemberDiscount && Number(o.total_amount || 0) === 0 && itemPaymentSum > 0 ? itemPaymentSum : Number(o.total_amount || 0);
         const distributableAmount = Math.max(0, effectiveTotal - Number(o.shipping_fee || 0) - canceledAmount);
 
