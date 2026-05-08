@@ -364,6 +364,13 @@ function SalesHistory() {
       }
       if (extractedChannel === '-') extractedChannel = '일반출고(공홈)';
 
+      // VAT 보정: shipment.price(VAT포함)와 parts.price 합계(공급가일 수 있음) 비교
+      const shipTotalPrice = Number(s.price || 0);
+      const partsRawSum = parts.reduce((sum, p) => sum + Number(p.price || 0) * Number(p.quantity || 1), 0);
+      // parts.price가 공급가(VAT별도)인지 판별: shipment.price / parts합 ≈ 1.1이면 공급가
+      const needsVatCorrection = partsRawSum > 0 && shipTotalPrice > 0 && Math.abs((shipTotalPrice / partsRawSum) - 1.1) < 0.01;
+      const vatMultiplier = needsVatCorrection ? 1.1 : 1;
+
       const baseFields = {
         _orderId: s.id, _type: 'shipment',
         date_val: s.order_date,
@@ -375,7 +382,7 @@ function SalesHistory() {
         order_no: orderNo,
       };
       if (parts.length === 0) {
-        rows.push({ ...baseFields, _id: `ship_${s.id}_none`, part_name: '(품목 미기재)', part_category: '기타', quantity: 0, unit_price: 0, total_price: Number(s.price || 0) });
+        rows.push({ ...baseFields, _id: `ship_${s.id}_none`, part_name: '(품목 미기재)', part_category: '기타', quantity: 0, unit_price: 0, total_price: shipTotalPrice });
       } else {
         parts.forEach((p, idx) => {
           let returnedQty = 0;
@@ -393,7 +400,8 @@ function SalesHistory() {
             }
           }
           const effectiveQty = Math.max(0, Number(p.quantity || 1) - returnedQty);
-          const total = Number(p.price || 0) * effectiveQty;
+          const unitPriceVat = Math.round(Number(p.price || 0) * vatMultiplier);
+          const total = unitPriceVat * effectiveQty;
           
           const pName = p.part_name || '상품';
           const pCode = p.part_code || '';
@@ -406,11 +414,11 @@ function SalesHistory() {
           const brand = resolveBrand(pName, pCode, '', p.part_id);
           
           if (effectiveQty > 0) {
-            rows.push({ ...baseFields, _id: `ship_${s.id}_${p.id || idx}`, part_name: pName, part_category: cat, part_brand: brand, quantity: effectiveQty, unit_price: Number(p.price || 0), total_price: total });
+            rows.push({ ...baseFields, _id: `ship_${s.id}_${p.id || idx}`, part_name: pName, part_category: cat, part_brand: brand, quantity: effectiveQty, unit_price: unitPriceVat, total_price: total });
           }
           
           if (returnedQty > 0) {
-            rows.push({ ...baseFields, _id: `ship_${s.id}_${p.id || idx}_ret`, part_name: `[반품] ${pName}`, part_category: cat, part_brand: brand, quantity: returnedQty, unit_price: Number(p.price || 0), total_price: 0, isCancelled: true });
+            rows.push({ ...baseFields, _id: `ship_${s.id}_${p.id || idx}_ret`, part_name: `[반품] ${pName}`, part_category: cat, part_brand: brand, quantity: returnedQty, unit_price: unitPriceVat, total_price: 0, isCancelled: true });
           }
         });
       }
