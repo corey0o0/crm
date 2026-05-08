@@ -43,6 +43,7 @@ export default function InventoryHistory() {
                       onChange={(e) => setFilter(prev => ({ ...prev, type: e.target.value }))}
                     >
                       <MenuItem value="all">전체</MenuItem>
+                      <MenuItem value="import">수입</MenuItem>
                       <MenuItem value="in">입고</MenuItem>
                       <MenuItem value="out">출고</MenuItem>
                     </Select>
@@ -87,6 +88,7 @@ export default function InventoryHistory() {
                     <Button variant={dateFilter === 'today' ? 'contained' : 'outlined'} onClick={() => handleDateFilterClick('today')}>당일</Button>
                     <Button variant={dateFilter === 'week' ? 'contained' : 'outlined'} onClick={() => handleDateFilterClick('week')}>이번주</Button>
                     <Button variant={dateFilter === 'month' ? 'contained' : 'outlined'} onClick={() => handleDateFilterClick('month')}>당월</Button>
+                    <Button variant={dateFilter === 'prevMonth' ? 'contained' : 'outlined'} onClick={() => handleDateFilterClick('prevMonth')}>전월</Button>
                   </ButtonGroup>
 
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

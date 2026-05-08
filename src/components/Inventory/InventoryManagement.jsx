@@ -99,7 +99,7 @@ function InventoryManagement() {
   const [warehouseDetailSearch, setWarehouseDetailSearch] = useState('');
   const [warehouseDetailFilter, setWarehouseDetailFilter] = useState('inStock'); // 'all', 'inStock', 'outOfStock', 'below'
   const [warehouseDetailBelow, setWarehouseDetailBelow] = useState(5); // N개 미만 임계값
-  
+
   // 대리점별 통계 필터
   const [dealerStatsFilter, setDealerStatsFilter] = useState({
     period: 'month', // 'day', 'week', 'month', 'year'
@@ -124,14 +124,14 @@ function InventoryManagement() {
   const [v2ExcelLoading, setV2ExcelLoading] = useState(false);
 
   const [transactionViewMode, setTransactionViewMode] = useState('list');
-  
+
   // 표보기 클릭된 거래 모달 상태
   const [tableModalOpen, setTableModalOpen] = useState(false);
   const [selectedTableTransactions, setSelectedTableTransactions] = useState([]);
-  
+
   const [selectedTransactions, setSelectedTransactions] = useState([]);
   const [showNetOnly, setShowNetOnly] = useState(true);
-  
+
   const handleDeleteSelectedTransactions = async () => {
     if (selectedTransactions.length === 0) return;
     if (!window.confirm(`선택한 ${selectedTransactions.length}개의 거래내역을 삭제하시겠습니까?`)) return;
@@ -139,7 +139,7 @@ function InventoryManagement() {
       for (const selectedId of selectedTransactions) {
         // 그룹 ID인지 단일 내역 ID인지 확인 (selectedId가 문자열일 수 있으므로 형변환 비교)
         const itemsInGroup = transactions.filter(t => t.groupId != null && String(t.groupId) === String(selectedId));
-        
+
         if (itemsInGroup.length > 0) {
           // 그룹 거래인 경우 일괄 삭제 API 활용
           await transactionApi.deleteByGroupId(selectedId);
@@ -148,13 +148,13 @@ function InventoryManagement() {
           await transactionApi.delete(selectedId);
         }
       }
-      
+
       const updatedTransactions = await transactionApi.getAll();
       setTransactions(updatedTransactions);
       setSelectedTransactions([]);
-      
+
       recalculateInventoryFromTransactions(updatedTransactions);
-      
+
       showSnackbar(`선택한 거래내역이 삭제되었습니다.`, 'success');
     } catch (error) {
       console.error('거래내역 선택 삭제 실패:', error);
@@ -167,7 +167,7 @@ function InventoryManagement() {
   const [hoverTransactions, setHoverTransactions] = useState([]);
   const [excelData, setExcelData] = useState([]);
   const [excelUploadType, setExcelUploadType] = useState(''); // 'in' | 'out'
-  
+
   // 거래내역 상세 Dialog 상태
   const [transactionDetailOpen, setTransactionDetailOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
@@ -236,15 +236,15 @@ function InventoryManagement() {
 
   // 날짜 필터 버튼 상태
   const [dateFilter, setDateFilter] = useState('week');
-  
+
   // 페이지네이션 상태
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(50); // 페이지당 50개 항목
-  
+
   // 바코드 스캔 상태
   const [barcodeScannerOpen, setBarcodeScannerOpen] = useState(false);
   const [currentScanningRow, setCurrentScanningRow] = useState(null); // 현재 스캔 중인 행 인덱스
-  
+
   // 드래그 앤 드롭 상태
   const [isDragOver, setIsDragOver] = useState(false);
 
@@ -261,48 +261,48 @@ function InventoryManagement() {
       setSnackbar({ open: true, message: '원본 전표를 찾을 수 없는 단일 입출고 건입니다.', severity: 'warning' });
       return;
     }
-    
+
     // UUID 형식 검사
     const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(groupId);
-    
+
     if (isUuid) {
-       // shipments 테이블에서 note 필드로 수기판매 여부 확인
-       const { data: shipData } = await supabase
-         .from('shipments')
-         .select('id, note')
-         .eq('id', groupId)
-         .single();
-       if (shipData) {
-         const isManualB2B = shipData.note && String(shipData.note).includes('[수기판매]');
-         if (isManualB2B) {
-            // 수기 판매(B2B) → 편집 페이지로 이동
-            navigate(`/sales/manual/edit/${groupId}`);
-         } else {
-           // 일반 매장출고 → 상세 페이지로 이동
-           navigate(`/shipment/${groupId}`);
-         }
-         return;
-       }
+      // shipments 테이블에서 note 필드로 수기판매 여부 확인
+      const { data: shipData } = await supabase
+        .from('shipments')
+        .select('id, note')
+        .eq('id', groupId)
+        .single();
+      if (shipData) {
+        const isManualB2B = shipData.note && String(shipData.note).includes('[수기판매]');
+        if (isManualB2B) {
+          // 수기 판매(B2B) → 편집 페이지로 이동
+          navigate(`/sales/manual/edit/${groupId}`);
+        } else {
+          // 일반 매장출고 → 상세 페이지로 이동
+          navigate(`/shipment/${groupId}`);
+        }
+        return;
+      }
     }
-    
+
     // 숫자 형식 (A/S) 확인
     if (/^\d+$/.test(String(groupId))) {
-       const { data: asData } = await supabase.from('services').select('id').eq('id', groupId).single();
-       if (asData) {
-         navigate(`/service/${groupId}`);
-         return;
-       } else if (selectedTransaction.note && selectedTransaction.note.includes('[A/S 취소]')) {
-         setSnackbar({ open: true, message: '취소(삭제)되어 원본이 더 이상 존재하지 않는 A/S 전표입니다.', severity: 'info' });
-         return;
-       }
+      const { data: asData } = await supabase.from('services').select('id').eq('id', groupId).single();
+      if (asData) {
+        navigate(`/service/${groupId}`);
+        return;
+      } else if (selectedTransaction.note && selectedTransaction.note.includes('[A/S 취소]')) {
+        setSnackbar({ open: true, message: '취소(삭제)되어 원본이 더 이상 존재하지 않는 A/S 전표입니다.', severity: 'info' });
+        return;
+      }
     }
-    
+
     // Cafe24 주문 확인 (예: 2024, 2025 등 숫자로 시작하는 주문번호)
     if (/^20\d{2}/.test(String(groupId)) || String(groupId).includes('-')) {
-       navigate(`/sales/cafe24`); 
-       return;
+      navigate(`/sales/cafe24`);
+      return;
     }
-    
+
     setSnackbar({ open: true, message: '원본 전표를 찾을 수 없습니다.', severity: 'warning' });
   };
 
@@ -343,7 +343,7 @@ function InventoryManagement() {
         console.error('초기 데이터 로딩 실패:', error);
       }
     };
-    
+
     loadInitialData();
   }, []);
 
@@ -375,7 +375,7 @@ function InventoryManagement() {
       }
 
       setLoading(true);
-      
+
       // 안전한 재시도 로직 적용
       const productsData = await safeRetry(async () => {
         return await productApi.getAll();
@@ -384,12 +384,12 @@ function InventoryManagement() {
         maxTime: 30000,
         baseDelay: 1000
       });
-      
+
       setProducts(productsData);
       console.log(`상품관리에서 ${productsData.length}개의 전체 상품을 가져왔습니다.`);
     } catch (error) {
       console.error('상품 데이터 로딩 실패:', error);
-      
+
       // 스마트 오류 처리
       const errorMessage = getErrorMessage(error);
       showSnackbar(`상품관리에서 상품 데이터를 불러오는데 실패했습니다: ${errorMessage}`, 'error');
@@ -425,7 +425,7 @@ function InventoryManagement() {
   // 재고 초기화 (창고별 재고만 관리, 대리점은 출고 기록만)
   const initializeInventory = () => {
     const initialInventory = {};
-    
+
     // 창고별 재고 초기화 (실제 재고 관리)
     warehouses.forEach(warehouse => {
       initialInventory[warehouse.id] = {};
@@ -444,18 +444,18 @@ function InventoryManagement() {
     });
 
     // 대리점은 재고를 별도로 관리하지 않음 (출고 기록만 추적)
-    
+
     setInventory(initialInventory);
   };
 
   // 날짜 필터 버튼 클릭 처리 (useCallback으로 메모이제이션)
   const handleDateFilterClick = useCallback((filterType) => {
     setDateFilter(filterType);
-    
+
     const today = new Date();
     let dateFrom = '';
     let dateTo = '';
-    
+
     switch (filterType) {
       case 'today':
         dateFrom = format(today, 'yyyy-MM-dd');
@@ -482,7 +482,7 @@ function InventoryManagement() {
         dateFrom = '';
         dateTo = '';
     }
-    
+
     setFilter(prev => ({
       ...prev,
       dateFrom,
@@ -495,11 +495,11 @@ function InventoryManagement() {
     const dayTransactions = transactions.filter(tx => {
       if (!tx || !tx.date) return false;
       const txDate = typeof tx.date === 'string' ? tx.date.split('T')[0] : format(new Date(tx.date), 'yyyy-MM-dd');
-      return txDate === date && 
-             (tx.toLocation === warehouseId || tx.fromLocation === warehouseId) &&
-             tx.productId === productId;
+      return txDate === date &&
+        (tx.toLocation === warehouseId || tx.fromLocation === warehouseId) &&
+        tx.productId === productId;
     });
-    
+
     if (dayTransactions.length > 0) {
       setSelectedTableTransactions(dayTransactions);
       setTableModalOpen(true);
@@ -511,11 +511,11 @@ function InventoryManagement() {
     const dayTransactions = transactions.filter(tx => {
       if (!tx || !tx.date) return false;
       const txDate = typeof tx.date === 'string' ? tx.date.split('T')[0] : format(new Date(tx.date), 'yyyy-MM-dd');
-      return txDate === date && 
-             (tx.toLocation === warehouseId || tx.fromLocation === warehouseId) &&
-             tx.productId === productId;
+      return txDate === date &&
+        (tx.toLocation === warehouseId || tx.fromLocation === warehouseId) &&
+        tx.productId === productId;
     });
-    
+
     if (dayTransactions.length > 0) {
       setHoverTransactions(dayTransactions);
       setHoverAnchorEl(event.currentTarget);
@@ -530,7 +530,7 @@ function InventoryManagement() {
   // 거래내역을 기반으로 창고 재고 재계산
   const recalculateInventoryFromTransactions = async () => {
     let latestTransactions = [];
-    
+
     try {
       // 1) 서버에서 최신 거래내역 다시 가져오기
       latestTransactions = await transactionApi.getAll();
@@ -574,7 +574,7 @@ function InventoryManagement() {
           // 출발지가 창고인 경우 차감
           if (warehouses.find(w => w.id === transaction.fromLocation)) {
             if (recalculatedInventory[transaction.fromLocation] &&
-                typeof recalculatedInventory[transaction.fromLocation][transaction.productId] === 'number') {
+              typeof recalculatedInventory[transaction.fromLocation][transaction.productId] === 'number') {
               recalculatedInventory[transaction.fromLocation][transaction.productId] -= transaction.quantity;
             }
           }
@@ -582,7 +582,7 @@ function InventoryManagement() {
           // 출고: 출발지가 창고인 경우 차감
           if (warehouses.find(w => w.id === transaction.fromLocation)) {
             if (recalculatedInventory[transaction.fromLocation] &&
-                typeof recalculatedInventory[transaction.fromLocation][transaction.productId] === 'number') {
+              typeof recalculatedInventory[transaction.fromLocation][transaction.productId] === 'number') {
               recalculatedInventory[transaction.fromLocation][transaction.productId] -= transaction.quantity;
             }
           }
@@ -614,14 +614,14 @@ function InventoryManagement() {
       if (updates.length > 0) {
         // await inventoryApi.upsertMany(updates); // DEAD CODE: Disabled to prevent DB overwrite
       }
-      
+
       console.log('거래내역 기반으로 재고를 재계산하고 서버에 반영했습니다.');
     } catch (error) {
       console.error('재고 재계산 실패:', error);
       // 서버 실패 시 기존 방식으로 재계산
       const recalculatedInventory = {};
       const recalculatedPendingInventory = {};
-      
+
       // 창고별 재고 초기화
       warehouses.forEach(warehouse => {
         recalculatedInventory[warehouse.id] = {};
@@ -638,7 +638,7 @@ function InventoryManagement() {
 
       // 거래내역을 시간순으로 정렬하여 재고 계산 (로컬 상태 사용)
       const sortedTransactions = [...transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
-      
+
       sortedTransactions.forEach(transaction => {
         if (transaction.type === 'out' && transaction.status === '대기') {
           if (warehouses.find(w => w.id === transaction.fromLocation)) {
@@ -658,23 +658,23 @@ function InventoryManagement() {
             }
             recalculatedInventory[transaction.toLocation][transaction.productId] += transaction.quantity;
           }
-          
+
           // 출발지가 창고인 경우 재고 차감
           if (warehouses.find(w => w.id === transaction.fromLocation)) {
-            if (recalculatedInventory[transaction.fromLocation] && 
-                recalculatedInventory[transaction.fromLocation][transaction.productId]) {
+            if (recalculatedInventory[transaction.fromLocation] &&
+              recalculatedInventory[transaction.fromLocation][transaction.productId]) {
               recalculatedInventory[transaction.fromLocation][transaction.productId] -= transaction.quantity;
             }
           }
         } else {
           // 출고 처리
           if (warehouses.find(w => w.id === transaction.fromLocation)) {
-            if (recalculatedInventory[transaction.fromLocation] && 
-                recalculatedInventory[transaction.fromLocation][transaction.productId]) {
+            if (recalculatedInventory[transaction.fromLocation] &&
+              recalculatedInventory[transaction.fromLocation][transaction.productId]) {
               recalculatedInventory[transaction.fromLocation][transaction.productId] -= transaction.quantity;
             }
           }
-          
+
           // 목적지가 창고인 경우 재고 증가
           if (warehouses.find(w => w.id === transaction.toLocation)) {
             if (!recalculatedInventory[transaction.toLocation]) {
@@ -712,15 +712,15 @@ function InventoryManagement() {
     try {
       const warehouse = warehouses.find(w => w.id === warehouseId);
       if (!warehouse) return;
-      
+
       const newSyncState = !warehouse.syncWithProductStock;
-      
+
       // 서버에서 창고 정보 업데이트
       await warehouseApi.update(warehouseId, {
         syncWithProductStock: newSyncState,
         stockSync: newSyncState
       });
-      
+
       setWarehouses(prev => {
         const updatedWarehouses = prev.map(w => {
           if (w.id === warehouseId) {
@@ -734,12 +734,12 @@ function InventoryManagement() {
         });
         return updatedWarehouses;
       });
-      
+
       showSnackbar(
-        `${warehouse.name}의 재고 연동이 ${newSyncState ? '활성화' : '비활성화'}되었습니다.`, 
+        `${warehouse.name}의 재고 연동이 ${newSyncState ? '활성화' : '비활성화'}되었습니다.`,
         'success'
       );
-      
+
       // 연동 상태 변경 시 재고 재초기화
       recalculateInventoryFromTransactions(transactions);
     } catch (error) {
@@ -782,7 +782,7 @@ function InventoryManagement() {
         fromLocation: selectedTransaction.fromLocation || '',
         toLocation: selectedTransaction.toLocation || ''
       });
-      
+
       // 상품 정보 초기화
       if (selectedTransaction.items && selectedTransaction.items.length > 0) {
         setEditProducts(selectedTransaction.items.map(item => ({
@@ -804,7 +804,7 @@ function InventoryManagement() {
           additionalNote: ''
         }]);
       }
-      
+
       setEditMode(true);
     }
   };
@@ -932,14 +932,14 @@ function InventoryManagement() {
     try {
       // 서버에서 거래내역 삭제
       await transactionApi.delete(transactionId);
-      
+
       // 서버에서 최신 거래내역 다시 가져오기
       const updatedTransactions = await transactionApi.getAll();
       setTransactions(updatedTransactions);
-      
+
       // 삭제 후 재고 재계산
       recalculateInventoryFromTransactions(updatedTransactions);
-      
+
       showSnackbar('거래내역이 삭제되었습니다.', 'success');
     } catch (error) {
       console.error('거래내역 삭제 실패:', error);
@@ -955,7 +955,7 @@ function InventoryManagement() {
     setInventory(prev => {
       const newInventory = { ...prev };
       if (!newInventory[warehouseId]) newInventory[warehouseId] = {};
-      
+
       let syncCount = 0;
       products.forEach(product => {
         const oldStock = newInventory[warehouseId][product.id] || 0;
@@ -965,13 +965,13 @@ function InventoryManagement() {
           syncCount++;
         }
       });
-      
+
       if (syncCount > 0) {
         showSnackbar(`${warehouse.name}에서 ${syncCount}개 상품의 재고가 동기화되었습니다.`, 'success');
       } else {
         showSnackbar(`${warehouse.name}의 모든 재고가 이미 동기화되어 있습니다.`, 'info');
       }
-      
+
       return newInventory;
     });
   };
@@ -982,10 +982,10 @@ function InventoryManagement() {
       setLoading(true);
       const latestProducts = await productApi.getAll();
       setProducts(latestProducts);
-      
+
       // 새로운 상품이 추가되었거나 기존 상품이 변경된 경우 재고 재초기화
       initializeInventory();
-      
+
       showSnackbar(`상품관리 모듈에서 최신 전체 상품 데이터를 동기화했습니다. (총 ${latestProducts.length}개)`, 'success');
     } catch (error) {
       console.error('상품 데이터 새로고침 실패:', error);
@@ -1014,7 +1014,10 @@ function InventoryManagement() {
 
   const handleOpenDialog = () => {
     setDialogType('io');
-    setFormData(prev => ({ ...prev }));
+    setFormData(prev => ({
+      ...prev,
+      date: new Date().toISOString().split('T')[0]
+    }));
     setOpenDialog(true);
   };
 
@@ -1119,7 +1122,7 @@ function InventoryManagement() {
           await updateInventory(inverseT).catch(e => console.error('롤백 실패:', e));
         }
         await transactionApi.deleteByGroupId(groupId).catch(e => console.error('트랜잭션 롤백 삭제 실패:', e));
-        
+
         // 현재 상태 원복
         setTransactions(transactions);
         throw innerErr;
@@ -1144,7 +1147,7 @@ function InventoryManagement() {
     });
 
     const newInventory = JSON.parse(JSON.stringify(currentInventory));
-    
+
     if (transaction.type === 'in') {
       // 입고 처리 - 목적지가 창고인 경우만 재고 증가
       if (warehouses.find(w => w.id === transaction.toLocation)) {
@@ -1155,26 +1158,26 @@ function InventoryManagement() {
           newInventory[transaction.toLocation][transaction.productId] = 0;
         }
         newInventory[transaction.toLocation][transaction.productId] += transaction.quantity;
-        
+
         // 서버에 재고 업데이트 (비동기)
         await inventoryApi.upsert(transaction.toLocation, transaction.productId, newInventory[transaction.toLocation][transaction.productId]);
-        
+
         // 창고 A(연동 창고)의 경우 실제 상품 재고도 업데이트
         const warehouse = warehouses.find(w => w.id === transaction.toLocation);
         if (warehouse?.syncWithProductStock) {
           await updateProductStock(transaction.productId, transaction.quantity, 'increase');
         }
       }
-      
+
       // 출발지가 창고/대리점인 경우 (창고→창고, 대리점→창고 이동) 출발지에서 재고 차감
       if (warehouses.find(w => w.id === transaction.fromLocation)) {
-        if (newInventory[transaction.fromLocation] && 
-            newInventory[transaction.fromLocation][transaction.productId]) {
+        if (newInventory[transaction.fromLocation] &&
+          newInventory[transaction.fromLocation][transaction.productId]) {
           newInventory[transaction.fromLocation][transaction.productId] -= transaction.quantity;
-          
+
           // 서버에 재고 업데이트 (비동기)
           await inventoryApi.upsert(transaction.fromLocation, transaction.productId, newInventory[transaction.fromLocation][transaction.productId]);
-          
+
           // 창고 A(연동 창고)의 경우 실제 상품 재고도 업데이트
           const warehouse = warehouses.find(w => w.id === transaction.fromLocation);
           if (warehouse?.syncWithProductStock) {
@@ -1185,13 +1188,13 @@ function InventoryManagement() {
     } else {
       // 출고 처리 - 출발지가 창고인 경우만 재고 차감
       if (warehouses.find(w => w.id === transaction.fromLocation)) {
-        if (newInventory[transaction.fromLocation] && 
-            newInventory[transaction.fromLocation][transaction.productId]) {
+        if (newInventory[transaction.fromLocation] &&
+          newInventory[transaction.fromLocation][transaction.productId]) {
           newInventory[transaction.fromLocation][transaction.productId] -= transaction.quantity;
-          
+
           // 서버에 재고 업데이트 (비동기)
           await inventoryApi.upsert(transaction.fromLocation, transaction.productId, newInventory[transaction.fromLocation][transaction.productId]);
-          
+
           // 창고 A(연동 창고)의 경우 실제 상품 재고도 업데이트
           const warehouse = warehouses.find(w => w.id === transaction.fromLocation);
           if (warehouse?.syncWithProductStock) {
@@ -1199,7 +1202,7 @@ function InventoryManagement() {
           }
         }
       }
-      
+
       // 목적지가 창고인 경우만 재고 증가 (창고→창고 이동)
       if (warehouses.find(w => w.id === transaction.toLocation)) {
         if (!newInventory[transaction.toLocation]) {
@@ -1209,10 +1212,10 @@ function InventoryManagement() {
           newInventory[transaction.toLocation][transaction.productId] = 0;
         }
         newInventory[transaction.toLocation][transaction.productId] += transaction.quantity;
-        
+
         // 서버에 재고 업데이트 (비동기)
         await inventoryApi.upsert(transaction.toLocation, transaction.productId, newInventory[transaction.toLocation][transaction.productId]);
-        
+
         // 창고 A(연동 창고)의 경우 실제 상품 재고도 업데이트
         const warehouse = warehouses.find(w => w.id === transaction.toLocation);
         if (warehouse?.syncWithProductStock) {
@@ -1220,7 +1223,7 @@ function InventoryManagement() {
         }
       }
     }
-    
+
     // 최종 상태 업데이트
     setInventory(newInventory);
   };
@@ -1240,9 +1243,9 @@ function InventoryManagement() {
 
       // API를 통해 실제 상품 재고 업데이트
       await productApi.updateStock(productId, newStock);
-      
+
       // 로컬 상품 상태도 업데이트
-      setProducts(prev => prev.map(p => 
+      setProducts(prev => prev.map(p =>
         p.id === productId ? { ...p, stock: newStock } : p
       ));
 
@@ -1283,19 +1286,19 @@ function InventoryManagement() {
     if (!file) return;
 
     setExcelFile(file);
-    
+
     try {
       const workbook = new ExcelJS.Workbook();
       const arrayBuffer = await file.arrayBuffer();
       await workbook.xlsx.load(arrayBuffer);
-      
+
       const worksheet = workbook.getWorksheet(1);
       const data = [];
-      
+
       // 통합 파츠 템플릿(가로) 형식 감지
       let isNearbikeFormat = false;
       let headerRow = 1;
-      
+
       // 헤더 행 찾기 (주문번호, 주문처, 비고 등이 있는 행)
       worksheet.eachRow((row, rowNumber) => {
         const rowData = row.values;
@@ -1308,7 +1311,7 @@ function InventoryManagement() {
       if (isNearbikeFormat) {
         // [업데이트]: 통합 상품 관리 (가로 형태의 다중 상품 주문서 양식 지원)
         const headerRowValues = worksheet.getRow(headerRow).values;
-        
+
         // 어떤 열이 어떤 상품을 의미하는지 동적으로 식별 (4번째 열부터)
         // 엑셀은 1-based index 이지만, empty cell 이 있으면 length 가 길 수 있음
         const dynamicProductColumns = [];
@@ -1321,22 +1324,22 @@ function InventoryManagement() {
 
         worksheet.eachRow((row, rowNumber) => {
           if (rowNumber <= headerRow) return; // 헤더 행 건너뛰기
-          
+
           const rowData = row.values;
           const orderNumber = rowData[1]; // A열: 주문번호
           const orderSource = rowData[2]; // B열: 주문처
           const note = rowData[3]; // C열: 비고
-          
+
           if (!orderNumber || orderNumber.toString().trim() === '') return;
-          
+
           dynamicProductColumns.forEach(product => {
             const quantity = parseInt(rowData[product.col]) || 0;
             if (quantity !== 0) {
               const item = {
                 productCode: product.code, // 추후 handleExcelDataSubmit 에서 products와 매칭
                 productName: product.name,
-                parsedColName: product.name, 
-                quantity: Math.abs(quantity), 
+                parsedColName: product.name,
+                quantity: Math.abs(quantity),
                 fromLocation: quantity < 0 ? '외부' : 'W001', // 음수면 입고, 양수면 출고
                 toLocation: quantity < 0 ? 'W001' : note || '외부',
                 note: `${orderSource} - ${orderNumber}`,
@@ -1374,12 +1377,12 @@ function InventoryManagement() {
 
         worksheet.eachRow((row, rowNumber) => {
           if (rowNumber === 1) return; // 헤더 행 건너뛰기
-          
+
           const productCode = getColVal(row, '상품코드', '제품코드');
           const barcode = getColVal(row, '바코드');
           const productName = getColVal(row, '상품명', '제품명');
           const qtyStr = getColVal(row, '수량');
-          
+
           if (productCode || barcode || productName) {
             const item = {
               productCode: productCode,
@@ -1471,12 +1474,12 @@ function InventoryManagement() {
           if (product) break;
         }
       }
-      
+
       if (product) {
         // 출발지/목적지로 입고/출고 판단
         const isInbound = item.fromLocation === '외부' || !item.fromLocation || item.fromLocation === '';
         const transactionType = isInbound ? 'in' : 'out';
-        
+
         if (isInbound) inboundCount++;
         else outboundCount++;
 
@@ -1497,7 +1500,7 @@ function InventoryManagement() {
           createdAt: new Date().toLocaleString(),
           isGrouped: true
         };
-        
+
         newTransactions.push(transaction);
         inventoryUpdates.push(transaction);
       } else {
@@ -1526,11 +1529,11 @@ function InventoryManagement() {
     try {
       // 서버에 거래내역 저장
       await transactionApi.createMany(newTransactions);
-      
+
       // 거래 내역 업데이트
       const updatedTransactions = [...newTransactions, ...transactions];
       setTransactions(updatedTransactions);
-      
+
       // 재고 업데이트 (롤백 지원)
       const successfulTransactions = [];
       try {
@@ -1547,7 +1550,7 @@ function InventoryManagement() {
         setTransactions(transactions);
         throw innerErr;
       }
-      
+
       const resultMessage = `총 ${newTransactions.length}개 상품 처리 완료 (입고: ${inboundCount}개, 출고: ${outboundCount}개)`;
       showSnackbar(resultMessage, 'success');
       handleCloseExcelUpload();
@@ -1561,7 +1564,7 @@ function InventoryManagement() {
   const downloadExcelTemplate = () => {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('입출고 통합 템플릿');
-    
+
     // 헤더 설정
     worksheet.columns = [
       { header: 'A', key: 'colA', width: 10 },
@@ -1631,7 +1634,7 @@ function InventoryManagement() {
   const downloadNearbikeTemplate = () => {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('다중_파츠_입출고_관리');
-    
+
     // 헤더 설정 (구글 시트와 동일한 형식)
     worksheet.columns = [
       { header: '주문번호', key: 'orderNumber', width: 20 },
@@ -1682,8 +1685,8 @@ function InventoryManagement() {
 
     // 설명 추가
     worksheet.addRow({});
-    worksheet.addRow({ 
-      colA: '※ 설명:', 
+    worksheet.addRow({
+      colA: '※ 설명:',
       orderNumber: '음수(-)는 입고, 양수(+)는 출고로 자동 판단됩니다.',
       orderSource: '주문번호는 B열에 입력하세요.',
       note: '비고는 D열에 입력하세요.'
@@ -1724,8 +1727,8 @@ function InventoryManagement() {
   };
 
   const updateIoProductRow = (id, field, value) => {
-    setMultipleIoProducts(prev => 
-      prev.map(item => 
+    setMultipleIoProducts(prev =>
+      prev.map(item =>
         item.id === id ? { ...item, [field]: value } : item
       )
     );
@@ -1739,7 +1742,7 @@ function InventoryManagement() {
     const actualTx = tx.items && tx.items.length > 0 ? tx.items[0] : tx;
     const fromLoc = actualTx.fromLocation;
     const toLoc = actualTx.toLocation;
-    
+
     const isW = (id) => warehouses.some(w => w.id === id);
     const isD = (id) => dealers.some(d => d.id === id);
     const isExt = (id) => !id || id === '외부' || id === 'none';
@@ -1760,10 +1763,10 @@ function InventoryManagement() {
   // 재고 현황 계산
   const getInventorySummary = () => {
     const summary = {};
-    
+
     Object.entries(inventory).forEach(([locationId, products]) => {
-      const location = warehouses.find(w => w.id === locationId) || 
-                      dealers.find(d => d.id === locationId);
+      const location = warehouses.find(w => w.id === locationId) ||
+        dealers.find(d => d.id === locationId);
       if (location) {
         summary[locationId] = {
           name: location.name,
@@ -1772,14 +1775,14 @@ function InventoryManagement() {
         };
       }
     });
-    
+
     return summary;
   };
 
   // 그룹화된 거래내역 생성 (useMemo로 메모이제이션)
   const groupedTransactions = useMemo(() => {
     const grouped = {};
-    
+
     transactions.forEach(transaction => {
       // groupId가 존재하면 무조건 그룹으로 묶는다 (isGrouped 여부와 무관)
       const hasGroup = transaction.groupId !== undefined && transaction.groupId !== null;
@@ -1809,10 +1812,10 @@ function InventoryManagement() {
         };
       }
     });
-    
+
     return Object.values(grouped);
   }, [transactions]);
-  
+
   // 날짜 형식 헬퍼 함수
   const getDateKey = (date, period) => {
     const d = new Date(date);
@@ -1837,7 +1840,7 @@ function InventoryManagement() {
     const stats = {};
     const dateFrom = dealerStatsFilter.dateFrom;
     const dateTo = dealerStatsFilter.dateTo;
-    
+
     dealers.forEach(dealer => {
       stats[dealer.id] = {
         name: dealer.name,
@@ -1863,7 +1866,7 @@ function InventoryManagement() {
       // 날짜 필터 적용
       if (dateFrom && t.date < dateFrom) return;
       if (dateTo && t.date > dateTo) return;
-      
+
       const txDate = new Date(t.date);
       const dayKey = getDateKey(t.date, 'day');
       const weekKey = getDateKey(t.date, 'week');
@@ -1879,20 +1882,20 @@ function InventoryManagement() {
         if (!s.outLastDate || txDate > new Date(s.outLastDate)) {
           s.outLastDate = t.date;
         }
-        
+
         // 기간별 통계 (출고)
         s.dailyStats[dayKey] = s.dailyStats[dayKey] || { quantity: 0, transactions: 0 };
         s.dailyStats[dayKey].quantity += t.quantity;
         s.dailyStats[dayKey].transactions += 1;
-        
+
         s.weeklyStats[weekKey] = s.weeklyStats[weekKey] || { quantity: 0, transactions: 0 };
         s.weeklyStats[weekKey].quantity += t.quantity;
         s.weeklyStats[weekKey].transactions += 1;
-        
+
         s.monthlyStats[monthKey] = s.monthlyStats[monthKey] || { quantity: 0, transactions: 0 };
         s.monthlyStats[monthKey].quantity += t.quantity;
         s.monthlyStats[monthKey].transactions += 1;
-        
+
         s.yearlyStats[yearKey] = s.yearlyStats[yearKey] || { quantity: 0, transactions: 0 };
         s.yearlyStats[yearKey].quantity += t.quantity;
         s.yearlyStats[yearKey].transactions += 1;
@@ -1906,20 +1909,20 @@ function InventoryManagement() {
         if (!s.inLastDate || txDate > new Date(s.inLastDate)) {
           s.inLastDate = t.date;
         }
-        
+
         // 기간별 통계 (입고) - 대리점에서 입고는 출고로 카운트
         s.dailyStats[dayKey] = s.dailyStats[dayKey] || { quantity: 0, transactions: 0 };
         s.dailyStats[dayKey].quantity += t.quantity;
         s.dailyStats[dayKey].transactions += 1;
-        
+
         s.weeklyStats[weekKey] = s.weeklyStats[weekKey] || { quantity: 0, transactions: 0 };
         s.weeklyStats[weekKey].quantity += t.quantity;
         s.weeklyStats[weekKey].transactions += 1;
-        
+
         s.monthlyStats[monthKey] = s.monthlyStats[monthKey] || { quantity: 0, transactions: 0 };
         s.monthlyStats[monthKey].quantity += t.quantity;
         s.monthlyStats[monthKey].transactions += 1;
-        
+
         s.yearlyStats[yearKey] = s.yearlyStats[yearKey] || { quantity: 0, transactions: 0 };
         s.yearlyStats[yearKey].quantity += t.quantity;
         s.yearlyStats[yearKey].transactions += 1;
@@ -1934,7 +1937,7 @@ function InventoryManagement() {
     const stats = {};
     const dateFrom = dealerStatsFilter.dateFrom;
     const dateTo = dealerStatsFilter.dateTo;
-    
+
     warehouses.forEach(warehouse => {
       stats[warehouse.id] = {
         name: warehouse.name,
@@ -1956,7 +1959,7 @@ function InventoryManagement() {
       // 날짜 필터 적용
       if (dateFrom && t.date < dateFrom) return;
       if (dateTo && t.date > dateTo) return;
-      
+
       // 출고: 출발지가 창고인 경우
       if (t.type === 'out' && t.status !== '대기' && stats[t.fromLocation]) {
         const s = stats[t.fromLocation];
@@ -1967,25 +1970,25 @@ function InventoryManagement() {
         if (!s.outLastDate || txDate > new Date(s.outLastDate)) {
           s.outLastDate = t.date;
         }
-        
+
         // 기간별 통계
         const dayKey = getDateKey(t.date, 'day');
         const weekKey = getDateKey(t.date, 'week');
         const monthKey = getDateKey(t.date, 'month');
         const yearKey = getDateKey(t.date, 'year');
-        
+
         s.dailyStats[dayKey] = s.dailyStats[dayKey] || { quantity: 0, transactions: 0 };
         s.dailyStats[dayKey].quantity += t.quantity;
         s.dailyStats[dayKey].transactions += 1;
-        
+
         s.weeklyStats[weekKey] = s.weeklyStats[weekKey] || { quantity: 0, transactions: 0 };
         s.weeklyStats[weekKey].quantity += t.quantity;
         s.weeklyStats[weekKey].transactions += 1;
-        
+
         s.monthlyStats[monthKey] = s.monthlyStats[monthKey] || { quantity: 0, transactions: 0 };
         s.monthlyStats[monthKey].quantity += t.quantity;
         s.monthlyStats[monthKey].transactions += 1;
-        
+
         s.yearlyStats[yearKey] = s.yearlyStats[yearKey] || { quantity: 0, transactions: 0 };
         s.yearlyStats[yearKey].quantity += t.quantity;
         s.yearlyStats[yearKey].transactions += 1;
@@ -2008,24 +2011,24 @@ function InventoryManagement() {
       if (t.type === 'in') {
         totalQuantity += t.quantity;
         totalTransactions += 1;
-        
+
         const dayKey = getDateKey(t.date, 'day');
         const weekKey = getDateKey(t.date, 'week');
         const monthKey = getDateKey(t.date, 'month');
         const yearKey = getDateKey(t.date, 'year');
-        
+
         dailyStats[dayKey] = dailyStats[dayKey] || { quantity: 0, transactions: 0 };
         dailyStats[dayKey].quantity += t.quantity;
         dailyStats[dayKey].transactions += 1;
-        
+
         weeklyStats[weekKey] = weeklyStats[weekKey] || { quantity: 0, transactions: 0 };
         weeklyStats[weekKey].quantity += t.quantity;
         weeklyStats[weekKey].transactions += 1;
-        
+
         monthlyStats[monthKey] = monthlyStats[monthKey] || { quantity: 0, transactions: 0 };
         monthlyStats[monthKey].quantity += t.quantity;
         monthlyStats[monthKey].transactions += 1;
-        
+
         yearlyStats[yearKey] = yearlyStats[yearKey] || { quantity: 0, transactions: 0 };
         yearlyStats[yearKey].quantity += t.quantity;
         yearlyStats[yearKey].transactions += 1;
@@ -2047,17 +2050,17 @@ function InventoryManagement() {
     const stats = {};
     const dateFrom = dealerStatsFilter.dateFrom;
     const dateTo = dealerStatsFilter.dateTo;
-    
+
     transactions.forEach(t => {
       if (t.type === 'out' && t.status !== '대기') {
         // 날짜 필터 적용
         if (dateFrom && t.date < dateFrom) return;
         if (dateTo && t.date > dateTo) return;
-        
+
         const productId = t.productId;
         const productName = t.productName || '알 수 없음';
         const productCode = t.productCode || '';
-        
+
         if (!stats[productId]) {
           stats[productId] = {
             productId,
@@ -2075,7 +2078,7 @@ function InventoryManagement() {
             totalTransactions: 0
           };
         }
-        
+
         const s = stats[productId];
         const txDate = new Date(t.date);
         s.outTotalQuantity += t.quantity;
@@ -2084,25 +2087,25 @@ function InventoryManagement() {
         if (!s.outLastDate || txDate > new Date(s.outLastDate)) {
           s.outLastDate = t.date;
         }
-        
+
         // 기간별 통계
         const dayKey = getDateKey(t.date, 'day');
         const weekKey = getDateKey(t.date, 'week');
         const monthKey = getDateKey(t.date, 'month');
         const yearKey = getDateKey(t.date, 'year');
-        
+
         s.dailyStats[dayKey] = s.dailyStats[dayKey] || { quantity: 0, transactions: 0 };
         s.dailyStats[dayKey].quantity += t.quantity;
         s.dailyStats[dayKey].transactions += 1;
-        
+
         s.weeklyStats[weekKey] = s.weeklyStats[weekKey] || { quantity: 0, transactions: 0 };
         s.weeklyStats[weekKey].quantity += t.quantity;
         s.weeklyStats[weekKey].transactions += 1;
-        
+
         s.monthlyStats[monthKey] = s.monthlyStats[monthKey] || { quantity: 0, transactions: 0 };
         s.monthlyStats[monthKey].quantity += t.quantity;
         s.monthlyStats[monthKey].transactions += 1;
-        
+
         s.yearlyStats[yearKey] = s.yearlyStats[yearKey] || { quantity: 0, transactions: 0 };
         s.yearlyStats[yearKey].quantity += t.quantity;
         s.yearlyStats[yearKey].transactions += 1;
@@ -2116,15 +2119,15 @@ function InventoryManagement() {
   const locationMappings = useMemo(() => {
     const warehouseMap = {};
     const dealerMap = {};
-    
+
     warehouses.forEach(w => {
       warehouseMap[w.id] = { name: w.name, id: w.id };
     });
-    
+
     dealers.forEach(d => {
       dealerMap[d.id] = { name: d.name, id: d.id };
     });
-    
+
     return { warehouseMap, dealerMap };
   }, [warehouses, dealers]);
 
@@ -2160,14 +2163,14 @@ function InventoryManagement() {
       if (!tx || !tx.date) return;
       const key = typeof tx.date === 'string' ? tx.date.split('T')[0] : format(new Date(tx.date), 'yyyy-MM-dd');
       if (!set.has(key)) return;
-      
+
       // 입고: 목적지가 창고인 경우
       if (warehouseIds.has(tx.toLocation)) {
         const wid = tx.toLocation; const pid = tx.productId;
         acc[wid] = acc[wid] || {}; acc[wid][pid] = acc[wid][pid] || {}; acc[wid][pid][key] = acc[wid][pid][key] || { inQty: 0, outQty: 0 };
         acc[wid][pid][key].inQty += Number(tx.quantity) || 0;
       }
-      
+
       // 출고: 출발지가 창고인 경우
       if (warehouseIds.has(tx.fromLocation) && tx.status !== '대기') {
         const wid = tx.fromLocation; const pid = tx.productId;
@@ -2177,44 +2180,44 @@ function InventoryManagement() {
     });
     return acc;
   }, [transactions, warehouses, dateKeys]);
-  
+
   // 필터링된 거래내역 (useMemo로 메모이제이션 및 성능 최적화)
   const filteredTransactions = useMemo(() => {
     const { warehouseMap, dealerMap } = locationMappings;
-    
+
     return groupedTransactions.filter(group => {
       const matchesType = filter.type === 'all' || group.type === filter.type;
-      
-      const matchesFromLocation = !filter.fromLocation || 
-                            group.items.some(item => {
-                              const srcId = item.fromLocation;
-                              if (!srcId || srcId === '외부') return '외부'.includes(filter.fromLocation);
-                              const w = warehouseMap[srcId];
-                              if (w) return (w.name + w.id).toLowerCase().includes(filter.fromLocation.toLowerCase());
-                              const d = dealerMap[srcId];
-                              if (d) return (d.name + d.id).toLowerCase().includes(filter.fromLocation.toLowerCase());
-                              return srcId.toLowerCase().includes(filter.fromLocation.toLowerCase());
-                            });
-      
-      const matchesToLocation = !filter.toLocation || 
-                            group.items.some(item => {
-                              const destId = item.toLocation;
-                              const w = warehouseMap[destId];
-                              if (w) return (w.name + w.id).toLowerCase().includes(filter.toLocation.toLowerCase());
-                              const d = dealerMap[destId];
-                              if (d) return (d.name + d.id).toLowerCase().includes(filter.toLocation.toLowerCase());
-                              return destId.toLowerCase().includes(filter.toLocation.toLowerCase());
-                            });
-      
-      const matchesProduct = !filter.product || 
-                           group.items.some(item => 
-                             item.productName.toLowerCase().includes(filter.product.toLowerCase())
-                           );
-      
+
+      const matchesFromLocation = !filter.fromLocation ||
+        group.items.some(item => {
+          const srcId = item.fromLocation;
+          if (!srcId || srcId === '외부') return '외부'.includes(filter.fromLocation);
+          const w = warehouseMap[srcId];
+          if (w) return (w.name + w.id).toLowerCase().includes(filter.fromLocation.toLowerCase());
+          const d = dealerMap[srcId];
+          if (d) return (d.name + d.id).toLowerCase().includes(filter.fromLocation.toLowerCase());
+          return srcId.toLowerCase().includes(filter.fromLocation.toLowerCase());
+        });
+
+      const matchesToLocation = !filter.toLocation ||
+        group.items.some(item => {
+          const destId = item.toLocation;
+          const w = warehouseMap[destId];
+          if (w) return (w.name + w.id).toLowerCase().includes(filter.toLocation.toLowerCase());
+          const d = dealerMap[destId];
+          if (d) return (d.name + d.id).toLowerCase().includes(filter.toLocation.toLowerCase());
+          return destId.toLowerCase().includes(filter.toLocation.toLowerCase());
+        });
+
+      const matchesProduct = !filter.product ||
+        group.items.some(item =>
+          item.productName.toLowerCase().includes(filter.product.toLowerCase())
+        );
+
       const rawSearch = (filter.note || '').toLowerCase().trim();
       const isShpSvcSearch = /^(shp-|svc-)/i.test(rawSearch);
       const cleanSearch = isShpSvcSearch ? rawSearch.replace(/^(shp-|svc-)/i, '') : '';
-      
+
       const checkNoteMatch = (noteText) => {
         if (!noteText) return false;
         const lowerNote = noteText.toLowerCase();
@@ -2223,13 +2226,13 @@ function InventoryManagement() {
         return false;
       };
 
-      const matchesNote = !filter.note || 
-                         group.items.some(item => checkNoteMatch(item.note)) ||
-                         checkNoteMatch(group.note);
-      
+      const matchesNote = !filter.note ||
+        group.items.some(item => checkNoteMatch(item.note)) ||
+        checkNoteMatch(group.note);
+
       const matchesDateFrom = !filter.dateFrom || group.date >= filter.dateFrom;
       const matchesDateTo = !filter.dateTo || group.date <= filter.dateTo;
-      
+
       return matchesType && matchesFromLocation && matchesToLocation && matchesProduct && matchesNote && matchesDateFrom && matchesDateTo;
     }).sort((a, b) => {
       const dir = filter.sortOrder === 'asc' ? 1 : -1;
@@ -2271,22 +2274,22 @@ function InventoryManagement() {
     const thisWeek = new Date();
     thisWeek.setDate(thisWeek.getDate() - thisWeek.getDay());
     const weekStart = format(thisWeek, 'yyyy-MM-dd');
-    
+
     // 오늘 거래 통계
     const todayTransactions = transactions.filter(tx => tx.date === today);
     const todayInbound = todayTransactions.filter(tx => tx.type === 'in').reduce((sum, tx) => sum + tx.quantity, 0);
     const todayOutbound = todayTransactions.filter(tx => tx.type === 'out').reduce((sum, tx) => sum + tx.quantity, 0);
-    
+
     // 이번 주 거래 통계
     const weekTransactions = transactions.filter(tx => tx.date >= weekStart);
     const weekInbound = weekTransactions.filter(tx => tx.type === 'in').reduce((sum, tx) => sum + tx.quantity, 0);
     const weekOutbound = weekTransactions.filter(tx => tx.type === 'out').reduce((sum, tx) => sum + tx.quantity, 0);
-    
+
     // 전체 재고 통계
     const totalInventory = Object.values(inventory).reduce((total, warehouse) => {
       return total + Object.values(warehouse).reduce((sum, qty) => sum + qty, 0);
     }, 0);
-    
+
     // 재고 부족 상품 수
     const lowStockProducts = products.filter(product => {
       return warehouses.some(warehouse => {
@@ -2294,12 +2297,12 @@ function InventoryManagement() {
         return stock <= 5; // 5개 이하를 재고 부족으로 간주
       });
     }).length;
-    
+
     // 최근 거래 활동
     const recentTransactions = transactions
       .sort((a, b) => new Date(b.date) - new Date(a.date))
       .slice(0, 5);
-    
+
     return {
       today: {
         inbound: todayInbound,
@@ -2368,13 +2371,13 @@ function InventoryManagement() {
           setCurrentScanningRow(null);
         }
       }
-      
+
       // Enter 키로 상품 행 추가 (입출고 등록 모달이 열려있을 때)
       if (event.key === 'Enter' && openDialog && !event.shiftKey) {
         event.preventDefault();
         addIoProductRow();
       }
-      
+
       // Ctrl+N으로 새 입출고 등록
       if (event.ctrlKey && event.key === 'n') {
         event.preventDefault();
@@ -2382,7 +2385,7 @@ function InventoryManagement() {
           handleOpenDialog('in');
         }
       }
-      
+
       // Ctrl+F로 필터 포커스
       if (event.ctrlKey && event.key === 'f') {
         event.preventDefault();
@@ -2459,10 +2462,10 @@ function InventoryManagement() {
     const files = e.dataTransfer.files;
     if (files.length > 0) {
       const file = files[0];
-      if (file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
-          file.type === 'application/vnd.ms-excel' ||
-          file.name.endsWith('.xlsx') || 
-          file.name.endsWith('.xls')) {
+      if (file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+        file.type === 'application/vnd.ms-excel' ||
+        file.name.endsWith('.xlsx') ||
+        file.name.endsWith('.xls')) {
         setExcelFile(file);
         handleExcelFileUpload({ target: { files: [file] } });
       } else {
@@ -2565,11 +2568,11 @@ function InventoryManagement() {
 
       {/* 탭 메뉴 */}
       <Paper sx={{ mb: 3, borderRadius: 2, boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)' }}>
-        <Tabs 
-          value={activeTab} 
-          onChange={handleTabChange} 
-          variant="scrollable" 
-          scrollButtons 
+        <Tabs
+          value={activeTab}
+          onChange={handleTabChange}
+          variant="scrollable"
+          scrollButtons
           allowScrollButtonsMobile
           textColor="primary"
           indicatorColor="primary"
@@ -2600,7 +2603,7 @@ function InventoryManagement() {
           <Typography variant="h6" sx={{ mb: 3 }}>
             📊 입출고 관리 대시보드
           </Typography>
-          
+
           {/* 주요 지표 카드들 */}
           <Grid container spacing={3} sx={{ mb: 4 }}>
             {/* 오늘 거래 현황 */}
@@ -2614,7 +2617,7 @@ function InventoryManagement() {
                 </Typography>
               </Card>
             </Grid>
-            
+
             {/* 오늘 입고량 */}
             <Grid item xs={12} md={3}>
               <Card sx={{ p: 2, textAlign: 'center' }}>
@@ -2626,7 +2629,7 @@ function InventoryManagement() {
                 </Typography>
               </Card>
             </Grid>
-            
+
             {/* 오늘 출고량 */}
             <Grid item xs={12} md={3}>
               <Card sx={{ p: 2, textAlign: 'center' }}>
@@ -2638,7 +2641,7 @@ function InventoryManagement() {
                 </Typography>
               </Card>
             </Grid>
-            
+
             {/* 전체 재고량 */}
             <Grid item xs={12} md={3}>
               <Card sx={{ p: 2, textAlign: 'center' }}>
@@ -2651,7 +2654,7 @@ function InventoryManagement() {
               </Card>
             </Grid>
           </Grid>
-          
+
           {/* 주간 통계 및 재고 현황 */}
           <Grid container spacing={3} sx={{ mb: 4 }}>
             {/* 이번 주 통계 */}
@@ -2680,7 +2683,7 @@ function InventoryManagement() {
                 </Box>
               </Card>
             </Grid>
-            
+
             {/* 재고 현황 */}
             <Grid item xs={12} md={6}>
               <Card sx={{ p: 3 }}>
@@ -2701,9 +2704,9 @@ function InventoryManagement() {
                 </Box>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                   <Typography variant="body2">재고 부족 상품:</Typography>
-                  <Typography 
-                    variant="body2" 
-                    fontWeight="bold" 
+                  <Typography
+                    variant="body2"
+                    fontWeight="bold"
                     color={dashboardStats.inventory.lowStockCount > 0 ? 'warning.main' : 'success.main'}
                   >
                     {dashboardStats.inventory.lowStockCount}개
@@ -2712,7 +2715,7 @@ function InventoryManagement() {
               </Card>
             </Grid>
           </Grid>
-          
+
           {/* 최근 거래 활동 */}
           <Card sx={{ p: 3 }}>
             <Typography variant="h6" sx={{ mb: 2 }}>
@@ -2736,13 +2739,13 @@ function InventoryManagement() {
                       const product = products.find(p => p.id === tx.productId);
                       const fromLocation = formatLocationName(tx.fromLocation, warehouses, dealers);
                       const toLocation = formatLocationName(tx.toLocation, warehouses, dealers);
-                      
+
                       return (
                         <TableRow key={tx.id} hover>
                           <TableCell>{tx.date}</TableCell>
                           <TableCell>
-                            <Chip 
-                              label={getTransactionTypeInfo(tx).label} 
+                            <Chip
+                              label={getTransactionTypeInfo(tx).label}
                               size="small"
                               color={getTransactionTypeInfo(tx).color}
                             />
@@ -2772,7 +2775,7 @@ function InventoryManagement() {
           {/* 검색/기간 통합 필터 UI */}
           <Paper sx={{ p: 2, mb: 3 }}>
             <Grid container spacing={2} alignItems="center">
-              
+
               {/* 거래 유형 & 정렬 드롭다운 */}
               <Grid item xs={12} md="auto">
                 <Stack direction="row" spacing={1}>
@@ -2884,7 +2887,7 @@ function InventoryManagement() {
                     onChange={(e) => setFilter(prev => ({ ...prev, note: e.target.value }))}
                     sx={{ width: 150 }}
                   />
-                  
+
                   <Button variant="contained" onClick={() => showSnackbar('필터가 적용되었습니다.', 'success')} sx={{ bgcolor: '#3182f6' }}>검색</Button>
                   <Button variant="outlined" onClick={() => {
                     setFilter({
@@ -2918,126 +2921,126 @@ function InventoryManagement() {
           {transactionViewMode === 'list' && (
             <>
               <TableContainer component={Paper}>
-              <Table size="small" sx={{ borderTop: '1px solid rgba(224, 224, 224, 1)', borderLeft: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { borderRight: '1px solid rgba(224, 224, 224, 1)', borderBottom: '1px solid rgba(224, 224, 224, 1)' } }}>
-                <TableHead>
-                  <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                    <TableCell padding="checkbox">
-                      <Checkbox
-                        checked={paginatedTransactions.length > 0 && selectedTransactions.length === paginatedTransactions.length}
-                        onChange={(e) => {
-                          if (e.target.checked) setSelectedTransactions(paginatedTransactions.map(t => t.id));
-                          else setSelectedTransactions([]);
-                        }}
-                      />
-                    </TableCell>
-                    <TableCell>날짜</TableCell>
-                    <TableCell>유형</TableCell>
-                    <TableCell align="center">상태</TableCell>
-                    <TableCell>상품</TableCell>
-                    <TableCell align="center">품목수</TableCell>
-                    <TableCell align="center">수량</TableCell>
-                    <TableCell>출발지</TableCell>
-                    <TableCell>목적지</TableCell>
-                    <TableCell>메모</TableCell>
-                    <TableCell align="center">작업</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {paginatedTransactions.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={10} align="center">검색 결과가 없습니다.</TableCell>
+                <Table size="small" sx={{ borderTop: '1px solid rgba(224, 224, 224, 1)', borderLeft: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { borderRight: '1px solid rgba(224, 224, 224, 1)', borderBottom: '1px solid rgba(224, 224, 224, 1)' } }}>
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                      <TableCell padding="checkbox">
+                        <Checkbox
+                          checked={paginatedTransactions.length > 0 && selectedTransactions.length === paginatedTransactions.length}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedTransactions(paginatedTransactions.map(t => t.id));
+                            else setSelectedTransactions([]);
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell>날짜</TableCell>
+                      <TableCell>유형</TableCell>
+                      <TableCell align="center">상태</TableCell>
+                      <TableCell>상품</TableCell>
+                      <TableCell align="center">품목수</TableCell>
+                      <TableCell align="center">수량</TableCell>
+                      <TableCell>출발지</TableCell>
+                      <TableCell>목적지</TableCell>
+                      <TableCell>메모</TableCell>
+                      <TableCell align="center">작업</TableCell>
                     </TableRow>
-                  ) : (
-                    paginatedTransactions.map((group) => (
-                      <TableRow key={group.id} hover>
-                        <TableCell padding="checkbox">
-                          <Checkbox
-                            checked={selectedTransactions.includes(group.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) setSelectedTransactions(prev => [...prev, group.id]);
-                              else setSelectedTransactions(prev => prev.filter(id => id !== group.id));
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        </TableCell>
-                        <TableCell>{group.date}</TableCell>
-                        <TableCell>
-                          <Chip label={getTransactionTypeInfo(group).label} size="small" color={getTransactionTypeInfo(group).color} />
-                        </TableCell>
-                        <TableCell align="center">
-                          {group.items[0]?.status === '대기' ? (
-                            <Chip label="출고대기" size="small" color="warning" variant="outlined" />
-                          ) : (
-                            <Chip label="완료" size="small" color="success" variant="outlined" />
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {group.items.length === 1 ? (
-                            group.items[0].productName
-                          ) : (
-                            <Tooltip
-                              title={
-                                <Box sx={{ p: 0.5 }}>
-                                  {group.items.map((item, i) => (
-                                    <Typography key={i} variant="body2" sx={{ fontSize: '0.8rem' }}>
-                                      • {item.productName} ({item.quantity}개)
+                  </TableHead>
+                  <TableBody>
+                    {paginatedTransactions.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={10} align="center">검색 결과가 없습니다.</TableCell>
+                      </TableRow>
+                    ) : (
+                      paginatedTransactions.map((group) => (
+                        <TableRow key={group.id} hover>
+                          <TableCell padding="checkbox">
+                            <Checkbox
+                              checked={selectedTransactions.includes(group.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) setSelectedTransactions(prev => [...prev, group.id]);
+                                else setSelectedTransactions(prev => prev.filter(id => id !== group.id));
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </TableCell>
+                          <TableCell>{group.date}</TableCell>
+                          <TableCell>
+                            <Chip label={getTransactionTypeInfo(group).label} size="small" color={getTransactionTypeInfo(group).color} />
+                          </TableCell>
+                          <TableCell align="center">
+                            {group.items[0]?.status === '대기' ? (
+                              <Chip label="출고대기" size="small" color="warning" variant="outlined" />
+                            ) : (
+                              <Chip label="완료" size="small" color="success" variant="outlined" />
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {group.items.length === 1 ? (
+                              group.items[0].productName
+                            ) : (
+                              <Tooltip
+                                title={
+                                  <Box sx={{ p: 0.5 }}>
+                                    {group.items.map((item, i) => (
+                                      <Typography key={i} variant="body2" sx={{ fontSize: '0.8rem' }}>
+                                        • {item.productName} ({item.quantity}개)
+                                      </Typography>
+                                    ))}
+                                  </Box>
+                                }
+                                arrow
+                                placement="top"
+                              >
+                                <Box sx={{ display: 'flex', flexDirection: 'column', borderBottom: '1px dashed #999', pb: 0.5 }}>
+                                  {group.items.slice(0, 3).map((item, idx) => (
+                                    <Typography key={idx} variant="body2" sx={{ cursor: 'pointer' }}>
+                                      {item.productName}
                                     </Typography>
                                   ))}
+                                  {group.items.length > 3 && (
+                                    <Typography variant="body2" color="text.secondary" sx={{ cursor: 'pointer', mt: 0.5 }}>
+                                      외 {group.items.length - 3}개
+                                    </Typography>
+                                  )}
                                 </Box>
-                              }
-                              arrow
-                              placement="top"
-                            >
-                              <Box sx={{ display: 'flex', flexDirection: 'column', borderBottom: '1px dashed #999', pb: 0.5 }}>
-                                {group.items.slice(0, 3).map((item, idx) => (
-                                  <Typography key={idx} variant="body2" sx={{ cursor: 'pointer' }}>
-                                    {item.productName}
-                                  </Typography>
-                                ))}
-                                {group.items.length > 3 && (
-                                  <Typography variant="body2" color="text.secondary" sx={{ cursor: 'pointer', mt: 0.5 }}>
-                                    외 {group.items.length - 3}개
-                                  </Typography>
-                                )}
-                              </Box>
-                            </Tooltip>
-                          )}
-                        </TableCell>
-                        <TableCell align="center">{group.items.length}</TableCell>
-                        <TableCell align="center">{group.items.length === 1 ? group.items[0].quantity : group.items.reduce((sum, item) => sum + item.quantity, 0)}</TableCell>
-                        <TableCell sx={{ fontWeight: 700 }}>
-                          {group.items.length === 1 ? formatLocationName(group.items[0].fromLocation, warehouses, dealers) : (() => { const fromLocs = [...new Set(group.items.map(item => formatLocationName(item.fromLocation, warehouses, dealers)))]; return fromLocs.length === 1 ? fromLocs[0] : '다양'; })()}
-                        </TableCell>
-                        <TableCell sx={{ fontWeight: 700 }}>
-                          {group.items.length === 1 ? formatLocationName(group.items[0].toLocation, warehouses, dealers) : (() => { const toLocs = [...new Set(group.items.map(item => formatLocationName(item.toLocation, warehouses, dealers)))]; return toLocs.length === 1 ? toLocs[0] : '다양'; })()}
-                        </TableCell>
-                        <TableCell sx={{ fontWeight: 700 }}>{group.items.length === 1 ? (group.items[0].note || '-') : (group.note || '다중 상품')}</TableCell>
-                        <TableCell align="center">
-                          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
-                            <Button size="small" variant="outlined" onClick={(e) => { e.stopPropagation(); openTransactionDetail(group); }}>상세</Button>
-                          </Box>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-            
-            {/* 페이지네이션 */}
-            {filteredTransactions.length > itemsPerPage && (
-              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-                <Pagination
-                  count={totalPages}
-                  page={currentPage}
-                  onChange={handlePageChange}
-                  color="primary"
-                  size="large"
-                  showFirstButton
-                  showLastButton
-                />
-              </Box>
-            )}
+                              </Tooltip>
+                            )}
+                          </TableCell>
+                          <TableCell align="center">{group.items.length}</TableCell>
+                          <TableCell align="center">{group.items.length === 1 ? group.items[0].quantity : group.items.reduce((sum, item) => sum + item.quantity, 0)}</TableCell>
+                          <TableCell sx={{ fontWeight: 700 }}>
+                            {group.items.length === 1 ? formatLocationName(group.items[0].fromLocation, warehouses, dealers) : (() => { const fromLocs = [...new Set(group.items.map(item => formatLocationName(item.fromLocation, warehouses, dealers)))]; return fromLocs.length === 1 ? fromLocs[0] : '다양'; })()}
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 700 }}>
+                            {group.items.length === 1 ? formatLocationName(group.items[0].toLocation, warehouses, dealers) : (() => { const toLocs = [...new Set(group.items.map(item => formatLocationName(item.toLocation, warehouses, dealers)))]; return toLocs.length === 1 ? toLocs[0] : '다양'; })()}
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 700 }}>{group.items.length === 1 ? (group.items[0].note || '-') : (group.note || '다중 상품')}</TableCell>
+                          <TableCell align="center">
+                            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+                              <Button size="small" variant="outlined" onClick={(e) => { e.stopPropagation(); openTransactionDetail(group); }}>상세</Button>
+                            </Box>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+
+              {/* 페이지네이션 */}
+              {filteredTransactions.length > itemsPerPage && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                  <Pagination
+                    count={totalPages}
+                    page={currentPage}
+                    onChange={handlePageChange}
+                    color="primary"
+                    size="large"
+                    showFirstButton
+                    showLastButton
+                  />
+                </Box>
+              )}
             </>
           )}
 
@@ -3076,10 +3079,10 @@ function InventoryManagement() {
                                       const io = ioByWarehouseProductDate[wid]?.[p.id]?.[dk] || { inQty: 0, outQty: 0 };
                                       return (io.inQty || 0) > 0 || (io.outQty || 0) > 0;
                                     });
-                                    
+
                                     // 이력이 없으면 행을 렌더링하지 않음
                                     if (!hasAnyMovement) return null;
-                                    
+
                                     // 해당 날짜/창고의 거래에서 출발지/목적지 정보 수집
                                     const dayTransactions = transactions.filter(tx => {
                                       if (!tx || !tx.date) return false;
@@ -3111,24 +3114,24 @@ function InventoryManagement() {
                                           const io = ioByWarehouseProductDate[wid]?.[p.id]?.[dk] || { inQty: 0, outQty: 0 };
                                           const hasAny = (io.inQty || 0) > 0 || (io.outQty || 0) > 0;
                                           return (
-                                             <TableCell key={`cell-${wid}-${dk}-${p.id}`} align="right">
-                                               {hasAny ? (
-                                                 <Box 
-                                                   sx={{ 
-                                                     display: 'inline-flex', 
-                                                     gap: 0.5, 
-                                                     cursor: 'pointer',
-                                                     '&:hover': { opacity: 0.7 }
-                                                   }}
-                                                   onMouseEnter={(e) => handleTableCellHover(e, wid, p.id, dk)}
-                                                   onMouseLeave={handleTableCellHoverLeave}
-                                                   onClick={() => handleTableCellClick(wid, p.id, dk)}
-                                                 >
-                                                   {io.inQty > 0 && (<span style={{ color: 'var(--mui-palette-success-main, #2e7d32)', fontWeight: 'bold', fontSize: '0.95rem' }}>+{io.inQty.toLocaleString()}</span>)}
-                                                   {io.outQty > 0 && (<span style={{ color: 'var(--mui-palette-error-main, #d32f2f)', fontWeight: 'bold', fontSize: '0.95rem' }}>−{io.outQty.toLocaleString()}</span>)}
-                                                 </Box>
-                                               ) : ''}
-                                             </TableCell>
+                                            <TableCell key={`cell-${wid}-${dk}-${p.id}`} align="right">
+                                              {hasAny ? (
+                                                <Box
+                                                  sx={{
+                                                    display: 'inline-flex',
+                                                    gap: 0.5,
+                                                    cursor: 'pointer',
+                                                    '&:hover': { opacity: 0.7 }
+                                                  }}
+                                                  onMouseEnter={(e) => handleTableCellHover(e, wid, p.id, dk)}
+                                                  onMouseLeave={handleTableCellHoverLeave}
+                                                  onClick={() => handleTableCellClick(wid, p.id, dk)}
+                                                >
+                                                  {io.inQty > 0 && (<span style={{ color: 'var(--mui-palette-success-main, #2e7d32)', fontWeight: 'bold', fontSize: '0.95rem' }}>+{io.inQty.toLocaleString()}</span>)}
+                                                  {io.outQty > 0 && (<span style={{ color: 'var(--mui-palette-error-main, #d32f2f)', fontWeight: 'bold', fontSize: '0.95rem' }}>−{io.outQty.toLocaleString()}</span>)}
+                                                </Box>
+                                              ) : ''}
+                                            </TableCell>
                                           );
                                         })}
                                       </TableRow>
@@ -3177,425 +3180,425 @@ function InventoryManagement() {
         </Box>
       )}
 
-        {activeTab === 5 && (
-          <Box>
-            {/* 입출고 통계 필터 */}
-            <Card sx={{ p: 1.5, mb: 1.5 }}>
-              <Typography variant="subtitle1" gutterBottom sx={{ mb: 1, fontWeight: 'bold' }}>통계 필터</Typography>
-              <Grid container spacing={1.5} alignItems="center">
-                <Grid item xs={12} sm={3}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    type="date"
-                    label="시작 날짜"
-                    value={dealerStatsFilter.dateFrom}
-                    onChange={(e) => setDealerStatsFilter(prev => ({ ...prev, dateFrom: e.target.value }))}
-                    InputLabelProps={{ shrink: true }}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={3}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    type="date"
-                    label="종료 날짜"
-                    value={dealerStatsFilter.dateTo}
-                    onChange={(e) => setDealerStatsFilter(prev => ({ ...prev, dateTo: e.target.value }))}
-                    InputLabelProps={{ shrink: true }}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={3}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    select
-                    label="대리점 선택"
-                    value={dealerStatsFilter.dealer || ''}
-                    onChange={(e) => setDealerStatsFilter(prev => ({ ...prev, dealer: e.target.value }))}
-                    SelectProps={{ native: true }}
-                  >
-                    <option value="">전체 대리점</option>
-                    {dealers.map(dealer => (
-                      <option key={dealer.id} value={dealer.id}>{dealer.name}</option>
-                    ))}
-                  </TextField>
-                </Grid>
-                <Grid item xs={12} sm={3}>
-                  <Button
-                    fullWidth
-                    size="small"
-                    variant="contained"
-                    startIcon={<SearchIcon />}
-                    onClick={() => {
-                      showSnackbar('통계 필터가 적용되었습니다.', 'success');
-                    }}
-                  >
-                    검색
-                  </Button>
-                </Grid>
+      {activeTab === 5 && (
+        <Box>
+          {/* 입출고 통계 필터 */}
+          <Card sx={{ p: 1.5, mb: 1.5 }}>
+            <Typography variant="subtitle1" gutterBottom sx={{ mb: 1, fontWeight: 'bold' }}>통계 필터</Typography>
+            <Grid container spacing={1.5} alignItems="center">
+              <Grid item xs={12} sm={3}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  type="date"
+                  label="시작 날짜"
+                  value={dealerStatsFilter.dateFrom}
+                  onChange={(e) => setDealerStatsFilter(prev => ({ ...prev, dateFrom: e.target.value }))}
+                  InputLabelProps={{ shrink: true }}
+                />
               </Grid>
-            </Card>
-
-            {/* 요약 통계 카드 - 컴팩트하게 */}
-            <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
-              <Grid item xs={6} sm={3}>
-                <Card>
-                  <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                    <Typography variant="caption" color="text.secondary">총 재고</Typography>
-                    <Typography variant="h6" color="primary" sx={{ mt: 0.5 }}>
-                      {Object.values(inventory).reduce((total, products) => 
-                        total + Object.values(products).reduce((sum, qty) => sum + qty, 0), 0
-                      ).toLocaleString()}
-                    </Typography>
-                  </CardContent>
-                </Card>
+              <Grid item xs={12} sm={3}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  type="date"
+                  label="종료 날짜"
+                  value={dealerStatsFilter.dateTo}
+                  onChange={(e) => setDealerStatsFilter(prev => ({ ...prev, dateTo: e.target.value }))}
+                  InputLabelProps={{ shrink: true }}
+                />
               </Grid>
-              <Grid item xs={6} sm={3}>
-                <Card>
-                  <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                    <Typography variant="caption" color="text.secondary">총 입고량</Typography>
-                    <Typography variant="h6" color="success.main" sx={{ mt: 0.5 }}>
-                      {totalInboundStats.totalQuantity.toLocaleString()}
-                    </Typography>
-                  </CardContent>
-                </Card>
+              <Grid item xs={12} sm={3}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  select
+                  label="대리점 선택"
+                  value={dealerStatsFilter.dealer || ''}
+                  onChange={(e) => setDealerStatsFilter(prev => ({ ...prev, dealer: e.target.value }))}
+                  SelectProps={{ native: true }}
+                >
+                  <option value="">전체 대리점</option>
+                  {dealers.map(dealer => (
+                    <option key={dealer.id} value={dealer.id}>{dealer.name}</option>
+                  ))}
+                </TextField>
               </Grid>
-              <Grid item xs={6} sm={3}>
-                <Card>
-                  <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                    <Typography variant="caption" color="text.secondary">창고 수</Typography>
-                    <Typography variant="h6" color="secondary" sx={{ mt: 0.5 }}>
-                      {warehouses.length}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={6} sm={3}>
-                <Card>
-                  <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                    <Typography variant="caption" color="text.secondary">대리점 수</Typography>
-                    <Typography variant="h6" color="success.main" sx={{ mt: 0.5 }}>
-                      {dealers.length}
-                    </Typography>
-                  </CardContent>
-                </Card>
+              <Grid item xs={12} sm={3}>
+                <Button
+                  fullWidth
+                  size="small"
+                  variant="contained"
+                  startIcon={<SearchIcon />}
+                  onClick={() => {
+                    showSnackbar('통계 필터가 적용되었습니다.', 'success');
+                  }}
+                >
+                  검색
+                </Button>
               </Grid>
             </Grid>
+          </Card>
 
-            {/* 총 이동 수령 (총 입고량) 표시 - 컴팩트 */}
-            <Card sx={{ p: 1.5, mb: 1.5, backgroundColor: '#f5f5f5' }}>
-              <Typography variant="subtitle1" gutterBottom sx={{ mb: 1, fontWeight: 'bold' }}>
-                총 이동 수령 (총 입고량) - {totalInboundStats.totalQuantity.toLocaleString()}개 ({totalInboundStats.totalTransactions}건)
-              </Typography>
-              <TableContainer>
-                <Table size="small" sx={{ borderTop: '1px solid rgba(224, 224, 224, 1)', borderLeft: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { borderRight: '1px solid rgba(224, 224, 224, 1)', borderBottom: '1px solid rgba(224, 224, 224, 1)' } }}>
-                  <TableHead>
-                    <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                      <TableCell sx={{ py: 0.5 }}>기간</TableCell>
-                      <TableCell align="right" sx={{ py: 0.5 }}>수량</TableCell>
-                      <TableCell align="right" sx={{ py: 0.5 }}>건수</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {(() => {
-                      const periodStats = dealerStatsFilter.period === 'day' ? totalInboundStats.dailyStats :
-                                         dealerStatsFilter.period === 'week' ? totalInboundStats.weeklyStats :
-                                         dealerStatsFilter.period === 'month' ? totalInboundStats.monthlyStats :
-                                         totalInboundStats.yearlyStats;
-                      const sortedPeriods = Object.keys(periodStats).sort().reverse().slice(0, 10);
-                      return sortedPeriods.map(period => (
-                        <TableRow key={period}>
-                          <TableCell sx={{ py: 0.5 }}>
-                            {dealerStatsFilter.period === 'day' ? period :
-                             dealerStatsFilter.period === 'week' ? period.split('-W')[1] + '주차' :
-                             dealerStatsFilter.period === 'month' ? period.split('-')[0] + '년 ' + parseInt(period.split('-')[1]) + '월' :
-                             period + '년'}
+          {/* 요약 통계 카드 - 컴팩트하게 */}
+          <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
+            <Grid item xs={6} sm={3}>
+              <Card>
+                <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                  <Typography variant="caption" color="text.secondary">총 재고</Typography>
+                  <Typography variant="h6" color="primary" sx={{ mt: 0.5 }}>
+                    {Object.values(inventory).reduce((total, products) =>
+                      total + Object.values(products).reduce((sum, qty) => sum + qty, 0), 0
+                    ).toLocaleString()}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <Card>
+                <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                  <Typography variant="caption" color="text.secondary">총 입고량</Typography>
+                  <Typography variant="h6" color="success.main" sx={{ mt: 0.5 }}>
+                    {totalInboundStats.totalQuantity.toLocaleString()}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <Card>
+                <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                  <Typography variant="caption" color="text.secondary">창고 수</Typography>
+                  <Typography variant="h6" color="secondary" sx={{ mt: 0.5 }}>
+                    {warehouses.length}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <Card>
+                <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                  <Typography variant="caption" color="text.secondary">대리점 수</Typography>
+                  <Typography variant="h6" color="success.main" sx={{ mt: 0.5 }}>
+                    {dealers.length}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+
+          {/* 총 이동 수령 (총 입고량) 표시 - 컴팩트 */}
+          <Card sx={{ p: 1.5, mb: 1.5, backgroundColor: '#f5f5f5' }}>
+            <Typography variant="subtitle1" gutterBottom sx={{ mb: 1, fontWeight: 'bold' }}>
+              총 이동 수령 (총 입고량) - {totalInboundStats.totalQuantity.toLocaleString()}개 ({totalInboundStats.totalTransactions}건)
+            </Typography>
+            <TableContainer>
+              <Table size="small" sx={{ borderTop: '1px solid rgba(224, 224, 224, 1)', borderLeft: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { borderRight: '1px solid rgba(224, 224, 224, 1)', borderBottom: '1px solid rgba(224, 224, 224, 1)' } }}>
+                <TableHead>
+                  <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                    <TableCell sx={{ py: 0.5 }}>기간</TableCell>
+                    <TableCell align="right" sx={{ py: 0.5 }}>수량</TableCell>
+                    <TableCell align="right" sx={{ py: 0.5 }}>건수</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {(() => {
+                    const periodStats = dealerStatsFilter.period === 'day' ? totalInboundStats.dailyStats :
+                      dealerStatsFilter.period === 'week' ? totalInboundStats.weeklyStats :
+                        dealerStatsFilter.period === 'month' ? totalInboundStats.monthlyStats :
+                          totalInboundStats.yearlyStats;
+                    const sortedPeriods = Object.keys(periodStats).sort().reverse().slice(0, 10);
+                    return sortedPeriods.map(period => (
+                      <TableRow key={period}>
+                        <TableCell sx={{ py: 0.5 }}>
+                          {dealerStatsFilter.period === 'day' ? period :
+                            dealerStatsFilter.period === 'week' ? period.split('-W')[1] + '주차' :
+                              dealerStatsFilter.period === 'month' ? period.split('-')[0] + '년 ' + parseInt(period.split('-')[1]) + '월' :
+                                period + '년'}
+                        </TableCell>
+                        <TableCell align="right" sx={{ py: 0.5 }}>{periodStats[period].quantity.toLocaleString()}개</TableCell>
+                        <TableCell align="right" sx={{ py: 0.5 }}>{periodStats[period].transactions}건</TableCell>
+                      </TableRow>
+                    ));
+                  })()}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Card>
+
+          {/* 창고별/모델별 출고 수량 통계 - 2열로 배치 */}
+          <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
+            <Grid item xs={12} md={6}>
+              <Card sx={{ p: 1.5 }}>
+                <Typography variant="subtitle1" gutterBottom sx={{ mb: 1, fontWeight: 'bold' }}>창고별 출고량</Typography>
+                <TableContainer>
+                  <Table size="small" sx={{ borderTop: '1px solid rgba(224, 224, 224, 1)', borderLeft: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { borderRight: '1px solid rgba(224, 224, 224, 1)', borderBottom: '1px solid rgba(224, 224, 224, 1)' } }}>
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                        <TableCell sx={{ py: 0.5 }}>창고명</TableCell>
+                        <TableCell align="right" sx={{ py: 0.5 }}>출고량</TableCell>
+                        <TableCell align="right" sx={{ py: 0.5 }}>건수</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {Object.values(warehouseStats)
+                        .filter(stat => stat.outTransactions > 0)
+                        .sort((a, b) => b.outTotalQuantity - a.outTotalQuantity)
+                        .map((stat, index) => (
+                          <TableRow key={index} hover>
+                            <TableCell sx={{ py: 0.5 }}>
+                              <Typography variant="body2" fontWeight="medium">
+                                {stat.name}
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="right" sx={{ py: 0.5 }}>{stat.outTotalQuantity.toLocaleString()}</TableCell>
+                            <TableCell align="right" sx={{ py: 0.5 }}>{stat.outTransactions}</TableCell>
+                          </TableRow>
+                        ))}
+                      {Object.values(warehouseStats).filter(stat => stat.outTransactions > 0).length > 0 && (
+                        <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                          <TableCell sx={{ py: 0.5, fontWeight: 'bold' }}>합계</TableCell>
+                          <TableCell align="right" sx={{ py: 0.5, fontWeight: 'bold' }}>
+                            {Object.values(warehouseStats).reduce((sum, stat) => sum + stat.outTotalQuantity, 0).toLocaleString()}
                           </TableCell>
-                          <TableCell align="right" sx={{ py: 0.5 }}>{periodStats[period].quantity.toLocaleString()}개</TableCell>
-                          <TableCell align="right" sx={{ py: 0.5 }}>{periodStats[period].transactions}건</TableCell>
+                          <TableCell align="right" sx={{ py: 0.5, fontWeight: 'bold' }}>
+                            {Object.values(warehouseStats).reduce((sum, stat) => sum + stat.outTransactions, 0)}
+                          </TableCell>
                         </TableRow>
-                      ));
-                    })()}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Card>
-
-            {/* 창고별/모델별 출고 수량 통계 - 2열로 배치 */}
-            <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
-              <Grid item xs={12} md={6}>
-                <Card sx={{ p: 1.5 }}>
-                  <Typography variant="subtitle1" gutterBottom sx={{ mb: 1, fontWeight: 'bold' }}>창고별 출고량</Typography>
-                  <TableContainer>
-                    <Table size="small" sx={{ borderTop: '1px solid rgba(224, 224, 224, 1)', borderLeft: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { borderRight: '1px solid rgba(224, 224, 224, 1)', borderBottom: '1px solid rgba(224, 224, 224, 1)' } }}>
-                      <TableHead>
-                        <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                          <TableCell sx={{ py: 0.5 }}>창고명</TableCell>
-                          <TableCell align="right" sx={{ py: 0.5 }}>출고량</TableCell>
-                          <TableCell align="right" sx={{ py: 0.5 }}>건수</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {Object.values(warehouseStats)
-                          .filter(stat => stat.outTransactions > 0)
-                          .sort((a, b) => b.outTotalQuantity - a.outTotalQuantity)
-                          .map((stat, index) => (
-                            <TableRow key={index} hover>
-                              <TableCell sx={{ py: 0.5 }}>
-                                <Typography variant="body2" fontWeight="medium">
-                                  {stat.name}
-                                </Typography>
-                              </TableCell>
-                              <TableCell align="right" sx={{ py: 0.5 }}>{stat.outTotalQuantity.toLocaleString()}</TableCell>
-                              <TableCell align="right" sx={{ py: 0.5 }}>{stat.outTransactions}</TableCell>
-                            </TableRow>
-                          ))}
-                        {Object.values(warehouseStats).filter(stat => stat.outTransactions > 0).length > 0 && (
-                          <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                            <TableCell sx={{ py: 0.5, fontWeight: 'bold' }}>합계</TableCell>
-                            <TableCell align="right" sx={{ py: 0.5, fontWeight: 'bold' }}>
-                              {Object.values(warehouseStats).reduce((sum, stat) => sum + stat.outTotalQuantity, 0).toLocaleString()}
-                            </TableCell>
-                            <TableCell align="right" sx={{ py: 0.5, fontWeight: 'bold' }}>
-                              {Object.values(warehouseStats).reduce((sum, stat) => sum + stat.outTransactions, 0)}
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                </Card>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <Card sx={{ p: 1.5 }}>
-                  <Typography variant="subtitle1" gutterBottom sx={{ mb: 1, fontWeight: 'bold' }}>모델별 출고량</Typography>
-                  <TableContainer>
-                    <Table size="small" sx={{ borderTop: '1px solid rgba(224, 224, 224, 1)', borderLeft: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { borderRight: '1px solid rgba(224, 224, 224, 1)', borderBottom: '1px solid rgba(224, 224, 224, 1)' } }}>
-                      <TableHead>
-                        <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                          <TableCell sx={{ py: 0.5 }}>제품명</TableCell>
-                          <TableCell align="right" sx={{ py: 0.5 }}>출고량</TableCell>
-                          <TableCell align="right" sx={{ py: 0.5 }}>건수</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {Object.values(productStats)
-                          .filter(stat => stat.outTransactions > 0)
-                          .sort((a, b) => {
-                             const getWeight = (name='', code='') => {
-                               const n = name.toLowerCase();
-                               const c = code.toUpperCase();
-                               if (n.includes('교환') || n.includes('수리') || n.includes('공임') || n.includes('작업')) return 0; // 최하단 (공임)
-                               if (n.includes('부품') || c.includes('XRBP') || c.includes('NBP') || c.includes('NBS')) return 1; // 파츠
-                               // 기체
-                               if (n.includes('자전거') || n.includes('기체') || n.includes('스쿠터') || n.includes('완차')) return 3;
-                               return 2; // 불명확(아마도 기체나 악세사리)
-                             };
-                             const wA = getWeight(a.productName, a.productCode);
-                             const wB = getWeight(b.productName, b.productCode);
-                             if (wA !== wB) return wB - wA; // 높은 가중치(기체)가 먼저 오도록
-                             return b.outTotalQuantity - a.outTotalQuantity; // 그 다음 판매량순
-                          })
-                          .slice(0, 15)
-                          .map((stat, index) => (
-                            <TableRow key={index} hover>
-                              <TableCell sx={{ py: 0.5 }}>
-                                <Typography variant="body2" fontWeight="medium">
-                                  {stat.productName}
-                                </Typography>
-                                {stat.productCode && (
-                                  <Typography variant="caption" color="text.secondary" display="block">
-                                    {stat.productCode}
-                                  </Typography>
-                                )}
-                              </TableCell>
-                              <TableCell align="right" sx={{ py: 0.5 }}>{stat.outTotalQuantity.toLocaleString()}</TableCell>
-                              <TableCell align="right" sx={{ py: 0.5 }}>{stat.outTransactions}</TableCell>
-                            </TableRow>
-                          ))}
-                        {Object.values(productStats).filter(stat => stat.outTransactions > 0).length > 0 && (
-                          <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                            <TableCell sx={{ py: 0.5, fontWeight: 'bold' }}>합계</TableCell>
-                            <TableCell align="right" sx={{ py: 0.5, fontWeight: 'bold' }}>
-                              {Object.values(productStats).reduce((sum, stat) => sum + stat.outTotalQuantity, 0).toLocaleString()}
-                            </TableCell>
-                            <TableCell align="right" sx={{ py: 0.5, fontWeight: 'bold' }}>
-                              {Object.values(productStats).reduce((sum, stat) => sum + stat.outTransactions, 0)}
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                </Card>
-              </Grid>
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Card>
             </Grid>
+            <Grid item xs={12} md={6}>
+              <Card sx={{ p: 1.5 }}>
+                <Typography variant="subtitle1" gutterBottom sx={{ mb: 1, fontWeight: 'bold' }}>모델별 출고량</Typography>
+                <TableContainer>
+                  <Table size="small" sx={{ borderTop: '1px solid rgba(224, 224, 224, 1)', borderLeft: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { borderRight: '1px solid rgba(224, 224, 224, 1)', borderBottom: '1px solid rgba(224, 224, 224, 1)' } }}>
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                        <TableCell sx={{ py: 0.5 }}>제품명</TableCell>
+                        <TableCell align="right" sx={{ py: 0.5 }}>출고량</TableCell>
+                        <TableCell align="right" sx={{ py: 0.5 }}>건수</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {Object.values(productStats)
+                        .filter(stat => stat.outTransactions > 0)
+                        .sort((a, b) => {
+                          const getWeight = (name = '', code = '') => {
+                            const n = name.toLowerCase();
+                            const c = code.toUpperCase();
+                            if (n.includes('교환') || n.includes('수리') || n.includes('공임') || n.includes('작업')) return 0; // 최하단 (공임)
+                            if (n.includes('부품') || c.includes('XRBP') || c.includes('NBP') || c.includes('NBS')) return 1; // 파츠
+                            // 기체
+                            if (n.includes('자전거') || n.includes('기체') || n.includes('스쿠터') || n.includes('완차')) return 3;
+                            return 2; // 불명확(아마도 기체나 악세사리)
+                          };
+                          const wA = getWeight(a.productName, a.productCode);
+                          const wB = getWeight(b.productName, b.productCode);
+                          if (wA !== wB) return wB - wA; // 높은 가중치(기체)가 먼저 오도록
+                          return b.outTotalQuantity - a.outTotalQuantity; // 그 다음 판매량순
+                        })
+                        .slice(0, 15)
+                        .map((stat, index) => (
+                          <TableRow key={index} hover>
+                            <TableCell sx={{ py: 0.5 }}>
+                              <Typography variant="body2" fontWeight="medium">
+                                {stat.productName}
+                              </Typography>
+                              {stat.productCode && (
+                                <Typography variant="caption" color="text.secondary" display="block">
+                                  {stat.productCode}
+                                </Typography>
+                              )}
+                            </TableCell>
+                            <TableCell align="right" sx={{ py: 0.5 }}>{stat.outTotalQuantity.toLocaleString()}</TableCell>
+                            <TableCell align="right" sx={{ py: 0.5 }}>{stat.outTransactions}</TableCell>
+                          </TableRow>
+                        ))}
+                      {Object.values(productStats).filter(stat => stat.outTransactions > 0).length > 0 && (
+                        <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                          <TableCell sx={{ py: 0.5, fontWeight: 'bold' }}>합계</TableCell>
+                          <TableCell align="right" sx={{ py: 0.5, fontWeight: 'bold' }}>
+                            {Object.values(productStats).reduce((sum, stat) => sum + stat.outTotalQuantity, 0).toLocaleString()}
+                          </TableCell>
+                          <TableCell align="right" sx={{ py: 0.5, fontWeight: 'bold' }}>
+                            {Object.values(productStats).reduce((sum, stat) => sum + stat.outTransactions, 0)}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Card>
+            </Grid>
+          </Grid>
 
-            {/* 입출고 통계 테이블 */}
-            <Card sx={{ p: 1.5 }}>
-              <Typography variant="subtitle1" gutterBottom sx={{ mb: 1, fontWeight: 'bold' }}>지점별 입출고 통계</Typography>
-              <TableContainer>
-                <Table size="small" sx={{ borderTop: '1px solid rgba(224, 224, 224, 1)', borderLeft: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { borderRight: '1px solid rgba(224, 224, 224, 1)', borderBottom: '1px solid rgba(224, 224, 224, 1)' } }}>
-                  <TableHead>
-                    <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                      <TableCell sx={{ py: 0.5 }}>대리점명</TableCell>
-                      <TableCell sx={{ py: 0.5 }}>지역</TableCell>
-                      <TableCell align="right" sx={{ py: 0.5 }}>입고량</TableCell>
-                      <TableCell align="right" sx={{ py: 0.5 }}>입고건</TableCell>
-                      <TableCell align="right" sx={{ py: 0.5 }}>출고량</TableCell>
-                      <TableCell align="right" sx={{ py: 0.5 }}>출고건</TableCell>
-                      <TableCell sx={{ py: 0.5 }}>최근 입고일</TableCell>
-                      <TableCell sx={{ py: 0.5 }}>최근 출고일</TableCell>
-                    </TableRow>
-                  </TableHead>
+          {/* 입출고 통계 테이블 */}
+          <Card sx={{ p: 1.5 }}>
+            <Typography variant="subtitle1" gutterBottom sx={{ mb: 1, fontWeight: 'bold' }}>지점별 입출고 통계</Typography>
+            <TableContainer>
+              <Table size="small" sx={{ borderTop: '1px solid rgba(224, 224, 224, 1)', borderLeft: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { borderRight: '1px solid rgba(224, 224, 224, 1)', borderBottom: '1px solid rgba(224, 224, 224, 1)' } }}>
+                <TableHead>
+                  <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                    <TableCell sx={{ py: 0.5 }}>대리점명</TableCell>
+                    <TableCell sx={{ py: 0.5 }}>지역</TableCell>
+                    <TableCell align="right" sx={{ py: 0.5 }}>입고량</TableCell>
+                    <TableCell align="right" sx={{ py: 0.5 }}>입고건</TableCell>
+                    <TableCell align="right" sx={{ py: 0.5 }}>출고량</TableCell>
+                    <TableCell align="right" sx={{ py: 0.5 }}>출고건</TableCell>
+                    <TableCell sx={{ py: 0.5 }}>최근 입고일</TableCell>
+                    <TableCell sx={{ py: 0.5 }}>최근 출고일</TableCell>
+                  </TableRow>
+                </TableHead>
                 <TableBody>
                   {Object.values(dealerStats)
                     .filter(stat => {
                       // 대리점 필터 적용
                       const dealerFilter = !dealerStatsFilter.dealer || stat.name === dealers.find(d => d.id === dealerStatsFilter.dealer)?.name;
-                      
+
                       // 거래가 있는 대리점만 표시 (입고/출고 둘 중 하나라도 존재)
                       const hasTransactions = (stat.outTransactions > 0) || (stat.inTransactions > 0);
-                      
+
                       return dealerFilter && hasTransactions;
                     })
                     .sort((a, b) => (b.outTotalQuantity + b.inTotalQuantity) - (a.outTotalQuantity + a.inTotalQuantity))
                     .map((stat, index) => (
-                    <TableRow key={index} hover>
-                      <TableCell sx={{ py: 0.5 }}>
-                        <Typography variant="body2" fontWeight="medium">
-                          {stat.name}
-                        </Typography>
-                      </TableCell>
-                      <TableCell sx={{ py: 0.5 }}>{stat.location}</TableCell>
-                      <TableCell align="right" sx={{ py: 0.5 }}>{stat.inTotalQuantity.toLocaleString()}</TableCell>
-                      <TableCell align="right" sx={{ py: 0.5 }}>{stat.inTransactions}</TableCell>
-                      <TableCell align="right" sx={{ py: 0.5 }}>{stat.outTotalQuantity.toLocaleString()}</TableCell>
-                      <TableCell align="right" sx={{ py: 0.5 }}>{stat.outTransactions}</TableCell>
-                      <TableCell sx={{ py: 0.5 }}>{stat.inLastDate || '-'}</TableCell>
-                      <TableCell sx={{ py: 0.5 }}>{stat.outLastDate || '-'}</TableCell>
-                    </TableRow>
-                  ))}
+                      <TableRow key={index} hover>
+                        <TableCell sx={{ py: 0.5 }}>
+                          <Typography variant="body2" fontWeight="medium">
+                            {stat.name}
+                          </Typography>
+                        </TableCell>
+                        <TableCell sx={{ py: 0.5 }}>{stat.location}</TableCell>
+                        <TableCell align="right" sx={{ py: 0.5 }}>{stat.inTotalQuantity.toLocaleString()}</TableCell>
+                        <TableCell align="right" sx={{ py: 0.5 }}>{stat.inTransactions}</TableCell>
+                        <TableCell align="right" sx={{ py: 0.5 }}>{stat.outTotalQuantity.toLocaleString()}</TableCell>
+                        <TableCell align="right" sx={{ py: 0.5 }}>{stat.outTransactions}</TableCell>
+                        <TableCell sx={{ py: 0.5 }}>{stat.inLastDate || '-'}</TableCell>
+                        <TableCell sx={{ py: 0.5 }}>{stat.outLastDate || '-'}</TableCell>
+                      </TableRow>
+                    ))}
                   {Object.values(dealerStats).filter(stat => {
                     const dealerFilter = !dealerStatsFilter.dealer || stat.name === dealers.find(d => d.id === dealerStatsFilter.dealer)?.name;
                     const hasTransactions = (stat.outTransactions > 0) || (stat.inTransactions > 0);
                     return dealerFilter && hasTransactions;
                   }).length > 0 && (
-                    <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                      <TableCell colSpan={2} sx={{ py: 0.5, fontWeight: 'bold' }}>합계</TableCell>
-                      <TableCell align="right" sx={{ py: 0.5, fontWeight: 'bold' }}>
-                        {Object.values(dealerStats)
-                          .filter(stat => {
-                            const dealerFilter = !dealerStatsFilter.dealer || stat.name === dealers.find(d => d.id === dealerStatsFilter.dealer)?.name;
-                            const hasTransactions = (stat.outTransactions > 0) || (stat.inTransactions > 0);
-                            return dealerFilter && hasTransactions;
-                          })
-                          .reduce((sum, stat) => sum + stat.inTotalQuantity, 0).toLocaleString()}
-                      </TableCell>
-                      <TableCell align="right" sx={{ py: 0.5, fontWeight: 'bold' }}>
-                        {Object.values(dealerStats)
-                          .filter(stat => {
-                            const dealerFilter = !dealerStatsFilter.dealer || stat.name === dealers.find(d => d.id === dealerStatsFilter.dealer)?.name;
-                            const hasTransactions = (stat.outTransactions > 0) || (stat.inTransactions > 0);
-                            return dealerFilter && hasTransactions;
-                          })
-                          .reduce((sum, stat) => sum + stat.inTransactions, 0)}
-                      </TableCell>
-                      <TableCell align="right" sx={{ py: 0.5, fontWeight: 'bold' }}>
-                        {Object.values(dealerStats)
-                          .filter(stat => {
-                            const dealerFilter = !dealerStatsFilter.dealer || stat.name === dealers.find(d => d.id === dealerStatsFilter.dealer)?.name;
-                            const hasTransactions = (stat.outTransactions > 0) || (stat.inTransactions > 0);
-                            return dealerFilter && hasTransactions;
-                          })
-                          .reduce((sum, stat) => sum + stat.outTotalQuantity, 0).toLocaleString()}
-                      </TableCell>
-                      <TableCell align="right" sx={{ py: 0.5, fontWeight: 'bold' }}>
-                        {Object.values(dealerStats)
-                          .filter(stat => {
-                            const dealerFilter = !dealerStatsFilter.dealer || stat.name === dealers.find(d => d.id === dealerStatsFilter.dealer)?.name;
-                            const hasTransactions = (stat.outTransactions > 0) || (stat.inTransactions > 0);
-                            return dealerFilter && hasTransactions;
-                          })
-                          .reduce((sum, stat) => sum + stat.outTransactions, 0)}
-                      </TableCell>
-                      <TableCell colSpan={2} sx={{ py: 0.5 }}>-</TableCell>
-                    </TableRow>
-                  )}
+                      <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                        <TableCell colSpan={2} sx={{ py: 0.5, fontWeight: 'bold' }}>합계</TableCell>
+                        <TableCell align="right" sx={{ py: 0.5, fontWeight: 'bold' }}>
+                          {Object.values(dealerStats)
+                            .filter(stat => {
+                              const dealerFilter = !dealerStatsFilter.dealer || stat.name === dealers.find(d => d.id === dealerStatsFilter.dealer)?.name;
+                              const hasTransactions = (stat.outTransactions > 0) || (stat.inTransactions > 0);
+                              return dealerFilter && hasTransactions;
+                            })
+                            .reduce((sum, stat) => sum + stat.inTotalQuantity, 0).toLocaleString()}
+                        </TableCell>
+                        <TableCell align="right" sx={{ py: 0.5, fontWeight: 'bold' }}>
+                          {Object.values(dealerStats)
+                            .filter(stat => {
+                              const dealerFilter = !dealerStatsFilter.dealer || stat.name === dealers.find(d => d.id === dealerStatsFilter.dealer)?.name;
+                              const hasTransactions = (stat.outTransactions > 0) || (stat.inTransactions > 0);
+                              return dealerFilter && hasTransactions;
+                            })
+                            .reduce((sum, stat) => sum + stat.inTransactions, 0)}
+                        </TableCell>
+                        <TableCell align="right" sx={{ py: 0.5, fontWeight: 'bold' }}>
+                          {Object.values(dealerStats)
+                            .filter(stat => {
+                              const dealerFilter = !dealerStatsFilter.dealer || stat.name === dealers.find(d => d.id === dealerStatsFilter.dealer)?.name;
+                              const hasTransactions = (stat.outTransactions > 0) || (stat.inTransactions > 0);
+                              return dealerFilter && hasTransactions;
+                            })
+                            .reduce((sum, stat) => sum + stat.outTotalQuantity, 0).toLocaleString()}
+                        </TableCell>
+                        <TableCell align="right" sx={{ py: 0.5, fontWeight: 'bold' }}>
+                          {Object.values(dealerStats)
+                            .filter(stat => {
+                              const dealerFilter = !dealerStatsFilter.dealer || stat.name === dealers.find(d => d.id === dealerStatsFilter.dealer)?.name;
+                              const hasTransactions = (stat.outTransactions > 0) || (stat.inTransactions > 0);
+                              return dealerFilter && hasTransactions;
+                            })
+                            .reduce((sum, stat) => sum + stat.outTransactions, 0)}
+                        </TableCell>
+                        <TableCell colSpan={2} sx={{ py: 0.5 }}>-</TableCell>
+                      </TableRow>
+                    )}
                 </TableBody>
               </Table>
-              </TableContainer>
-            </Card>
+            </TableContainer>
+          </Card>
 
-            {/* 기간별 상세 통계 - 컴팩트 (월별 제외) */}
-            {dealerStatsFilter.period !== 'day' && dealerStatsFilter.period !== 'month' && (
-              <Card sx={{ p: 1.5, mt: 1.5 }}>
-                <Typography variant="subtitle1" gutterBottom sx={{ mb: 1, fontWeight: 'bold' }}>
-                  {dealerStatsFilter.period === 'week' ? '주별' : '년별'} 대리점별 상세 통계
-                </Typography>
-                <Grid container spacing={1.5}>
-                  {Object.values(dealerStats)
-                    .filter(stat => {
-                      const dealerFilter = !dealerStatsFilter.dealer || stat.name === dealers.find(d => d.id === dealerStatsFilter.dealer)?.name;
-                      const hasTransactions = stat.totalTransactions > 0;
-                      return dealerFilter && hasTransactions;
-                    })
-                    .slice(0, 6)
-                    .map((stat, index) => {
-                      const periodStats = dealerStatsFilter.period === 'week' ? stat.weeklyStats :
-                                       dealerStatsFilter.period === 'month' ? stat.monthlyStats :
-                                       stat.yearlyStats;
-                      
-                      const sortedPeriods = Object.keys(periodStats).sort().reverse().slice(0, 8);
-                      
-                      return (
-                        <Grid item xs={12} sm={6} md={4} key={index}>
-                          <Card variant="outlined" sx={{ p: 1 }}>
-                            <Typography variant="body2" fontWeight="bold" gutterBottom sx={{ mb: 0.5 }}>
-                              {stat.name} ({stat.location})
-                            </Typography>
-                            <Table size="small" sx={{ borderTop: '1px solid rgba(224, 224, 224, 1)', borderLeft: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { borderRight: '1px solid rgba(224, 224, 224, 1)', borderBottom: '1px solid rgba(224, 224, 224, 1)' } }}>
-                              <TableHead>
-                                <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                                  <TableCell sx={{ py: 0.3, px: 1 }}>기간</TableCell>
-                                  <TableCell align="right" sx={{ py: 0.3, px: 1 }}>수량</TableCell>
-                                  <TableCell align="right" sx={{ py: 0.3, px: 1 }}>건수</TableCell>
+          {/* 기간별 상세 통계 - 컴팩트 (월별 제외) */}
+          {dealerStatsFilter.period !== 'day' && dealerStatsFilter.period !== 'month' && (
+            <Card sx={{ p: 1.5, mt: 1.5 }}>
+              <Typography variant="subtitle1" gutterBottom sx={{ mb: 1, fontWeight: 'bold' }}>
+                {dealerStatsFilter.period === 'week' ? '주별' : '년별'} 대리점별 상세 통계
+              </Typography>
+              <Grid container spacing={1.5}>
+                {Object.values(dealerStats)
+                  .filter(stat => {
+                    const dealerFilter = !dealerStatsFilter.dealer || stat.name === dealers.find(d => d.id === dealerStatsFilter.dealer)?.name;
+                    const hasTransactions = stat.totalTransactions > 0;
+                    return dealerFilter && hasTransactions;
+                  })
+                  .slice(0, 6)
+                  .map((stat, index) => {
+                    const periodStats = dealerStatsFilter.period === 'week' ? stat.weeklyStats :
+                      dealerStatsFilter.period === 'month' ? stat.monthlyStats :
+                        stat.yearlyStats;
+
+                    const sortedPeriods = Object.keys(periodStats).sort().reverse().slice(0, 8);
+
+                    return (
+                      <Grid item xs={12} sm={6} md={4} key={index}>
+                        <Card variant="outlined" sx={{ p: 1 }}>
+                          <Typography variant="body2" fontWeight="bold" gutterBottom sx={{ mb: 0.5 }}>
+                            {stat.name} ({stat.location})
+                          </Typography>
+                          <Table size="small" sx={{ borderTop: '1px solid rgba(224, 224, 224, 1)', borderLeft: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { borderRight: '1px solid rgba(224, 224, 224, 1)', borderBottom: '1px solid rgba(224, 224, 224, 1)' } }}>
+                            <TableHead>
+                              <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                                <TableCell sx={{ py: 0.3, px: 1 }}>기간</TableCell>
+                                <TableCell align="right" sx={{ py: 0.3, px: 1 }}>수량</TableCell>
+                                <TableCell align="right" sx={{ py: 0.3, px: 1 }}>건수</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {sortedPeriods.map(period => (
+                                <TableRow key={period}>
+                                  <TableCell sx={{ py: 0.3, px: 1 }}>
+                                    <Typography variant="caption">
+                                      {dealerStatsFilter.period === 'week' ? period.split('-W')[1] + '주차' :
+                                        dealerStatsFilter.period === 'month' ? parseInt(period.split('-')[1]) + '월' :
+                                          period + '년'}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell align="right" sx={{ py: 0.3, px: 1 }}>
+                                    <Typography variant="caption" fontWeight="medium">
+                                      {periodStats[period].quantity.toLocaleString()}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell align="right" sx={{ py: 0.3, px: 1 }}>
+                                    <Typography variant="caption">
+                                      {periodStats[period].transactions}
+                                    </Typography>
+                                  </TableCell>
                                 </TableRow>
-                              </TableHead>
-                              <TableBody>
-                                {sortedPeriods.map(period => (
-                                  <TableRow key={period}>
-                                    <TableCell sx={{ py: 0.3, px: 1 }}>
-                                      <Typography variant="caption">
-                                        {dealerStatsFilter.period === 'week' ? period.split('-W')[1] + '주차' :
-                                         dealerStatsFilter.period === 'month' ? parseInt(period.split('-')[1]) + '월' :
-                                         period + '년'}
-                                      </Typography>
-                                    </TableCell>
-                                    <TableCell align="right" sx={{ py: 0.3, px: 1 }}>
-                                      <Typography variant="caption" fontWeight="medium">
-                                        {periodStats[period].quantity.toLocaleString()}
-                                      </Typography>
-                                    </TableCell>
-                                    <TableCell align="right" sx={{ py: 0.3, px: 1 }}>
-                                      <Typography variant="caption">
-                                        {periodStats[period].transactions}
-                                      </Typography>
-                                    </TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          </Card>
-                        </Grid>
-                      );
-                    })}
-                </Grid>
-              </Card>
-            )}
-          </Box>
-        )}
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </Card>
+                      </Grid>
+                    );
+                  })}
+              </Grid>
+            </Card>
+          )}
+        </Box>
+      )}
 
       {/* 전체보기 탭 */}
       {activeTab === 3 && (() => {
@@ -3608,12 +3611,12 @@ function InventoryManagement() {
           if (overallStockFilter === 'outOfStock') return !anyStock;
           return true;
         });
-        
+
         // 창고별 총합 계산
-        const warehouseTotals = warehouses.map(w => 
+        const warehouseTotals = warehouses.map(w =>
           rows.reduce((sum, p) => sum + (inventory[w.id]?.[p.id] || 0), 0)
         );
-        
+
         // 전체 총합 계산
         const grandTotal = warehouseTotals.reduce((sum, total) => sum + total, 0);
 
@@ -3672,16 +3675,16 @@ function InventoryManagement() {
                     const productTotal = warehouses.reduce((sum, w) => sum + (inventory[w.id]?.[p.id] || 0), 0);
                     return (
                       <TableRow key={`prod-row-${p.id}`} hover>
-                        <TableCell 
-                          sx={{ 
-                            position: 'sticky', left: 0, zIndex: 2, backgroundColor: 'background.paper', 
-                            fontWeight: 'bold', width: 240, maxWidth: 240, 
-                            cursor: 'pointer', color: 'primary.main', textDecoration: 'underline' 
+                        <TableCell
+                          sx={{
+                            position: 'sticky', left: 0, zIndex: 2, backgroundColor: 'background.paper',
+                            fontWeight: 'bold', width: 240, maxWidth: 240,
+                            cursor: 'pointer', color: 'primary.main', textDecoration: 'underline'
                           }}
                           onClick={() => {
-                            setFilter(prev => ({ 
-                              ...prev, product: p.name, type: 'all', 
-                              dateFrom: '', dateTo: '', fromLocation: '', toLocation: '', note: '' 
+                            setFilter(prev => ({
+                              ...prev, product: p.name, type: 'all',
+                              dateFrom: '', dateTo: '', fromLocation: '', toLocation: '', note: ''
                             }));
                             setDateFilter('all');
                             setActiveTab(1); // 거래 내역 탭으로 이동
@@ -3734,27 +3737,27 @@ function InventoryManagement() {
         <DialogContent>
           {/* 통합 폼 */}
           <Box sx={{ pt: 2 }}>
-              <Grid container spacing={2} sx={{ mb: 3 }}>
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
+            <Grid container spacing={2} sx={{ mb: 3 }}>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
                   label="거래 날짜"
-                    type="date"
-                    value={formData.date}
-                    onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                    InputLabelProps={{ shrink: true }}
-                  />
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    label="공통 메모"
-                    value={formData.note}
-                    onChange={(e) => setFormData(prev => ({ ...prev, note: e.target.value }))}
-                    placeholder="모든 상품에 적용될 공통 메모"
-                  />
-                </Grid>
+                  type="date"
+                  value={formData.date}
+                  onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+                  InputLabelProps={{ shrink: true }}
+                />
               </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="공통 메모"
+                  value={formData.note}
+                  onChange={(e) => setFormData(prev => ({ ...prev, note: e.target.value }))}
+                  placeholder="모든 상품에 적용될 공통 메모"
+                />
+              </Grid>
+            </Grid>
             <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
               상품 목록
               <Button
@@ -3767,219 +3770,219 @@ function InventoryManagement() {
             </Typography>
 
             {multipleIoProducts.map((product, index) => (
-                <Box key={product.id} sx={{ mb: 1, p: 1 }}>
-                    <Grid container spacing={1} alignItems="center">
-                      <Grid item xs={12} md={3}>
-                        <Autocomplete
+              <Box key={product.id} sx={{ mb: 1, p: 1 }}>
+                <Grid container spacing={1} alignItems="center">
+                  <Grid item xs={12} md={3}>
+                    <Autocomplete
+                      fullWidth
+                      options={products}
+                      getOptionLabel={(option) => `${option.name} (${option.code})${option.barcode ? ` [바코드:${option.barcode}]` : ''} [${option.supplier || '-'}]`}
+                      value={products.find(p => p.id === product.productId) || null}
+                      onChange={(event, value) =>
+                        updateIoProductRow(product.id, 'productId', value?.id || '')
+                      }
+                      getOptionDisabled={(option) => {
+                        const srcId = product.fromLocation;
+                        const isOutbound = warehouses.find(w => w.id === srcId);
+                        if (!isOutbound) return false;
+                        const available = (inventory[srcId]?.[option.id]) || 0;
+                        return available <= 0;
+                      }}
+                      renderOption={(props, option) => (
+                        <Box component="li" {...props}>
+                          <Box>
+                            <Typography variant="body2" fontWeight="medium">
+                              {option.name}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {(() => {
+                                const srcId = product.fromLocation;
+                                const isOutbound = warehouses.find(w => w.id === srcId);
+                                if (isOutbound) {
+                                  const available = (inventory[srcId]?.[option.id]) || 0;
+                                  return `${option.code} • ${option.category} • ${option.supplier || '-'} • ${option.price?.toLocaleString()}원 • 출발지 재고 ${available}개`;
+                                }
+                                return `${option.code} • ${option.category} • ${option.supplier || '-'} • ${option.price?.toLocaleString()}원`;
+                              })()}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      )}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label={`상품 선택 ${products.find(p => p.id === product.productId) ? `[${products.find(p => p.id === product.productId)?.supplier || '-'}]` : ''}`}
+                          required
                           fullWidth
-                          options={products}
-                          getOptionLabel={(option) => `${option.name} (${option.code})${option.barcode ? ` [바코드:${option.barcode}]` : ''} [${option.supplier || '-'}]`}
-                          value={products.find(p => p.id === product.productId) || null}
-                          onChange={(event, value) => 
-                          updateIoProductRow(product.id, 'productId', value?.id || '')
-                          }
-                          getOptionDisabled={(option) => {
-                            const srcId = product.fromLocation;
-                            const isOutbound = warehouses.find(w => w.id === srcId);
-                            if (!isOutbound) return false;
-                            const available = (inventory[srcId]?.[option.id]) || 0;
-                            return available <= 0;
-                          }}
-                          renderOption={(props, option) => (
-                            <Box component="li" {...props}>
-                              <Box>
-                                <Typography variant="body2" fontWeight="medium">
-                                  {option.name}
-                                </Typography>
-                                  <Typography variant="caption" color="text.secondary">
-                                    {(() => {
-                                      const srcId = product.fromLocation;
-                                      const isOutbound = warehouses.find(w => w.id === srcId);
-                                      if (isOutbound) {
-                                        const available = (inventory[srcId]?.[option.id]) || 0;
-                                        return `${option.code} • ${option.category} • ${option.supplier || '-'} • ${option.price?.toLocaleString()}원 • 출발지 재고 ${available}개`;
-                                      }
-                                      return `${option.code} • ${option.category} • ${option.supplier || '-'} • ${option.price?.toLocaleString()}원`;
-                                    })()}
-                                  </Typography>
-                              </Box>
-                            </Box>
-                          )}
-                          renderInput={(params) => (
-                            <TextField
-                              {...params}
-                            label={`상품 선택 ${products.find(p => p.id === product.productId) ? `[${products.find(p => p.id === product.productId)?.supplier || '-'}]` : ''}`}
-                              required
-                              fullWidth
-                              size="small"
-                            />
-                          )}
+                          size="small"
                         />
-                      </Grid>
-                      <Grid item xs={12} md={1}>
-                      <TextField
-                        fullWidth
-                        label="수량"
-                        type="number"
-                        size="small"
-                        value={product.quantity}
+                      )}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={1}>
+                    <TextField
+                      fullWidth
+                      label="수량"
+                      type="number"
+                      size="small"
+                      value={product.quantity}
                       onChange={(e) => updateIoProductRow(product.id, 'quantity', e.target.value)}
-                        required
-                        helperText={(() => {
-                          const srcId = product.fromLocation;
-                          const isOutbound = warehouses.find(w => w.id === srcId);
-                          if (!isOutbound) return '';
-                          const pid = parseInt(product.productId) || 0;
-                          const available = (inventory[srcId]?.[pid]) || 0;
-                          return `가용: ${available.toLocaleString()}개`;
-                        })()}
-                      />
-                    </Grid>
-                      <Grid item xs={12} md={2.5}>
-                      <Autocomplete
-                        options={[
-                          { id: '', name: '외부 (신규입고)', type: 'external' },
-                          ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
-                          ...dealers.map(d => ({ ...d, type: 'dealer' }))
-                        ]}
-                        getOptionLabel={(option) => {
-                          if (option.type === 'external') return option.name;
-                          return `${option.name} (${option.type === 'warehouse' ? '창고' : '대리점'})`;
-                        }}
-                        value={(() => {
+                      required
+                      helperText={(() => {
+                        const srcId = product.fromLocation;
+                        const isOutbound = warehouses.find(w => w.id === srcId);
+                        if (!isOutbound) return '';
+                        const pid = parseInt(product.productId) || 0;
+                        const available = (inventory[srcId]?.[pid]) || 0;
+                        return `가용: ${available.toLocaleString()}개`;
+                      })()}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={2.5}>
+                    <Autocomplete
+                      options={[
+                        { id: '', name: '외부 (신규입고)', type: 'external' },
+                        ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
+                        ...dealers.map(d => ({ ...d, type: 'dealer' }))
+                      ]}
+                      getOptionLabel={(option) => {
+                        if (option.type === 'external') return option.name;
+                        return `${option.name} (${option.type === 'warehouse' ? '창고' : '대리점'})`;
+                      }}
+                      value={(() => {
                         if (!product.fromLocation || product.fromLocation === '') return { id: '', name: '외부 (신규입고)', type: 'external' };
-                          const warehouse = warehouses.find(w => w.id === product.fromLocation);
-                          if (warehouse) return { ...warehouse, type: 'warehouse' };
-                          const dealer = dealers.find(d => d.id === product.fromLocation);
-                          if (dealer) return { ...dealer, type: 'dealer' };
-                          return null;
-                        })()}
-                        onChange={(event, value) => 
+                        const warehouse = warehouses.find(w => w.id === product.fromLocation);
+                        if (warehouse) return { ...warehouse, type: 'warehouse' };
+                        const dealer = dealers.find(d => d.id === product.fromLocation);
+                        if (dealer) return { ...dealer, type: 'dealer' };
+                        return null;
+                      })()}
+                      onChange={(event, value) =>
                         updateIoProductRow(product.id, 'fromLocation', value?.id || '')
-                        }
-                        renderInput={(params) => (
-                          <TextField
-                            {...params}
-                            label="출발지"
-                            size="small"
-                            fullWidth
-                          />
-                        )}
-                        renderOption={(props, option) => (
-                          <Box component="li" {...props}>
-                            <Box>
-                              <Typography variant="body2">
-                                {option.name}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                {option.type === 'external' ? '신규입고' : 
-                                 option.type === 'warehouse' ? '창고' : '대리점'}
-                                {option.location && ` • ${option.location}`}
-                              </Typography>
-                            </Box>
+                      }
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="출발지"
+                          size="small"
+                          fullWidth
+                        />
+                      )}
+                      renderOption={(props, option) => (
+                        <Box component="li" {...props}>
+                          <Box>
+                            <Typography variant="body2">
+                              {option.name}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {option.type === 'external' ? '신규입고' :
+                                option.type === 'warehouse' ? '창고' : '대리점'}
+                              {option.location && ` • ${option.location}`}
+                            </Typography>
                           </Box>
-                        )}
-                        isOptionEqualToValue={(option, value) => option?.id === value?.id}
-                      />
-                    </Grid>
-                      <Grid item xs={12} md={2.5}>
-                      <Autocomplete
-                        options={[
-                          ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
-                          ...dealers.map(d => ({ ...d, type: 'dealer' }))
-                        ]}
-                        getOptionLabel={(option) => 
-                          `${option.name} (${option.type === 'warehouse' ? '창고' : '대리점'})`
-                        }
-                        value={(() => {
+                        </Box>
+                      )}
+                      isOptionEqualToValue={(option, value) => option?.id === value?.id}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={2.5}>
+                    <Autocomplete
+                      options={[
+                        ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
+                        ...dealers.map(d => ({ ...d, type: 'dealer' }))
+                      ]}
+                      getOptionLabel={(option) =>
+                        `${option.name} (${option.type === 'warehouse' ? '창고' : '대리점'})`
+                      }
+                      value={(() => {
                         const warehouse = warehouses.find(w => w.id === product.toLocation);
-                          if (warehouse) return { ...warehouse, type: 'warehouse' };
+                        if (warehouse) return { ...warehouse, type: 'warehouse' };
                         const dealer = dealers.find(d => d.id === product.toLocation);
-                          if (dealer) return { ...dealer, type: 'dealer' };
-                          return null;
-                        })()}
-                        onChange={(event, value) => 
+                        if (dealer) return { ...dealer, type: 'dealer' };
+                        return null;
+                      })()}
+                      onChange={(event, value) =>
                         updateIoProductRow(product.id, 'toLocation', value?.id || '')
-                        }
-                        renderInput={(params) => (
-                          <TextField
-                            {...params}
-                            label="목적지"
-                            size="small"
-                            fullWidth
-                            required
-                          />
-                        )}
-                        renderOption={(props, option) => (
-                          <Box component="li" {...props}>
-                            <Box>
-                              <Typography variant="body2">
-                                {option.name}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                {option.type === 'warehouse' ? '창고' : '대리점'} • {option.location}
-                                {option.manager && ` • 담당: ${option.manager}`}
-                              </Typography>
-                            </Box>
+                      }
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="목적지"
+                          size="small"
+                          fullWidth
+                          required
+                        />
+                      )}
+                      renderOption={(props, option) => (
+                        <Box component="li" {...props}>
+                          <Box>
+                            <Typography variant="body2">
+                              {option.name}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {option.type === 'warehouse' ? '창고' : '대리점'} • {option.location}
+                              {option.manager && ` • 담당: ${option.manager}`}
+                            </Typography>
                           </Box>
-                        )}
-                        isOptionEqualToValue={(option, value) => option?.id === value?.id}
-                      />
-                    </Grid>
-                      <Grid item xs={12} md={1}>
-                      <TextField
-                        fullWidth
-                        label="개별 메모"
-                        size="small"
-                        value={product.note}
+                        </Box>
+                      )}
+                      isOptionEqualToValue={(option, value) => option?.id === value?.id}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={1}>
+                    <TextField
+                      fullWidth
+                      label="개별 메모"
+                      size="small"
+                      value={product.note}
                       onChange={(e) => updateIoProductRow(product.id, 'note', e.target.value)}
-                        placeholder="개별 메모"
-                      />
-                    </Grid>
-                      <Grid item xs={12} md={1.5}>
-                      <TextField
-                        fullWidth
-                        label="박스 번호 (선택)"
-                        size="small"
-                        value={product.boxNo || ''}
+                      placeholder="개별 메모"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={1.5}>
+                    <TextField
+                      fullWidth
+                      label="박스 번호 (선택)"
+                      size="small"
+                      value={product.boxNo || ''}
                       onChange={(e) => updateIoProductRow(product.id, 'boxNo', e.target.value)}
-                        placeholder="박스 묶음"
-                      />
-                    </Grid>
-                      <Grid item xs={12} md={0.5}>
-                      <IconButton
-                        color="error"
+                      placeholder="박스 묶음"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={0.5}>
+                    <IconButton
+                      color="error"
                       onClick={() => removeIoProductRow(product.id)}
                       disabled={multipleIoProducts.length === 1}
-                        size="small"
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </Grid>
+                      size="small"
+                    >
+                      <DeleteIcon />
+                    </IconButton>
                   </Grid>
-                </Box>
-              ))}
-              
-              {/* 전체 수량 표시 */}
-              <Box sx={{ 
-                mt: 2, 
-                p: 1, 
-                backgroundColor: '#f0f8ff', 
-                border: '1px solid #b3d9ff', 
-                borderRadius: 1,
-                textAlign: 'center',
-                mx: 1
-              }}>
-                <Typography variant="h6" color="primary" fontWeight="bold">
-                총 수량: {multipleIoProducts.reduce((sum, product) => {
-                    const quantity = parseInt(product.quantity) || 0;
-                    return sum + quantity;
-                  }, 0).toLocaleString()}개
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                등록된 상품: {multipleIoProducts.length}개
-                </Typography>
+                </Grid>
               </Box>
+            ))}
+
+            {/* 전체 수량 표시 */}
+            <Box sx={{
+              mt: 2,
+              p: 1,
+              backgroundColor: '#f0f8ff',
+              border: '1px solid #b3d9ff',
+              borderRadius: 1,
+              textAlign: 'center',
+              mx: 1
+            }}>
+              <Typography variant="h6" color="primary" fontWeight="bold">
+                총 수량: {multipleIoProducts.reduce((sum, product) => {
+                  const quantity = parseInt(product.quantity) || 0;
+                  return sum + quantity;
+                }, 0).toLocaleString()}개
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                등록된 상품: {multipleIoProducts.length}개
+              </Typography>
+            </Box>
           </Box>
         </DialogContent>
         <DialogActions>
@@ -4000,17 +4003,17 @@ function InventoryManagement() {
           {snackbar.message}
         </Alert>
       </Snackbar>
-      
+
       {/* 거래내역 상세 Dialog */}
       <Dialog open={transactionDetailOpen} onClose={closeTransactionDetail} maxWidth="xl" fullWidth>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             거래내역 상세 정보
             {(selectedTransaction?.group_id || selectedTransaction?.id) && (selectedTransaction?.group_id !== 'none' && selectedTransaction?.id !== 'none') && (
-              <Button 
-                variant="outlined" 
-                color="primary" 
-                size="small" 
+              <Button
+                variant="outlined"
+                color="primary"
+                size="small"
                 onClick={handleViewOriginal}
               >
                 원본 보기
@@ -4059,7 +4062,7 @@ function InventoryManagement() {
                       />
                     )}
                   </Box>
-                  
+
                   {editMode ? (
                     // 수정 모드: 심플 테이블 인라인 편집
                     <Box>
@@ -4240,51 +4243,52 @@ function InventoryManagement() {
                             return displayItems.sort((a, b) => a.productName.localeCompare(b.productName)).map((item, index) => {
                               const isReturn = item.note?.includes('취소') || item.note?.includes('환불') || item.fromLocation?.includes('취소');
                               return (
-                              <TableRow key={index} hover sx={{ bgcolor: isReturn ? 'rgba(244, 67, 54, 0.05)' : 'inherit' }}>
-                                <TableCell sx={{ color: isReturn ? 'text.secondary' : 'inherit' }}>{item.productName}</TableCell>
-                              <TableCell>
-                                {(() => {
-                                  const p = products.find(prod => prod.id === item.productId || prod.code === item.productCode);
-                                  const dbBrand = p ? p.supplier : null;
-                                  const txBrand = item.productSupplier && item.productSupplier !== 'NEARBIKE' ? item.productSupplier : null;
-                                  return dbBrand || txBrand || '-';
-                                })()}
-                              </TableCell>
-                              <TableCell>{item.productCode}</TableCell>
-                              <TableCell align="center">{item.quantity}</TableCell>
-                              <TableCell>
-                                {(() => {
-                                  const srcId = item.fromLocation;
-                                  if (!srcId || srcId === '외부') return '외부';
-                                  const w = warehouses.find(w => w.id === srcId);
-                                  if (w) return w.name;
-                                  const d = dealers.find(d => d.id === srcId);
-                                  if (d) return d.name;
-                                  return srcId;
-                                })()}
-                              </TableCell>
-                              <TableCell>
-                                {(() => {
-                                  const destId = item.toLocation;
-                                  const w = warehouses.find(w => w.id === destId);
-                                  if (w) return w.name;
-                                  const d = dealers.find(d => d.id === destId);
-                                  if (d) return d.name;
-                                  return destId;
-                                })()}
-                              </TableCell>
-                              <TableCell>
-                                {item.note && <div>{item.note}</div>}
-                                {item.additionalNote && <div style={{ fontSize: '0.8em', color: '#666' }}>{item.additionalNote}</div>}
-                              </TableCell>
-                            </TableRow>
-                            );
-                          })}
+                                <TableRow key={index} hover sx={{ bgcolor: isReturn ? 'rgba(244, 67, 54, 0.05)' : 'inherit' }}>
+                                  <TableCell sx={{ color: isReturn ? 'text.secondary' : 'inherit' }}>{item.productName}</TableCell>
+                                  <TableCell>
+                                    {(() => {
+                                      const p = products.find(prod => prod.id === item.productId || prod.code === item.productCode);
+                                      const dbBrand = p ? p.supplier : null;
+                                      const txBrand = item.productSupplier && item.productSupplier !== 'NEARBIKE' ? item.productSupplier : null;
+                                      return dbBrand || txBrand || '-';
+                                    })()}
+                                  </TableCell>
+                                  <TableCell>{item.productCode}</TableCell>
+                                  <TableCell align="center">{item.quantity}</TableCell>
+                                  <TableCell>
+                                    {(() => {
+                                      const srcId = item.fromLocation;
+                                      if (!srcId || srcId === '외부') return '외부';
+                                      const w = warehouses.find(w => w.id === srcId);
+                                      if (w) return w.name;
+                                      const d = dealers.find(d => d.id === srcId);
+                                      if (d) return d.name;
+                                      return srcId;
+                                    })()}
+                                  </TableCell>
+                                  <TableCell>
+                                    {(() => {
+                                      const destId = item.toLocation;
+                                      const w = warehouses.find(w => w.id === destId);
+                                      if (w) return w.name;
+                                      const d = dealers.find(d => d.id === destId);
+                                      if (d) return d.name;
+                                      return destId;
+                                    })()}
+                                  </TableCell>
+                                  <TableCell>
+                                    {item.note && <div>{item.note}</div>}
+                                    {item.additionalNote && <div style={{ fontSize: '0.8em', color: '#666' }}>{item.additionalNote}</div>}
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })
+                          }
                         </TableBody>
                       </Table>
                     </TableContainer>
                   )}
-                  
+
                   {!editMode && (
                     <Box sx={{ mt: 2, p: 2, backgroundColor: '#f5f5f5', borderRadius: 1 }}>
                       <Typography variant="body2" color="text.secondary">
@@ -4530,7 +4534,7 @@ function InventoryManagement() {
                 style={{ display: 'none' }}
                 id="excel-file-input"
               />
-              
+
               {/* 드래그 앤 드롭 영역 */}
               <Box
                 onDragOver={handleDragOver}
@@ -4682,8 +4686,8 @@ function InventoryManagement() {
                     return (
                       <TableRow key={idx}>
                         <TableCell>
-                          <Chip 
-                            label={getTransactionTypeInfo(tx).label} 
+                          <Chip
+                            label={getTransactionTypeInfo(tx).label}
                             size="small"
                             color={getTransactionTypeInfo(tx).color}
                           />
@@ -4708,8 +4712,8 @@ function InventoryManagement() {
       </Popover>
 
       {/* 표보기 클릭 시 거래 상세 모달 */}
-      <Dialog 
-        open={tableModalOpen} 
+      <Dialog
+        open={tableModalOpen}
         onClose={() => setTableModalOpen(false)}
         maxWidth="md"
         fullWidth
@@ -4747,18 +4751,18 @@ function InventoryManagement() {
                       const product = products.find(p => p.id === tx.productId);
                       const fromLocation = formatLocationName(tx.fromLocation, warehouses, dealers);
                       const toLocation = formatLocationName(tx.toLocation, warehouses, dealers);
-                      
+
                       return (
                         <TableRow key={tx.id} hover>
                           <TableCell>
-                            {new Date(tx.createdAt || tx.date).toLocaleTimeString('ko-KR', { 
-                              hour: '2-digit', 
-                              minute: '2-digit' 
+                            {new Date(tx.createdAt || tx.date).toLocaleTimeString('ko-KR', {
+                              hour: '2-digit',
+                              minute: '2-digit'
                             })}
                           </TableCell>
                           <TableCell>
-                            <Chip 
-                              label={getTransactionTypeInfo(tx).label} 
+                            <Chip
+                              label={getTransactionTypeInfo(tx).label}
                               size="small"
                               color={getTransactionTypeInfo(tx).color}
                             />
@@ -4794,7 +4798,7 @@ function InventoryManagement() {
 
       {/* 카페24 재고 비교 탭 */}
       {activeTab === 7 && (
-        <Cafe24InventoryReconciliation 
+        <Cafe24InventoryReconciliation
           products={products}
           warehouses={warehouses}
           recalculatedInventory={inventory}
@@ -4814,257 +4818,257 @@ function InventoryManagement() {
 
     </Box>
 
-      {/* ===== 새 엑셀 업로드 다이얼로그 (v2) ===== */}
-      <Dialog
-        open={v2ExcelOpen}
-        onClose={() => !v2ExcelLoading && setV2ExcelOpen(false)}
-        maxWidth="md"
-        fullWidth
-        PaperProps={{ sx: { borderRadius: 3 } }}
-      >
-        <DialogTitle sx={{ pb: 1, fontWeight: 700, fontSize: '1.2rem' }}>
-          📂 새로운 엑셀 업로드 (일괄 입출고)
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            헤더: A | B | 상품코드 | 바코드 | 상품명 | 수량 | 입출발지 | 목적지 | 메모 | 개별메모
-          </Typography>
-        </DialogTitle>
-        <DialogContent dividers>
-          {/* 파일 선택 */}
-          <Box sx={{ mb: 3 }}>
-            <input
-              type="file"
-              accept=".xlsx,.xls"
-              id="v2-excel-input"
-              style={{ display: 'none' }}
-              onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                try {
-                  const ExcelJS = (await import('exceljs')).default;
-                  const wb = new ExcelJS.Workbook();
-                  await wb.xlsx.load(await file.arrayBuffer());
-                  const ws = wb.getWorksheet(1);
-                  const headerVals = ws.getRow(1).values; // 1-indexed
-                  const colMap = {};
-                  for (let i = 1; i < headerVals.length; i++) {
-                    const h = headerVals[i]?.toString().trim();
-                    if (h) colMap[h] = i;
-                  }
-                  console.log('[v2 파싱] 헤더맵:', colMap);
-                  const get = (row, ...keys) => {
-                    for (const k of keys) {
-                      const idx = colMap[k];
-                      if (idx && row.values[idx] !== undefined && row.values[idx] !== null)
-                        return String(row.values[idx]).trim();
-                    }
-                    return '';
-                  };
-                  const rows = [];
-                  ws.eachRow((row, rn) => {
-                    if (rn === 1) return;
-                    const code = get(row, '상품코드', '제품코드');
-                    const barcode = get(row, '바코드');
-                    const name = get(row, '상품명', '제품명');
-                    const qty = parseInt(get(row, '수량'), 10) || 0;
-                    if (!code && !barcode && !name) return;
-                    rows.push({
-                      productCode: code,
-                      productBarcode: barcode,
-                      productName: name,
-                      quantity: qty,
-                      fromLocation: get(row, '입출발지', '출발지', '보내는곳'),
-                      toLocation: get(row, '목적지', '받는곳'),
-                      note: get(row, '메모', '비고'),
-                      additionalNote: get(row, '개별메모'),
-                    });
-                  });
-                  console.log('[v2 파싱] 샘플(3행):', rows.slice(0, 3));
-                  setV2ExcelData(rows);
-                  showSnackbar(`${rows.length}개 항목 파싱 완료`, 'success');
-                } catch (err) {
-                  console.error('[v2] 파싱 오류:', err);
-                  showSnackbar('엑셀 파일 읽기 실패: ' + err.message, 'error');
+      {/* ===== 새 엑셀 업로드 다이얼로그 (v2) ===== */ }
+  <Dialog
+    open={v2ExcelOpen}
+    onClose={() => !v2ExcelLoading && setV2ExcelOpen(false)}
+    maxWidth="md"
+    fullWidth
+    PaperProps={{ sx: { borderRadius: 3 } }}
+  >
+    <DialogTitle sx={{ pb: 1, fontWeight: 700, fontSize: '1.2rem' }}>
+      📂 새로운 엑셀 업로드 (일괄 입출고)
+      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+        헤더: A | B | 상품코드 | 바코드 | 상품명 | 수량 | 입출발지 | 목적지 | 메모 | 개별메모
+      </Typography>
+    </DialogTitle>
+    <DialogContent dividers>
+      {/* 파일 선택 */}
+      <Box sx={{ mb: 3 }}>
+        <input
+          type="file"
+          accept=".xlsx,.xls"
+          id="v2-excel-input"
+          style={{ display: 'none' }}
+          onChange={async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            try {
+              const ExcelJS = (await import('exceljs')).default;
+              const wb = new ExcelJS.Workbook();
+              await wb.xlsx.load(await file.arrayBuffer());
+              const ws = wb.getWorksheet(1);
+              const headerVals = ws.getRow(1).values; // 1-indexed
+              const colMap = {};
+              for (let i = 1; i < headerVals.length; i++) {
+                const h = headerVals[i]?.toString().trim();
+                if (h) colMap[h] = i;
+              }
+              console.log('[v2 파싱] 헤더맵:', colMap);
+              const get = (row, ...keys) => {
+                for (const k of keys) {
+                  const idx = colMap[k];
+                  if (idx && row.values[idx] !== undefined && row.values[idx] !== null)
+                    return String(row.values[idx]).trim();
                 }
-                e.target.value = '';
-              }}
-            />
-            <Box
-              onClick={() => document.getElementById('v2-excel-input').click()}
-              sx={{
-                border: '2px dashed #90caf9',
-                borderRadius: 2,
-                p: 4,
-                textAlign: 'center',
-                cursor: 'pointer',
-                bgcolor: '#f8fbff',
-                '&:hover': { bgcolor: '#e3f2fd', borderColor: '#1976d2' },
-                transition: 'all 0.2s',
-              }}
-            >
-              <UploadIcon sx={{ fontSize: 48, color: '#1976d2', mb: 1 }} />
-              <Typography variant="h6" color="primary">
-                {v2ExcelData.length > 0
-                  ? `✅ ${v2ExcelData.length}개 항목 로드됨 (다른 파일로 교체하려면 클릭)`
-                  : '엑셀 파일을 클릭하여 선택'}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">.xlsx, .xls 지원</Typography>
-            </Box>
-          </Box>
-
-          {/* 날짜 / 메모 */}
-          <Grid container spacing={2} sx={{ mb: 2 }}>
-            <Grid item xs={12} md={5}>
-              <TextField
-                fullWidth size="small" type="date" label="거래 날짜"
-                value={v2ExcelDate}
-                onChange={e => setV2ExcelDate(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-              />
-            </Grid>
-            <Grid item xs={12} md={7}>
-              <TextField
-                fullWidth size="small" label="공통 메모"
-                value={v2ExcelNote}
-                onChange={e => setV2ExcelNote(e.target.value)}
-                placeholder="모든 항목에 적용될 메모"
-              />
-            </Grid>
-          </Grid>
-
-          {/* 파싱 데이터 미리보기 */}
-          {v2ExcelData.length > 0 && (
-            <Box>
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700 }}>
-                파싱 결과 예시 ({Math.min(v2ExcelData.length, 5)}/{v2ExcelData.length}개)
-              </Typography>
-              <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 220 }}>
-                <Table stickyHeader size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>상품코드</TableCell>
-                      <TableCell>상품명</TableCell>
-                      <TableCell align="right">수량</TableCell>
-                      <TableCell>입출발지</TableCell>
-                      <TableCell>목적지</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {v2ExcelData.slice(0, 5).map((row, i) => (
-                      <TableRow key={i}>
-                        <TableCell>{row.productCode || row.productBarcode}</TableCell>
-                        <TableCell>{row.productName || '-'}</TableCell>
-                        <TableCell align="right">{row.quantity}</TableCell>
-                        <TableCell>{row.fromLocation || '외부'}</TableCell>
-                        <TableCell>{row.toLocation}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-              {v2ExcelData.length > 5 && (
-                <Typography variant="caption" color="text.secondary">... 외 {v2ExcelData.length - 5}개 더</Typography>
-              )}
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setV2ExcelOpen(false)} disabled={v2ExcelLoading}>취소</Button>
-          <Button
-            variant="contained"
-            color="success"
-            disabled={v2ExcelData.length === 0 || v2ExcelLoading}
-            onClick={async () => {
-              setV2ExcelLoading(true);
-              const groupId = crypto.randomUUID();
-              const newTxs = [];
-              const invUpdates = [];
-              const unmatched = [];
-              let inCnt = 0, outCnt = 0;
-
-              console.log('[v2 submit] products수:', products.length, 'excelData수:', v2ExcelData.length);
-              if (v2ExcelData.length > 0) console.log('[v2 submit] 첫줄:', JSON.stringify(v2ExcelData[0]));
-
-              v2ExcelData.forEach((item, idx) => {
-                const iCode = (item.productCode || '').trim().toLowerCase();
-                const iBar = (item.productBarcode || '').trim().toLowerCase();
-                const iName = (item.productName || '').trim().toLowerCase();
-                let product = null;
-
-                // 1단계: 코드/바코드 정확 매칭
-                for (const code of [iCode, iBar].filter(Boolean)) {
-                  product = products.find(p => {
-                    const dc = (p.code || '').trim().toLowerCase();
-                    const db = (p.barcode || '').trim().toLowerCase();
-                    return (dc && dc === code) || (db && db === code);
-                  });
-                  if (product) break;
-                }
-                // 2단계: 이름 매칭
-                if (!product && iName) {
-                  const ns = iName.replace(/\s+/g, '');
-                  product = products.find(p => (p.name || '').replace(/\s+/g, '').toLowerCase() === ns)
-                    || products.find(p => (p.name || '').replace(/\s+/g, '').toLowerCase().includes(ns));
-                }
-
-                if (product) {
-                  const isIn = !item.fromLocation || item.fromLocation === '외부';
-                  if (isIn) inCnt++; else outCnt++;
-                  const tx = {
-                    id: groupId + idx,
-                    groupId,
-                    type: isIn ? 'in' : 'out',
-                    productId: parseInt(product.id),
-                    productName: product.name,
-                    productCode: product.code,
-                    productSupplier: product.supplier || '-',
-                    quantity: item.quantity,
-                    fromLocation: item.fromLocation || (isIn ? '외부' : ''),
-                    toLocation: item.toLocation,
-                    date: v2ExcelDate,
-                    note: item.note || v2ExcelNote,
-                    additionalNote: item.additionalNote || '',
-                    createdAt: new Date().toLocaleString(),
-                    isGrouped: true,
-                  };
-                  newTxs.push(tx);
-                  invUpdates.push(tx);
-                } else {
-                  unmatched.push(item.productCode || item.productName || `행 ${idx + 2}`);
-                }
+                return '';
+              };
+              const rows = [];
+              ws.eachRow((row, rn) => {
+                if (rn === 1) return;
+                const code = get(row, '상품코드', '제품코드');
+                const barcode = get(row, '바코드');
+                const name = get(row, '상품명', '제품명');
+                const qty = parseInt(get(row, '수량'), 10) || 0;
+                if (!code && !barcode && !name) return;
+                rows.push({
+                  productCode: code,
+                  productBarcode: barcode,
+                  productName: name,
+                  quantity: qty,
+                  fromLocation: get(row, '입출발지', '출발지', '보내는곳'),
+                  toLocation: get(row, '목적지', '받는곳'),
+                  note: get(row, '메모', '비고'),
+                  additionalNote: get(row, '개별메모'),
+                });
               });
+              console.log('[v2 파싱] 샘플(3행):', rows.slice(0, 3));
+              setV2ExcelData(rows);
+              showSnackbar(`${rows.length}개 항목 파싱 완료`, 'success');
+            } catch (err) {
+              console.error('[v2] 파싱 오류:', err);
+              showSnackbar('엑셀 파일 읽기 실패: ' + err.message, 'error');
+            }
+            e.target.value = '';
+          }}
+        />
+        <Box
+          onClick={() => document.getElementById('v2-excel-input').click()}
+          sx={{
+            border: '2px dashed #90caf9',
+            borderRadius: 2,
+            p: 4,
+            textAlign: 'center',
+            cursor: 'pointer',
+            bgcolor: '#f8fbff',
+            '&:hover': { bgcolor: '#e3f2fd', borderColor: '#1976d2' },
+            transition: 'all 0.2s',
+          }}
+        >
+          <UploadIcon sx={{ fontSize: 48, color: '#1976d2', mb: 1 }} />
+          <Typography variant="h6" color="primary">
+            {v2ExcelData.length > 0
+              ? `✅ ${v2ExcelData.length}개 항목 로드됨 (다른 파일로 교체하려면 클릭)`
+              : '엑셀 파일을 클릭하여 선택'}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">.xlsx, .xls 지원</Typography>
+        </Box>
+      </Box>
 
-              if (newTxs.length === 0) {
-                showSnackbar(`매칭되는 상품이 없습니다. (${unmatched.slice(0,3).join(', ')}) \n상품코드를 확인해주세요.`, 'error');
-                setV2ExcelLoading(false);
-                return;
-              }
-              try {
-                await transactionApi.createMany(newTxs);
-                setTransactions(prev => [...newTxs, ...prev]);
-                const done = [];
-                for (const tx of invUpdates) {
-                  await updateInventory(tx);
-                  done.push(tx);
-                }
-                if (unmatched.length > 0) {
-                  showSnackbar(`✅ ${newTxs.length}개 처리완료 (입고:${inCnt} 출고:${outCnt}). 미매칭 ${unmatched.length}건 제외.`, 'warning');
-                } else {
-                  showSnackbar(`✅ ${newTxs.length}개 전체 처리완료 (입고:${inCnt} 출고:${outCnt})`, 'success');
-                }
-                setV2ExcelOpen(false);
-              } catch (err) {
-                console.error('[v2 submit] 오류:', err);
-                showSnackbar('업로드 실패: ' + err.message, 'error');
-              }
-              setV2ExcelLoading(false);
-            }}
-          >
-            {v2ExcelLoading ? '처리 중...' : `입출고 처리 (${v2ExcelData.length}개 항목)`}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {/* 날짜 / 메모 */}
+      <Grid container spacing={2} sx={{ mb: 2 }}>
+        <Grid item xs={12} md={5}>
+          <TextField
+            fullWidth size="small" type="date" label="거래 날짜"
+            value={v2ExcelDate}
+            onChange={e => setV2ExcelDate(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+          />
+        </Grid>
+        <Grid item xs={12} md={7}>
+          <TextField
+            fullWidth size="small" label="공통 메모"
+            value={v2ExcelNote}
+            onChange={e => setV2ExcelNote(e.target.value)}
+            placeholder="모든 항목에 적용될 메모"
+          />
+        </Grid>
+      </Grid>
 
-    </Box>
+      {/* 파싱 데이터 미리보기 */}
+      {v2ExcelData.length > 0 && (
+        <Box>
+          <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700 }}>
+            파싱 결과 예시 ({Math.min(v2ExcelData.length, 5)}/{v2ExcelData.length}개)
+          </Typography>
+          <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 220 }}>
+            <Table stickyHeader size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>상품코드</TableCell>
+                  <TableCell>상품명</TableCell>
+                  <TableCell align="right">수량</TableCell>
+                  <TableCell>입출발지</TableCell>
+                  <TableCell>목적지</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {v2ExcelData.slice(0, 5).map((row, i) => (
+                  <TableRow key={i}>
+                    <TableCell>{row.productCode || row.productBarcode}</TableCell>
+                    <TableCell>{row.productName || '-'}</TableCell>
+                    <TableCell align="right">{row.quantity}</TableCell>
+                    <TableCell>{row.fromLocation || '외부'}</TableCell>
+                    <TableCell>{row.toLocation}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          {v2ExcelData.length > 5 && (
+            <Typography variant="caption" color="text.secondary">... 외 {v2ExcelData.length - 5}개 더</Typography>
+          )}
+        </Box>
+      )}
+    </DialogContent>
+    <DialogActions sx={{ p: 2 }}>
+      <Button onClick={() => setV2ExcelOpen(false)} disabled={v2ExcelLoading}>취소</Button>
+      <Button
+        variant="contained"
+        color="success"
+        disabled={v2ExcelData.length === 0 || v2ExcelLoading}
+        onClick={async () => {
+          setV2ExcelLoading(true);
+          const groupId = crypto.randomUUID();
+          const newTxs = [];
+          const invUpdates = [];
+          const unmatched = [];
+          let inCnt = 0, outCnt = 0;
+
+          console.log('[v2 submit] products수:', products.length, 'excelData수:', v2ExcelData.length);
+          if (v2ExcelData.length > 0) console.log('[v2 submit] 첫줄:', JSON.stringify(v2ExcelData[0]));
+
+          v2ExcelData.forEach((item, idx) => {
+            const iCode = (item.productCode || '').trim().toLowerCase();
+            const iBar = (item.productBarcode || '').trim().toLowerCase();
+            const iName = (item.productName || '').trim().toLowerCase();
+            let product = null;
+
+            // 1단계: 코드/바코드 정확 매칭
+            for (const code of [iCode, iBar].filter(Boolean)) {
+              product = products.find(p => {
+                const dc = (p.code || '').trim().toLowerCase();
+                const db = (p.barcode || '').trim().toLowerCase();
+                return (dc && dc === code) || (db && db === code);
+              });
+              if (product) break;
+            }
+            // 2단계: 이름 매칭
+            if (!product && iName) {
+              const ns = iName.replace(/\s+/g, '');
+              product = products.find(p => (p.name || '').replace(/\s+/g, '').toLowerCase() === ns)
+                || products.find(p => (p.name || '').replace(/\s+/g, '').toLowerCase().includes(ns));
+            }
+
+            if (product) {
+              const isIn = !item.fromLocation || item.fromLocation === '외부';
+              if (isIn) inCnt++; else outCnt++;
+              const tx = {
+                id: groupId + idx,
+                groupId,
+                type: isIn ? 'in' : 'out',
+                productId: parseInt(product.id),
+                productName: product.name,
+                productCode: product.code,
+                productSupplier: product.supplier || '-',
+                quantity: item.quantity,
+                fromLocation: item.fromLocation || (isIn ? '외부' : ''),
+                toLocation: item.toLocation,
+                date: v2ExcelDate,
+                note: item.note || v2ExcelNote,
+                additionalNote: item.additionalNote || '',
+                createdAt: new Date().toLocaleString(),
+                isGrouped: true,
+              };
+              newTxs.push(tx);
+              invUpdates.push(tx);
+            } else {
+              unmatched.push(item.productCode || item.productName || `행 ${idx + 2}`);
+            }
+          });
+
+          if (newTxs.length === 0) {
+            showSnackbar(`매칭되는 상품이 없습니다. (${unmatched.slice(0, 3).join(', ')}) \n상품코드를 확인해주세요.`, 'error');
+            setV2ExcelLoading(false);
+            return;
+          }
+          try {
+            await transactionApi.createMany(newTxs);
+            setTransactions(prev => [...newTxs, ...prev]);
+            const done = [];
+            for (const tx of invUpdates) {
+              await updateInventory(tx);
+              done.push(tx);
+            }
+            if (unmatched.length > 0) {
+              showSnackbar(`✅ ${newTxs.length}개 처리완료 (입고:${inCnt} 출고:${outCnt}). 미매칭 ${unmatched.length}건 제외.`, 'warning');
+            } else {
+              showSnackbar(`✅ ${newTxs.length}개 전체 처리완료 (입고:${inCnt} 출고:${outCnt})`, 'success');
+            }
+            setV2ExcelOpen(false);
+          } catch (err) {
+            console.error('[v2 submit] 오류:', err);
+            showSnackbar('업로드 실패: ' + err.message, 'error');
+          }
+          setV2ExcelLoading(false);
+        }}
+      >
+        {v2ExcelLoading ? '처리 중...' : `입출고 처리 (${v2ExcelData.length}개 항목)`}
+      </Button>
+    </DialogActions>
+  </Dialog>
+
+    </Box >
   );
 }
 

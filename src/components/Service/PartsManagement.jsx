@@ -53,7 +53,8 @@ import {
   CheckBox as CheckBoxIcon,
   Link as LinkIcon,
   LinkOff as LinkOffIcon,
-  Check as CheckIcon
+  Check as CheckIcon,
+  WarningAmber as WarningAmberIcon
 } from '@mui/icons-material';
 import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { supabase } from '../../lib/supabaseClient';
@@ -694,6 +695,15 @@ function PartsManagement() {
   // Cafe24 연동 상태
   const [cafe24Links, setCafe24Links] = useState(new Set());
 
+  // 엑셀 업로드 중복 처리 상태
+  const [duplicateDialog, setDuplicateDialog] = useState({
+    open: false,
+    duplicates: [],       // { newData, existingData, selected: true }
+    newOnly: [],          // 중복 아닌 신규 데이터
+    selectAll: true,
+    fileInputEvent: null
+  });
+
   // 다음 상품코드 생성기: 같은 브랜드의 기존 코드 중 숫자 접미사를 증가
   // 다음 상품코드 생성기: 브랜드+카테고리 약어 조합
   const getNextPartCode = useCallback((brandCode, category = '파츠') => {
@@ -1198,31 +1208,23 @@ function PartsManagement() {
           current: 60
         }));
 
+        // DB에서 기존 코드 조회 (전체 정보 포함)
         const { data: existingParts, error: checkError } = await supabase
           .from('parts')
-          .select('code')
+          .select('*')
           .in('code', withCodes.map(d => d.code));
 
         if (checkError) throw checkError;
 
-        const dbExisting = new Set((existingParts || []).map(p => p.code));
-        // 사용자가 직접 입력한 코드가 DB에 이미 있으면 에러
-        const userDupes = withCodes
-          .filter(r => !r.__auto && dbExisting.has(r.code))
-          .map(r => r.code);
-        if (userDupes.length > 0) {
-          closeUploadStatus();
-          showSnackbar(`다음 상품코드는 이미 존재합니다: ${userDupes.join(', ')}`, 'error');
-          event.target.value = '';
-          return;
-        }
+        const dbExistingMap = {};
+        (existingParts || []).forEach(p => { dbExistingMap[p.code] = p; });
+        const dbExisting = new Set(Object.keys(dbExistingMap));
 
         // 자동 생성된 코드가 DB에 있으면 충돌 해소를 위해 증가
         const finalAssigned = new Set(withCodes.map(r => r.code));
-        const finalData = withCodes.map((row) => {
+        const resolvedCodes = withCodes.map((row) => {
           if (row.__auto && dbExisting.has(row.code)) {
             let code = row.code;
-            // DB 및 배치 내 중복 모두 해결될 때까지 증가
             while (dbExisting.has(code) || finalAssigned.has(code)) {
               code = bumpCode(code);
             }
@@ -1232,47 +1234,37 @@ function PartsManagement() {
           return row;
         }).map(({ __auto, ...rest }) => rest);
 
-        setUploadStatus(prev => ({
-          ...prev,
-          step: 4,
-          message: '데이터 저장 중...',
-          current: 80
-        }));
-
-        const { error: insertError } = await supabase
-          .from('parts')
-          .insert(finalData);
-
-        if (insertError) throw insertError;
-
-        setUploadStatus(prev => ({
-          ...prev,
-          step: 5,
-          message: '저장 완료!',
-          current: 100
-        }));
-
-        // 텔레그램 알림 전송 (엑셀 업로드)
-        for (const newPart of finalData) {
-          try {
-            await sendTelegramNotification({
-              message: `부품 등록 (코드: ${newPart.code}) - 품명: ${newPart.name}`,
-              link: `/parts`
-            }, { eventType: 'part_add' });
-          } catch (telegramError) {
-            console.error('엑셀 부품 등록 텔레그램 알림 전송 중 오류:', telegramError);
-            // 개별 알림 실패는 전체 프로세스를 중단시키지 않도록 처리
+        // 사용자가 직접 입력한 코드 중 DB에 이미 있는 것 분리
+        const duplicates = [];
+        const newOnly = [];
+        resolvedCodes.forEach(row => {
+          if (dbExisting.has(row.code)) {
+            duplicates.push({
+              newData: row,
+              existingData: dbExistingMap[row.code],
+              selected: true  // 기본적으로 덮어쓰기 선택
+            });
+          } else {
+            newOnly.push(row);
           }
+        });
+
+        closeUploadStatus();
+
+        // 중복이 있으면 다이얼로그 표시
+        if (duplicates.length > 0) {
+          setDuplicateDialog({
+            open: true,
+            duplicates,
+            newOnly,
+            selectAll: true,
+            fileInputEvent: event
+          });
+          return;
         }
 
-        await fetchParts(); // 목록 새로고침
-
-        setTimeout(() => {
-          closeUploadStatus();
-          showSnackbar(`${formattedData.length}개의 파츠가 성공적으로 등록되었습니다.`, 'success');
-        }, 1000);
-
-        event.target.value = '';
+        // 중복 없으면 바로 저장
+        await executeExcelInsert(newOnly, [], event);
 
       } catch (error) {
         closeUploadStatus();
@@ -1288,6 +1280,107 @@ function PartsManagement() {
     };
 
     reader.readAsBinaryString(file);
+  };
+
+  // 엑셀 업로드 실제 저장 처리 (신규 + 선택된 중복 업데이트)
+  const executeExcelInsert = async (newItems, overwriteItems, fileEvent) => {
+    try {
+      setUploadStatus({
+        open: true,
+        step: 4,
+        total: 100,
+        current: 60,
+        message: '데이터 저장 중...'
+      });
+
+      let savedCount = 0;
+
+      // 1. 신규 데이터 INSERT
+      if (newItems.length > 0) {
+        const { error: insertError } = await supabase
+          .from('parts')
+          .insert(newItems);
+        if (insertError) throw insertError;
+        savedCount += newItems.length;
+      }
+
+      setUploadStatus(prev => ({ ...prev, current: 80, message: '중복 데이터 업데이트 중...' }));
+
+      // 2. 덮어쓰기 선택된 중복 데이터 UPDATE
+      let updatedCount = 0;
+      for (const item of overwriteItems) {
+        const { code, ...updateData } = item;
+        const { error: updateError } = await supabase
+          .from('parts')
+          .update(updateData)
+          .eq('code', code);
+        if (updateError) {
+          console.error(`코드 ${code} 업데이트 실패:`, updateError);
+        } else {
+          updatedCount++;
+        }
+      }
+
+      setUploadStatus(prev => ({ ...prev, step: 5, current: 100, message: '저장 완료!' }));
+
+      // 텔레그램 알림 전송
+      const allSaved = [...newItems, ...overwriteItems];
+      for (const newPart of allSaved) {
+        try {
+          await sendTelegramNotification({
+            message: `부품 ${overwriteItems.includes(newPart) ? '수정' : '등록'} (코드: ${newPart.code}) - 품명: ${newPart.name}`,
+            link: `/parts`
+          }, { eventType: overwriteItems.includes(newPart) ? 'part_edit' : 'part_add' });
+        } catch (telegramError) {
+          console.error('텔레그램 알림 전송 중 오류:', telegramError);
+        }
+      }
+
+      await fetchParts();
+
+      setTimeout(() => {
+        closeUploadStatus();
+        const msgs = [];
+        if (savedCount > 0) msgs.push(`${savedCount}개 신규 등록`);
+        if (updatedCount > 0) msgs.push(`${updatedCount}개 업데이트`);
+        const skippedCount = overwriteItems.length - updatedCount;
+        showSnackbar(`파츠 업로드 완료: ${msgs.join(', ')}`, 'success');
+      }, 1000);
+
+      if (fileEvent?.target) fileEvent.target.value = '';
+
+    } catch (error) {
+      closeUploadStatus();
+      console.error('엑셀 저장 중 오류:', error);
+      showSnackbar('엑셀 파일 저장 중 오류가 발생했습니다: ' + error.message, 'error');
+      if (fileEvent?.target) fileEvent.target.value = '';
+    }
+  };
+
+  // 중복 다이얼로그 확인 처리
+  const handleDuplicateConfirm = async () => {
+    const { duplicates, newOnly, fileInputEvent } = duplicateDialog;
+    const overwriteItems = duplicates
+      .filter(d => d.selected)
+      .map(d => d.newData);
+    
+    setDuplicateDialog(prev => ({ ...prev, open: false }));
+    await executeExcelInsert(newOnly, overwriteItems, fileInputEvent);
+  };
+
+  // 중복 다이얼로그 취소
+  const handleDuplicateCancel = () => {
+    if (duplicateDialog.fileInputEvent?.target) {
+      duplicateDialog.fileInputEvent.target.value = '';
+    }
+    setDuplicateDialog({
+      open: false,
+      duplicates: [],
+      newOnly: [],
+      selectAll: true,
+      fileInputEvent: null
+    });
+    showSnackbar('업로드가 취소되었습니다.', 'info');
   };
 
   const handleDownloadTemplate = () => {
@@ -2607,6 +2700,177 @@ function PartsManagement() {
         </DialogContent>
         <DialogActions sx={{ p: 2, px: 3 }}>
           <Button onClick={handleCloseBatchGroupDialog} color="inherit">닫기</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 엑셀 업로드 중복 처리 다이얼로그 */}
+      <Dialog 
+        open={duplicateDialog.open} 
+        onClose={handleDuplicateCancel} 
+        maxWidth="lg" 
+        fullWidth
+        PaperProps={{ sx: { maxHeight: '85vh' } }}
+      >
+        <DialogTitle sx={{ pb: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <WarningAmberIcon sx={{ color: 'warning.main' }} />
+            <Typography variant="h6">중복 상품 확인</Typography>
+          </Box>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            업로드 파일에 이미 등록된 상품코드가 {duplicateDialog.duplicates.length}건 있습니다. 
+            덮어쓸 항목을 선택해주세요.
+          </Typography>
+        </DialogTitle>
+        <DialogContent dividers sx={{ p: 0 }}>
+          {/* 상단 일괄 선택 */}
+          <Box sx={{ px: 2, py: 1, bgcolor: 'grey.50', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <FormControlLabel
+              control={
+                <Checkbox 
+                  checked={duplicateDialog.selectAll}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setDuplicateDialog(prev => ({
+                      ...prev,
+                      selectAll: checked,
+                      duplicates: prev.duplicates.map(d => ({ ...d, selected: checked }))
+                    }));
+                  }}
+                />
+              }
+              label={<Typography variant="body2" fontWeight="bold">전체 덮어쓰기</Typography>}
+            />
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Chip 
+                label={`신규 ${duplicateDialog.newOnly.length}건`} 
+                color="success" 
+                size="small" 
+                variant="outlined" 
+              />
+              <Chip 
+                label={`중복 ${duplicateDialog.duplicates.length}건`} 
+                color="warning" 
+                size="small" 
+                variant="outlined" 
+              />
+              <Chip 
+                label={`덮어쓰기 ${duplicateDialog.duplicates.filter(d => d.selected).length}건`} 
+                color="primary" 
+                size="small" 
+              />
+            </Box>
+          </Box>
+
+          {/* 중복 목록 테이블 */}
+          <TableContainer sx={{ maxHeight: 'calc(85vh - 240px)' }}>
+            <Table stickyHeader size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell padding="checkbox" sx={{ width: 50 }}></TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', minWidth: 100 }}>코드</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', minWidth: 80 }}>구분</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', minWidth: 200 }}>기존 제품명</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', minWidth: 200, bgcolor: 'primary.50' }}>→ 새 제품명</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 'bold', minWidth: 80 }}>기존 공급가</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 'bold', minWidth: 80, bgcolor: 'primary.50' }}>→ 새 공급가</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 'bold', minWidth: 80 }}>기존 판매가</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 'bold', minWidth: 80, bgcolor: 'primary.50' }}>→ 새 판매가</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {duplicateDialog.duplicates.map((dup, idx) => {
+                  const nameChanged = dup.existingData.name !== dup.newData.name;
+                  const supplyChanged = Number(dup.existingData.supply_price || 0) !== Number(dup.newData.supply_price || 0);
+                  const priceChanged = Number(dup.existingData.price || 0) !== Number(dup.newData.price || 0);
+                  
+                  return (
+                    <TableRow 
+                      key={idx} 
+                      hover
+                      sx={{ 
+                        bgcolor: dup.selected ? 'rgba(25, 118, 210, 0.04)' : 'transparent',
+                        cursor: 'pointer',
+                        '&:hover': { bgcolor: dup.selected ? 'rgba(25, 118, 210, 0.08)' : 'action.hover' }
+                      }}
+                      onClick={() => {
+                        setDuplicateDialog(prev => {
+                          const updated = [...prev.duplicates];
+                          updated[idx] = { ...updated[idx], selected: !updated[idx].selected };
+                          return {
+                            ...prev,
+                            duplicates: updated,
+                            selectAll: updated.every(d => d.selected)
+                          };
+                        });
+                      }}
+                    >
+                      <TableCell padding="checkbox">
+                        <Checkbox checked={dup.selected} size="small" />
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" fontFamily="monospace" fontWeight="bold">
+                          {dup.newData.code}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">{dup.newData.brand}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ color: nameChanged ? 'text.secondary' : 'text.primary', textDecoration: nameChanged ? 'line-through' : 'none' }}>
+                          {dup.existingData.name}
+                        </Typography>
+                      </TableCell>
+                      <TableCell sx={{ bgcolor: 'rgba(25, 118, 210, 0.02)' }}>
+                        <Typography variant="body2" sx={{ color: nameChanged ? 'primary.main' : 'text.primary', fontWeight: nameChanged ? 'bold' : 'normal' }}>
+                          {dup.newData.name}
+                          {nameChanged && <Chip label="변경" size="small" color="primary" variant="outlined" sx={{ ml: 0.5, height: 18, fontSize: '0.65rem' }} />}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography variant="body2" sx={{ color: supplyChanged ? 'text.secondary' : 'text.primary', textDecoration: supplyChanged ? 'line-through' : 'none' }}>
+                          {Number(dup.existingData.supply_price || 0).toLocaleString()}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right" sx={{ bgcolor: 'rgba(25, 118, 210, 0.02)' }}>
+                        <Typography variant="body2" sx={{ color: supplyChanged ? 'primary.main' : 'text.primary', fontWeight: supplyChanged ? 'bold' : 'normal' }}>
+                          {Number(dup.newData.supply_price || 0).toLocaleString()}
+                          {supplyChanged && <Chip label="변경" size="small" color="primary" variant="outlined" sx={{ ml: 0.5, height: 18, fontSize: '0.65rem' }} />}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography variant="body2" sx={{ color: priceChanged ? 'text.secondary' : 'text.primary', textDecoration: priceChanged ? 'line-through' : 'none' }}>
+                          {Number(dup.existingData.price || 0).toLocaleString()}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right" sx={{ bgcolor: 'rgba(25, 118, 210, 0.02)' }}>
+                        <Typography variant="body2" sx={{ color: priceChanged ? 'primary.main' : 'text.primary', fontWeight: priceChanged ? 'bold' : 'normal' }}>
+                          {Number(dup.newData.price || 0).toLocaleString()}
+                          {priceChanged && <Chip label="변경" size="small" color="primary" variant="outlined" sx={{ ml: 0.5, height: 18, fontSize: '0.65rem' }} />}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2, justifyContent: 'space-between' }}>
+          <Typography variant="body2" color="text.secondary">
+            선택된 {duplicateDialog.duplicates.filter(d => d.selected).length}건은 덮어쓰기, 
+            나머지 {duplicateDialog.duplicates.filter(d => !d.selected).length}건은 건너뜁니다.
+            {duplicateDialog.newOnly.length > 0 && ` 신규 ${duplicateDialog.newOnly.length}건은 새로 등록됩니다.`}
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button onClick={handleDuplicateCancel} color="inherit">취소</Button>
+            <Button 
+              onClick={handleDuplicateConfirm} 
+              variant="contained" 
+              color="primary"
+            >
+              확인 ({duplicateDialog.newOnly.length + duplicateDialog.duplicates.filter(d => d.selected).length}건 처리)
+            </Button>
+          </Box>
         </DialogActions>
       </Dialog>
 

@@ -899,7 +899,10 @@ function InventoryLayout() {
 
   const handleOpenDialog = () => {
     setDialogType('io');
-    setFormData(prev => ({ ...prev }));
+    setFormData(prev => ({ 
+      ...prev,
+      date: new Date().toISOString().split('T')[0]
+    }));
     setOpenDialog(true);
   };
 
@@ -2091,8 +2094,14 @@ function InventoryLayout() {
     const { warehouseMap, dealerMap } = locationMappings;
     
     return groupedTransactions.filter(group => {
-      const matchesType = filter.type === 'all' || group.type === filter.type;
-      
+      let matchesType = false;
+      if (filter.type === 'all') {
+        matchesType = true;
+      } else if (filter.type === 'import') {
+        matchesType = getTransactionTypeInfo(group).label === '수입';
+      } else {
+        matchesType = group.type === filter.type;
+      }      
       const matchesFromLocation = !filter.fromLocation || 
                             group.items.some(item => {
                               const srcId = item.fromLocation;
