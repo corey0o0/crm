@@ -242,7 +242,8 @@ function ServiceStatistics() {
               id,
               part_id,
               quantity,
-              price
+              price,
+              usage
             ),
             service_tags (
               tag_name
@@ -310,6 +311,24 @@ function ServiceStatistics() {
     // 브랜드별 통계 계산
     ['xlider', 'nearbike'].forEach(brand => {
       const services = rawData[brand].services || [];
+
+      // 반품 차감 유틸리티
+      const getEffectiveQty = (part) => {
+        let returnedQty = 0;
+        const usage = part.usage || '';
+        if (usage.includes('[반품완료]')) {
+          returnedQty = part.quantity || 0;
+        } else if (usage.includes('[부분반품:')) {
+          const matches = usage.match(/\[부분반품:(\d+)개\]/g);
+          if (matches) {
+            matches.forEach(m => {
+              const qm = m.match(/\[부분반품:(\d+)개\]/);
+              if (qm && qm[1]) returnedQty += parseInt(qm[1], 10);
+            });
+          }
+        }
+        return Math.max(0, (part.quantity || 0) - returnedQty);
+      };
       
       // 선택된 기간 내의 서비스만 필터링
       const filteredServices = services.filter(service => {
@@ -364,7 +383,8 @@ function ServiceStatistics() {
       filteredServices.forEach(service => {
         if (service.service_parts && service.service_parts.length > 0) {
           service.service_parts.forEach(part => {
-            const amount = (part.price || 0) * (part.quantity || 1);
+            const effQty = getEffectiveQty(part);
+            const amount = (part.price || 0) * effQty;
             totalPartsAmount += amount;
 
             // 부품별 사용 통계
@@ -376,7 +396,7 @@ function ServiceStatistics() {
                   totalAmount: 0
                 };
               }
-              partUsage[part.part_id].count += part.quantity || 1;
+              partUsage[part.part_id].count += effQty;
               partUsage[part.part_id].totalAmount += amount;
             }
           });

@@ -52,6 +52,24 @@ import { ko } from 'date-fns/locale';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
+// 반품 차감 유틸리티
+const getEffectiveQty = (part) => {
+  let returnedQty = 0;
+  const usage = part.usage || '';
+  if (usage.includes('[반품완료]')) {
+    returnedQty = part.quantity || 0;
+  } else if (usage.includes('[부분반품:')) {
+    const matches = usage.match(/\[부분반품:(\d+)개\]/g);
+    if (matches) {
+      matches.forEach(m => {
+        const qm = m.match(/\[부분반품:(\d+)개\]/);
+        if (qm && qm[1]) returnedQty += parseInt(qm[1], 10);
+      });
+    }
+  }
+  return Math.max(0, (part.quantity || 0) - returnedQty);
+};
+
 function ServiceStats() {
   const [loading, setLoading] = useState(true);
   const [selectedBrand, setSelectedBrand] = useState('전체');
@@ -84,7 +102,7 @@ function ServiceStats() {
       // A/S 데이터 조회
       let query = supabase
         .from('services')
-        .select('*, service_parts(price, quantity)')
+        .select('*, service_parts(price, quantity, usage)')
         .gte('reception_date', startDate.toISOString())
         .lte('reception_date', endDate.toISOString());
       
@@ -109,7 +127,7 @@ function ServiceStats() {
           month: format(month, 'yyyy-MM'),
           count: monthServices.length,
           amount: monthServices.reduce((sum, service) => {
-            const partsCost = service.service_parts?.reduce((pSum, part) => pSum + ((part.price || 0) * (part.quantity || 0)), 0) || 0;
+            const partsCost = service.service_parts?.reduce((pSum, part) => pSum + ((part.price || 0) * getEffectiveQty(part)), 0) || 0;
             return sum + partsCost;
           }, 0)
         };
@@ -162,7 +180,7 @@ function ServiceStats() {
       const brandCounts = {};
       const brandAmounts = {};
       services.forEach(service => {
-        const partsCost = service.service_parts?.reduce((sum, part) => sum + ((part.price || 0) * (part.quantity || 0)), 0) || 0;
+        const partsCost = service.service_parts?.reduce((sum, part) => sum + ((part.price || 0) * getEffectiveQty(part)), 0) || 0;
         brandCounts[service.brand] = (brandCounts[service.brand] || 0) + 1;
         brandAmounts[service.brand] = (brandAmounts[service.brand] || 0) + partsCost;
       });
@@ -204,7 +222,7 @@ function ServiceStats() {
       setStatsData({
         totalCount: services.length,
         totalAmount: services.reduce((sum, service) => {
-          const partsCost = service.service_parts?.reduce((pSum, part) => pSum + ((part.price || 0) * (part.quantity || 0)), 0) || 0;
+          const partsCost = service.service_parts?.reduce((pSum, part) => pSum + ((part.price || 0) * getEffectiveQty(part)), 0) || 0;
           return sum + partsCost;
         }, 0),
         monthlyStats,
@@ -526,7 +544,7 @@ function ServiceStats() {
         <Typography variant="h6" gutterBottom>최근 A/S 현황</Typography>
         <Timeline>
           {statsData.recentServices.map((service) => {
-            const serviceCost = service.service_parts?.reduce((sum, part) => sum + ((part.price || 0) * (part.quantity || 0)), 0) || 0;
+            const serviceCost = service.service_parts?.reduce((sum, part) => sum + ((part.price || 0) * getEffectiveQty(part)), 0) || 0;
             return (
             <TimelineItem key={service.id}>
               <TimelineSeparator>
