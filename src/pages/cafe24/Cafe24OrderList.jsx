@@ -1500,7 +1500,8 @@ export default function Cafe24OrderList() {
               {showPriceDetails && <TableCell align="right"><strong>묶음할인</strong></TableCell>}
               <TableCell align="right"><strong>실결제액</strong></TableCell>
               <TableCell align="right"><strong>배송비</strong></TableCell>
-              <TableCell align="right"><strong>할인/적립금</strong></TableCell>
+              <TableCell align="right"><strong>등급할인</strong></TableCell>
+              <TableCell align="right"><strong>적립금</strong></TableCell>
               <TableCell align="right"><strong>총결제액</strong></TableCell>
               <TableCell><strong>품목코드(ERP)</strong></TableCell>
               <TableCell><strong>품목명(ERP)</strong></TableCell>
@@ -1510,9 +1511,9 @@ export default function Cafe24OrderList() {
           </TableHead>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={16} align="center" sx={{ py: 3 }}><CircularProgress /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={17} align="center" sx={{ py: 3 }}><CircularProgress /></TableCell></TableRow>
             ) : filteredOrders.length === 0 ? (
-              <TableRow><TableCell colSpan={16} align="center" sx={{ py: 3 }}>수집·필터 조건에 맞는 주문 데이터가 없습니다.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={17} align="center" sx={{ py: 3 }}>수집·필터 조건에 맞는 주문 데이터가 없습니다.</TableCell></TableRow>
             ) : (
              visibleOrders.reduce((acc, order) => {
                 const items = order.order_items || [];
@@ -1536,7 +1537,7 @@ export default function Cafe24OrderList() {
                         </Box>
                       </TableCell>
                       <TableCell>{formatDate(order.order_date)}</TableCell>
-                      <TableCell colSpan={13} align="center" sx={{ color: 'text.secondary' }}>상품 정보가 없습니다</TableCell>
+                      <TableCell colSpan={14} align="center" sx={{ color: 'text.secondary' }}>상품 정보가 없습니다</TableCell>
                     </TableRow>
                   );
                   return acc;
@@ -1553,6 +1554,11 @@ export default function Cafe24OrderList() {
                   const orderItemsSum = items.reduce((sum, it) => {
                     const isCancelled = ['C11', 'C40', 'R40', 'E40'].includes(it.order_status);
                     return sum + (isCancelled ? 0 : Number(it.payment_amount || 0));
+                  }, 0);
+                  // 회원등급 할인 합계 (item_discount)
+                  const gradeDiscountSum = items.reduce((sum, it) => {
+                    const isCancelled = ['C11', 'C40', 'R40', 'E40'].includes(it.order_status);
+                    return sum + (isCancelled ? 0 : Number(it.item_discount || 0));
                   }, 0);
                   // 네이버페이 등 선불금 결제: total_amount=0 이면 품목 payment_amount 합계 사용
                   const effectiveTotalAmount = Number(order.total_amount || 0) === 0 && orderItemsSum > 0 ? orderItemsSum : Number(order.total_amount || 0);
@@ -1664,7 +1670,20 @@ export default function Cafe24OrderList() {
                         )}
                       </TableCell>
                       {idx === 0 && <TableCell align="right" rowSpan={items.length}>{Number(order.shipping_fee || 0).toLocaleString()}</TableCell>}
-                      {idx === 0 && <TableCell align="right" rowSpan={items.length}>{displayUsedPoints.toLocaleString()}</TableCell>}
+                      {idx === 0 && <TableCell align="right" rowSpan={items.length}>
+                        {gradeDiscountSum > 0 ? (
+                          <Typography variant="body2" color="warning.main" fontWeight="bold">
+                            -{gradeDiscountSum.toLocaleString()}
+                          </Typography>
+                        ) : '-'}
+                      </TableCell>}
+                      {idx === 0 && <TableCell align="right" rowSpan={items.length}>
+                        {displayUsedPoints > 0 ? (
+                          <Typography variant="body2" color="secondary.main" fontWeight="bold">
+                            -{displayUsedPoints.toLocaleString()}
+                          </Typography>
+                        ) : '-'}
+                      </TableCell>}
                       {idx === 0 && <TableCell align="right" rowSpan={items.length}>
                         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
                           <Box display="flex" alignItems="center" justifyContent="flex-end" gap={0.5}>
