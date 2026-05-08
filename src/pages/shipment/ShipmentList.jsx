@@ -310,11 +310,19 @@ function ShipmentList() {
 
       let processedDateFilter = {};
       if (dateFilter.startDate && dateFilter.endDate) {
-        processedDateFilter = {
-          startDate: format(new Date(dateFilter.startDate), 'yyyy-MM-dd') + 'T00:00:00+09:00',
-          endDate: format(new Date(dateFilter.endDate), 'yyyy-MM-dd') + 'T23:59:59+09:00',
-          type: dateFilter.type
-        };
+        try {
+          const parsedStart = new Date(dateFilter.startDate);
+          const parsedEnd = new Date(dateFilter.endDate);
+          if (isValid(parsedStart) && isValid(parsedEnd)) {
+            processedDateFilter = {
+              startDate: format(parsedStart, 'yyyy-MM-dd') + 'T00:00:00+09:00',
+              endDate: format(parsedEnd, 'yyyy-MM-dd') + 'T23:59:59+09:00',
+              type: dateFilter.type
+            };
+          }
+        } catch (e) {
+          console.warn('[ShipmentList] Invalid date filter, skipping:', e);
+        }
       }
 
       const controller = new AbortController();
@@ -361,7 +369,7 @@ function ShipmentList() {
       setLoading(false);
 
     } catch (err) {
-      console.error('[ShipmentList] Error fetching page:', err);
+      console.error('[ShipmentList] Error fetching page:', err?.message || err?.statusText || JSON.stringify(err) || err);
       setNetworkError(true);
       if (err?.name === 'AbortError') {
         setSnackbar({ open: true, severity: 'error', message: '요청이 시간 초과로 취소되었습니다.' });
@@ -642,9 +650,11 @@ function ShipmentList() {
         filterInfo += `_판매처_${sellerFilter}`;
       }
       if (dateFilter.startDate || dateFilter.endDate) {
-        const startDate = dateFilter.startDate ? format(new Date(dateFilter.startDate), 'yyyy-MM-dd') : '';
-        const endDate = dateFilter.endDate ? format(new Date(dateFilter.endDate), 'yyyy-MM-dd') : '';
-        filterInfo += `_기간_${startDate}_${endDate}`;
+        try {
+          const startDate = dateFilter.startDate && isValid(new Date(dateFilter.startDate)) ? format(new Date(dateFilter.startDate), 'yyyy-MM-dd') : '';
+          const endDate = dateFilter.endDate && isValid(new Date(dateFilter.endDate)) ? format(new Date(dateFilter.endDate), 'yyyy-MM-dd') : '';
+          filterInfo += `_기간_${startDate}_${endDate}`;
+        } catch (e) { /* ignore date format errors in filename */ }
       }
 
       const fileName = `출고목록_${brandName}${filterInfo}_${exportData.length}건_${new Date().toLocaleDateString()}.xlsx`;
@@ -1577,7 +1587,7 @@ function ShipmentList() {
                   <DatePicker
                     value={dateFilter.startDate ? parseISO(dateFilter.startDate) : null}
                     onChange={(newValue) => {
-                      handleDateFilterChange('startDate', newValue ? format(newValue, 'yyyy-MM-dd') : '');
+                      handleDateFilterChange('startDate', newValue && isValid(newValue) ? format(newValue, 'yyyy-MM-dd') : '');
                     }}
                     slotProps={{
                       textField: {
@@ -1590,7 +1600,7 @@ function ShipmentList() {
                   <DatePicker
                     value={dateFilter.endDate ? parseISO(dateFilter.endDate) : null}
                     onChange={(newValue) => {
-                      handleDateFilterChange('endDate', newValue ? format(newValue, 'yyyy-MM-dd') : '');
+                      handleDateFilterChange('endDate', newValue && isValid(newValue) ? format(newValue, 'yyyy-MM-dd') : '');
                     }}
                     slotProps={{
                       textField: {
