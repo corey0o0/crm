@@ -1045,19 +1045,52 @@ function PartsManagement() {
   }, [selectedPart]);
 
   const handleDelete = async (id) => {
-    if (window.confirm('정말 삭제하시겠습니까?')) {
-      try {
-        const { error } = await supabase
-          .from('parts')
-          .delete()
-          .eq('id', id);
+    if (!window.confirm('정말 삭제하시겠습니까?')) return;
 
-        if (error) throw error;
+    try {
+      // 삭제 전 참조 여부 확인
+      const refs = [];
 
-        fetchParts(); // 목록 새로고침
-        showSnackbar('부품이 삭제되었습니다.', 'success');
-      } catch (err) {
-        console.error('Error deleting part:', err);
+      const { count: serviceCount } = await supabase
+        .from('service_parts')
+        .select('*', { count: 'exact', head: true })
+        .eq('part_id', id);
+      if (serviceCount > 0) refs.push(`A/S 이력 ${serviceCount}건`);
+
+      const { count: shipmentCount } = await supabase
+        .from('shipment_parts')
+        .select('*', { count: 'exact', head: true })
+        .eq('part_id', id);
+      if (shipmentCount > 0) refs.push(`출고 이력 ${shipmentCount}건`);
+
+      const { count: txCount } = await supabase
+        .from('inventory_transactions')
+        .select('*', { count: 'exact', head: true })
+        .eq('part_id', id);
+      if (txCount > 0) refs.push(`재고 입출고 이력 ${txCount}건`);
+
+      if (refs.length > 0) {
+        showSnackbar(
+          `이 부품은 삭제할 수 없습니다. 사용 중인 이력이 있습니다: ${refs.join(', ')}`,
+          'warning'
+        );
+        return;
+      }
+
+      const { error } = await supabase
+        .from('parts')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      fetchParts();
+      showSnackbar('부품이 삭제되었습니다.', 'success');
+    } catch (err) {
+      console.error('Error deleting part:', err);
+      if (err?.code === '23503') {
+        showSnackbar('이 부품은 다른 곳에서 사용 중이므로 삭제할 수 없습니다.', 'warning');
+      } else {
         showSnackbar('삭제 중 오류가 발생했습니다.', 'error');
       }
     }
