@@ -217,21 +217,25 @@ function InventoryManagement() {
   const [products, setProducts] = useState([]);
 
   // 필터 상태
-  const [filter, setFilter] = useState({
-    dateFrom: '',
-    dateTo: '',
-    fromLocation: '',
-    toLocation: '',
-    product: '',
-    note: '',
-    type: 'all', // 'all' | 'in' | 'out'
-    // 정렬 키/순서
-    sortBy: 'date', // 'date' | 'type' | 'product' | 'quantity' | 'from' | 'to' | 'note'
-    sortOrder: 'desc' // 'asc' | 'desc'
+  const [filter, setFilter] = useState(() => {
+    const today = new Date();
+    const weekAgo = new Date(today);
+    weekAgo.setDate(today.getDate() - 7);
+    return {
+      dateFrom: format(weekAgo, 'yyyy-MM-dd'),
+      dateTo: format(today, 'yyyy-MM-dd'),
+      fromLocation: '',
+      toLocation: '',
+      product: '',
+      note: '',
+      type: 'all',
+      sortBy: 'date',
+      sortOrder: 'desc'
+    };
   });
 
   // 날짜 필터 버튼 상태
-  const [dateFilter, setDateFilter] = useState('all'); // 'all', 'today', 'week', 'month'
+  const [dateFilter, setDateFilter] = useState('week'); // 'all', 'today', 'week', 'month', 'prevMonth'
   
   // 페이지네이션 상태
   const [currentPage, setCurrentPage] = useState(1);
@@ -467,6 +471,12 @@ function InventoryManagement() {
         const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
         dateFrom = format(startOfMonth, 'yyyy-MM-dd');
         dateTo = format(today, 'yyyy-MM-dd');
+        break;
+      case 'prevMonth':
+        const prevMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        const prevMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+        dateFrom = format(prevMonthStart, 'yyyy-MM-dd');
+        dateTo = format(prevMonthEnd, 'yyyy-MM-dd');
         break;
       default:
         dateFrom = '';
@@ -2818,6 +2828,7 @@ function InventoryManagement() {
                     <Button variant={dateFilter === 'today' ? 'contained' : 'outlined'} onClick={() => handleDateFilterClick('today')}>당일</Button>
                     <Button variant={dateFilter === 'week' ? 'contained' : 'outlined'} onClick={() => handleDateFilterClick('week')}>이번주</Button>
                     <Button variant={dateFilter === 'month' ? 'contained' : 'outlined'} onClick={() => handleDateFilterClick('month')}>당월</Button>
+                    <Button variant={dateFilter === 'prevMonth' ? 'contained' : 'outlined'} onClick={() => handleDateFilterClick('prevMonth')}>전월</Button>
                   </ButtonGroup>
 
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

@@ -1136,7 +1136,7 @@ function SalesHistoryStats() {
           검색 필터
         </Typography>
 
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mb: 3, alignItems: 'flex-start' }}>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mb: 2, alignItems: 'flex-start', justifyContent: 'flex-start' }}>
           {/* 연도 선택 */}
           <Box>
             <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
@@ -1200,7 +1200,7 @@ function SalesHistoryStats() {
           </Box>
 
         {/* 필터 옵션 및 조회 버튼 */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
           <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
             <DatePicker
               label="시작일"
