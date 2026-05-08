@@ -216,22 +216,25 @@ function InventoryLayout() {
   // 상품 데이터
   const [products, setProducts] = useState([]);
 
-  // 필터 상태
-  const [filter, setFilter] = useState({
-    dateFrom: '',
-    dateTo: '',
-    fromLocation: '',
-    toLocation: '',
-    product: '',
-    note: '',
-    type: 'all', // 'all' | 'in' | 'out'
-    // 정렬 키/순서
-    sortBy: 'date', // 'date' | 'type' | 'product' | 'quantity' | 'from' | 'to' | 'note'
-    sortOrder: 'desc' // 'asc' | 'desc'
+  const [filter, setFilter] = useState(() => {
+    const today = new Date();
+    const weekAgo = new Date(today);
+    weekAgo.setDate(today.getDate() - today.getDay());
+    return {
+      dateFrom: weekAgo.toISOString().split('T')[0],
+      dateTo: today.toISOString().split('T')[0],
+      fromLocation: '',
+      toLocation: '',
+      product: '',
+      note: '',
+      type: 'all',
+      sortBy: 'date',
+      sortOrder: 'desc'
+    };
   });
 
   // 날짜 필터 버튼 상태
-  const [dateFilter, setDateFilter] = useState('all'); // 'all', 'today', 'week', 'month'
+  const [dateFilter, setDateFilter] = useState('week');
   
   // 페이지네이션 상태
   const [currentPage, setCurrentPage] = useState(1);
@@ -450,6 +453,12 @@ function InventoryLayout() {
         const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
         dateFrom = startOfMonth.toISOString().split('T')[0];
         dateTo = today.toISOString().split('T')[0];
+        break;
+      case 'prevMonth':
+        const prevMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        const prevMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+        dateFrom = prevMonthStart.toISOString().split('T')[0];
+        dateTo = prevMonthEnd.toISOString().split('T')[0];
         break;
       default:
         dateFrom = '';

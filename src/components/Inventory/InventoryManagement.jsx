@@ -220,7 +220,7 @@ function InventoryManagement() {
   const [filter, setFilter] = useState(() => {
     const today = new Date();
     const weekAgo = new Date(today);
-    weekAgo.setDate(today.getDate() - 7);
+    weekAgo.setDate(today.getDate() - today.getDay());
     return {
       dateFrom: format(weekAgo, 'yyyy-MM-dd'),
       dateTo: format(today, 'yyyy-MM-dd'),
@@ -235,7 +235,7 @@ function InventoryManagement() {
   });
 
   // 날짜 필터 버튼 상태
-  const [dateFilter, setDateFilter] = useState('week'); // 'all', 'today', 'week', 'month', 'prevMonth'
+  const [dateFilter, setDateFilter] = useState('week');
   
   // 페이지네이션 상태
   const [currentPage, setCurrentPage] = useState(1);
