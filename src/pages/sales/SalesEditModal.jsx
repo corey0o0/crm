@@ -186,8 +186,12 @@ export default function SalesEditModal({ open, onClose, orderId, orderType, onRe
         let orderItemsSum = 0;
         mappedItems.forEach(mi => { orderItemsSum += mi.total_price; });
         
-        const calculatedUsedPoints = Math.max(0, orderItemsSum + shipFee - Number(data.total_amount || 0));
-        const displayUsedPoints = Number(data.used_points !== undefined && data.used_points !== null ? data.used_points : calculatedUsedPoints);
+        // 선불금 건 (total_amount=0이고 payment_amount가 있는 경우) 처리
+        // 이 경우 실제 결제는 payment_amount로 되었으므로 할인/적립금이 아님
+        const isPrepaid = Number(data.total_amount || 0) === 0 && orderItemsSum > 0;
+        const effectiveTotal = isPrepaid ? orderItemsSum + shipFee : Number(data.total_amount || 0);
+        const calculatedUsedPoints = isPrepaid ? 0 : Math.max(0, orderItemsSum + shipFee - effectiveTotal);
+        const displayUsedPoints = isPrepaid ? 0 : Number(data.used_points !== undefined && data.used_points !== null ? data.used_points : calculatedUsedPoints);
 
         if (shipFee > 0) {
             mappedItems.push({
