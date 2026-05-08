@@ -5,6 +5,7 @@ import BackupManager from '../../components/Backup/BackupManager';
 import UserMenuSettings from '../../components/Settings/UserMenuSettings';
 import TelegramSettings from '../../components/Settings/TelegramSettings';
 import InspectionSettings from '../../components/Settings/InspectionSettings';
+import UserManagement from '../../components/Settings/UserManagement';
 import { useAuth } from '../../contexts/AuthContext';
 import { hasMenuAccess, MENU_KEYS } from '../../config/menuConfig';
 
@@ -67,6 +68,7 @@ export default function AdminTools() {
     // 마스터 계정에게만 보이게 하려면 canSeePermissions 재사용
     if (canSeePermissions) {
         tabs.push({ label: "검수 과정 관리", component: <InspectionSettings /> });
+        tabs.push({ label: "계정 관리", component: <UserManagement /> });
     }
 
     // fallback if no specific permissions were granted but they still accessed admin tools

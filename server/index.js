@@ -234,6 +234,76 @@ const cafe24Router = require('./cafe24Router')(supabaseAdmin, process.env.REDIS_
 app.use('/api/cafe24', cafe24Router);
 app.use('/api/agencies', require('./agenciesRouter')(supabaseAdmin));
 
+// =============================================
+// Admin 사용자 관리 API
+// =============================================
+const adminAuth = async (req, res, next) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) return res.status(401).json({ error: '인증이 필요합니다.' });
+    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+    if (error || !user) return res.status(401).json({ error: '유효하지 않은 토큰입니다.' });
+    req.adminUser = user;
+    next();
+  } catch (err) {
+    res.status(500).json({ error: '인증 확인 중 오류' });
+  }
+};
+
+// 사용자 목록 조회
+app.get('/api/admin/users', adminAuth, async (req, res) => {
+  try {
+    const { data: { users }, error } = await supabaseAdmin.auth.admin.listUsers();
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ users: users.map(u => ({
+      id: u.id, email: u.email, created_at: u.created_at,
+      last_sign_in_at: u.last_sign_in_at, email_confirmed_at: u.email_confirmed_at
+    }))});
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 사용자 생성
+app.post('/api/admin/users', adminAuth, async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: '이메일과 비밀번호를 입력해주세요.' });
+    const { data, error } = await supabaseAdmin.auth.admin.createUser({
+      email, password, email_confirm: true
+    });
+    if (error) return res.status(400).json({ error: error.message });
+    res.json({ user: { id: data.user.id, email: data.user.email } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 비밀번호 변경
+app.put('/api/admin/users/:id/password', adminAuth, async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password || password.length < 6) return res.status(400).json({ error: '비밀번호는 6자 이상이어야 합니다.' });
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(req.params.id, { password });
+    if (error) return res.status(400).json({ error: error.message });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 사용자 삭제
+app.delete('/api/admin/users/:id', adminAuth, async (req, res) => {
+  try {
+    if (req.params.id === req.adminUser.id) return res.status(400).json({ error: '자기 자신은 삭제할 수 없습니다.' });
+    const { error } = await supabaseAdmin.auth.admin.deleteUser(req.params.id);
+    if (error) return res.status(400).json({ error: error.message });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 백그라운드 스케줄러 실행
 require('./cronJobs')(supabaseAdmin, cafe24Router);
 

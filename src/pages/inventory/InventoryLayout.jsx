@@ -3368,6 +3368,83 @@ function InventoryLayout() {
         <DialogActions>
           {!editMode ? (
             <>
+              <Button
+                onClick={async () => {
+                  if (!selectedTransaction) return;
+                  try {
+                    const wb = new ExcelJS.Workbook();
+                    const ws = wb.addWorksheet('거래내역 상세');
+
+                    const items = selectedTransaction.items || [selectedTransaction];
+                    const typeLabel = getTransactionTypeInfo(selectedTransaction).label;
+                    const txDate = selectedTransaction.date || '';
+
+                    // 헤더 정보
+                    ws.addRow(['거래내역 상세']);
+                    ws.addRow(['유형', typeLabel, '날짜', txDate]);
+                    ws.addRow([]);
+
+                    // 테이블 헤더
+                    const headerRow = ws.addRow(['상품명', '브랜드', '바코드', '수량', '출발지', '목적지', '메모']);
+                    headerRow.eachCell(cell => {
+                      cell.font = { bold: true };
+                      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F5F5' } };
+                      cell.border = { bottom: { style: 'thin' } };
+                    });
+
+                    let totalQty = 0;
+                    items.forEach(item => {
+                      const p = products.find(prod => prod.id === item.productId || prod.code === item.productCode);
+                      const brand = p?.supplier || item.productSupplier || '-';
+                      const barcode = item.productCode || p?.code || '-';
+                      const qty = Number(item.quantity || 0);
+                      totalQty += qty;
+
+                      const fromLoc = (() => {
+                        const srcId = item.fromLocation;
+                        if (!srcId || srcId === '외부') return '외부';
+                        return warehouses.find(w => w.id === srcId)?.name || dealers.find(d => d.id === srcId)?.name || srcId;
+                      })();
+                      const toLoc = (() => {
+                        const destId = item.toLocation;
+                        return warehouses.find(w => w.id === destId)?.name || dealers.find(d => d.id === destId)?.name || destId || '-';
+                      })();
+                      const note = [item.note, item.additionalNote].filter(Boolean).join(' / ');
+
+                      ws.addRow([item.productName || p?.name || '-', brand, barcode, qty, fromLoc, toLoc, note]);
+                    });
+
+                    // 합계행
+                    ws.addRow([]);
+                    ws.addRow(['', '', '합계', totalQty]);
+
+                    // 열 너비
+                    ws.columns = [
+                      { width: 30 }, { width: 15 }, { width: 15 }, { width: 10 },
+                      { width: 15 }, { width: 15 }, { width: 25 }
+                    ];
+
+                    const buffer = await wb.xlsx.writeBuffer();
+                    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `거래내역_${txDate}_${typeLabel}.xlsx`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    showSnackbar('엑셀 다운로드 완료', 'success');
+                  } catch (err) {
+                    console.error('Excel download error:', err);
+                    showSnackbar('엑셀 다운로드 중 오류가 발생했습니다.', 'error');
+                  }
+                }}
+                variant="outlined"
+                color="success"
+                startIcon={<DownloadIcon />}
+                size="small"
+              >
+                엑셀 다운로드
+              </Button>
               <Button onClick={closeTransactionDetail}>닫기</Button>
               <Button onClick={startEditTransaction} variant="outlined" color="primary">
                 수정
