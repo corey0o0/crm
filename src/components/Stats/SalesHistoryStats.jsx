@@ -711,9 +711,10 @@ function SalesHistoryStats() {
           }
           if (iPrice === 0 && total > 0) iPrice = itemQty > 0 ? Math.round(total / itemQty) : 0;
 
-          const cat = resolveCategory(pName, itemCode);
+          // part_id가 있으면 직접 ID 기반 조회 우선 (바코드/코드 충돌 방지)
+          const cat = (item.part_id && partsById[item.part_id]) ? partsById[item.part_id] : resolveCategory(pName, itemCode);
           const brand = resolveBrand(pName, itemCode, o.mall_id);
-          const unitCost = resolveCost(pName, itemCode);
+          const unitCost = (item.part_id && typeof partsCostById[item.part_id] === 'number') ? partsCostById[item.part_id] : resolveCost(pName, itemCode);
           
           if (idx === 0) {
              orderBrand = brand;
@@ -923,36 +924,39 @@ function SalesHistoryStats() {
     if (!dailyMap[dStr]) dailyMap[dStr] = { date: dStr, amount: 0 };
     dailyMap[dStr].amount += Number(r.total_price || 0);
 
-    // 대리점 매출 집계 (모든 브랜드 종합)
-    const isAgencySales = r.sales_channel && !B2C_CHANNELS.includes(r.sales_channel);
-    if (isAgencySales) {
-      let agencyName = r.sales_channel;
-      if (['대리점출고', '수기판매', '기타 대리점', '대리점'].includes(agencyName)) {
-         agencyName = r.customer_name !== '-' && r.customer_name ? r.customer_name : null;
+    // 대리점 매출 집계 (모든 브랜드 종합, A/S 제외)
+    if (r._type !== 'service') {
+      const isAgencySales = r.sales_channel && !B2C_CHANNELS.includes(r.sales_channel);
+      if (isAgencySales) {
+        let agencyName = r.sales_channel;
+        if (['대리점출고', '수기판매', '기타 대리점', '대리점'].includes(agencyName)) {
+           agencyName = r.customer_name !== '-' && r.customer_name ? r.customer_name : null;
+        }
+        
+        if (agencyName && agencyName !== '수기판매' && agencyName !== '대리점출고' && agencyName !== '기타 대리점' && agencyName !== '-') {
+           if (!channelMap[agencyName]) channelMap[agencyName] = { name: agencyName, value: 0 };
+           channelMap[agencyName].value += Number(r.total_price || 0);
+        }
+      }
+    }
+    // 품목별 비중 (A/S 제외)
+    if (r._type !== 'service') {
+      let c = '';
+      if (r.part_category === '기체') {
+        // 기체인 경우 기종명으로 분류 (색상/옵션 등 괄호 안 내용 제거)
+        c = (r.part_name || '기타 기체')
+          .replace(/\(.*\)/g, '')
+          .replace(/\[.*\]/g, '')
+          .split('-')[0]
+          .trim();
+        if (!c) c = '기타 기체';
+      } else {
+        c = '파츠/악세사리';
       }
       
-      if (agencyName && agencyName !== '수기판매' && agencyName !== '대리점출고' && agencyName !== '기타 대리점' && agencyName !== '-') {
-         if (!channelMap[agencyName]) channelMap[agencyName] = { name: agencyName, value: 0 };
-         channelMap[agencyName].value += Number(r.total_price || 0);
-      }
+      if (!catMap[c]) catMap[c] = { name: c, value: 0 };
+      catMap[c].value += Number(r.total_price || 0);
     }
-    let c = '';
-    if (r._type === 'service') {
-      c = 'A/S 수리';
-    } else if (r.part_category === '기체') {
-      // 기체인 경우 기종명으로 분류 (색상/옵션 등 괄호 안 내용 제거)
-      c = (r.part_name || '기타 기체')
-        .replace(/\(.*\)/g, '')
-        .replace(/\[.*\]/g, '')
-        .split('-')[0]
-        .trim();
-      if (!c) c = '기타 기체';
-    } else {
-      c = '파츠/악세사리';
-    }
-    
-    if (!catMap[c]) catMap[c] = { name: c, value: 0 };
-    catMap[c].value += Number(r.total_price || 0);
 
     let ch = getSalesChannelName(r);
     
