@@ -19,13 +19,13 @@ export default function InventoryHistory() {
     openTransactionDetail, handleTableCellHover, handleTableCellHoverLeave, handleTableCellClick,
     hoverAnchorEl, hoverTransactions, dateKeys, ioByWarehouseProductDate, totalPages, currentPage,
     handlePageChange, showSnackbar, tableModalOpen, setTableModalOpen, selectedTableTransactions,
-    transactions, inventory, setInventory, fetchProducts, fetchTransactions, fetchInventoryData, recalculateInventoryFromTransactions,
+    transactions, inventory, setInventory, fetchProducts, fetchTransactions, fetchInventoryData,
     handleCloseDialog, handleOpenDialog, openDialog, dialogType, formData, setFormData, editMode, editFormData, setEditFormData,
     editProducts, setEditProducts, saveEditTransaction, cancelEditTransaction, addEditProduct, removeEditProduct,
-    updateEditProduct, handleDeleteTransaction, handleViewOriginal, multipleIoProducts, setMultipleIoProducts,
-    handleMultipleSubmit, addIoProductRow, removeIoProductRow, updateIoProductRow, excelUploadOpen,
+    updateEditProduct, handleViewOriginal, multipleIoProducts, setMultipleIoProducts,
+    addIoProductRow, removeIoProductRow, updateIoProductRow, excelUploadOpen,
     handleCloseExcelUpload, handleExcelFileUpload, excelFile, excelUploadType, setExcelUploadType,
-    handleExcelUploadSubmit, handleOpenExcelUpload, transactionDetailOpen, closeTransactionDetail,
+    handleOpenExcelUpload, transactionDetailOpen, closeTransactionDetail,
     selectedTransaction, startEditTransaction
   , batchFromLocation, setBatchFromLocation, batchToLocation, setBatchToLocation, showOriginalHistory, setShowOriginalHistory, handleSubmitTransaction, downloadExcelTemplate, handleDragOver, handleDragLeave, handleDrop, handleExcelDataSubmit, handleBatchApplyLocation, warehouseDetailTarget, warehouseDetailOpen, closeWarehouseDetail, barcodeScannerOpen, setBarcodeScannerOpen, setCurrentScanningRow, handleBarcodeScan, handleBarcodeScanError, excelData, isDragOver, snackbar, setSnackbar} = context;
 

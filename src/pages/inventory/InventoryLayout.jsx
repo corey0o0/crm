@@ -2484,8 +2484,9 @@ function InventoryLayout() {
     handleOpenExcelUpload, showSnackbar, getTransactionTypeInfo, formatLocationName,
     handleDeleteSelectedTransactions, handleViewOriginal, handleDateFilterClick, handleTableCellClick,
     handleTableCellHover, handleTableCellHoverLeave, handlePageChange, handleBarcodeScan, startBarcodeScan,
-    handleBarcodeScanError, handleDragOver, handleDragLeave, handleDrop
-  , batchFromLocation, setBatchFromLocation, batchToLocation, setBatchToLocation, showOriginalHistory, setShowOriginalHistory, handleSubmitTransaction, downloadExcelTemplate, handleExcelDataSubmit, handleBatchApplyLocation};
+    handleBarcodeScanError, handleDragOver, handleDragLeave, handleDrop,
+    totalPages,
+    batchFromLocation, setBatchFromLocation, batchToLocation, setBatchToLocation, showOriginalHistory, setShowOriginalHistory, handleSubmitTransaction, downloadExcelTemplate, handleExcelDataSubmit, handleBatchApplyLocation};
   return (
     <Box sx={{ width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
       <Outlet context={contextValue} />
