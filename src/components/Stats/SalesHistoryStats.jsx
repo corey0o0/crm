@@ -347,7 +347,7 @@ function SalesHistoryStats() {
 
     let asQuery = supabase
       .from('services')
-      .select('id, reception_date, completion_date, customer_name, status, note')
+      .select('id, reception_date, completion_date, customer_name, status, note, agencies(name)')
       .ilike('status', '%완료%')
       .order('completion_date', { ascending: false });
 
@@ -362,7 +362,7 @@ function SalesHistoryStats() {
 
     let cafeQuery = supabase
       .from('cafe24_orders')
-      .select('id, order_id, order_date, buyer_name, total_amount, order_items, status, mall_id')
+      .select('id, order_id, order_date, buyer_name, total_amount, order_items, status, shipping_fee, used_points, mall_id, agencies(name)')
       .eq('is_deleted', false)
       .eq('is_transferred', true)
       .order('order_date', { ascending: false });
@@ -613,7 +613,7 @@ function SalesHistoryStats() {
       if (!hasWarehouseInfo) return;
 
       const baseFields = {
-        _id: o.id, _type: 'cafe24', date_val: o.order_date, sales_channel: '온라인주문', customer_name: o.buyer_name || '-', mall_id: o.mall_id
+        _id: o.id, _type: 'cafe24', date_val: o.order_date, sales_channel: o.agencies?.name || '온라인주문', customer_name: o.buyer_name || '-', mall_id: o.mall_id
       };
       if (items.length === 0) {
         rows.push({ ...baseFields, part_category: '기타', part_brand: '-', quantity: 0, total_price: Number(o.total_amount || 0), total_cost: 0 });
