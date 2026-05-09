@@ -1550,17 +1550,16 @@ function ShipmentForm({ isManualB2B = false }) {
         </Box>
       </Box>
 
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" gutterBottom>기본 정보</Typography>
-        <Grid container spacing={2}>
-          <Grid item xs={12} md={3}>
-            <FormControl fullWidth>
+      <Paper sx={{ p: 3, mb: 3, boxShadow: 'none', border: '1px solid #e0e0e0' }}>
+        <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 2, pb: 1, borderBottom: '2px solid #1976d2' }}>기본 정보</Typography>
+        <Grid container spacing={2.5}>
+          <Grid item xs={6} md={3}>
+            <FormControl fullWidth variant="standard">
               <InputLabel>브랜드</InputLabel>
               <Select
                 name="brand"
                 value={shipmentData.brand || 'XRB'}
                 onChange={handleChange}
-                label="브랜드"
               >
                 <MenuItem value="XRB">X-RIDER</MenuItem>
                 <MenuItem value="NB">NEARBIKE</MenuItem>
@@ -1568,7 +1567,7 @@ function ShipmentForm({ isManualB2B = false }) {
             </FormControl>
           </Grid>
 
-          <Grid item xs={12} md={3}>
+          <Grid item xs={6} md={3}>
             <Autocomplete
               freeSolo
               options={agencies.map(a => a.name)}
@@ -1603,32 +1602,32 @@ function ShipmentForm({ isManualB2B = false }) {
               renderInput={(params) => (
                 <TextField
                   {...params}
-                  label="고객명(대리점 자동완성)"
-                  required
+                  variant="standard"
+                  label="고객명 *"
+                  placeholder="대리점 자동완성"
                 />
               )}
             />
           </Grid>
 
-          <Grid item xs={12} md={3}>
+          <Grid item xs={6} md={3}>
             <TextField
               fullWidth
-              label="연락처"
+              variant="standard"
+              label="연락처 *"
               name="customer_phone"
               value={shipmentData.customer_phone || ''}
               onChange={handleChange}
-              required
             />
           </Grid>
 
-          <Grid item xs={12} md={3}>
-            <FormControl fullWidth>
+          <Grid item xs={6} md={3}>
+            <FormControl fullWidth variant="standard">
               <InputLabel>상태</InputLabel>
               <Select
                 name="status"
                 value={shipmentData.status || '준비중'}
                 onChange={handleChange}
-                label="상태"
               >
                 {(() => {
                   const STATUS_ORDER = { '접수': 0, '출고대기': 0, '부품준비': 1, '준비완료': 2, '작업완료': 3, '반품완료': 4, '출고완료': 5 };
@@ -1657,16 +1656,17 @@ function ShipmentForm({ isManualB2B = false }) {
           <Grid item xs={12}>
             <TextField
               fullWidth
+              variant="standard"
               label="주소"
               name="customer_address"
               value={shipmentData.customer_address || ''}
               onChange={handleChange}
               multiline
-              rows={2}
+              maxRows={3}
             />
           </Grid>
 
-          <Grid item xs={12} md={4}>
+          <Grid item xs={6} md={4}>
             <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
               <DatePicker
                 label="주문일"
@@ -1674,21 +1674,21 @@ function ShipmentForm({ isManualB2B = false }) {
                 onChange={handleDateChange('order_date')}
                 slotProps={{
                   textField: {
-                    fullWidth: true
+                    fullWidth: true,
+                    variant: 'standard'
                   }
                 }}
               />
             </LocalizationProvider>
           </Grid>
 
-          <Grid item xs={12} md={4}>
-            <FormControl fullWidth>
+          <Grid item xs={6} md={4}>
+            <FormControl fullWidth variant="standard">
               <InputLabel>판매처</InputLabel>
               <Select
                 name="sales_channel"
                 value={shipmentData.sales_channel}
                 onChange={handleChange}
-                label="판매처"
               >
                 <MenuItem value="공홈">공홈</MenuItem>
                 <MenuItem value="청담매장">청담매장</MenuItem>
@@ -1700,18 +1700,16 @@ function ShipmentForm({ isManualB2B = false }) {
             </FormControl>
           </Grid>
 
-          <Grid item xs={12} md={4}>
-            <FormControl fullWidth>
-              <InputLabel>출고 창고</InputLabel>
+          <Grid item xs={6} md={4}>
+            <FormControl fullWidth variant="standard">
+              <InputLabel>출고 창고 *</InputLabel>
               <Select
                 name="warehouse_id"
                 value={shipmentData.warehouse_id || ''}
                 onChange={handleChange}
-                label="출고 창고"
-                required
               >
                 <MenuItem value="" disabled>
-                  <em>창고를 선택하세요</em>
+                  <em>선택</em>
                 </MenuItem>
                 {warehouses.map(w => (
                   <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>
@@ -1720,14 +1718,13 @@ function ShipmentForm({ isManualB2B = false }) {
             </FormControl>
           </Grid>
 
-          <Grid item xs={12} md={4}>
-            <FormControl fullWidth>
+          <Grid item xs={6} md={4}>
+            <FormControl fullWidth variant="standard">
               <InputLabel>배송 방법</InputLabel>
               <Select
                 name="delivery_method"
                 value={shipmentData.delivery_method}
                 onChange={handleChange}
-                label="배송 방법"
               >
                 <MenuItem value="택배">택배</MenuItem>
                 <MenuItem value="방문수령">방문수령</MenuItem>
@@ -1737,35 +1734,38 @@ function ShipmentForm({ isManualB2B = false }) {
             </FormControl>
           </Grid>
 
-          <Grid item xs={12} md={4}>
+          <Grid item xs={6} md={4}>
             <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
               <DatePicker
-                label="출고일"
+                label="출고일 *"
                 value={shipmentData.shipment_date ? new Date(shipmentData.shipment_date) : null}
                 onChange={handleDateChange('shipment_date')}
                 slotProps={{
                   textField: {
                     fullWidth: true,
-                    required: true
+                    variant: 'standard'
                   }
                 }}
               />
             </LocalizationProvider>
           </Grid>
 
-          <Grid item xs={12} md={4}>
+          <Grid item xs={6} md={4}>
             <TextField
               fullWidth
-              label="주문번호 (선택)"
+              variant="standard"
+              label="주문번호"
               name="order_no"
               value={shipmentData.order_no || ''}
               onChange={handleChange}
+              placeholder="선택 입력"
             />
           </Grid>
 
-          <Grid item xs={12} md={4}>
+          <Grid item xs={6} md={4}>
             <TextField
               fullWidth
+              variant="standard"
               label="송장번호"
               name="tracking_number"
               value={shipmentData.tracking_number}
@@ -1775,9 +1775,9 @@ function ShipmentForm({ isManualB2B = false }) {
         </Grid>
       </Paper>
 
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h6">제품 정보</Typography>
+      <Paper sx={{ p: 3, mb: 3, boxShadow: 'none', border: '1px solid #e0e0e0' }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, pb: 1, borderBottom: '2px solid #1976d2' }}>
+          <Typography variant="subtitle1" fontWeight="bold">제품 정보</Typography>
           <Box>
             {isEditMode && (
               <Button
@@ -2149,15 +2149,16 @@ function ShipmentForm({ isManualB2B = false }) {
         </DialogActions>
       </Dialog>
 
-      <Paper sx={{ p: 3 }}>
-        <Typography variant="h6" gutterBottom>메모</Typography>
+      <Paper sx={{ p: 3, boxShadow: 'none', border: '1px solid #e0e0e0' }}>
+        <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 2, pb: 1, borderBottom: '2px solid #1976d2' }}>메모</Typography>
         <TextField
           fullWidth
+          variant="standard"
           name="note"
           value={shipmentData.note || ''}
           onChange={handleChange}
           multiline
-          rows={3}
+          maxRows={4}
           placeholder="메모를 입력하세요"
         />
       </Paper>
