@@ -345,6 +345,7 @@ function Layout() {
         { text: '입출고 내역', icon: <HistoryIcon />, path: '/inventory-management/history', key: 'inventory_history' },
         { text: '재고 현황', icon: <AssessmentIcon />, path: '/inventory-management/status', key: 'inventory_status' },
         { text: '박스 상태 관리', icon: <InventoryIcon />, path: '/inventory-management/boxes', key: 'inventory_boxes' },
+        { text: '카페24 재고 비교', icon: <SyncIcon />, path: '/inventory-management/cafe24-sync', key: 'inventory_cafe24_sync' },
         { text: '창고/대리점 관리', icon: <StoreIcon />, path: '/inventory-management/locations', key: 'inventory_locations' }
       ]
     },

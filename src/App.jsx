@@ -37,6 +37,7 @@ import InventoryStatus from './pages/inventory/InventoryStatus';
 import StoreOnlineOutboundTab from './components/Inventory/tabs/StoreOnlineOutboundTab';
 import BoxStatusTab from './components/Inventory/tabs/BoxStatusTab';
 import InventoryLocations from './pages/inventory/InventoryLocations';
+import Cafe24SyncTab from './components/Inventory/tabs/Cafe24SyncTab';
 // import RoleManagement from './components/Settings/RoleManagement'; // 제거됨 - 이메일 기반으로 대체
 import BackupManager from './components/Backup/BackupManager';
 import PermissionRoute from './components/Auth/PermissionRoute';
@@ -132,12 +133,13 @@ function AppRouter() {
           <Route path="stats/service" element={<PermissionRoute requiredPermission={MENU_KEYS.SERVICES}><ServiceStats /></PermissionRoute>} />
           <Route path="brand-settings" element={<PermissionRoute requiredPermission={MENU_KEYS.ADMIN_TOOLS}><BrandSettings /></PermissionRoute>} />
           <Route path="inventory-logs" element={<PermissionRoute requiredPermission={MENU_KEYS.INVENTORY_HISTORY}><InventoryLogs /></PermissionRoute>} />
-          <Route path="inventory-management" element={<PermissionRoute requiredPermission={[MENU_KEYS.INVENTORY, MENU_KEYS.INVENTORY_HISTORY, MENU_KEYS.INVENTORY_SCAN, MENU_KEYS.INVENTORY_STATUS, MENU_KEYS.INVENTORY_BOXES, MENU_KEYS.INVENTORY_LOCATIONS]}><InventoryLayout /></PermissionRoute>}>
+          <Route path="inventory-management" element={<PermissionRoute requiredPermission={[MENU_KEYS.INVENTORY, MENU_KEYS.INVENTORY_HISTORY, MENU_KEYS.INVENTORY_SCAN, MENU_KEYS.INVENTORY_STATUS, MENU_KEYS.INVENTORY_BOXES, MENU_KEYS.INVENTORY_CAFE24_SYNC, MENU_KEYS.INVENTORY_LOCATIONS]}><InventoryLayout /></PermissionRoute>}>
             <Route index element={<Navigate to="history" replace />} />
             <Route path="history" element={<PermissionRoute requiredPermission={MENU_KEYS.INVENTORY_HISTORY}><InventoryHistory /></PermissionRoute>} />
             <Route path="scan" element={<PermissionRoute requiredPermission={MENU_KEYS.INVENTORY_SCAN}><StoreOnlineOutboundTab /></PermissionRoute>} />
             <Route path="status" element={<PermissionRoute requiredPermission={MENU_KEYS.INVENTORY_STATUS}><InventoryStatus /></PermissionRoute>} />
             <Route path="boxes" element={<PermissionRoute requiredPermission={MENU_KEYS.INVENTORY_BOXES}><BoxStatusTab /></PermissionRoute>} />
+            <Route path="cafe24-sync" element={<PermissionRoute requiredPermission={MENU_KEYS.INVENTORY_CAFE24_SYNC}><Cafe24SyncTab /></PermissionRoute>} />
             <Route path="locations" element={<PermissionRoute requiredPermission={MENU_KEYS.INVENTORY_LOCATIONS}><InventoryLocations /></PermissionRoute>} />
           </Route>
           

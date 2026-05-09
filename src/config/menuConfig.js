@@ -130,6 +130,7 @@ export const MENU_KEYS = {
   INVENTORY_SCAN: 'inventory_scan',
   INVENTORY_STATUS: 'inventory_status',
   INVENTORY_BOXES: 'inventory_boxes',
+  INVENTORY_CAFE24_SYNC: 'inventory_cafe24_sync',
   INVENTORY_LOCATIONS: 'inventory_locations',
   SALES: 'sales',
   SALES_ENTRY: 'sales_entry',
