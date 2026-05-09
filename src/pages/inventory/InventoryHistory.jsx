@@ -614,7 +614,7 @@ export default function InventoryHistory() {
                     return null;
                   })()}
                   onChange={(event, value) => setBatchFromLocation(value?.id ?? '')}
-                  renderInput={(params) => <TextField {...params} label="일괄 출발지" size="small" placeholder="출발지 선택" />}
+                  renderInput={(params) => <TextField {...params} variant="standard" label="일괄 출발지" size="small" placeholder="출발지 선택" />}
                   isOptionEqualToValue={(option, value) => option?.id === value?.id}
                 />
                 <Autocomplete
@@ -633,7 +633,7 @@ export default function InventoryHistory() {
                     return null;
                   })()}
                   onChange={(event, value) => setBatchToLocation(value?.id || '')}
-                  renderInput={(params) => <TextField {...params} label="일괄 목적지" size="small" />}
+                  renderInput={(params) => <TextField {...params} variant="standard" label="일괄 목적지" size="small" />}
                   isOptionEqualToValue={(option, value) => option?.id === value?.id}
                 />
                 <Button variant="contained" size="small" onClick={handleBatchApplyLocation} disabled={!batchFromLocation && !batchToLocation}>
@@ -688,6 +688,7 @@ export default function InventoryHistory() {
                           renderInput={(params) => (
                             <TextField
                               {...params}
+                              variant="standard"
                               required
                               fullWidth
                               size="small"
@@ -699,6 +700,7 @@ export default function InventoryHistory() {
                       <TableCell sx={{ p: 1 }}>
                         <TextField
                           fullWidth
+                          variant="standard"
                           type="number"
                           size="small"
                           value={product.quantity}
@@ -737,7 +739,7 @@ export default function InventoryHistory() {
                             return null;
                           })()}
                           onChange={(event, value) => updateIoProductRow(product.id, 'fromLocation', value?.id ?? '')}
-                          renderInput={(params) => <TextField {...params} size="small" fullWidth placeholder="출발지 선택" />}
+                          renderInput={(params) => <TextField {...params} variant="standard" size="small" fullWidth placeholder="출발지 선택" />}
                           isOptionEqualToValue={(option, value) => option?.id === value?.id}
                         />
                       </TableCell>
@@ -756,13 +758,14 @@ export default function InventoryHistory() {
                             return null;
                           })()}
                           onChange={(event, value) => updateIoProductRow(product.id, 'toLocation', value?.id || '')}
-                          renderInput={(params) => <TextField {...params} size="small" fullWidth required />}
+                          renderInput={(params) => <TextField {...params} variant="standard" size="small" fullWidth required />}
                           isOptionEqualToValue={(option, value) => option?.id === value?.id}
                         />
                       </TableCell>
                       <TableCell sx={{ p: 1 }}>
                         <TextField
                           fullWidth
+                          variant="standard"
                           size="small"
                           value={product.note}
                           onChange={(e) => updateIoProductRow(product.id, 'note', e.target.value)}
@@ -771,6 +774,7 @@ export default function InventoryHistory() {
                       <TableCell sx={{ p: 1 }}>
                         <TextField
                           fullWidth
+                          variant="standard"
                           size="small"
                           value={product.boxNo || ''}
                           onChange={(e) => updateIoProductRow(product.id, 'boxNo', e.target.value)}
