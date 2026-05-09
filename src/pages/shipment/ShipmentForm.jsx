@@ -88,6 +88,17 @@ const calculateTotal = (part) => {
 // ... 기존 import 위에 추가
 const TEMP_KEY = 'shipmentFormTemp';
 
+// 상태별 컬러 매핑
+const STATUS_COLORS = {
+  '접수': { bg: '#e3f2fd', color: '#1565c0', border: '#90caf9' },
+  '출고대기': { bg: '#e3f2fd', color: '#1565c0', border: '#90caf9' },
+  '부품준비': { bg: '#fff3e0', color: '#e65100', border: '#ffcc80' },
+  '준비완료': { bg: '#e8f5e9', color: '#2e7d32', border: '#a5d6a7' },
+  '작업완료': { bg: '#f3e5f5', color: '#7b1fa2', border: '#ce93d8' },
+  '반품완료': { bg: '#fce4ec', color: '#c62828', border: '#ef9a9a' },
+  '출고완료': { bg: '#e0f2f1', color: '#00695c', border: '#80cbc4' }
+};
+
 function ShipmentForm({ isManualB2B = false }) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1458,7 +1469,7 @@ function ShipmentForm({ isManualB2B = false }) {
 
   return (
     <Box sx={{ maxWidth: '1200px', mx: 'auto', p: 2 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1.5 }}>
         <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={handleBack}>
           목록으로
         </Button>
@@ -1482,7 +1493,7 @@ function ShipmentForm({ isManualB2B = false }) {
           </>
         )}
       </Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
         <Typography variant="h5">
           {isManualB2B ? (isEditMode ? '수기 판매 전표 수정' : '새 수기 판매 전표 작성') : (isEditMode ? '출고 정보 수정' : '신규 출고 등록')}
         </Typography>
@@ -1550,9 +1561,9 @@ function ShipmentForm({ isManualB2B = false }) {
         </Box>
       </Box>
 
-      <Paper sx={{ p: 3, mb: 3, boxShadow: 'none', border: '1px solid #e0e0e0' }}>
-        <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 2, pb: 1, borderBottom: '2px solid #1976d2' }}>기본 정보</Typography>
-        <Grid container spacing={2.5}>
+      <Paper sx={{ p: 2.5, mb: 2, boxShadow: 'none', border: '1px solid #e0e0e0' }}>
+        <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 1.5, pb: 0.5, borderBottom: '2px solid #1976d2' }}>기본 정보</Typography>
+        <Grid container spacing={2}>
           <Grid item xs={6} md={3}>
             <FormControl fullWidth variant="standard">
               <InputLabel>브랜드</InputLabel>
@@ -1623,11 +1634,23 @@ function ShipmentForm({ isManualB2B = false }) {
 
           <Grid item xs={6} md={3}>
             <FormControl fullWidth variant="standard">
-              <InputLabel>상태</InputLabel>
+              <InputLabel sx={{ color: STATUS_COLORS[shipmentData.status]?.color }}>상태</InputLabel>
               <Select
                 name="status"
                 value={shipmentData.status || '준비중'}
                 onChange={handleChange}
+                sx={{
+                  '& .MuiSelect-select': {
+                    backgroundColor: STATUS_COLORS[shipmentData.status]?.bg || '#f5f5f5',
+                    color: STATUS_COLORS[shipmentData.status]?.color || '#333',
+                    fontWeight: 600,
+                    borderRadius: '4px',
+                    px: 1,
+                    py: 0.5,
+                  },
+                  '&:before': { borderColor: STATUS_COLORS[shipmentData.status]?.border || '#bdbdbd' },
+                  '&:after': { borderColor: STATUS_COLORS[shipmentData.status]?.color || '#1976d2' }
+                }}
               >
                 {(() => {
                   const STATUS_ORDER = { '접수': 0, '출고대기': 0, '부품준비': 1, '준비완료': 2, '작업완료': 3, '반품완료': 4, '출고완료': 5 };
@@ -1642,8 +1665,11 @@ function ShipmentForm({ isManualB2B = false }) {
                   
                   return items.map(status => {
                     const isDisabled = !isMaster && STATUS_ORDER[status] < currentOrder;
+                    const sc = STATUS_COLORS[status];
                     return (
-                      <MenuItem key={status} value={status} disabled={isDisabled}>
+                      <MenuItem key={status} value={status} disabled={isDisabled}
+                        sx={{ color: sc?.color, fontWeight: status === shipmentData.status ? 700 : 400 }}
+                      >
                         {status} {isDisabled ? '(변경 불가)' : ''}
                       </MenuItem>
                     );
@@ -1775,8 +1801,8 @@ function ShipmentForm({ isManualB2B = false }) {
         </Grid>
       </Paper>
 
-      <Paper sx={{ p: 3, mb: 3, boxShadow: 'none', border: '1px solid #e0e0e0' }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, pb: 1, borderBottom: '2px solid #1976d2' }}>
+      <Paper sx={{ p: 2.5, mb: 2, boxShadow: 'none', border: '1px solid #e0e0e0' }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5, pb: 0.5, borderBottom: '2px solid #1976d2' }}>
           <Typography variant="subtitle1" fontWeight="bold">제품 정보</Typography>
           <Box>
             {isEditMode && (
@@ -2150,8 +2176,8 @@ function ShipmentForm({ isManualB2B = false }) {
         </DialogActions>
       </Dialog>
 
-      <Paper sx={{ p: 3, boxShadow: 'none', border: '1px solid #e0e0e0' }}>
-        <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 2, pb: 1, borderBottom: '2px solid #1976d2' }}>메모</Typography>
+      <Paper sx={{ p: 2.5, boxShadow: 'none', border: '1px solid #e0e0e0' }}>
+        <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 1.5, pb: 0.5, borderBottom: '2px solid #1976d2' }}>메모</Typography>
         <TextField
           fullWidth
           variant="standard"
