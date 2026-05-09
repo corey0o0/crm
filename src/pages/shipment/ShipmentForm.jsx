@@ -1829,7 +1829,7 @@ function ShipmentForm({ isManualB2B = false }) {
         </Box>
 
         {selectedParts.length === 0 ? (
-          <Box sx={{ p: 3, textAlign: 'center', bgcolor: '#f5f5f5', borderRadius: 1 }}>
+          <Box sx={{ py: 2, textAlign: 'center', bgcolor: '#f5f5f5', borderRadius: 1 }}>
             <Typography color="text.secondary">
               제품을 추가해주세요
             </Typography>
@@ -1841,7 +1841,7 @@ function ShipmentForm({ isManualB2B = false }) {
                 onClick={handleAnalyzeProduct}
                 disabled={analyzing}
                 size="small"
-                sx={{ mt: 2 }}
+                sx={{ mt: 1 }}
               >
                 제품 정보 분석하기
               </Button>
@@ -1850,12 +1850,12 @@ function ShipmentForm({ isManualB2B = false }) {
         ) : (
           <TableContainer>
             {analyzing && (
-              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 1.5 }}>
                 <CircularProgress size={20} />
                 <Typography variant="body2" sx={{ ml: 2 }}>제품 정보 분석 중...</Typography>
               </Box>
             )}
-            <Table>
+            <Table size="small">
               <TableHead>
                 <TableRow>
                   <TableCell>제품명</TableCell>
