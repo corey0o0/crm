@@ -947,7 +947,7 @@ export default function InventoryHistory() {
                                 onChange={(event, newValue) => updateEditProduct(index, 'product', newValue)}
                                 isOptionEqualToValue={(option, value) => option?.id === value?.id}
                                 renderInput={(params) => (
-                                  <TextField {...params} label="상품 선택" placeholder="상품을 선택하세요" />
+                                  <TextField {...params} variant="standard" label="상품 선택" placeholder="상품을 선택하세요" />
                                 )}
                                 renderOption={(props, option) => (
                                   <Box component="li" {...props}>
@@ -993,7 +993,7 @@ export default function InventoryHistory() {
                                 onChange={(event, value) => updateEditProduct(index, 'fromLocation', value?.id || '')}
                                 isOptionEqualToValue={(option, value) => option?.id === value?.id}
                                 renderInput={(params) => (
-                                  <TextField {...params} label="출발지" placeholder="출발지 선택" />
+                                  <TextField {...params} variant="standard" label="출발지" placeholder="출발지 선택" />
                                 )}
                                 renderOption={(props, option) => (
                                   <Box component="li" {...props}>
@@ -1025,7 +1025,7 @@ export default function InventoryHistory() {
                                 onChange={(event, value) => updateEditProduct(index, 'toLocation', value?.id || '')}
                                 isOptionEqualToValue={(option, value) => option?.id === value?.id}
                                 renderInput={(params) => (
-                                  <TextField {...params} label="목적지" placeholder="목적지 선택" />
+                                  <TextField {...params} variant="standard" label="목적지" placeholder="목적지 선택" />
                                 )}
                                 renderOption={(props, option) => (
                                   <Box component="li" {...props}>
@@ -1206,7 +1206,7 @@ export default function InventoryHistory() {
                                 onChange={(event, newValue) => updateEditProduct(index, 'product', newValue)}
                                 isOptionEqualToValue={(option, value) => option?.id === value?.id}
                                 renderInput={(params) => (
-                                  <TextField {...params} label="상품 선택" placeholder="상품을 선택하세요" />
+                                  <TextField {...params} variant="standard" label="상품 선택" placeholder="상품을 선택하세요" />
                                 )}
                                 renderOption={(props, option) => (
                                   <Box component="li" {...props}>
@@ -1252,7 +1252,7 @@ export default function InventoryHistory() {
                                 onChange={(event, value) => updateEditProduct(index, 'fromLocation', value?.id || '')}
                                 isOptionEqualToValue={(option, value) => option?.id === value?.id}
                                 renderInput={(params) => (
-                                  <TextField {...params} label="출발지" placeholder="출발지 선택" />
+                                  <TextField {...params} variant="standard" label="출발지" placeholder="출발지 선택" />
                                 )}
                                 renderOption={(props, option) => (
                                   <Box component="li" {...props}>
@@ -1284,7 +1284,7 @@ export default function InventoryHistory() {
                                 onChange={(event, value) => updateEditProduct(index, 'toLocation', value?.id || '')}
                                 isOptionEqualToValue={(option, value) => option?.id === value?.id}
                                 renderInput={(params) => (
-                                  <TextField {...params} label="목적지" placeholder="목적지 선택" />
+                                  <TextField {...params} variant="standard" label="목적지" placeholder="목적지 선택" />
                                 )}
                                 renderOption={(props, option) => (
                                   <Box component="li" {...props}>
