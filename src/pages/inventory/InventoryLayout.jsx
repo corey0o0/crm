@@ -1233,7 +1233,12 @@ function InventoryLayout() {
               if (typeof raw === 'number') {
                 return raw.toFixed(0);
               }
-              return String(raw);
+              const str = String(raw);
+              // 문자열이 과학적 표기법(8.80925E+12)인 경우 숫자로 변환 후 정수 문자열로
+              if (/^\d+\.?\d*[eE][+\-]?\d+$/.test(str)) {
+                return Number(str).toFixed(0);
+              }
+              return str;
             }
           }
           return '';
