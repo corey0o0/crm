@@ -3,7 +3,8 @@ import { useOutletContext } from 'react-router-dom';
 import {
   Box, Typography, TextField, FormControl, InputLabel, Select, MenuItem, Button, TableContainer, Paper, Table, TableHead, TableRow, TableCell, TableBody, Tooltip, IconButton, Switch, FormControlLabel, Badge, Autocomplete, InputAdornment, Popover, Card, TableFooter
 } from '@mui/material';
-import { Refresh as RefreshIcon, Store as StoreIcon, Sync as SyncIcon, SyncDisabled as SyncDisabledIcon, Search as SearchIcon, FilterList as FilterIcon, ArrowDownward as ArrowDownwardIcon } from '@mui/icons-material';
+import { Refresh as RefreshIcon, Store as StoreIcon, Sync as SyncIcon, SyncDisabled as SyncDisabledIcon, Search as SearchIcon, FilterList as FilterIcon, ArrowDownward as ArrowDownwardIcon, Download as DownloadIcon } from '@mui/icons-material';
+import * as XLSX from 'xlsx';
 
 export default function InventoryStatus() {
   const context = useOutletContext();
@@ -30,6 +31,46 @@ export default function InventoryStatus() {
         
         // 전체 총합 계산
         const grandTotal = warehouseTotals.reduce((sum, total) => sum + total, 0);
+
+        const handleExportExcel = () => {
+          // 헤더 구성
+          const headers = ['상품', '바코드', '제품코드', ...warehouses.map(w => w.name), '상품별 총합'];
+          
+          // 데이터 구성
+          const data = rows.map(p => {
+            const productTotal = warehouses.reduce((sum, w) => sum + (inventory[w.id]?.[p.id] || 0), 0);
+            return [
+              p.name,
+              p.barcode || '-',
+              p.code || '-',
+              ...warehouses.map(w => inventory[w.id]?.[p.id] || 0),
+              productTotal
+            ];
+          });
+          
+          // 푸터 구성
+          const footer = ['창고별 총합', '', '', ...warehouseTotals, grandTotal];
+          
+          // 워크시트 생성
+          const ws = XLSX.utils.aoa_to_sheet([headers, ...data, footer]);
+          
+          // 열 너비 설정
+          ws['!cols'] = [
+            { wch: 30 }, // 상품
+            { wch: 15 }, // 바코드
+            { wch: 15 }, // 제품코드
+            ...warehouses.map(() => ({ wch: 12 })), // 창고
+            { wch: 15 }  // 상품별 총합
+          ];
+
+          // 워크북 생성 및 저장
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, '재고현황');
+          
+          const today = new Date();
+          const dateStr = `${today.getFullYear()}${(today.getMonth()+1).toString().padStart(2, '0')}${today.getDate().toString().padStart(2, '0')}`;
+          XLSX.writeFile(wb, `재고현황_${dateStr}.xlsx`);
+        };
 
         return (
           <Box>
@@ -63,6 +104,15 @@ export default function InventoryStatus() {
                     onClick={() => setOverallStockFilter('outOfStock')}
                   >
                     재고 없음
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="contained"
+                    color="success"
+                    startIcon={<DownloadIcon />}
+                    onClick={handleExportExcel}
+                  >
+                    엑셀 다운로드
                   </Button>
                 </Box>
               </Box>

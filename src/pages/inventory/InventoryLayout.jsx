@@ -2412,8 +2412,8 @@ function InventoryLayout() {
           <Typography variant="caption" color="text.secondary" sx={{ mr: 1 }}>
             단축키: ESC(닫기) | Enter(행추가) | Ctrl+N(새등록)
           </Typography>
-          {/* 재고 초기화 버튼 */}
-          {true && (
+          {/* 재고 초기화 버튼 숨김 처리 */}
+          {false && (
             <Button
               variant="outlined"
               color="warning"
@@ -2423,12 +2423,12 @@ function InventoryLayout() {
                   // 서버 재고 전체 삭제
                   await inventoryApi.clearAll();
 
-                  // 로컬 초기 베이스 재설정 (전체 0)
+                  // 로컬 초기 베이스 재설정
                   const base = {};
                   warehouses.forEach(warehouse => {
                     base[warehouse.id] = {};
                     products.forEach(product => {
-                      base[warehouse.id][product.id] = 0; // 모두 0으로 초기화
+                      base[warehouse.id][product.id] = warehouse.syncWithProductStock ? (product.stock || 0) : 0;
                     });
                   });
                   setInventory(base);
