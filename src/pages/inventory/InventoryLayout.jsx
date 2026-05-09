@@ -967,8 +967,8 @@ function InventoryLayout() {
       const isOutbound = warehouses.find(w => w.id === item.fromLocation);
 
       const transaction = {
-        id: groupId + index,
-        groupId,
+        id: Date.now() + index,
+        groupId: null,
         type: isOutbound ? 'out' : 'in',
         productId: parseInt(item.productId, 10),
         productName: product.name,
@@ -982,7 +982,7 @@ function InventoryLayout() {
         note: item.note || formData.note,
         additionalNote: item.additionalNote || '',
         createdAt: new Date().toLocaleString(),
-        isGrouped: true
+        isGrouped: false
       };
       newTransactions.push(transaction);
     });
