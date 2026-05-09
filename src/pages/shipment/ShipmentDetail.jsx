@@ -1461,10 +1461,10 @@ function ShipmentDetail() {
           </Box>
         </Box>
 
-        <Grid container spacing={2}>
-          <Grid item xs={12} md={6}>
+        <Grid container spacing={2} sx={{ alignItems: 'stretch' }}>
+          <Grid item xs={12} md={6} sx={{ display: 'flex', flexDirection: 'column' }}>
             <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>고객 정보</Typography>
-            <Card variant="outlined" sx={{ mb: 1 }}>
+            <Card variant="outlined" sx={{ flex: 1 }}>
               <CardContent>
                 <Typography variant="h6" sx={{ mb: 1, fontWeight: 'bold' }}>
                   {shipmentData.customer_name}
@@ -1479,19 +1479,14 @@ function ShipmentDetail() {
             </Card>
           </Grid>
 
-          <Grid item xs={12} md={6}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+          <Grid item xs={12} md={6} sx={{ display: 'flex', flexDirection: 'column' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
               <Typography variant="subtitle2" color="text.secondary">출고 정보</Typography>
-              <Box sx={{ textAlign: 'right' }}>
-                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                  출고 ID
-                </Typography>
-                <Typography variant="body2" sx={{ fontWeight: 'medium', fontFamily: 'monospace', fontSize: '0.875rem' }}>
-                  {`SHP-${String(shipmentData.id).slice(0, 8).toUpperCase()}`}
-                </Typography>
-              </Box>
+              <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+                SHP-{String(shipmentData.id).slice(0, 8).toUpperCase()}
+              </Typography>
             </Box>
-            <Card variant="outlined">
+            <Card variant="outlined" sx={{ flex: 1 }}>
               <CardContent>
                 <Grid container spacing={1}>
                   <Grid item xs={4}>
@@ -1575,7 +1570,7 @@ function ShipmentDetail() {
           <Typography variant="subtitle1" fontWeight="bold">
             제품 정보
           </Typography>
-          {shipmentParts.length > 0 && !isEditing && (
+          {false && shipmentParts.length > 0 && !isEditing && (
             <Button
               variant="outlined"
               startIcon={<EditIcon />}
