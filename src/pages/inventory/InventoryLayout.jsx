@@ -2485,7 +2485,7 @@ function InventoryLayout() {
     handleDeleteSelectedTransactions, handleViewOriginal, handleDateFilterClick, handleTableCellClick,
     handleTableCellHover, handleTableCellHoverLeave, handlePageChange, handleBarcodeScan, startBarcodeScan,
     handleBarcodeScanError, handleDragOver, handleDragLeave, handleDrop
-  };
+  , batchFromLocation, setBatchFromLocation, batchToLocation, setBatchToLocation, showOriginalHistory, setShowOriginalHistory, handleSubmitTransaction, downloadExcelTemplate, handleExcelDataSubmit, handleBatchApplyLocation};
   return (
     <Box sx={{ width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
       {/* 헤더 */}
