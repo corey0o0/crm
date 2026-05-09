@@ -2356,6 +2356,7 @@ function AddService() {
                           접수일자*
                         </Typography>
                     <TextField
+                      variant="standard"
                       fullWidth
                       required
                       type="date"
@@ -2364,7 +2365,7 @@ function AddService() {
                       onChange={handleInputChange}
                       size="small"
                       sx={{
-                        '& .MuiOutlinedInput-root': {
+                        '& .MuiInput-root': {
                               height: '36px',
                           borderRadius: 1,
                           bgcolor: '#f9fafb'
@@ -2377,6 +2378,7 @@ function AddService() {
                           접수시간*
                         </Typography>
                     <TextField
+                      variant="standard"
                       fullWidth
                       required
                       select
@@ -2385,7 +2387,7 @@ function AddService() {
                       onChange={handleInputChange}
                       size="small"
                       sx={{
-                        '& .MuiOutlinedInput-root': {
+                        '& .MuiInput-root': {
                           height: '36px',
                           borderRadius: 1,
                           bgcolor: '#f9fafb'
@@ -2403,6 +2405,7 @@ function AddService() {
                         </Typography>
                         <Box sx={{ display: 'flex', gap: 1 }}>
                           <TextField
+                            variant="standard"
                             fullWidth
                       type="date"
                             name="completion_date"
@@ -2411,7 +2414,7 @@ function AddService() {
                       size="small"
                       sx={{
                               flex: 2,
-                        '& .MuiOutlinedInput-root': {
+                        '& .MuiInput-root': {
                                 height: '36px',
                           borderRadius: 1,
                           bgcolor: '#f9fafb'
@@ -2419,6 +2422,7 @@ function AddService() {
                       }}
                     />
                           <TextField
+                            variant="standard"
                             select
                             name="completion_time"
                             value={formData.completion_time || '00'}
@@ -2426,7 +2430,7 @@ function AddService() {
                             size="small"
                             sx={{
                               flex: 1,
-                              '& .MuiOutlinedInput-root': {
+                              '& .MuiInput-root': {
                                 height: '36px',
                                 borderRadius: 1,
                                 bgcolor: '#f9fafb'
@@ -2459,6 +2463,7 @@ function AddService() {
                         ))}
                       </Box>
                       <TextField
+                        variant="standard"
                         size="small"
                         name="writer"
                         label="작성자"
@@ -2466,7 +2471,7 @@ function AddService() {
                         onChange={handleInputChange}
                         sx={{ 
                           width: '150px',
-                          '& .MuiOutlinedInput-root': {
+                          '& .MuiInput-root': {
                             height: '36px',
                             borderRadius: 1,
                             bgcolor: '#f9fafb'
@@ -2542,6 +2547,7 @@ function AddService() {
                           }}
                           renderInput={(params) => (
                             <TextField
+                              variant="standard"
                               {...params}
                               fullWidth
                               required
@@ -2614,6 +2620,7 @@ function AddService() {
                           }}
                           renderInput={(params) => (
                             <TextField
+                              variant="standard"
                               {...params}
                               fullWidth
                               required
@@ -2648,6 +2655,7 @@ function AddService() {
                       </Grid>
                       <Grid item xs={12}>
                         <TextField
+                          variant="standard"
                           fullWidth
                           size="small"
                           label="주소"
@@ -2669,6 +2677,7 @@ function AddService() {
                     <Grid container spacing={2}>
                       <Grid item xs={12}>
                         <TextField
+                          variant="standard"
                           select
                           fullWidth
                           size="small"
@@ -2680,7 +2689,7 @@ function AddService() {
                             setFormData(prev => ({ ...prev, brand: e.target.value, product_name: '' }));
                           }}
                           sx={{
-                            '& .MuiOutlinedInput-root': {
+                            '& .MuiInput-root': {
                               borderRadius: 1,
                               bgcolor: '#f9fafb'
                             }
@@ -2710,6 +2719,7 @@ function AddService() {
                           }}
                           renderInput={(params) => (
                             <TextField
+                              variant="standard"
                               {...params}
                               fullWidth
                               required
@@ -2717,7 +2727,7 @@ function AddService() {
                               label="제품명"
                               name="product_name"
                               sx={{
-                                '& .MuiOutlinedInput-root': {
+                                '& .MuiInput-root': {
                                   borderRadius: 1,
                                   bgcolor: '#f9fafb'
                                 }
@@ -2742,6 +2752,7 @@ function AddService() {
                       </Grid>
                       <Grid item xs={12}>
                         <TextField
+                          variant="standard"
                           fullWidth
                           size="small"
                           label="주행거리"
@@ -2752,6 +2763,7 @@ function AddService() {
                       </Grid>
                       <Grid item xs={12}>
                         <TextField
+                          variant="standard"
                           fullWidth
                           size="small"
                           label="구입처"
@@ -2763,6 +2775,7 @@ function AddService() {
                       </Grid>
                       <Grid item xs={12}>
                         <TextField
+                          variant="standard"
                           select
                           fullWidth
                           size="small"
@@ -2778,6 +2791,7 @@ function AddService() {
                       </Grid>
                       <Grid item xs={12}>
                         <TextField
+                          variant="standard"
                           select
                           fullWidth
                           size="small"
@@ -2793,6 +2807,7 @@ function AddService() {
                       </Grid>
                       <Grid item xs={12}>
                         <TextField
+                          variant="standard"
                           select
                           fullWidth
                           size="small"
@@ -2822,6 +2837,7 @@ function AddService() {
                 <Grid container spacing={3}>
                   <Grid item xs={12}>
                     <TextField
+                      variant="standard"
                       fullWidth
                       required={!isSimpleSale}
                       multiline
@@ -2841,6 +2857,7 @@ function AddService() {
                   </Grid>
                   <Grid item xs={12}>
                     <TextField
+                      variant="standard"
                       fullWidth
                       multiline
                       minRows={5}
@@ -2866,6 +2883,7 @@ function AddService() {
                       onChange={handleTagInput}
                       renderInput={(params) => (
                         <TextField
+                          variant="standard"
                           {...params}
                           label="태그"
                           placeholder="태그를 입력하거나 선택하세요"
@@ -3063,13 +3081,14 @@ function AddService() {
                           </TableCell>
                           <TableCell align="right">
                             <TextField
+                              variant="standard"
                               type="number"
                               size="small"
                               value={part.quantity}
                               onChange={e => handleQuantityChange(index, e.target.value)}
                               sx={{
                                 width: '80px',
-                                '& .MuiOutlinedInput-root': {
+                                '& .MuiInput-root': {
                                   borderRadius: 1,
                                   bgcolor: '#f9fafb'
                                 }
@@ -3086,13 +3105,14 @@ function AddService() {
                             {showPriceEdit && (
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'flex-end' }}>
                                 <TextField
+                                  variant="standard"
                                   type="number"
                                   size="small"
                                   value={part.price}
                                   onChange={(e) => handlePriceChange(index, e.target.value)}
                                   sx={{ 
                                     width: '120px',
-                                    '& .MuiOutlinedInput-root': {
+                                    '& .MuiInput-root': {
                                       borderRadius: 1,
                                       bgcolor: '#f9fafb'
                                     }

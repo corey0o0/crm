@@ -2421,13 +2421,14 @@ function ServiceDetail() {
                 </TableCell>
                 <TableCell align="right">
                   <TextField
+                    variant="standard"
                     type="number"
                     size="small"
                     value={part.quantity}
                     onChange={e => handleQuantityChange(index, e.target.value)}
                     sx={{
                       width: '80px',
-                      '& .MuiOutlinedInput-root': {
+                      '& .MuiInput-root': {
                         borderRadius: 1,
                         bgcolor: '#f9fafb'
                       }
@@ -2445,6 +2446,7 @@ function ServiceDetail() {
                   {showPriceEdit && (
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'flex-end' }}>
                       <TextField
+                        variant="standard"
                         type="number"
                         size="small"
                         value={part.price}
@@ -2456,7 +2458,7 @@ function ServiceDetail() {
                         })}
                         sx={{
                           width: '120px',
-                          '& .MuiOutlinedInput-root': {
+                          '& .MuiInput-root': {
                             borderRadius: 1,
                             bgcolor: '#f9fafb'
                           }
@@ -2575,6 +2577,7 @@ function ServiceDetail() {
         <DialogTitle>부품 추가</DialogTitle>
         <DialogContent>
           <TextField
+            variant="standard"
             fullWidth
             placeholder="부품명, 코드, 브랜드로 검색"
             value={searchTerm}
@@ -2618,6 +2621,7 @@ function ServiceDetail() {
           {selectedPart && (
             <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
               <TextField
+                variant="standard"
                 type="number"
                 label="수량"
                 value={partQuantity}
@@ -2628,6 +2632,7 @@ function ServiceDetail() {
                 }}
               />
               <TextField
+                variant="standard"
                 type="number"
                 label="가격"
                 value={modifiedPrice || selectedPart.price}
@@ -2731,6 +2736,7 @@ function ServiceDetail() {
                         </Typography>
                         <Box sx={{ display: 'flex', gap: 1 }}>
                           <TextField
+                            variant="standard"
                             required
                             type="date"
                             name="reception_date"
@@ -2739,7 +2745,7 @@ function ServiceDetail() {
                             size="small"
                             sx={{
                               flex: 2,
-                              '& .MuiOutlinedInput-root': {
+                              '& .MuiInput-root': {
                                 height: '36px',
                                 borderRadius: 1,
                                 bgcolor: '#f9fafb'
@@ -2747,6 +2753,7 @@ function ServiceDetail() {
                             }}
                           />
                           <TextField
+                            variant="standard"
                             select
                             required
                             name="reception_time"
@@ -2760,7 +2767,7 @@ function ServiceDetail() {
                             size="small"
                             sx={{
                               flex: 1,
-                              '& .MuiOutlinedInput-root': {
+                              '& .MuiInput-root': {
                                 height: '36px',
                                 borderRadius: 1,
                                 bgcolor: '#f9fafb'
@@ -2779,6 +2786,7 @@ function ServiceDetail() {
                         </Typography>
                         <Box sx={{ display: 'flex', gap: 1 }}>
                           <TextField
+                            variant="standard"
                             type="date"
                             name="completion_date"
                             value={formData.completion_date || ''}
@@ -2786,7 +2794,7 @@ function ServiceDetail() {
                             size="small"
                             sx={{
                               flex: 2,
-                              '& .MuiOutlinedInput-root': {
+                              '& .MuiInput-root': {
                                 height: '36px',
                                 borderRadius: 1,
                                 bgcolor: '#f9fafb'
@@ -2794,6 +2802,7 @@ function ServiceDetail() {
                             }}
                           />
                           <TextField
+                            variant="standard"
                             select
                             name="completion_time"
                             value={formData.completion_time?.split(':')[0] || '00'}
@@ -2806,7 +2815,7 @@ function ServiceDetail() {
                             size="small"
                             sx={{
                               flex: 1,
-                              '& .MuiOutlinedInput-root': {
+                              '& .MuiInput-root': {
                                 height: '36px',
                                 borderRadius: 1,
                                 bgcolor: '#f9fafb'
@@ -2842,6 +2851,7 @@ function ServiceDetail() {
                         ))}
                       </Box>
                       <TextField
+                        variant="standard"
                         size="small"
                         name="writer"
                         label="작성자"
@@ -2849,7 +2859,7 @@ function ServiceDetail() {
                         onChange={handleChange}
                         sx={{
                           width: '150px',
-                          '& .MuiOutlinedInput-root': {
+                          '& .MuiInput-root': {
                             height: '36px',
                             borderRadius: 1,
                             bgcolor: '#f9fafb'
@@ -2885,6 +2895,7 @@ function ServiceDetail() {
                     <Grid container spacing={2}>
                       <Grid item xs={12}>
                         <TextField
+                          variant="standard"
                           fullWidth
                           required
                           size="small"
@@ -2896,6 +2907,7 @@ function ServiceDetail() {
                       </Grid>
                       <Grid item xs={12}>
                         <TextField
+                          variant="standard"
                           fullWidth
                           required
                           size="small"
@@ -2907,6 +2919,7 @@ function ServiceDetail() {
                       </Grid>
                       <Grid item xs={12}>
                         <TextField
+                          variant="standard"
                           fullWidth
                           size="small"
                           label="주소"
@@ -2927,6 +2940,7 @@ function ServiceDetail() {
                     <Grid container spacing={2}>
                       <Grid item xs={12}>
                         <TextField
+                          variant="standard"
                           select
                           fullWidth
                           size="small"
@@ -2959,13 +2973,14 @@ function ServiceDetail() {
                           }}
                           renderInput={(params) => (
                             <TextField
+                              variant="standard"
                               {...params}
                               fullWidth
                               size="small"
                               label="제품명"
                               name="product_name"
                               sx={{
-                                '& .MuiOutlinedInput-root': {
+                                '& .MuiInput-root': {
                                   borderRadius: 1,
                                   bgcolor: '#f9fafb'
                                 }
@@ -2990,6 +3005,7 @@ function ServiceDetail() {
                       </Grid>
                       <Grid item xs={12}>
                         <TextField
+                          variant="standard"
                           fullWidth
                           size="small"
                           name="mileage"
@@ -3000,6 +3016,7 @@ function ServiceDetail() {
                       </Grid>
                       <Grid item xs={12}>
                         <TextField
+                          variant="standard"
                           fullWidth
                           size="small"
                           name="seller"
@@ -3010,6 +3027,7 @@ function ServiceDetail() {
                       </Grid>
                       <Grid item xs={12}>
                         <TextField
+                          variant="standard"
                           select
                           fullWidth
                           size="small"
@@ -3026,6 +3044,7 @@ function ServiceDetail() {
                       </Grid>
                       <Grid item xs={12}>
                         <TextField
+                          variant="standard"
                           select
                           fullWidth
                           size="small"
@@ -3041,6 +3060,7 @@ function ServiceDetail() {
                       </Grid>
                       <Grid item xs={12}>
                         <TextField
+                          variant="standard"
                           select
                           fullWidth
                           size="small"
@@ -3069,6 +3089,7 @@ function ServiceDetail() {
                 <Grid container spacing={3}>
                   <Grid item xs={12}>
                     <TextField
+                      variant="standard"
                       fullWidth
                       multiline
                       minRows={5}
@@ -3087,6 +3108,7 @@ function ServiceDetail() {
                   </Grid>
                   <Grid item xs={12}>
                     <TextField
+                      variant="standard"
                       fullWidth
                       multiline
                       minRows={5}
@@ -3112,6 +3134,7 @@ function ServiceDetail() {
                       onChange={handleTagInput}
                       renderInput={(params) => (
                         <TextField
+                          variant="standard"
                           {...params}
                           label="태그"
                           placeholder="태그를 입력하거나 선택하세요"
@@ -3517,6 +3540,7 @@ function ServiceDetail() {
           <DialogContent>
             <Box sx={{ mb: 2 }}>
               <TextField
+                variant="standard"
                 fullWidth
                 size="small"
                 placeholder="고객명 또는 연락처로 검색"
