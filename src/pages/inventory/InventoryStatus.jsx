@@ -105,43 +105,7 @@ export default function InventoryStatus() {
                   >
                     재고 없음
                   </Button>
-                  <Button
-                    size="small"
-                    variant="contained"
-                    color="error"
-                    onClick={async () => {
-                      try {
-                        const { supabase } = await import('../../lib/supabaseClient');
-                        const { data: parts } = await supabase.from('parts').select('id, name, stock').neq('stock', 0).not('stock', 'is', null);
-                        if (!parts || parts.length === 0) {
-                          alert('이미 남은 기존 재고가 없습니다.');
-                          return;
-                        }
-                        const txs = parts.map(p => ({
-                          product_id: p.id,
-                          product_name: p.name,
-                          type: 'out',
-                          quantity: p.stock,
-                          from_location: 'adjustment',
-                          to_location: null,
-                          date: new Date().toISOString(),
-                          note: '기초 재고 세팅 전 0 초기화 (실사 조정)',
-                          status: '완료'
-                        }));
-                        const { error: txErr } = await supabase.from('transactions').insert(txs);
-                        if (txErr) throw txErr;
-                        const updates = parts.map(p => ({ id: p.id, stock: 0 }));
-                        const { error: pErr } = await supabase.from('parts').upsert(updates);
-                        if (pErr) throw pErr;
-                        alert('기존 재고 0 초기화 완료!');
-                        window.location.reload();
-                      } catch(e) {
-                        alert(e.message);
-                      }
-                    }}
-                  >
-                    임시 재고 0 초기화
-                  </Button>
+
                   <Button
                     size="small"
                     variant="contained"
