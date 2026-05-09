@@ -1593,6 +1593,8 @@ function InventoryLayout() {
     const isD = (id) => dealers.some(d => d.id === id);
     const isExt = (id) => !id || id === '외부' || id === 'none';
 
+    if (fromLoc === 'adjustment' || toLoc === 'adjustment') return { label: '재고 조정', color: 'error' };
+
     if (actualTx.type === 'in') {
       if (isExt(fromLoc)) return { label: '수입', color: 'primary' };
       if (isW(fromLoc) && isW(toLoc)) return { label: '창고이동', color: 'info' };
@@ -2100,6 +2102,8 @@ function InventoryLayout() {
         matchesType = true;
       } else if (filter.type === 'import') {
         matchesType = getTransactionTypeInfo(group).label === '수입';
+      } else if (filter.type === 'adjustment') {
+        matchesType = getTransactionTypeInfo(group).label === '재고 조정';
       } else {
         matchesType = group.type === filter.type;
       }      
