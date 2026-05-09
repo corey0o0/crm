@@ -982,7 +982,8 @@ function InventoryLayout() {
         note: item.note || formData.note,
         additionalNote: item.additionalNote || '',
         createdAt: new Date().toLocaleString(),
-        isGrouped: true
+        isGrouped: true,
+        status: '완료'
       };
       newTransactions.push(transaction);
     });
@@ -996,7 +997,7 @@ function InventoryLayout() {
       await transactionApi.createMany(newTransactions);
       const updatedTransactions = [...newTransactions, ...transactions];
       setTransactions(updatedTransactions);
-      for (const t of newTransactions) { await updateInventory(t); }
+      await batchUpdateInventory(newTransactions);
       showSnackbar(`입출고 등록이 완료되었습니다. (${newTransactions.length}개 상품)`, 'success');
       handleCloseDialog();
     } catch (error) {
@@ -1007,88 +1008,133 @@ function InventoryLayout() {
 
   // (통합됨) 기존 입/출고 개별 처리 함수는 통합 제출 로직으로 대체되었습니다.
 
-  const updateInventory = async (transaction) => {
-    let nextInventory = null;
-    let inventoryError = null;
-    
-    // 1. 로컬 상태 계산
-    await new Promise(resolve => {
-      setInventory(prev => {
-        const newInventory = JSON.parse(JSON.stringify(prev || {}));
-        
-        try {
-          if (transaction.type === 'in') {
-            if (warehouses.find(w => w.id === transaction.toLocation)) {
-              if (!newInventory[transaction.toLocation]) newInventory[transaction.toLocation] = {};
-              if (!newInventory[transaction.toLocation][transaction.productId]) newInventory[transaction.toLocation][transaction.productId] = 0;
-              newInventory[transaction.toLocation][transaction.productId] += transaction.quantity;
-            }
-            if (warehouses.find(w => w.id === transaction.fromLocation)) {
-              if (newInventory[transaction.fromLocation] && newInventory[transaction.fromLocation][transaction.productId]) {
-                const current = newInventory[transaction.fromLocation][transaction.productId];
-                if (current < transaction.quantity) throw new Error(`재고 부족: [${transaction.fromLocation}]에서 [${transaction.productName}]의 재고가 부족합니다. (현재: ${current})`);
-                newInventory[transaction.fromLocation][transaction.productId] -= transaction.quantity;
-              }
-            }
-          } else {
-            if (warehouses.find(w => w.id === transaction.fromLocation)) {
-              if (newInventory[transaction.fromLocation] && newInventory[transaction.fromLocation][transaction.productId]) {
-                const current = newInventory[transaction.fromLocation][transaction.productId];
-                if (current < transaction.quantity) throw new Error(`재고 부족: [${transaction.fromLocation}]에서 [${transaction.productName}]의 재고가 부족합니다. (현재: ${current})`);
-                newInventory[transaction.fromLocation][transaction.productId] -= transaction.quantity;
-              }
-            }
-            if (warehouses.find(w => w.id === transaction.toLocation)) {
-              if (!newInventory[transaction.toLocation]) newInventory[transaction.toLocation] = {};
-              if (!newInventory[transaction.toLocation][transaction.productId]) newInventory[transaction.toLocation][transaction.productId] = 0;
-              newInventory[transaction.toLocation][transaction.productId] += transaction.quantity;
+  const batchUpdateInventory = async (newTransactions) => {
+    // 1. 계산용 복사본
+    let nextInventory = JSON.parse(JSON.stringify(inventory || {}));
+    const inventoryUpserts = [];
+    const stockUpdates = []; // { productId, delta }
+
+    const warehouseMap = new Map((warehouses || []).map(w => [w.id, w]));
+
+    try {
+      for (const transaction of newTransactions) {
+        if (transaction.type === 'in') {
+          const toWh = warehouseMap.get(transaction.toLocation);
+          if (toWh) {
+            if (!nextInventory[transaction.toLocation]) nextInventory[transaction.toLocation] = {};
+            if (!nextInventory[transaction.toLocation][transaction.productId]) nextInventory[transaction.toLocation][transaction.productId] = 0;
+            nextInventory[transaction.toLocation][transaction.productId] += transaction.quantity;
+            
+            inventoryUpserts.push({
+              warehouse_id: transaction.toLocation,
+              product_id: transaction.productId,
+              quantity: nextInventory[transaction.toLocation][transaction.productId]
+            });
+            
+            if (toWh.syncWithProductStock) {
+              stockUpdates.push({ productId: transaction.productId, delta: transaction.quantity });
             }
           }
-        } catch (e) {
-          inventoryError = e;
-          resolve();
-          return prev;
+          const fromWh = warehouseMap.get(transaction.fromLocation);
+          if (fromWh) {
+            if (nextInventory[transaction.fromLocation] && nextInventory[transaction.fromLocation][transaction.productId]) {
+              const current = nextInventory[transaction.fromLocation][transaction.productId];
+              if (current < transaction.quantity) throw new Error(`재고 부족: [${transaction.fromLocation}]에서 [${transaction.productName}]의 재고가 부족합니다. (현재: ${current})`);
+              nextInventory[transaction.fromLocation][transaction.productId] -= transaction.quantity;
+              
+              inventoryUpserts.push({
+                warehouse_id: transaction.fromLocation,
+                product_id: transaction.productId,
+                quantity: nextInventory[transaction.fromLocation][transaction.productId]
+              });
+
+              if (fromWh.syncWithProductStock) {
+                stockUpdates.push({ productId: transaction.productId, delta: -transaction.quantity });
+              }
+            }
+          }
+        } else {
+          // 출고 처리
+          const fromWh = warehouseMap.get(transaction.fromLocation);
+          if (fromWh) {
+            if (nextInventory[transaction.fromLocation] && nextInventory[transaction.fromLocation][transaction.productId]) {
+              const current = nextInventory[transaction.fromLocation][transaction.productId];
+              if (current < transaction.quantity) throw new Error(`재고 부족: [${transaction.fromLocation}]에서 [${transaction.productName}]의 재고가 부족합니다. (현재: ${current})`);
+              nextInventory[transaction.fromLocation][transaction.productId] -= transaction.quantity;
+              
+              inventoryUpserts.push({
+                warehouse_id: transaction.fromLocation,
+                product_id: transaction.productId,
+                quantity: nextInventory[transaction.fromLocation][transaction.productId]
+              });
+
+              if (fromWh.syncWithProductStock) {
+                stockUpdates.push({ productId: transaction.productId, delta: -transaction.quantity });
+              }
+            }
+          }
+          const toWh = warehouseMap.get(transaction.toLocation);
+          if (toWh) {
+            if (!nextInventory[transaction.toLocation]) nextInventory[transaction.toLocation] = {};
+            if (!nextInventory[transaction.toLocation][transaction.productId]) nextInventory[transaction.toLocation][transaction.productId] = 0;
+            nextInventory[transaction.toLocation][transaction.productId] += transaction.quantity;
+            
+            inventoryUpserts.push({
+              warehouse_id: transaction.toLocation,
+              product_id: transaction.productId,
+              quantity: nextInventory[transaction.toLocation][transaction.productId]
+            });
+
+            if (toWh.syncWithProductStock) {
+              stockUpdates.push({ productId: transaction.productId, delta: transaction.quantity });
+            }
+          }
         }
-        
-        nextInventory = newInventory;
-        resolve();
-        return newInventory;
+      }
+    } catch (e) {
+      throw e;
+    }
+
+    // 2. 서버 재고 업데이트 및 동기화
+    if (inventoryUpserts.length > 0) {
+      // deduplicate by taking the last generated value
+      const deduplicatedUpserts = Object.values(inventoryUpserts.reduce((acc, curr) => {
+        acc[`${curr.warehouse_id}_${curr.product_id}`] = curr;
+        return acc;
+      }, {}));
+      
+      await inventoryApi.upsertMany(deduplicatedUpserts);
+    }
+
+    // 3. 로컬 상태 업데이트
+    setInventory(nextInventory);
+
+    // 4. 상품 재고(stock) 동기화
+    if (stockUpdates.length > 0) {
+      const groupedStockUpdates = stockUpdates.reduce((acc, curr) => {
+        acc[curr.productId] = (acc[curr.productId] || 0) + curr.delta;
+        return acc;
+      }, {});
+
+      setProducts(prevProducts => {
+        const newProducts = [...prevProducts];
+        for (const [productId, delta] of Object.entries(groupedStockUpdates)) {
+          if (delta === 0) continue;
+          const productIndex = newProducts.findIndex(p => p.id === parseInt(productId, 10));
+          if (productIndex !== -1) {
+            const p = newProducts[productIndex];
+            const newStock = Math.max(0, p.stock + delta);
+            newProducts[productIndex] = { ...p, stock: newStock };
+            
+            // API를 통해 실제 상품 재고 업데이트 (비동기, 에러 무시)
+            productApi.updateStock(parseInt(productId, 10), newStock).catch(err => {
+              console.error(`Failed to update stock for product ${productId}:`, err);
+            });
+            console.log(`상품 ${p.name}의 재고가 ${p.stock}에서 ${newStock}으로 업데이트되었습니다.`);
+          }
+        }
+        return newProducts;
       });
-    });
-
-    if (inventoryError) throw inventoryError;
-
-    // 2. 서버 재고 업데이트 및 동기화 (await 적용)
-    if (transaction.type === 'in') {
-      if (warehouses.find(w => w.id === transaction.toLocation)) {
-        await inventoryApi.upsert(transaction.toLocation, transaction.productId, nextInventory[transaction.toLocation][transaction.productId]);
-        const warehouse = warehouses.find(w => w.id === transaction.toLocation);
-        if (warehouse?.syncWithProductStock) {
-          await updateProductStock(transaction.productId, transaction.quantity, 'increase');
-        }
-      }
-      if (warehouses.find(w => w.id === transaction.fromLocation)) {
-        await inventoryApi.upsert(transaction.fromLocation, transaction.productId, nextInventory[transaction.fromLocation][transaction.productId]);
-        const warehouse = warehouses.find(w => w.id === transaction.fromLocation);
-        if (warehouse?.syncWithProductStock) {
-          await updateProductStock(transaction.productId, -transaction.quantity, 'decrease');
-        }
-      }
-    } else {
-      if (warehouses.find(w => w.id === transaction.fromLocation)) {
-        await inventoryApi.upsert(transaction.fromLocation, transaction.productId, nextInventory[transaction.fromLocation][transaction.productId]);
-        const warehouse = warehouses.find(w => w.id === transaction.fromLocation);
-        if (warehouse?.syncWithProductStock) {
-          await updateProductStock(transaction.productId, -transaction.quantity, 'decrease');
-        }
-      }
-      if (warehouses.find(w => w.id === transaction.toLocation)) {
-        await inventoryApi.upsert(transaction.toLocation, transaction.productId, nextInventory[transaction.toLocation][transaction.productId]);
-        const warehouse = warehouses.find(w => w.id === transaction.toLocation);
-        if (warehouse?.syncWithProductStock) {
-          await updateProductStock(transaction.productId, transaction.quantity, 'increase');
-        }
-      }
     }
   };
 
@@ -1395,7 +1441,8 @@ function InventoryLayout() {
           note: item.note || formData.note,
           additionalNote: item.additionalNote || '',
           createdAt: new Date().toLocaleString(),
-          isGrouped: true
+          isGrouped: true,
+          status: '완료'
         };
         
         newTransactions.push(transaction);
@@ -1416,8 +1463,8 @@ function InventoryLayout() {
       const updatedTransactions = [...newTransactions, ...transactions];
       setTransactions(updatedTransactions);
       
-      // 재고 업데이트
-      for (const transaction of inventoryUpdates) { await updateInventory(transaction); }
+      // 재고 업데이트 (배치 처리)
+      await batchUpdateInventory(inventoryUpdates);
       
       const resultMessage = `총 ${newTransactions.length}개 상품 처리 완료 (입고: ${inboundCount}개, 출고: ${outboundCount}개)`;
       showSnackbar(resultMessage, 'success');
