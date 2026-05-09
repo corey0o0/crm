@@ -3,7 +3,8 @@ import {
   Box, Typography, Paper, Grid, Card, CardContent, CircularProgress,
   FormControl, Select, MenuItem, InputLabel, Button, Divider,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Tabs, Tab, ButtonGroup, Stack, Switch, FormControlLabel, Collapse, IconButton
+  Tabs, Tab, ButtonGroup, Stack, Switch, FormControlLabel, Collapse, IconButton,
+  Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -68,6 +69,7 @@ function SalesHistoryStats() {
   const [showChannelDetail, setShowChannelDetail] = useState(false);
   const [showChannelPieDetail, setShowChannelPieDetail] = useState(false);
   const [compareStats, setCompareStats] = useState({ context: null, mom: null, yoy: null, wow: null, yoyWeek: null });
+  const [selectedAgencyDetail, setSelectedAgencyDetail] = useState(null);
 
 
 
@@ -935,11 +937,12 @@ function SalesHistoryStats() {
       }
 
       if (!agencyStats[agName]) {
-        agencyStats[agName] = { airframe: 0, airframeAmount: 0, parts: 0, partsAmount: 0, count: 0, amount: 0, _orderIds: new Set() };
+        agencyStats[agName] = { airframe: 0, airframeAmount: 0, parts: 0, partsAmount: 0, count: 0, amount: 0, _orderIds: new Set(), rows: [] };
       }
       
       agencyStats[agName].amount += price;
       if (r._id) agencyStats[agName]._orderIds.add(r._id);
+      agencyStats[agName].rows.push(r);
       
       if (isAirframe) {
         agencyStats[agName].airframe += qty;
@@ -1944,17 +1947,22 @@ function SalesHistoryStats() {
                             Object.entries(agencyStats)
                               .sort((a, b) => b[1].amount - a[1].amount)
                               .map(([agencyName, data]) => (
-                                <TableRow key={agencyName} hover>
+                                <TableRow 
+                                  key={agencyName} 
+                                  hover 
+                                  onClick={() => setSelectedAgencyDetail({ agencyName, rows: data.rows })}
+                                  sx={{ cursor: 'pointer' }}
+                                >
                                   <TableCell sx={{ fontWeight: 'bold' }}>{agencyName}</TableCell>
                                   <TableCell align="right">
-                                     <Typography variant="body2" sx={{ fontWeight: data.airframe > 0 ? 'bold' : 'normal', color: data.airframe > 0 ? 'primary.main' : 'inherit' }}>{data.airframe}대</Typography>
+                                     <Typography variant="body2" sx={{ fontWeight: data.airframe > 0 ? 'bold' : 'normal', color: data.airframe > 0 ? 'primary.main' : 'inherit' }}>{data.airframe}</Typography>
                                      <Typography variant="caption" color="textSecondary">{formatCurrency(data.airframeAmount)}</Typography>
                                   </TableCell>
                                   <TableCell align="right">
-                                     <Typography variant="body2">{data.parts}개</Typography>
+                                     <Typography variant="body2">{data.parts}</Typography>
                                      <Typography variant="caption" color="textSecondary">{formatCurrency(data.partsAmount)}</Typography>
                                   </TableCell>
-                                  <TableCell align="right">{data.count}건</TableCell>
+                                  <TableCell align="right">{data.count}</TableCell>
                                   <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(data.amount)}</TableCell>
                                 </TableRow>
                               ))
@@ -2111,6 +2119,54 @@ function SalesHistoryStats() {
           </Box>
         </>
       )}
+
+      {/* 대리점 상세 내역 모달 */}
+      <Dialog 
+        open={Boolean(selectedAgencyDetail)} 
+        onClose={() => setSelectedAgencyDetail(null)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontWeight: 'bold', borderBottom: '1px solid #eee' }}>
+          {selectedAgencyDetail?.agencyName} 출고 상세 내역
+        </DialogTitle>
+        <DialogContent sx={{ p: 0 }}>
+          <TableContainer>
+            <Table size="small" stickyHeader>
+              <TableHead>
+                <TableRow>
+                  <TableCell>주문일시</TableCell>
+                  <TableCell>카테고리</TableCell>
+                  <TableCell>브랜드</TableCell>
+                  <TableCell>품목명</TableCell>
+                  <TableCell align="right">수량</TableCell>
+                  <TableCell align="right">판매 금액</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {(selectedAgencyDetail?.rows || [])
+                  .sort((a, b) => new Date(b.created_at || b.date_val) - new Date(a.created_at || a.date_val))
+                  .map((r, i) => (
+                  <TableRow key={i} hover>
+                    <TableCell>{r.created_at ? format(new Date(r.created_at), 'yyyy-MM-dd HH:mm') : r.date_val?.slice(0, 10)}</TableCell>
+                    <TableCell>{r.part_category}</TableCell>
+                    <TableCell>{r.part_brand || '-'}</TableCell>
+                    <TableCell>{r.part_name}</TableCell>
+                    <TableCell align="right">{Number(r.quantity || 0).toLocaleString()}</TableCell>
+                    <TableCell align="right">{formatCurrency(Number(r.total_price || 0))}</TableCell>
+                  </TableRow>
+                ))}
+                {!selectedAgencyDetail?.rows?.length && (
+                  <TableRow><TableCell colSpan={6} align="center">데이터가 없습니다.</TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSelectedAgencyDetail(null)} color="primary">닫기</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
