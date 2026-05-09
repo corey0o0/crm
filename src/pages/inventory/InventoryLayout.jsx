@@ -1669,44 +1669,37 @@ function InventoryLayout() {
     const finalGrouped = Object.values(grouped).map(group => {
       if (group.items.length <= 1) return group;
 
-      // 기준 아이템(출고 등 원래 방향)과 상계 아이템(환입 등 반대 방향) 분리
-      const baseItems = group.items.filter(item => item.type === group.type).map(item => ({ ...item, netQuantity: Number(item.quantity) || 0, originalItems: [item] }));
-      const returnItems = group.items.filter(item => item.type !== group.type);
-
-      // 상계 아이템 수량을 같은 상품의 기준 아이템에서 차감
-      returnItems.forEach(retItem => {
-        const retQty = Number(retItem.quantity) || 0;
-        let remainingToSubtract = retQty;
-        
-        for (const baseItem of baseItems) {
-          if (remainingToSubtract <= 0) break;
-          
-          const pidBase = baseItem.productId || baseItem.productCode || baseItem.productName;
-          const pidRet = retItem.productId || retItem.productCode || retItem.productName;
-          
-          if (pidBase === pidRet && baseItem.netQuantity > 0) {
-            const subtractAmount = Math.min(baseItem.netQuantity, remainingToSubtract);
-            baseItem.netQuantity -= subtractAmount;
-            remainingToSubtract -= subtractAmount;
-            baseItem.originalItems.push(retItem);
-          }
+      const itemMap = {};
+      group.items.forEach(item => {
+        // 상품별로 상계 처리 (옵션/바코드가 같은 것을 동일 상품으로 취급)
+        const pid = item.productId || item.productCode || item.productName;
+        if (!itemMap[pid]) {
+          itemMap[pid] = { ...item, netQuantity: 0, originalItems: [] };
         }
-        
-        // 잔여 반품 수량이 남은 경우 (예외적 상황)
-        if (remainingToSubtract > 0) {
-           baseItems.push({
-             ...retItem,
-             netQuantity: -remainingToSubtract,
-             originalItems: [retItem]
-           });
+        itemMap[pid].originalItems.push(item);
+
+        const qty = Number(item.quantity) || 0;
+        // 그룹의 기준 타입(보통 'out')과 같으면 더하고 다르면 뺌
+        if (item.type === group.type) {
+          itemMap[pid].netQuantity += qty;
+        } else {
+          itemMap[pid].netQuantity -= qty;
+        }
+
+        // 기준 타입 아이템 정보로 덮어씌움 (반품보다는 원래 출고 정보 유지)
+        if (item.type === group.type) {
+          itemMap[pid] = { ...itemMap[pid], ...item, netQuantity: itemMap[pid].netQuantity, originalItems: itemMap[pid].originalItems };
         }
       });
 
-      const aggregatedItems = baseItems
+      // 최종 상계 수량이 0이 아닌 것만 남김
+      const aggregatedItems = Object.values(itemMap)
         .filter(i => i.netQuantity !== 0)
         .map(i => {
           if (i.netQuantity < 0) {
+            // 상계 결과가 음수면 원래 그룹 타입의 반대 성격(예: 출고 그룹의 반대는 '입고/취소')
             const reversedType = group.type === 'out' ? 'in' : 'out';
+            // 가장 최신의 역방향 트랜잭션 정보(from/to Location 등)를 가져오기 위함
             const reverseItem = [...i.originalItems].reverse().find(orig => orig.type === reversedType) || i;
             return {
               ...reverseItem,
