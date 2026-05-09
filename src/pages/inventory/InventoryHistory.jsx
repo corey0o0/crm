@@ -259,10 +259,13 @@ export default function InventoryHistory() {
                 </Button>
               )}
             </Box>
+            {/* 리스트보기/표보기 전환 버튼 - 숨김 처리 */}
+            {false && (
             <Box sx={{ display: 'inline-flex', border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
               <Button size="small" variant={transactionViewMode === 'list' ? 'contained' : 'text'} onClick={() => setTransactionViewMode('list')}>리스트 보기</Button>
               <Button size="small" variant={transactionViewMode === 'table' ? 'contained' : 'text'} onClick={() => setTransactionViewMode('table')}>표 보기</Button>
             </Box>
+            )}
           </Box>
 
           {transactionViewMode === 'list' && (

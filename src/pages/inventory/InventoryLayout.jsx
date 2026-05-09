@@ -93,7 +93,6 @@ const formatLocationName = (locationId, warehouses, dealers) => {
 };
 
 function InventoryLayout() {
-  const [activeTab, setActiveTab] = useState(1); // 기본값을 거래 내역 탭으로 변경
   const [openDialog, setOpenDialog] = useState(false);
   // 창고별 상세 재고 Dialog 상태
   const [warehouseDetailOpen, setWarehouseDetailOpen] = useState(false);
@@ -303,15 +302,13 @@ function InventoryLayout() {
     const params = new URLSearchParams(location.search);
     const tabParam = params.get('tab');
     if (tabParam === 'outbound_scan') {
-      setActiveTab(2); // 출고 검수 탭
+      navigate('/inventory-management/scan', { replace: true });
     } else if (tabParam === 'inventory_status') {
-      setActiveTab(3); // 재고 현황 탭
+      navigate('/inventory-management/status', { replace: true });
     } else if (tabParam === 'inventory_stats') {
-      setActiveTab(1); // 입출고 통계 탭 링크 진입 시 기본 거래 내역으로 리다이렉트
-    } else if (!tabParam) {
-      setActiveTab(1); // 기본 탭 변경 (거래 내역)
+      navigate('/inventory-management/history', { replace: true });
     }
-  }, [location.search]);
+  }, [location.search, navigate]);
 
   useEffect(() => {
     // API 호출을 병렬로 실행하여 초기 로딩 속도 개선
@@ -894,9 +891,7 @@ function InventoryLayout() {
     }
   };
 
-  const handleTabChange = (event, newValue) => {
-    setActiveTab(newValue);
-  };
+
 
   const handleOpenDialog = () => {
     setDialogType('io');
@@ -2460,7 +2455,7 @@ function InventoryLayout() {
 
 
   const contextValue = {
-    activeTab, setActiveTab, openDialog, setOpenDialog, warehouseDetailOpen, setWarehouseDetailOpen,
+    openDialog, setOpenDialog, warehouseDetailOpen, setWarehouseDetailOpen,
     warehouseDetailTarget, setWarehouseDetailTarget, warehouseDetailSearch, setWarehouseDetailSearch,
     warehouseDetailFilter, setWarehouseDetailFilter, warehouseDetailBelow, setWarehouseDetailBelow,
     dealerStatsFilter, setDealerStatsFilter, overallSearch, setOverallSearch, overallStockFilter, setOverallStockFilter,

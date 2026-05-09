@@ -34,3 +34,4 @@ yarn-error.log*
 .vscode/
 
 public/env.js
+split_inventory_v2.js

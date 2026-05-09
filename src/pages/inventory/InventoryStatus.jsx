@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useNavigate } from 'react-router-dom';
 import {
   Box, Typography, TextField, FormControl, InputLabel, Select, MenuItem, Button, TableContainer, Paper, Table, TableHead, TableRow, TableCell, TableBody, Tooltip, IconButton, Switch, FormControlLabel, Badge, Autocomplete, InputAdornment, Popover, Card, TableFooter
 } from '@mui/material';
@@ -8,10 +8,11 @@ import * as XLSX from 'xlsx';
 
 export default function InventoryStatus() {
   const context = useOutletContext();
+  const navigate = useNavigate();
   const {
     products, warehouses, dealers, inventory, overallSearch, setOverallSearch,
-    overallStockFilter, setOverallStockFilter, setFilter, setDateFilter, setActiveTab, fetchProducts, fetchWarehouses,
-    fetchDealers, toggleWarehouseSync, openWarehouseDetail, fetchTransactions, recalculateInventoryFromTransactions, warehouseDetailOpen, closeWarehouseDetail, warehouseDetailTarget, warehouseDetailFilter, setWarehouseDetailFilter, warehouseDetailSearch, setWarehouseDetailSearch, warehouseDetailBelow, setWarehouseDetailBelow
+    overallStockFilter, setOverallStockFilter, setFilter, setDateFilter, fetchProducts, fetchWarehouses,
+    fetchDealers, toggleWarehouseSync, openWarehouseDetail, fetchTransactions, warehouseDetailOpen, closeWarehouseDetail, warehouseDetailTarget, warehouseDetailFilter, setWarehouseDetailFilter, warehouseDetailSearch, setWarehouseDetailSearch, warehouseDetailBelow, setWarehouseDetailBelow
   } = context;
 
         const term = overallSearch.trim().toLowerCase();
@@ -149,7 +150,7 @@ export default function InventoryStatus() {
                               dateFrom: '', dateTo: '', fromLocation: '', toLocation: '', note: '' 
                             }));
                             setDateFilter('all');
-                            setActiveTab(1); // 거래 내역 탭으로 이동
+                            navigate('/inventory-management/history'); // 거래 내역 페이지로 이동
                           }}
                         >
                           {p.name}
