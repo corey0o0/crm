@@ -83,6 +83,7 @@ import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../../utils/
 // 창고 및 대리점 코드를 숨기고 이름만 표시하는 유틸리티
 const formatLocationName = (locationId, warehouses, dealers) => {
   if (!locationId || locationId === '외부') return '외부';
+  if (locationId === 'adjustment') return '실사입력';
   const warehouse = warehouses.find(w => w.id === locationId);
   if (warehouse) return warehouse.name;
   const dealer = dealers.find(d => d.id === locationId);
@@ -2106,6 +2107,7 @@ function InventoryLayout() {
                             group.items.some(item => {
                               const srcId = item.fromLocation;
                               if (!srcId || srcId === '외부') return '외부'.includes(filter.fromLocation);
+                              if (srcId === 'adjustment') return '실사입력'.includes(filter.fromLocation);
                               const w = warehouseMap[srcId];
                               if (w) return (w.name + w.id).toLowerCase().includes(filter.fromLocation.toLowerCase());
                               const d = dealerMap[srcId];
@@ -2116,6 +2118,7 @@ function InventoryLayout() {
       const matchesToLocation = !filter.toLocation || 
                             group.items.some(item => {
                               const destId = item.toLocation;
+                              if (destId === 'adjustment') return '실사입력'.includes(filter.toLocation);
                               const w = warehouseMap[destId];
                               if (w) return (w.name + w.id).toLowerCase().includes(filter.toLocation.toLowerCase());
                               const d = dealerMap[destId];
@@ -2537,6 +2540,7 @@ function InventoryLayout() {
                   sx={{ width: 150 }}
                   options={[
                     { id: '', name: '외부 (신규입고)', type: 'external' },
+                    { id: 'adjustment', name: '실사입력', type: 'external' },
                     ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
                     ...dealers.map(d => ({ ...d, type: 'dealer' }))
                   ]}
@@ -2545,6 +2549,7 @@ function InventoryLayout() {
                     return `${option.name} (${option.type === 'warehouse' ? '창고' : '대리점'})`;
                   }}
                   value={(() => {
+                    if (batchFromLocation === 'adjustment') return { id: 'adjustment', name: '실사입력', type: 'external' };
                     if (!batchFromLocation || batchFromLocation === '') return { id: '', name: '외부 (신규입고)', type: 'external' };
                     const warehouse = warehouses.find(w => w.id === batchFromLocation);
                     if (warehouse) return { ...warehouse, type: 'warehouse' };
@@ -2658,6 +2663,7 @@ function InventoryLayout() {
                         <Autocomplete
                           options={[
                             { id: '', name: '외부 (신규입고)', type: 'external' },
+                            { id: 'adjustment', name: '실사입력', type: 'external' },
                             ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
                             ...dealers.map(d => ({ ...d, type: 'dealer' }))
                           ]}
@@ -2666,6 +2672,7 @@ function InventoryLayout() {
                             return `${option.name} (${option.type === 'warehouse' ? '창고' : '대리점'})`;
                           }}
                           value={(() => {
+                            if (product.fromLocation === 'adjustment') return { id: 'adjustment', name: '실사입력', type: 'external' };
                             if (!product.fromLocation || product.fromLocation === '') return { id: '', name: '외부 (신규입고)', type: 'external' };
                             const warehouse = warehouses.find(w => w.id === product.fromLocation);
                             if (warehouse) return { ...warehouse, type: 'warehouse' };
