@@ -450,7 +450,7 @@ function ShipmentForm({ isManualB2B = false }) {
     }
   };
 
-  // 초기 데이터 설정 (새 등록 모드)
+  // 초기 데이터 설정 (새 등록 모드) - warehouse_id는 fetchWarehouses 이후에 설정됨
   useEffect(() => {
     if (!isEditMode && !initialData) {
       setInitialData({
@@ -466,12 +466,23 @@ function ShipmentForm({ isManualB2B = false }) {
           tracking_number: '',
           note: '',
           sales_channel: '청담매장',
-          order_no: ''
+          order_no: '',
+          warehouse_id: ''
         },
         selectedParts: []
       });
     }
   }, [isEditMode, initialData]);
+
+  // 창고 기본값 로딩 후 initialData 동기화 (false positive 변경감지 방지)
+  useEffect(() => {
+    if (!isEditMode && initialData && shipmentData.warehouse_id && !initialData.shipmentData.warehouse_id) {
+      setInitialData(prev => ({
+        ...prev,
+        shipmentData: { ...prev.shipmentData, warehouse_id: shipmentData.warehouse_id }
+      }));
+    }
+  }, [isEditMode, initialData, shipmentData.warehouse_id]);
 
   const fetchAllParts = async () => {
     try {
