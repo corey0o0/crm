@@ -559,6 +559,7 @@ export default function InventoryHistory() {
                 <Grid item xs={12} md={6}>
                   <TextField
                     fullWidth
+                    variant="standard"
                   label="거래 날짜"
                     type="date"
                     value={formData.date}
@@ -569,6 +570,7 @@ export default function InventoryHistory() {
                 <Grid item xs={12} md={6}>
                   <TextField
                     fullWidth
+                    variant="standard"
                     label="공통 메모"
                     value={formData.note}
                     onChange={(e) => setFormData(prev => ({ ...prev, note: e.target.value }))}
@@ -887,6 +889,7 @@ export default function InventoryHistory() {
                           <TextField
                             fullWidth
                             size="small"
+                            variant="standard"
                             type="date"
                             label="거래 날짜"
                             value={editFormData.date || ''}
@@ -898,6 +901,7 @@ export default function InventoryHistory() {
                           <TextField
                             fullWidth
                             size="small"
+                            variant="standard"
                             label="공통 메모"
                             value={editFormData.note || ''}
                             onChange={(e) => setEditFormData(prev => ({ ...prev, note: e.target.value }))}
@@ -958,6 +962,7 @@ export default function InventoryHistory() {
                             <Grid item xs={4} md={1.5}>
                               <TextField
                                 fullWidth
+                                variant="standard"
                                 label="수량"
                                 type="number"
                                 size="small"
@@ -1035,6 +1040,7 @@ export default function InventoryHistory() {
                             <Grid item xs={12} md={6}>
                               <TextField
                                 fullWidth
+                                variant="standard"
                                 label="메모"
                                 size="small"
                                 value={product.note}
@@ -1045,6 +1051,7 @@ export default function InventoryHistory() {
                             <Grid item xs={12} md={6}>
                               <TextField
                                 fullWidth
+                                variant="standard"
                                 label="개별 메모"
                                 size="small"
                                 value={product.additionalNote}
@@ -1151,6 +1158,7 @@ export default function InventoryHistory() {
                           <TextField
                             fullWidth
                             size="small"
+                            variant="standard"
                             type="date"
                             label="거래 날짜"
                             value={editFormData.date || ''}
@@ -1162,6 +1170,7 @@ export default function InventoryHistory() {
                           <TextField
                             fullWidth
                             size="small"
+                            variant="standard"
                             label="공통 메모"
                             value={editFormData.note || ''}
                             onChange={(e) => setEditFormData(prev => ({ ...prev, note: e.target.value }))}
@@ -1212,6 +1221,7 @@ export default function InventoryHistory() {
                             <Grid item xs={12} md={1.5}>
                               <TextField
                                 fullWidth
+                                variant="standard"
                                 label="수량"
                                 type="number"
                                 size="small"
@@ -1287,6 +1297,7 @@ export default function InventoryHistory() {
                             <Grid item xs={12} md={2}>
                               <TextField
                                 fullWidth
+                                variant="standard"
                                 label="메모"
                                 size="small"
                                 value={product.note}
@@ -1297,6 +1308,7 @@ export default function InventoryHistory() {
                             <Grid item xs={12} md={1.5}>
                               <TextField
                                 fullWidth
+                                variant="standard"
                                 label="개별 메모"
                                 size="small"
                                 value={product.additionalNote}
