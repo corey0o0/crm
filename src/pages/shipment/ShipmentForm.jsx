@@ -1867,27 +1867,27 @@ function ShipmentForm({ isManualB2B = false }) {
                       <TextField
                         type="number"
                         size="small"
-                        variant="outlined"
+                        variant="standard"
                         value={part.quantity}
                         onChange={(e) => handlePartQuantityChange(part.id, e.target.value)}
                         InputProps={{
-                          inputProps: { min: 1, style: { textAlign: 'right', padding: '4px 8px' } }
+                          inputProps: { min: 1, style: { textAlign: 'right' } }
                         }}
-                        sx={{ width: '70px' }}
+                        sx={{ width: '60px' }}
                       />
                     </TableCell>
                     <TableCell align="right">
                       <TextField
                         type="number"
                         size="small"
-                        variant="outlined"
+                        variant="standard"
                         value={part.price}
                         onChange={(e) => handlePriceChange(part.id, e.target.value)}
                         InputProps={{
-                          inputProps: { min: 0, style: { textAlign: 'right', padding: '4px 8px' } },
+                          inputProps: { min: 0, style: { textAlign: 'right' } },
                           endAdornment: <InputAdornment position="end">원</InputAdornment>
                         }}
-                        sx={{ width: '160px' }}
+                        sx={{ width: '140px' }}
                       />
                     </TableCell>
                     <TableCell align="right">{part.totalPrice?.toLocaleString() || calculateTotal(part).toLocaleString()}원</TableCell>
@@ -1895,9 +1895,10 @@ function ShipmentForm({ isManualB2B = false }) {
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
                         <Select
                           size="small"
+                          variant="standard"
                           value={part.status || '접수'}
                           onChange={(e) => handlePartStatusChange(part.id, e.target.value)}
-                          sx={{ minWidth: 90 }}
+                          sx={{ minWidth: 80, fontSize: '0.875rem' }}
                         >
                           {(() => {
                             const items = ['접수', '부품준비', '준비완료', '작업완료', '반품완료', '출고완료'];
