@@ -1719,22 +1719,6 @@ function ShipmentForm({ isManualB2B = false }) {
           </Grid>
 
           <Grid item xs={6} md={4}>
-            <FormControl fullWidth variant="standard">
-              <InputLabel>배송 방법</InputLabel>
-              <Select
-                name="delivery_method"
-                value={shipmentData.delivery_method}
-                onChange={handleChange}
-              >
-                <MenuItem value="택배">택배</MenuItem>
-                <MenuItem value="방문수령">방문수령</MenuItem>
-                <MenuItem value="퀵-선불">퀵-선불</MenuItem>
-                <MenuItem value="퀵-착불">퀵-착불</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-
-          <Grid item xs={6} md={4}>
             <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
               <DatePicker
                 label="출고일 *"
@@ -1748,6 +1732,22 @@ function ShipmentForm({ isManualB2B = false }) {
                 }}
               />
             </LocalizationProvider>
+          </Grid>
+
+          <Grid item xs={6} md={4}>
+            <FormControl fullWidth variant="standard">
+              <InputLabel>배송 방법</InputLabel>
+              <Select
+                name="delivery_method"
+                value={shipmentData.delivery_method}
+                onChange={handleChange}
+              >
+                <MenuItem value="택배">택배</MenuItem>
+                <MenuItem value="방문수령">방문수령</MenuItem>
+                <MenuItem value="퀵-선불">퀵-선불</MenuItem>
+                <MenuItem value="퀵-착불">퀵-착불</MenuItem>
+              </Select>
+            </FormControl>
           </Grid>
 
           <Grid item xs={6} md={4}>
