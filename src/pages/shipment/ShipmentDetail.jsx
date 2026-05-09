@@ -1343,7 +1343,7 @@ function ShipmentDetail() {
 
   return (
     <Box sx={{ maxWidth: '1200px', mx: 'auto', p: 2 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
         <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={handleBack}>
           목록으로
         </Button>
@@ -1416,24 +1416,23 @@ function ShipmentDetail() {
         </Box>
       </Box>
 
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h5" gutterBottom>
+      <Paper sx={{ p: 2.5, mb: 2, boxShadow: 'none', border: '1px solid #e0e0e0' }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5, pb: 0.5, borderBottom: '2px solid #1976d2' }}>
+          <Typography variant="subtitle1" fontWeight="bold">
             출고 상세 정보
           </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <Chip
               label={shipmentData.status}
               color={getStatusColor(shipmentData.status)}
-              sx={{ fontSize: '1rem', py: 0.5, height: 'auto' }}
+              sx={{ fontSize: '0.875rem', height: 28 }}
             />
             {!isEditing && (
-              <FormControl size="small" sx={{ minWidth: 120 }}>
+              <FormControl size="small" variant="standard" sx={{ minWidth: 100 }}>
                 <InputLabel>상태 변경</InputLabel>
                 <Select
                   value=""
                   onChange={(e) => handleStatusChange(e.target.value)}
-                  label="상태 변경"
                   disabled={saving}
                 >
                   {(() => {
@@ -1448,7 +1447,6 @@ function ShipmentDetail() {
                     }
                     
                     return items.map(status => {
-                      // 마스터 권한이 아니면 이전 상태로 되돌릴 수 없음
                       const isDisabled = !isMaster && STATUS_ORDER[status] < currentOrder;
                       return (
                         <MenuItem key={status} value={status} disabled={isDisabled}>
@@ -1463,12 +1461,10 @@ function ShipmentDetail() {
           </Box>
         </Box>
 
-        <Divider sx={{ mb: 3 }} />
-
-        <Grid container spacing={3}>
+        <Grid container spacing={2}>
           <Grid item xs={12} md={6}>
-            <Typography variant="h6" gutterBottom>고객 정보</Typography>
-            <Card variant="outlined" sx={{ mb: 2 }}>
+            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>고객 정보</Typography>
+            <Card variant="outlined" sx={{ mb: 1 }}>
               <CardContent>
                 <Typography variant="h6" sx={{ mb: 1, fontWeight: 'bold' }}>
                   {shipmentData.customer_name}
@@ -1485,7 +1481,7 @@ function ShipmentDetail() {
 
           <Grid item xs={12} md={6}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-              <Typography variant="h6">출고 정보</Typography>
+              <Typography variant="subtitle2" color="text.secondary">출고 정보</Typography>
               <Box sx={{ textAlign: 'right' }}>
                 <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                   출고 ID
@@ -1574,9 +1570,9 @@ function ShipmentDetail() {
         </Grid>
       </Paper>
 
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h6">
+      <Paper sx={{ p: 2.5, mb: 2, boxShadow: 'none', border: '1px solid #e0e0e0' }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5, pb: 0.5, borderBottom: '2px solid #1976d2' }}>
+          <Typography variant="subtitle1" fontWeight="bold">
             제품 정보
           </Typography>
           {shipmentParts.length > 0 && !isEditing && (
@@ -1643,24 +1639,24 @@ function ShipmentDetail() {
                               <TextField
                                 type="number"
                                 size="small"
-                                variant="outlined"
+                                variant="standard"
                                 value={part.quantity || 1}
                                 onChange={(e) => handleQuantityChange(part.id, e.target.value)}
                                 InputProps={{
-                                  inputProps: { min: 1, style: { textAlign: 'right', padding: '4px 8px' } }
+                                  inputProps: { min: 1, style: { textAlign: 'right' } }
                                 }}
-                                sx={{ width: '70px' }}
+                                sx={{ width: '60px' }}
                               />
                             </TableCell>
                             <TableCell align="right">
                               <TextField
                                 type="number"
                                 size="small"
-                                variant="outlined"
+                                variant="standard"
                                 value={part.price || 0}
                                 onChange={(e) => handlePriceChange(part.id, e.target.value)}
                                 InputProps={{
-                                  inputProps: { min: 0, style: { textAlign: 'right', padding: '4px 8px' } },
+                                  inputProps: { min: 0, style: { textAlign: 'right' } },
                                   endAdornment: <InputAdornment position="end">원</InputAdornment>
                                 }}
                                 sx={{ width: '120px' }}
@@ -1673,9 +1669,10 @@ function ShipmentDetail() {
                               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
                                 <Select
                                   size="small"
+                                  variant="standard"
                                   value={part.status || '접수'}
                                   onChange={(e) => handleItemStatusChange(part, e.target.value)}
-                                  sx={{ width: '100px', fontSize: '0.875rem' }}
+                                  sx={{ width: '90px', fontSize: '0.875rem' }}
                                 >
                                   {(() => {
                                     const baseItems = isInspectionEnabled
@@ -1797,11 +1794,12 @@ function ShipmentDetail() {
                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
                               <Select
                                 size="small"
+                                variant="standard"
                                 value={part.status || '접수'}
                                 onChange={(e) => handleItemStatusChange(part, e.target.value)}
                                 disabled={saving}
                                 sx={{ 
-                                  width: '100px', 
+                                  width: '90px', 
                                   fontSize: '0.875rem',
                                   '.MuiSelect-select': { 
                                     py: 0.5, 
@@ -1899,11 +1897,11 @@ function ShipmentDetail() {
       </Paper>
 
       {shipmentData.note && (
-        <Paper sx={{ p: 3 }}>
-          <Typography variant="h6" gutterBottom>
+        <Paper sx={{ p: 2.5, boxShadow: 'none', border: '1px solid #e0e0e0' }}>
+          <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 1, pb: 0.5, borderBottom: '2px solid #1976d2' }}>
             메모
           </Typography>
-          <Box sx={{ p: 2, bgcolor: '#f5f5f5', borderRadius: 1 }}>
+          <Box sx={{ p: 1.5, bgcolor: '#f5f5f5', borderRadius: 1 }}>
             <Typography variant="body1" whiteSpace="pre-wrap">
               {shipmentData.note.replace(/\[판매처: .*?\]/, '')}
             </Typography>
