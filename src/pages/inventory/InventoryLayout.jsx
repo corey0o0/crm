@@ -1350,8 +1350,26 @@ function InventoryLayout() {
       const product = item.product;
       
       if (!item.error && product) {
+        // 출발지/목적지 텍스트를 내부 ID로 변환
+        const resolveLocationId = (locText) => {
+          if (!locText || locText === '' || locText === '외부') return '외부';
+          const t = locText.trim();
+          if (t === '재고 조정' || t === '재고조정' || t === 'adjustment') return 'adjustment';
+          // 창고 이름으로 매칭
+          const wh = warehouses.find(w => w.name === t || w.id === t);
+          if (wh) return wh.id;
+          // 대리점 이름으로 매칭
+          const dl = dealers.find(d => d.name === t || d.id === t);
+          if (dl) return dl.id;
+          return locText; // 매칭 안 되면 원본 텍스트 유지
+        };
+
+        const fromLoc = resolveLocationId(item.fromLocation);
+        const toLoc = resolveLocationId(item.toLocation);
+
         // 출발지/목적지로 입고/출고 판단
-        const isInbound = item.fromLocation === '외부' || !item.fromLocation || item.fromLocation === '';
+        const fromIsWarehouse = warehouses.find(w => w.id === fromLoc);
+        const isInbound = fromLoc === '외부' || fromLoc === 'adjustment' || (!fromIsWarehouse && !item.fromLocation);
         const transactionType = isInbound ? 'in' : 'out';
         
         if (isInbound) inboundCount++;
@@ -1366,8 +1384,8 @@ function InventoryLayout() {
           productCode: product.code,
           productSupplier: product.supplier || '-',
           quantity: item.quantity,
-          fromLocation: item.fromLocation || (isInbound ? '외부' : ''),
-          toLocation: item.toLocation,
+          fromLocation: fromLoc || (isInbound ? '외부' : ''),
+          toLocation: toLoc,
           date: formData.date,
           note: item.note || formData.note,
           additionalNote: item.additionalNote || '',
