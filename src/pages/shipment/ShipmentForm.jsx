@@ -1592,8 +1592,13 @@ function ShipmentForm({ isManualB2B = false }) {
           <Grid item xs={6} md={3}>
             <Autocomplete
               freeSolo
-              options={agencies.map(a => a.name)}
-              value={shipmentData.customer_name || ''}
+              options={agencies}
+              getOptionLabel={(option) => typeof option === 'string' ? option : option.name || ''}
+              isOptionEqualToValue={(option, value) => option.name === (typeof value === 'string' ? value : value?.name)}
+              filterOptions={(options, { inputValue }) => 
+                options.filter(o => o.name?.toLowerCase().includes(inputValue.toLowerCase()))
+              }
+              inputValue={shipmentData.customer_name || ''}
               onInputChange={(e, newValue) => {
                 const typedValue = newValue || '';
                 const matchedAgency = agencies.find(a => a.name === typedValue);
@@ -1609,11 +1614,11 @@ function ShipmentForm({ isManualB2B = false }) {
               }}
               onChange={(e, newValue) => {
                 if (newValue) {
-                  // 목록에서 대리점을 클릭/선택한 경우 거래처 자동 연동
-                  const matchedAgency = agencies.find(a => a.name === newValue);
+                  const name = typeof newValue === 'string' ? newValue : newValue.name;
+                  const matchedAgency = agencies.find(a => a.name === name);
                   setShipmentData(prev => ({ 
                     ...prev, 
-                    customer_name: newValue,
+                    customer_name: name,
                     sales_channel: matchedAgency ? matchedAgency.name : prev.sales_channel,
                     customer_phone: matchedAgency && (matchedAgency.mobile || matchedAgency.phone) 
                       ? (matchedAgency.mobile || matchedAgency.phone) 
@@ -1621,6 +1626,11 @@ function ShipmentForm({ isManualB2B = false }) {
                   }));
                 }
               }}
+              renderOption={(props, option) => (
+                <li {...props} key={option.id || option.name}>
+                  {option.name}
+                </li>
+              )}
               renderInput={(params) => (
                 <TextField
                   {...params}
