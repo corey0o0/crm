@@ -1682,6 +1682,7 @@ function ServiceList() {
       id: 'product_name', 
       label: '기종',
       sortable: true,
+      width: '200px',
       render: (row) => (
         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, minWidth: 0 }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -3698,7 +3699,7 @@ function ServiceList() {
             transition: 'background-color 0.3s ease',
           },
           '& th, & td': { 
-            py: 0.5, 
+            py: '13px', 
             px: 1 
           }
         }}

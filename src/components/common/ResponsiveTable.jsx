@@ -15,7 +15,7 @@ import {
   Paper
 } from '@mui/material';
 
-function ResponsiveTable({ columns, data, renderMobileCard, onRowClick, rowSx = {} }) {
+function ResponsiveTable({ columns, data, renderMobileCard, onRowClick, rowSx = {}, sx = {} }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -43,7 +43,7 @@ function ResponsiveTable({ columns, data, renderMobileCard, onRowClick, rowSx = 
 
   return (
     <TableContainer component={Paper}>
-      <Table sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
+      <Table sx={[{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }, ...(Array.isArray(sx) ? sx : [sx])]}>
         <TableHead>
           <TableRow>
             {columns.map((column) => (
@@ -51,7 +51,10 @@ function ResponsiveTable({ columns, data, renderMobileCard, onRowClick, rowSx = 
                 key={column.id}
                 sx={{
                   backgroundColor: theme.palette.grey[50],
-                  fontWeight: 'bold'
+                  fontWeight: 'bold',
+                  ...(column.width && { width: column.width, minWidth: column.width }),
+                  ...(column.minWidth && { minWidth: column.minWidth }),
+                  ...(column.maxWidth && { maxWidth: column.maxWidth })
                 }}
               >
                 {column.label}
@@ -74,7 +77,11 @@ function ResponsiveTable({ columns, data, renderMobileCard, onRowClick, rowSx = 
               }}
             >
               {columns.map((column) => (
-                <TableCell key={column.id}>
+                <TableCell key={column.id} sx={{
+                  ...(column.width && { width: column.width, minWidth: column.width }),
+                  ...(column.minWidth && { minWidth: column.minWidth }),
+                  ...(column.maxWidth && { maxWidth: column.maxWidth })
+                }}>
                   {column.render ? column.render(row) : row[column.id]}
                 </TableCell>
               ))}

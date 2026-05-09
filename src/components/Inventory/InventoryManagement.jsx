@@ -2591,7 +2591,7 @@ function InventoryManagement() {
           <Tab value={4} label="박스 관리" />
           {/* <Tab value={5} label="입출고 통계" /> */}
           <Tab value={6} label="창고/대리점 관리" />
-          {/* <Tab value={7} label="카페24 재고 비교" /> */}
+          <Tab value={7} label="카페24 재고 비교" />
         </Tabs>
       </Paper>
 

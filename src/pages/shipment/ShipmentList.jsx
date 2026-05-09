@@ -1754,7 +1754,7 @@ function ShipmentList() {
             </Typography>
           ) : (
             <TableContainer component={Paper} sx={{ width: '100%', overflowX: 'auto' }}>
-              <Table sx={{ minWidth: 650, width: '100%', tableLayout: 'fixed', border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
+              <Table sx={{ minWidth: 650, width: '100%', tableLayout: 'fixed', border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)', py: '13px', px: 1 } }}>
                 <TableHead>
                   <TableRow>
                     <TableCell width="8%">주문일자</TableCell>
