@@ -925,147 +925,134 @@ export default function InventoryHistory() {
                         </Button>
                       </Box>
                       
-                      {editProducts.map((product, index) => (
-                        <Card key={index} sx={{ mb: 2, p: 2, border: '1px solid #e0e0e0' }}>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-                            <Typography variant="caption" color="text.secondary" fontWeight="bold">상품 #{index + 1}</Typography>
-                            <IconButton
-                              color="error"
-                              onClick={() => removeEditProduct(index)}
-                              size="small"
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </Box>
-                          <Grid container spacing={2} alignItems="center">
-                            <Grid item xs={12} md={5}>
-                              <Autocomplete
-                                size="small"
-                                options={products}
-                                getOptionLabel={(option) => option ? `${option.name} (${option.code})${option.barcode ? ` [${option.barcode}]` : ''}` : ''}
-                                value={product.product}
-                                onChange={(event, newValue) => updateEditProduct(index, 'product', newValue)}
-                                isOptionEqualToValue={(option, value) => option?.id === value?.id}
-                                renderInput={(params) => (
-                                  <TextField {...params} variant="standard" label="상품 선택" placeholder="상품을 선택하세요" />
-                                )}
-                                renderOption={(props, option) => (
-                                  <Box component="li" {...props}>
-                                    <Box>
-                                      <Typography variant="body2" fontWeight="medium">
-                                        {option.name}
-                                      </Typography>
-                                      <Typography variant="caption" color="text.secondary">
-                                        {option.code} | {option.supplier} | 재고: {option.stock}개
-                                      </Typography>
-                                    </Box>
-                                  </Box>
-                                )}
-                              />
-                            </Grid>
-                            <Grid item xs={4} md={1.5}>
-                              <TextField
-                                fullWidth
-                                variant="standard"
-                                label="수량"
-                                type="number"
-                                size="small"
-                                value={product.quantity}
-                                onChange={(e) => updateEditProduct(index, 'quantity', parseInt(e.target.value, 10) || 0)}
-                                inputProps={{ min: 1 }}
-                              />
-                            </Grid>
-                            <Grid item xs={4} md={2.75}>
-                              <Autocomplete
-                                size="small"
-                                options={[
-                                  ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
-                                  ...dealers.map(d => ({ ...d, type: 'dealer' }))
-                                ]}
-                                getOptionLabel={(option) => option ? `${option.name}` : ''}
-                                value={(() => {
-                                  const w = warehouses.find(w => w.id === product.fromLocation);
-                                  if (w) return { ...w, type: 'warehouse' };
-                                  const d = dealers.find(d => d.id === product.fromLocation);
-                                  if (d) return { ...d, type: 'dealer' };
-                                  return null;
-                                })()}
-                                onChange={(event, value) => updateEditProduct(index, 'fromLocation', value?.id || '')}
-                                isOptionEqualToValue={(option, value) => option?.id === value?.id}
-                                renderInput={(params) => (
-                                  <TextField {...params} variant="standard" label="출발지" placeholder="출발지 선택" />
-                                )}
-                                renderOption={(props, option) => (
-                                  <Box component="li" {...props}>
-                                    <Box>
-                                      <Typography variant="body2">{option.name}</Typography>
-                                      <Typography variant="caption" color="text.secondary">
-                                        {option.type === 'warehouse' ? '창고' : '대리점'}{option.location ? ` • ${option.location}` : ''}
-                                      </Typography>
-                                    </Box>
-                                  </Box>
-                                )}
-                              />
-                            </Grid>
-                            <Grid item xs={4} md={2.75}>
-                              <Autocomplete
-                                size="small"
-                                options={[
-                                  ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
-                                  ...dealers.map(d => ({ ...d, type: 'dealer' }))
-                                ]}
-                                getOptionLabel={(option) => option ? `${option.name}` : ''}
-                                value={(() => {
-                                  const w = warehouses.find(w => w.id === product.toLocation);
-                                  if (w) return { ...w, type: 'warehouse' };
-                                  const d = dealers.find(d => d.id === product.toLocation);
-                                  if (d) return { ...d, type: 'dealer' };
-                                  return null;
-                                })()}
-                                onChange={(event, value) => updateEditProduct(index, 'toLocation', value?.id || '')}
-                                isOptionEqualToValue={(option, value) => option?.id === value?.id}
-                                renderInput={(params) => (
-                                  <TextField {...params} variant="standard" label="목적지" placeholder="목적지 선택" />
-                                )}
-                                renderOption={(props, option) => (
-                                  <Box component="li" {...props}>
-                                    <Box>
-                                      <Typography variant="body2">{option.name}</Typography>
-                                      <Typography variant="caption" color="text.secondary">
-                                        {option.type === 'warehouse' ? '창고' : '대리점'}{option.location ? ` • ${option.location}` : ''}
-                                      </Typography>
-                                    </Box>
-                                  </Box>
-                                )}
-                              />
-                            </Grid>
-                          </Grid>
-                          <Grid container spacing={2} sx={{ mt: 0.5 }}>
-                            <Grid item xs={12} md={6}>
-                              <TextField
-                                fullWidth
-                                variant="standard"
-                                label="메모"
-                                size="small"
-                                value={product.note}
-                                onChange={(e) => updateEditProduct(index, 'note', e.target.value)}
-                                placeholder="메모"
-                              />
-                            </Grid>
-                            <Grid item xs={12} md={6}>
-                              <TextField
-                                fullWidth
-                                variant="standard"
-                                label="개별 메모"
-                                size="small"
-                                value={product.additionalNote}
-                                onChange={(e) => updateEditProduct(index, 'additionalNote', e.target.value)}
-                                placeholder="개별 메모"
-                              />
-                            </Grid>
-                          </Grid>
-                        </Card>
-                      ))}
+                      <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+                        <Table size="small">
+                          <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
+                            <TableRow>
+                              <TableCell sx={{ minWidth: 250, fontWeight: 'bold' }}>상품 선택 (필수)</TableCell>
+                              <TableCell sx={{ width: 80, fontWeight: 'bold' }}>수량</TableCell>
+                              <TableCell sx={{ minWidth: 150, fontWeight: 'bold' }}>출발지</TableCell>
+                              <TableCell sx={{ minWidth: 150, fontWeight: 'bold' }}>목적지</TableCell>
+                              <TableCell sx={{ minWidth: 130, fontWeight: 'bold' }}>메모</TableCell>
+                              <TableCell sx={{ minWidth: 130, fontWeight: 'bold' }}>개별 메모</TableCell>
+                              <TableCell sx={{ width: 50, fontWeight: 'bold' }}>삭제</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {editProducts.map((product, index) => (
+                              <TableRow key={index}>
+                                <TableCell sx={{ p: 1 }}>
+                                  <Autocomplete
+                                    size="small"
+                                    options={products}
+                                    getOptionLabel={(option) => option ? `${option.name} (${option.code})${option.barcode ? ` [${option.barcode}]` : ''}` : ''}
+                                    value={product.product}
+                                    onChange={(event, newValue) => updateEditProduct(index, 'product', newValue)}
+                                    isOptionEqualToValue={(option, value) => option?.id === value?.id}
+                                    renderInput={(params) => (
+                                      <TextField {...params} variant="standard" placeholder="상품 검색" />
+                                    )}
+                                    renderOption={(props, option) => (
+                                      <Box component="li" {...props}>
+                                        <Box>
+                                          <Typography variant="body2" fontWeight="medium">
+                                            {option.name}
+                                          </Typography>
+                                          <Typography variant="caption" color="text.secondary">
+                                            {option.code} | {option.supplier} | 재고: {option.stock}개
+                                          </Typography>
+                                        </Box>
+                                      </Box>
+                                    )}
+                                  />
+                                </TableCell>
+                                <TableCell sx={{ p: 1 }}>
+                                  <TextField
+                                    fullWidth
+                                    variant="standard"
+                                    type="number"
+                                    size="small"
+                                    value={product.quantity}
+                                    onChange={(e) => updateEditProduct(index, 'quantity', parseInt(e.target.value, 10) || 0)}
+                                    inputProps={{ min: 1 }}
+                                  />
+                                </TableCell>
+                                <TableCell sx={{ p: 1 }}>
+                                  <Autocomplete
+                                    size="small"
+                                    options={[
+                                      ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
+                                      ...dealers.map(d => ({ ...d, type: 'dealer' }))
+                                    ]}
+                                    getOptionLabel={(option) => option ? `${option.name}` : ''}
+                                    value={(() => {
+                                      const w = warehouses.find(w => w.id === product.fromLocation);
+                                      if (w) return { ...w, type: 'warehouse' };
+                                      const d = dealers.find(d => d.id === product.fromLocation);
+                                      if (d) return { ...d, type: 'dealer' };
+                                      return null;
+                                    })()}
+                                    onChange={(event, value) => updateEditProduct(index, 'fromLocation', value?.id || '')}
+                                    isOptionEqualToValue={(option, value) => option?.id === value?.id}
+                                    renderInput={(params) => (
+                                      <TextField {...params} variant="standard" placeholder="출발지 선택" />
+                                    )}
+                                  />
+                                </TableCell>
+                                <TableCell sx={{ p: 1 }}>
+                                  <Autocomplete
+                                    size="small"
+                                    options={[
+                                      ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
+                                      ...dealers.map(d => ({ ...d, type: 'dealer' }))
+                                    ]}
+                                    getOptionLabel={(option) => option ? `${option.name}` : ''}
+                                    value={(() => {
+                                      const w = warehouses.find(w => w.id === product.toLocation);
+                                      if (w) return { ...w, type: 'warehouse' };
+                                      const d = dealers.find(d => d.id === product.toLocation);
+                                      if (d) return { ...d, type: 'dealer' };
+                                      return null;
+                                    })()}
+                                    onChange={(event, value) => updateEditProduct(index, 'toLocation', value?.id || '')}
+                                    isOptionEqualToValue={(option, value) => option?.id === value?.id}
+                                    renderInput={(params) => (
+                                      <TextField {...params} variant="standard" placeholder="목적지 선택" />
+                                    )}
+                                  />
+                                </TableCell>
+                                <TableCell sx={{ p: 1 }}>
+                                  <TextField
+                                    fullWidth
+                                    variant="standard"
+                                    size="small"
+                                    value={product.note}
+                                    onChange={(e) => updateEditProduct(index, 'note', e.target.value)}
+                                  />
+                                </TableCell>
+                                <TableCell sx={{ p: 1 }}>
+                                  <TextField
+                                    fullWidth
+                                    variant="standard"
+                                    size="small"
+                                    value={product.additionalNote}
+                                    onChange={(e) => updateEditProduct(index, 'additionalNote', e.target.value)}
+                                  />
+                                </TableCell>
+                                <TableCell sx={{ p: 1, textAlign: 'center' }}>
+                                  <IconButton
+                                    color="error"
+                                    onClick={() => removeEditProduct(index)}
+                                    size="small"
+                                  >
+                                    <DeleteIcon fontSize="small" />
+                                  </IconButton>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
                       
                       <Box sx={{ mt: 2, p: 2, backgroundColor: '#f5f5f5', borderRadius: 1 }}>
                         <Typography variant="body2" color="text.secondary">
@@ -1194,144 +1181,134 @@ export default function InventoryHistory() {
                         </Button>
                       </Box>
                       
-                      {editProducts.map((product, index) => (
-                        <Card key={index} sx={{ mb: 2, p: 2 }}>
-                          <Grid container spacing={2} alignItems="center">
-                            <Grid item xs={12} md={3}>
-                              <Autocomplete
-                                size="small"
-                                options={products}
-                                getOptionLabel={(option) => option ? `${option.name} (${option.code})${option.barcode ? ` [바코드:${option.barcode}]` : ''}` : ''}
-                                value={product.product}
-                                onChange={(event, newValue) => updateEditProduct(index, 'product', newValue)}
-                                isOptionEqualToValue={(option, value) => option?.id === value?.id}
-                                renderInput={(params) => (
-                                  <TextField {...params} variant="standard" label="상품 선택" placeholder="상품을 선택하세요" />
-                                )}
-                                renderOption={(props, option) => (
-                                  <Box component="li" {...props}>
-                                    <Box>
-                                      <Typography variant="body2" fontWeight="medium">
-                                        {option.name}
-                                      </Typography>
-                                      <Typography variant="caption" color="text.secondary">
-                                        {option.code} | {option.supplier} | 재고: {option.stock}개
-                                      </Typography>
-                                    </Box>
-                                  </Box>
-                                )}
-                              />
-                            </Grid>
-                            <Grid item xs={12} md={1.5}>
-                              <TextField
-                                fullWidth
-                                variant="standard"
-                                label="수량"
-                                type="number"
-                                size="small"
-                                value={product.quantity}
-                                onChange={(e) => updateEditProduct(index, 'quantity', parseInt(e.target.value, 10) || 0)}
-                                inputProps={{ min: 1 }}
-                              />
-                            </Grid>
-                            <Grid item xs={12} md={2}>
-                              <Autocomplete
-                                size="small"
-                                options={[
-                                  ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
-                                  ...dealers.map(d => ({ ...d, type: 'dealer' }))
-                                ]}
-                                getOptionLabel={(option) => option ? `${option.name} (${option.id})` : ''}
-                                value={(() => {
-                                  const w = warehouses.find(w => w.id === product.fromLocation);
-                                  if (w) return { ...w, type: 'warehouse' };
-                                  const d = dealers.find(d => d.id === product.fromLocation);
-                                  if (d) return { ...d, type: 'dealer' };
-                                  return null;
-                                })()}
-                                onChange={(event, value) => updateEditProduct(index, 'fromLocation', value?.id || '')}
-                                isOptionEqualToValue={(option, value) => option?.id === value?.id}
-                                renderInput={(params) => (
-                                  <TextField {...params} variant="standard" label="출발지" placeholder="출발지 선택" />
-                                )}
-                                renderOption={(props, option) => (
-                                  <Box component="li" {...props}>
-                                    <Box>
-                                      <Typography variant="body2">{option.name} ({option.id})</Typography>
-                                      <Typography variant="caption" color="text.secondary">
-                                        {option.type === 'warehouse' ? '창고' : '대리점'}{option.location ? ` • ${option.location}` : ''}
-                                      </Typography>
-                                    </Box>
-                                  </Box>
-                                )}
-                              />
-                            </Grid>
-                            <Grid item xs={12} md={2}>
-                              <Autocomplete
-                                size="small"
-                                options={[
-                                  ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
-                                  ...dealers.map(d => ({ ...d, type: 'dealer' }))
-                                ]}
-                                getOptionLabel={(option) => option ? `${option.name} (${option.id})` : ''}
-                                value={(() => {
-                                  const w = warehouses.find(w => w.id === product.toLocation);
-                                  if (w) return { ...w, type: 'warehouse' };
-                                  const d = dealers.find(d => d.id === product.toLocation);
-                                  if (d) return { ...d, type: 'dealer' };
-                                  return null;
-                                })()}
-                                onChange={(event, value) => updateEditProduct(index, 'toLocation', value?.id || '')}
-                                isOptionEqualToValue={(option, value) => option?.id === value?.id}
-                                renderInput={(params) => (
-                                  <TextField {...params} variant="standard" label="목적지" placeholder="목적지 선택" />
-                                )}
-                                renderOption={(props, option) => (
-                                  <Box component="li" {...props}>
-                                    <Box>
-                                      <Typography variant="body2">{option.name} ({option.id})</Typography>
-                                      <Typography variant="caption" color="text.secondary">
-                                        {option.type === 'warehouse' ? '창고' : '대리점'}{option.location ? ` • ${option.location}` : ''}
-                                      </Typography>
-                                    </Box>
-                                  </Box>
-                                )}
-                              />
-                            </Grid>
-                            <Grid item xs={12} md={2}>
-                              <TextField
-                                fullWidth
-                                variant="standard"
-                                label="메모"
-                                size="small"
-                                value={product.note}
-                                onChange={(e) => updateEditProduct(index, 'note', e.target.value)}
-                                placeholder="메모"
-                              />
-                            </Grid>
-                            <Grid item xs={12} md={1.5}>
-                              <TextField
-                                fullWidth
-                                variant="standard"
-                                label="개별 메모"
-                                size="small"
-                                value={product.additionalNote}
-                                onChange={(e) => updateEditProduct(index, 'additionalNote', e.target.value)}
-                                placeholder="개별 메모"
-                              />
-                            </Grid>
-                            <Grid item xs={12} md={1}>
-                              <IconButton
-                                color="error"
-                                onClick={() => removeEditProduct(index)}
-                                size="small"
-                              >
-                                <DeleteIcon />
-                              </IconButton>
-                            </Grid>
-                          </Grid>
-                        </Card>
-                      ))}
+                      <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+                        <Table size="small">
+                          <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
+                            <TableRow>
+                              <TableCell sx={{ minWidth: 250, fontWeight: 'bold' }}>상품 선택 (필수)</TableCell>
+                              <TableCell sx={{ width: 80, fontWeight: 'bold' }}>수량</TableCell>
+                              <TableCell sx={{ minWidth: 150, fontWeight: 'bold' }}>출발지</TableCell>
+                              <TableCell sx={{ minWidth: 150, fontWeight: 'bold' }}>목적지</TableCell>
+                              <TableCell sx={{ minWidth: 130, fontWeight: 'bold' }}>메모</TableCell>
+                              <TableCell sx={{ minWidth: 130, fontWeight: 'bold' }}>개별 메모</TableCell>
+                              <TableCell sx={{ width: 50, fontWeight: 'bold' }}>삭제</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {editProducts.map((product, index) => (
+                              <TableRow key={index}>
+                                <TableCell sx={{ p: 1 }}>
+                                  <Autocomplete
+                                    size="small"
+                                    options={products}
+                                    getOptionLabel={(option) => option ? `${option.name} (${option.code})${option.barcode ? ` [${option.barcode}]` : ''}` : ''}
+                                    value={product.product}
+                                    onChange={(event, newValue) => updateEditProduct(index, 'product', newValue)}
+                                    isOptionEqualToValue={(option, value) => option?.id === value?.id}
+                                    renderInput={(params) => (
+                                      <TextField {...params} variant="standard" placeholder="상품 검색" />
+                                    )}
+                                    renderOption={(props, option) => (
+                                      <Box component="li" {...props}>
+                                        <Box>
+                                          <Typography variant="body2" fontWeight="medium">
+                                            {option.name}
+                                          </Typography>
+                                          <Typography variant="caption" color="text.secondary">
+                                            {option.code} | {option.supplier} | 재고: {option.stock}개
+                                          </Typography>
+                                        </Box>
+                                      </Box>
+                                    )}
+                                  />
+                                </TableCell>
+                                <TableCell sx={{ p: 1 }}>
+                                  <TextField
+                                    fullWidth
+                                    variant="standard"
+                                    type="number"
+                                    size="small"
+                                    value={product.quantity}
+                                    onChange={(e) => updateEditProduct(index, 'quantity', parseInt(e.target.value, 10) || 0)}
+                                    inputProps={{ min: 1 }}
+                                  />
+                                </TableCell>
+                                <TableCell sx={{ p: 1 }}>
+                                  <Autocomplete
+                                    size="small"
+                                    options={[
+                                      ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
+                                      ...dealers.map(d => ({ ...d, type: 'dealer' }))
+                                    ]}
+                                    getOptionLabel={(option) => option ? `${option.name}` : ''}
+                                    value={(() => {
+                                      const w = warehouses.find(w => w.id === product.fromLocation);
+                                      if (w) return { ...w, type: 'warehouse' };
+                                      const d = dealers.find(d => d.id === product.fromLocation);
+                                      if (d) return { ...d, type: 'dealer' };
+                                      return null;
+                                    })()}
+                                    onChange={(event, value) => updateEditProduct(index, 'fromLocation', value?.id || '')}
+                                    isOptionEqualToValue={(option, value) => option?.id === value?.id}
+                                    renderInput={(params) => (
+                                      <TextField {...params} variant="standard" placeholder="출발지 선택" />
+                                    )}
+                                  />
+                                </TableCell>
+                                <TableCell sx={{ p: 1 }}>
+                                  <Autocomplete
+                                    size="small"
+                                    options={[
+                                      ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
+                                      ...dealers.map(d => ({ ...d, type: 'dealer' }))
+                                    ]}
+                                    getOptionLabel={(option) => option ? `${option.name}` : ''}
+                                    value={(() => {
+                                      const w = warehouses.find(w => w.id === product.toLocation);
+                                      if (w) return { ...w, type: 'warehouse' };
+                                      const d = dealers.find(d => d.id === product.toLocation);
+                                      if (d) return { ...d, type: 'dealer' };
+                                      return null;
+                                    })()}
+                                    onChange={(event, value) => updateEditProduct(index, 'toLocation', value?.id || '')}
+                                    isOptionEqualToValue={(option, value) => option?.id === value?.id}
+                                    renderInput={(params) => (
+                                      <TextField {...params} variant="standard" placeholder="목적지 선택" />
+                                    )}
+                                  />
+                                </TableCell>
+                                <TableCell sx={{ p: 1 }}>
+                                  <TextField
+                                    fullWidth
+                                    variant="standard"
+                                    size="small"
+                                    value={product.note}
+                                    onChange={(e) => updateEditProduct(index, 'note', e.target.value)}
+                                  />
+                                </TableCell>
+                                <TableCell sx={{ p: 1 }}>
+                                  <TextField
+                                    fullWidth
+                                    variant="standard"
+                                    size="small"
+                                    value={product.additionalNote}
+                                    onChange={(e) => updateEditProduct(index, 'additionalNote', e.target.value)}
+                                  />
+                                </TableCell>
+                                <TableCell sx={{ p: 1, textAlign: 'center' }}>
+                                  <IconButton
+                                    color="error"
+                                    onClick={() => removeEditProduct(index)}
+                                    size="small"
+                                  >
+                                    <DeleteIcon fontSize="small" />
+                                  </IconButton>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
                       
                       <Box sx={{ mt: 2, p: 2, backgroundColor: '#f5f5f5', borderRadius: 1 }}>
                         <Typography variant="body2" color="text.secondary">
