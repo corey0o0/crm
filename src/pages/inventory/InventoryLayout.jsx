@@ -1228,7 +1228,12 @@ function InventoryLayout() {
         const getColVal = (row, ...keys) => {
           for (const key of keys) {
             if (colMap[key] && row.values[colMap[key]] !== undefined) {
-              return String(row.values[colMap[key]]);
+              const raw = row.values[colMap[key]];
+              // 숫자 바코드가 과학적 표기법(8.80925e+12)으로 변환되는 것 방지
+              if (typeof raw === 'number') {
+                return raw.toFixed(0);
+              }
+              return String(raw);
             }
           }
           return '';
@@ -1276,7 +1281,10 @@ function InventoryLayout() {
           product = products.find(p => {
             const dbCode = String(p.code || '').replace(/\s+/g, '').toLowerCase();
             const dbBarcode = String(p.barcode || '').replace(/\s+/g, '').toLowerCase();
-            return (dbCode && dbCode === code) || (dbBarcode && dbBarcode === code);
+            // 바코드 비교 시 앞뒤 0 차이 등도 고려 (숫자로 비교)
+            const numericMatch = dbBarcode && !isNaN(code) && !isNaN(dbBarcode) && 
+                                 parseInt(code, 10) === parseInt(dbBarcode, 10);
+            return (dbCode && dbCode === code) || (dbBarcode && dbBarcode === code) || numericMatch;
           });
           if (product) break;
         }
@@ -2554,15 +2562,15 @@ function InventoryLayout() {
                   }}
                   value={(() => {
                     if (batchFromLocation === 'adjustment') return { id: 'adjustment', name: '재고 조정', type: 'external' };
-                    if (!batchFromLocation || batchFromLocation === '') return { id: '', name: '외부 (신규입고)', type: 'external' };
+                    if (!batchFromLocation || batchFromLocation === '') return null;
                     const warehouse = warehouses.find(w => w.id === batchFromLocation);
                     if (warehouse) return { ...warehouse, type: 'warehouse' };
                     const dealer = dealers.find(d => d.id === batchFromLocation);
                     if (dealer) return { ...dealer, type: 'dealer' };
                     return null;
                   })()}
-                  onChange={(event, value) => setBatchFromLocation(value?.id || '')}
-                  renderInput={(params) => <TextField {...params} label="일괄 출발지" size="small" />}
+                  onChange={(event, value) => setBatchFromLocation(value?.id ?? '')}
+                  renderInput={(params) => <TextField {...params} label="일괄 출발지" size="small" placeholder="출발지 선택" />}
                   isOptionEqualToValue={(option, value) => option?.id === value?.id}
                 />
                 <Autocomplete
@@ -2677,15 +2685,15 @@ function InventoryLayout() {
                           }}
                           value={(() => {
                             if (product.fromLocation === 'adjustment') return { id: 'adjustment', name: '재고 조정', type: 'external' };
-                            if (!product.fromLocation || product.fromLocation === '') return { id: '', name: '외부 (신규입고)', type: 'external' };
+                            if (!product.fromLocation || product.fromLocation === '') return null;
                             const warehouse = warehouses.find(w => w.id === product.fromLocation);
                             if (warehouse) return { ...warehouse, type: 'warehouse' };
                             const dealer = dealers.find(d => d.id === product.fromLocation);
                             if (dealer) return { ...dealer, type: 'dealer' };
                             return null;
                           })()}
-                          onChange={(event, value) => updateIoProductRow(product.id, 'fromLocation', value?.id || '')}
-                          renderInput={(params) => <TextField {...params} size="small" fullWidth />}
+                          onChange={(event, value) => updateIoProductRow(product.id, 'fromLocation', value?.id ?? '')}
+                          renderInput={(params) => <TextField {...params} size="small" fullWidth placeholder="출발지 선택" />}
                           isOptionEqualToValue={(option, value) => option?.id === value?.id}
                         />
                       </TableCell>
