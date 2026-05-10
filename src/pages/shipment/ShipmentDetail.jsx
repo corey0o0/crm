@@ -539,8 +539,9 @@ function ShipmentDetail() {
 
     setLoading(true);
     try {
-      // 1. 재고 먼저 복구 (출고완료 상태였을 경우)
-      if (shipmentData.status === '출고완료') {
+      // 1. 재고 차감 대상 상태였을 경우 복구
+      const deductedStatuses = ['출고완료', '작업완료'];
+      if (deductedStatuses.includes(shipmentData.status)) {
         const revertResult = await processShipmentRevert(id, shipmentData.brand);
         if (!revertResult.success) {
            throw new Error(`출고 취소로 인한 재고 복구 중 오류: ${revertResult.message}`);

@@ -555,13 +555,30 @@ function ShipmentList() {
     try {
       setLoading(true);
 
-      if (selectedShipment.status === '출고완료') {
+      // 재고 차감 대상 상태인 경우 복구 시도
+      const deductedStatuses = ['출고완료', '작업완료'];
+      if (deductedStatuses.includes(selectedShipment.status)) {
         const revertResult = await processShipmentRevert(selectedShipment.id, selectedShipment.brand);
         if (!revertResult.success) {
           throw new Error('재고 복구 중 오류 발생: ' + revertResult.message);
         }
       }
 
+      // 관련 부품 데이터 삭제
+      const { error: partsError } = await supabase
+        .from('shipment_parts')
+        .delete()
+        .eq('shipment_id', selectedShipment.id);
+      if (partsError) console.error('부품 데이터 삭제 오류:', partsError);
+
+      // 관련 트랜잭션 데이터 삭제
+      const { error: txError } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('group_id', selectedShipment.id);
+      if (txError) console.error('트랜잭션 데이터 삭제 오류:', txError);
+
+      // 출고 정보 삭제
       const { error } = await supabase
         .from('shipments')
         .delete()
@@ -570,7 +587,7 @@ function ShipmentList() {
       if (error) throw error;
 
       fetchShipments();
-      fetchBrandCounts(); // 건수 갱신
+      fetchBrandCounts();
 
       setSnackbar({
         open: true,
@@ -1685,59 +1702,7 @@ function ShipmentList() {
         </Alert>
       )}
 
-      {/* 백그라운드 로딩 상태 표시 */}
-      {(false || false) && !loading && (
-        <Box sx={{
-          position: 'fixed',
-          bottom: 20,
-          right: 20,
-          zIndex: 1000,
-          bgcolor: 'rgba(0, 0, 0, 0.8)',
-          color: 'white',
-          borderRadius: 2,
-          p: 2,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1,
-          minWidth: 200,
-          boxShadow: 3
-        }}>
-          <Box sx={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minWidth: 200
-          }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <CircularProgress size={20} color="inherit" />
-              <Box sx={{ flex: 1 }}>
-                <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                  {false ? '다음 페이지 로딩 중...' : '추가 데이터 로딩 중...'}
-                </Typography>
-                <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                  {shipments.length}/{hasActiveSearch ? shipments.length : totalExpected}건
-                  {0 > 0 && ` (${Math.round(0)}%)`}
-                  {false && ` • 청크 ${0 + 1} 로딩`}
-                </Typography>
-              </Box>
-            </Box>
-            {0 > 0 && (
-              <LinearProgress
-                variant="determinate"
-                value={0}
-                sx={{
-                  width: '100%',
-                  mt: 1,
-                  '& .MuiLinearProgress-bar': {
-                    backgroundColor: 'white'
-                  }
-                }}
-              />
-            )}
-          </Box>
-        </Box>
-      )}
+
 
       {viewMode === 'timeline' ? (
         renderTimeline()
