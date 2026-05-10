@@ -640,7 +640,7 @@ export const updatePartStatus = async (sourceType, orderId, recordId, newStatus,
 
     let warehouseId = parentInfo.warehouse_id;
     if (!warehouseId) {
-      console.warn(`[inventoryUtils] ⚠️ warehouse_id 미지정 (orderId: ${orderId}, partId: ${partId}) — 기본 창고로 폴백`);
+      console.warn(`[inventoryUtils] ⚠️ warehouse_id 미지정 (orderId: ${orderId}, recordId: ${recordId}) — 기본 창고로 폴백`);
       const { data: defaultWh } = await supabase.from('warehouses').select('id').ilike('name', '%청담%').limit(1).maybeSingle();
       warehouseId = defaultWh ? defaultWh.id : null;
       if (!warehouseId) {
