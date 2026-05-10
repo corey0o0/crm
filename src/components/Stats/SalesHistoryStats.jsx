@@ -154,7 +154,7 @@ function SalesHistoryStats() {
       // 2. Services
       const { data: asRows, error: asErr } = await supabase.from('service_parts')
         .select('price, quantity, usage, parts(brand, name, code), services!inner(completion_date, status)')
-        .gte('services.completion_date', sDate).lte('services.completion_date', eDate).ilike('services.status', '%완료%');
+        .gte('services.completion_date', sDate).lte('services.completion_date', eDate).eq('services.status', '출고완료');
       if (asErr) console.error('Services fetch error:', asErr);
       
       (asRows || []).forEach(sp => {
@@ -335,6 +335,7 @@ function SalesHistoryStats() {
 
   const fetchSales = async () => {
     setLoading(true);
+    try {
 
     let shipQuery = supabase
       .from('shipments')
@@ -348,7 +349,7 @@ function SalesHistoryStats() {
     let asQuery = supabase
       .from('services')
       .select('id, reception_date, completion_date, customer_name, status, note, agencies(name)')
-      .ilike('status', '%완료%')
+      .eq('status', '출고완료')
       .order('completion_date', { ascending: false });
 
     if (startDate) {
@@ -823,7 +824,11 @@ function SalesHistoryStats() {
     });
 
     setInventoryList(invRows);
-    setLoading(false);
+    } catch (err) {
+      console.error('fetchSales 오류:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const currentFiltered = flatRows.filter(r => {

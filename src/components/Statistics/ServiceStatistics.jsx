@@ -198,7 +198,8 @@ function ServiceStatistics() {
     }));
 
     data.forEach(service => {
-      const month = new Date(service.reception_date).getMonth();
+      const month = service.reception_date ? new Date(service.reception_date).getMonth() : null;
+      if (month === null || isNaN(month)) return;
       
       // 파츠 매출과 비용 계산
       let partsRevenue = 0;
@@ -551,7 +552,7 @@ function ServiceStatistics() {
                   {profitAnalysis.laborRevenue?.toLocaleString()}원
                 </Typography>
                 <Typography variant="body2" color="textSecondary">
-                  전체 매출 대비: {((profitAnalysis.laborRevenue / profitAnalysis.totalRevenue) * 100).toFixed(1)}%
+                  전체 매출 대비: {profitAnalysis.totalRevenue ? ((profitAnalysis.laborRevenue / profitAnalysis.totalRevenue) * 100).toFixed(1) : '0.0'}%
                 </Typography>
               </Box>
               {renderProfitPieChart()}
@@ -580,11 +581,11 @@ function ServiceStatistics() {
               <Box>
                 <Typography variant="body2" color="textSecondary">이익률</Typography>
                 <Typography variant="h5" color={
-                  ((profitAnalysis.totalProfit / profitAnalysis.totalRevenue) * 100) > 20 
+                  profitAnalysis.totalRevenue && ((profitAnalysis.totalProfit / profitAnalysis.totalRevenue) * 100) > 20 
                     ? 'success.main' 
                     : 'warning.main'
                 }>
-                  {((profitAnalysis.totalProfit / profitAnalysis.totalRevenue) * 100).toFixed(1)}%
+                  {profitAnalysis.totalRevenue ? ((profitAnalysis.totalProfit / profitAnalysis.totalRevenue) * 100).toFixed(1) : '0.0'}%
                 </Typography>
               </Box>
             </CardContent>

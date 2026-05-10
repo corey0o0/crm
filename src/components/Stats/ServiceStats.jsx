@@ -194,7 +194,7 @@ function ServiceStats() {
 
       // 평균 처리 시간 계산 (완료된 건만)
       const completedServices = services.filter(service => 
-        service.status && service.status.includes('완료') && service.completion_date
+        service.status && service.status === '출고완료' && service.completion_date
       );
       
       let validCompletedCount = 0;

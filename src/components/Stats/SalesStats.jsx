@@ -456,7 +456,7 @@ function SalesStats() {
         `)
         .gte('services.completion_date', startDateTime)
         .lte('services.completion_date', endDateTime)
-        .ilike('services.status', '%완료%');
+        .eq('services.status', '출고완료');
 
       // forceRefresh가 1 이상일 때 캐시를 사용하지 않도록 설정
       if (forceRefresh > 0) {
@@ -969,7 +969,7 @@ function SalesStats() {
       `)
       .gte('services.completion_date', startDateTime)
       .lte('services.completion_date', endDateTime)
-      .ilike('services.status', '%완료%');
+      .eq('services.status', '출고완료');
     if (brandFilter && brandFilter !== '전체') {
       spQuery = spQuery.eq('services.brand', brandFilter);
     }
