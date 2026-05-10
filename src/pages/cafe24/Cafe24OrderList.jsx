@@ -85,6 +85,7 @@ export default function Cafe24OrderList() {
 
   useEffect(() => {
     setPage(0);
+    setSelectedOrders([]);
   }, [selectedMall, transferFilter, statusFilter, searchQuery]);
 
   const getFormattedDate = (date) => {
@@ -443,6 +444,14 @@ export default function Cafe24OrderList() {
 
   const handleDeleteSelected = async () => {
     if (!selectedOrders.length) return;
+
+    // 전송 완료 건이 포함되어 있으면 차단 (재고/매출 미정리 방지)
+    const transferredInSelection = orders.filter(o => selectedOrders.includes(o.id) && o.is_transferred);
+    if (transferredInSelection.length > 0) {
+      setAlertDialog({ open: true, title: '삭제 불가', message: `선택한 주문 중 ${transferredInSelection.length}건이 이미 판매 반영(전송 완료) 상태입니다.\n전송 완료 건은 먼저 [판매반영 취소]를 진행한 후 삭제해주세요.` });
+      return;
+    }
+
     if (!window.confirm(`선택한 ${selectedOrders.length}건의 주문을 목록에서 삭제하시겠습니까? (삭제 후 '주문 동기화' 클릭 시 카페24에서 다시 수집됩니다)`)) return;
 
     try {
@@ -490,7 +499,7 @@ export default function Cafe24OrderList() {
 
   const handleSalesTransfer = async () => {
     if (!selectedOrders.length) return;
-    const ordersToTransfer = orders.filter(o => selectedOrders.includes(o.id) && !o.is_transferred && String(o.status).trim() !== 'N00');
+    const ordersToTransfer = orders.filter(o => selectedOrders.includes(o.id) && !o.is_transferred && !o.is_deleted && String(o.status).trim() !== 'N00');
     
     if (ordersToTransfer.length === 0) {
       setAlertDialog({ open: true, title: '알림', message: '선택한 주문 중 판매 전송 가능한 건이 없습니다. (이미 전송 완료된 건 또는 입금전 건 제외)' });
@@ -544,10 +553,6 @@ export default function Cafe24OrderList() {
           await transferCafe24Orders(ordersToTransfer.map(o => o.id), warehouseConfig);
           setAlertDialog({ open: true, title: '성공', message: '전송이 완료되었습니다.' });
           setSelectedOrders([]);
-          setWarehouseConfig(prev => {
-            const next = { ...prev };
-            return next;
-          });
           fetchOrders();
         } catch (err) {
           console.error(err);
@@ -596,10 +601,6 @@ export default function Cafe24OrderList() {
           setIsTransferring(true);
           await transferCafe24Orders([order.id], warehouseConfig);
           setAlertDialog({ open: true, title: '성공', message: '전송이 완료되었습니다.' });
-          setWarehouseConfig(prev => {
-            const next = { ...prev };
-            return next;
-          });
           fetchOrders();
         } catch (err) {
           console.error(err);
@@ -804,7 +805,7 @@ export default function Cafe24OrderList() {
           setLoading(true);
           try {
             // 1. Get previous warehouse configuration
-            let prevWarehouse = 'W001';
+            let prevWarehouse = (warehouses.find(w => w.name.includes('청담')) || warehouses[0])?.id || '';
             if (order.order_items) {
               const prevItem = order.order_items.find(i => i._warehouse_id && i._warehouse_id !== 'EXCLUDE');
               if (prevItem) prevWarehouse = prevItem._warehouse_id;
