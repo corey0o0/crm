@@ -2350,43 +2350,46 @@ function ServiceDetail() {
       borderRadius: 1,
       transition: 'background-color 0.3s ease'
     }}>
-      <Typography variant="h6" sx={{
-        mb: 2,
-        color: '#191f28',
-        fontWeight: 600,
-        '&::after': {
-          display: 'none'
-        }
-      }}>
-        사용 부품
-      </Typography>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, gap: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+        <Typography variant="h6" sx={{
+          color: '#191f28',
+          fontWeight: 600,
+          mr: 2,
+          '&::after': {
+            display: 'none'
+          }
+        }}>
+          사용 부품
+        </Typography>
+        
+        <Button
+          size="small"
+          startIcon={<AddIcon />}
+          variant="contained"
+          onClick={handleOpenPartsDialog}
+          sx={{
+            bgcolor: '#3182f6',
+            '&:hover': { bgcolor: '#1b64da' }
+          }}
+        >
+          부품 추가
+        </Button>
+
+        <Box sx={{ flexGrow: 1 }} />
+
         <FormControlLabel
           control={
             <Checkbox
               checked={showPriceEdit}
               onChange={e => setShowPriceEdit(e.target.checked)}
               color="primary"
+              size="small"
             />
           }
-          label="가격 수정"
+          label={<Typography variant="body2">가격 수정</Typography>}
+          sx={{ m: 0 }}
         />
       </Box>
-      <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
-        <Box sx={{ display: 'flex', gap: 2 }}>
-          <Button
-            startIcon={<AddIcon />}
-            variant="contained"
-            onClick={handleOpenPartsDialog}
-            sx={{
-              bgcolor: '#3182f6',
-              '&:hover': { bgcolor: '#1b64da' }
-            }}
-          >
-            부품 추가
-          </Button>
-        </Box>
-      </Stack>
 
       <TableContainer component={Paper} sx={{ mt: 2 }}>
         <Table size="small">
