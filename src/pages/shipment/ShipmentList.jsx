@@ -142,7 +142,7 @@ function ShipmentList() {
       const [searchLoading] = useState(false);
   const [hasActiveSearch, setHasActiveSearch] = useState(false);
 
-  // 브랜드별 준비중+출고대기 건수
+  // 브랜드별 접수+부품준비 건수
   const [brandCounts, setBrandCounts] = useState({
     XRB: 0,
     NB: 0
@@ -186,7 +186,7 @@ function ShipmentList() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBrand, dateFilter, page, rowsPerPage, statusFilter, sellerFilter, searchTerm]);
 
-  // 브랜드별 준비중+출고대기 건수 조회
+  // 브랜드별 접수+부품준비 건수 조회
   const fetchBrandCounts = async () => {
     try {
       const [xrbCount, nbCount] = await Promise.all([
@@ -678,9 +678,6 @@ function ShipmentList() {
   const getStatusColor = (status) => {
     switch (status) {
       case '접수':
-      case '준비중':
-        return 'info';
-      case '출고대기':
         return 'info';
       case '부품준비':
         return 'warning';
@@ -1537,10 +1534,10 @@ function ShipmentList() {
               onChange={handleStatusFilterChange}
             >
               <MenuItem value="all">전체 상태</MenuItem>
-              <MenuItem value="준비중">준비중</MenuItem>
+              <MenuItem value="접수">접수</MenuItem>
               <MenuItem value="부품준비">부품준비</MenuItem>
               <MenuItem value="준비완료">준비완료</MenuItem>
-              <MenuItem value="출고대기">출고대기</MenuItem>
+              <MenuItem value="작업완료">작업완료</MenuItem>
               <MenuItem value="반품완료">반품완료</MenuItem>
               <MenuItem value="출고완료">출고완료</MenuItem>
             </Select>

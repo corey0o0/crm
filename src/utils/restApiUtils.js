@@ -335,18 +335,18 @@ export const countShipments = async (options = {}) => {
 };
 
 /**
- * 브랜드별 준비중+출고대기 건수 조회
+ * 브랜드별 접수+부품준비 건수 조회
  */
 export const countPendingAndShippingByBrand = async (brand, signal = null) => {
   try {
     // 각 상태를 개별적으로 조회하여 합산 (더 안정적)
-    const [preparingCount, shippingCount] = await Promise.all([
-      countFromSupabase('shipments', `brand=eq.${encodeURIComponent(brand)}&status=eq.${encodeURIComponent('준비중')}`, signal),
-      countFromSupabase('shipments', `brand=eq.${encodeURIComponent(brand)}&status=eq.${encodeURIComponent('출고대기')}`, signal)
+    const [receptionCount, partsCount] = await Promise.all([
+      countFromSupabase('shipments', `brand=eq.${encodeURIComponent(brand)}&status=eq.${encodeURIComponent('접수')}&record_type=eq.store_shipment`, signal),
+      countFromSupabase('shipments', `brand=eq.${encodeURIComponent(brand)}&status=eq.${encodeURIComponent('부품준비')}&record_type=eq.store_shipment`, signal)
     ]);
 
-    const totalCount = (preparingCount || 0) + (shippingCount || 0);
-    console.log(`[REST API] Brand ${brand} - 준비중: ${preparingCount || 0}, 출고대기: ${shippingCount || 0}, 합계: ${totalCount}`);
+    const totalCount = (receptionCount || 0) + (partsCount || 0);
+    console.log(`[REST API] Brand ${brand} - 접수: ${receptionCount || 0}, 부품준비: ${partsCount || 0}, 합계: ${totalCount}`);
 
     return totalCount;
   } catch (error) {
