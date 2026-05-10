@@ -2395,14 +2395,14 @@ function ServiceDetail() {
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell>부품명</TableCell>
-              <TableCell>코드</TableCell>
-              <TableCell align="right">단가</TableCell>
-              <TableCell align="right">수량</TableCell>
-              <TableCell align="right">금액</TableCell>
-              <TableCell align="right">가격 수정</TableCell>
-              <TableCell align="center">용도</TableCell>
-              <TableCell align="center">작업</TableCell>
+              <TableCell sx={{ width: '35%' }}>부품명</TableCell>
+              <TableCell sx={{ width: '10%' }}>코드</TableCell>
+              <TableCell align="right" sx={{ width: '10%' }}>단가</TableCell>
+              <TableCell align="right" sx={{ width: '9%' }}>수량</TableCell>
+              <TableCell align="right" sx={{ width: '13%' }}>금액</TableCell>
+              <TableCell align="right" sx={{ width: '13%' }}>가격 수정</TableCell>
+              <TableCell align="center" sx={{ width: '5%' }}>용도</TableCell>
+              <TableCell align="center" sx={{ width: '5%' }}>작업</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -2441,7 +2441,7 @@ function ServiceDetail() {
                 <TableCell align="right">
                   {(part.price * effectiveQty).toLocaleString()}원
                 </TableCell>
-                <TableCell align="right" sx={{ minWidth: '200px' }}>
+                <TableCell align="right">
                   {showPriceEdit && (
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'flex-end' }}>
                       <TextField
