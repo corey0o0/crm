@@ -2343,7 +2343,13 @@ function ServiceDetail() {
   }
 
   const partsSection = (
-    <Box sx={{ mt: 4 }}>
+    <Box sx={{ 
+      mt: 4, 
+      p: 2, 
+      bgcolor: selectedParts.length > 0 ? '#f1f3f5' : 'transparent', 
+      borderRadius: 1,
+      transition: 'background-color 0.3s ease'
+    }}>
       <Typography variant="h6" sx={{
         mb: 2,
         color: '#191f28',
@@ -2864,16 +2870,16 @@ function ServiceDetail() {
               <Grid container spacing={4}>
                 <Grid item xs={12} sm={6}>
                   <Box>
-                    <Typography variant="subtitle1" sx={sectionStyle}>
-                      고객 정보
+                    <Box sx={{ ...sectionStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: '45px' }}>
+                      <Box>고객 정보</Box>
                       <Button
                         size="small"
                         startIcon={<SearchIcon />}
                         onClick={() => setCustomerSearchOpen(true)}
                         sx={{
-                          ml: 2,
                           color: '#3182f6',
                           fontSize: '0.875rem',
+                          height: '32px',
                           '&:hover': {
                             bgcolor: 'rgba(49, 130, 246, 0.04)'
                           }
@@ -2881,7 +2887,7 @@ function ServiceDetail() {
                       >
                         고객 검색
                       </Button>
-                    </Typography>
+                    </Box>
                     <Grid container spacing={2}>
                       <Grid item xs={12}>
                         <TextField
@@ -2924,9 +2930,9 @@ function ServiceDetail() {
 
                 <Grid item xs={12} sm={6}>
                   <Box>
-                    <Typography variant="subtitle1" sx={sectionStyle}>
-                      제품 정보
-                    </Typography>
+                    <Box sx={{ ...sectionStyle, display: 'flex', alignItems: 'center', minHeight: '45px' }}>
+                      <Box>제품 정보</Box>
+                    </Box>
                     <Grid container spacing={2}>
                       <Grid item xs={12}>
                         <TextField
@@ -3079,7 +3085,7 @@ function ServiceDetail() {
                 <Grid container spacing={3}>
                   <Grid item xs={12}>
                     <TextField
-                      variant="standard"
+                      variant="outlined"
                       fullWidth
                       multiline
                       minRows={5}
@@ -3089,7 +3095,8 @@ function ServiceDetail() {
                       value={formData.symptom}
                       onChange={handleChange}
                       sx={{
-                        '& .MuiInputBase-root': {
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: 0,
                           fontSize: '1.1rem',
                           lineHeight: '1.6'
                         }
@@ -3098,7 +3105,7 @@ function ServiceDetail() {
                   </Grid>
                   <Grid item xs={12}>
                     <TextField
-                      variant="standard"
+                      variant="outlined"
                       fullWidth
                       multiline
                       minRows={5}
@@ -3108,7 +3115,8 @@ function ServiceDetail() {
                       value={formData.solution}
                       onChange={handleChange}
                       sx={{
-                        '& .MuiInputBase-root': {
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: 0,
                           fontSize: '1.1rem',
                           lineHeight: '1.6'
                         }
