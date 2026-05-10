@@ -45,7 +45,12 @@ export const pendingOutboundApi = {
           .from('pending_outbound_items')
           .insert(itemsWithRef);
           
-        if (itemsError) throw itemsError;
+        if (itemsError) {
+          // 롤백: 아이템 삽입 실패 시 헤더도 삭제하여 고아 레코드 방지
+          console.error('Items insert failed, rolling back header:', itemsError);
+          await supabase.from('pending_outbounds').delete().eq('id', header.id);
+          throw itemsError;
+        }
       }
       
       return header;

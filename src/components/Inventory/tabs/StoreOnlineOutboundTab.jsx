@@ -155,14 +155,14 @@ function StoreOnlineOutboundTab() {
 
           if (order.type.includes('A/S')) {
             const { data: prevService } = await supabase.from('services').select('status').eq('id', order.source_id).single();
-            await supabase.from('services').update({ status: '처리중' }).eq('id', order.source_id);
-            if (prevService && prevService.status !== '완료' && prevService.status !== '처리중') {
+            await supabase.from('services').update({ status: '준비완료' }).eq('id', order.source_id);
+            if (prevService && prevService.status !== '완료' && prevService.status !== '출고완료' && prevService.status !== '준비완료') {
               await processServiceCompletion(order.source_id, guessedBrand);
             }
           } else if (order.type.includes('출고')) {
             const { data: prevShipment } = await supabase.from('shipments').select('status').eq('id', order.source_id).single();
-            await supabase.from('shipments').update({ status: '출고대기' }).eq('id', order.source_id);
-            if (prevShipment && !['출고완료', '출고대기'].includes(prevShipment.status)) {
+            await supabase.from('shipments').update({ status: '작업완료' }).eq('id', order.source_id);
+            if (prevShipment && !(['출고완료', '작업완료'].includes(prevShipment.status))) {
               await processShipmentCompletion(order.source_id, guessedBrand);
             }
           }
@@ -200,14 +200,14 @@ function StoreOnlineOutboundTab() {
 
           if (order.type.includes('A/S')) {
             const { data: prevService } = await supabase.from('services').select('status').eq('id', order.source_id).single();
-            await supabase.from('services').update({ status: '처리중' }).eq('id', order.source_id);
-            if (prevService && prevService.status !== '완료' && prevService.status !== '처리중') {
+            await supabase.from('services').update({ status: '준비완료' }).eq('id', order.source_id);
+            if (prevService && prevService.status !== '완료' && prevService.status !== '출고완료' && prevService.status !== '준비완료') {
               await processServiceCompletion(order.source_id, guessedBrand);
             }
           } else if (order.type.includes('출고')) {
             const { data: prevShipment } = await supabase.from('shipments').select('status').eq('id', order.source_id).single();
-            await supabase.from('shipments').update({ status: '출고대기' }).eq('id', order.source_id);
-            if (prevShipment && !['출고완료', '출고대기'].includes(prevShipment.status)) {
+            await supabase.from('shipments').update({ status: '작업완료' }).eq('id', order.source_id);
+            if (prevShipment && !(['출고완료', '작업완료'].includes(prevShipment.status))) {
               await processShipmentCompletion(order.source_id, guessedBrand);
             }
           }
