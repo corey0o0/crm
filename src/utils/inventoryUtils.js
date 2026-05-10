@@ -257,6 +257,7 @@ export const processShipmentCompletion = async (shipmentId, brandCode, targetSta
     // 출고 창고 설정
     let warehouseId = shipment.warehouse_id;
     if (!warehouseId) {
+      console.warn(`[inventoryUtils] ⚠️ warehouse_id 미지정 (shipmentId: ${shipmentId}) — 기본 창고로 폴백`);
       // 지정된 창고가 없을 경우 기본 창고(청담)를 찾아 사용
       const { data: defaultWh } = await supabase
         .from('warehouses')
@@ -324,6 +325,7 @@ export const processServiceCompletion = async (serviceId, brandCode) => {
     if (srvErr || !service) throw new Error('A/S를 찾을 수 없음: ' + (srvErr ? srvErr.message : 'no data'));
     let warehouseId = service.warehouse_id;
     if (!warehouseId) {
+      console.warn(`[inventoryUtils] ⚠️ warehouse_id 미지정 (serviceId: ${serviceId}) — 기본 창고로 폴백`);
       const { data: defaultWh } = await supabase.from('warehouses').select('id').ilike('name', '%청담%').limit(1).maybeSingle();
       if (defaultWh) {
         warehouseId = defaultWh.id;
@@ -482,6 +484,7 @@ export const processServiceRevert = async (serviceId, brandCode) => {
 
     let warehouseId = service.warehouse_id;
     if (!warehouseId) {
+      console.warn(`[inventoryUtils] ⚠️ warehouse_id 미지정 (serviceId: ${serviceId}, revert) — 기본 창고로 폴백`);
       const { data: defaultWh } = await supabase.from('warehouses').select('id').ilike('name', '%청담%').limit(1).maybeSingle();
       if (defaultWh) {
         warehouseId = defaultWh.id;
@@ -637,6 +640,7 @@ export const updatePartStatus = async (sourceType, orderId, recordId, newStatus,
 
     let warehouseId = parentInfo.warehouse_id;
     if (!warehouseId) {
+      console.warn(`[inventoryUtils] ⚠️ warehouse_id 미지정 (orderId: ${orderId}, partId: ${partId}) — 기본 창고로 폴백`);
       const { data: defaultWh } = await supabase.from('warehouses').select('id').ilike('name', '%청담%').limit(1).maybeSingle();
       warehouseId = defaultWh ? defaultWh.id : null;
       if (!warehouseId) {

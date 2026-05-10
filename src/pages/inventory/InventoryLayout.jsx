@@ -760,9 +760,8 @@ function InventoryLayout() {
     try {
       const isGroup = Array.isArray(selectedTransaction.items) && selectedTransaction.items.length >= 1;
       if (isGroup) {
-        // 그룹 편집: 기존 그룹 삭제 후 재생성
+        // 그룹 편집: 기존 그룹 삭제 후 재생성 (롤백 지원)
         const groupId = selectedTransaction.groupId || selectedTransaction.id;
-        await transactionApi.deleteByGroupId(groupId);
 
         const baseDate = editFormData.date || selectedTransaction.date;
         const baseNote = editFormData.note || selectedTransaction.note || null;
@@ -794,7 +793,40 @@ function InventoryLayout() {
           return;
         }
 
-        await transactionApi.createMany(newRows);
+        // 원본 백업 후 삭제 → 재생성, 실패 시 롤백
+        const backupItems = selectedTransaction.items.map(it => ({
+          groupId: it.groupId,
+          type: it.type,
+          productId: it.productId,
+          productName: it.productName,
+          productCode: it.productCode,
+          productSupplier: it.productSupplier,
+          quantity: it.quantity,
+          fromLocation: it.fromLocation,
+          toLocation: it.toLocation,
+          date: it.date,
+          note: it.note,
+          additionalNote: it.additionalNote,
+          isGrouped: it.isGrouped,
+          status: it.status
+        }));
+
+        await transactionApi.deleteByGroupId(groupId);
+
+        try {
+          await transactionApi.createMany(newRows);
+        } catch (createErr) {
+          // 재생성 실패 시 원본 복원
+          console.error('거래내역 재생성 실패, 원본 복원 시도:', createErr);
+          try {
+            await transactionApi.createMany(backupItems);
+            showSnackbar('수정에 실패하여 원본을 복원했습니다.', 'error');
+          } catch (restoreErr) {
+            console.error('원본 복원도 실패:', restoreErr);
+            showSnackbar('수정 및 복원 모두 실패했습니다. 관리자에게 문의하세요.', 'error');
+          }
+          return;
+        }
       } else {
         // 단일 편집: 단일 트랜잭션 업데이트
         const item = editProducts[0];
@@ -989,7 +1021,7 @@ function InventoryLayout() {
       return;
     }
 
-    const groupId = Date.now();
+    const groupId = crypto.randomUUID();
     const newTransactions = [];
 
     multipleIoProducts.forEach((item, index) => {
@@ -1420,7 +1452,7 @@ function InventoryLayout() {
       return;
     }
 
-    const groupId = Date.now();
+    const groupId = crypto.randomUUID();
     const newTransactions = [];
     const inventoryUpdates = [];
     let inboundCount = 0;
