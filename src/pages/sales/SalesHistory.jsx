@@ -114,6 +114,7 @@ function SalesHistory() {
   const fetchSales = async (overrideStart, overrideEnd) => {
     setLoading(true);
 
+    try {
     const activeStart = overrideStart !== undefined ? overrideStart : startDate;
     const activeEnd = overrideEnd !== undefined ? overrideEnd : endDate;
 
@@ -727,7 +728,11 @@ function SalesHistory() {
 
     rows.sort((a, b) => new Date(b.date_val) - new Date(a.date_val));
     setFlatRows(rows);
-    setLoading(false);
+    } catch (err) {
+      console.error('fetchSales error:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const B2C_CHANNELS = ['공홈', '청담매장', '라이클', '라이클-우리', '스마트할부', '스마트스토어', '기타', '온라인주문', '고객', '-', '본사/기본', '과거 이카운트 이관', '일반출고(공홈)', '매장출고', '본점', '매장'];
@@ -1248,7 +1253,7 @@ function SalesHistory() {
                 setStartDate(null);
                 setEndDate(null);
                 setPage(0);
-                setTimeout(() => fetchSales(), 0);
+                fetchSales(null, null);
               }}>초기화</Button>
               <Box sx={{ flexGrow: 1 }} />
               <Button 

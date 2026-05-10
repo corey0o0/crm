@@ -813,7 +813,7 @@ function ShipmentForm() {
               .from('parts')
               .select('*')
               .eq('brand', shipment.brand)
-              .ilike('name', `%\${part.part_name}%`)
+              .ilike('name', `%${part.part_name}%`)
               .limit(1);
 
             if (partialMatchParts && partialMatchParts.length > 0) {
@@ -919,7 +919,7 @@ function ShipmentForm() {
               .from('parts')
               .select('*')
               .eq('brand', shipment.brand)
-              .ilike('name', `%\${productName}%`)
+              .ilike('name', `%${productName}%`)
               .limit(1);
 
             if (partialMatchParts && partialMatchParts.length > 0) {
@@ -1021,7 +1021,7 @@ function ShipmentForm() {
             .from('parts')
             .select('*')
             .eq('brand', shipment.brand)
-            .ilike('name', `%\${shipment.product_name}%`)
+            .ilike('name', `%${shipment.product_name}%`)
             .limit(1);
 
           if (partialMatchParts && partialMatchParts.length > 0) {
