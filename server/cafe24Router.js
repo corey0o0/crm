@@ -122,21 +122,44 @@ module.exports = function(supabaseAdmin) {
   router.get('/inventory/compare/:mall_id', async (req, res) => {
     try {
       const mallId = req.params.mall_id;
-      const { data: mallSet } = await supabaseAdmin.from('cafe24_settings').select('*').eq('mall_id', mallId).single();
-      if (!mallSet || !mallSet.access_token) return res.status(400).json({ error: '쇼핑몰 미연동 혹은 토큰 없음' });
+      
+      // getValidToken()을 사용하여 만료된 토큰 자동 갱신
+      let token;
+      try {
+        token = await getValidToken(mallId);
+      } catch (tokenErr) {
+        return res.status(400).json({ error: `쇼핑몰 미연동 혹은 토큰 만료: ${tokenErr.message}` });
+      }
 
       let allVariants = [];
       let offset = 0;
       let limit = 100;
       
-      while (true) {
-        const resp = await axios.get(`https://${mallId}.cafe24api.com/api/v2/admin/products?embed=variants&limit=${limit}&offset=${offset}`, {
+      const fetchProducts = async (accessToken, currentOffset) => {
+        return await axios.get(`https://${mallId}.cafe24api.com/api/v2/admin/products?embed=variants&limit=${limit}&offset=${currentOffset}`, {
           headers: {
-            'Authorization': `Bearer ${mallSet.access_token}`,
+            'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
             'X-Cafe24-Api-Version': '2026-03-01'
           }
         });
+      };
+
+      while (true) {
+        let resp;
+        try {
+          resp = await fetchProducts(token, offset);
+        } catch (e) {
+          if (e.response && e.response.status === 401) {
+            // 토큰 만료 시 자동 갱신 후 재시도
+            console.log(`[Cafe24 Inventory] ${mallId} 401 - 토큰 갱신 후 재시도...`);
+            const { data: mall } = await supabaseAdmin.from('cafe24_settings').select('*').eq('mall_id', mallId).single();
+            token = await refreshCafe24Token(mall);
+            resp = await fetchProducts(token, offset);
+          } else {
+            throw e;
+          }
+        }
         
         const products = resp.data.products || [];
         if (products.length === 0) break;
