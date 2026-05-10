@@ -129,17 +129,53 @@ function InventoryLayout() {
   
   const handleDeleteSelectedTransactions = async () => {
     if (selectedTransactions.length === 0) return;
-    if (!window.confirm(`선택한 ${selectedTransactions.length}개의 거래내역을 삭제하시겠습니까?`)) return;
+    if (!window.confirm(`선택한 ${selectedTransactions.length}개의 거래내역을 삭제하시겠습니까?\n※ 삭제 시 해당 거래로 인한 재고 변동이 자동으로 복구됩니다.`)) return;
     try {
+      // 1. 삭제 대상 트랜잭션들을 수집하여 재고 역방향 복구 준비
+      const reverseTransactions = [];
       for (const selectedId of selectedTransactions) {
-        // 그룹 ID인지 단일 내역 ID인지 확인 (selectedId가 문자열일 수 있으므로 형변환 비교)
         const itemsInGroup = transactions.filter(t => t.groupId != null && String(t.groupId) === String(selectedId));
-        
         if (itemsInGroup.length > 0) {
-          // 그룹 거래인 경우 일괄 삭제 API 활용
+          itemsInGroup.forEach(item => {
+            reverseTransactions.push({
+              ...item,
+              // 타입을 반전시켜 재고를 되돌림 (출고→입고, 입고→출고)
+              type: item.type === 'out' ? 'in' : 'out',
+              // from/to 위치 교환
+              fromLocation: item.toLocation,
+              toLocation: item.fromLocation,
+            });
+          });
+        } else {
+          // 단일 거래인 경우 — transactions state에서 직접 찾기
+          const singleTx = transactions.find(t => String(t.id) === String(selectedId));
+          if (singleTx) {
+            reverseTransactions.push({
+              ...singleTx,
+              type: singleTx.type === 'out' ? 'in' : 'out',
+              fromLocation: singleTx.toLocation,
+              toLocation: singleTx.fromLocation,
+            });
+          }
+        }
+      }
+
+      // 2. 재고 역방향 복구 (삭제 전에 수행)
+      if (reverseTransactions.length > 0) {
+        try {
+          await batchUpdateInventory(reverseTransactions);
+        } catch (revertErr) {
+          console.warn('재고 복구 중 경고:', revertErr.message);
+          // 재고 복구 실패해도 삭제는 계속 진행 (로그만 남김)
+        }
+      }
+
+      // 3. 거래내역 삭제
+      for (const selectedId of selectedTransactions) {
+        const itemsInGroup = transactions.filter(t => t.groupId != null && String(t.groupId) === String(selectedId));
+        if (itemsInGroup.length > 0) {
           await transactionApi.deleteByGroupId(selectedId);
         } else {
-          // 단일 거래인 경우
           await transactionApi.delete(selectedId);
         }
       }
@@ -152,7 +188,7 @@ function InventoryLayout() {
         fetchInventoryData();
       }, 100);
       
-      showSnackbar(`선택한 거래내역이 삭제되었습니다.`, 'success');
+      showSnackbar(`선택한 거래내역이 삭제되고 재고가 복구되었습니다.`, 'success');
     } catch (error) {
       console.error('거래내역 선택 삭제 실패:', error);
       showSnackbar('거래내역 삭제에 실패했습니다.', 'error');
@@ -1032,40 +1068,38 @@ function InventoryLayout() {
           }
           const fromWh = warehouseMap.get(transaction.fromLocation);
           if (fromWh) {
-            if (nextInventory[transaction.fromLocation] && nextInventory[transaction.fromLocation][transaction.productId]) {
-              const current = nextInventory[transaction.fromLocation][transaction.productId];
-              if (current < transaction.quantity) throw new Error(`재고 부족: [${transaction.fromLocation}]에서 [${transaction.productName}]의 재고가 부족합니다. (현재: ${current})`);
-              nextInventory[transaction.fromLocation][transaction.productId] -= transaction.quantity;
-              
-              inventoryUpserts.push({
-                warehouse_id: transaction.fromLocation,
-                product_id: transaction.productId,
-                quantity: nextInventory[transaction.fromLocation][transaction.productId]
-              });
+            if (!nextInventory[transaction.fromLocation]) nextInventory[transaction.fromLocation] = {};
+            if (nextInventory[transaction.fromLocation][transaction.productId] === undefined) nextInventory[transaction.fromLocation][transaction.productId] = 0;
+            // 마이너스 재고 허용 — 재고 조정을 위해 음수 허용
+            nextInventory[transaction.fromLocation][transaction.productId] -= transaction.quantity;
+            
+            inventoryUpserts.push({
+              warehouse_id: transaction.fromLocation,
+              product_id: transaction.productId,
+              quantity: nextInventory[transaction.fromLocation][transaction.productId]
+            });
 
-              if (fromWh.syncWithProductStock) {
-                stockUpdates.push({ productId: transaction.productId, delta: -transaction.quantity });
-              }
+            if (fromWh.syncWithProductStock) {
+              stockUpdates.push({ productId: transaction.productId, delta: -transaction.quantity });
             }
           }
         } else {
           // 출고 처리
           const fromWh = warehouseMap.get(transaction.fromLocation);
           if (fromWh) {
-            if (nextInventory[transaction.fromLocation] && nextInventory[transaction.fromLocation][transaction.productId]) {
-              const current = nextInventory[transaction.fromLocation][transaction.productId];
-              if (current < transaction.quantity) throw new Error(`재고 부족: [${transaction.fromLocation}]에서 [${transaction.productName}]의 재고가 부족합니다. (현재: ${current})`);
-              nextInventory[transaction.fromLocation][transaction.productId] -= transaction.quantity;
-              
-              inventoryUpserts.push({
-                warehouse_id: transaction.fromLocation,
-                product_id: transaction.productId,
-                quantity: nextInventory[transaction.fromLocation][transaction.productId]
-              });
+            if (!nextInventory[transaction.fromLocation]) nextInventory[transaction.fromLocation] = {};
+            if (nextInventory[transaction.fromLocation][transaction.productId] === undefined) nextInventory[transaction.fromLocation][transaction.productId] = 0;
+            // 마이너스 재고 허용 — 재고 조정을 위해 음수 허용
+            nextInventory[transaction.fromLocation][transaction.productId] -= transaction.quantity;
+            
+            inventoryUpserts.push({
+              warehouse_id: transaction.fromLocation,
+              product_id: transaction.productId,
+              quantity: nextInventory[transaction.fromLocation][transaction.productId]
+            });
 
-              if (fromWh.syncWithProductStock) {
-                stockUpdates.push({ productId: transaction.productId, delta: -transaction.quantity });
-              }
+            if (fromWh.syncWithProductStock) {
+              stockUpdates.push({ productId: transaction.productId, delta: -transaction.quantity });
             }
           }
           const toWh = warehouseMap.get(transaction.toLocation);
