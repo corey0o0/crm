@@ -872,17 +872,7 @@ function ServiceDetail() {
     setSnackbar({ open: true, message: '검수 대기열(부품준비)에 추가되었습니다.', severity: 'success' });
   };
 
-  const handleCompleteInspection = async () => {
-    try {
-      setAddingToQueue(true);
-      await handleStatusChange('처리중');
-      setSnackbar({ open: true, message: '상태가 처리중으로 변경되었습니다. 저장 버튼을 눌러 확정해주세요.', severity: 'info' });
-    } catch(e) {
-      setSnackbar({ open: true, message: '오류 발생: ' + e.message, severity: 'error' });
-    } finally {
-      setAddingToQueue(false);
-    }
-  };
+
 
   const handleSubmit = async (e, overrideData = {}) => {
     if (e) e.preventDefault();
@@ -1196,7 +1186,7 @@ function ServiceDetail() {
     setSelectedParts(prev => prev.filter(part => part.id !== partId));
   };
 
-  const isDeducted = ['부품준비', '준비완료', '반품완료', '출고완료', '처리중', '완료', '수령대기', '결제대기', '수령완료', '취소'].includes(formData?.status);
+  const isDeducted = ['부품준비', '준비완료', '반품완료', '출고완료', '취소'].includes(formData?.status);
 
   const handleReturnPart = async (part) => {
     const qtyStr = window.prompt(`'${part.name}' 총 ${part.quantity}개 중 반품(재입고)할 수량을 입력하세요:`, part.quantity);
@@ -1994,7 +1984,7 @@ function ServiceDetail() {
           <div class="header">
             <h2>A/S 작업지시서</h2>
             <p>접수일자: ${formatKoreanDateTime(formData.reception_date && formData.reception_time ? `${formData.reception_date}T${formData.reception_time}:00` : formData.reception_date)}</p>
-            ${formData.status === '완료' ? `<p>완료일자: ${formatKoreanDateTime(formData.completion_date && formData.completion_time ? `${formData.completion_date}T${formData.completion_time}:00` : formData.completion_date)}</p>` : ''}
+            ${formData.status === '출고완료' ? `<p>완료일자: ${formatKoreanDateTime(formData.completion_date && formData.completion_time ? `${formData.completion_date}T${formData.completion_time}:00` : formData.completion_date)}</p>` : ''}
             <p><strong>상태: ${formData.status || '-'}</strong></p>
           </div>
           
