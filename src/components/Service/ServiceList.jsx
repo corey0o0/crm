@@ -1682,15 +1682,17 @@ function ServiceList() {
       id: 'product_name', 
       label: '기종',
       sortable: true,
-      width: '200px',
+      width: '150px',
       render: (row) => (
         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, minWidth: 0 }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography noWrap sx={{ 
+          <Typography sx={{ 
             fontSize: '0.95rem', 
             fontWeight: 500,
             letterSpacing: '0.01em',
-            color: 'text.primary' 
+            color: 'text.primary',
+            wordBreak: 'keep-all',
+            overflowWrap: 'anywhere'
           }}>
             {row.product_name}
           </Typography>
