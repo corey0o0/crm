@@ -2395,8 +2395,7 @@ function ServiceDetail() {
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell sx={{ width: '35%' }}>부품명</TableCell>
-              <TableCell sx={{ width: '10%' }}>코드</TableCell>
+              <TableCell sx={{ width: '45%' }}>부품명</TableCell>
               <TableCell align="right" sx={{ width: '10%' }}>단가</TableCell>
               <TableCell align="right" sx={{ width: '9%' }}>수량</TableCell>
               <TableCell align="right" sx={{ width: '13%' }}>금액</TableCell>
@@ -2413,8 +2412,12 @@ function ServiceDetail() {
               const rowStyle = isFullyReturned ? { opacity: 0.5, textDecoration: 'line-through' } : (rQty > 0 ? { bgcolor: '#fff3e0' } : {});
               return (
               <TableRow key={part.id} sx={rowStyle}>
-                <TableCell>{part.name} {rQty > 0 && <span style={{color: '#ed6c02', fontSize: '0.8rem', marginLeft: 4}}>[{rQty}개 반품]</span>}</TableCell>
-                <TableCell>{part.code}</TableCell>
+                <TableCell>
+                  <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                    <Box>{part.name} {rQty > 0 && <span style={{color: '#ed6c02', fontSize: '0.8rem', marginLeft: 4}}>[{rQty}개 반품]</span>}</Box>
+                    <Box sx={{ fontSize: '0.75rem', color: 'text.secondary', mt: 0.5 }}>{part.code}</Box>
+                  </Box>
+                </TableCell>
                 <TableCell align="right">
                   {part.price.toLocaleString()}원
                 </TableCell>
