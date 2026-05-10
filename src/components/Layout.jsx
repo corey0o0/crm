@@ -912,8 +912,8 @@ function Layout() {
                                 label={service.status}
                                 size="small"
                                 sx={{
-                                  bgcolor: service.status === '접수' ? '#3182f6' :
-                                    service.status === '처리중' ? '#ffa927' :
+                                  bgcolor: ['접수', '준비중'].includes(service.status) ? '#3182f6' :
+                                    ['처리중', '준비완료', '부품준비'].includes(service.status) ? '#ffa927' :
                                       service.status === '부분완료' ? '#4e5968' :
                                         '#00c773',
                                   color: 'white',

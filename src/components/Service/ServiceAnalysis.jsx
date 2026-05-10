@@ -256,7 +256,7 @@ function ServiceAnalysis() {
       }
 
       if (completedOnly) {
-        query = query.eq('status', '완료');
+        query = query.in('status', ['완료', '출고완료', '수령완료']);
       }
 
       const { data: services, error } = await query;
@@ -314,7 +314,7 @@ function ServiceAnalysis() {
       }
 
       const completedServices = processedServices.filter(service =>
-        service.status === '완료' && service.solution && service.solution.trim() !== ''
+        ['완료', '출고완료', '수령완료'].includes(service.status) && service.solution && service.solution.trim() !== ''
       );
 
       // 접수 내용 분석
@@ -526,7 +526,7 @@ function ServiceAnalysis() {
             const symptom = service.symptom.trim();
             partsSymptomMap[partName][symptom] = (partsSymptomMap[partName][symptom] || 0) + 1;
 
-            if (service.status === '완료' && service.solution) {
+            if (['완료', '출고완료', '수령완료'].includes(service.status) && service.solution) {
               if (!partsSolutionMap[partName]) {
                 partsSolutionMap[partName] = {};
               }
@@ -595,7 +595,7 @@ function ServiceAnalysis() {
             tagSymptomMap[tag][symptom] = (tagSymptomMap[tag][symptom] || 0) + 1;
 
             // 태그별 해결 방법 (완료된 건만)
-            if (service.status === '완료' && service.solution) {
+            if (['완료', '출고완료', '수령완료'].includes(service.status) && service.solution) {
               if (!tagSolutionMap[tag]) {
                 tagSolutionMap[tag] = {};
               }

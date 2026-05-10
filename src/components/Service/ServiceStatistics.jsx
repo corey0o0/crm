@@ -341,11 +341,11 @@ function ServiceStatistics() {
       
       // 상태별 서비스 수
       const pendingServices = filteredServices.filter(service => 
-        service.status !== '완료'
+        !['완료', '출고완료', '수령완료'].includes(service.status)
       ).length;
       
       const completedServices = filteredServices.filter(service => 
-        service.status === '완료'
+        ['완료', '출고완료', '수령완료'].includes(service.status)
       ).length;
 
       // 상태 분포 계산
@@ -362,7 +362,7 @@ function ServiceStatistics() {
 
       // 평균 처리 기간 계산
       const completedWithDates = filteredServices.filter(service => 
-        service.status === '완료' && service.completion_date && service.reception_date
+        ['완료', '출고완료', '수령완료'].includes(service.status) && service.completion_date && service.reception_date
       );
 
       let avgProcessingDays = 0;
