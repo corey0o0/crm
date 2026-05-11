@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import {
   Box, Typography, TextField, FormControl, InputLabel, Select, MenuItem, Button, TableContainer, Paper, Table, TableHead, TableRow, TableCell, TableBody, Tooltip, IconButton, Switch, FormControlLabel, Badge, Autocomplete, InputAdornment, Popover, Card, TableFooter
@@ -12,8 +12,26 @@ export default function InventoryStatus() {
   const {
     products, warehouses, dealers, inventory, overallSearch, setOverallSearch,
     overallStockFilter, setOverallStockFilter, setFilter, setDateFilter, fetchProducts, fetchWarehouses,
-    fetchDealers, toggleWarehouseSync, openWarehouseDetail, fetchTransactions, warehouseDetailOpen, closeWarehouseDetail, warehouseDetailTarget, warehouseDetailFilter, setWarehouseDetailFilter, warehouseDetailSearch, setWarehouseDetailSearch, warehouseDetailBelow, setWarehouseDetailBelow
+    fetchDealers, toggleWarehouseSync, openWarehouseDetail, fetchTransactions, warehouseDetailOpen, closeWarehouseDetail, warehouseDetailTarget, warehouseDetailFilter, setWarehouseDetailFilter, warehouseDetailSearch, setWarehouseDetailSearch, warehouseDetailBelow, setWarehouseDetailBelow, handleDirectInventoryEdit
   } = context;
+
+  const [editPopoverAnchor, setEditPopoverAnchor] = useState(null);
+  const [editData, setEditData] = useState({ warehouseId: '', productId: '', currentQty: 0, newQty: '', reason: '' });
+
+  const handleOpenEdit = (e, warehouseId, productId, currentQty) => {
+    setEditData({ warehouseId, productId, currentQty, newQty: currentQty, reason: '재고 현황에서 직접 수정' });
+    setEditPopoverAnchor(e.currentTarget);
+  };
+
+  const handleCloseEdit = () => {
+    setEditPopoverAnchor(null);
+  };
+
+  const submitEdit = async () => {
+    if (editData.newQty === '' || isNaN(editData.newQty)) return;
+    await handleDirectInventoryEdit(editData.warehouseId, editData.productId, editData.currentQty, Number(editData.newQty), editData.reason);
+    handleCloseEdit();
+  };
 
         const term = overallSearch.trim().toLowerCase();
         let rows = (products || []).filter(p => !p.is_deleted && (!term || p.name?.toLowerCase().includes(term) || p.code?.toLowerCase().includes(term) || p.barcode?.toLowerCase().includes(term)));
@@ -158,7 +176,14 @@ export default function InventoryStatus() {
                         <TableCell sx={{ width: 120, maxWidth: 120 }}>{p.barcode || '-'}</TableCell>
                         <TableCell sx={{ width: 120, maxWidth: 120 }}>{p.code || '-'}</TableCell>
                         {warehouses.map(w => (
-                          <TableCell key={`cell-${p.id}-${w.id}`} align="right" sx={{ width: 120, maxWidth: 140 }}>{(inventory[w.id]?.[p.id] || 0).toLocaleString()}</TableCell>
+                          <TableCell 
+                            key={`cell-${p.id}-${w.id}`} 
+                            align="right" 
+                            sx={{ width: 120, maxWidth: 140, cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
+                            onClick={(e) => handleOpenEdit(e, w.id, p.id, inventory[w.id]?.[p.id] || 0)}
+                          >
+                            {(inventory[w.id]?.[p.id] || 0).toLocaleString()}
+                          </TableCell>
                         ))}
                         <TableCell align="right" sx={{ width: 120, maxWidth: 140, backgroundColor: '#f5f5f5', fontWeight: 'bold' }}>
                           {productTotal.toLocaleString()}
@@ -186,6 +211,42 @@ export default function InventoryStatus() {
                 </TableFooter>
               </Table>
             </TableContainer>
+
+            <Popover
+              open={Boolean(editPopoverAnchor)}
+              anchorEl={editPopoverAnchor}
+              onClose={handleCloseEdit}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+              transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+            >
+              <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 250 }}>
+                <Typography variant="subtitle2">재고 직접 수정</Typography>
+                <TextField 
+                  label="현재 재고" 
+                  size="small" 
+                  value={editData.currentQty} 
+                  disabled 
+                />
+                <TextField 
+                  label="수정할 재고" 
+                  type="number" 
+                  size="small" 
+                  value={editData.newQty} 
+                  onChange={(e) => setEditData({...editData, newQty: e.target.value})} 
+                  autoFocus
+                />
+                <TextField 
+                  label="수정 사유 (선택)" 
+                  size="small" 
+                  value={editData.reason} 
+                  onChange={(e) => setEditData({...editData, reason: e.target.value})} 
+                />
+                <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                  <Button size="small" onClick={handleCloseEdit} color="inherit">취소</Button>
+                  <Button size="small" variant="contained" onClick={submitEdit} color="primary">저장</Button>
+                </Box>
+              </Box>
+            </Popover>
           </Box>
         );
 }

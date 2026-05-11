@@ -2714,6 +2714,44 @@ function InventoryLayout() {
       }
     }
   }, []);
+  const handleDirectInventoryEdit = async (warehouseId, productId, currentQty, newQty, reason) => {
+    const delta = newQty - currentQty;
+    if (delta === 0) return;
+    
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+    
+    const isOut = delta < 0;
+    const absQty = Math.abs(delta);
+    
+    const transaction = {
+      groupId: `TX-${Date.now()}`,
+      type: isOut ? 'out' : 'in',
+      productId: parseInt(productId, 10),
+      productName: product.name,
+      productCode: product.code || '',
+      productSupplier: product.supplier || '-',
+      quantity: absQty,
+      fromLocation: isOut ? warehouseId : '외부',
+      toLocation: isOut ? '조정(외부)' : warehouseId,
+      date: new Date().toISOString().split('T')[0],
+      boxNo: '',
+      note: reason || '재고 현황에서 직접 수정',
+      additionalNote: '',
+      createdAt: new Date().toLocaleString(),
+      isGrouped: false,
+      status: '완료'
+    };
+    
+    try {
+      await transactionApi.createMany([transaction]);
+      await fetchTransactions(); // 원장 및 재고 재계산 트리거
+      showSnackbar('재고가 수정되었습니다.', 'success');
+    } catch (err) {
+      console.error(err);
+      showSnackbar('재고 수정 중 오류가 발생했습니다.', 'error');
+    }
+  };
 
 
   const contextValue = {
@@ -2743,7 +2781,7 @@ function InventoryLayout() {
     handleTableCellHover, handleTableCellHoverLeave, handlePageChange, handleBarcodeScan, startBarcodeScan,
     handleBarcodeScanError, handleDragOver, handleDragLeave, handleDrop,
     totalPages, recalculateAllInventory,
-    batchFromLocation, setBatchFromLocation, batchToLocation, setBatchToLocation, showOriginalHistory, setShowOriginalHistory, handleSubmitTransaction, downloadExcelTemplate, handleExcelDataSubmit, handleBatchApplyLocation};
+    batchFromLocation, setBatchFromLocation, batchToLocation, setBatchToLocation, showOriginalHistory, setShowOriginalHistory, handleSubmitTransaction, downloadExcelTemplate, handleExcelDataSubmit, handleBatchApplyLocation, handleDirectInventoryEdit};
   return (
     <Box sx={{ width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
       <Outlet context={contextValue} />
