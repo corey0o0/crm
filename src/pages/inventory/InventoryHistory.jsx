@@ -29,6 +29,8 @@ export default function InventoryHistory() {
     selectedTransaction, startEditTransaction, recalculateAllInventory, deleteTransaction
   , batchFromLocation, setBatchFromLocation, batchToLocation, setBatchToLocation, showOriginalHistory, setShowOriginalHistory, handleSubmitTransaction, downloadExcelTemplate, handleDragOver, handleDragLeave, handleDrop, handleExcelDataSubmit, handleBatchApplyLocation, warehouseDetailTarget, warehouseDetailOpen, closeWarehouseDetail, barcodeScannerOpen, setBarcodeScannerOpen, setCurrentScanningRow, handleBarcodeScan, handleBarcodeScanError, excelData, isDragOver, snackbar, setSnackbar} = context;
 
+  const [detailProcessing, setDetailProcessing] = useState(false);
+
   return (
 
         <Box>
@@ -1515,33 +1517,50 @@ export default function InventoryHistory() {
               >
                 엑셀 다운로드
               </Button>
-              <Button onClick={closeTransactionDetail}>닫기</Button>
+              <Button onClick={closeTransactionDetail} disabled={detailProcessing}>닫기</Button>
               <Button 
+                disabled={detailProcessing}
                 onClick={async () => {
                   if (!selectedTransaction) return;
                   if (!window.confirm('이 거래내역을 삭제하시겠습니까? 재고가 자동으로 재계산됩니다.')) return;
-                  const groupId = selectedTransaction.groupId || selectedTransaction.id;
-                  const items = selectedTransaction.items || [selectedTransaction];
-                  for (const item of items) {
-                    await deleteTransaction(item.id);
+                  setDetailProcessing(true);
+                  try {
+                    const items = selectedTransaction.items || [selectedTransaction];
+                    for (const item of items) {
+                      await deleteTransaction(item.id);
+                    }
+                    closeTransactionDetail();
+                    showSnackbar('거래내역이 삭제되었습니다.', 'success');
+                  } finally {
+                    setDetailProcessing(false);
                   }
-                  closeTransactionDetail();
-                  showSnackbar('거래내역이 삭제되었습니다.', 'success');
                 }} 
                 variant="outlined" 
                 color="error"
               >
-                삭제
+                {detailProcessing ? '처리 중...' : '삭제'}
               </Button>
-              <Button onClick={startEditTransaction} variant="outlined" color="primary">
+              <Button onClick={startEditTransaction} variant="outlined" color="primary" disabled={detailProcessing}>
                 수정
               </Button>
             </>
           ) : (
             <>
-              <Button onClick={cancelEditTransaction}>취소</Button>
-              <Button onClick={saveEditTransaction} variant="contained" color="primary">
-                저장
+              <Button onClick={cancelEditTransaction} disabled={detailProcessing}>취소</Button>
+              <Button 
+                disabled={detailProcessing}
+                onClick={async () => {
+                  setDetailProcessing(true);
+                  try {
+                    await saveEditTransaction();
+                  } finally {
+                    setDetailProcessing(false);
+                  }
+                }} 
+                variant="contained" 
+                color="primary"
+              >
+                {detailProcessing ? '처리 중...' : '저장'}
               </Button>
             </>
           )}
