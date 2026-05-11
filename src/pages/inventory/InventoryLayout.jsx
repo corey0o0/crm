@@ -1326,18 +1326,36 @@ function InventoryLayout() {
           const toWh = warehouseMap.get(tx.toLocation);
           if (toWh) {
             if (!newInventory[tx.toLocation]) newInventory[tx.toLocation] = {};
-            newInventory[tx.toLocation][tx.productId] = (newInventory[tx.toLocation][tx.productId] || 0) + qty;
-            if (toWh.syncWithProductStock) {
-              stockUpdates[tx.productId] = (stockUpdates[tx.productId] || 0) + qty;
+            // adjustment 입고는 해당 값으로 덮어쓰기 (실재고 세팅)
+            if (tx.fromLocation === 'adjustment') {
+              const oldQty = newInventory[tx.toLocation][tx.productId] || 0;
+              newInventory[tx.toLocation][tx.productId] = qty;
+              if (toWh.syncWithProductStock) {
+                stockUpdates[tx.productId] = (stockUpdates[tx.productId] || 0) + (qty - oldQty);
+              }
+            } else {
+              newInventory[tx.toLocation][tx.productId] = (newInventory[tx.toLocation][tx.productId] || 0) + qty;
+              if (toWh.syncWithProductStock) {
+                stockUpdates[tx.productId] = (stockUpdates[tx.productId] || 0) + qty;
+              }
             }
           }
         } else if (tx.type === 'out') {
           const fromWh = warehouseMap.get(tx.fromLocation);
           if (fromWh) {
             if (!newInventory[tx.fromLocation]) newInventory[tx.fromLocation] = {};
-            newInventory[tx.fromLocation][tx.productId] = (newInventory[tx.fromLocation][tx.productId] || 0) - qty;
-            if (fromWh.syncWithProductStock) {
-              stockUpdates[tx.productId] = (stockUpdates[tx.productId] || 0) - qty;
+            // adjustment 출고는 해당 값으로 덮어쓰기 (실재고 세팅)
+            if (tx.toLocation === 'adjustment') {
+              const oldQty = newInventory[tx.fromLocation][tx.productId] || 0;
+              newInventory[tx.fromLocation][tx.productId] = qty;
+              if (fromWh.syncWithProductStock) {
+                stockUpdates[tx.productId] = (stockUpdates[tx.productId] || 0) + (qty - oldQty);
+              }
+            } else {
+              newInventory[tx.fromLocation][tx.productId] = (newInventory[tx.fromLocation][tx.productId] || 0) - qty;
+              if (fromWh.syncWithProductStock) {
+                stockUpdates[tx.productId] = (stockUpdates[tx.productId] || 0) - qty;
+              }
             }
           }
         } else if (tx.type === 'move') {
@@ -2747,8 +2765,8 @@ function InventoryLayout() {
       productCode: product.code || '',
       productSupplier: product.supplier || '-',
       quantity: absQty,
-      fromLocation: isOut ? warehouseId : 'adjustment',
-      toLocation: isOut ? 'adjustment' : warehouseId,
+      fromLocation: isOut ? warehouseId : 'direct_edit',
+      toLocation: isOut ? 'direct_edit' : warehouseId,
       date: new Date().toISOString().split('T')[0],
       boxNo: '',
       note: reason || '\uc7ac\uace0 \ud604\ud669\uc5d0\uc11c \uc9c1\uc811 \uc218\uc815',
