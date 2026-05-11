@@ -85,6 +85,7 @@ import { logAction, logActions } from '../../utils/auditLog';
 const formatLocationName = (locationId, warehouses, dealers) => {
   if (!locationId || locationId === '외부') return '외부';
   if (locationId === 'adjustment') return '재고 조정';
+  if (locationId === 'direct_edit') return '직접 수정';
   const warehouse = warehouses.find(w => w.id === locationId);
   if (warehouse) return warehouse.name;
   const dealer = dealers.find(d => d.id === locationId);
@@ -894,11 +895,6 @@ function InventoryLayout() {
         console.warn('[AuditLog] 수정 로그 실패:', logErr);
       }
 
-      // 재고 재계산
-      setTimeout(() => {
-        fetchInventoryData();
-      }, 100);
-
       // 상세 모달 닫기
       closeTransactionDetail();
     } catch (error) {
@@ -910,22 +906,6 @@ function InventoryLayout() {
   // 거래내역 삭제 (useCallback으로 메모이제이션)
   const deleteTransaction = useCallback(async (transactionId) => {
     try {
-      // 1. 단건 거래 내역 가져와서 재고 복구 준비
-      const txToReverse = transactions.find(t => String(t.id) === String(transactionId));
-      if (txToReverse) {
-        const reverseTx = {
-          ...txToReverse,
-          type: txToReverse.type === 'out' ? 'in' : 'out',
-          fromLocation: txToReverse.toLocation,
-          toLocation: txToReverse.fromLocation,
-        };
-        try {
-          await batchUpdateInventory([reverseTx]);
-        } catch (revertErr) {
-          console.warn('단건 재고 복구 중 경고:', revertErr.message);
-        }
-      }
-
       // 서버에서 거래내역 삭제
       await transactionApi.delete(transactionId);
       
@@ -935,11 +915,6 @@ function InventoryLayout() {
       // 서버에서 최신 거래내역 다시 가져오기
       const updatedTransactions = await transactionApi.getAll();
       setTransactions(updatedTransactions);
-      
-      // 삭제 후 재고 재계산
-      setTimeout(() => {
-        fetchInventoryData();
-      }, 100);
       
       showSnackbar('거래내역이 삭제되었습니다.', 'success');
 
@@ -959,7 +934,7 @@ function InventoryLayout() {
       console.error('거래내역 삭제 실패:', error);
       showSnackbar('거래내역 삭제에 실패했습니다.', 'error');
     }
-  }, [transactions]);
+  }, []);
 
   // 재고 수동 동기화
   const syncWarehouseStock = (warehouseId) => {
@@ -1957,6 +1932,7 @@ function InventoryLayout() {
     const isExt = (id) => !id || id === '외부' || id === 'none';
 
     if (fromLoc === 'adjustment' || toLoc === 'adjustment') return { label: '재고 조정', color: 'error' };
+    if (fromLoc === 'direct_edit' || toLoc === 'direct_edit') return { label: '직접 수정', color: 'warning' };
 
     if (actualTx.type === 'in') {
       if (isExt(fromLoc)) return { label: '수입', color: 'primary' };
