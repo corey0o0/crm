@@ -46,6 +46,7 @@ function BoardList() {
 
       if (tabIndex === 1) query = query.or('source.eq.internal,source.is.null');
       else if (tabIndex === 2) query = query.eq('source', 'cafe24');
+      else query = query.or('source.eq.internal,source.is.null'); // 전체에서도 내부만 표시
 
       const { data, error } = await safeRetry(async () => query, {
         maxRetries: 3, maxTime: 30000, baseDelay: 1000
@@ -132,33 +133,6 @@ function BoardList() {
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
         <Typography variant="h5" fontWeight={700}>게시판</Typography>
         <Stack direction="row" spacing={1}>
-          {cafe24Malls.some(m => m.connected) ? (
-            <Tooltip title="카페24 게시글 가져오기">
-              <span>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  startIcon={syncing ? <CircularProgress size={14} /> : <SyncIcon />}
-                  onClick={handleSync}
-                  disabled={syncing}
-                >
-                  {syncing ? '동기화 중...' : '전체 카페24 동기화'}
-                </Button>
-              </span>
-            </Tooltip>
-          ) : (
-            <Tooltip title="카페24 연동 설정">
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<StoreIcon />}
-                onClick={() => navigate('/settings/cafe24')}
-                sx={{ color: '#FF6B35', borderColor: '#FF6B35' }}
-              >
-                카페24 연동
-              </Button>
-            </Tooltip>
-          )}
           <Button
             variant="contained"
             size="small"
@@ -180,12 +154,6 @@ function BoardList() {
       <Tabs value={tab} onChange={handleTabChange} sx={{ mb: 1, borderBottom: '1px solid #e0e0e0' }}>
         <Tab icon={<AllIcon fontSize="small" />} iconPosition="start" label="전체" />
         <Tab icon={<ForumIcon fontSize="small" />} iconPosition="start" label="내부" />
-        <Tab
-          icon={<StoreIcon fontSize="small" />}
-          iconPosition="start"
-          label="카페24"
-          disabled={!cafe24Malls.some(m => m.connected) && posts.filter(p => p.source === 'cafe24').length === 0}
-        />
       </Tabs>
 
       {/* 게시글 목록 */}
