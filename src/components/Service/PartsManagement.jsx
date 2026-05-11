@@ -60,6 +60,7 @@ import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { supabase } from '../../lib/supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { MASTER_ACCOUNTS } from '../../config/menuConfig';
 import { sendTelegramNotification } from '../../lib/telegram';
 import { getErrorMessage, isOffline, safeRetry } from '../../utils/networkUtils';
 import { getSyncedParts, createSyncRelation, deleteSyncRelationById } from '../../utils/partSyncUtils';
@@ -636,8 +637,9 @@ function useDebounce(value, delay) {
 }
 
 function PartsManagement() {
-  const { hasActionPermission } = useAuth();
+  const { hasActionPermission, user } = useAuth();
   const canEditBasic = hasActionPermission('can_edit_basic');
+  const isMaster = user?.email && MASTER_ACCOUNTS.includes(user.email);
 
   const [parts, setParts] = useState([]);
   const [openDialog, setOpenDialog] = useState(false);
@@ -2156,6 +2158,7 @@ function PartsManagement() {
               </TextField>
             </Grid>
 
+            {isMaster && (
             <Grid item xs={12} sm={6} md={3}>
               <FormControlLabel
                 control={
@@ -2168,6 +2171,7 @@ function PartsManagement() {
                 sx={{ m: 0 }}
               />
             </Grid>
+            )}
           </Grid>
 
           {/* 검색 결과 카운트 */}

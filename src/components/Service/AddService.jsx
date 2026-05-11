@@ -7,6 +7,7 @@ import CustomerSearchModal from './CustomerSearchModal';
 import PartsSelectionDialog from './PartsSelectionDialog';
 import useAutoSave from '../../hooks/useAutoSave';
 import { processServiceCompletion } from '../../utils/inventoryUtils';
+import { logAction } from '../../utils/auditLog';
 import {
   Box,
   Button,
@@ -618,6 +619,20 @@ function AddService() {
       return { ...p, status: '반품완료', usage: (p.usage || '') + '[반품완료]' };
     }));
     setSnackbar({ open: true, message: '반품 처리되었습니다. 저장 시 재고에 반영됩니다.', severity: 'info' });
+
+    // 감사 로그
+    const returnedPart = selectedParts.find(p => p.id === partId);
+    try {
+      logAction({
+        action: '반품',
+        targetTable: 'service_parts',
+        targetId: partId,
+        summary: `[A/S 부품 반품] ${returnedPart?.name || 'unknown'} x ${returnedPart?.quantity || 1}개`,
+        details: returnedPart
+      });
+    } catch (logErr) {
+      console.warn('[AuditLog] 반품 로그 실패:', logErr);
+    }
   };
 
 
@@ -1008,6 +1023,19 @@ function AddService() {
         message: 'A/S가 성공적으로 등록되었습니다.',
         severity: 'success'
       });
+
+      // 감사 로그
+      try {
+        logAction({
+          action: '등록',
+          targetTable: 'services',
+          targetId: insertedService.id,
+          summary: `[A/S 등록] ${formData.customer_name} - ${formData.product_name} (상태: ${formData.status})`,
+          details: { service: serviceInsertData, parts: selectedParts, tags }
+        });
+      } catch (logErr) {
+        console.warn('[AuditLog] A/S 등록 로그 실패:', logErr);
+      }
 
       // 변경사항 초기화
       setHasUnsavedChanges(false);

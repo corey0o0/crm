@@ -6,6 +6,7 @@ import UserMenuSettings from '../../components/Settings/UserMenuSettings';
 import TelegramSettings from '../../components/Settings/TelegramSettings';
 import InspectionSettings from '../../components/Settings/InspectionSettings';
 import UserManagement from '../../components/Settings/UserManagement';
+import AuditLogViewer from '../../components/Admin/AuditLogViewer';
 import { useAuth } from '../../contexts/AuthContext';
 import { hasMenuAccess, MENU_KEYS } from '../../config/menuConfig';
 
@@ -69,6 +70,7 @@ export default function AdminTools() {
     if (canSeePermissions) {
         tabs.push({ label: "검수 과정 관리", component: <InspectionSettings /> });
         tabs.push({ label: "계정 관리", component: <UserManagement /> });
+        tabs.push({ label: "감사 로그", component: <AuditLogViewer /> });
     }
 
     // fallback if no specific permissions were granted but they still accessed admin tools

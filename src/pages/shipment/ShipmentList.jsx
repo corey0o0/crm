@@ -62,6 +62,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ko } from 'date-fns/locale';
 import { getCookie, setCookie, removeCookie, getJSONCookie, setJSONCookie } from '../../utils/cookieUtils';
+import { logAction } from '../../utils/auditLog';
 
 import dayjs from 'dayjs';
 
@@ -594,6 +595,19 @@ function ShipmentList() {
         message: '출고 정보가 성공적으로 삭제되었습니다.',
         severity: 'success'
       });
+
+      // 감사 로그: 출고 삭제 (전체 데이터 스냅샷 보존)
+      try {
+        await logAction({
+          action: '삭제',
+          targetTable: 'shipments',
+          targetId: selectedShipment.id,
+          summary: `[출고 삭제] ${selectedShipment.customer_name} - ${selectedShipment.product_name} (상태: ${selectedShipment.status})`,
+          details: selectedShipment
+        });
+      } catch (logErr) {
+        console.warn('[AuditLog] 출고 삭제 로그 실패:', logErr);
+      }
     } catch (error) {
       console.error('출고 정보 삭제 중 오류:', error);
       setSnackbar({

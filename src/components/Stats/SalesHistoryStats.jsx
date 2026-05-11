@@ -20,6 +20,7 @@ import AssessmentIcon from '@mui/icons-material/Assessment';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { useAuth } from '../../contexts/AuthContext';
+import { MASTER_ACCOUNTS } from '../../config/menuConfig';
 
 const COLORS = ['#1976d2', '#2e7d32', '#ed6c02', '#9c27b0', '#d32f2f', '#0288d1', '#7b1fa2'];
 
@@ -52,8 +53,9 @@ export const getSalesChannelName = (r) => {
 };
 
 function SalesHistoryStats() {
-  const { getAllowedMalls } = useAuth();
+  const { getAllowedMalls, user } = useAuth();
   const allowedMalls = getAllowedMalls();
+  const isMaster = user?.email && MASTER_ACCOUNTS.includes(user.email);
   const [loading, setLoading] = useState(true);
   const [flatRows, setFlatRows] = useState([]);
   const [manualFlatRows, setManualFlatRows] = useState([]); // 수기판매 별도 집계
@@ -1329,11 +1331,13 @@ function SalesHistoryStats() {
 
           <Button variant="contained" onClick={fetchSales} disabled={loading} sx={{ height: 40, bgcolor: '#3182f6', '&:hover': { bgcolor: '#1b64da' }, px: 4 }} startIcon={<SearchIcon />}>조회</Button>
           
+          {isMaster && (
           <FormControlLabel
             control={<Switch checked={showProfit} onChange={(e) => setShowProfit(e.target.checked)} color="primary" />}
             label={<Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: showProfit ? '#2e7d32' : 'text.secondary' }}>영업이익 보기</Typography>}
             sx={{ ml: 'auto' }}
           />
+          )}
         </Box>
         </Box>
       </Paper>

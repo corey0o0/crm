@@ -49,6 +49,7 @@ import { format } from 'date-fns';
 import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { sendTelegramNotification } from '../../lib/telegram';
 import { processShipmentCompletion, processShipmentRevert } from '../../utils/inventoryUtils';
+import { logAction } from '../../utils/auditLog';
 
 
 // 부품 카테고리 자동 결정 함수 (setSelectedCategory 호출 제거, 카테고리 반환)
@@ -823,6 +824,19 @@ function ShipmentForm({ isManualB2B = false }) {
         message: isEditMode ? '출고 정보가 수정되었습니다.' : '출고 정보가 등록되었습니다.',
         severity: 'success'
       });
+
+      // 감사 로그
+      try {
+        await logAction({
+          action: isEditMode ? '수정' : '등록',
+          targetTable: 'shipments',
+          targetId: shipmentId,
+          summary: `[출고 ${isEditMode ? '수정' : '등록'}] ${shipmentData.customer_name} - ${combinedProductName} (총 ${totalQuantity}개, ${totalPrice?.toLocaleString()}원)`,
+          details: { shipment: shipmentSaveData, parts: selectedParts, status: shipmentSaveData.status }
+        });
+      } catch (logErr) {
+        console.warn('[AuditLog] 출고 로그 실패:', logErr);
+      }
 
       // 텔레그램 알림 전송
       if (shipmentId) {

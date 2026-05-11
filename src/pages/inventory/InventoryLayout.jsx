@@ -79,6 +79,7 @@ import { inventoryApi } from '../../api/inventoryApi';
 import { supabase } from '../../lib/supabaseClient';
 import { fetchFromSupabase } from '../../utils/restApiUtils';
 import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
+import { logAction, logActions } from '../../utils/auditLog';
 
 // 창고 및 대리점 코드를 숨기고 이름만 표시하는 유틸리티
 const formatLocationName = (locationId, warehouses, dealers) => {
@@ -189,6 +190,21 @@ function InventoryLayout() {
       }, 100);
       
       showSnackbar(`선택한 거래내역이 삭제되고 재고가 복구되었습니다.`, 'success');
+
+      // 감사 로그: 삭제된 거래 내역 기록 (삭제 전 데이터 스냅샷 보존)
+      try {
+        const deleteLogs = reverseTransactions.map(rt => ({
+          action: '삭제',
+          targetTable: 'inventory_transactions',
+          targetId: rt.groupId || rt.id,
+          summary: `[입출고 삭제] ${rt.productName} x ${rt.quantity}개 (${formatLocationName(rt.toLocation, warehouses, dealers)}→${formatLocationName(rt.fromLocation, warehouses, dealers)})`,
+          details: { original: rt, reversed: true },
+          groupId: rt.groupId || null
+        }));
+        logActions(deleteLogs);
+      } catch (logErr) {
+        console.warn('[AuditLog] 삭제 로그 기록 실패:', logErr);
+      }
     } catch (error) {
       console.error('거래내역 선택 삭제 실패:', error);
       showSnackbar('거래내역 삭제에 실패했습니다.', 'error');
@@ -861,6 +877,20 @@ function InventoryLayout() {
       setEditProducts([]);
       showSnackbar('거래내역이 수정되었습니다.', 'success');
 
+      // 감사 로그: 거래내역 수정
+      try {
+        await logAction({
+          action: '수정',
+          targetTable: 'inventory_transactions',
+          targetId: selectedTransaction.groupId || selectedTransaction.id,
+          summary: `[입출고 수정] 그룹 ${selectedTransaction.groupId || selectedTransaction.id}`,
+          details: { before: selectedTransaction, after: editProducts },
+          groupId: selectedTransaction.groupId || null
+        });
+      } catch (logErr) {
+        console.warn('[AuditLog] 수정 로그 실패:', logErr);
+      }
+
       // 재고 재계산
       setTimeout(() => {
         fetchInventoryData();
@@ -1062,6 +1092,21 @@ function InventoryLayout() {
       setTransactions(updatedTransactions);
       await batchUpdateInventory(newTransactions);
       showSnackbar(`입출고 등록이 완료되었습니다. (${newTransactions.length}개 상품)`, 'success');
+
+      // 감사 로그: 신규 입출고 등록
+      try {
+        const createLogs = newTransactions.map(t => ({
+          action: t.type === 'in' ? '입고' : '출고',
+          targetTable: 'inventory_transactions',
+          targetId: t.groupId,
+          summary: `[${t.type === 'in' ? '입고' : '출고'}] ${t.productName} x ${t.quantity}개 (${formatLocationName(t.fromLocation, warehouses, dealers)}→${formatLocationName(t.toLocation, warehouses, dealers)})${t.note ? ' - ' + t.note : ''}`,
+          details: t,
+          groupId: t.groupId
+        }));
+        logActions(createLogs);
+      } catch (logErr) {
+        console.warn('[AuditLog] 입출고 등록 로그 실패:', logErr);
+      }
       handleCloseDialog();
     } catch (error) {
       console.error('입출고 등록 실패:', error);

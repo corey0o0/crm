@@ -1627,7 +1627,7 @@ function ServiceList() {
       id: 'reception_date', 
       label: '접수일시',
       sortable: true,
-      width: 120,
+      width: 85,
       renderCell: (params) => (
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <Typography variant="body2" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }} noWrap>
@@ -1653,6 +1653,7 @@ function ServiceList() {
       id: 'customer_name', 
       label: '이름',
       sortable: true,
+      width: 80,
       render: (row) => (
         <Typography noWrap sx={{ 
           fontSize: '0.95rem', 
@@ -1667,6 +1668,7 @@ function ServiceList() {
       id: 'customer_phone', 
       label: '연락처',
       sortable: true,
+      width: 120,
       render: (row) => (
         <Typography noWrap sx={{ 
           fontSize: '0.95rem', 
@@ -1682,7 +1684,7 @@ function ServiceList() {
       id: 'product_name', 
       label: '기종',
       sortable: true,
-      width: '150px',
+      width: 120,
       render: (row) => (
         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, minWidth: 0 }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -1726,7 +1728,6 @@ function ServiceList() {
       id: 'symptom', 
       label: '문의내역',
       sortable: true,
-      width: 200,
       render: (row) => (
         <Tooltip 
           title={
@@ -1745,7 +1746,7 @@ function ServiceList() {
           <Typography sx={{ 
             whiteSpace: 'pre-wrap',
             wordBreak: 'keep-all',
-            maxWidth: '200px',
+            maxWidth: '100%',
             display: '-webkit-box',
             WebkitLineClamp: 4,
             WebkitBoxOrient: 'vertical',
@@ -1766,9 +1767,8 @@ function ServiceList() {
       id: 'tags', 
       label: '처리내역',
       sortable: true,
-      width: 200,
       render: (row) => (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, maxWidth: '200px' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, maxWidth: '100%' }}>
           {/* 사용부품 아이콘 및 툴팁 */}
           {Array.isArray(row.service_parts) && row.service_parts.length > 0 && (
             <Tooltip
@@ -1809,7 +1809,7 @@ function ServiceList() {
             placement="top"
             arrow
           >
-            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', maxWidth: '170px' }}>
+            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', maxWidth: '100%' }}>
               {row.tags?.length > 0 ? (
                 row.tags.map((tag, index) => (
             <Chip
@@ -1835,7 +1835,7 @@ function ServiceList() {
                     variant="body2" 
                     color="text.secondary"
                     sx={{ 
-                      maxWidth: '170px',
+                      maxWidth: '100%',
                       whiteSpace: 'pre-wrap',
                       wordBreak: 'break-word',
                       display: '-webkit-box',
@@ -1864,6 +1864,7 @@ function ServiceList() {
       id: 'status', 
       label: '상태',
       sortable: true,
+      width: 80,
       render: (row) => (
         <Box sx={{ 
           display: 'flex', 
@@ -1905,6 +1906,7 @@ function ServiceList() {
       id: 'actions', 
       label: '관리',
       sortable: false,
+      width: 70,
       render: (row) => (
         <Box>
           <IconButton size="small" onClick={(e) => {
@@ -3697,12 +3699,14 @@ function ServiceList() {
           }
         })}
         sx={{
+          tableLayout: 'fixed',
           '& .MuiTableRow-root': {
             transition: 'background-color 0.3s ease',
           },
           '& th, & td': { 
             py: '13px', 
-            px: 1 
+            px: 1,
+            overflow: 'hidden'
           }
         }}
       />
