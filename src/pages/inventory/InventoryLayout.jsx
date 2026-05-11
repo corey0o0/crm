@@ -2730,37 +2730,35 @@ function InventoryLayout() {
     }
   }, []);
   const handleDirectInventoryEdit = async (warehouseId, productId, currentQty, newQty, reason) => {
-    const delta = newQty - currentQty;
-    if (delta === 0) return;
+    if (newQty === currentQty) return;
     
     const product = products.find(p => p.id === productId);
     if (!product) return;
     
-    const isOut = delta < 0;
-    const absQty = Math.abs(delta);
-    
     const transaction = {
       groupId: `TX-${Date.now()}`,
-      type: isOut ? 'out' : 'in',
+      type: 'adjustment',
       productId: parseInt(productId, 10),
       productName: product.name,
       productCode: product.code || '',
       productSupplier: product.supplier || '-',
-      quantity: absQty,
-      fromLocation: isOut ? warehouseId : '외부',
-      toLocation: isOut ? '조정(외부)' : warehouseId,
+      quantity: newQty, // 조정 후의 최종 수량
+      fromLocation: 'adjustment',
+      toLocation: warehouseId,
       date: new Date().toISOString().split('T')[0],
       boxNo: '',
       note: reason || '재고 현황에서 직접 수정',
-      additionalNote: '',
-      createdAt: new Date().toLocaleString(),
+      additionalNote: `기존: ${currentQty} -> 변경: ${newQty}`,
+      createdAt: new Date().toISOString(),
       isGrouped: false,
       status: '완료'
     };
     
     try {
       await transactionApi.createMany([transaction]);
-      await fetchTransactions(); // 원장 및 재고 재계산 트리거
+      await recalculateAllInventory(true); // 재고 재계산 실행
+      const latest = await transactionApi.getAll();
+      setTransactions(latest);
       showSnackbar('재고가 수정되었습니다.', 'success');
     } catch (err) {
       console.error(err);
