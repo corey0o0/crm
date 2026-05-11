@@ -2735,34 +2735,38 @@ function InventoryLayout() {
     const product = products.find(p => p.id === productId);
     if (!product) return;
     
+    const delta = newQty - currentQty;
+    const isOut = delta < 0;
+    const absQty = Math.abs(delta);
+    
     const transaction = {
       groupId: `TX-${Date.now()}`,
-      type: 'adjustment',
+      type: isOut ? 'out' : 'in',
       productId: parseInt(productId, 10),
       productName: product.name,
       productCode: product.code || '',
       productSupplier: product.supplier || '-',
-      quantity: newQty, // 조정 후의 최종 수량
-      fromLocation: 'adjustment',
-      toLocation: warehouseId,
+      quantity: absQty,
+      fromLocation: isOut ? warehouseId : 'adjustment',
+      toLocation: isOut ? 'adjustment' : warehouseId,
       date: new Date().toISOString().split('T')[0],
       boxNo: '',
-      note: reason || '재고 현황에서 직접 수정',
-      additionalNote: `기존: ${currentQty} -> 변경: ${newQty}`,
+      note: reason || '\uc7ac\uace0 \ud604\ud669\uc5d0\uc11c \uc9c1\uc811 \uc218\uc815',
+      additionalNote: `\uae30\uc874: ${currentQty} -> \ubcc0\uacbd: ${newQty}`,
       createdAt: new Date().toISOString(),
       isGrouped: false,
-      status: '완료'
+      status: '\uc644\ub8cc'
     };
     
     try {
       await transactionApi.createMany([transaction]);
-      await recalculateAllInventory(true); // 재고 재계산 실행
+      await recalculateAllInventory(true);
       const latest = await transactionApi.getAll();
       setTransactions(latest);
-      showSnackbar('재고가 수정되었습니다.', 'success');
+      showSnackbar('\uc7ac\uace0\uac00 \uc218\uc815\ub418\uc5c8\uc2b5\ub2c8\ub2e4.', 'success');
     } catch (err) {
       console.error(err);
-      showSnackbar('재고 수정 중 오류가 발생했습니다.', 'error');
+      showSnackbar('\uc7ac\uace0 \uc218\uc815 \uc911 \uc624\ub958\uac00 \ubc1c\uc0dd\ud588\uc2b5\ub2c8\ub2e4.', 'error');
     }
   };
 
