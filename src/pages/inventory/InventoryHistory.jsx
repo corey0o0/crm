@@ -1077,6 +1077,7 @@ export default function InventoryHistory() {
                             <TableCell sx={{ fontWeight: 'bold' }}>상품명</TableCell>
                             <TableCell sx={{ fontWeight: 'bold' }}>브랜드</TableCell>
                             <TableCell sx={{ fontWeight: 'bold' }}>바코드</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>상품코드</TableCell>
                             <TableCell align="center" sx={{ fontWeight: 'bold' }}>수량</TableCell>
                             <TableCell sx={{ fontWeight: 'bold' }}>출발지</TableCell>
                             <TableCell sx={{ fontWeight: 'bold' }}>목적지</TableCell>
@@ -1099,7 +1100,13 @@ export default function InventoryHistory() {
                                   return dbBrand || txBrand || '-';
                                 })()}
                               </TableCell>
-                              <TableCell>{item.productCode}</TableCell>
+                              <TableCell>
+                                {(() => {
+                                  const p = products.find(prod => prod.id === item.productId || prod.code === item.productCode);
+                                  return p?.barcode || '-';
+                                })()}
+                              </TableCell>
+                              <TableCell>{item.productCode || '-'}</TableCell>
                               <TableCell align="center">{item.quantity}</TableCell>
                               <TableCell>
                                 {(() => {
@@ -1447,7 +1454,7 @@ export default function InventoryHistory() {
                     ws.addRow([]);
 
                     // 테이블 헤더
-                    const headerRow = ws.addRow(['상품명', '브랜드', '바코드', '수량', '출발지', '목적지', '메모']);
+                    const headerRow = ws.addRow(['상품명', '브랜드', '바코드', '상품코드', '수량', '출발지', '목적지', '메모']);
                     headerRow.eachCell(cell => {
                       cell.font = { bold: true };
                       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F5F5' } };
@@ -1458,7 +1465,8 @@ export default function InventoryHistory() {
                     items.forEach(item => {
                       const p = products.find(prod => prod.id === item.productId || prod.code === item.productCode);
                       const brand = p?.supplier || item.productSupplier || '-';
-                      const barcode = item.productCode || p?.code || '-';
+                      const barcode = p?.barcode || '-';
+                      const productCode = item.productCode || p?.code || '-';
                       const qty = Number(item.quantity || 0);
                       totalQty += qty;
 
@@ -1473,12 +1481,12 @@ export default function InventoryHistory() {
                       })();
                       const note = [item.note, item.additionalNote].filter(Boolean).join(' / ');
 
-                      ws.addRow([item.productName || p?.name || '-', brand, barcode, qty, fromLoc, toLoc, note]);
+                      ws.addRow([item.productName || p?.name || '-', brand, barcode, productCode, qty, fromLoc, toLoc, note]);
                     });
 
                     // 합계행
                     ws.addRow([]);
-                    ws.addRow(['', '', '합계', totalQty]);
+                    ws.addRow(['', '', '', '합계', totalQty]);
 
                     // 열 너비
                     ws.columns = [
