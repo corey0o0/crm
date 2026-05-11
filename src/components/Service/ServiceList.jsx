@@ -76,6 +76,7 @@ import { formatKoreanDateTime } from '../../utils/dateUtils';
 import { format } from 'date-fns';
 import { sendTelegramNotification } from '../../lib/telegram'; // 텔레그램 유틸리티 함수 import
 import { processServiceCompletion, processServiceRevert, normalizeServiceStatus } from '../../utils/inventoryUtils';
+import { useAuth } from '../../contexts/AuthContext';
 
 // KST 변환 함수 추가
 // function toKST(dateString) { ... } // 삭제
@@ -125,7 +126,16 @@ function extractDate(dateStr) {
 
 function ServiceList() {
   const location = useLocation();
-  const validateBrand = (value) => (value === 'XRB' || value === 'NB' ? value : 'XRB');
+  const { getAllowedBrands } = useAuth();
+  const allowedBrands = getAllowedBrands();
+  const validateBrand = (value) => {
+    const valid = value === 'XRB' || value === 'NB' ? value : 'XRB';
+    // 권한 제한이 있으면 허용된 브랜드로 강제
+    if (allowedBrands !== 'all' && Array.isArray(allowedBrands) && allowedBrands.length > 0) {
+      return allowedBrands.includes(valid) ? valid : allowedBrands[0];
+    }
+    return valid;
+  };
   const [selectedBrand, setSelectedBrand] = useState(() => {
     // URL 파라미터나 로컬스토리지에서 브랜드 정보를 가져오려고 시도
     const savedBrand = localStorage.getItem('selectedBrand');
@@ -3261,6 +3271,7 @@ function ServiceList() {
             value={selectedBrand} 
             onChange={handleBrandChange}
           >
+            {(allowedBrands === 'all' || (Array.isArray(allowedBrands) && allowedBrands.includes('XRB'))) && (
             <Tab 
               label={
                 brandCounts.XRB.reception > 0 || brandCounts.XRB.processing > 0
@@ -3270,6 +3281,8 @@ function ServiceList() {
               value="XRB"
               sx={{ fontWeight: 'bold', fontSize: brandCounts.XRB.reception > 0 || brandCounts.XRB.processing > 0 ? '0.875rem' : 'inherit' }}
             />
+            )}
+            {(allowedBrands === 'all' || (Array.isArray(allowedBrands) && allowedBrands.includes('NB'))) && (
             <Tab 
               label={
                 brandCounts.NB.reception > 0 || brandCounts.NB.processing > 0
@@ -3279,6 +3292,7 @@ function ServiceList() {
               value="NB"
               sx={{ fontWeight: 'bold', fontSize: brandCounts.NB.reception > 0 || brandCounts.NB.processing > 0 ? '0.875rem' : 'inherit' }}
             />
+            )}
           </Tabs>
           <Stack direction="row" spacing={2}>
             <Button

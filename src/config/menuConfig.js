@@ -83,6 +83,28 @@ export const getAllowedMalls = (userEmail, dynamicSettings = {}) => {
 };
 
 /**
+ * 사용자 이메일로 허용된 브랜드(XRB, NB) 목록 가져오기
+ * @param {string} userEmail - 사용자 이메일
+ * @param {object} dynamicSettings - DB에서 불러온 사용자별 메뉴 권한 맵
+ * @returns {string|Array} - 'all' 또는 브랜드 키 배열 (['XRB'], ['NB'], ['XRB','NB'])
+ */
+export const getAllowedBrands = (userEmail, dynamicSettings = {}) => {
+  if (!userEmail) return [];
+  if (MASTER_ACCOUNTS.includes(userEmail)) return 'all';
+  
+  if (dynamicSettings && dynamicSettings[userEmail]) {
+    const userSettings = dynamicSettings[userEmail];
+    if (userSettings && !Array.isArray(userSettings) && typeof userSettings === 'object') {
+       if (userSettings.brands && userSettings.brands.length > 0) {
+           return userSettings.brands;
+       }
+    }
+  }
+  // 제한이 없으면 'all'로 간주
+  return 'all';
+};
+
+/**
  * 사용자가 특정 동작 권한을 가지고 있는지 확인
  * @param {string} userEmail - 사용자 이메일
  * @param {string} actionKey - 동작 키 (예: 'can_edit_basic')

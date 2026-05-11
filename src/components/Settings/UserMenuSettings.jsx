@@ -69,6 +69,11 @@ const AVAILABLE_MALLS = [
   { key: 'nearbike', label: '니어바이크 (nearbike)' }
 ];
 
+const AVAILABLE_BRANDS = [
+  { key: 'XRB', label: 'X-RIDER (엑스라이더)' },
+  { key: 'NB', label: 'NEARBIKE (니어바이크)' }
+];
+
 export default function UserMenuSettings() {
   const { refreshMenuPermissions } = useAuth();
   
@@ -81,6 +86,7 @@ export default function UserMenuSettings() {
   const [targetEmail, setTargetEmail] = useState('');
   const [selectedMenus, setSelectedMenus] = useState([]);
   const [selectedMalls, setSelectedMalls] = useState([]);
+  const [selectedBrands, setSelectedBrands] = useState([]);
   const [canEditBasic, setCanEditBasic] = useState(true);
 
   useEffect(() => {
@@ -111,14 +117,17 @@ export default function UserMenuSettings() {
       if (Array.isArray(p)) {
           setSelectedMenus(p);
           setSelectedMalls([]);
+          setSelectedBrands([]);
           setCanEditBasic(true);
       } else if (p && typeof p === 'object') {
           setSelectedMenus(p.menus || []);
           setSelectedMalls(p.malls || []);
+          setSelectedBrands(p.brands || []);
           setCanEditBasic(p.actions ? p.actions.can_edit_basic !== false : true);
       } else {
           setSelectedMenus([]);
           setSelectedMalls([]);
+          setSelectedBrands([]);
           setCanEditBasic(true);
       }
     } else {
@@ -126,6 +135,7 @@ export default function UserMenuSettings() {
       setTargetEmail('');
       setSelectedMenus([]);
       setSelectedMalls([]);
+      setSelectedBrands([]);
       setCanEditBasic(true);
     }
     setOpenDialog(true);
@@ -136,6 +146,7 @@ export default function UserMenuSettings() {
     setTargetEmail('');
     setSelectedMenus([]);
     setSelectedMalls([]);
+    setSelectedBrands([]);
     setCanEditBasic(true);
   };
 
@@ -152,6 +163,12 @@ export default function UserMenuSettings() {
     );
   };
 
+  const handleToggleBrand = (brandKey) => {
+    setSelectedBrands((prev) => 
+      prev.includes(brandKey) ? prev.filter(k => k !== brandKey) : [...prev, brandKey]
+    );
+  };
+
   // 다이얼로그 저장
   const handleSaveUser = async () => {
     const trimmedEmail = targetEmail.trim().toLowerCase();
@@ -163,6 +180,7 @@ export default function UserMenuSettings() {
     const newSettings = {
       menus: selectedMenus,
       malls: selectedMalls,
+      brands: selectedBrands,
       actions: {
          can_edit_basic: canEditBasic
       }
@@ -245,11 +263,13 @@ export default function UserMenuSettings() {
                              let mList = [];
                              let mallsList = [];
                              let editBasic = true;
+                             let brandsList = [];
                              if (Array.isArray(p)) {
                                mList = p;
                              } else if (p && typeof p === 'object') {
                                mList = p.menus || [];
                                mallsList = p.malls || [];
+                               brandsList = p.brands || [];
                                editBasic = p.actions ? p.actions.can_edit_basic !== false : true;
                              }
                              
@@ -279,6 +299,20 @@ export default function UserMenuSettings() {
                                  ) : (
                                    <Typography variant="caption" sx={{ bgcolor: 'secondary.light', color: 'secondary.contrastText', px: 1, py: 0.5, borderRadius: 1 }}>
                                      모든 쇼핑몰 허용
+                                   </Typography>
+                                 )}
+
+                                 <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+                                 
+                                 {brandsList.length > 0 ? (
+                                   brandsList.map(b => (
+                                     <Typography key={b} variant="caption" sx={{ bgcolor: '#e3f2fd', color: '#1565c0', px: 1, py: 0.5, borderRadius: 1 }}>
+                                       {AVAILABLE_BRANDS.find(x => x.key === b)?.label || b}
+                                     </Typography>
+                                   ))
+                                 ) : (
+                                   <Typography variant="caption" sx={{ bgcolor: '#e3f2fd', color: '#1565c0', px: 1, py: 0.5, borderRadius: 1 }}>
+                                     모든 브랜드 허용
                                    </Typography>
                                  )}
 
@@ -365,6 +399,28 @@ export default function UserMenuSettings() {
                         />
                       }
                       label={<Typography variant="body2">{mall.label}</Typography>}
+                    />
+                  </Grid>
+                ))}
+              </Grid>
+            </FormGroup>
+          </Paper>
+
+          <Typography variant="subtitle2" gutterBottom sx={{ mt: 3 }}>브랜드 접근 권한 (A/S, 매장출고) - 미선택 시 전체 허용</Typography>
+          <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+            <FormGroup>
+              <Grid container>
+                {AVAILABLE_BRANDS.map((brand) => (
+                  <Grid item xs={6} key={brand.key}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={selectedBrands.includes(brand.key)}
+                          onChange={() => handleToggleBrand(brand.key)}
+                          color="info"
+                        />
+                      }
+                      label={<Typography variant="body2">{brand.label}</Typography>}
                     />
                   </Grid>
                 ))}

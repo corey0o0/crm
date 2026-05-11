@@ -63,15 +63,22 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ko } from 'date-fns/locale';
 import { getCookie, setCookie, removeCookie, getJSONCookie, setJSONCookie } from '../../utils/cookieUtils';
 import { logAction } from '../../utils/auditLog';
+import { useAuth } from '../../contexts/AuthContext';
 
 import dayjs from 'dayjs';
 
 function ShipmentList() {
   const [loading, setLoading] = useState(true);
   const [shipments, setShipments] = useState([]);
+  const { getAllowedBrands } = useAuth();
+  const allowedBrands = getAllowedBrands();
   const [selectedBrand, setSelectedBrand] = useState(() => {
     const savedBrand = getCookie('shipment_selectedBrand');
-    return (savedBrand === 'XRB' || savedBrand === 'NB') ? savedBrand : 'XRB';
+    const valid = (savedBrand === 'XRB' || savedBrand === 'NB') ? savedBrand : 'XRB';
+    if (allowedBrands !== 'all' && Array.isArray(allowedBrands) && allowedBrands.length > 0) {
+      return allowedBrands.includes(valid) ? valid : allowedBrands[0];
+    }
+    return valid;
   });
   const [statusFilter, setStatusFilter] = useState(() => {
     const savedStatus = getCookie('shipment_statusFilter');
@@ -1527,16 +1534,20 @@ function ShipmentList() {
           value={selectedBrand}
           onChange={handleBrandChange}
         >
+          {(allowedBrands === 'all' || (Array.isArray(allowedBrands) && allowedBrands.includes('XRB'))) && (
           <Tab
             label={`X-RIDER${brandCounts.XRB > 0 ? `(${brandCounts.XRB})` : ''}`}
             value="XRB"
             sx={{ fontWeight: 'bold' }}
           />
+          )}
+          {(allowedBrands === 'all' || (Array.isArray(allowedBrands) && allowedBrands.includes('NB'))) && (
           <Tab
             label={`NEARBIKE${brandCounts.NB > 0 ? `(${brandCounts.NB})` : ''}`}
             value="NB"
             sx={{ fontWeight: 'bold' }}
           />
+          )}
         </Tabs>
 
         <ToggleButtonGroup

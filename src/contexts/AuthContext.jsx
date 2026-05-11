@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { getAppSetting } from '../api/settingsApi';
-import { hasMenuAccess, getAllowedMalls, hasActionPermission } from '../config/menuConfig';
+import { hasMenuAccess, getAllowedMalls, getAllowedBrands, hasActionPermission } from '../config/menuConfig';
 
 const AuthContext = createContext({});
 
@@ -158,6 +158,11 @@ export const AuthProvider = ({ children }) => {
     return hasActionPermission(user.email, actionKey, userMenuPermissions);
   };
 
+  const allowedBrands = () => {
+    if (!user?.email) return [];
+    return getAllowedBrands(user.email, userMenuPermissions);
+  };
+
   const value = {
     user,
     session,
@@ -165,6 +170,7 @@ export const AuthProvider = ({ children }) => {
     userMenuPermissions,
     hasPermission,
     getAllowedMalls: allowedMalls,
+    getAllowedBrands: allowedBrands,
     hasActionPermission: actionPermission,
     refreshMenuPermissions: loadMenuPermissions,
     signIn,
