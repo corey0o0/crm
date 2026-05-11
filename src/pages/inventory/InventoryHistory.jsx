@@ -118,6 +118,7 @@ export default function InventoryHistory() {
             }}
           >
             새로고침
+          </Button>
         </Box>
       </Box>
           {/* 검색/기간 통합 필터 UI */}
