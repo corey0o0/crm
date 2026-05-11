@@ -54,8 +54,7 @@ export const inventoryApi = {
       return data;
     } catch (error) {
       console.error('재고 업데이트 오류:', error);
-      // 서버 실패시에도 UI가 계속 진행되도록 noop 처리
-      return { warehouse_id: warehouseId, product_id: productId, quantity };
+      throw error;
     }
   },
 
@@ -76,7 +75,7 @@ export const inventoryApi = {
       return data;
     } catch (error) {
       console.error('재고 일괄 업데이트 오류:', error);
-      return [];
+      throw error;
     }
   },
 

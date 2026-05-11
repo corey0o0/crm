@@ -209,6 +209,24 @@ function LocationManagement({
     if (window.confirm('정말 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
       try {
         if (type === 'warehouse') {
+          // 참조 무결성 확인: inventory 또는 transactions에서 사용 중인지 체크
+          const { supabase } = await import('../../lib/supabaseClient');
+          const { count: invCount } = await supabase
+            .from('inventory')
+            .select('*', { count: 'exact', head: true })
+            .eq('warehouse_id', id)
+            .neq('quantity', 0);
+          
+          const { count: txCount } = await supabase
+            .from('transactions')
+            .select('*', { count: 'exact', head: true })
+            .or(`from_location.eq.${id},to_location.eq.${id}`);
+
+          if ((invCount && invCount > 0) || (txCount && txCount > 0)) {
+            showSnackbar(`이 창고는 재고(${invCount || 0}건) 또는 입출고 내역(${txCount || 0}건)에서 사용 중이므로 삭제할 수 없습니다.`, 'error');
+            return;
+          }
+
           // 서버에서 창고 삭제
           await warehouseApi.delete(id);
           const updatedWarehouses = warehouses.filter(w => w.id !== id);

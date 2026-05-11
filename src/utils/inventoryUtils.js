@@ -195,6 +195,7 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
           
         if (txError) {
           console.error('입출고 거래내역(transactions) 기록 실패:', txError);
+          errors.push(`부품 ${part.part_name} 거래내역 기록 실패: ${txError.message}`);
         }
 
         results.push({
@@ -310,7 +311,61 @@ export const processShipmentCompletion = async (shipmentId, brandCode, targetSta
  * 출고 상태 되돌림 시 창고 재고 복구
  */
 export const processShipmentRevert = async (shipmentId, brandCode) => {
-  return { success: true, message: '일괄 복구는 더 이상 지원되지 않습니다. 개별 품목 반품을 이용해 주세요.' };
+  try {
+    // shipments에서 정보 확인
+    const { data: shipment, error: shipErr } = await supabase
+      .from('shipments')
+      .select('status, customer_name, warehouse_id')
+      .eq('id', shipmentId)
+      .single();
+
+    if (shipErr || !shipment) throw new Error(`출고 정보를 찾을 수 없습니다. (ID: ${shipmentId})`);
+
+    let warehouseId = shipment.warehouse_id;
+    if (!warehouseId) {
+      const { data: defaultWh } = await supabase
+        .from('warehouses')
+        .select('id')
+        .ilike('name', '%청담%')
+        .limit(1)
+        .maybeSingle();
+      if (defaultWh) {
+        warehouseId = defaultWh.id;
+      } else {
+        const { data: anyWh } = await supabase.from('warehouses').select('id').limit(1).maybeSingle();
+        if (anyWh) warehouseId = anyWh.id;
+        else throw new Error('시스템에 등록된 창고가 없어 재고 복구가 불가능합니다.');
+      }
+    }
+
+    const { data: shipmentParts, error } = await supabase
+      .from('shipment_parts')
+      .select('id, part_name, part_code, quantity, status, inventory_deducted')
+      .eq('shipment_id', shipmentId);
+
+    if (error) throw new Error(`출고 부품 조회 실패: ${error.message}`);
+    if (!shipmentParts || shipmentParts.length === 0) return { success: true, message: '부품 없음', results: [] };
+
+    let results = [];
+    let hasError = false;
+
+    for (const sp of shipmentParts) {
+      // 재고가 차감된 품목만 복구 (반품완료는 이미 복구됨)
+      if (sp.inventory_deducted && sp.status !== '반품완료') {
+        const res = await updatePartStatus('shipment', shipmentId, sp.id, '접수', brandCode);
+        results.push(res);
+        if (!res.success) hasError = true;
+      }
+    }
+
+    if (hasError) {
+      return { success: false, message: '일부 품목 복구 중 오류 발생', results };
+    }
+
+    return { success: true, message: '재고가 성공적으로 복구되었습니다.', results };
+  } catch (err) {
+    return { success: false, message: `오류: ${err.message}`, errors: [err.message] };
+  }
 };
 
 /**

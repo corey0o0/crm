@@ -2011,7 +2011,7 @@ function InventoryLayout() {
       const itemMap = {};
       group.items.forEach(item => {
         // 상품별로 상계 처리 (옵션/바코드가 같은 것을 동일 상품으로 취급)
-        const pid = item.productId || item.productCode || item.productName;
+        const pid = item.productId || item.productCode || item.productName || item.id;
         if (!itemMap[pid]) {
           itemMap[pid] = { ...item, netQuantity: 0, originalItems: [] };
         }
