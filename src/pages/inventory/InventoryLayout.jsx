@@ -2759,10 +2759,29 @@ function InventoryLayout() {
     };
     
     try {
+      // 1. \ud2b8\ub79c\uc7ad\uc158 \uae30\ub85d \uc0dd\uc131
       await transactionApi.createMany([transaction]);
-      await recalculateAllInventory(true);
+      
+      // 2. \ud574\ub2f9 \uc140\ub9cc \uc9c1\uc811 DB \uc5c5\ub370\uc774\ud2b8 (\uc804\uccb4 \uc7ac\uacc4\uc0b0 \ub300\uc2e0)
+      await inventoryApi.upsertMany([{
+        warehouse_id: warehouseId,
+        product_id: parseInt(productId, 10),
+        quantity: newQty
+      }]);
+      
+      // 3. \ub85c\uceec \uc0c1\ud0dc \uc989\uc2dc \ubc18\uc601
+      setInventory(prev => ({
+        ...prev,
+        [warehouseId]: {
+          ...prev[warehouseId],
+          [productId]: newQty
+        }
+      }));
+      
+      // 4. \ud2b8\ub79c\uc7ad\uc158 \ub9ac\uc2a4\ud2b8 \uac31\uc2e0
       const latest = await transactionApi.getAll();
       setTransactions(latest);
+      
       showSnackbar('\uc7ac\uace0\uac00 \uc218\uc815\ub418\uc5c8\uc2b5\ub2c8\ub2e4.', 'success');
     } catch (err) {
       console.error(err);
