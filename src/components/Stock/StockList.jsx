@@ -246,8 +246,7 @@ function StockList() {
       if (partError) {
         console.error('부품 정보 조회 실패:', partError);
       } else {
-        // inventory_logs 테이블에 기록 (재고변경내역에서 확인 가능)
-        const { error: inventoryLogError } = await supabase
+        const { data: invLog, error: inventoryLogError } = await supabase
           .from('inventory_logs')
           .insert({
             part_id: id,
@@ -261,26 +260,36 @@ function StockList() {
             reference_id: null,
             reference_type: null,
             notes: '재고 관리에서 개별 수정'
-          });
+          })
+          .select('id')
+          .single();
 
         if (inventoryLogError) {
           console.error('재고 변경 내역 기록 실패:', inventoryLogError);
+          // 롤백: parts
+          await supabase.from('parts').update({ stock: currentStock }).eq('id', id);
+          throw inventoryLogError;
+        }
+
+        // 기존 stock_logs 테이블에도 기록 (호환성 유지)
+        const { error: logError } = await supabase
+          .from('stock_logs')
+          .insert({
+            product_id: id,
+            previous_quantity: currentStock,
+            new_quantity: stockValue,
+            change_quantity: stockValue - currentStock,
+            reason: '수동 재고 조정',
+            created_by: (await supabase.auth.getUser()).data.user?.email || '관리자'
+          });
+
+        if (logError) {
+          // 롤백: inventory_logs 삭제 및 parts 복구
+          await supabase.from('inventory_logs').delete().eq('id', invLog.id);
+          await supabase.from('parts').update({ stock: currentStock }).eq('id', id);
+          throw logError;
         }
       }
-
-      // 기존 stock_logs 테이블에도 기록 (호환성 유지)
-      const { error: logError } = await supabase
-        .from('stock_logs')
-        .insert({
-          product_id: id,
-          previous_quantity: currentStock,
-          new_quantity: stockValue,
-          change_quantity: stockValue - currentStock,
-          reason: '수동 재고 조정',
-          created_by: (await supabase.auth.getUser()).data.user?.email || '관리자'
-        });
-
-      if (logError) throw logError;
 
       // 등록 성공 후 알림 추가
       await supabase.from('notifications').insert({
@@ -643,6 +652,30 @@ function StockList() {
         
         // 재고 로그 기록
         if (currentStock !== part.stock) {
+          const { data: invLog, error: inventoryLogError } = await supabase
+            .from('inventory_logs')
+            .insert({
+              part_id: part.id,
+              part_name: part.name,
+              part_code: part.code,
+              brand_code: part.brand || 'UNKNOWN',
+              change_type: 'manual_adjust',
+              quantity_change: part.stock - currentStock,
+              previous_quantity: currentStock,
+              new_quantity: part.stock,
+              reference_id: null,
+              reference_type: null,
+              notes: '재고 관리에서 선택 일괄 수정'
+            })
+            .select('id')
+            .single();
+
+          if (inventoryLogError) {
+            console.error('재고 변경 내역 기록 실패:', inventoryLogError);
+            await supabase.from('parts').update({ stock: currentStock }).eq('id', part.id);
+            throw inventoryLogError;
+          }
+
           const { error: logError } = await supabase
             .from('stock_logs')
             .insert({
@@ -654,7 +687,11 @@ function StockList() {
               created_by: (await supabase.auth.getUser()).data.user?.email || '관리자'
             });
             
-          if (logError) throw logError;
+          if (logError) {
+            await supabase.from('inventory_logs').delete().eq('id', invLog.id);
+            await supabase.from('parts').update({ stock: currentStock }).eq('id', part.id);
+            throw logError;
+          }
         }
 
         // DB 알림 추가
@@ -734,8 +771,7 @@ function StockList() {
         
         // 재고 로그 기록 (값이 실제로 변경된 경우에만)
         if (currentStock !== part.stock) {
-          // inventory_logs 테이블에 기록 (재고변경내역에서 확인 가능)
-          const { error: inventoryLogError } = await supabase
+          const { data: invLog, error: inventoryLogError } = await supabase
             .from('inventory_logs')
             .insert({
               part_id: part.id,
@@ -748,14 +784,17 @@ function StockList() {
               new_quantity: part.stock,
               reference_id: null,
               reference_type: null,
-              notes: '재고 관리에서 수동 수정'
-            });
+              notes: '재고 관리에서 수동 전체 수정'
+            })
+            .select('id')
+            .single();
 
           if (inventoryLogError) {
             console.error('재고 변경 내역 기록 실패:', inventoryLogError);
+            await supabase.from('parts').update({ stock: currentStock }).eq('id', part.id);
+            throw inventoryLogError;
           }
 
-          // 기존 stock_logs 테이블에도 기록 (호환성 유지)
           const { error: logError } = await supabase
             .from('stock_logs')
             .insert({
@@ -767,7 +806,11 @@ function StockList() {
               created_by: (await supabase.auth.getUser()).data.user?.email || '관리자'
             });
             
-          if (logError) throw logError;
+          if (logError) {
+            await supabase.from('inventory_logs').delete().eq('id', invLog.id);
+            await supabase.from('parts').update({ stock: currentStock }).eq('id', part.id);
+            throw logError;
+          }
         }
 
         // DB 알림 추가
