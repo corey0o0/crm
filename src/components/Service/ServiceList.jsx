@@ -1585,7 +1585,7 @@ function ServiceList() {
       id: 'status_indicator', 
       label: '',
       sortable: false,
-      width: '6px',
+      width: 30,
       render: (row) => (
         <Box
           sx={{
@@ -1627,7 +1627,7 @@ function ServiceList() {
       id: 'reception_date', 
       label: '접수일시',
       sortable: true,
-      width: 85,
+      width: 100,
       renderCell: (params) => (
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <Typography variant="body2" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }} noWrap>
@@ -1653,7 +1653,7 @@ function ServiceList() {
       id: 'customer_name', 
       label: '이름',
       sortable: true,
-      width: 80,
+      width: 100,
       render: (row) => (
         <Typography noWrap sx={{ 
           fontSize: '0.95rem', 
@@ -1864,7 +1864,7 @@ function ServiceList() {
       id: 'status', 
       label: '상태',
       sortable: true,
-      width: 80,
+      width: 120,
       render: (row) => (
         <Box sx={{ 
           display: 'flex', 
@@ -1906,7 +1906,7 @@ function ServiceList() {
       id: 'actions', 
       label: '관리',
       sortable: false,
-      width: 70,
+      width: 100,
       render: (row) => (
         <Box>
           <IconButton size="small" onClick={(e) => {
