@@ -107,6 +107,50 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
         continue;
       }
 
+      // 재고 관리 제외 상품 체크 (공임/서비스 등)
+      if (part.part_id) {
+        const { data: partInfo } = await supabase
+          .from('parts')
+          .select('track_inventory')
+          .eq('id', part.part_id)
+          .maybeSingle();
+        
+        if (partInfo && partInfo.track_inventory === false) {
+          // 트랜잭션 이력만 기록하고 재고 차감은 건너뜀
+          const quantityChange = isRevert ? part.quantity : -part.quantity;
+          const { error: txError } = await supabase.from('transactions').insert({
+            group_id: referenceId || null,
+            type: isRevert ? 'in' : 'out',
+            product_id: part.part_id,
+            product_name: part.part_name,
+            product_code: part.part_code,
+            product_supplier: inferredBrandCode,
+            quantity: Math.abs(quantityChange),
+            from_location: isRevert ? '외부(취소/환불)' : (part.warehouse_id || defaultWarehouseId),
+            to_location: isRevert ? (part.warehouse_id || defaultWarehouseId) : '외부(고객)',
+            date: format(new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Seoul"})), 'yyyy-MM-dd'),
+            note: `[재고비관리] ${isRevert 
+              ? `${referenceType === 'shipment' ? '[매장출고 취소]' : '[A/S 취소]'}` 
+              : `${referenceType === 'shipment' ? '[매장출고 완료]' : '[A/S 완료]'}`} (Ref: ${refStr}${customerName ? `, ${customerName}` : ''})`,
+            is_grouped: true,
+            status: '완료'
+          });
+          if (txError) console.error('입출고 거래내역(재고비관리) 기록 실패:', txError);
+
+          results.push({
+            part_id: part.part_id,
+            part_name: part.part_name,
+            previous_quantity: 0,
+            new_quantity: 0,
+            changed_quantity: 0,
+            change_type: 'skipped_no_track',
+            success: true,
+            synced_parts_count: 0
+          });
+          continue;
+        }
+      }
+
       try {
         // 현재 창고 재고 조회
         const { error: stockGrpError } = await supabase

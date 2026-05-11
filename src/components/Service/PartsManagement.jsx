@@ -94,7 +94,8 @@ const PartsFormDialog = memo(({
     memo: '',
     note: '파츠',
     discount_group: '',
-    image_url: ''
+    image_url: '',
+    track_inventory: true
   });
 
   const [showBarcodePreview, setShowBarcodePreview] = useState(false);
@@ -127,7 +128,8 @@ const PartsFormDialog = memo(({
           memo: initialData.memo || '',
           note: initialData.note || '파츠',
           discount_group: initialData.discount_group || '',
-          image_url: initialData.image_url || ''
+          image_url: initialData.image_url || '',
+          track_inventory: initialData.track_inventory !== false
         });
         setImagePreview(initialData.image_url || '');
       } else {
@@ -148,7 +150,8 @@ const PartsFormDialog = memo(({
           memo: '',
           note: defaultCategory,
           discount_group: '',
-          image_url: ''
+          image_url: '',
+          track_inventory: defaultCategory !== '공임'
         });
         setImagePreview('');
       }
@@ -171,6 +174,12 @@ const PartsFormDialog = memo(({
           const categoryForCode = name === 'note' ? value : prev.note;
           next.code = getNextPartCode(brandForCode, categoryForCode);
         }
+      }
+      // 구분이 '공임'으로 변경되면 재고 관리 자동 OFF
+      if (name === 'note' && value === '공임') {
+        next.track_inventory = false;
+      } else if (name === 'note' && prev.note === '공임' && value !== '공임') {
+        next.track_inventory = true;
       }
       return next;
     });
@@ -520,6 +529,27 @@ const PartsFormDialog = memo(({
               name="memo"
               value={formData.memo}
               onChange={handleChange}
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={formData.track_inventory}
+                  onChange={(e) => setFormData(prev => ({ ...prev, track_inventory: e.target.checked }))}
+                  color="primary"
+                />
+              }
+              label={
+                <Box>
+                  <Typography variant="body2">재고 관리 여부</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {formData.track_inventory 
+                      ? '이 상품의 재고를 추적합니다 (입출고 시 재고 증감)' 
+                      : '이 상품은 재고를 추적하지 않습니다 (공임/서비스 등)'}
+                  </Typography>
+                </Box>
+              }
             />
           </Grid>
         </Grid>
@@ -962,7 +992,8 @@ function PartsManagement() {
         supply_price: Number(formData.supplyPrice || 0),
         special_price: Number(formData.specialPrice || 0),
         price: Number(formData.price || 0),
-        image_url: finalImageUrl
+        image_url: finalImageUrl,
+        track_inventory: formData.track_inventory !== false
       };
 
       if (formData.barcode) partData.barcode = formData.barcode;

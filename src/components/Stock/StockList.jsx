@@ -1373,6 +1373,17 @@ function StockList() {
                     )}
                   <TableCell align="right">{part.price?.toLocaleString()}원</TableCell>
                   <TableCell align="right">
+                    {part.track_inventory === false ? (
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
+                        <Typography variant="caption" sx={{ 
+                          px: 1, py: 0.25, borderRadius: 1, 
+                          bgcolor: 'grey.100', color: 'text.secondary',
+                          fontSize: '0.75rem'
+                        }}>
+                          재고 비관리
+                        </Typography>
+                      </Box>
+                    ) : (
                     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
                         <IconButton
@@ -1430,6 +1441,7 @@ function StockList() {
                       </Box>
                     )}
                   </Box>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

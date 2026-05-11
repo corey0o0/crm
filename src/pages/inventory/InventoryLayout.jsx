@@ -1294,13 +1294,21 @@ function InventoryLayout() {
       });
 
       const stockUpdates = {}; // { productId: finalStock }
+      // 재고 비관리 상품 ID 목록 (track_inventory === false)
+      const noTrackIds = new Set(
+        products.filter(p => p.track_inventory === false).map(p => p.id)
+      );
       products.forEach(p => {
-        stockUpdates[p.id] = 0;
+        if (!noTrackIds.has(p.id)) {
+          stockUpdates[p.id] = 0;
+        }
       });
 
       // 3. 트랜잭션 순차 적용
       for (const tx of sortedTx) {
         if (!tx.productId) continue;
+        // 재고 비관리 상품은 건너뜀
+        if (noTrackIds.has(tx.productId)) continue;
         const qty = Number(tx.quantity) || 0;
         
         if (tx.type === 'in') {
