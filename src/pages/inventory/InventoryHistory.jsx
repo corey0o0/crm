@@ -26,7 +26,7 @@ export default function InventoryHistory() {
     addIoProductRow, removeIoProductRow, updateIoProductRow, excelUploadOpen,
     handleCloseExcelUpload, handleExcelFileUpload, excelFile, excelUploadType, setExcelUploadType,
     handleOpenExcelUpload, transactionDetailOpen, closeTransactionDetail,
-    selectedTransaction, startEditTransaction, recalculateAllInventory
+    selectedTransaction, startEditTransaction, recalculateAllInventory, deleteTransaction
   , batchFromLocation, setBatchFromLocation, batchToLocation, setBatchToLocation, showOriginalHistory, setShowOriginalHistory, handleSubmitTransaction, downloadExcelTemplate, handleDragOver, handleDragLeave, handleDrop, handleExcelDataSubmit, handleBatchApplyLocation, warehouseDetailTarget, warehouseDetailOpen, closeWarehouseDetail, barcodeScannerOpen, setBarcodeScannerOpen, setCurrentScanningRow, handleBarcodeScan, handleBarcodeScanError, excelData, isDragOver, snackbar, setSnackbar} = context;
 
   return (
@@ -1508,6 +1508,23 @@ export default function InventoryHistory() {
                 엑셀 다운로드
               </Button>
               <Button onClick={closeTransactionDetail}>닫기</Button>
+              <Button 
+                onClick={async () => {
+                  if (!selectedTransaction) return;
+                  if (!window.confirm('이 거래내역을 삭제하시겠습니까? 재고가 자동으로 재계산됩니다.')) return;
+                  const groupId = selectedTransaction.groupId || selectedTransaction.id;
+                  const items = selectedTransaction.items || [selectedTransaction];
+                  for (const item of items) {
+                    await deleteTransaction(item.id);
+                  }
+                  closeTransactionDetail();
+                  showSnackbar('거래내역이 삭제되었습니다.', 'success');
+                }} 
+                variant="outlined" 
+                color="error"
+              >
+                삭제
+              </Button>
               <Button onClick={startEditTransaction} variant="outlined" color="primary">
                 수정
               </Button>
