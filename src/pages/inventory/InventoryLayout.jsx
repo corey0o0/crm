@@ -866,6 +866,9 @@ function InventoryLayout() {
         await transactionApi.update(selectedTransaction.id, payload);
       }
 
+      // 수정 후 전체 재고 재계산으로 일관성 보장 (조용히 실행)
+      await recalculateAllInventory(true);
+
       // 서버에서 최신 거래내역 다시 반영
       const latest = await transactionApi.getAll();
       setTransactions(latest);
@@ -926,6 +929,9 @@ function InventoryLayout() {
       // 서버에서 거래내역 삭제
       await transactionApi.delete(transactionId);
       
+      // 삭제 후 전체 재고 재계산으로 일관성 보장 (조용히 실행)
+      await recalculateAllInventory(true);
+
       // 서버에서 최신 거래내역 다시 가져오기
       const updatedTransactions = await transactionApi.getAll();
       setTransactions(updatedTransactions);
@@ -1274,17 +1280,26 @@ function InventoryLayout() {
   };
 
   // 기존 내역 전체를 기반으로 재고(inventory 및 parts) 전면 재계산 (시스템 복구용)
-  const recalculateAllInventory = async () => {
-    if (!window.confirm('경고: 현재 데이터베이스의 모든 입출고 내역을 기반으로 재고를 0부터 다시 계산합니다. 이 작업은 되돌릴 수 없습니다. 진행하시겠습니까?')) {
-      return;
+  const recalculateAllInventory = async (silent = false) => {
+    if (!silent) {
+      if (!window.confirm('경고: 현재 데이터베이스의 모든 입출고 내역을 기반으로 재고를 0부터 다시 계산합니다. 이 작업은 되돌릴 수 없습니다. 진행하시겠습니까?')) {
+        return;
+      }
     }
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
-      showSnackbar('재고 전면 재계산을 시작합니다...', 'info');
+      if (!silent) showSnackbar('재고 전면 재계산을 시작합니다...', 'info');
       
       // 1. 서버에서 모든 트랜잭션 가져오기 (오래된 순으로 정렬)
       const allTx = await transactionApi.getAll();
-      const sortedTx = [...allTx].sort((a, b) => new Date(a.date || a.createdAt) - new Date(b.date || b.createdAt));
+      const sortedTx = [...allTx].sort((a, b) => {
+        const dateA = a.date || a.createdAt;
+        const dateB = b.date || b.createdAt;
+        const timeDiff = new Date(dateA) - new Date(dateB);
+        if (timeDiff !== 0) return timeDiff;
+        // 날짜(date)가 같다면, 생성일시(createdAt)로 정밀하게 비교
+        return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+      });
       
       // 2. 초기 재고 설정 (0으로 초기화)
       const newInventory = {};
@@ -1380,13 +1395,13 @@ function InventoryLayout() {
       // 6. 데이터 리프레시
       await fetchInventoryData();
       await fetchProducts();
-      showSnackbar('재고 재계산이 성공적으로 완료되었습니다!', 'success');
+      if (!silent) showSnackbar('재고 재계산이 성공적으로 완료되었습니다!', 'success');
       
     } catch (err) {
       console.error('재고 재계산 실패:', err);
-      showSnackbar('재고 재계산 중 오류가 발생했습니다.', 'error');
+      if (!silent) showSnackbar('재고 재계산 중 오류가 발생했습니다.', 'error');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
