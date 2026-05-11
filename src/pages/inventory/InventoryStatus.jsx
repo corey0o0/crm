@@ -12,7 +12,7 @@ export default function InventoryStatus() {
   const {
     products, warehouses, dealers, inventory, overallSearch, setOverallSearch,
     overallStockFilter, setOverallStockFilter, setFilter, setDateFilter, fetchProducts, fetchWarehouses,
-    fetchDealers, toggleWarehouseSync, openWarehouseDetail, fetchTransactions, warehouseDetailOpen, closeWarehouseDetail, warehouseDetailTarget, warehouseDetailFilter, setWarehouseDetailFilter, warehouseDetailSearch, setWarehouseDetailSearch, warehouseDetailBelow, setWarehouseDetailBelow, handleDirectInventoryEdit
+    fetchDealers, toggleWarehouseSync, openWarehouseDetail, fetchTransactions, fetchInventoryData, warehouseDetailOpen, closeWarehouseDetail, warehouseDetailTarget, warehouseDetailFilter, setWarehouseDetailFilter, warehouseDetailSearch, setWarehouseDetailSearch, warehouseDetailBelow, setWarehouseDetailBelow, handleDirectInventoryEdit
   } = context;
 
   const [editPopoverAnchor, setEditPopoverAnchor] = useState(null);
@@ -142,6 +142,18 @@ export default function InventoryStatus() {
                     onClick={handleExportExcel}
                   >
                     엑셀 다운로드
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<RefreshIcon />}
+                    onClick={() => {
+                      fetchProducts();
+                      fetchInventoryData();
+                      fetchTransactions();
+                    }}
+                  >
+                    새로고침
                   </Button>
                 </Box>
               </Box>
