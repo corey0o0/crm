@@ -441,11 +441,17 @@ module.exports = function(supabaseAdmin) {
       } catch (e) {
         if (e.response && e.response.status === 401) {
           console.log('[Cafe24 API] 401 Unauthorized - Forcing token refresh...');
-          const { data: mall } = await supabaseAdmin.from('cafe24_settings').select('*').eq('mall_id', mall_id).single();
-          tokenForRequest = await refreshCafe24Token(mall);
-          response = await fetchOrders(tokenForRequest, currentOffset);
+          try {
+            const { data: mall } = await supabaseAdmin.from('cafe24_settings').select('*').eq('mall_id', mall_id).single();
+            tokenForRequest = await refreshCafe24Token(mall);
+            response = await fetchOrders(tokenForRequest, currentOffset);
+          } catch (retryErr) {
+            const detail = retryErr.response?.data?.error?.message || retryErr.message;
+            throw new Error(`[${mall_id}] 주문 조회 권한 오류: ${detail}. (만약 IP 접근 제한이 설정되어 있다면 Cafe24 어드민에서 이 서버 IP를 허용해주세요)`);
+          }
         } else {
-          throw e;
+          const detail = e.response?.data?.error?.message || e.message;
+          throw new Error(`[${mall_id}] Cafe24 API 에러: ${detail}`);
         }
       }
 
@@ -485,10 +491,18 @@ module.exports = function(supabaseAdmin) {
               res = await fetchOldOrders(tokenForRequest);
             } catch (e) {
               if (e.response && e.response.status === 401) {
-                const { data: mall } = await supabaseAdmin.from('cafe24_settings').select('*').eq('mall_id', mall_id).single();
-                tokenForRequest = await refreshCafe24Token(mall);
-                res = await fetchOldOrders(tokenForRequest);
-              } else { throw e; }
+                try {
+                  const { data: mall } = await supabaseAdmin.from('cafe24_settings').select('*').eq('mall_id', mall_id).single();
+                  tokenForRequest = await refreshCafe24Token(mall);
+                  res = await fetchOldOrders(tokenForRequest);
+                } catch (retryErr) {
+                  const detail = retryErr.response?.data?.error?.message || retryErr.message;
+                  throw new Error(`과거 주문 권한 오류: ${detail}`);
+                }
+              } else {
+                const detail = e.response?.data?.error?.message || e.message;
+                throw new Error(`과거 주문 API 에러: ${detail}`);
+              }
             }
             if (res.data && res.data.orders) {
                allOrders = allOrders.concat(res.data.orders);
