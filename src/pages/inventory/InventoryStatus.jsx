@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import {
-  Box, Typography, TextField, FormControl, InputLabel, Select, MenuItem, Button, TableContainer, Paper, Table, TableHead, TableRow, TableCell, TableBody, Tooltip, IconButton, Switch, FormControlLabel, Badge, Autocomplete, InputAdornment, Popover, Card, TableFooter
+  Box, Typography, TextField, FormControl, InputLabel, Select, MenuItem, Button, TableContainer, Paper, Table, TableHead, TableRow, TableCell, TableBody, Tooltip, IconButton, Switch, FormControlLabel, Badge, Autocomplete, InputAdornment, Popover, Card, TableFooter, TablePagination
 } from '@mui/material';
 import { Refresh as RefreshIcon, Store as StoreIcon, Sync as SyncIcon, SyncDisabled as SyncDisabledIcon, Search as SearchIcon, FilterList as FilterIcon, ArrowDownward as ArrowDownwardIcon, Download as DownloadIcon } from '@mui/icons-material';
 import * as XLSX from 'xlsx';
@@ -18,6 +18,8 @@ export default function InventoryStatus() {
   const [editPopoverAnchor, setEditPopoverAnchor] = useState(null);
   const [editData, setEditData] = useState({ warehouseId: '', productId: '', currentQty: 0, newQty: '', reason: '' });
   const [saving, setSaving] = useState(false);
+  const [statusPage, setStatusPage] = useState(0);
+  const [statusRowsPerPage, setStatusRowsPerPage] = useState(50);
 
   const handleOpenEdit = (e, warehouseId, productId, currentQty) => {
     setEditData({ warehouseId, productId, currentQty, newQty: currentQty, reason: '재고 현황에서 직접 수정' });
@@ -145,7 +147,7 @@ export default function InventoryStatus() {
               </Box>
             </Card>
 
-            <TableContainer component={Paper} sx={{ width: '100%', maxHeight: 600, overflowX: 'hidden', overflowY: 'auto' }}>
+            <TableContainer component={Paper} sx={{ width: '100%', overflowX: 'hidden' }}>
               <Table size="small" stickyHeader sx={{ width: '100%', tableLayout: 'fixed', borderTop: '1px solid rgba(224, 224, 224, 1)', borderLeft: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', borderRight: '1px solid rgba(224, 224, 224, 1)', borderBottom: '1px solid rgba(224, 224, 224, 1)' } }}>
                 <TableHead>
                   <TableRow sx={{ bgcolor: '#f5f5f5' }}>
@@ -159,7 +161,7 @@ export default function InventoryStatus() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {rows.map(p => {
+                  {rows.slice(statusPage * statusRowsPerPage, statusPage * statusRowsPerPage + statusRowsPerPage).map(p => {
                     const productTotal = warehouses.reduce((sum, w) => sum + (inventory[w.id]?.[p.id] || 0), 0);
                     return (
                       <TableRow key={`prod-row-${p.id}`} hover>
@@ -175,7 +177,7 @@ export default function InventoryStatus() {
                               dateFrom: '', dateTo: '', fromLocation: '', toLocation: '', note: '' 
                             }));
                             setDateFilter('all');
-                            navigate('/inventory-management/history'); // 거래 내역 페이지로 이동
+                            navigate('/inventory-management/history');
                           }}
                         >
                           {p.name}
@@ -218,6 +220,23 @@ export default function InventoryStatus() {
                 </TableFooter>
               </Table>
             </TableContainer>
+
+            {rows.length > 0 && (
+              <TablePagination
+                component="div"
+                count={rows.length}
+                page={statusPage}
+                onPageChange={(e, newPage) => setStatusPage(newPage)}
+                rowsPerPage={statusRowsPerPage}
+                onRowsPerPageChange={(e) => {
+                  setStatusRowsPerPage(parseInt(e.target.value, 10));
+                  setStatusPage(0);
+                }}
+                rowsPerPageOptions={[20, 50, 100, 200]}
+                labelRowsPerPage="페이지당 행 수"
+                labelDisplayedRows={({ from, to, count }) => `${count}개 중 ${from}-${to}`}
+              />
+            )}
 
             <Popover
               open={Boolean(editPopoverAnchor)}
