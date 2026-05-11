@@ -1647,11 +1647,16 @@ function PartsManagement() {
       // 각 파츠를 새로운 브랜드로 복사
       const newPartsData = selectedPartsData.map(part => ({
         name: part.name,
+        name_en: part.name_en || null,
         brand: copyTargetBrand,
         code: part.code,
+        cost_price: part.cost_price || 0,
         supply_price: part.supply_price,
+        special_price: part.special_price || 0,
         price: part.price,
         barcode: part.barcode || null,
+        image_url: part.image_url || null,
+        memo: part.memo || null,
         note: part.note || null,
         stock: 0 // 초기 재고는 0으로 설정
       }));
@@ -1674,9 +1679,14 @@ function PartsManagement() {
             .from('parts')
             .update({
               name: newPart.name,
+              name_en: newPart.name_en,
+              cost_price: newPart.cost_price,
               supply_price: newPart.supply_price,
+              special_price: newPart.special_price,
               price: newPart.price,
               barcode: newPart.barcode,
+              image_url: newPart.image_url,
+              memo: newPart.memo,
               note: newPart.note
             })
             .eq('id', existingPart[0].id);
@@ -1830,12 +1840,25 @@ function PartsManagement() {
       showSnackbar('새 그룹 이름을 입력해주세요.', 'warning');
       return;
     }
+    const newName = editingGroupNewName.trim();
+    if (newName === oldName) {
+      showSnackbar('동일한 이름입니다.', 'info');
+      return;
+    }
     try {
       setIsBatchGroupUpdating(true);
+
+      // 중복 그룹 이름 체크
+      const existingGroups = [...new Set(parts.map(p => p.discount_group).filter(Boolean))];
+      if (existingGroups.includes(newName)) {
+        showSnackbar(`'${newName}' 그룹이 이미 존재합니다. 다른 이름을 입력해주세요.`, 'error');
+        setIsBatchGroupUpdating(false);
+        return;
+      }
       
       const { data, error } = await supabase
         .from('parts')
-        .update({ discount_group: editingGroupNewName.trim() })
+        .update({ discount_group: newName })
         .eq('discount_group', oldName);
 
       if (error) throw error;
