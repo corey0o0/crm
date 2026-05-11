@@ -1668,7 +1668,7 @@ function ServiceList() {
       id: 'customer_phone', 
       label: '연락처',
       sortable: true,
-      width: 120,
+      width: 150,
       render: (row) => (
         <Typography noWrap sx={{ 
           fontSize: '0.95rem', 
@@ -1684,7 +1684,7 @@ function ServiceList() {
       id: 'product_name', 
       label: '기종',
       sortable: true,
-      width: 120,
+      width: 150,
       render: (row) => (
         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, minWidth: 0 }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
