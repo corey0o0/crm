@@ -1818,7 +1818,7 @@ function SalesStats() {
             검색 필터
           </Typography>
 
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={4} sx={{ mb: 3 }} justifyContent="center" alignItems="center">
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={4} sx={{ mb: 3 }} justifyContent="flex-start" alignItems="center">
             {/* 연도 선택 */}
             <Box>
               <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
