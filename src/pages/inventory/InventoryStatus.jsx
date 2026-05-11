@@ -16,7 +16,7 @@ export default function InventoryStatus() {
   } = context;
 
         const term = overallSearch.trim().toLowerCase();
-        let rows = (products || []).filter(p => !p.is_deleted && (!term || p.name?.toLowerCase().includes(term) || p.code?.toLowerCase().includes(term)));
+        let rows = (products || []).filter(p => !p.is_deleted && (!term || p.name?.toLowerCase().includes(term) || p.code?.toLowerCase().includes(term) || p.barcode?.toLowerCase().includes(term)));
         rows = rows.filter(p => {
           const stocks = warehouses.map(w => (inventory[w.id]?.[p.id] || 0));
           const anyStock = stocks.some(q => q !== 0);
@@ -81,7 +81,7 @@ export default function InventoryStatus() {
                 <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                   <TextField
                     size="small"
-                    placeholder="상품명/코드 검색"
+                    placeholder="상품명/코드/바코드 검색"
                     value={overallSearch}
                     onChange={(e) => setOverallSearch(e.target.value)}
                   />

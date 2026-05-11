@@ -26,7 +26,7 @@ export default function InventoryHistory() {
     addIoProductRow, removeIoProductRow, updateIoProductRow, excelUploadOpen,
     handleCloseExcelUpload, handleExcelFileUpload, excelFile, excelUploadType, setExcelUploadType,
     handleOpenExcelUpload, transactionDetailOpen, closeTransactionDetail,
-    selectedTransaction, startEditTransaction
+    selectedTransaction, startEditTransaction, recalculateAllInventory
   , batchFromLocation, setBatchFromLocation, batchToLocation, setBatchToLocation, showOriginalHistory, setShowOriginalHistory, handleSubmitTransaction, downloadExcelTemplate, handleDragOver, handleDragLeave, handleDrop, handleExcelDataSubmit, handleBatchApplyLocation, warehouseDetailTarget, warehouseDetailOpen, closeWarehouseDetail, barcodeScannerOpen, setBarcodeScannerOpen, setCurrentScanningRow, handleBarcodeScan, handleBarcodeScanError, excelData, isDragOver, snackbar, setSnackbar} = context;
 
   return (
@@ -116,6 +116,14 @@ export default function InventoryHistory() {
             }}
           >
             새로고침
+          </Button>
+          <Button
+            variant="contained"
+            color="warning"
+            onClick={recalculateAllInventory}
+            sx={{ ml: 1 }}
+          >
+            재고 전면 재계산 (복구)
           </Button>
         </Box>
       </Box>
@@ -950,7 +958,7 @@ export default function InventoryHistory() {
                                     onChange={(event, newValue) => updateEditProduct(index, 'product', newValue)}
                                     isOptionEqualToValue={(option, value) => option?.id === value?.id}
                                     renderInput={(params) => (
-                                      <TextField {...params} variant="standard" placeholder="상품 검색" />
+                                      <TextField {...params} variant="standard" placeholder="상품명/코드/바코드 검색" />
                                     )}
                                     renderOption={(props, option) => (
                                       <Box component="li" {...props}>
@@ -1206,7 +1214,7 @@ export default function InventoryHistory() {
                                     onChange={(event, newValue) => updateEditProduct(index, 'product', newValue)}
                                     isOptionEqualToValue={(option, value) => option?.id === value?.id}
                                     renderInput={(params) => (
-                                      <TextField {...params} variant="standard" placeholder="상품 검색" />
+                                      <TextField {...params} variant="standard" placeholder="상품명/코드/바코드 검색" />
                                     )}
                                     renderOption={(props, option) => (
                                       <Box component="li" {...props}>

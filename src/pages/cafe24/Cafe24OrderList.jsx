@@ -1570,7 +1570,18 @@ export default function Cafe24OrderList() {
                       </TableCell>
                       <TableCell>카페24</TableCell>
                       <TableCell>카페24 - {order.mall_id}</TableCell>
-                      <TableCell sx={{ fontFamily: 'monospace' }}>{String(order.order_id || '').includes('_') ? String(order.order_id).split('_').slice(1).join('_') : order.order_id}</TableCell>
+                      <TableCell sx={{ fontFamily: 'monospace' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                            {String(order.order_id || '').includes('_') ? String(order.order_id).split('_').slice(1).join('_') : order.order_id}
+                          </Typography>
+                          {order.shipping_message && (
+                            <Tooltip title={order.shipping_message} placement="top" arrow>
+                              <Chip label="메세지" size="small" color="info" sx={{ height: 16, fontSize: '0.65rem', cursor: 'pointer' }} />
+                            </Tooltip>
+                          )}
+                        </Box>
+                      </TableCell>
                       <TableCell>
                         <Box>
                           <Typography variant="body2">{order.buyer_name || '비회원'}</Typography>
@@ -1623,7 +1634,16 @@ export default function Cafe24OrderList() {
                       {idx === 0 && (
                         <TableCell rowSpan={items.length}>
                           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                            <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 500 }}>{String(order.order_id || '').includes('_') ? String(order.order_id).split('_').slice(1).join('_') : order.order_id}</Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 500 }}>
+                                {String(order.order_id || '').includes('_') ? String(order.order_id).split('_').slice(1).join('_') : order.order_id}
+                              </Typography>
+                              {(order.shipping_message || order.buyer_message) ? (
+                                <Tooltip title={order.shipping_message || order.buyer_message} placement="top" arrow>
+                                  <Chip label="메세지" size="small" color="info" sx={{ height: 16, fontSize: '0.65rem', cursor: 'pointer' }} />
+                                </Tooltip>
+                              ) : null}
+                            </Box>
                             <Typography variant="caption" color="text.secondary">{formatDate(order.order_date)}</Typography>
                             <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
                               <Chip label={getKoStatus(order.status)} size="small" color={getBadgeColor(order.status)} variant={order.status.startsWith('N') ? 'outlined' : 'filled'} sx={{ height: 18, fontSize: '0.7rem' }} />

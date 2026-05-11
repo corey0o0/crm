@@ -907,6 +907,22 @@ function InventoryLayout() {
   // 거래내역 삭제 (useCallback으로 메모이제이션)
   const deleteTransaction = useCallback(async (transactionId) => {
     try {
+      // 1. 단건 거래 내역 가져와서 재고 복구 준비
+      const txToReverse = transactions.find(t => String(t.id) === String(transactionId));
+      if (txToReverse) {
+        const reverseTx = {
+          ...txToReverse,
+          type: txToReverse.type === 'out' ? 'in' : 'out',
+          fromLocation: txToReverse.toLocation,
+          toLocation: txToReverse.fromLocation,
+        };
+        try {
+          await batchUpdateInventory([reverseTx]);
+        } catch (revertErr) {
+          console.warn('단건 재고 복구 중 경고:', revertErr.message);
+        }
+      }
+
       // 서버에서 거래내역 삭제
       await transactionApi.delete(transactionId);
       
@@ -937,7 +953,7 @@ function InventoryLayout() {
       console.error('거래내역 삭제 실패:', error);
       showSnackbar('거래내역 삭제에 실패했습니다.', 'error');
     }
-  }, []);
+  }, [transactions]);
 
   // 재고 수동 동기화
   const syncWarehouseStock = (warehouseId) => {
@@ -1254,6 +1270,123 @@ function InventoryLayout() {
         }
         return newProducts;
       });
+    }
+  };
+
+  // 기존 내역 전체를 기반으로 재고(inventory 및 parts) 전면 재계산 (시스템 복구용)
+  const recalculateAllInventory = async () => {
+    if (!window.confirm('경고: 현재 데이터베이스의 모든 입출고 내역을 기반으로 재고를 0부터 다시 계산합니다. 이 작업은 되돌릴 수 없습니다. 진행하시겠습니까?')) {
+      return;
+    }
+    setLoading(true);
+    try {
+      showSnackbar('재고 전면 재계산을 시작합니다...', 'info');
+      
+      // 1. 서버에서 모든 트랜잭션 가져오기 (오래된 순으로 정렬)
+      const allTx = await transactionApi.getAll();
+      const sortedTx = [...allTx].sort((a, b) => new Date(a.date || a.createdAt) - new Date(b.date || b.createdAt));
+      
+      // 2. 초기 재고 설정 (0으로 초기화)
+      const newInventory = {};
+      const warehouseMap = new Map((warehouses || []).map(w => [w.id, w]));
+      
+      warehouses.forEach(w => {
+        newInventory[w.id] = {};
+        products.forEach(p => {
+          newInventory[w.id][p.id] = 0;
+        });
+      });
+
+      const stockUpdates = {}; // { productId: finalStock }
+      products.forEach(p => {
+        stockUpdates[p.id] = 0;
+      });
+
+      // 3. 트랜잭션 순차 적용
+      for (const tx of sortedTx) {
+        if (!tx.productId) continue;
+        const qty = Number(tx.quantity) || 0;
+        
+        if (tx.type === 'in') {
+          const toWh = warehouseMap.get(tx.toLocation);
+          if (toWh) {
+            if (!newInventory[tx.toLocation]) newInventory[tx.toLocation] = {};
+            newInventory[tx.toLocation][tx.productId] = (newInventory[tx.toLocation][tx.productId] || 0) + qty;
+            if (toWh.syncWithProductStock) {
+              stockUpdates[tx.productId] = (stockUpdates[tx.productId] || 0) + qty;
+            }
+          }
+        } else if (tx.type === 'out') {
+          const fromWh = warehouseMap.get(tx.fromLocation);
+          if (fromWh) {
+            if (!newInventory[tx.fromLocation]) newInventory[tx.fromLocation] = {};
+            newInventory[tx.fromLocation][tx.productId] = (newInventory[tx.fromLocation][tx.productId] || 0) - qty;
+            if (fromWh.syncWithProductStock) {
+              stockUpdates[tx.productId] = (stockUpdates[tx.productId] || 0) - qty;
+            }
+          }
+        } else if (tx.type === 'move') {
+          const fromWh = warehouseMap.get(tx.fromLocation);
+          const toWh = warehouseMap.get(tx.toLocation);
+          if (fromWh) {
+            if (!newInventory[tx.fromLocation]) newInventory[tx.fromLocation] = {};
+            newInventory[tx.fromLocation][tx.productId] = (newInventory[tx.fromLocation][tx.productId] || 0) - qty;
+            if (fromWh.syncWithProductStock) {
+              stockUpdates[tx.productId] = (stockUpdates[tx.productId] || 0) - qty;
+            }
+          }
+          if (toWh) {
+            if (!newInventory[tx.toLocation]) newInventory[tx.toLocation] = {};
+            newInventory[tx.toLocation][tx.productId] = (newInventory[tx.toLocation][tx.productId] || 0) + qty;
+            if (toWh.syncWithProductStock) {
+              stockUpdates[tx.productId] = (stockUpdates[tx.productId] || 0) + qty;
+            }
+          }
+        } else if (tx.type === 'adjustment') {
+          const toWh = warehouseMap.get(tx.toLocation);
+          if (toWh) {
+            if (!newInventory[tx.toLocation]) newInventory[tx.toLocation] = {};
+            const oldQty = newInventory[tx.toLocation][tx.productId] || 0;
+            newInventory[tx.toLocation][tx.productId] = qty;
+            if (toWh.syncWithProductStock) {
+              stockUpdates[tx.productId] = (stockUpdates[tx.productId] || 0) + (qty - oldQty);
+            }
+          }
+        }
+      }
+
+      // 4. DB 일괄 업데이트 준비 (inventory 테이블)
+      const inventoryUpserts = [];
+      for (const [whId, prods] of Object.entries(newInventory)) {
+        for (const [pId, qty] of Object.entries(prods)) {
+          inventoryUpserts.push({
+            warehouse_id: whId,
+            product_id: parseInt(pId, 10),
+            quantity: qty
+          });
+        }
+      }
+      
+      if (inventoryUpserts.length > 0) {
+        await inventoryApi.upsertMany(inventoryUpserts);
+      }
+
+      // 5. DB 일괄 업데이트 준비 (parts 테이블)
+      for (const [pId, qty] of Object.entries(stockUpdates)) {
+        const finalQty = Math.max(0, qty); // parts 테이블 재고는 음수 불가
+        await supabase.from('parts').update({ stock: finalQty }).eq('id', pId);
+      }
+
+      // 6. 데이터 리프레시
+      await fetchInventoryData();
+      await fetchProducts();
+      showSnackbar('재고 재계산이 성공적으로 완료되었습니다!', 'success');
+      
+    } catch (err) {
+      console.error('재고 재계산 실패:', err);
+      showSnackbar('재고 재계산 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -2328,9 +2461,14 @@ function InventoryLayout() {
                             });
       
       const matchesProduct = !filter.product || 
-                           group.items.some(item => 
-                             item.productName.toLowerCase().includes(filter.product.toLowerCase())
-                           );
+                           group.items.some(item => {
+                             const searchTerm = filter.product.toLowerCase();
+                             const pName = (item.productName || '').toLowerCase();
+                             const pCode = (item.productCode || '').toLowerCase();
+                             const product = products.find(p => p.id === item.productId);
+                             const pBarcode = (product && product.barcode) ? String(product.barcode).toLowerCase() : '';
+                             return pName.includes(searchTerm) || pCode.includes(searchTerm) || pBarcode.includes(searchTerm);
+                           });
       
       const cleanSearchTerm = (filter.note || '').toLowerCase().replace(/^shp-/, '').trim();
       
@@ -2604,7 +2742,7 @@ function InventoryLayout() {
     handleDeleteSelectedTransactions, handleViewOriginal, handleDateFilterClick, handleTableCellClick,
     handleTableCellHover, handleTableCellHoverLeave, handlePageChange, handleBarcodeScan, startBarcodeScan,
     handleBarcodeScanError, handleDragOver, handleDragLeave, handleDrop,
-    totalPages,
+    totalPages, recalculateAllInventory,
     batchFromLocation, setBatchFromLocation, batchToLocation, setBatchToLocation, showOriginalHistory, setShowOriginalHistory, handleSubmitTransaction, downloadExcelTemplate, handleExcelDataSubmit, handleBatchApplyLocation};
   return (
     <Box sx={{ width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
