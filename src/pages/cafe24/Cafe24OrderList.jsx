@@ -199,13 +199,30 @@ export default function Cafe24OrderList() {
 
   const fetchMalls = async () => {
     try {
-      const res = await getCafe24Malls();
-      if (res.success && res.malls) {
-        setMalls(res.malls.filter(m => m.connected && (allowedMalls.includes('all') || allowedMalls.includes(m.mall_id))));
-      }
+      // Supabase DB에서 직접 읽어서 토큰 만료 여부와 무관하게 쇼핑몰 목록 표시
+      const { data, error: dbErr } = await supabase
+        .from('cafe24_settings')
+        .select('mall_id, client_id, access_token, token_expires_at, board_no, last_synced_at')
+        .order('created_at', { ascending: true });
+      
+      if (dbErr) throw dbErr;
+      
+      const mallList = (data || []).map(m => {
+        const tokenExpired = m.token_expires_at ? new Date(m.token_expires_at) < new Date() : true;
+        return {
+          mall_id: m.mall_id,
+          client_id: m.client_id,
+          connected: !!m.access_token && !tokenExpired,
+          token_expired: tokenExpired,
+          board_no: m.board_no,
+          last_synced_at: m.last_synced_at
+        };
+      }).filter(m => allowedMalls.includes('all') || allowedMalls.includes(m.mall_id));
+      
+      setMalls(mallList);
     } catch (err) {
       console.error(err);
-      setError('쇼핑몰 설정 정보를 불러오지 못했습니다. 백엔드 서버가 실행 중인지 확인해주세요.');
+      setError('쇼핑몰 설정 정보를 불러오지 못했습니다.');
     }
   };
 
@@ -323,22 +340,35 @@ export default function Cafe24OrderList() {
 
   const handleSync = async () => {
     if (malls.length === 0) {
-      alert('연동된 카페24 쇼핑몰이 없습니다. 설정 메뉴에서 쇼핑몰을 연동해주세요.');
+      alert('등록된 카페24 쇼핑몰이 없습니다. 설정 메뉴에서 쇼핑몰을 등록해주세요.');
       return;
     }
 
     setSyncing(true);
     setError(null);
     try {
-      // 선택된 쇼핑몰만 동기화하도록 변경. all인 경우 전체.
       const syncMalls = selectedMall === 'all' 
         ? malls 
         : malls.filter(m => m.mall_id === selectedMall);
 
+      const results = [];
       for (const m of syncMalls) {
-        await syncCafe24Orders(m.mall_id, startDate, endDate); 
+        try {
+          await syncCafe24Orders(m.mall_id, startDate, endDate);
+          results.push({ mall_id: m.mall_id, success: true });
+        } catch (err) {
+          console.error(`[${m.mall_id}] 동기화 오류:`, err.message);
+          results.push({ mall_id: m.mall_id, success: false, error: err.message });
+        }
       }
+
       await fetchOrders();
+
+      const failures = results.filter(r => !r.success);
+      if (failures.length > 0) {
+        const failMsgs = failures.map(f => `[${f.mall_id}] ${f.error}`).join('\n');
+        setError(`일부 쇼핑몰 동기화 실패:\n${failMsgs}\n\n토큰이 만료된 경우 연동관리에서 재인증해주세요.`);
+      }
     } catch (err) {
       setError(err.message);
     } finally {

@@ -7,12 +7,36 @@ import { supabase } from '../lib/supabaseClient';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 
 async function fetchWithAuth(url, options = {}) {
-  const { data: { session } } = await supabase.auth.getSession();
+  // 먼저 세션 확인 후, 만료되었으면 자동 갱신 시도
+  let { data: { session } } = await supabase.auth.getSession();
+  
+  if (!session?.access_token) {
+    // 세션이 없거나 만료된 경우 리프레시 시도
+    const { data: refreshData } = await supabase.auth.refreshSession();
+    session = refreshData?.session;
+  }
+
   const headers = {
     ...options.headers,
     ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
   };
-  return fetch(url, { ...options, headers });
+
+  const resp = await fetch(url, { ...options, headers });
+  
+  // 401 응답 시 세션 갱신 후 한 번 더 재시도
+  if (resp.status === 401 && session?.access_token) {
+    const { data: refreshData } = await supabase.auth.refreshSession();
+    const newSession = refreshData?.session;
+    if (newSession?.access_token) {
+      const retryHeaders = {
+        ...options.headers,
+        Authorization: `Bearer ${newSession.access_token}`
+      };
+      return fetch(url, { ...options, headers: retryHeaders });
+    }
+  }
+
+  return resp;
 }
 
 export async function getCafe24Malls() {
