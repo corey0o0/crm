@@ -1390,13 +1390,22 @@ function InventoryLayout() {
       }
       
       if (inventoryUpserts.length > 0) {
-        await inventoryApi.upsertMany(inventoryUpserts);
+        const chunkSize = 100;
+        for (let i = 0; i < inventoryUpserts.length; i += chunkSize) {
+          const chunk = inventoryUpserts.slice(i, i + chunkSize);
+          await inventoryApi.upsertMany(chunk);
+        }
       }
 
       // 5. DB 일괄 업데이트 준비 (parts 테이블)
-      for (const [pId, qty] of Object.entries(stockUpdates)) {
-        const finalQty = Math.max(0, qty); // parts 테이블 재고는 음수 불가
-        await supabase.from('parts').update({ stock: finalQty }).eq('id', pId);
+      const stockUpdatesArray = Object.entries(stockUpdates);
+      const chunkSizeParts = 100;
+      for (let i = 0; i < stockUpdatesArray.length; i += chunkSizeParts) {
+        const chunk = stockUpdatesArray.slice(i, i + chunkSizeParts);
+        await Promise.all(chunk.map(([pId, qty]) => {
+          const finalQty = Math.max(0, qty); // parts 테이블 재고는 음수 불가
+          return supabase.from('parts').update({ stock: finalQty }).eq('id', pId);
+        }));
       }
 
       // 6. 데이터 리프레시
@@ -2823,6 +2832,8 @@ function InventoryLayout() {
     handleOpenExcelUpload, showSnackbar, getTransactionTypeInfo, formatLocationName,
     handleDeleteSelectedTransactions, handleViewOriginal, handleDateFilterClick, handleTableCellClick,
     handleTableCellHover, handleTableCellHoverLeave, handlePageChange, handleBarcodeScan, startBarcodeScan,
+    handleBarcodeScanError, handleDragOver, handleDragLeave, handleDrop,
+    totalPages, recalculateAllInventory, deleteTransaction,
     batchFromLocation, setBatchFromLocation, batchToLocation, setBatchToLocation, showOriginalHistory, setShowOriginalHistory, handleSubmitTransaction, downloadExcelTemplate, handleExcelDataSubmit, handleBatchApplyLocation, handleDirectInventoryEdit};
 
   return (

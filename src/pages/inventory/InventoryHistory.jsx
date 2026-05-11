@@ -122,31 +122,46 @@ export default function InventoryHistory() {
           <Button
             variant="contained"
             color="error"
+            sx={{ display: 'none' }}
             onClick={async () => {
-              if (!window.confirm('인천창고의 모든 상품에 대해 5월 9일자 재고 0조정 트랜잭션을 일괄 추가하시겠습니까?')) return;
+              if (!window.confirm('모든 창고(인천, 청담본점, 향동 등)의 모든 상품에 대해 재고 0조정 트랜잭션을 일괄 추가하시겠습니까?')) return;
               try {
-                setDetailProcessing(true);
-                const incheonWh = warehouses.find(w => w.name.includes('인천'));
-                if (!incheonWh) {
-                  alert('인천창고를 찾을 수 없습니다.');
-                  return;
-                }
+                const targetDate = window.prompt('재고를 0으로 초기화할 기준 날짜를 입력하세요 (YYYY-MM-DD 형식):', '2026-05-09');
+                if (!targetDate) return;
                 
-                const txs = products.map((p, idx) => ({
-                  group_id: `reset-incheon-${Date.now()}-${idx}`,
-                  type: 'in',
-                  product_id: p.id,
-                  product_name: p.name,
-                  product_code: p.code,
-                  product_supplier: p.brand || p.supplier,
-                  quantity: 0,
-                  from_location: 'adjustment',
-                  to_location: incheonWh.id,
-                  date: '2026-05-09',
-                  note: '[재고 조정] 5월 9일 기준 초기화',
-                  is_grouped: false,
-                  status: '완료'
-                }));
+                setDetailProcessing(true);
+                
+                // 기존에 같은 날짜로 생성된 일괄 리셋 트랜잭션이 있다면 삭제 (중복 방지)
+                const { error: delError } = await supabase
+                  .from('transactions')
+                  .delete()
+                  .like('group_id', 'reset-all-%')
+                  .eq('date', targetDate);
+                if (delError) console.warn('이전 초기화 내역 삭제 실패:', delError);
+
+                const txs = [];
+                const counts = {};
+                warehouses.forEach((wh, whIdx) => {
+                  counts[wh.name] = 0;
+                  products.forEach((p, pIdx) => {
+                    txs.push({
+                      group_id: `reset-all-${Date.now()}-${whIdx}-${pIdx}`,
+                      type: 'in',
+                      product_id: p.id,
+                      product_name: p.name,
+                      product_code: p.code,
+                      product_supplier: p.brand || p.supplier,
+                      quantity: 0,
+                      from_location: 'adjustment',
+                      to_location: wh.id,
+                      date: targetDate,
+                      note: `[재고 조정] ${targetDate} 기준 초기화`,
+                      is_grouped: false,
+                      status: '완료'
+                    });
+                    counts[wh.name]++;
+                  });
+                });
 
                 const chunkSize = 100;
                 for (let i = 0; i < txs.length; i += chunkSize) {
@@ -155,7 +170,8 @@ export default function InventoryHistory() {
                   if (error) throw error;
                 }
                 
-                showSnackbar('재고 0 조정 내역이 추가되었습니다. 재고 전면 재계산을 실행해주세요.', 'success');
+                const countMsg = Object.entries(counts).map(([name, c]) => `${name}: ${c}건`).join(', ');
+                showSnackbar(`모든 창고의 재고 0 조정 내역(${txs.length}건)이 추가되었습니다. (${countMsg}) 재고 전면 재계산을 실행해주세요.`, 'success');
               } catch (err) {
                 console.error(err);
                 alert('에러 발생: ' + err.message);
@@ -164,11 +180,12 @@ export default function InventoryHistory() {
               }
             }}
           >
-            인천창고 재고 0 세팅 (5/9)
+            모든 창고 재고 0 세팅 (5/9)
           </Button>
           <Button
             variant="contained"
             color="warning"
+            sx={{ display: 'none' }}
             disabled={detailProcessing}
             onClick={async () => {
               if (!window.confirm('재고를 전면 재계산하시겠습니까?\n\n모든 입출고 내역을 기반으로 재고가 다시 계산됩니다.\n처리 중 다른 작업을 하지 마세요.')) return;

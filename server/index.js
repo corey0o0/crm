@@ -8,7 +8,6 @@ const CloudmersiveConvertApiClient = require('cloudmersive-convert-api-client');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const app = express();
-app.set('trust proxy', 1);
 const port = process.env.PORT || 5001;
 
 // Cloudmersive API 클라이언트 설정
