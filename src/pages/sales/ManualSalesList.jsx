@@ -10,6 +10,7 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ko } from 'date-fns/locale';
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO } from 'date-fns';
 import { processShipmentRevert, processShipmentCompletion } from '../../utils/inventoryUtils';
+import { logAction } from '../../utils/auditLog';
 
 export default function ManualSalesList({ isEmbedded = false }) {
   const [loading, setLoading] = useState(true);
@@ -250,6 +251,19 @@ export default function ManualSalesList({ isEmbedded = false }) {
       
       setSnackbar({ open: true, message: '안전하게 삭제되었으며 재고 및 통계에 반영되었습니다.', severity: 'success' });
       fetchManualSales();
+
+      // 감사 로그: 수기 판매 삭제
+      try {
+        await logAction({
+          action: '삭제',
+          targetTable: 'shipments',
+          targetId: targetToDelete.id,
+          summary: `[수기판매 삭제] ${targetToDelete.customer_name} - ${targetToDelete.product_name} (금액: ${Number(targetToDelete.price || 0).toLocaleString()}원)`,
+          details: targetToDelete
+        });
+      } catch (logErr) {
+        console.warn('[AuditLog] 수기판매 삭제 로그 실패:', logErr);
+      }
     } catch (err) {
       setSnackbar({ open: true, message: '삭제 실패: ' + err.message, severity: 'error' });
     } finally {
@@ -471,6 +485,19 @@ export default function ManualSalesList({ isEmbedded = false }) {
       
       setSnackbar({ open: true, message: `${selectedItems.length}개의 항목이 안전하게 삭제되었습니다.`, severity: 'success' });
       fetchManualSales();
+
+      // 감사 로그: 수기 판매 일괄 삭제
+      try {
+        await logAction({
+          action: '일괄삭제',
+          targetTable: 'shipments',
+          targetId: selectedItems[0],
+          summary: `[수기판매 일괄삭제] ${selectedItems.length}건 삭제`,
+          details: { deletedIds: selectedItems, count: selectedItems.length }
+        });
+      } catch (logErr) {
+        console.warn('[AuditLog] 수기판매 일괄삭제 로그 실패:', logErr);
+      }
     } catch (err) {
       setSnackbar({ open: true, message: '일괄 삭제 실패: ' + err.message, severity: 'error' });
     } finally {

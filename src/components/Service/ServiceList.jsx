@@ -77,6 +77,7 @@ import { format } from 'date-fns';
 import { sendTelegramNotification } from '../../lib/telegram'; // 텔레그램 유틸리티 함수 import
 import { processServiceCompletion, processServiceRevert, normalizeServiceStatus } from '../../utils/inventoryUtils';
 import { useAuth } from '../../contexts/AuthContext';
+import { logAction } from '../../utils/auditLog';
 
 // KST 변환 함수 추가
 // function toKST(dateString) { ... } // 삭제
@@ -1139,6 +1140,19 @@ function ServiceList() {
       setServices(prev => prev.filter(s => s.id !== selectedService.id));
       setDeleteDialogOpen(false);
       fetchBrandCounts(); // 건수 갱신
+
+      // 감사 로그: A/S 삭제
+      try {
+        await logAction({
+          action: '삭제',
+          targetTable: 'services',
+          targetId: selectedService.id,
+          summary: `[A/S 삭제] ${selectedService.customer_name} - ${selectedService.product_name} (상태: ${selectedService.status})`,
+          details: selectedService
+        });
+      } catch (logErr) {
+        console.warn('[AuditLog] A/S 삭제 로그 실패:', logErr);
+      }
     } catch (err) {
       console.error('Error deleting service:', err);
       setError(err.message);
@@ -1227,6 +1241,19 @@ function ServiceList() {
         
         setOpenDialog(false);
         fetchBrandCounts(); // 건수 갱신
+
+        // 감사 로그: A/S 수정
+        try {
+          await logAction({
+            action: '수정',
+            targetTable: 'services',
+            targetId: selectedService.id,
+            summary: `[A/S 수정] ${selectedService.customer_name} - ${selectedService.product_name} (상태: ${originalService?.status} → ${selectedService.status})`,
+            details: { before: originalService, after: updateData }
+          });
+        } catch (logErr) {
+          console.warn('[AuditLog] A/S 수정 로그 실패:', logErr);
+        }
         
         setSnackbar({
           open: true,

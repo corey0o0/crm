@@ -67,6 +67,7 @@ import { getSyncedParts, createSyncRelation, deleteSyncRelationById } from '../.
 import Barcode from 'react-barcode';
 import { uploadFileToR2 as uploadToR2 } from '../../utils/cloudflareR2Utils';
 import { CloudUpload as CloudUploadIcon } from '@mui/icons-material';
+import { logAction } from '../../utils/auditLog';
 
 const BRANDS = ['XRB', 'NB', 'COMMON'];
 
@@ -1001,6 +1002,19 @@ function PartsManagement() {
           console.error('부품 정보 수정 텔레그램 알림 전송 중 오류:', telegramError);
         }
 
+        // 감사 로그: 상품 수정
+        try {
+          await logAction({
+            action: '수정',
+            targetTable: 'parts',
+            targetId: selectedPart.id,
+            summary: `[상품 수정] ${partData.code} - ${partData.name} (브랜드: ${partData.brand})`,
+            details: { before: selectedPart, after: partData }
+          });
+        } catch (logErr) {
+          console.warn('[AuditLog] 상품 수정 로그 실패:', logErr);
+        }
+
       } else {
         let { data: insertedPart, error } = await supabase
           .from('parts')
@@ -1034,6 +1048,19 @@ function PartsManagement() {
             }, { eventType: 'part_add' });
           } catch (telegramError) {
             console.error('신규 부품 등록 텔레그램 알림 전송 중 오류:', telegramError);
+          }
+
+          // 감사 로그: 상품 등록
+          try {
+            await logAction({
+              action: '등록',
+              targetTable: 'parts',
+              targetId: newPart.id,
+              summary: `[상품 등록] ${newPart.code} - ${newPart.name} (브랜드: ${newPart.brand})`,
+              details: newPart
+            });
+          } catch (logErr) {
+            console.warn('[AuditLog] 상품 등록 로그 실패:', logErr);
           }
         }
       }
@@ -1088,6 +1115,20 @@ function PartsManagement() {
 
       fetchParts();
       showSnackbar('부품이 삭제되었습니다.', 'success');
+
+      // 감사 로그: 상품 삭제
+      try {
+        const deletedPart = parts.find(p => p.id === id);
+        await logAction({
+          action: '삭제',
+          targetTable: 'parts',
+          targetId: id,
+          summary: `[상품 삭제] ${deletedPart?.code || ''} - ${deletedPart?.name || ''} (브랜드: ${deletedPart?.brand || ''})`,
+          details: deletedPart
+        });
+      } catch (logErr) {
+        console.warn('[AuditLog] 상품 삭제 로그 실패:', logErr);
+      }
     } catch (err) {
       console.error('Error deleting part:', err);
       if (err?.code === '23503') {

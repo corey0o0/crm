@@ -920,6 +920,19 @@ function InventoryLayout() {
       }, 100);
       
       showSnackbar('거래내역이 삭제되었습니다.', 'success');
+
+      // 감사 로그: 단건 거래 삭제
+      try {
+        await logAction({
+          action: '삭제',
+          targetTable: 'inventory_transactions',
+          targetId: transactionId,
+          summary: `[입출고 삭제] 거래 ID: ${transactionId}`,
+          details: { transactionId }
+        });
+      } catch (logErr) {
+        console.warn('[AuditLog] 단건 삭제 로그 실패:', logErr);
+      }
     } catch (error) {
       console.error('거래내역 삭제 실패:', error);
       showSnackbar('거래내역 삭제에 실패했습니다.', 'error');

@@ -50,6 +50,7 @@ import { pendingOutboundApi } from '../../api/pendingOutboundApi';
 import { useAuth } from '../../contexts/AuthContext';
 import { MASTER_ACCOUNTS } from '../../config/menuConfig';
 import { getAppSetting } from '../../api/settingsApi';
+import { logAction } from '../../utils/auditLog';
 // import { addShipmentPartsToPendingOrders } from '../../utils/pendingOrderUtils'; // 주문대기 기능 비활성화
 
 function ShipmentDetail() {
@@ -412,6 +413,20 @@ function ShipmentDetail() {
       } else {
         setSnackbar({ open: true, message: '부품 반품(재입고) 처리가 완료되었습니다.', severity: 'success' });
       }
+
+      // 감사 로그: 출고 부품 반품
+      try {
+        await logAction({
+          action: '반품',
+          targetTable: 'shipment_parts',
+          targetId: part.id,
+          summary: `[출고 반품] ${shipmentData?.customer_name} - ${part.part_name} ${qty}개 반품`,
+          details: { partName: part.part_name, quantity: qty, shipmentId: id },
+          groupId: id
+        });
+      } catch (logErr) {
+        console.warn('[AuditLog] 출고 반품 로그 실패:', logErr);
+      }
     } catch (err) {
       console.error(err);
       setSnackbar({ open: true, message: '반품 처리 중 오류가 발생했습니다: ' + err.message, severity: 'error' });
@@ -508,6 +523,19 @@ function ShipmentDetail() {
       setIsEditing(false);
       await fetchShipmentDetail();
 
+      // 감사 로그: 출고 수정
+      try {
+        await logAction({
+          action: '수정',
+          targetTable: 'shipments',
+          targetId: id,
+          summary: `[출고 수정] ${shipmentData?.customer_name} - 품목 ${editableParts.length}건 수정`,
+          details: { shipmentUpdateData, partsCount: editableParts.length }
+        });
+      } catch (logErr) {
+        console.warn('[AuditLog] 출고 수정 로그 실패:', logErr);
+      }
+
     } catch (error) {
       console.error('Error saving changes:', error);
       setSnackbar({
@@ -591,6 +619,19 @@ function ShipmentDetail() {
       setTimeout(() => {
         navigate('/shipment');
       }, 1500);
+
+      // 감사 로그: 출고 상세 삭제
+      try {
+        await logAction({
+          action: '삭제',
+          targetTable: 'shipments',
+          targetId: id,
+          summary: `[출고 삭제] ${shipmentData?.customer_name} - ${shipmentData?.product_name} (상태: ${shipmentData?.status})`,
+          details: shipmentData
+        });
+      } catch (logErr) {
+        console.warn('[AuditLog] 출고 삭제 로그 실패:', logErr);
+      }
 
     } catch (error) {
       console.error('Error deleting shipment:', error);
@@ -777,6 +818,19 @@ function ShipmentDetail() {
 
       // 데이터 새로고침
       await fetchShipmentDetail();
+
+      // 감사 로그: 출고 상태 변경
+      try {
+        await logAction({
+          action: '상태변경',
+          targetTable: 'shipments',
+          targetId: id,
+          summary: `[출고 상태변경] ${shipmentData?.customer_name} - ${previousStatus} → ${newStatus}`,
+          details: { previousStatus, newStatus, customerName: shipmentData?.customer_name, productName: shipmentData?.product_name }
+        });
+      } catch (logErr) {
+        console.warn('[AuditLog] 출고 상태변경 로그 실패:', logErr);
+      }
 
     } catch (error) {
       console.error('상태 변경 중 오류:', error);
