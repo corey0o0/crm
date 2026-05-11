@@ -43,7 +43,7 @@ export default function InventoryStatus() {
   };
 
         const term = overallSearch.trim().toLowerCase();
-        let rows = (products || []).filter(p => !p.is_deleted && (!term || p.name?.toLowerCase().includes(term) || p.code?.toLowerCase().includes(term) || p.barcode?.toLowerCase().includes(term)));
+        let rows = (products || []).filter(p => !p.is_deleted && p.track_inventory !== false && (!term || p.name?.toLowerCase().includes(term) || p.code?.toLowerCase().includes(term) || p.barcode?.toLowerCase().includes(term)));
         rows = rows.filter(p => {
           const stocks = warehouses.map(w => (inventory[w.id]?.[p.id] || 0));
           const anyStock = stocks.some(q => q !== 0);
