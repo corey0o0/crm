@@ -1627,7 +1627,7 @@ function ServiceList() {
       id: 'reception_date', 
       label: '접수일시',
       sortable: true,
-      width: 100,
+      width: 140,
       renderCell: (params) => (
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <Typography variant="body2" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }} noWrap>
@@ -1653,7 +1653,7 @@ function ServiceList() {
       id: 'customer_name', 
       label: '이름',
       sortable: true,
-      width: 100,
+      width: 130,
       render: (row) => (
         <Typography noWrap sx={{ 
           fontSize: '0.95rem', 
@@ -1668,7 +1668,7 @@ function ServiceList() {
       id: 'customer_phone', 
       label: '연락처',
       sortable: true,
-      width: 150,
+      width: 180,
       render: (row) => (
         <Typography noWrap sx={{ 
           fontSize: '0.95rem', 
@@ -1684,7 +1684,7 @@ function ServiceList() {
       id: 'product_name', 
       label: '기종',
       sortable: true,
-      width: 150,
+      width: 180,
       render: (row) => (
         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, minWidth: 0 }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
