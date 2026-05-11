@@ -122,10 +122,23 @@ export default function InventoryHistory() {
           <Button
             variant="contained"
             color="warning"
-            onClick={recalculateAllInventory}
+            disabled={detailProcessing}
+            onClick={async () => {
+              if (!window.confirm('재고를 전면 재계산하시겠습니까?\n\n모든 입출고 내역을 기반으로 재고가 다시 계산됩니다.\n처리 중 다른 작업을 하지 마세요.')) return;
+              setDetailProcessing(true);
+              try {
+                await recalculateAllInventory();
+                showSnackbar('재고 전면 재계산이 완료되었습니다.', 'success');
+              } catch (err) {
+                console.error(err);
+                showSnackbar('재고 재계산 중 오류가 발생했습니다.', 'error');
+              } finally {
+                setDetailProcessing(false);
+              }
+            }}
             sx={{ ml: 1 }}
           >
-            재고 전면 재계산 (복구)
+            {detailProcessing ? '재계산 중...' : '재고 전면 재계산 (복구)'}
           </Button>
         </Box>
       </Box>
