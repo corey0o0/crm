@@ -17,6 +17,7 @@ export default function InventoryStatus() {
 
   const [editPopoverAnchor, setEditPopoverAnchor] = useState(null);
   const [editData, setEditData] = useState({ warehouseId: '', productId: '', currentQty: 0, newQty: '', reason: '' });
+  const [saving, setSaving] = useState(false);
 
   const handleOpenEdit = (e, warehouseId, productId, currentQty) => {
     setEditData({ warehouseId, productId, currentQty, newQty: currentQty, reason: '재고 현황에서 직접 수정' });
@@ -28,9 +29,15 @@ export default function InventoryStatus() {
   };
 
   const submitEdit = async () => {
+    if (saving) return;
     if (editData.newQty === '' || isNaN(editData.newQty)) return;
-    await handleDirectInventoryEdit(editData.warehouseId, editData.productId, editData.currentQty, Number(editData.newQty), editData.reason);
-    handleCloseEdit();
+    setSaving(true);
+    try {
+      await handleDirectInventoryEdit(editData.warehouseId, editData.productId, editData.currentQty, Number(editData.newQty), editData.reason);
+      handleCloseEdit();
+    } finally {
+      setSaving(false);
+    }
   };
 
         const term = overallSearch.trim().toLowerCase();
@@ -242,8 +249,10 @@ export default function InventoryStatus() {
                   onChange={(e) => setEditData({...editData, reason: e.target.value})} 
                 />
                 <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-                  <Button size="small" onClick={handleCloseEdit} color="inherit">취소</Button>
-                  <Button size="small" variant="contained" onClick={submitEdit} color="primary">저장</Button>
+                  <Button size="small" onClick={handleCloseEdit} color="inherit" disabled={saving}>취소</Button>
+                  <Button size="small" variant="contained" onClick={submitEdit} color="primary" disabled={saving}>
+                    {saving ? '처리 중...' : '저장'}
+                  </Button>
                 </Box>
               </Box>
             </Popover>
