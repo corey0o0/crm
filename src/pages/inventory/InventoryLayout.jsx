@@ -589,7 +589,11 @@ function InventoryLayout() {
         .select('from_location, product_id, quantity, type')
         .eq('status', '대기');
         
-      if (error) console.error('대기 트랜잭션 조회 에러:', error);
+      if (error) {
+        console.error('대기 트랜잭션 조회 에러:', error);
+        showSnackbar('대기 트랜잭션 조회 중 오류가 발생했습니다.', 'error');
+        throw error;
+      }
         
       const newPendingInventory = {};
       warehouses.forEach(warehouse => {
@@ -617,6 +621,7 @@ function InventoryLayout() {
       console.log('서버 DB(inventory)에서 최신 재고 정보를 성공적으로 불러왔습니다.');
     } catch (error) {
       console.error('재고 정보 로딩 실패:', error);
+      showSnackbar('재고 정보 로딩 중 오류가 발생했습니다.', 'error');
     }
   };
 
@@ -1242,9 +1247,10 @@ function InventoryLayout() {
             const newStock = Math.max(0, p.stock + delta);
             newProducts[productIndex] = { ...p, stock: newStock };
             
-            // API를 통해 실제 상품 재고 업데이트 (비동기, 에러 무시)
+            // API를 통해 실제 상품 재고 업데이트
             productApi.updateStock(parseInt(productId, 10), newStock).catch(err => {
               console.error(`Failed to update stock for product ${productId}:`, err);
+              showSnackbar(`상품 재고 업데이트 중 오류가 발생했습니다. (ID: ${productId})`, 'error');
             });
             console.log(`상품 ${p.name}의 재고가 ${p.stock}에서 ${newStock}으로 업데이트되었습니다.`);
           }

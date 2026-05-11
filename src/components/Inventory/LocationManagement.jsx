@@ -56,7 +56,7 @@ function LocationManagement({
   loading = false
 }) {
   const { hasActionPermission } = useAuth();
-  const canEditBasic = hasActionPermission ? hasActionPermission('can_edit_basic') : true;
+  const canEditBasic = hasActionPermission ? hasActionPermission('can_edit_basic') : false;
 
   const [activeTab, setActiveTab] = useState(0);
   const [openDialog, setOpenDialog] = useState(false);
