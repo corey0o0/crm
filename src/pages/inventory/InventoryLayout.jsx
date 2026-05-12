@@ -1076,19 +1076,29 @@ function InventoryLayout() {
       const product = products.find(p => p.id === item.productId);
       if (!product) return;
       const isOutbound = warehouses.find(w => w.id === item.fromLocation);
-      const toIsWarehouse = warehouses.find(w => w.id === item.toLocation);
-      const qty = parseInt(item.quantity, 10);
-      
-      let qtyStr = '';
-      if (isOutbound) {
-        const prevQty = inventory[item.fromLocation]?.[item.productId] || 0;
-        qtyStr = ` [${prevQty} -> ${prevQty - qty}]`;
-      } else if (toIsWarehouse) {
-        const prevQty = inventory[item.toLocation]?.[item.productId] || 0;
-        qtyStr = ` [${prevQty} -> ${prevQty + qty}]`;
+      const isTransfer = isOutbound && warehouses.find(w => w.id === item.toLocation);
+      const qtyInt = parseInt(item.quantity, 10);
+
+      // 재고 변동 내역 텍스트 생성
+      let qtyChangeText = '';
+      if (isTransfer) {
+        const fromPrev = inventory[item.fromLocation]?.[item.productId] || 0;
+        const fromNew = fromPrev - qtyInt;
+        const toPrev = inventory[item.toLocation]?.[item.productId] || 0;
+        const toNew = toPrev + qtyInt;
+        qtyChangeText = ` [출발: ${fromPrev}->${fromNew}, 도착: ${toPrev}->${toNew}]`;
+      } else if (isOutbound) {
+        const prev = inventory[item.fromLocation]?.[item.productId] || 0;
+        const newQty = prev - qtyInt;
+        qtyChangeText = ` [${prev} -> ${newQty}]`;
+      } else {
+        const prev = inventory[item.toLocation]?.[item.productId] || 0;
+        const newQty = prev + qtyInt;
+        qtyChangeText = ` [${prev} -> ${newQty}]`;
       }
 
-      const baseNote = item.note || formData.note || '';
+      const baseNote = item.note || formData.note;
+      const finalNote = baseNote ? `${baseNote}${qtyChangeText}` : `수동 등록${qtyChangeText}`;
 
       const transaction = {
         id: groupId + index,
@@ -1098,12 +1108,12 @@ function InventoryLayout() {
         productName: product.name,
         productCode: product.code,
         productSupplier: product.supplier || '-',
-        quantity: qty,
+        quantity: qtyInt,
         fromLocation: isOutbound ? item.fromLocation : (item.fromLocation || '외부'),
         toLocation: item.toLocation,
         date: formData.date,
         boxNo: item.boxNo || '',
-        note: baseNote ? `${baseNote}${qtyStr}` : `수동 등록${qtyStr}`,
+        note: finalNote,
         additionalNote: item.additionalNote || '',
         createdAt: new Date().toLocaleString(),
         isGrouped: true,
