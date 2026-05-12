@@ -231,8 +231,8 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
             to_location: isRevert ? (part.warehouse_id || defaultWarehouseId) : '외부(고객)',
             date: format(new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Seoul"})), 'yyyy-MM-dd'),
             note: isRevert 
-              ? `${referenceType === 'shipment' ? '[매장출고 취소]' : '[A/S 취소]'} 재고 복구 (Ref: ${refStr}${customerName ? `, ${customerName}` : ''})`
-              : `${referenceType === 'shipment' ? '[매장출고 완료]' : '[A/S 완료]'} 재고 차감 (Ref: ${refStr}${customerName ? `, ${customerName}` : ''})`,
+              ? `${referenceType === 'shipment' ? '[매장출고 취소]' : '[A/S 취소]'} 재고 복구 (Ref: ${refStr}${customerName ? `, ${customerName}` : ''}) [${previousQuantity} -> ${newQuantity}]`
+              : `${referenceType === 'shipment' ? '[매장출고 완료]' : '[A/S 완료]'} 재고 차감 (Ref: ${refStr}${customerName ? `, ${customerName}` : ''}) [${previousQuantity} -> ${newQuantity}]`,
             is_grouped: true,
             status: '완료' // 확정 후 처리이므로 항상 완료
           });
