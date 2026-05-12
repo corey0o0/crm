@@ -114,7 +114,7 @@ function InventoryLayout() {
 
   // 전체보기(창고 x 상품 매트릭스) 검색
   const [overallSearch, setOverallSearch] = useState('');
-  const [overallStockFilter, setOverallStockFilter] = useState('inStock'); // 기본: 재고 있음
+  const [overallStockFilter, setOverallStockFilter] = useState('all'); // 기본: 전체
 
   // 엑셀 업로드 관련 상태
   const [excelUploadOpen, setExcelUploadOpen] = useState(false);

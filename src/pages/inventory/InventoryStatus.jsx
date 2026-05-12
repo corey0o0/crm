@@ -21,6 +21,10 @@ export default function InventoryStatus() {
   const [statusPage, setStatusPage] = useState(0);
   const [statusRowsPerPage, setStatusRowsPerPage] = useState(50);
 
+  // N개 이상/이하 수량 필터
+  const [qtyFilterValue, setQtyFilterValue] = useState('');
+  const [qtyFilterMode, setQtyFilterMode] = useState('lte'); // 'lte' = 이하, 'gte' = 이상
+
   const handleOpenEdit = (e, warehouseId, productId, currentQty) => {
     setEditData({ warehouseId, productId, currentQty, newQty: currentQty, reason: '재고 현황에서 직접 수정' });
     setEditPopoverAnchor(e.currentTarget);
@@ -43,14 +47,32 @@ export default function InventoryStatus() {
   };
 
         const term = overallSearch.trim().toLowerCase();
-        let rows = (products || []).filter(p => !p.is_deleted && p.track_inventory !== false && (!term || p.name?.toLowerCase().includes(term) || p.code?.toLowerCase().includes(term) || p.barcode?.toLowerCase().includes(term)));
+        let rows = (products || []).filter(p => {
+          if (p.is_deleted) return false;
+          // 재고 비관리 상품 제외 (track_inventory가 false이거나 공임)
+          if (!p.track_inventory) return false;
+          // 검색 필터
+          if (term && !p.name?.toLowerCase().includes(term) && !p.code?.toLowerCase().includes(term) && !p.barcode?.toLowerCase().includes(term)) return false;
+          return true;
+        });
         rows = rows.filter(p => {
           const stocks = warehouses.map(w => (inventory[w.id]?.[p.id] || 0));
+          const totalStock = stocks.reduce((a, b) => a + b, 0);
           const anyStock = stocks.some(q => q !== 0);
           if (overallStockFilter === 'inStock') return anyStock;
           if (overallStockFilter === 'outOfStock') return !anyStock;
+          if (overallStockFilter === 'negative') return stocks.some(q => q < 0);
           return true;
         });
+
+        // N개 이상/이하 수량 필터
+        if (qtyFilterValue !== '' && !isNaN(Number(qtyFilterValue))) {
+          const threshold = Number(qtyFilterValue);
+          rows = rows.filter(p => {
+            const totalStock = warehouses.reduce((sum, w) => sum + (inventory[w.id]?.[p.id] || 0), 0);
+            return qtyFilterMode === 'lte' ? totalStock <= threshold : totalStock >= threshold;
+          });
+        }
         
         // 창고별 총합 계산
         const warehouseTotals = warehouses.map(w => 
@@ -133,6 +155,34 @@ export default function InventoryStatus() {
                   >
                     재고 없음
                   </Button>
+                  <Button
+                    size="small"
+                    variant={overallStockFilter === 'negative' ? 'contained' : 'outlined'}
+                    color="error"
+                    onClick={() => setOverallStockFilter('negative')}
+                  >
+                    마이너스
+                  </Button>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 1, borderLeft: '1px solid #ddd', pl: 1 }}>
+                    <TextField
+                      size="small"
+                      type="number"
+                      placeholder="수량"
+                      value={qtyFilterValue}
+                      onChange={(e) => { setQtyFilterValue(e.target.value); setStatusPage(0); }}
+                      sx={{ width: 80 }}
+                      inputProps={{ min: 0 }}
+                    />
+                    <Select
+                      size="small"
+                      value={qtyFilterMode}
+                      onChange={(e) => { setQtyFilterMode(e.target.value); setStatusPage(0); }}
+                      sx={{ minWidth: 70 }}
+                    >
+                      <MenuItem value="lte">이하</MenuItem>
+                      <MenuItem value="gte">이상</MenuItem>
+                    </Select>
+                  </Box>
 
                   <Button
                     size="small"
@@ -196,16 +246,23 @@ export default function InventoryStatus() {
                         </TableCell>
                         <TableCell sx={{ width: 120, maxWidth: 120 }}>{p.barcode || '-'}</TableCell>
                         <TableCell sx={{ width: 120, maxWidth: 120 }}>{p.code || '-'}</TableCell>
-                        {warehouses.map(w => (
+                        {warehouses.map(w => {
+                          const cellQty = inventory[w.id]?.[p.id] || 0;
+                          return (
                           <TableCell 
                             key={`cell-${p.id}-${w.id}`} 
                             align="right" 
-                            sx={{ width: 120, maxWidth: 140, cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
-                            onClick={(e) => handleOpenEdit(e, w.id, p.id, inventory[w.id]?.[p.id] || 0)}
+                            sx={{ 
+                              width: 120, maxWidth: 140, cursor: 'pointer', 
+                              '&:hover': { bgcolor: 'action.hover' },
+                              ...(cellQty < 0 ? { bgcolor: '#ffebee', color: '#c62828', fontWeight: 'bold' } : {})
+                            }}
+                            onClick={(e) => handleOpenEdit(e, w.id, p.id, cellQty)}
                           >
-                            {(inventory[w.id]?.[p.id] || 0).toLocaleString()}
+                            {cellQty.toLocaleString()}
                           </TableCell>
-                        ))}
+                          );
+                        })}
                         <TableCell align="right" sx={{ width: 120, maxWidth: 140, backgroundColor: '#f5f5f5', fontWeight: 'bold' }}>
                           {productTotal.toLocaleString()}
                         </TableCell>

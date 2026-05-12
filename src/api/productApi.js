@@ -19,8 +19,10 @@ function mapPartToProduct(part) {
     stock: Number(part.stock ?? 0) || 0, // parts에 재고 필드가 없다면 0으로 처리
     min_stock: Number(part.min_stock ?? 0) || 0,
     description: part.note || part.description || null,
+    note: part.note || null,
     supplier: part.brand || part.supplier || null,
     discount_group: part.discount_group || null,
+    track_inventory: part.track_inventory !== false && part.track_inventory !== 'false',
     status: 'active',
     is_deleted: part.is_deleted || false,
     _source: 'parts'
