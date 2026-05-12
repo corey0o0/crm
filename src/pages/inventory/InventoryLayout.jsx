@@ -994,12 +994,22 @@ function InventoryLayout() {
     }
   };
 
-  // 거래 내역 가져오기
+  // 거래 내역 가져오기 (빠른 초기 로딩 + 백그라운드 전체 로딩)
   const fetchTransactions = async () => {
     try {
-      const transactionsData = await transactionApi.getAll();
-      setTransactions(transactionsData);
-      console.log(`서버에서 ${transactionsData.length}개의 거래내역을 가져왔습니다.`);
+      // 1. 빠른 화면 렌더링을 위해 최근 500건 먼저 가져오기
+      const recentData = await transactionApi.getRecent(500);
+      setTransactions(recentData);
+      
+      // 2. 검색 및 필터링을 위해 전체 데이터 백그라운드 로드
+      setTimeout(async () => {
+        try {
+          const allData = await transactionApi.getAll();
+          setTransactions(allData);
+        } catch (bgError) {
+          console.warn('백그라운드 전체 거래내역 로딩 실패 (최근 500건만 유지):', bgError);
+        }
+      }, 500);
     } catch (error) {
       console.error('거래내역 로딩 실패:', error);
       showSnackbar('거래내역을 불러오는데 실패했습니다.', 'error');

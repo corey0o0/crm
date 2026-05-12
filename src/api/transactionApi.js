@@ -24,7 +24,7 @@ export const transactionApi = {
     };
   },
   // 최근 거래내역 조회 (기본 500건으로 제한하여 로딩 속도 개선)
-  async getAll(limit = 500) {
+  async getRecent(limit = 500) {
     try {
       const { data, error } = await supabase
         .from('transactions')
@@ -33,11 +33,47 @@ export const transactionApi = {
         .limit(limit);
         
       if (error) throw error;
-      
-      console.log(`[transactionApi] 최근 ${data.length}건의 거래내역을 가져왔습니다.`);
       return data.map(this._mapRow);
     } catch (error) {
-      console.error('거래내역 조회 오류:', error);
+      console.error('최근 거래내역 조회 오류:', error);
+      throw error;
+    }
+  },
+
+  // 모든 거래내역 조회 (페이지네이션으로 전체 데이터 가져오기 - 백그라운드 로드용)
+  async getAll() {
+    try {
+      let allData = [];
+      const pageSize = 1000;
+      let page = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const from = page * pageSize;
+        const to = from + pageSize - 1;
+        const { data, error } = await supabase
+          .from('transactions')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range(from, to);
+        
+        if (error) throw error;
+        if (!data || data.length === 0) {
+          hasMore = false;
+        } else {
+          allData = allData.concat(data);
+          if (data.length < pageSize) {
+            hasMore = false;
+          } else {
+            page++;
+          }
+        }
+      }
+
+      console.log(`[transactionApi] 전체 ${allData.length}건의 거래내역을 백그라운드에서 가져왔습니다.`);
+      return allData.map(this._mapRow);
+    } catch (error) {
+      console.error('전체 거래내역 조회 오류:', error);
       throw error;
     }
   },
