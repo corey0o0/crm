@@ -689,7 +689,10 @@ function Layout() {
           disableBackdropTransition
           disableDiscovery
         >
-          <DrawerHeader>
+          <DrawerHeader sx={{ pr: 1 }}>
+            <Typography variant="caption" sx={{ color: 'text.secondary', mr: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>
+              {user?.email}
+            </Typography>
             <IconButton onClick={handleDrawerToggle}>
               <ChevronLeftIcon />
             </IconButton>
@@ -771,7 +774,10 @@ function Layout() {
           anchor="left"
           open={open}
         >
-          <DrawerHeader>
+          <DrawerHeader sx={{ pr: 1 }}>
+            <Typography variant="caption" sx={{ color: 'text.secondary', mr: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>
+              {user?.email}
+            </Typography>
             <IconButton onClick={handleDrawerToggle}>
               <ChevronLeftIcon />
             </IconButton>

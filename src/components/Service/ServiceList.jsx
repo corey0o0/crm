@@ -3337,6 +3337,7 @@ function ServiceList() {
               variant="outlined"
               startIcon={<CloudUploadIcon />}
               onClick={handleExcelUpload}
+              sx={{ display: 'none' }}
             >
               엑셀 등록
             </Button>
