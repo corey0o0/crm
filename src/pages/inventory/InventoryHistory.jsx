@@ -199,7 +199,7 @@ export default function InventoryHistory() {
                 setDetailProcessing(false);
               }
             }}
-            sx={{ ml: 1 }}
+            sx={{ ml: 1, display: 'none' }}
           >
             {detailProcessing ? '재계산 중...' : '재고 전면 재계산 (복구)'}
           </Button>
@@ -968,7 +968,7 @@ export default function InventoryHistory() {
                     )}
                   </Box>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 3, mt: -1 }}>
-                    거래 날짜: {selectedTransaction.date} | 처리 시간: {selectedTransaction.createdAt}
+                    거래 날짜: {selectedTransaction.date} {selectedTransaction.createdAt ? selectedTransaction.createdAt.split(' ').slice(1).join(' ') || '' : ''}
                   </Typography>
                   
                   {editMode ? (
@@ -1433,11 +1433,7 @@ export default function InventoryHistory() {
                               </Box>
                               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <Typography variant="body2" color="text.secondary">거래 날짜:</Typography>
-                                <Typography variant="body2" fontWeight="medium">{selectedTransaction.date}</Typography>
-                              </Box>
-                              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <Typography variant="body2" color="text.secondary">처리 시간:</Typography>
-                                <Typography variant="body2" fontWeight="medium">{selectedTransaction.createdAt}</Typography>
+                                <Typography variant="body2" fontWeight="medium">{selectedTransaction.date} {selectedTransaction.createdAt ? selectedTransaction.createdAt.split(' ').slice(1).join(' ') || '' : ''}</Typography>
                               </Box>
                             </Box>
                           </CardContent>
