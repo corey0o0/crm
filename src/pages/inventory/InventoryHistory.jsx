@@ -200,7 +200,7 @@ export default function InventoryHistory() {
                 setDetailProcessing(false);
               }
             }}
-            sx={{ ml: 1 }}
+            sx={{ ml: 1, display: 'none' }}
           >
             {detailProcessing ? '재계산 중...' : '재고 전면 재계산 (복구)'}
           </Button>
