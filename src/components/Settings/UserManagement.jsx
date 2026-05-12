@@ -10,6 +10,11 @@ import LockResetIcon from '@mui/icons-material/LockReset';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { supabase } from '../../lib/supabaseClient';
 
+const getBackendUrl = () =>
+  process.env.REACT_APP_BACKEND_URL || (process.env.NODE_ENV === 'production'
+    ? 'https://crm-production-067b.up.railway.app'
+    : `http://${typeof window !== 'undefined' ? window.location.hostname : 'localhost'}:5001`);
+
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -32,7 +37,7 @@ export default function UserManagement() {
     setLoading(true);
     try {
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/admin/users`, {
+      const res = await fetch(`${getBackendUrl()}/api/admin/users`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -66,7 +71,7 @@ export default function UserManagement() {
     setCreating(true);
     try {
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/admin/users`, {
+      const res = await fetch(`${getBackendUrl()}/api/admin/users`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -99,7 +104,7 @@ export default function UserManagement() {
 
     try {
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/admin/users/${resetDialog.userId}/password`, {
+      const res = await fetch(`${getBackendUrl()}/api/admin/users/${resetDialog.userId}/password`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -126,7 +131,7 @@ export default function UserManagement() {
 
     try {
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/admin/users/${userId}`, {
+      const res = await fetch(`${getBackendUrl()}/api/admin/users/${userId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });

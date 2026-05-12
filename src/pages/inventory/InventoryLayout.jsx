@@ -80,6 +80,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { fetchFromSupabase } from '../../utils/restApiUtils';
 import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
 import { logAction, logActions } from '../../utils/auditLog';
+import { checkAndSendLowStockAlerts } from '../../utils/inventoryAlert';
 
 // 창고 및 대리점 코드를 숨기고 이름만 표시하는 유틸리티
 const formatLocationName = (locationId, warehouses, dealers) => {
@@ -619,9 +620,11 @@ function InventoryLayout() {
       setInventory(newInventory);
       setPendingInventory(newPendingInventory);
       console.log('서버 DB(inventory)에서 최신 재고 정보를 성공적으로 불러왔습니다.');
+      return newInventory; // 최신 재고 데이터 반환
     } catch (error) {
       console.error('재고 정보 로딩 실패:', error);
       showSnackbar('재고 정보 로딩 중 오류가 발생했습니다.', 'error');
+      return null;
     }
   };
 
@@ -1208,7 +1211,7 @@ function InventoryLayout() {
     }
 
     // 서버 DB에서 최신 재고 다시 조회 (Single Source of Truth)
-    await fetchInventoryData();
+    const latestInventory = await fetchInventoryData();
 
     // 상품 재고(parts.stock) 동기화
     if (stockDeltas.length > 0) {
@@ -1233,6 +1236,14 @@ function InventoryLayout() {
           }
         }
         return newProducts;
+      });
+    }
+
+    // 재고 부족 알림 체크 — 변경된 상품만 (비동기, 업무 흐름 방해하지 않음)
+    if (latestInventory) {
+      const changedProductIds = [...new Set(newTransactions.map(t => t.productId).filter(Boolean))];
+      checkAndSendLowStockAlerts(latestInventory, products, warehouses, changedProductIds).catch(err => {
+        console.warn('[InventoryAlert] 알림 체크 실패:', err);
       });
     }
   };
