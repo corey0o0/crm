@@ -1076,6 +1076,19 @@ function InventoryLayout() {
       const product = products.find(p => p.id === item.productId);
       if (!product) return;
       const isOutbound = warehouses.find(w => w.id === item.fromLocation);
+      const toIsWarehouse = warehouses.find(w => w.id === item.toLocation);
+      const qty = parseInt(item.quantity, 10);
+      
+      let qtyStr = '';
+      if (isOutbound) {
+        const prevQty = inventory[item.fromLocation]?.[item.productId] || 0;
+        qtyStr = ` [${prevQty} -> ${prevQty - qty}]`;
+      } else if (toIsWarehouse) {
+        const prevQty = inventory[item.toLocation]?.[item.productId] || 0;
+        qtyStr = ` [${prevQty} -> ${prevQty + qty}]`;
+      }
+
+      const baseNote = item.note || formData.note || '';
 
       const transaction = {
         id: groupId + index,
@@ -1085,12 +1098,12 @@ function InventoryLayout() {
         productName: product.name,
         productCode: product.code,
         productSupplier: product.supplier || '-',
-        quantity: parseInt(item.quantity, 10),
+        quantity: qty,
         fromLocation: isOutbound ? item.fromLocation : (item.fromLocation || '외부'),
         toLocation: item.toLocation,
         date: formData.date,
         boxNo: item.boxNo || '',
-        note: item.note || formData.note,
+        note: baseNote ? `${baseNote}${qtyStr}` : `수동 등록${qtyStr}`,
         additionalNote: item.additionalNote || '',
         createdAt: new Date().toLocaleString(),
         isGrouped: true,
