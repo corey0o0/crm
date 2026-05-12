@@ -1071,34 +1071,54 @@ function InventoryLayout() {
 
     const groupId = crypto.randomUUID();
     const newTransactions = [];
+    
+    // 현재 트랜잭션 배치 내에서의 재고 변화를 추적 (여러 건 등록 시 누적 계산)
+    const currentInventory = JSON.parse(JSON.stringify(inventory || {}));
 
     multipleIoProducts.forEach((item, index) => {
       const product = products.find(p => p.id === item.productId);
       if (!product) return;
       const isOutbound = warehouses.find(w => w.id === item.fromLocation);
-      const isTransfer = isOutbound && warehouses.find(w => w.id === item.toLocation);
-      const qtyInt = parseInt(item.quantity, 10);
-
-      // 재고 변동 내역 텍스트 생성
-      let qtyChangeText = '';
+      const isInbound = warehouses.find(w => w.id === item.toLocation);
+      const isTransfer = isOutbound && isInbound;
+      
+      const qty = parseInt(item.quantity, 10) || 0;
+      let noteSuffix = '';
+      
       if (isTransfer) {
-        const fromPrev = inventory[item.fromLocation]?.[item.productId] || 0;
-        const fromNew = fromPrev - qtyInt;
-        const toPrev = inventory[item.toLocation]?.[item.productId] || 0;
-        const toNew = toPrev + qtyInt;
-        qtyChangeText = ` [출발: ${fromPrev}->${fromNew}, 도착: ${toPrev}->${toNew}]`;
+        const fromWh = item.fromLocation;
+        const toWh = item.toLocation;
+        
+        const beforeFrom = currentInventory[fromWh]?.[item.productId] || 0;
+        const afterFrom = beforeFrom - qty;
+        if (!currentInventory[fromWh]) currentInventory[fromWh] = {};
+        currentInventory[fromWh][item.productId] = afterFrom;
+        
+        const beforeTo = currentInventory[toWh]?.[item.productId] || 0;
+        const afterTo = beforeTo + qty;
+        if (!currentInventory[toWh]) currentInventory[toWh] = {};
+        currentInventory[toWh][item.productId] = afterTo;
+        
+        noteSuffix = ` [출발지: ${beforeFrom}->${afterFrom}, 목적지: ${beforeTo}->${afterTo}]`;
       } else if (isOutbound) {
-        const prev = inventory[item.fromLocation]?.[item.productId] || 0;
-        const newQty = prev - qtyInt;
-        qtyChangeText = ` [${prev} -> ${newQty}]`;
-      } else {
-        const prev = inventory[item.toLocation]?.[item.productId] || 0;
-        const newQty = prev + qtyInt;
-        qtyChangeText = ` [${prev} -> ${newQty}]`;
+        const wh = item.fromLocation;
+        const before = currentInventory[wh]?.[item.productId] || 0;
+        const after = before - qty;
+        if (!currentInventory[wh]) currentInventory[wh] = {};
+        currentInventory[wh][item.productId] = after;
+        
+        noteSuffix = ` [${before} -> ${after}]`;
+      } else if (isInbound) {
+        const wh = item.toLocation;
+        const before = currentInventory[wh]?.[item.productId] || 0;
+        const after = before + qty;
+        if (!currentInventory[wh]) currentInventory[wh] = {};
+        currentInventory[wh][item.productId] = after;
+        
+        noteSuffix = ` [${before} -> ${after}]`;
       }
 
-      const baseNote = item.note || formData.note;
-      const finalNote = baseNote ? `${baseNote}${qtyChangeText}` : `수동 등록${qtyChangeText}`;
+      let baseNote = item.note || formData.note || '';
 
       const transaction = {
         id: groupId + index,
@@ -1108,12 +1128,12 @@ function InventoryLayout() {
         productName: product.name,
         productCode: product.code,
         productSupplier: product.supplier || '-',
-        quantity: qtyInt,
+        quantity: parseInt(item.quantity, 10),
         fromLocation: isOutbound ? item.fromLocation : (item.fromLocation || '외부'),
         toLocation: item.toLocation,
         date: formData.date,
         boxNo: item.boxNo || '',
-        note: finalNote,
+        note: baseNote + noteSuffix,
         additionalNote: item.additionalNote || '',
         createdAt: new Date().toLocaleString(),
         isGrouped: true,
