@@ -213,9 +213,9 @@ export default function InventoryStatus() {
               <Table size="small" stickyHeader sx={{ width: '100%', tableLayout: 'fixed', borderTop: '1px solid rgba(224, 224, 224, 1)', borderLeft: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', borderRight: '1px solid rgba(224, 224, 224, 1)', borderBottom: '1px solid rgba(224, 224, 224, 1)' } }}>
                 <TableHead>
                   <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                    <TableCell sx={{ position: 'sticky', left: 0, zIndex: 3, backgroundColor: '#f5f5f5', width: 240, maxWidth: 240, fontWeight: 'bold' }}>상품</TableCell>
-                    <TableCell sx={{ width: 120, maxWidth: 120 }}>바코드</TableCell>
+                    <TableCell sx={{ position: 'sticky', left: 0, zIndex: 3, backgroundColor: '#f5f5f5', width: 240, maxWidth: 240, fontWeight: 'bold' }}>상품명</TableCell>
                     <TableCell sx={{ width: 120, maxWidth: 120 }}>제품코드</TableCell>
+                    <TableCell sx={{ width: 120, maxWidth: 120 }}>바코드</TableCell>
                     {warehouses.map(w => (
                       <TableCell key={`wh-col-${w.id}`} align="right" sx={{ width: 120, maxWidth: 140 }}>{w.name}</TableCell>
                     ))}
@@ -231,7 +231,7 @@ export default function InventoryStatus() {
                           sx={{ 
                             position: 'sticky', left: 0, zIndex: 2, backgroundColor: 'background.paper', 
                             fontWeight: 'bold', width: 240, maxWidth: 240, 
-                            cursor: 'pointer', color: 'primary.main', textDecoration: 'underline' 
+                            cursor: 'pointer', color: 'black', textDecoration: 'none' 
                           }}
                           onClick={() => {
                             setFilter(prev => ({ 
@@ -244,8 +244,8 @@ export default function InventoryStatus() {
                         >
                           {p.name}
                         </TableCell>
-                        <TableCell sx={{ width: 120, maxWidth: 120 }}>{p.barcode || '-'}</TableCell>
                         <TableCell sx={{ width: 120, maxWidth: 120 }}>{p.code || '-'}</TableCell>
+                        <TableCell sx={{ width: 120, maxWidth: 120, fontSize: '0.8rem' }}>{p.barcode || '-'}</TableCell>
                         {warehouses.map(w => {
                           const cellQty = inventory[w.id]?.[p.id] || 0;
                           return (
