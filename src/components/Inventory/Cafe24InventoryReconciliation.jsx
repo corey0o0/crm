@@ -31,7 +31,7 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
     if (products.length > 0 && warehouses.length > 0) {
       loadCachedData();
     }
-  }, [products, warehouses]);
+  }, [products, warehouses, recalculatedInventory]);
 
   const fetchMalls = async () => {
     setLoadingConfig(true);
