@@ -1132,114 +1132,94 @@ function InventoryLayout() {
   // (통합됨) 기존 입/출고 개별 처리 함수는 통합 제출 로직으로 대체되었습니다.
 
   const batchUpdateInventory = async (newTransactions) => {
-    // 1. 계산용 복사본
-    let nextInventory = JSON.parse(JSON.stringify(inventory || {}));
-    const inventoryUpserts = [];
-    const stockUpdates = []; // { productId, delta }
-
+    // DB 레벨 원자적 증감 연산(adjust_inventory RPC) 사용
+    // → 로컬 state에 의존하지 않으므로 다중 PC/탭에서도 재고 정합성 보장
     const warehouseMap = new Map((warehouses || []).map(w => [w.id, w]));
+    const rpcCalls = []; // { warehouse_id, product_id, delta }
+    const stockDeltas = []; // { productId, delta } for parts.stock sync
 
-    try {
-      for (const transaction of newTransactions) {
-        if (transaction.type === 'in') {
-          const toWh = warehouseMap.get(transaction.toLocation);
-          if (toWh) {
-            if (!nextInventory[transaction.toLocation]) nextInventory[transaction.toLocation] = {};
-            if (!nextInventory[transaction.toLocation][transaction.productId]) nextInventory[transaction.toLocation][transaction.productId] = 0;
-            nextInventory[transaction.toLocation][transaction.productId] += transaction.quantity;
-            
-            inventoryUpserts.push({
-              warehouse_id: transaction.toLocation,
-              product_id: transaction.productId,
-              quantity: nextInventory[transaction.toLocation][transaction.productId]
-            });
-            
-            if (toWh.syncWithProductStock) {
-              stockUpdates.push({ productId: transaction.productId, delta: transaction.quantity });
-            }
+    for (const transaction of newTransactions) {
+      const qty = parseInt(transaction.quantity, 10) || 0;
+      if (qty === 0) continue;
+
+      if (transaction.type === 'in') {
+        // 목적지 창고에 입고(+)
+        const toWh = warehouseMap.get(transaction.toLocation);
+        if (toWh) {
+          rpcCalls.push({ warehouse_id: transaction.toLocation, product_id: transaction.productId, delta: qty });
+          if (toWh.syncWithProductStock) {
+            stockDeltas.push({ productId: transaction.productId, delta: qty });
           }
-          const fromWh = warehouseMap.get(transaction.fromLocation);
-          if (fromWh) {
-            if (!nextInventory[transaction.fromLocation]) nextInventory[transaction.fromLocation] = {};
-            if (nextInventory[transaction.fromLocation][transaction.productId] === undefined) nextInventory[transaction.fromLocation][transaction.productId] = 0;
-            // 마이너스 재고 허용 — 재고 조정을 위해 음수 허용
-            nextInventory[transaction.fromLocation][transaction.productId] -= transaction.quantity;
-            
-            inventoryUpserts.push({
-              warehouse_id: transaction.fromLocation,
-              product_id: transaction.productId,
-              quantity: nextInventory[transaction.fromLocation][transaction.productId]
-            });
-
-            if (fromWh.syncWithProductStock) {
-              stockUpdates.push({ productId: transaction.productId, delta: -transaction.quantity });
-            }
+        }
+        // 출발지가 창고이면 출고(-)  (창고 간 이동)
+        const fromWh = warehouseMap.get(transaction.fromLocation);
+        if (fromWh) {
+          rpcCalls.push({ warehouse_id: transaction.fromLocation, product_id: transaction.productId, delta: -qty });
+          if (fromWh.syncWithProductStock) {
+            stockDeltas.push({ productId: transaction.productId, delta: -qty });
           }
-        } else {
-          // 출고 처리
-          const fromWh = warehouseMap.get(transaction.fromLocation);
-          if (fromWh) {
-            if (!nextInventory[transaction.fromLocation]) nextInventory[transaction.fromLocation] = {};
-            if (nextInventory[transaction.fromLocation][transaction.productId] === undefined) nextInventory[transaction.fromLocation][transaction.productId] = 0;
-            // 마이너스 재고 허용 — 재고 조정을 위해 음수 허용
-            nextInventory[transaction.fromLocation][transaction.productId] -= transaction.quantity;
-            
-            inventoryUpserts.push({
-              warehouse_id: transaction.fromLocation,
-              product_id: transaction.productId,
-              quantity: nextInventory[transaction.fromLocation][transaction.productId]
-            });
-
-            if (fromWh.syncWithProductStock) {
-              stockUpdates.push({ productId: transaction.productId, delta: -transaction.quantity });
-            }
+        }
+      } else {
+        // 출고: 출발지 창고에서 차감(-)
+        const fromWh = warehouseMap.get(transaction.fromLocation);
+        if (fromWh) {
+          rpcCalls.push({ warehouse_id: transaction.fromLocation, product_id: transaction.productId, delta: -qty });
+          if (fromWh.syncWithProductStock) {
+            stockDeltas.push({ productId: transaction.productId, delta: -qty });
           }
-          const toWh = warehouseMap.get(transaction.toLocation);
-          if (toWh) {
-            if (!nextInventory[transaction.toLocation]) nextInventory[transaction.toLocation] = {};
-            if (!nextInventory[transaction.toLocation][transaction.productId]) nextInventory[transaction.toLocation][transaction.productId] = 0;
-            nextInventory[transaction.toLocation][transaction.productId] += transaction.quantity;
-            
-            inventoryUpserts.push({
-              warehouse_id: transaction.toLocation,
-              product_id: transaction.productId,
-              quantity: nextInventory[transaction.toLocation][transaction.productId]
-            });
-
-            if (toWh.syncWithProductStock) {
-              stockUpdates.push({ productId: transaction.productId, delta: transaction.quantity });
-            }
+        }
+        // 목적지가 창고이면 입고(+) (창고 간 이동)
+        const toWh = warehouseMap.get(transaction.toLocation);
+        if (toWh) {
+          rpcCalls.push({ warehouse_id: transaction.toLocation, product_id: transaction.productId, delta: qty });
+          if (toWh.syncWithProductStock) {
+            stockDeltas.push({ productId: transaction.productId, delta: qty });
           }
         }
       }
-    } catch (e) {
-      throw e;
     }
 
-    // 2. 서버 재고 업데이트 및 동기화
-    if (inventoryUpserts.length > 0) {
-      // deduplicate by taking the last generated value
-      const deduplicatedUpserts = Object.values(inventoryUpserts.reduce((acc, curr) => {
-        acc[`${curr.warehouse_id}_${curr.product_id}`] = curr;
-        return acc;
-      }, {}));
-      
-      await inventoryApi.upsertMany(deduplicatedUpserts);
+    // 같은 창고+상품 조합의 delta를 합산 (한 번의 RPC 호출로 통합)
+    const rpcMap = {};
+    rpcCalls.forEach(call => {
+      const key = `${call.warehouse_id}_${call.product_id}`;
+      if (!rpcMap[key]) rpcMap[key] = { ...call };
+      else rpcMap[key].delta += call.delta;
+    });
+
+    // DB 원자적 증감 실행
+    const rpcEntries = Object.values(rpcMap).filter(e => e.delta !== 0);
+    if (rpcEntries.length > 0) {
+      const results = await Promise.all(
+        rpcEntries.map(entry =>
+          supabase.rpc('adjust_inventory', {
+            p_warehouse_id: entry.warehouse_id,
+            p_product_id: entry.product_id,
+            p_quantity_change: entry.delta
+          })
+        )
+      );
+
+      const errors = results.filter(r => r.error);
+      if (errors.length > 0) {
+        console.error('[batchUpdateInventory] RPC 오류:', errors.map(e => e.error.message));
+        throw new Error(`재고 업데이트 중 ${errors.length}건의 오류가 발생했습니다.`);
+      }
     }
 
-    // 3. 로컬 상태 업데이트
-    setInventory(nextInventory);
+    // 서버 DB에서 최신 재고 다시 조회 (Single Source of Truth)
+    await fetchInventoryData();
 
-    // 4. 상품 재고(stock) 동기화
-    if (stockUpdates.length > 0) {
-      const groupedStockUpdates = stockUpdates.reduce((acc, curr) => {
+    // 상품 재고(parts.stock) 동기화
+    if (stockDeltas.length > 0) {
+      const groupedStockDeltas = stockDeltas.reduce((acc, curr) => {
         acc[curr.productId] = (acc[curr.productId] || 0) + curr.delta;
         return acc;
       }, {});
 
       setProducts(prevProducts => {
         const newProducts = [...prevProducts];
-        for (const [productId, delta] of Object.entries(groupedStockUpdates)) {
+        for (const [productId, delta] of Object.entries(groupedStockDeltas)) {
           if (delta === 0) continue;
           const productIndex = newProducts.findIndex(p => p.id === parseInt(productId, 10));
           if (productIndex !== -1) {
@@ -1247,12 +1227,9 @@ function InventoryLayout() {
             const newStock = Math.max(0, p.stock + delta);
             newProducts[productIndex] = { ...p, stock: newStock };
             
-            // API를 통해 실제 상품 재고 업데이트
             productApi.updateStock(parseInt(productId, 10), newStock).catch(err => {
               console.error(`Failed to update stock for product ${productId}:`, err);
-              showSnackbar(`상품 재고 업데이트 중 오류가 발생했습니다. (ID: ${productId})`, 'error');
             });
-            console.log(`상품 ${p.name}의 재고가 ${p.stock}에서 ${newStock}으로 업데이트되었습니다.`);
           }
         }
         return newProducts;
@@ -1278,7 +1255,13 @@ function InventoryLayout() {
         const dateB = b.date || b.createdAt;
         const timeDiff = new Date(dateA) - new Date(dateB);
         if (timeDiff !== 0) return timeDiff;
-        // 날짜(date)가 같다면, 생성일시(createdAt)로 정밀하게 비교
+        // 같은 날짜 내에서 리셋(reset-all-*) 건은 항상 먼저 처리
+        // (리셋 후 수동 조정이 덮어쓰여야 하므로)
+        const aIsReset = a.groupId && String(a.groupId).startsWith('reset-all-');
+        const bIsReset = b.groupId && String(b.groupId).startsWith('reset-all-');
+        if (aIsReset && !bIsReset) return -1;
+        if (!aIsReset && bIsReset) return 1;
+        // 그 외에는 생성일시(createdAt)로 정밀하게 비교
         return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
       });
       
@@ -1315,14 +1298,19 @@ function InventoryLayout() {
           const toWh = warehouseMap.get(tx.toLocation);
           if (toWh) {
             if (!newInventory[tx.toLocation]) newInventory[tx.toLocation] = {};
-            // adjustment 입고는 해당 값으로 덮어쓰기 (실재고 세팅)
-            if (tx.fromLocation === 'adjustment') {
+            // adjustment 입고도 일반 입고와 동일하게 더하기(ADD) 처리
+            // batchUpdateInventory와 동작 일치시킴 (등록 시와 재계산 시 결과 동일)
+            // 리셋 스크립트(reset-all-*, qty=0)는 리셋 전용 로직에서 별도 처리
+            const isResetEntry = tx.groupId && String(tx.groupId).startsWith('reset-all-');
+            if (isResetEntry && tx.fromLocation === 'adjustment') {
+              // 리셋 건: 해당 값으로 덮어쓰기 (재고를 0으로 초기화)
               const oldQty = newInventory[tx.toLocation][tx.productId] || 0;
               newInventory[tx.toLocation][tx.productId] = qty;
               if (toWh.syncWithProductStock) {
                 stockUpdates[tx.productId] = (stockUpdates[tx.productId] || 0) + (qty - oldQty);
               }
             } else {
+              // 일반 입고 및 수동 재고 조정: 더하기(ADD) 처리
               newInventory[tx.toLocation][tx.productId] = (newInventory[tx.toLocation][tx.productId] || 0) + qty;
               if (toWh.syncWithProductStock) {
                 stockUpdates[tx.productId] = (stockUpdates[tx.productId] || 0) + qty;
@@ -1333,14 +1321,16 @@ function InventoryLayout() {
           const fromWh = warehouseMap.get(tx.fromLocation);
           if (fromWh) {
             if (!newInventory[tx.fromLocation]) newInventory[tx.fromLocation] = {};
-            // adjustment 출고는 해당 값으로 덮어쓰기 (실재고 세팅)
-            if (tx.toLocation === 'adjustment') {
+            const isResetEntry = tx.groupId && String(tx.groupId).startsWith('reset-all-');
+            if (isResetEntry && tx.toLocation === 'adjustment') {
+              // 리셋 건: 해당 값으로 덮어쓰기
               const oldQty = newInventory[tx.fromLocation][tx.productId] || 0;
               newInventory[tx.fromLocation][tx.productId] = qty;
               if (fromWh.syncWithProductStock) {
                 stockUpdates[tx.productId] = (stockUpdates[tx.productId] || 0) + (qty - oldQty);
               }
             } else {
+              // 일반 출고: 차감(SUB) 처리
               newInventory[tx.fromLocation][tx.productId] = (newInventory[tx.fromLocation][tx.productId] || 0) - qty;
               if (fromWh.syncWithProductStock) {
                 stockUpdates[tx.productId] = (stockUpdates[tx.productId] || 0) - qty;
