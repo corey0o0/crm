@@ -208,8 +208,8 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
             reference_id: referenceId,
             reference_type: referenceType,
             notes: isRevert 
-              ? `${referenceType === 'shipment' ? '출고' : 'A/S'} 상태 되돌림으로 인한 재고 복구${syncedParts.length > 0 ? ` (연동 파츠 ${syncedParts.length}개 포함)` : ''}`
-              : `${referenceType === 'shipment' ? '출고' : 'A/S'} 검수 확인 후 자동 차감${syncedParts.length > 0 ? ` (연동 파츠 ${syncedParts.length}개 포함)` : ''}`
+              ? `${referenceType === 'shipment' ? '출고' : 'A/S'} 상태 되돌림으로 인한 재고 복구${syncedParts.length > 0 ? ` (연동 파츠 ${syncedParts.length}개 포함)` : ''} [${previousQuantity} -> ${newQuantity}]`
+              : `${referenceType === 'shipment' ? '출고' : 'A/S'} 검수 확인 후 자동 차감${syncedParts.length > 0 ? ` (연동 파츠 ${syncedParts.length}개 포함)` : ''} [${previousQuantity} -> ${newQuantity}]`
           });
 
         if (logError) {
