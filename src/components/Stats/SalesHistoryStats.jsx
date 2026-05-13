@@ -884,6 +884,9 @@ function SalesHistoryStats() {
   // 요약
   const totalAmt = currentFiltered.reduce((a, r) => a + Number(r.total_price || 0), 0);
   const totalQty = currentFiltered.reduce((a, r) => a + Number(r.quantity || 0), 0);
+  const totalCost = currentFiltered.reduce((a, r) => a + Number(r.total_cost || 0), 0);
+  const totalProfit = totalAmt - totalCost;
+  const totalProfitRate = totalAmt > 0 ? ((totalProfit / totalAmt) * 100).toFixed(1) : '0.0';
 
   const uniqueGroups = {
     service: new Set(),
@@ -899,22 +902,34 @@ function SalesHistoryStats() {
     agency: 0
   };
 
+  const groupCosts = {
+    service: 0,
+    store: 0,
+    online: 0,
+    agency: 0
+  };
+
   currentFiltered.forEach(r => {
     const price = Number(r.total_price || 0);
+    const cost = Number(r.total_cost || 0);
     if (r._type === 'service') {
       if (r._id) uniqueGroups.service.add(r._id);
       groupAmounts.service += price;
+      groupCosts.service += cost;
     } else {
       const isAgency = r.sales_channel && !B2C_CHANNELS.includes(r.sales_channel);
       if (isAgency) {
         if (r._id) uniqueGroups.agency.add(r._id);
         groupAmounts.agency += price;
+        groupCosts.agency += cost;
       } else if (r._type === 'cafe24') {
         if (r._id) uniqueGroups.online.add(r._id);
         groupAmounts.online += price;
+        groupCosts.online += cost;
       } else {
         if (r._id) uniqueGroups.store.add(r._id);
         groupAmounts.store += price;
+        groupCosts.store += cost;
       }
     }
   });
@@ -1353,6 +1368,22 @@ function SalesHistoryStats() {
                 <CardContent>
                   <Typography variant="subtitle2" sx={{ opacity: 0.8 }}>총 판매 합계</Typography>
                   <Typography variant="h4" sx={{ fontWeight: 'bold', mt: 1 }}>{formatCurrency(totalAmt)}</Typography>
+                  {showProfit && (
+                    <Box sx={{ mt: 1.5, pt: 1.5, borderTop: '1px solid rgba(255,255,255,0.3)' }}>
+                      <Typography variant="body2" sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                        <span>총 원가:</span>
+                        <span style={{ fontWeight: 'bold' }}>{formatCurrency(totalCost)}</span>
+                      </Typography>
+                      <Typography variant="body2" sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                        <span>영업이익:</span>
+                        <span style={{ fontWeight: 'bold', color: totalProfit >= 0 ? '#69f0ae' : '#ff5252' }}>{formatCurrency(totalProfit)}</span>
+                      </Typography>
+                      <Typography variant="body2" sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>이익률:</span>
+                        <span style={{ fontWeight: 'bold', color: totalProfit >= 0 ? '#69f0ae' : '#ff5252' }}>{totalProfitRate}%</span>
+                      </Typography>
+                    </Box>
+                  )}
                   {compareStats.context && (
                     <Box sx={{ mt: 2, p: 1.5, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 1 }}>
                       {compareStats.context === 'month' ? (
@@ -1407,21 +1438,25 @@ function SalesHistoryStats() {
                       <Typography variant="body2" color="text.secondary">매장 출고</Typography>
                       <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#1976d2' }}>{countStore.toLocaleString()} <Typography component="span" variant="body1">건</Typography></Typography>
                       <Typography variant="body2" color="text.secondary">{groupAmounts.store.toLocaleString()}원</Typography>
+                      {showProfit && <Typography variant="caption" sx={{ color: (groupAmounts.store - groupCosts.store) >= 0 ? '#2e7d32' : '#d32f2f', fontWeight: 'bold' }}>이익 {(groupAmounts.store - groupCosts.store).toLocaleString()}원</Typography>}
                     </Box>
                     <Box sx={{ flex: 1, textAlign: 'center' }}>
                       <Typography variant="body2" color="text.secondary">온라인 출고</Typography>
                       <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#0288d1' }}>{countOnline.toLocaleString()} <Typography component="span" variant="body1">건</Typography></Typography>
                       <Typography variant="body2" color="text.secondary">{groupAmounts.online.toLocaleString()}원</Typography>
+                      {showProfit && <Typography variant="caption" sx={{ color: (groupAmounts.online - groupCosts.online) >= 0 ? '#2e7d32' : '#d32f2f', fontWeight: 'bold' }}>이익 {(groupAmounts.online - groupCosts.online).toLocaleString()}원</Typography>}
                     </Box>
                     <Box sx={{ flex: 1, textAlign: 'center' }}>
                       <Typography variant="body2" color="text.secondary">대리점 (B2B)</Typography>
                       <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>{countAgency.toLocaleString()} <Typography component="span" variant="body1">건</Typography></Typography>
                       <Typography variant="body2" color="text.secondary">{groupAmounts.agency.toLocaleString()}원</Typography>
+                      {showProfit && <Typography variant="caption" sx={{ color: (groupAmounts.agency - groupCosts.agency) >= 0 ? '#2e7d32' : '#d32f2f', fontWeight: 'bold' }}>이익 {(groupAmounts.agency - groupCosts.agency).toLocaleString()}원</Typography>}
                     </Box>
                     <Box sx={{ flex: 1, textAlign: 'center' }}>
                       <Typography variant="body2" color="text.secondary">A/S 수리</Typography>
                       <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#ed6c02' }}>{countService.toLocaleString()} <Typography component="span" variant="body1">건</Typography></Typography>
                       <Typography variant="body2" color="text.secondary">{groupAmounts.service.toLocaleString()}원</Typography>
+                      {showProfit && <Typography variant="caption" sx={{ color: (groupAmounts.service - groupCosts.service) >= 0 ? '#2e7d32' : '#d32f2f', fontWeight: 'bold' }}>이익 {(groupAmounts.service - groupCosts.service).toLocaleString()}원</Typography>}
                     </Box>
                   </Stack>
                 </CardContent>
