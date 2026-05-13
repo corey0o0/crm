@@ -12,8 +12,9 @@ const CACHE_PREFIX = 'inv_low_stock_';
  * @param {Array} products - 상품 목록
  * @param {Array} warehouses - 창고 목록
  * @param {Array} changedProductIds - 변경된 상품 ID 목록 (이 상품들만 체크)
+ * @param {Array} [changedWarehouseIds] - 변경된 창고 ID 목록 (지정하면 해당 창고만 체크, 미지정 시 전체)
  */
-export const checkAndSendLowStockAlerts = async (inventory, products, warehouses, changedProductIds = []) => {
+export const checkAndSendLowStockAlerts = async (inventory, products, warehouses, changedProductIds = [], changedWarehouseIds = null) => {
   try {
     // 1. 설정 가져오기
     const { data: alertSettings } = await getAppSetting('inventory_alert_settings');
@@ -30,8 +31,14 @@ export const checkAndSendLowStockAlerts = async (inventory, products, warehouses
     const targetProducts = products.filter(p => changedSet.has(p.id));
     if (targetProducts.length === 0) return;
 
-    // 2. 해당 상품의 재고 부족 여부 체크
-    for (const warehouse of warehouses) {
+    // 변경된 창고만 필터 (지정된 경우)
+    const changedWhSet = changedWarehouseIds ? new Set(changedWarehouseIds) : null;
+    const targetWarehouses = changedWhSet
+      ? warehouses.filter(w => changedWhSet.has(w.id))
+      : warehouses;
+
+    // 2. 해당 창고+상품의 재고 부족 여부 체크
+    for (const warehouse of targetWarehouses) {
       const whInventory = inventory[warehouse.id] || {};
 
       for (const product of targetProducts) {
@@ -39,7 +46,7 @@ export const checkAndSendLowStockAlerts = async (inventory, products, warehouses
 
         const qty = whInventory[product.id] ?? 0;
 
-        // 가장 가까운(높은) 임계값 1개만 알림
+        // 가장 가까운(낮은) 임계값 1개만 알림
         for (const threshold of thresholds) {
           if (qty <= threshold) {
             const cacheKey = `${CACHE_PREFIX}${warehouse.id}_${product.id}_${threshold}`;

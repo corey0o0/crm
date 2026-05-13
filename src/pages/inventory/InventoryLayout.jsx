@@ -1335,10 +1335,13 @@ function InventoryLayout() {
       });
     }
 
-    // 재고 부족 알림 체크 — 변경된 상품만 (비동기, 업무 흐름 방해하지 않음)
+    // 재고 부족 알림 체크 — 변경된 상품+창고만 (비동기, 업무 흐름 방해하지 않음)
     if (latestInventory) {
       const changedProductIds = [...new Set(newTransactions.map(t => t.productId).filter(Boolean))];
-      checkAndSendLowStockAlerts(latestInventory, products, warehouses, changedProductIds).catch(err => {
+      const changedWarehouseIds = [...new Set(
+        newTransactions.flatMap(t => [t.fromLocation, t.toLocation]).filter(loc => loc && warehouses.some(w => w.id === loc))
+      )];
+      checkAndSendLowStockAlerts(latestInventory, products, warehouses, changedProductIds, changedWarehouseIds).catch(err => {
         console.warn('[InventoryAlert] 알림 체크 실패:', err);
       });
     }
@@ -2898,10 +2901,10 @@ function InventoryLayout() {
       
       showSnackbar('\uc7ac\uace0\uac00 \uc218\uc815\ub418\uc5c8\uc2b5\ub2c8\ub2e4.', 'success');
       
-      // 5. \uc7ac\uace0 \ubd80\uc871 \uc54c\ub9bc \uccb4\ud06c
+      // 5. \uc7ac\uace0 \ubd80\uc871 \uc54c\ub9bc \uccb4\ud06c (해\ub2f9 \ucc3d\uace0\ub9cc)
       const latestInv = await fetchInventoryData();
       if (latestInv) {
-        checkAndSendLowStockAlerts(latestInv, products, warehouses, [parseInt(productId, 10)]).catch(err => {
+        checkAndSendLowStockAlerts(latestInv, products, warehouses, [parseInt(productId, 10)], [warehouseId]).catch(err => {
           console.warn('[InventoryAlert] \uc54c\ub9bc \uccb4\ud06c \uc2e4\ud328:', err);
         });
       }
