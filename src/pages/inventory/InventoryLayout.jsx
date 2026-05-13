@@ -994,6 +994,46 @@ function InventoryLayout() {
     }
   };
 
+  // 기존 'reset-all' 내역들(5월 12일 등)이 개별로 저장되어 있는 것을 500개씩 DB에서 묶어주는 일회성 작업
+  const fixLegacyResetGroups = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('id, group_id')
+        .like('group_id', 'reset-all-%')
+        .eq('date', '2026-05-12');
+      
+      if (!error && data) {
+        const unchunked = data.filter(t => !t.group_id.includes('chunk'));
+        if (unchunked.length > 0) {
+          console.log(`[마이그레이션] ${unchunked.length}건의 데이터를 500개 단위로 묶습니다...`);
+          const chunkSize = 500;
+          for (let i = 0; i < unchunked.length; i++) {
+            const chunkIndex = Math.floor(i / chunkSize) + 1;
+            unchunked[i].new_group_id = `reset-all-2026-05-12-chunk-${chunkIndex}`;
+          }
+          
+          for (let i = 0; i < unchunked.length; i += 100) {
+            const chunk = unchunked.slice(i, i + 100);
+            await Promise.all(chunk.map(tx => 
+              supabase.from('transactions').update({ 
+                group_id: tx.new_group_id, 
+                is_grouped: true,
+                note: `[재고 조정] 2026-05-12 기준 초기화 (${Math.floor(i / chunkSize) + 1}그룹)` 
+              }).eq('id', tx.id)
+            ));
+          }
+          console.log('[마이그레이션 완료]');
+          // 마이그레이션 완료 후 전체 목록 다시 로드
+          const allData = await transactionApi.getAll();
+          setTransactions(allData);
+        }
+      }
+    } catch (e) {
+      console.warn('마이그레이션 중 오류:', e);
+    }
+  };
+
   // 거래 내역 가져오기 (빠른 초기 로딩 + 백그라운드 전체 로딩)
   const fetchTransactions = async () => {
     try {
@@ -1006,6 +1046,9 @@ function InventoryLayout() {
         try {
           const allData = await transactionApi.getAll();
           setTransactions(allData);
+          
+          // 백그라운드 로드 후 일회성 DB 묶음 마이그레이션 시도
+          fixLegacyResetGroups();
         } catch (bgError) {
           console.warn('백그라운드 전체 거래내역 로딩 실패 (최근 500건만 유지):', bgError);
         }

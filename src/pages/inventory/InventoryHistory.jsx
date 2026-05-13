@@ -141,11 +141,14 @@ export default function InventoryHistory() {
 
                 const txs = [];
                 const counts = {};
+                const batchId = Date.now();
+                let countIndex = 0;
                 warehouses.forEach((wh, whIdx) => {
                   counts[wh.name] = 0;
                   products.forEach((p, pIdx) => {
+                    const chunkIndex = Math.floor(countIndex / 500) + 1;
                     txs.push({
-                      group_id: `reset-all-${Date.now()}-${whIdx}-${pIdx}`,
+                      group_id: `reset-all-${targetDate}-chunk-${chunkIndex}`,
                       type: 'in',
                       product_id: p.id,
                       product_name: p.name,
@@ -155,11 +158,12 @@ export default function InventoryHistory() {
                       from_location: 'adjustment',
                       to_location: wh.id,
                       date: targetDate,
-                      note: `[재고 조정] ${targetDate} 기준 초기화`,
-                      is_grouped: false,
+                      note: `[재고 조정] ${targetDate} 기준 초기화 (${chunkIndex}그룹)`,
+                      is_grouped: true, // 그룹으로 묶음
                       status: '완료'
                     });
                     counts[wh.name]++;
+                    countIndex++;
                   });
                 });
 
