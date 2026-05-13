@@ -54,7 +54,9 @@ import {
   Link as LinkIcon,
   LinkOff as LinkOffIcon,
   Check as CheckIcon,
-  WarningAmber as WarningAmberIcon
+  WarningAmber as WarningAmberIcon,
+  Visibility as VisibilityIcon,
+  VisibilityOff as VisibilityOffIcon
 } from '@mui/icons-material';
 import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { supabase } from '../../lib/supabaseClient';
@@ -727,6 +729,9 @@ function PartsManagement() {
   
   // Cafe24 연동 상태
   const [cafe24Links, setCafe24Links] = useState(new Set());
+
+  // 숨김 상품 표시 토글
+  const [showHiddenParts, setShowHiddenParts] = useState(false);
 
   // 엑셀 업로드 중복 처리 상태
   const [duplicateDialog, setDuplicateDialog] = useState({
@@ -1581,13 +1586,61 @@ function PartsManagement() {
     });
   };
 
-  const filteredParts = useMemo(() => {
-    if (selectedBrand === '전체' && selectedDiscountGroup === '전체' && selectedCategory === '전체' && !searchTerm) {
-      return parts;
+  // 숨김 상품 토글 핸들러
+  const handleToggleHiddenPart = async (part) => {
+    const isCurrentlyHidden = (part.memo || '').includes('[HIDDEN]');
+    const newMemo = isCurrentlyHidden
+      ? (part.memo || '').replace('[HIDDEN]', '').trim()
+      : `[HIDDEN] ${(part.memo || '').trim()}`.trim();
+    try {
+      const { error } = await supabase.from('parts').update({ memo: newMemo }).eq('id', part.id);
+      if (error) throw error;
+      setParts(prev => prev.map(p => p.id === part.id ? { ...p, memo: newMemo } : p));
+      showSnackbar(isCurrentlyHidden ? `${part.name} 상품이 표시됩니다.` : `${part.name} 상품이 숨김 처리되었습니다.`, 'success');
+    } catch (err) {
+      console.error('숨김 처리 실패:', err);
+      showSnackbar('숨김 처리에 실패했습니다.', 'error');
     }
+  };
 
+  // 일괄 숨김 처리 핸들러
+  const handleBatchToggleHidden = async (hide = true) => {
+    if (selectedItems.length === 0) {
+      showSnackbar('숨김 처리할 항목을 선택해주세요.', 'warning');
+      return;
+    }
+    const action = hide ? '숨김' : '표시';
+    if (!window.confirm(`선택한 ${selectedItems.length}개 항목을 ${action} 처리하시겠습니까?`)) return;
+    try {
+      for (const id of selectedItems) {
+        const part = parts.find(p => p.id === id);
+        if (!part) continue;
+        const isHidden = (part.memo || '').includes('[HIDDEN]');
+        if (hide && isHidden) continue; // 이미 숨김
+        if (!hide && !isHidden) continue; // 이미 표시
+        const newMemo = hide
+          ? `[HIDDEN] ${(part.memo || '').trim()}`.trim()
+          : (part.memo || '').replace('[HIDDEN]', '').trim();
+        await supabase.from('parts').update({ memo: newMemo }).eq('id', id);
+      }
+      await fetchParts();
+      setSelectedItems([]);
+      showSnackbar(`${selectedItems.length}개 항목이 ${action} 처리되었습니다.`, 'success');
+    } catch (err) {
+      console.error('일괄 숨김 처리 실패:', err);
+      showSnackbar('일괄 숨김 처리에 실패했습니다.', 'error');
+    }
+  };
+
+  const hiddenPartsCount = useMemo(() => parts.filter(p => (p.memo || '').includes('[HIDDEN]')).length, [parts]);
+
+  const filteredParts = useMemo(() => {
     const searchTermLower = searchTerm.toLowerCase();
     return parts.filter(part => {
+      // 숨김 필터링
+      const isHidden = (part.memo || '').includes('[HIDDEN]');
+      if (isHidden && !showHiddenParts) return false;
+
       // 브랜드로 필터링
       const brandMatch = selectedBrand === '전체' || part.brand === selectedBrand;
       if (!brandMatch) return false;
@@ -1598,7 +1651,7 @@ function PartsManagement() {
       const groupMatch = selectedDiscountGroup === '전체' || (part.discount_group || '') === selectedDiscountGroup;
       if (!groupMatch) return false;
 
-      // 검색어가 없으면 브랜드 필터링만 적용
+      // 검색어가 없으면 필터링만 적용
       if (!searchTerm) return true;
 
       // 검색어 필터링 (대소문자 구분 없이)
@@ -1608,7 +1661,7 @@ function PartsManagement() {
         part.note?.toLowerCase().includes(searchTermLower) ||
         part.memo?.toLowerCase().includes(searchTermLower);
     });
-  }, [parts, searchTerm, selectedBrand, selectedCategory, selectedDiscountGroup]);
+  }, [parts, searchTerm, selectedBrand, selectedCategory, selectedDiscountGroup, showHiddenParts]);
 
   // 정렬된 파츠 목록
   const sortedParts = useMemo(() => {
@@ -2109,6 +2162,31 @@ function PartsManagement() {
             </Grid>
 
             <Grid item>
+              <Button
+                variant="outlined"
+                startIcon={<VisibilityOffIcon />}
+                onClick={() => handleBatchToggleHidden(true)}
+                disabled={selectedItems.length === 0}
+                size="small"
+              >
+                선택 숨김
+              </Button>
+            </Grid>
+            {showHiddenParts && (
+            <Grid item>
+              <Button
+                variant="outlined"
+                startIcon={<VisibilityIcon />}
+                onClick={() => handleBatchToggleHidden(false)}
+                disabled={selectedItems.length === 0}
+                color="success"
+                size="small"
+              >
+                선택 표시
+              </Button>
+            </Grid>
+            )}
+            <Grid item>
               <FormControlLabel
                 control={
                   <Checkbox
@@ -2244,6 +2322,19 @@ function PartsManagement() {
               />
             </Grid>
             )}
+            <Grid item xs={12} sm={6} md={3}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={showHiddenParts}
+                    onChange={(e) => setShowHiddenParts(e.target.checked)}
+                    color="warning"
+                  />
+                }
+                label={`숨김 상품 표시${hiddenPartsCount > 0 ? ` (${hiddenPartsCount})` : ''}`}
+                sx={{ m: 0 }}
+              />
+            </Grid>
           </Grid>
 
           {/* 검색 결과 카운트 */}
@@ -2333,7 +2424,7 @@ function PartsManagement() {
           </TableHead>
           <TableBody>
             {pagedParts.map((part) => (
-              <TableRow key={part.id}>
+              <TableRow key={part.id} sx={(part.memo || '').includes('[HIDDEN]') ? { opacity: 0.5, bgcolor: '#f5f5f5' } : {}}>
                 <TableCell padding="checkbox">
                   <Checkbox
                     checked={selectedItems.includes(part.id)}
@@ -2441,6 +2532,15 @@ function PartsManagement() {
                     </IconButton>
                   </Tooltip>
                   */}
+                  <Tooltip title={(part.memo || '').includes('[HIDDEN]') ? '상품 표시' : '상품 숨김'}>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleToggleHiddenPart(part)}
+                      color={(part.memo || '').includes('[HIDDEN]') ? 'success' : 'default'}
+                    >
+                      {(part.memo || '').includes('[HIDDEN]') ? <VisibilityIcon /> : <VisibilityOffIcon />}
+                    </IconButton>
+                  </Tooltip>
                   <IconButton
                     size="small"
                     onClick={() => handleDelete(part.id)}

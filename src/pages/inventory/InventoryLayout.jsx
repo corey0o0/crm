@@ -2897,6 +2897,14 @@ function InventoryLayout() {
       setTransactions(latest);
       
       showSnackbar('\uc7ac\uace0\uac00 \uc218\uc815\ub418\uc5c8\uc2b5\ub2c8\ub2e4.', 'success');
+      
+      // 5. \uc7ac\uace0 \ubd80\uc871 \uc54c\ub9bc \uccb4\ud06c
+      const latestInv = await fetchInventoryData();
+      if (latestInv) {
+        checkAndSendLowStockAlerts(latestInv, products, warehouses, [parseInt(productId, 10)]).catch(err => {
+          console.warn('[InventoryAlert] \uc54c\ub9bc \uccb4\ud06c \uc2e4\ud328:', err);
+        });
+      }
     } catch (err) {
       console.error(err);
       showSnackbar('\uc7ac\uace0 \uc218\uc815 \uc911 \uc624\ub958\uac00 \ubc1c\uc0dd\ud588\uc2b5\ub2c8\ub2e4.', 'error');
