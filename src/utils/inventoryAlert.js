@@ -21,7 +21,7 @@ export const checkAndSendLowStockAlerts = async (inventory, products, warehouses
 
     const thresholds = (alertSettings.thresholds || [10, 5, 0])
       .map(Number)
-      .sort((a, b) => b - a); // 내림차순: [10, 5, 0]
+      .sort((a, b) => a - b); // 오름차순: [0, 5, 10] — 가장 낮은(긴급한) 임계값부터 매칭
 
     // 변경된 상품만 필터 (없으면 체크 안 함)
     const changedSet = new Set(changedProductIds.map(id => parseInt(id, 10)));
