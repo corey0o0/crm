@@ -55,7 +55,6 @@ export default function AdminTools() {
     const tabs = [];
     
     if (canSeeTelegram) {
-        tabs.push({ label: "텔레그램 테스트", component: <TelegramTest /> });
         tabs.push({ label: "텔레그램 알림 관리", component: <TelegramSettings /> });
     }
     if (canSeeBackup) {

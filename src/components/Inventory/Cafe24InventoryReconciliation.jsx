@@ -232,7 +232,7 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
         <Box>
-          <Typography variant="h6">🌐 카페24 재고 비교 (자체 품목코드 ↔ CRM 바코드)</Typography>
+          <Typography variant="h6">카페24 재고 비교 (자체 품목코드 ↔ CRM 바코드)</Typography>
           {lastFetchedAt && (
             <Typography variant="caption" color="text.secondary">
               <SaveAltIcon sx={{ fontSize: 14, mr: 0.5, verticalAlign: 'middle' }} />

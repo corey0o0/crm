@@ -13,10 +13,14 @@ import {
   TextField,
   Chip,
   IconButton,
-  Stack
+  Stack,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails
 } from '@mui/material';
-import { Save as SaveIcon, Add as AddIcon, Close as CloseIcon } from '@mui/icons-material';
+import { Save as SaveIcon, Add as AddIcon, Close as CloseIcon, ExpandMore as ExpandMoreIcon } from '@mui/icons-material';
 import { getAppSetting, saveAppSetting } from '../../api/settingsApi';
+import TelegramTest from '../Test/TelegramTest';
 
 const AVAILABLE_EVENTS = [
   { key: 'service_add', label: 'A/S 신규 등록' },
@@ -167,7 +171,7 @@ export default function TelegramSettings() {
 
       {/* 재고 부족 알림 상세 설정 */}
       <Divider sx={{ my: 3 }} />
-      <Typography variant="h6" sx={{ mb: 1 }}>📦 재고 부족 알림 상세 설정</Typography>
+      <Typography variant="h6" sx={{ mb: 1 }}>재고 부족 알림 상세 설정</Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
         창고별 재고가 설정한 임계값 이하로 떨어지면 텔레그램으로 알림을 전송합니다.<br/>
         같은 상품에 대해 동일 임계값 알림은 24시간 내 중복 전송되지 않습니다.
@@ -234,6 +238,17 @@ export default function TelegramSettings() {
           </Box>
         )}
       </Paper>
+
+      {/* 텔레그램 테스트 (접이식) */}
+      <Divider sx={{ my: 3 }} />
+      <Accordion sx={{ border: '1px solid #e0e0e0', boxShadow: 'none', '&:before': { display: 'none' } }}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+          <Typography variant="h6">🔧 텔레그램 연동 테스트</Typography>
+        </AccordionSummary>
+        <AccordionDetails>
+          <TelegramTest />
+        </AccordionDetails>
+      </Accordion>
 
       <Snackbar open={snackbar.open} autoHideDuration={3000} onClose={handleCloseSnackbar} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
         <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} variant="filled">

@@ -1614,7 +1614,8 @@ export default function Cafe24OrderList() {
                   const effectiveTotalAmount = !isNearbikeMemberDiscount && Number(order.total_amount || 0) === 0 && orderItemsSum > 0 ? orderItemsSum : Number(order.total_amount || 0);
                   const isPrepaid = !isNearbikeMemberDiscount && Number(order.total_amount || 0) === 0 && orderItemsSum > 0;
                   const calculatedUsedPoints = Math.max(0, orderItemsSum + Number(order.shipping_fee || 0) - effectiveTotalAmount);
-                  const displayUsedPoints = Number(order.used_points !== undefined && order.used_points !== null ? order.used_points : calculatedUsedPoints);
+                  const isUnpaidOrder = order.status === 'N10' || (items.length > 0 && items[0].order_status === 'N10');
+                   const displayUsedPoints = isUnpaidOrder ? 0 : Number(order.used_points !== undefined && order.used_points !== null ? order.used_points : calculatedUsedPoints);
 
                   acc.push(
                     <TableRow key={`${order.id}-${idx}`} hover selected={selectedOrders.includes(order.id)}>

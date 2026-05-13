@@ -38,6 +38,8 @@ import {
   CloudDownload as CloudDownloadIcon,
   Sync as SyncIcon,
   SyncDisabled as SyncDisabledIcon,
+  Visibility as VisibilityIcon,
+  VisibilityOff as VisibilityOffIcon,
 } from '@mui/icons-material';
 import * as ExcelJS from 'exceljs';
 import { warehouseApi } from '../../api/warehouseApi';
@@ -73,6 +75,7 @@ function LocationManagement({
   const [warehouseExcelFile, setWarehouseExcelFile] = useState(null);
   const [warehouseExcelData, setWarehouseExcelData] = useState([]);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [showHiddenWarehouses, setShowHiddenWarehouses] = useState(false);
 
   // 폼 데이터
   const [formData, setFormData] = useState({
@@ -551,6 +554,32 @@ function LocationManagement({
     }
   };
 
+  // 창고 숨김 토글
+  const handleToggleHidden = async (warehouse) => {
+    const isCurrentlyHidden = (warehouse.note || '').includes('[HIDDEN]');
+    const newNote = isCurrentlyHidden 
+      ? (warehouse.note || '').replace('[HIDDEN]', '').trim()
+      : `[HIDDEN] ${(warehouse.note || '').trim()}`.trim();
+    
+    try {
+      await warehouseApi.update(warehouse.id, { ...warehouse, note: newNote });
+      const updatedWarehouses = warehouses.map(w => 
+        w.id === warehouse.id ? { ...w, note: newNote } : w
+      );
+      setWarehouses(updatedWarehouses);
+      showSnackbar(isCurrentlyHidden ? `${warehouse.name} 창고가 표시됩니다.` : `${warehouse.name} 창고가 숨김 처리되었습니다.`, 'success');
+      if (onLocationUpdate) onLocationUpdate();
+    } catch (error) {
+      console.error('숨김 처리 실패:', error);
+      showSnackbar('숨김 처리에 실패했습니다.', 'error');
+    }
+  };
+
+  const visibleWarehouses = showHiddenWarehouses 
+    ? warehouses 
+    : warehouses.filter(w => !(w.note || '').includes('[HIDDEN]'));
+  const hiddenCount = warehouses.filter(w => (w.note || '').includes('[HIDDEN]')).length;
+
   return (
     <Box>
       {/* 탭 메뉴 */}
@@ -560,7 +589,7 @@ function LocationManagement({
             label={
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <StoreIcon />
-                창고 관리 ({warehouses.length})
+                창고 관리 ({visibleWarehouses.length}{hiddenCount > 0 ? ` / 숨김 ${hiddenCount}` : ''})
               </Box>
             } 
           />
@@ -593,8 +622,19 @@ function LocationManagement({
       {activeTab === 0 && (
         <Box>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-            <Typography variant="h6">🏭 창고 관리</Typography>
+            <Typography variant="h6">창고 관리</Typography>
             <Box sx={{ display: 'flex', gap: 1 }}>
+              {hiddenCount > 0 && (
+                <Button
+                  variant={showHiddenWarehouses ? 'contained' : 'outlined'}
+                  size="small"
+                  color="warning"
+                  startIcon={showHiddenWarehouses ? <VisibilityIcon /> : <VisibilityOffIcon />}
+                  onClick={() => setShowHiddenWarehouses(!showHiddenWarehouses)}
+                >
+                  숨김 창고 {showHiddenWarehouses ? '포함' : `보기 (${hiddenCount})`}
+                </Button>
+              )}
               <Button
                 variant="outlined"
                 startIcon={<DownloadIcon />}
@@ -624,9 +664,11 @@ function LocationManagement({
           </Box>
 
           <Grid container spacing={2}>
-            {warehouses.map(warehouse => (
+            {visibleWarehouses.map(warehouse => {
+              const isHidden = (warehouse.note || '').includes('[HIDDEN]');
+              return (
               <Grid item xs={12} md={6} lg={4} key={warehouse.id}>
-                <Card>
+                <Card sx={{ opacity: isHidden ? 0.6 : 1, border: isHidden ? '2px dashed #bbb' : 'none' }}>
                   <CardContent>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
                       <Box>
@@ -677,6 +719,14 @@ function LocationManagement({
                         </IconButton>
                         <IconButton 
                           size="small" 
+                          color={isHidden ? 'success' : 'default'}
+                          onClick={() => handleToggleHidden(warehouse)}
+                          title={isHidden ? '창고 표시' : '창고 숨김'}
+                        >
+                          {isHidden ? <VisibilityIcon /> : <VisibilityOffIcon />}
+                        </IconButton>
+                        <IconButton 
+                          size="small" 
                           color="error"
                           onClick={() => handleDelete('warehouse', warehouse.id)}
                         >
@@ -723,13 +773,14 @@ function LocationManagement({
                         borderRadius: 1,
                         fontSize: '0.75rem'
                       }}>
-                        {warehouse.note}
+                        {(warehouse.note || '').replace('[HIDDEN]', '').trim()}
                       </Typography>
                     )}
                   </CardContent>
                 </Card>
               </Grid>
-            ))}
+              );
+            })}
           </Grid>
 
           {warehouses.length === 0 && (

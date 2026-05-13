@@ -671,9 +671,20 @@ module.exports = function(supabaseAdmin) {
 
       // 4) used_points 결정 (= 예치금 + 적립금 합계)
       //    명시적 데이터가 있으면 그걸 쓰고, 없으면 (주문총액 - 실결제액)으로 유추
-      const used_points = internal_points_total > 0 
-        ? internal_points_total 
-        : Math.max(0, items_payment_sum + shipping_fee - Number(total_amount));
+      //    단, 입금전(N10) 상태는 아직 결제가 완료되지 않았으므로 적립금/예치금을 0으로 처리
+      const orderStatus = (order.items && order.items.length > 0 && order.items[0].order_status) || '';
+      const isUnpaid = orderStatus === 'N10';
+      
+      if (isUnpaid) {
+        total_amount = 0;
+        amount_decision_path += ' [입금전 → 실결제 0 처리]';
+      }
+      
+      const used_points = isUnpaid ? 0 : (
+        internal_points_total > 0 
+          ? internal_points_total 
+          : Math.max(0, items_payment_sum + shipping_fee - Number(total_amount))
+      );
       
       // Audit Log 출력 제한 (로그 과다 방지)
       // console.log(`[Amount Audit] Order ID: ${order.order_id} | Path: ${amount_decision_path} | Total: ${total_amount}`);
@@ -1396,7 +1407,6 @@ module.exports = function(supabaseAdmin) {
 
           // d. 인벤토리 로그 기록
           await supabaseAdmin.from('inventory_logs').insert({
-            warehouse_id: wid,
             part_id: null, // workaround
             part_name: item.name,
             part_code: item.custom_product_code || item.product_code || '',
