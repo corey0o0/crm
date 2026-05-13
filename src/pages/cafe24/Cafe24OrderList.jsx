@@ -1405,17 +1405,6 @@ export default function Cafe24OrderList() {
                         <ToggleButton value="special" sx={{ px: 2 }}>특별관리(B)</ToggleButton>
                         <ToggleButton value="xrider" sx={{ px: 2 }}>엑스라이더</ToggleButton>
                       </ToggleButtonGroup>
-
-                      <ToggleButton
-                        value="check"
-                        selected={showPriceDetails}
-                        onChange={() => setShowPriceDetails(!showPriceDetails)}
-                        color="secondary"
-                        size="small"
-                        sx={{ bgcolor: 'white', px: 2 }}
-                      >
-                        금액 상세 {showPriceDetails ? '접기' : '펼침'}
-                      </ToggleButton>
                     </Stack>
                   </Grid>
 
@@ -1455,6 +1444,16 @@ export default function Cafe24OrderList() {
                       
                       <Box sx={{ flexGrow: 1 }} />
                       
+                      <ToggleButton
+                        value="check"
+                        selected={showPriceDetails}
+                        onChange={() => setShowPriceDetails(!showPriceDetails)}
+                        color="secondary"
+                        size="small"
+                        sx={{ bgcolor: 'white', px: 2, whiteSpace: 'nowrap' }}
+                      >
+                        금액 상세 {showPriceDetails ? '접기' : '펼침'}
+                      </ToggleButton>
                       <Button 
                         variant="outlined" 
                         color="success"
@@ -1535,13 +1534,10 @@ export default function Cafe24OrderList() {
               <TableCell><strong>주문자(ID)</strong></TableCell>
               <TableCell><strong>쇼핑몰상품명(옵션)</strong></TableCell>
               <TableCell align="right"><strong>수량</strong></TableCell>
-              {showPriceDetails && <TableCell align="right"><strong>단가</strong></TableCell>}
-              {showPriceDetails && <TableCell align="right"><strong>주문액</strong></TableCell>}
-              {showPriceDetails && <TableCell align="right"><strong>상품할인</strong></TableCell>}
-              {showPriceDetails && <TableCell align="right"><strong>묶음할인</strong></TableCell>}
-              <TableCell align="right"><strong>실결제액</strong></TableCell>
-              <TableCell align="right"><strong>배송비</strong></TableCell>
-              <TableCell align="right"><strong>등급할인</strong></TableCell>
+              {showPriceDetails && <TableCell align="right"><strong>판매가</strong></TableCell>}
+              {showPriceDetails && <TableCell align="right"><strong>배송비</strong></TableCell>}
+              {showPriceDetails && <TableCell align="right"><strong>등급할인</strong></TableCell>}
+              {showPriceDetails && <TableCell align="right"><strong>실결제액</strong></TableCell>}
               <TableCell align="right"><strong>적립금</strong></TableCell>
               <TableCell align="right"><strong>총결제액</strong></TableCell>
               <TableCell><strong>품목코드(ERP)</strong></TableCell>
@@ -1552,9 +1548,9 @@ export default function Cafe24OrderList() {
           </TableHead>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={17} align="center" sx={{ py: 3 }}><CircularProgress /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={showPriceDetails ? 15 : 11} align="center" sx={{ py: 3 }}><CircularProgress /></TableCell></TableRow>
             ) : filteredOrders.length === 0 ? (
-              <TableRow><TableCell colSpan={17} align="center" sx={{ py: 3 }}>수집·필터 조건에 맞는 주문 데이터가 없습니다.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={showPriceDetails ? 15 : 11} align="center" sx={{ py: 3 }}>수집·필터 조건에 맞는 주문 데이터가 없습니다.</TableCell></TableRow>
             ) : (
              visibleOrders.reduce((acc, order) => {
                 const items = order.order_items || [];
@@ -1589,7 +1585,7 @@ export default function Cafe24OrderList() {
                         </Box>
                       </TableCell>
                       <TableCell>{formatDate(order.order_date)}</TableCell>
-                      <TableCell colSpan={14} align="center" sx={{ color: 'text.secondary' }}>상품 정보가 없습니다</TableCell>
+                      <TableCell colSpan={showPriceDetails ? 12 : 8} align="center" sx={{ color: 'text.secondary' }}>상품 정보가 없습니다</TableCell>
                     </TableRow>
                   );
                   return acc;
@@ -1719,26 +1715,23 @@ export default function Cafe24OrderList() {
                         )}
                       </TableCell>
                       <TableCell align="right">{item.quantity}</TableCell>
-                      {showPriceDetails && <TableCell align="right">{Number(item.price || 0).toLocaleString()}</TableCell>}
                       {showPriceDetails && <TableCell align="right">{(Number(item.price || 0) * Number(item.quantity || 1)).toLocaleString()}</TableCell>}
-                      {showPriceDetails && <TableCell align="right">{Number(item.item_discount || 0).toLocaleString()}</TableCell>}
-                      {showPriceDetails && <TableCell align="right">{Number(item.bundle_discount || item.discount_amount || 0).toLocaleString()}</TableCell>}
-                      <TableCell align="right">
-                        {['C11', 'C40', 'R40', 'E40'].includes(item.order_status) ? (
-                          <Typography variant="body2" color="error" sx={{ textDecoration: 'line-through' }}>
-                            {((Number(item.payment_amount === undefined ? (Number(item.price || 0) * Number(item.quantity || 1)) : item.payment_amount)) + (idx === 0 ? Number(order.shipping_fee || 0) : 0)).toLocaleString()}
-                          </Typography>
-                        ) : (
-                          ((Number(item.payment_amount === undefined ? (Number(item.price || 0) * Number(item.quantity || 1)) : item.payment_amount)) + (idx === 0 ? Number(order.shipping_fee || 0) : 0)).toLocaleString()
-                        )}
-                      </TableCell>
-                      {idx === 0 && <TableCell align="right" rowSpan={items.length}>{Number(order.shipping_fee || 0).toLocaleString()}</TableCell>}
-                      {idx === 0 && <TableCell align="right" rowSpan={items.length}>
+                      {showPriceDetails && idx === 0 && <TableCell align="right" rowSpan={items.length}>{Number(order.shipping_fee || 0).toLocaleString()}</TableCell>}
+                      {showPriceDetails && idx === 0 && <TableCell align="right" rowSpan={items.length}>
                         {gradeDiscountSum > 0 ? (
                           <Typography variant="body2" color="warning.main" fontWeight="bold">
                             -{gradeDiscountSum.toLocaleString()}
                           </Typography>
                         ) : '-'}
+                      </TableCell>}
+                      {showPriceDetails && <TableCell align="right">
+                        {['C11', 'C40', 'R40', 'E40'].includes(item.order_status) ? (
+                          <Typography variant="body2" color="error" sx={{ textDecoration: 'line-through' }}>
+                            {Number(item.payment_amount === undefined ? (Number(item.price || 0) * Number(item.quantity || 1)) : item.payment_amount).toLocaleString()}
+                          </Typography>
+                        ) : (
+                          Number(item.payment_amount === undefined ? (Number(item.price || 0) * Number(item.quantity || 1)) : item.payment_amount).toLocaleString()
+                        )}
                       </TableCell>}
                       {idx === 0 && <TableCell align="right" rowSpan={items.length}>
                         {displayUsedPoints > 0 ? (
@@ -1751,11 +1744,6 @@ export default function Cafe24OrderList() {
                         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
                           <Box display="flex" alignItems="center" justifyContent="flex-end" gap={0.5}>
                             <strong>{effectiveTotalAmount.toLocaleString()}</strong>
-                            {!order.is_transferred && (
-                              <IconButton size="small" onClick={() => handleOpenAmountEditModal(order)} title="금액 직접 수정" sx={{ padding: 0 }}>
-                                <EditIcon fontSize="small" color="action" />
-                              </IconButton>
-                            )}
                           </Box>
                           {isPrepaid && (
                             <Chip label="선불금 처리" size="small" color="info" variant="filled" sx={{ height: 16, fontSize: '0.6rem' }} />

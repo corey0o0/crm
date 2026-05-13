@@ -1244,45 +1244,38 @@ module.exports = function(supabaseAdmin) {
            if (poErr) throw new Error(`대기열 삭제 실패: ${poErr.message}`);
         }
 
-        // 3. 기타 창고 즉시 차감분 인벤토리 롤백 (inventory_logs 역추적)
-        const { data: invLogs } = await supabaseAdmin.from('inventory_logs')
+        // 3. 거래내역(transactions) 기반으로 인벤토리 롤백 + inventory_logs 정리
+        const { data: txs } = await supabaseAdmin.from('transactions')
           .select('*')
-          .like('notes', `%주문번호: ${order.order_id}%`);
+          .eq('group_id', String(order.id));
         
-        if (invLogs && invLogs.length > 0) {
-           for (const log of invLogs) {
-             const { data: currentInv } = await supabaseAdmin.from('inventory')
-               .select('quantity')
-               .eq('warehouse_id', log.warehouse_id)
-               .eq('product_id', log.part_id)
-               .maybeSingle();
+        if (txs && txs.length > 0) {
+          for (const tx of txs) {
+            // 출고(out) 트랜잭션이면 출발 창고(from_location)의 재고를 원복(더하기)
+            if (tx.type === 'out' && tx.from_location && tx.product_id) {
+              const { data: currentInv } = await supabaseAdmin.from('inventory')
+                .select('quantity')
+                .eq('warehouse_id', tx.from_location)
+                .eq('product_id', tx.product_id)
+                .maybeSingle();
 
-             const currentQty = currentInv ? currentInv.quantity : 0;
-             const restoredQty = currentQty + Math.abs(log.quantity_change);
+              const currentQty = currentInv ? currentInv.quantity : 0;
+              const restoredQty = currentQty + Math.abs(Number(tx.quantity) || 0);
 
-             await supabaseAdmin.from('inventory').upsert({
-               warehouse_id: log.warehouse_id,
-               product_id: log.part_id,
-               quantity: restoredQty,
-               updated_at: new Date().toISOString()
-             }, { onConflict: 'warehouse_id,product_id' });
-
-             await supabaseAdmin.from('inventory_logs').insert({
-               warehouse_id: log.warehouse_id,
-               part_id: null, // workaround
-               part_name: log.part_name,
-               part_code: log.part_code,
-               brand_code: (log.part_code && (log.part_code.toUpperCase().startsWith('NB') || log.part_code.toUpperCase().includes('NEARBIKE'))) || (log.part_name && (log.part_name.toUpperCase().startsWith('NB') || log.part_name.includes('니어'))) ? 'NB' : 'XRB',
-               change_type: 'cancellation',
-               quantity_change: Math.abs(log.quantity_change),
-               previous_quantity: currentQty,
-               new_quantity: restoredQty,
-               reference_id: log.reference_id,
-               reference_type: 'shipment_cancel',
-               notes: `온라인 주문 전송 취소로 인한 재고 원복 (주문번호: ${order.order_id})`
-             });
-           }
+              await supabaseAdmin.from('inventory').upsert({
+                warehouse_id: tx.from_location,
+                product_id: tx.product_id,
+                quantity: restoredQty,
+                updated_at: new Date().toISOString()
+              }, { onConflict: 'warehouse_id,product_id' });
+            }
+          }
         }
+
+        // inventory_logs 삭제 (reference_id 기반)
+        await supabaseAdmin.from('inventory_logs').delete()
+          .eq('reference_type', 'cafe24_order')
+          .in('reference_id', [order.id, String(order.id)]);
 
         // 4. 거래내역(transactions) 취소 기록 삭제
         const { error: txDelErr } = await supabaseAdmin.from('transactions').delete().eq('group_id', String(order.id));
