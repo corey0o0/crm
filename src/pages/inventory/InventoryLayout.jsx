@@ -2865,7 +2865,7 @@ function InventoryLayout() {
       toLocation: isOut ? 'direct_edit' : warehouseId,
       date: new Date().toISOString().split('T')[0],
       boxNo: '',
-      note: reason || '\uc7ac\uace0 \ud604\ud669\uc5d0\uc11c \uc9c1\uc811 \uc218\uc815',
+      note: `${reason || '\uc7ac\uace0 \ud604\ud669\uc5d0\uc11c \uc9c1\uc811 \uc218\uc815'} [${currentQty} -> ${newQty}]`,
       additionalNote: `\uae30\uc874: ${currentQty} -> \ubcc0\uacbd: ${newQty}`,
       createdAt: new Date().toISOString(),
       isGrouped: false,

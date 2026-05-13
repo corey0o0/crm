@@ -1041,6 +1041,22 @@ module.exports = function(supabaseAdmin) {
          const orderDateStr = order.order_date ? new Date(order.order_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
          const wName = warehouseMap[wid] || '기본창고';
          
+         const invKey = `${wid}_${mappedPartId}`;
+         // 누적 계산을 위해 map에 들어있는 최신 개수 확인
+         let prevQty = currentInventoryMap[invKey] || 0;
+         if (inventoryToUpsertMap[invKey] !== undefined) {
+            prevQty = inventoryToUpsertMap[invKey].quantity;
+         }
+            
+         const newQty = prevQty - Number(item.quantity || 1);
+            
+         inventoryToUpsertMap[invKey] = {
+            warehouse_id: wid,
+            product_id: mappedPartId,
+            quantity: newQty,
+            updated_at: new Date().toISOString()
+         };
+
          transactionsToInsert.push({
             group_id: String(order.id),
             type: 'out',
@@ -1052,40 +1068,24 @@ module.exports = function(supabaseAdmin) {
             to_location: String(order.agency_id || 'B2C'),
             from_location: wid,
             date: orderDateStr,
-            note: `[카페24 ${order.agency_id ? 'B2B 자동전송' : 'B2C 전송'}] 주문: ${order.order_id} (출고처:${wName})`,
+            note: `[카페24 ${order.agency_id ? 'B2B 자동전송' : 'B2C 전송'}] 주문: ${order.order_id} (출고처:${wName}) [${prevQty} -> ${newQty}]`,
             is_grouped: (order.order_items || []).length > 1,
             status: '완료'
          });
 
-         const invKey = `${wid}_${mappedPartId}`;
-         // 누적 계산을 위해 map에 들어있는 최신 개수 확인
-            let prevQty = currentInventoryMap[invKey] || 0;
-            if (inventoryToUpsertMap[invKey] !== undefined) {
-               prevQty = inventoryToUpsertMap[invKey].quantity;
-            }
-            
-            const newQty = prevQty - Number(item.quantity || 1);
-            
-            inventoryToUpsertMap[invKey] = {
-               warehouse_id: wid,
-               product_id: mappedPartId,
-               quantity: newQty,
-               updated_at: new Date().toISOString()
-            };
-
-            inventoryLogsToInsert.push({
-               part_id: null, // workaround: inventory_logs.part_id is UUID but parts.id is INTEGER
-               part_name: item.name,
-               part_code: item.custom_product_code || item.product_code || '',
-               brand_code: ((item.custom_product_code || item.product_code || '').toUpperCase().startsWith('NB') || (item.custom_product_code || item.product_code || '').toUpperCase().includes('NEARBIKE')) || (item.name && (item.name.toUpperCase().startsWith('NB') || item.name.includes('니어'))) ? 'NB' : 'XRB',
-               change_type: 'shipment_complete',
-               quantity_change: -(Number(item.quantity || 1)),
-               previous_quantity: prevQty,
-               new_quantity: newQty,
-               reference_id: order.id || null,
-               reference_type: 'cafe24_order',
-               notes: `온라인 주문 즉시 재고 차감 (주문번호: ${order.order_id})`
-            });
+         inventoryLogsToInsert.push({
+            part_id: null, // workaround: inventory_logs.part_id is UUID but parts.id is INTEGER
+            part_name: item.name,
+            part_code: item.custom_product_code || item.product_code || '',
+            brand_code: ((item.custom_product_code || item.product_code || '').toUpperCase().startsWith('NB') || (item.custom_product_code || item.product_code || '').toUpperCase().includes('NEARBIKE')) || (item.name && (item.name.toUpperCase().startsWith('NB') || item.name.includes('니어'))) ? 'NB' : 'XRB',
+            change_type: 'shipment_complete',
+            quantity_change: -(Number(item.quantity || 1)),
+            previous_quantity: prevQty,
+            new_quantity: newQty,
+            reference_id: order.id || null,
+            reference_type: 'cafe24_order',
+            notes: `온라인 주문 즉시 재고 차감 (주문번호: ${order.order_id})`
+         });
       });
 
       // 5. DB 일괄 업데이트 실행 (Bulk Execution)
@@ -1358,7 +1358,7 @@ module.exports = function(supabaseAdmin) {
             from_location: String(order.buyer_name || order.agency_id || '고객반품'),
             to_location: wid,
             date: new Date().toISOString().split('T')[0],
-            note: `[온라인 반품] 발송 완료된 주문 반품 복구 (주문번호: ${order.order_id})`,
+            note: `[온라인 반품] 발송 완료된 주문 반품 복구 (주문번호: ${order.order_id}) [${currentQty} -> ${newQty}]`,
             is_grouped: false,
             status: '완료'
           });
