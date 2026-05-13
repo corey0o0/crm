@@ -605,7 +605,8 @@ module.exports = function(supabaseAdmin) {
       // pg_payment: 실제 카드/PG 결제금액 + 네이버페이 등 외부 포인트 + 선결제금액
       // actual_deposit: 쇼핑몰 자체 예치금(적립금/마일리지) 사용액
       const pg_payment = Number(order.payment_amount || 0) + Number(order.naver_point || 0) + Number(order.prepaid_amount || 0);
-      const actual_deposit = Number(order.deposit || (order.actual_order_amount && order.actual_order_amount.deposit) || 0);
+      const explicit_mileage = Number(order.mileage || (order.actual_order_amount && order.actual_order_amount.mileage) || 0);
+      const actual_deposit = Number(order.deposit || (order.actual_order_amount && order.actual_order_amount.deposit) || 0) + explicit_mileage;
       
       const isFullPoints = Number(order.actual_order_amount?.order_price_amount) > 0 && pg_payment === 0 && actual_deposit === 0;
       const isPartiallyCanceled = order.canceled === 'M' || (order.items && order.items.some(i => ['C11','C40','R40','E40'].includes(i.order_status)));
@@ -635,7 +636,11 @@ module.exports = function(supabaseAdmin) {
           amount_decision_path = 'Cafe24 기준 결제액 폴백';
       }
       
-      const used_points = Math.max(0, items_payment_sum + shipping_fee - Number(total_amount));
+      
+      // 명시적으로 마일리지나 예치금이 있으면 그것을 쓰고, 없으면 (주문총액-실결제액)으로 유추
+      const explicit_points = actual_deposit;
+      const calculated_used_points = Math.max(0, items_payment_sum + shipping_fee - Number(total_amount));
+      const used_points = explicit_points > 0 ? explicit_points : calculated_used_points;
       
       // Audit Log 출력 제한 (로그 과다 방지)
       // console.log(`[Amount Audit] Order ID: ${order.order_id} | Path: ${amount_decision_path} | Total: ${total_amount}`);

@@ -2151,9 +2151,9 @@ function InventoryLayout() {
         }
       });
 
-      // 최종 상계 수량이 0이 아닌 것만 남김
+      // 최종 상계 수량이 0이 아닌 것만 남김 (단, 애초에 수량이 0인 명시적 재고 조정 건은 내역에 남김)
       const aggregatedItems = Object.values(itemMap)
-        .filter(i => i.netQuantity !== 0)
+        .filter(i => i.netQuantity !== 0 || i.originalItems.some(orig => Number(orig.quantity) === 0))
         .map(i => {
           if (i.netQuantity < 0) {
             // 상계 결과가 음수면 원래 그룹 타입의 반대 성격(예: 출고 그룹의 반대는 '입고/취소')
