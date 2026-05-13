@@ -601,14 +601,34 @@ module.exports = function(supabaseAdmin) {
         });
       }
 
-      // 총 결제액 구성요소 명확화:
-      // pg_payment: 실제 카드/PG 결제금액 + 네이버페이 등 외부 포인트 + 선결제금액
-      // actual_deposit: 쇼핑몰 자체 예치금(적립금/마일리지) 사용액
+      // ──────────────────────────────────────────────────
+      // 결제 금액 분리 원칙:
+      //   total_amount = 고객이 실제 현금/카드(PG)로 낸 금액
+      //   used_points  = 예치금 + 적립금(마일리지) 사용 합계 (별도 컬럼)
+      //   → 두 값은 절대 겹치지 않아야 함
+      // ──────────────────────────────────────────────────
+
+      // 1) PG 실결제액 (카드/무통장/네이버페이 등 외부 결제수단)
       const pg_payment = Number(order.payment_amount || 0) + Number(order.naver_point || 0) + Number(order.prepaid_amount || 0);
-      const explicit_mileage = Number(order.mileage || (order.actual_order_amount && order.actual_order_amount.mileage) || 0);
-      const actual_deposit = Number(order.deposit || (order.actual_order_amount && order.actual_order_amount.deposit) || 0) + explicit_mileage;
-      
-      const isFullPoints = Number(order.actual_order_amount?.order_price_amount) > 0 && pg_payment === 0 && actual_deposit === 0;
+
+      // 2) 쇼핑몰 내부 재화 사용액 (예치금 + 적립금/마일리지)
+      //    카페24 API 버전에 따라 필드명이 다름:
+      //    - 구버전: order.deposit / order.mileage
+      //    - 신버전(2026-03-01~): actual_order_amount.credits_spent_amount(예치금) / points_spent_amount(적립금)
+      const deposit_used = Number(
+        order.deposit 
+        || (order.actual_order_amount && order.actual_order_amount.deposit) 
+        || (order.actual_order_amount && order.actual_order_amount.credits_spent_amount) 
+        || 0
+      );
+      const mileage_used = Number(
+        order.mileage 
+        || (order.actual_order_amount && order.actual_order_amount.mileage) 
+        || (order.actual_order_amount && order.actual_order_amount.points_spent_amount) 
+        || 0
+      );
+      const internal_points_total = deposit_used + mileage_used;
+
       const isPartiallyCanceled = order.canceled === 'M' || (order.items && order.items.some(i => ['C11','C40','R40','E40'].includes(i.order_status)));
 
       const shipping_fee = Number((order.actual_order_amount && order.actual_order_amount.shipping_fee) || 0);
@@ -620,27 +640,40 @@ module.exports = function(supabaseAdmin) {
           return acc + (isCancelled ? 0 : Number(item.payment_amount || 0));
         }, 0);
       }
-      
+
+      // 3) total_amount 결정 (= 실제 현금/카드 결제액만)
       let total_amount = 0;
       let amount_decision_path = '';
 
       const paymentMethodStr = order.payment_method_name ? order.payment_method_name.join(',') : (order.payment_method ? order.payment_method.join(',') : '');
-      if (paymentMethodStr.includes('예치금') && !paymentMethodStr.includes('적립금')) {
-          total_amount = items_payment_sum + shipping_fee;
-          amount_decision_path = '예치금 단독결제 (items_payment_sum + shipping_fee)';
-      } else if (pg_payment > 0 || actual_deposit > 0 || isFullPoints) {
-          total_amount = pg_payment + actual_deposit;
-          amount_decision_path = 'PG + Deposit 합산결제';
+
+      if (internal_points_total > 0 && pg_payment === 0) {
+        // 케이스A: 전액 적립금/예치금 결제 (현금 0원)
+        total_amount = 0;
+        amount_decision_path = '전액 내부재화 결제 (적립금/예치금) → 실결제 0';
+      } else if (internal_points_total > 0 && pg_payment > 0) {
+        // 케이스B: 적립금/예치금 + PG 혼합결제 → 실결제는 PG만
+        total_amount = pg_payment;
+        amount_decision_path = '혼합결제 (PG만 실결제)';
+      } else if (paymentMethodStr.includes('예치금') && pg_payment === 0) {
+        // 케이스C: 결제수단명이 '예치금'이지만 카페24 API에서 deposit 필드가 안 내려온 경우
+        total_amount = 0;
+        amount_decision_path = '예치금 단독결제 (결제수단명 기반) → 실결제 0';
+      } else if (pg_payment > 0) {
+        // 케이스D: PG 단독결제 (가장 일반적)
+        total_amount = pg_payment;
+        amount_decision_path = 'PG 단독결제';
       } else {
-          total_amount = (order.actual_order_amount && order.actual_order_amount.payment_amount) || order.total_order_price || 0;
-          amount_decision_path = 'Cafe24 기준 결제액 폴백';
+        // 케이스E: 폴백 (위 어떤 것에도 안 걸리는 경우)
+        total_amount = (order.actual_order_amount && order.actual_order_amount.payment_amount) || order.total_order_price || 0;
+        amount_decision_path = 'Cafe24 기준 결제액 폴백';
       }
-      
-      
-      // 명시적으로 마일리지나 예치금이 있으면 그것을 쓰고, 없으면 (주문총액-실결제액)으로 유추
-      const explicit_points = actual_deposit;
-      const calculated_used_points = Math.max(0, items_payment_sum + shipping_fee - Number(total_amount));
-      const used_points = explicit_points > 0 ? explicit_points : calculated_used_points;
+
+      // 4) used_points 결정 (= 예치금 + 적립금 합계)
+      //    명시적 데이터가 있으면 그걸 쓰고, 없으면 (주문총액 - 실결제액)으로 유추
+      const used_points = internal_points_total > 0 
+        ? internal_points_total 
+        : Math.max(0, items_payment_sum + shipping_fee - Number(total_amount));
       
       // Audit Log 출력 제한 (로그 과다 방지)
       // console.log(`[Amount Audit] Order ID: ${order.order_id} | Path: ${amount_decision_path} | Total: ${total_amount}`);
