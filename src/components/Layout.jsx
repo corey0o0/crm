@@ -69,7 +69,7 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserMenuKeys } from '../config/menuConfig';
-// import NotificationBell from './Dashboard/NotificationBell'; // 임시 비활성화
+import NotificationBell from './Dashboard/NotificationBell';
 import ServiceCalendar from './ServiceCalendar';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ko';
@@ -458,7 +458,7 @@ function Layout() {
           >
             {isMobile ? 'CRM' : '고객관리시스템'}
           </Typography>
-          {/* <NotificationBell /> */} {/* 임시 비활성화 */}
+
           <Box
             onClick={handleCalendarOpen}
             sx={{
@@ -528,11 +528,12 @@ function Layout() {
             </Tooltip>
           </Box>
 
-          {/* 디버그 버튼 (마스터 계정 전용) */}
-          <DebugPanel />
+          {/* 디버그 버튼 (마스터 계정 전용) 숨김 처리 */}
+          {false && <DebugPanel />}
 
-          {/* 연결 상태 아이콘 */}
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <NotificationBell />
+          {/* 연결 상태 아이콘 (숨김 처리) */}
+          <Box sx={{ display: 'none', alignItems: 'center' }}>
             <Tooltip
               title={
                 <Box sx={{ p: 1 }}>

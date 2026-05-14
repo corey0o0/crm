@@ -67,6 +67,21 @@ export const checkAndSendLowStockAlerts = async (inventory, products, warehouses
               { eventType: 'stock_low_alert' }
             );
 
+            // 알람 레이어에도 표시하기 위해 notifications 테이블에 추가
+            try {
+              const notificationMessage = `[재고부족] ${product.name}${codeStr} (${warehouse.name}) - ${qty}개 남음`;
+              await import('../lib/supabaseClient').then(({ supabase }) => {
+                supabase.from('notifications').insert({
+                  message: notificationMessage,
+                  is_read: false
+                }).then(({ error }) => {
+                  if (error) console.error('[InventoryAlert] DB 알림 저장 실패:', error);
+                });
+              });
+            } catch (dbErr) {
+              console.error('[InventoryAlert] DB 알림 저장 예외:', dbErr);
+            }
+
             if (result.success && !result.bypassed) {
               localStorage.setItem(cacheKey, Date.now().toString());
               console.log(`[InventoryAlert] 알림 전송: ${product.name} (${warehouse.name}) ${qty}개`);

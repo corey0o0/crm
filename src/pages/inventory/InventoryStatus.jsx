@@ -136,6 +136,21 @@ export default function InventoryStatus() {
                   />
                   <Button
                     size="small"
+                    variant="outlined"
+                    color="inherit"
+                    onClick={() => {
+                      setOverallSearch('');
+                      setOverallStockFilter('all');
+                      setQtyFilterValue('');
+                      setQtyFilterMode('lte');
+                      setStatusPage(0);
+                    }}
+                    sx={{ minWidth: 'auto', px: 1.5, color: '#888', borderColor: '#ccc' }}
+                  >
+                    초기화
+                  </Button>
+                  <Button
+                    size="small"
                     variant={overallStockFilter === 'all' ? 'contained' : 'outlined'}
                     onClick={() => setOverallStockFilter('all')}
                   >

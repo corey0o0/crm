@@ -11,10 +11,11 @@ import { supabase } from '../lib/supabaseClient';
 const ServiceCalendar = ({ onDateChange, selectedDate: propSelectedDate }) => {
   const [serviceData, setServiceData] = useState({});
   const [selectedDate, setSelectedDate] = useState(propSelectedDate || dayjs());
+  const [currentMonth, setCurrentMonth] = useState((propSelectedDate || dayjs()).startOf('month'));
 
   useEffect(() => {
-    fetchServiceData();
-  }, []);
+    fetchServiceData(currentMonth);
+  }, [currentMonth]);
 
   // props로 받은 selectedDate가 변경될 때 내부 상태 업데이트
   useEffect(() => {
@@ -23,10 +24,11 @@ const ServiceCalendar = ({ onDateChange, selectedDate: propSelectedDate }) => {
     }
   }, [propSelectedDate]);
 
-  const fetchServiceData = async () => {
+  const fetchServiceData = async (month) => {
     try {
-      const startOfMonth = dayjs().startOf('month').toISOString();
-      const endOfMonth = dayjs().endOf('month').toISOString();
+      const targetMonth = month || dayjs();
+      const startOfMonth = targetMonth.startOf('month').toISOString();
+      const endOfMonth = targetMonth.endOf('month').toISOString();
 
       const { data, error } = await supabase
         .from('services')
@@ -43,11 +45,16 @@ const ServiceCalendar = ({ onDateChange, selectedDate: propSelectedDate }) => {
         if (!aggregatedData[date]) {
           aggregatedData[date] = { 접수: [], 처리중: [], 완료: [] };
         }
-        let status = service.status;
-        if (status === '부분완료') status = '처리중';
-        if (aggregatedData[date][status]) {
-          aggregatedData[date][status].push(service);
+        
+        // 상태값 매핑 그룹화
+        let statusCategory = '완료';
+        if (['접수', '준비중'].includes(service.status)) {
+          statusCategory = '접수';
+        } else if (['처리중', '준비완료', '부품준비', '부분완료'].includes(service.status)) {
+          statusCategory = '처리중';
         }
+        
+        aggregatedData[date][statusCategory].push(service);
       });
       setServiceData(aggregatedData);
     } catch (error) {
@@ -169,6 +176,9 @@ const ServiceCalendar = ({ onDateChange, selectedDate: propSelectedDate }) => {
             if (onDateChange) {
               onDateChange(newValue);
             }
+          }}
+          onMonthChange={(newMonth) => {
+            setCurrentMonth(newMonth);
           }}
           slots={{
             day: ServerDay

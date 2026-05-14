@@ -1,15 +1,16 @@
 import { useEffect, useState, useRef } from 'react';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import Badge from '@mui/material/Badge';
-import Popover from '@mui/material/Popover';
+import Drawer from '@mui/material/Drawer';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemButton from '@mui/material/ListItemButton';
 import ListItemText from '@mui/material/ListItemText';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
+import CloseIcon from '@mui/icons-material/Close';
 import { supabase } from '../../lib/supabaseClient';
-import { Box, Button, Typography, IconButton } from '@mui/material';
+import { Box, Button, Typography, IconButton, Divider, Card, CardContent } from '@mui/material';
 
 // 알림 메시지 파싱 함수
 const parseNotificationMessage = (messageStr) => {
@@ -61,28 +62,24 @@ function NotificationBell() {
         setTotalCount(0);
         return;
       }
+
+      const newNotifications = data || [];
+      setNotifications(newNotifications);
+      setTotalCount(count || 0);
+
+      const lastCheckedTimestamp = localStorage.getItem(localStorageKey);
+      if (lastCheckedTimestamp) {
+        const newUnread = newNotifications.filter(n => new Date(n.created_at) > new Date(lastCheckedTimestamp)).length;
+        // Realtime 업데이트와 충돌을 피하기 위해, fetch 시에는 unreadCount를 직접 설정하지 않고
+        // Realtime 핸들러에서 새로운 알림에 대해서만 unreadCount를 증가시킵니다.
+        // setUnreadCount(newUnread); 
+      }
     } catch (error) {
       console.log('[NotificationBell] 알림 기능을 임시로 비활성화합니다:', error.message);
       setNotifications([]);
       setUnreadCount(0);
       setTotalCount(0);
       return;
-    }
-
-    const newNotifications = data || [];
-    setNotifications(newNotifications);
-    setTotalCount(count || 0);
-
-    const lastCheckedTimestamp = localStorage.getItem(localStorageKey);
-    if (lastCheckedTimestamp) {
-      const newUnread = newNotifications.filter(n => new Date(n.created_at) > new Date(lastCheckedTimestamp)).length;
-      // Realtime 업데이트와 충돌을 피하기 위해, fetch 시에는 unreadCount를 직접 설정하지 않고
-      // Realtime 핸들러에서 새로운 알림에 대해서만 unreadCount를 증가시킵니다.
-      // setUnreadCount(newUnread); 
-    } else {
-      // 처음 로드 시에는 전체 알림 수를 unreadCount로 설정할 수 있으나,
-      // 클릭 시 0으로 초기화되므로, Realtime과 일관성을 위해 여기서도 직접 설정하지 않습니다.
-      // setUnreadCount(newNotifications.length > 0 ? newNotifications.length : 0);
     }
   };
   
@@ -137,57 +134,6 @@ function NotificationBell() {
       } catch (error) {
         console.log('[NotificationBell] 실시간 구독 설정 중 오류:', error.message);
       }
-      
-      // 임시로 CHANNEL_ERROR 처리 (주석 처리된 코드 대신)
-      if (false) { // status === 'CHANNEL_ERROR'
-            console.error('CHANNEL_ERROR (Bell):', err);
-            // 재연결 시도 횟수 제한
-            if (reconnectAttempts < 3) {
-              reconnectAttempts++;
-              console.log(`Reconnection attempt ${reconnectAttempts}/3`);
-              // 토큰 만료 오류인 경우 세션 갱신 후 재연결 시도
-              if (err && err.message && err.message.includes('expired')) {
-                console.log('Token expired, attempting to refresh session...');
-                supabase.auth.getSession().then(({ data: { session }, error }) => {
-                  if (error) {
-                    console.error('Session refresh failed:', error);
-                  } else if (session) {
-                    console.log('Session refreshed, reconnecting...');
-                    // 5초 후 재연결 시도
-                    reconnectTimeout = setTimeout(() => {
-                      setupRealtimeSubscription();
-                    }, 5000);
-                  }
-                });
-              } else {
-                // 일반 오류인 경우 10초 후 재연결 시도
-                reconnectTimeout = setTimeout(() => {
-                  setupRealtimeSubscription();
-                }, 10000);
-              }
-            } else {
-              console.log('Max reconnection attempts reached, stopping reconnection');
-            }
-          }
-          if (status === 'TIMED_OUT') {
-            console.error('TIMED_OUT (Bell)');
-            // 타임아웃 시 재연결 시도
-            reconnectTimeout = setTimeout(() => {
-              console.log('Attempting to reconnect after timeout...');
-              setupRealtimeSubscription();
-            }, 10000);
-          }
-          if (status === 'CLOSED') {
-            console.log('CLOSED (Bell)');
-            // 연결이 종료된 경우 재연결 시도
-            if (!reconnectTimeout) {
-              reconnectTimeout = setTimeout(() => {
-                console.log('Attempting to reconnect after close...');
-                setupRealtimeSubscription();
-              }, 5000);
-            }
-          }
-        });
     };
 
     // 초기 구독 설정
@@ -235,17 +181,47 @@ function NotificationBell() {
           <NotificationsIcon />
         </Badge>
       </IconButton>
-      <Popover
+      
+      {/* 5px 숨김 상태의 오른쪽 엣지 레이아웃 (오버 시 나타남) */}
+      <Box 
+        onClick={handleClick}
+        sx={{
+          position: 'fixed',
+          right: 0,
+          top: 64, // below app bar
+          bottom: 0,
+          width: 5,
+          bgcolor: 'transparent',
+          cursor: 'pointer',
+          zIndex: 1100,
+          transition: 'all 0.2s',
+          '&:hover': {
+            width: 15,
+            bgcolor: 'rgba(0,0,0,0.1)',
+            borderLeft: '1px solid #ddd'
+          }
+        }}
+      />
+      <Drawer
+        anchor="right"
         open={Boolean(anchorEl)}
-        anchorEl={anchorEl}
         onClose={handleClose}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        PaperProps={{
+          sx: { width: { xs: '100vw', sm: 400 }, bgcolor: '#f8f9fa' }
+        }}
       >
-        <List sx={{ minWidth: 280, maxWidth: 400, maxHeight: 450, overflow: 'auto' }}>
+        <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', bgcolor: 'white', borderBottom: '1px solid #eee' }}>
+          <Typography variant="h6" sx={{ fontWeight: 'bold' }}>알림</Typography>
+          <IconButton onClick={handleClose}>
+            <CloseIcon />
+          </IconButton>
+        </Box>
+        
+        <Box sx={{ flexGrow: 1, overflow: 'auto', p: 2 }}>
           {notifications.length === 0 ? (
-            <ListItem>
-              <ListItemText primary="최근 알림이 없습니다." />
-            </ListItem>
+            <Box sx={{ textAlign: 'center', py: 5, color: 'text.secondary' }}>
+              <Typography>최근 알림이 없습니다.</Typography>
+            </Box>
           ) : (
             notifications.map((n) => {
               const parsed = parseNotificationMessage(n.message);
@@ -254,48 +230,39 @@ function NotificationBell() {
                 hour: '2-digit', minute: '2-digit', second: '2-digit' 
               });
               return (
-                <ListItem disablePadding key={n.id}>
-                  <ListItemButton onClick={() => handleNotificationClick(n)} sx={{ alignItems: 'flex-start' }}>
-                    <ListItemIcon sx={{ minWidth: 32, mt: '6px' }}>
-                      <RadioButtonUncheckedIcon color="primary" fontSize="small" />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={
-                        <Typography variant="body2" sx={{ fontWeight: 500, wordBreak: 'break-word' }}>
-                          {parsed.isStructured ? parsed.type : parsed.original}
-                        </Typography>
-                      }
-                      secondary={
-                        <Typography component="div" variant="caption" color="text.secondary" sx={{ wordBreak: 'break-word' }}>
-                          {parsed.isStructured ? (
-                            <>
-                              {`${parsed.name} (${parsed.contact})`}
-                              <br />
-                              {timeString}
-                            </>
-                          ) : (
-                            timeString
-                          )}
-                        </Typography>
-                      }
-                      sx={{ my: 0.5 }}
-                    />
-                  </ListItemButton>
-                </ListItem>
+                <Card key={n.id} sx={{ mb: 2, borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.05)', cursor: 'pointer', '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.1)' } }} onClick={() => handleNotificationClick(n)}>
+                  <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <RadioButtonUncheckedIcon color="primary" fontSize="small" sx={{ mr: 1, width: 16, height: 16 }} />
+                      <Typography variant="caption" color="text.secondary">
+                        {parsed.isStructured ? parsed.type : '시스템 알림'} • {timeString}
+                      </Typography>
+                    </Box>
+                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, wordBreak: 'break-word' }}>
+                      {parsed.isStructured ? `${parsed.name} (${parsed.contact})` : parsed.original}
+                    </Typography>
+                    {parsed.isStructured && (
+                      <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-word' }}>
+                        {parsed.original}
+                      </Typography>
+                    )}
+                  </CardContent>
+                </Card>
               );
             })
           )}
-        </List>
+        </Box>
+        
         {totalCount > pageSize && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', p: 1 }}>
-            <Button size="small" onClick={() => handlePageChange(page - 1)} disabled={page === 0}>이전</Button>
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', p: 2, bgcolor: 'white', borderTop: '1px solid #eee' }}>
+            <Button size="small" variant="outlined" onClick={() => handlePageChange(page - 1)} disabled={page === 0}>이전</Button>
             <Typography variant="caption" sx={{ mx: 2 }}>
               {page + 1} / {Math.ceil(totalCount / pageSize)}
             </Typography>
-            <Button size="small" onClick={() => handlePageChange(page + 1)} disabled={page >= Math.ceil(totalCount / pageSize) - 1}>다음</Button>
+            <Button size="small" variant="outlined" onClick={() => handlePageChange(page + 1)} disabled={page >= Math.ceil(totalCount / pageSize) - 1}>다음</Button>
           </Box>
         )}
-      </Popover>
+      </Drawer>
     </>
   );
 }
