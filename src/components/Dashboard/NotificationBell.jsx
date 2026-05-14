@@ -9,6 +9,8 @@ import ListItemText from '@mui/material/ListItemText';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import CloseIcon from '@mui/icons-material/Close';
+import Snackbar from '@mui/material/Snackbar';
+import Alert from '@mui/material/Alert';
 import { supabase } from '../../lib/supabaseClient';
 import { Box, Button, Typography, IconButton, Divider, Card, CardContent } from '@mui/material';
 
@@ -35,6 +37,7 @@ function NotificationBell() {
   const [totalCount, setTotalCount] = useState(0);
   const [anchorEl, setAnchorEl] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [toast, setToast] = useState({ open: false, message: '' });
   const localStorageKey = 'lastCheckedNotificationTimestamp'; // localStorage 키 정의
 
   const fetchNotifications = async (currentPage = 0) => {
@@ -93,44 +96,40 @@ function NotificationBell() {
 
     const setupRealtimeSubscription = () => {
       try {
-        // 기존 채널이 있다면 제거
         if (channel) {
           supabase.removeChannel(channel);
         }
 
-        // notifications 테이블이 없는 경우 구독 설정하지 않음
-        console.log('[NotificationBell] 실시간 알림 구독을 비활성화합니다 (테이블 없음)');
-        return;
-
-        // Supabase Realtime 구독 설정 (주석 처리)
-        /*
         channel = supabase
           .channel('public:notifications')
           .on(
             'postgres_changes',
             { event: 'INSERT', schema: 'public', table: 'notifications' },
             (payload) => {
-              console.log('New notification received (Bell):', payload.new);
-              // 새 알림을 기존 알림 목록의 맨 앞에 추가
-              setNotifications((prevNotifications) => [payload.new, ...prevNotifications].slice(0, pageSize * (page + 1)));
-              setTotalCount((prevTotalCount) => prevTotalCount + 1);
-              
-              // 읽지 않은 알림 수 증가
-              setUnreadCount((prevUnreadCount) => prevUnreadCount + 1);
+              const newItem = payload.new;
+              setNotifications((prev) => [newItem, ...prev].slice(0, pageSize * (page + 1)));
+              setTotalCount((prev) => prev + 1);
+              setUnreadCount((prev) => prev + 1);
+
+              // 페이지에 접속 중인 사용자에게 토스트 안내
+              const msg = newItem.message || '새 시스템 알림이 도착했습니다.';
+              setToast({ open: true, message: msg });
             }
           )
-          .subscribe((status, err) => {
+          .subscribe((status) => {
             if (status === 'SUBSCRIBED') {
-              console.log('Subscribed to notifications channel (Bell)');
-              // 연결 성공 시 재연결 타이머 클리어
               if (reconnectTimeout) {
                 clearTimeout(reconnectTimeout);
                 reconnectTimeout = null;
               }
-              reconnectAttempts = 0; // 성공 시 재시도 횟수 초기화
+              reconnectAttempts = 0;
             }
-            if (status === 'CHANNEL_ERROR') {
-        */
+            if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+              const delay = Math.min(1000 * 2 ** reconnectAttempts, 30000);
+              reconnectAttempts++;
+              reconnectTimeout = setTimeout(setupRealtimeSubscription, delay);
+            }
+          });
       } catch (error) {
         console.log('[NotificationBell] 실시간 구독 설정 중 오류:', error.message);
       }
@@ -171,6 +170,22 @@ function NotificationBell() {
 
   return (
     <>
+      {/* 실시간 새 알림 토스트 */}
+      <Snackbar
+        open={toast.open}
+        autoHideDuration={5000}
+        onClose={() => setToast({ open: false, message: '' })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          severity="info"
+          onClose={() => setToast({ open: false, message: '' })}
+          sx={{ maxWidth: 360, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+        >
+          🔔 {toast.message}
+        </Alert>
+      </Snackbar>
+
       <IconButton
         color="inherit"
         onClick={handleClick}
