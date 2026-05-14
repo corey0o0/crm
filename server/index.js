@@ -3,7 +3,6 @@ const cors = require('cors');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
-const pdfParse = require('pdf-parse');
 const CloudmersiveConvertApiClient = require('cloudmersive-convert-api-client');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
