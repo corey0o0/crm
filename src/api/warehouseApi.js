@@ -55,6 +55,7 @@ export const warehouseApi = {
         phone: updates.phone ?? null,
         manager: updates.manager ?? null,
         address: updates.address ?? null,
+        note: updates.note ?? null,
         stock_sync: updates.stockSync ?? updates.stock_sync,
         sync_with_product_stock: updates.syncWithProductStock ?? updates.sync_with_product_stock,
         updated_at: new Date().toISOString()
