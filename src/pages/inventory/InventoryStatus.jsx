@@ -264,17 +264,19 @@ export default function InventoryStatus() {
                         {warehouses.map(w => {
                           const cellQty = inventory[w.id]?.[p.id] || 0;
                           return (
-                          <TableCell 
-                            key={`cell-${p.id}-${w.id}`} 
-                            align="right" 
-                            sx={{ 
-                              width: 120, maxWidth: 140, cursor: 'pointer', 
+                          <TableCell
+                            key={`cell-${p.id}-${w.id}`}
+                            align="right"
+                            sx={{
+                              width: 120, maxWidth: 140, cursor: 'pointer',
+                              fontWeight: 'bold',
+                              color: cellQty === 0 ? 'text.disabled' : 'inherit',
                               '&:hover': { bgcolor: 'action.hover' },
-                              ...(cellQty < 0 ? { bgcolor: '#ffebee', color: '#c62828', fontWeight: 'bold' } : {})
+                              ...(cellQty < 0 ? { bgcolor: '#ffebee', color: '#c62828' } : {})
                             }}
                             onClick={(e) => handleOpenEdit(e, w.id, p.id, cellQty)}
                           >
-                            {cellQty.toLocaleString()}
+                            {cellQty === 0 ? '-' : cellQty.toLocaleString()}
                           </TableCell>
                           );
                         })}

@@ -2055,7 +2055,7 @@ function SalesHistoryStats() {
                                           }}>
                                             <Typography variant="body2" color="textSecondary" sx={{ pr: 2, flex: 1, wordBreak: 'keep-all' }}>{model}</Typography>
                                             <Box sx={{ textAlign: 'right', minWidth: '80px' }}>
-                                              <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{info.qty}대</Typography>
+                                              <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{info.qty}</Typography>
                                               <Typography variant="caption" color="textSecondary">{formatCurrency(info.amount)}</Typography>
                                             </Box>
                                           </Box>
@@ -2066,7 +2066,7 @@ function SalesHistoryStats() {
                                   </TableCell>
                                   <TableCell align="right" sx={{ verticalAlign: 'top', pt: 2 }}>{formatCurrency(data.airframeAmount)}</TableCell>
                                   <TableCell align="right" sx={{ verticalAlign: 'top', pt: 2 }}>
-                                     <Typography variant="body2" sx={{ fontWeight: data.parts > 0 ? 'bold' : 'normal', color: data.parts > 0 ? 'primary.main' : 'inherit' }}>{data.parts}개</Typography>
+                                     <Typography variant="body2" sx={{ fontWeight: data.parts > 0 ? 'bold' : 'normal', color: data.parts > 0 ? 'primary.main' : 'inherit' }}>{data.parts}</Typography>
                                      <Typography variant="caption" color="textSecondary">{formatCurrency(data.partsAmount)}</Typography>
                                   </TableCell>
                                   <TableCell align="right" sx={{ fontWeight: 'bold', verticalAlign: 'top', pt: 2 }}>{formatCurrency(data.airframeAmount + data.partsAmount)}</TableCell>
@@ -2081,7 +2081,7 @@ function SalesHistoryStats() {
                             <TableRow>
                               <TableCell colSpan={2} align="center" sx={{ fontWeight: 'bold' }}>총합</TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.dark' }}>{formatCurrency(totalB2BAirframeAmt)}</TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.dark' }}>{totalB2BPartsQty}개 / {formatCurrency(totalB2BPartsAmt)}</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.dark' }}>{totalB2BPartsQty} · {formatCurrency(totalB2BPartsAmt)}</TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.dark' }}>{formatCurrency(totalB2BAirframeAmt + totalB2BPartsAmt)}</TableCell>
                             </TableRow>
                           </TableHead>
@@ -2125,7 +2125,7 @@ function SalesHistoryStats() {
                                           }}>
                                             <Typography variant="body2" color="textSecondary" sx={{ pr: 2, flex: 1, wordBreak: 'keep-all' }}>{model}</Typography>
                                             <Box sx={{ textAlign: 'right', minWidth: '80px' }}>
-                                              <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{info.qty}대</Typography>
+                                              <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{info.qty}</Typography>
                                               <Typography variant="caption" color="textSecondary">{formatCurrency(info.amount)}</Typography>
                                             </Box>
                                           </Box>
@@ -2136,7 +2136,7 @@ function SalesHistoryStats() {
                                   </TableCell>
                                   <TableCell align="right" sx={{ verticalAlign: 'top', pt: 2 }}>{formatCurrency(data.airframeAmount)}</TableCell>
                                   <TableCell align="right" sx={{ verticalAlign: 'top', pt: 2 }}>
-                                     <Typography variant="body2" sx={{ fontWeight: data.parts > 0 ? 'bold' : 'normal', color: data.parts > 0 ? 'primary.main' : 'inherit' }}>{data.parts}개</Typography>
+                                     <Typography variant="body2" sx={{ fontWeight: data.parts > 0 ? 'bold' : 'normal', color: data.parts > 0 ? 'primary.main' : 'inherit' }}>{data.parts}</Typography>
                                      <Typography variant="caption" color="textSecondary">{formatCurrency(data.partsAmount)}</Typography>
                                   </TableCell>
                                   <TableCell align="right" sx={{ fontWeight: 'bold', verticalAlign: 'top', pt: 2 }}>{formatCurrency(data.airframeAmount + data.partsAmount)}</TableCell>
@@ -2151,7 +2151,7 @@ function SalesHistoryStats() {
                             <TableRow>
                               <TableCell colSpan={2} align="center" sx={{ fontWeight: 'bold' }}>총합</TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.dark' }}>{formatCurrency(totalB2CAirframeAmt)}</TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.dark' }}>{totalB2CPartsQty}개 / {formatCurrency(totalB2CPartsAmt)}</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.dark' }}>{totalB2CPartsQty} · {formatCurrency(totalB2CPartsAmt)}</TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.dark' }}>{formatCurrency(totalB2CAirframeAmt + totalB2CPartsAmt)}</TableCell>
                             </TableRow>
                           </TableHead>
@@ -2190,21 +2190,43 @@ function SalesHistoryStats() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {(selectedAgencyDetail?.rows || [])
-                  .sort((a, b) => new Date(b.created_at || b.date_val) - new Date(a.created_at || a.date_val))
-                  .map((r, i) => (
-                  <TableRow key={i} hover>
-                    <TableCell>{r.created_at ? format(new Date(r.created_at), 'yyyy-MM-dd HH:mm') : r.date_val?.slice(0, 10)}</TableCell>
-                    <TableCell>{r.part_category}</TableCell>
-                    <TableCell>{r.part_brand || '-'}</TableCell>
-                    <TableCell>{r.part_name}</TableCell>
-                    <TableCell align="right">{Number(r.quantity || 0).toLocaleString()}</TableCell>
-                    <TableCell align="right">{formatCurrency(Number(r.total_price || 0))}</TableCell>
-                  </TableRow>
-                ))}
-                {!selectedAgencyDetail?.rows?.length && (
-                  <TableRow><TableCell colSpan={6} align="center">데이터가 없습니다.</TableCell></TableRow>
-                )}
+                {(() => {
+                  const rows = selectedAgencyDetail?.rows || [];
+                  if (!rows.length) return (
+                    <TableRow><TableCell colSpan={6} align="center">데이터가 없습니다.</TableCell></TableRow>
+                  );
+                  const sortedRows = [...rows].sort((a, b) => {
+                    const catOrder = (r) => r.part_category === '기체' ? 0 : 1;
+                    if (catOrder(a) !== catOrder(b)) return catOrder(a) - catOrder(b);
+                    return new Date(b.created_at || b.date_val) - new Date(a.created_at || a.date_val);
+                  });
+                  const airframeQty = rows.filter(r => r.part_category === '기체').reduce((s, r) => s + Number(r.quantity || 0), 0);
+                  const partsQty = rows.filter(r => r.part_category !== '기체').reduce((s, r) => s + Number(r.quantity || 0), 0);
+                  return (
+                    <>
+                      {sortedRows.map((r, i) => (
+                        <TableRow key={i} hover>
+                          <TableCell>{r.created_at ? format(new Date(r.created_at), 'yyyy-MM-dd HH:mm') : r.date_val?.slice(0, 10)}</TableCell>
+                          <TableCell>{r.part_category}</TableCell>
+                          <TableCell>{r.part_brand || '-'}</TableCell>
+                          <TableCell>{r.part_name}</TableCell>
+                          <TableCell align="right">{Number(r.quantity || 0).toLocaleString()}</TableCell>
+                          <TableCell align="right">{formatCurrency(Number(r.total_price || 0))}</TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                        <TableCell colSpan={4} align="right" sx={{ fontWeight: 'bold' }}>기체 수량 합계</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.dark' }}>{airframeQty.toLocaleString()}</TableCell>
+                        <TableCell />
+                      </TableRow>
+                      <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                        <TableCell colSpan={4} align="right" sx={{ fontWeight: 'bold' }}>파츠 수량 합계</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 'bold', color: 'secondary.dark' }}>{partsQty.toLocaleString()}</TableCell>
+                        <TableCell />
+                      </TableRow>
+                    </>
+                  );
+                })()}
               </TableBody>
             </Table>
           </TableContainer>

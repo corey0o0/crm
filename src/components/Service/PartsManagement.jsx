@@ -2417,7 +2417,8 @@ function PartsManagement() {
               {showSupplyPrice && renderSortableHeader('special_price', '특별공급가', 'right')}
               {renderSortableHeader('price', '판매가', 'right')}
               {renderSortableHeader('note', '구분')}
-              {renderSortableHeader('discount_group', '할인 그룹')}
+              {renderSortableHeader('memo', '적요')}
+              <TableCell sx={{ display: 'none' }} />
               {/* <TableCell>연동</TableCell> */}
               <TableCell align="right">액션</TableCell>
             </TableRow>
@@ -2477,10 +2478,11 @@ function PartsManagement() {
                   </Typography>
                 </TableCell>
                 <TableCell>
-                  {part.discount_group ? (
-                    <Chip label={part.discount_group} size="small" sx={{ bgcolor: '#f3e5f5', color: '#7b1fa2', fontWeight: 500 }} />
-                  ) : '-'}
+                  <Typography sx={{ fontSize: '0.875rem', color: part.memo ? 'text.primary' : 'text.secondary', fontStyle: part.memo ? 'normal' : 'italic' }}>
+                    {part.memo || '-'}
+                  </Typography>
                 </TableCell>
+                <TableCell sx={{ display: 'none' }} />
                 {/* 
                 <TableCell>
                   {syncedPartsMap[part.id] && syncedPartsMap[part.id].length > 0 ? (
