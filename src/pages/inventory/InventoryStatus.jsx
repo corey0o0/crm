@@ -10,7 +10,7 @@ export default function InventoryStatus() {
   const context = useOutletContext();
   const navigate = useNavigate();
   const {
-    products, warehouses, dealers, inventory, overallSearch, setOverallSearch,
+    products, visibleWarehouses: warehouses, dealers, inventory, overallSearch, setOverallSearch,
     overallStockFilter, setOverallStockFilter, setFilter, setDateFilter, fetchProducts, fetchWarehouses,
     fetchDealers, toggleWarehouseSync, openWarehouseDetail, fetchTransactions, fetchInventoryData, warehouseDetailOpen, closeWarehouseDetail, warehouseDetailTarget, warehouseDetailFilter, setWarehouseDetailFilter, warehouseDetailSearch, setWarehouseDetailSearch, warehouseDetailBelow, setWarehouseDetailBelow, handleDirectInventoryEdit
   } = context;

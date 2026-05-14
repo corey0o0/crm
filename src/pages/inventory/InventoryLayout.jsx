@@ -2915,6 +2915,8 @@ function InventoryLayout() {
   };
 
 
+  const visibleWarehouses = warehouses.filter(w => !(w.note || '').includes('[HIDDEN]'));
+
   const contextValue = {
     openDialog, setOpenDialog, warehouseDetailOpen, setWarehouseDetailOpen,
     warehouseDetailTarget, setWarehouseDetailTarget, warehouseDetailSearch, setWarehouseDetailSearch,
@@ -2926,7 +2928,7 @@ function InventoryLayout() {
     excelData, setExcelData, excelUploadType, setExcelUploadType, transactionDetailOpen, setTransactionDetailOpen,
     selectedTransaction, setSelectedTransaction, editMode, setEditMode, editFormData, setEditFormData,
     editProducts, setEditProducts, dialogType, setDialogType, transactions, setTransactions, inventory, setInventory,
-    pendingInventory, setPendingInventory, loading, setLoading, snackbar, setSnackbar, warehouses, setWarehouses,
+    pendingInventory, setPendingInventory, loading, setLoading, snackbar, setSnackbar, warehouses, setWarehouses, visibleWarehouses,
     dealers, setDealers, formData, setFormData, multipleIoProducts, setMultipleIoProducts, products, setProducts,
     filter, setFilter, dateFilter, setDateFilter, currentPage, setCurrentPage, itemsPerPage, setItemsPerPage, barcodeScannerOpen, setBarcodeScannerOpen,
     currentScanningRow, setCurrentScanningRow, isDragOver, setIsDragOver, groupedTransactions, dealerStats,

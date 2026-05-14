@@ -15,7 +15,7 @@ export default function InventoryHistory() {
   const {
     filter, setFilter, dateFilter, setDateFilter, handleDateFilterClick, transactionViewMode, setTransactionViewMode,
     selectedTransactions, setSelectedTransactions, handleDeleteSelectedTransactions,
-    filteredTransactions, itemsPerPage, setItemsPerPage, setCurrentPage, pendingInventory, paginatedTransactions, getTransactionTypeInfo, products, formatLocationName, warehouses, dealers,
+    filteredTransactions, itemsPerPage, setItemsPerPage, setCurrentPage, pendingInventory, paginatedTransactions, getTransactionTypeInfo, products, formatLocationName, warehouses, visibleWarehouses, dealers,
     openTransactionDetail, handleTableCellHover, handleTableCellHoverLeave, handleTableCellClick,
     hoverAnchorEl, hoverTransactions, dateKeys, ioByWarehouseProductDate, totalPages, currentPage,
     handlePageChange, showSnackbar, tableModalOpen, setTableModalOpen, selectedTableTransactions,
@@ -508,7 +508,7 @@ export default function InventoryHistory() {
                 {dateKeys.length > 0 ? `기간: ${dateKeys[0]} ~ ${dateKeys[dateKeys.length - 1]}` : '기간 내역 없음'}
               </Typography>
               <Grid container spacing={2}>
-                {warehouses.map(w => {
+                {visibleWarehouses.map(w => {
                   const wid = w.id;
                   const productIdsWithMoves = Object.entries(ioByWarehouseProductDate[wid] || {})
                     .filter(([, dates]) => Object.values(dates).some(v => (v.inQty || 0) > 0 || (v.outQty || 0) > 0))
@@ -687,7 +687,7 @@ export default function InventoryHistory() {
                   options={[
                     { id: '', name: '외부 (신규입고)', type: 'external' },
                     { id: 'adjustment', name: '재고 조정', type: 'external' },
-                    ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
+                    ...visibleWarehouses.map(w => ({ ...w, type: 'warehouse' })),
                     ...dealers.map(d => ({ ...d, type: 'dealer' }))
                   ]}
                   getOptionLabel={(option) => {
@@ -710,7 +710,7 @@ export default function InventoryHistory() {
                 <Autocomplete
                   sx={{ width: 150 }}
                   options={[
-                    ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
+                    ...visibleWarehouses.map(w => ({ ...w, type: 'warehouse' })),
                     ...dealers.map(d => ({ ...d, type: 'dealer' }))
                   ]}
                   getOptionLabel={(option) => `${option.name} (${option.type === 'warehouse' ? '창고' : '대리점'})`}
@@ -812,7 +812,7 @@ export default function InventoryHistory() {
                           options={[
                             { id: '', name: '외부 (신규입고)', type: 'external' },
                             { id: 'adjustment', name: '재고 조정', type: 'external' },
-                            ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
+                            ...visibleWarehouses.map(w => ({ ...w, type: 'warehouse' })),
                             ...dealers.map(d => ({ ...d, type: 'dealer' }))
                           ]}
                           getOptionLabel={(option) => {
@@ -836,7 +836,7 @@ export default function InventoryHistory() {
                       <TableCell sx={{ p: 1 }}>
                         <Autocomplete
                           options={[
-                            ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
+                            ...visibleWarehouses.map(w => ({ ...w, type: 'warehouse' })),
                             ...dealers.map(d => ({ ...d, type: 'dealer' }))
                           ]}
                           getOptionLabel={(option) => `${option.name} (${option.type === 'warehouse' ? '창고' : '대리점'})`}
@@ -1071,7 +1071,7 @@ export default function InventoryHistory() {
                                   <Autocomplete
                                     size="small"
                                     options={[
-                                      ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
+                                      ...visibleWarehouses.map(w => ({ ...w, type: 'warehouse' })),
                                       ...dealers.map(d => ({ ...d, type: 'dealer' }))
                                     ]}
                                     getOptionLabel={(option) => option ? `${option.name}` : ''}
@@ -1093,7 +1093,7 @@ export default function InventoryHistory() {
                                   <Autocomplete
                                     size="small"
                                     options={[
-                                      ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
+                                      ...visibleWarehouses.map(w => ({ ...w, type: 'warehouse' })),
                                       ...dealers.map(d => ({ ...d, type: 'dealer' }))
                                     ]}
                                     getOptionLabel={(option) => option ? `${option.name}` : ''}
@@ -1334,7 +1334,7 @@ export default function InventoryHistory() {
                                   <Autocomplete
                                     size="small"
                                     options={[
-                                      ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
+                                      ...visibleWarehouses.map(w => ({ ...w, type: 'warehouse' })),
                                       ...dealers.map(d => ({ ...d, type: 'dealer' }))
                                     ]}
                                     getOptionLabel={(option) => option ? `${option.name}` : ''}
@@ -1356,7 +1356,7 @@ export default function InventoryHistory() {
                                   <Autocomplete
                                     size="small"
                                     options={[
-                                      ...warehouses.map(w => ({ ...w, type: 'warehouse' })),
+                                      ...visibleWarehouses.map(w => ({ ...w, type: 'warehouse' })),
                                       ...dealers.map(d => ({ ...d, type: 'dealer' }))
                                     ]}
                                     getOptionLabel={(option) => option ? `${option.name}` : ''}
