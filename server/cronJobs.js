@@ -9,10 +9,9 @@ module.exports = function(supabaseAdmin, cafe24Router) {
     return;
   }
 
-  // 매 정시마다 스케줄러 실행 (예: 0분 0초)
-  // '* * * * *' -> 매분마다
-  // '0 * * * *' -> 매시간 정각마다
-  cron.schedule('0 * * * *', async () => {
+  // 매 30분마다 스케줄러 실행 (0분, 30분)
+  // '*/30 * * * *' -> 매 30분마다
+  cron.schedule('*/30 * * * *', async () => {
     console.log('[Cron Job] 카페24 주문 자동 수집 스케줄러를 시작합니다.');
 
     try {
@@ -58,7 +57,7 @@ module.exports = function(supabaseAdmin, cafe24Router) {
     }
   });
 
-  console.log('[Cron] 백그라운드 스케줄러(cronJobs)가 활성화되었습니다. (주기: 매시간 0분)');
+  console.log('[Cron] 백그라운드 스케줄러(cronJobs)가 활성화되었습니다. (주기: 매 30분)');
 
   // 매일 새벽 4시 0분에 데이터베이스 백업 실행
   cron.schedule('0 4 * * *', async () => {
