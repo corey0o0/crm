@@ -351,14 +351,17 @@ function SalesHistoryStats() {
     let asQuery = supabase
       .from('services')
       .select('id, reception_date, completion_date, customer_name, status, note, agencies(name)')
-      .eq('status', '출고완료')
+      .in('status', ['출고완료', '완료'])
       .order('completion_date', { ascending: false });
 
-    if (startDate) {
+    if (startDate && endDate) {
+      const sDate = format(startDate, 'yyyy-MM-dd') + 'T00:00:00+09:00';
+      const eDate = format(endDate, 'yyyy-MM-dd') + 'T23:59:59+09:00';
+      asQuery = asQuery.or(`and(completion_date.gte.${sDate},completion_date.lte.${eDate}),and(completion_date.is.null,reception_date.gte.${sDate},reception_date.lte.${eDate})`);
+    } else if (startDate) {
       const sDate = format(startDate, 'yyyy-MM-dd') + 'T00:00:00+09:00';
       asQuery = asQuery.or(`completion_date.gte.${sDate},and(completion_date.is.null,reception_date.gte.${sDate})`);
-    }
-    if (endDate) {
+    } else if (endDate) {
       const eDate = format(endDate, 'yyyy-MM-dd') + 'T23:59:59+09:00';
       asQuery = asQuery.or(`completion_date.lte.${eDate},and(completion_date.is.null,reception_date.lte.${eDate})`);
     }
