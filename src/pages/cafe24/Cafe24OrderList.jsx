@@ -1616,8 +1616,8 @@ export default function Cafe24OrderList() {
                   // isNearbikeMemberDiscount: 적립금/회원할인 전액으로 실결제 0원인 nearbike 주문
                   const isNearbikeMemberDiscount = String(order.order_id || '').startsWith('nearbike_') && Number(order.total_amount || 0) === 0 && !isRealPaymentMethod;
                   const effectiveTotalAmount = !isNearbikeMemberDiscount && Number(order.total_amount || 0) === 0 && orderItemsSum > 0 ? orderItemsSum : Number(order.total_amount || 0);
-                  // 선불금: 외부 결제수단이 아닌 경우에만 표시 (카드/무통장은 선불금 아님)
-                  const isPrepaid = !isNearbikeMemberDiscount && !isRealPaymentMethod && Number(order.total_amount || 0) === 0 && orderItemsSum > 0;
+                  // 선불금: 외부 결제수단·반영완료·회원할인 주문에는 표시 안 함
+                  const isPrepaid = !isNearbikeMemberDiscount && !isRealPaymentMethod && !order.is_transferred && Number(order.total_amount || 0) === 0 && orderItemsSum > 0;
                   const calculatedUsedPoints = Math.max(0, orderItemsSum + Number(order.shipping_fee || 0) - effectiveTotalAmount);
                   const isUnpaidOrder = order.status === 'N10' || (items.length > 0 && items[0].order_status === 'N10');
                   // displayUsedPoints 결정:
