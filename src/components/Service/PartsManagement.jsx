@@ -81,7 +81,8 @@ const PartsFormDialog = memo(({
   initialData,
   brands,
   getNextPartCode,
-  getNextBarcode
+  getNextBarcode,
+  existingParts = []
 }) => {
   const [formData, setFormData] = useState({
     name: '',
@@ -101,6 +102,7 @@ const PartsFormDialog = memo(({
   });
 
   const [showBarcodePreview, setShowBarcodePreview] = useState(false);
+  const [dupWarning, setDupWarning] = useState({ code: null, barcode: null, name: null });
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState('');
   const [enlargedImage, setEnlargedImage] = useState(null);
@@ -116,6 +118,7 @@ const PartsFormDialog = memo(({
 
     if (justOpened || (open && dataChanged)) {
       setImageFile(null);
+      setDupWarning({ code: null, barcode: null, name: null });
       if (initialData) {
         setFormData({
           name: initialData.name || '',
@@ -162,13 +165,23 @@ const PartsFormDialog = memo(({
     prevInitialDataRef.current = initialData;
   }, [open, initialData, brands, getNextPartCode]);
 
+  const checkDuplicate = useCallback((field, val) => {
+    if (!val) { setDupWarning(prev => ({ ...prev, [field]: null })); return; }
+    const match = existingParts.find(p => {
+      if (initialData?.id && p.id === initialData.id) return false;
+      if (field === 'code') return (p.code || '').toLowerCase() === val.toLowerCase();
+      if (field === 'barcode') return p.barcode && p.barcode === val;
+      if (field === 'name') return (p.name || '').toLowerCase() === val.toLowerCase();
+      return false;
+    });
+    setDupWarning(prev => ({ ...prev, [field]: match ? `중복: ${match.code} - ${match.name}` : null }));
+  }, [existingParts, initialData]);
+
   const handleChange = useCallback((e) => {
     const { name, value } = e.target;
+    const cleanedValue = ['price', 'supplyPrice', 'costPrice', 'specialPrice', 'barcode'].includes(name) ? value.replace(/[^0-9]/g, '') : value;
     setFormData(prev => {
-      const next = {
-        ...prev,
-        [name]: ['price', 'supplyPrice', 'costPrice', 'specialPrice', 'barcode'].includes(name) ? value.replace(/[^0-9]/g, '') : value
-      };
+      const next = { ...prev, [name]: cleanedValue };
       const shouldSuggest = (!prev.code || prev.code.trim() === '');
       if ((name === 'brand' || name === 'note') && typeof getNextPartCode === 'function') {
         if (shouldSuggest) {
@@ -177,7 +190,6 @@ const PartsFormDialog = memo(({
           next.code = getNextPartCode(brandForCode, categoryForCode);
         }
       }
-      // 구분이 '공임'으로 변경되면 재고 관리 자동 OFF
       if (name === 'note' && value === '공임') {
         next.track_inventory = false;
       } else if (name === 'note' && prev.note === '공임' && value !== '공임') {
@@ -185,7 +197,10 @@ const PartsFormDialog = memo(({
       }
       return next;
     });
-  }, [getNextPartCode]);
+    if (['code', 'barcode', 'name'].includes(name)) {
+      checkDuplicate(name, cleanedValue);
+    }
+  }, [getNextPartCode, checkDuplicate]);
 
   const handleVatCalc = useCallback((field, type) => {
     setFormData(prev => {
@@ -223,8 +238,9 @@ const PartsFormDialog = memo(({
   );
 
   const handleSubmit = useCallback(() => {
+    if (dupWarning.code || dupWarning.barcode || dupWarning.name) return;
     onSubmit(formData, imageFile);
-  }, [formData, imageFile, onSubmit]);
+  }, [formData, imageFile, onSubmit, dupWarning]);
 
   const compressImage = (file) => {
     return new Promise((resolve, reject) => {
@@ -364,6 +380,8 @@ const PartsFormDialog = memo(({
                 value={formData.code}
                 onChange={handleChange}
                 required
+                error={!!dupWarning.code}
+                helperText={dupWarning.code || ''}
               />
               <Button
                 variant="outlined"
@@ -387,6 +405,8 @@ const PartsFormDialog = memo(({
                 name="barcode"
                 value={formData.barcode}
                 onChange={handleChange}
+                error={!!dupWarning.barcode}
+                helperText={dupWarning.barcode || ''}
               />
               <Button
                 variant="outlined"
@@ -421,6 +441,8 @@ const PartsFormDialog = memo(({
               value={formData.name}
               onChange={handleChange}
               required
+              error={!!dupWarning.name}
+              helperText={dupWarning.name || ''}
             />
           </Grid>
           {/* 이미지 업로드 영역 */}
@@ -2577,6 +2599,7 @@ function PartsManagement() {
         brands={brands}
         getNextPartCode={getNextPartCode}
         getNextBarcode={getNextBarcode}
+        existingParts={parts}
       />
 
       <Snackbar
