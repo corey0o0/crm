@@ -1608,17 +1608,26 @@ export default function Cafe24OrderList() {
                     const isCancelled = ['C11', 'C40', 'R40', 'E40'].includes(it.order_status);
                     return sum + (isCancelled ? 0 : Number(it.item_discount || 0));
                   }, 0);
-                  // 선불금 결제: total_amount=0 이면 품목 payment_amount 합계 사용
-                  // 단, nearbike_ 주문 중 회원할인 전액 건(실결제 0원)은 폴백 제외
-                  // 신용카드/체크카드는 회원할인이 아니므로 폴백 허용
+                  // 결제수단 분류: 외부 실결제(카드/무통장) vs 내부재화(적립금/회원할인)
                   const itemPaymentMethod = (items[0]?.payment_method || '').toLowerCase();
-                  const isCardPayment = itemPaymentMethod.includes('카드') || itemPaymentMethod.includes('card');
-                  const isNearbikeMemberDiscount = String(order.order_id || '').startsWith('nearbike_') && Number(order.total_amount || 0) === 0 && !isCardPayment;
+                  const isRealPaymentMethod =
+                    itemPaymentMethod.includes('카드') || itemPaymentMethod.includes('card') ||
+                    itemPaymentMethod.includes('무통장') || itemPaymentMethod.includes('계좌이체');
+                  // isNearbikeMemberDiscount: 적립금/회원할인 전액으로 실결제 0원인 nearbike 주문
+                  const isNearbikeMemberDiscount = String(order.order_id || '').startsWith('nearbike_') && Number(order.total_amount || 0) === 0 && !isRealPaymentMethod;
                   const effectiveTotalAmount = !isNearbikeMemberDiscount && Number(order.total_amount || 0) === 0 && orderItemsSum > 0 ? orderItemsSum : Number(order.total_amount || 0);
-                  const isPrepaid = !isNearbikeMemberDiscount && Number(order.total_amount || 0) === 0 && orderItemsSum > 0;
+                  // 선불금: 외부 결제수단이 아닌 경우에만 표시 (카드/무통장은 선불금 아님)
+                  const isPrepaid = !isNearbikeMemberDiscount && !isRealPaymentMethod && Number(order.total_amount || 0) === 0 && orderItemsSum > 0;
                   const calculatedUsedPoints = Math.max(0, orderItemsSum + Number(order.shipping_fee || 0) - effectiveTotalAmount);
                   const isUnpaidOrder = order.status === 'N10' || (items.length > 0 && items[0].order_status === 'N10');
-                   const displayUsedPoints = isUnpaidOrder ? 0 : Number(order.used_points !== undefined && order.used_points !== null ? order.used_points : calculatedUsedPoints);
+                  // displayUsedPoints 결정:
+                  // - 외부 결제수단이면서 DB total_amount=0(잘못 저장) → DB used_points도 잘못된 값이므로 재계산 사용
+                  // - 적립금 주문에서 DB used_points=0이지만 계산값이 있으면 → 계산값 사용 (mileage 미캡처 방어)
+                  const displayUsedPoints = isUnpaidOrder ? 0 : (() => {
+                    if (isRealPaymentMethod && Number(order.total_amount || 0) === 0) return calculatedUsedPoints;
+                    if (isNearbikeMemberDiscount && !order.used_points && calculatedUsedPoints > 0) return calculatedUsedPoints;
+                    return Number(order.used_points !== undefined && order.used_points !== null ? order.used_points : calculatedUsedPoints);
+                  })();
 
                   acc.push(
                     <TableRow key={`${order.id}-${idx}`} hover selected={selectedOrders.includes(order.id)}>

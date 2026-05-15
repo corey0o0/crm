@@ -640,18 +640,15 @@ module.exports = function(supabaseAdmin) {
       //    카페24 API 버전에 따라 필드명이 다름:
       //    - 구버전: order.deposit / order.mileage
       //    - 신버전(2026-03-01~): actual_order_amount.credits_spent_amount(예치금) / points_spent_amount(적립금)
-      const deposit_used = Number(
-        order.deposit 
-        || (order.actual_order_amount && order.actual_order_amount.deposit) 
-        || (order.actual_order_amount && order.actual_order_amount.credits_spent_amount) 
-        || 0
-      );
-      const mileage_used = Number(
-        order.mileage 
-        || (order.actual_order_amount && order.actual_order_amount.mileage) 
-        || (order.actual_order_amount && order.actual_order_amount.points_spent_amount) 
-        || 0
-      );
+      //    주의: API가 "0.00" 같은 문자열 0을 반환하면 || 체인이 단락되므로 Number()로 먼저 변환 후 비교
+      const deposit_used =
+        Number(order.deposit || 0) ||
+        Number((order.actual_order_amount && order.actual_order_amount.deposit) || 0) ||
+        Number((order.actual_order_amount && order.actual_order_amount.credits_spent_amount) || 0);
+      const mileage_used =
+        Number(order.mileage || 0) ||
+        Number((order.actual_order_amount && order.actual_order_amount.mileage) || 0) ||
+        Number((order.actual_order_amount && order.actual_order_amount.points_spent_amount) || 0);
       const internal_points_total = deposit_used + mileage_used;
 
       const isPartiallyCanceled = order.canceled === 'M' || (order.items && order.items.some(i => ['C11','C40','R40','E40'].includes(i.order_status)));
@@ -680,14 +677,19 @@ module.exports = function(supabaseAdmin) {
         // 케이스B: 적립금/예치금 + PG 혼합결제 → 실결제는 PG만
         total_amount = pg_payment;
         amount_decision_path = '혼합결제 (PG만 실결제)';
-      } else if (paymentMethodStr.includes('예치금') && pg_payment === 0) {
-        // 케이스C: 결제수단명이 '예치금'이지만 카페24 API에서 deposit 필드가 안 내려온 경우
+      } else if ((paymentMethodStr.includes('예치금') || paymentMethodStr.includes('적립금') || paymentMethodStr.includes('마일리지')) && pg_payment === 0) {
+        // 케이스C: 결제수단명이 내부재화(예치금/적립금/마일리지)이지만 API 필드가 안 내려온 경우
         total_amount = 0;
-        amount_decision_path = '예치금 단독결제 (결제수단명 기반) → 실결제 0';
+        amount_decision_path = '내부재화 단독결제 (결제수단명 기반) → 실결제 0';
       } else if (pg_payment > 0) {
         // 케이스D: PG 단독결제 (가장 일반적)
         total_amount = pg_payment;
         amount_decision_path = 'PG 단독결제';
+      } else if (pg_payment === 0 && (paymentMethodStr.includes('무통장') || paymentMethodStr.includes('계좌이체'))) {
+        // 케이스F: 무통장/계좌이체 - order.payment_amount가 0(결제예정금액)이므로 actual_order_amount에서 보정
+        total_amount = Number((order.actual_order_amount && order.actual_order_amount.payment_amount) || order.total_order_price || 0);
+        if (total_amount === 0 && items_payment_sum > 0) total_amount = items_payment_sum;
+        amount_decision_path = '무통장/계좌이체 실결제 보정';
       } else {
         // 케이스E: 폴백 (위 어떤 것에도 안 걸리는 경우)
         total_amount = Number((order.actual_order_amount && order.actual_order_amount.payment_amount) || order.total_order_price || 0);
