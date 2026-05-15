@@ -690,8 +690,14 @@ module.exports = function(supabaseAdmin) {
         amount_decision_path = 'PG 단독결제';
       } else {
         // 케이스E: 폴백 (위 어떤 것에도 안 걸리는 경우)
-        total_amount = (order.actual_order_amount && order.actual_order_amount.payment_amount) || order.total_order_price || 0;
+        total_amount = Number((order.actual_order_amount && order.actual_order_amount.payment_amount) || order.total_order_price || 0);
         amount_decision_path = 'Cafe24 기준 결제액 폴백';
+        // 신용카드/체크카드인데 total_amount가 여전히 0이면 품목 합산으로 보정
+        if (total_amount === 0 && items_payment_sum > 0 &&
+            (paymentMethodStr.includes('카드') || paymentMethodStr.toLowerCase().includes('card'))) {
+          total_amount = items_payment_sum;
+          amount_decision_path = 'Cafe24 기준 결제액 폴백 (카드 → 품목합산 보정)';
+        }
       }
 
       // 4) used_points 결정 (= 예치금 + 적립금 합계)
@@ -711,8 +717,10 @@ module.exports = function(supabaseAdmin) {
           : Math.max(0, items_payment_sum + shipping_fee - Number(total_amount))
       );
       
-      // Audit Log 출력 제한 (로그 과다 방지)
-      // console.log(`[Amount Audit] Order ID: ${order.order_id} | Path: ${amount_decision_path} | Total: ${total_amount}`);
+      // Audit Log (total_amount=0인 비N10 건만 출력)
+      if (total_amount === 0 && !isUnpaid) {
+        console.log(`[Amount Audit] order_id=${order.order_id} | path=${amount_decision_path} | pg=${pg_payment} | internal=${internal_points_total} | items_sum=${items_payment_sum} | method=${paymentMethodStr}`);
+      }
 
       const uniqueOrderId = mall_id === 'slimpack79' ? order.order_id : `${mall_id}_${order.order_id}`;
 
