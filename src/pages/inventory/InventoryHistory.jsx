@@ -2,7 +2,7 @@ import ExcelJS from 'exceljs';
 import React, { useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import {
-  Box, Paper, Grid, Stack, FormControl, InputLabel, Select, MenuItem, ButtonGroup, Button, TextField, Typography, TableContainer, Table, TableHead, TableRow, TableCell, Checkbox, TableBody, Chip, Tooltip, Pagination, TablePagination, TableFooter, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Card, CardContent, Autocomplete, Switch, FormControlLabel, Snackbar, Alert
+  Box, Paper, Grid, Stack, FormControl, InputLabel, Select, MenuItem, ButtonGroup, Button, TextField, Typography, TableContainer, Table, TableHead, TableRow, TableCell, Checkbox, TableBody, Chip, Tooltip, Pagination, TablePagination, TableFooter, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Card, CardContent, Autocomplete, Switch, FormControlLabel, Snackbar, Alert, CircularProgress
 } from '@mui/material';
 import { Close as CloseIcon, Download as DownloadIcon, Remove as RemoveIcon, Add as AddIcon, Refresh as RefreshIcon, Store as StoreIcon, Sync as SyncIcon, SyncDisabled as SyncDisabledIcon, Delete as DeleteIcon, Upload as UploadIcon } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
@@ -27,7 +27,7 @@ export default function InventoryHistory() {
     handleCloseExcelUpload, handleExcelFileUpload, excelFile, excelUploadType, setExcelUploadType,
     handleOpenExcelUpload, transactionDetailOpen, closeTransactionDetail,
     selectedTransaction, startEditTransaction, recalculateAllInventory, deleteTransaction
-  , batchFromLocation, setBatchFromLocation, batchToLocation, setBatchToLocation, showOriginalHistory, setShowOriginalHistory, handleSubmitTransaction, downloadExcelTemplate, handleDragOver, handleDragLeave, handleDrop, handleExcelDataSubmit, handleBatchApplyLocation, warehouseDetailTarget, warehouseDetailOpen, closeWarehouseDetail, barcodeScannerOpen, setBarcodeScannerOpen, setCurrentScanningRow, handleBarcodeScan, handleBarcodeScanError, excelData, isDragOver, snackbar, setSnackbar} = context;
+  , batchFromLocation, setBatchFromLocation, batchToLocation, setBatchToLocation, showOriginalHistory, setShowOriginalHistory, handleSubmitTransaction, downloadExcelTemplate, handleDragOver, handleDragLeave, handleDrop, handleExcelDataSubmit, handleBatchApplyLocation, warehouseDetailTarget, warehouseDetailOpen, closeWarehouseDetail, barcodeScannerOpen, setBarcodeScannerOpen, setCurrentScanningRow, handleBarcodeScan, handleBarcodeScanError, excelData, isDragOver, snackbar, setSnackbar, isSubmittingTransaction} = context;
 
   const [detailProcessing, setDetailProcessing] = useState(false);
 
@@ -910,8 +910,13 @@ export default function InventoryHistory() {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseDialog}>취소</Button>
-          <Button onClick={handleSubmitTransaction} variant="contained">
-            {`입출고 등록 (${multipleIoProducts.length}개 상품)`}
+          <Button
+            onClick={handleSubmitTransaction}
+            variant="contained"
+            disabled={isSubmittingTransaction}
+            startIcon={isSubmittingTransaction ? <CircularProgress size={16} color="inherit" /> : null}
+          >
+            {isSubmittingTransaction ? '등록 중...' : `입출고 등록 (${multipleIoProducts.length}개 상품)`}
           </Button>
         </DialogActions>
       </Dialog>

@@ -230,6 +230,7 @@ function InventoryLayout() {
   const [inventory, setInventory] = useState({});
   const [pendingInventory, setPendingInventory] = useState({});
   const [loading, setLoading] = useState(false);
+  const [isSubmittingTransaction, setIsSubmittingTransaction] = useState(false);
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
@@ -1200,6 +1201,7 @@ function InventoryLayout() {
       return;
     }
 
+    setIsSubmittingTransaction(true);
     try {
       await transactionApi.createMany(newTransactions);
       const updatedTransactions = [...newTransactions, ...transactions];
@@ -1225,6 +1227,8 @@ function InventoryLayout() {
     } catch (error) {
       console.error('입출고 등록 실패:', error);
       showSnackbar('입출고 등록에 실패했습니다.', 'error');
+    } finally {
+      setIsSubmittingTransaction(false);
     }
   }, [multipleIoProducts, warehouses, inventory, products, formData, transactions]);
 
@@ -2928,7 +2932,7 @@ function InventoryLayout() {
     excelData, setExcelData, excelUploadType, setExcelUploadType, transactionDetailOpen, setTransactionDetailOpen,
     selectedTransaction, setSelectedTransaction, editMode, setEditMode, editFormData, setEditFormData,
     editProducts, setEditProducts, dialogType, setDialogType, transactions, setTransactions, inventory, setInventory,
-    pendingInventory, setPendingInventory, loading, setLoading, snackbar, setSnackbar, warehouses, setWarehouses, visibleWarehouses,
+    pendingInventory, setPendingInventory, loading, setLoading, snackbar, setSnackbar, warehouses, setWarehouses, visibleWarehouses, isSubmittingTransaction,
     dealers, setDealers, formData, setFormData, multipleIoProducts, setMultipleIoProducts, products, setProducts,
     filter, setFilter, dateFilter, setDateFilter, currentPage, setCurrentPage, itemsPerPage, setItemsPerPage, barcodeScannerOpen, setBarcodeScannerOpen,
     currentScanningRow, setCurrentScanningRow, isDragOver, setIsDragOver, groupedTransactions, dealerStats,
