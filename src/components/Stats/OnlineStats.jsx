@@ -35,7 +35,7 @@ import { getCafe24Malls } from '../../utils/cafe24Api';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { ko } from 'date-fns/locale';
-import { format, startOfMonth, endOfMonth, parseISO, startOfYear, endOfYear, getMonth, startOfDay, endOfDay } from 'date-fns';
+import { format, startOfMonth, endOfMonth, parseISO, startOfYear, endOfYear, getMonth, startOfDay, endOfDay, differenceInCalendarDays, addDays } from 'date-fns';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import {
   BarChart,
@@ -155,32 +155,24 @@ function OnlineStats() {
       const startDateTime = formatDateToStartOfDay(qStart || startDate);
       const endDateTime = formatDateToEndOfDay(qEnd || endDate);
 
-      const yearStart = formatDateToStartOfDay(startOfYear(qStart || startDate));
-      const yearEnd = formatDateToEndOfDay(endOfYear(qStart || startDate));
-
       let orderQuery = supabase.from('cafe24_orders').select('*').gte('order_date', startDateTime).lte('order_date', endDateTime).eq('is_deleted', false).eq('is_transferred', true);
-      let chartQuery = supabase.from('cafe24_orders').select('order_date, total_amount, mall_id').gte('order_date', yearStart).lte('order_date', yearEnd).eq('is_deleted', false).eq('is_transferred', true);
-      
+
       if (!allowedMalls.includes('all')) {
         orderQuery = orderQuery.in('mall_id', allowedMalls);
-        chartQuery = chartQuery.in('mall_id', allowedMalls);
       }
 
       if (qMall !== 'all') {
         orderQuery = orderQuery.eq('mall_id', qMall);
-        chartQuery = chartQuery.eq('mall_id', qMall);
       }
 
       const [
         { data: cafe24Orders, error },
         { data: agenciesData },
-        { data: partsData },
-        { data: chartDataRaw }
+        { data: partsData }
       ] = await Promise.all([
         orderQuery,
         supabase.from('agencies').select('id, name'),
-        supabase.from('parts').select('id, code, barcode, brand, note, price, name'),
-        chartQuery
+        supabase.from('parts').select('id, code, barcode, brand, note, price, name')
       ]);
 
       if (error) throw error;
@@ -468,8 +460,31 @@ function OnlineStats() {
           }
         });
 
-        const monthlyMap = {};
-        for (let i = 1; i <= 12; i++) monthlyMap[i] = { month: `${i}월`, sales: 0 };
+        const periodStart = qStart || startDate;
+        const periodEnd = qEnd || endDate;
+        const periodDays = differenceInCalendarDays(periodEnd, periodStart);
+        const groupByDay = periodDays <= 31;
+
+        const periodMap = {};
+        if (groupByDay) {
+          let cur = new Date(periodStart);
+          while (cur <= periodEnd) {
+            const key = format(cur, 'M/d');
+            periodMap[key] = { label: key, sales: 0 };
+            cur = addDays(cur, 1);
+          }
+        } else {
+          let cur = new Date(periodStart.getFullYear(), periodStart.getMonth(), 1);
+          const endMonth = new Date(periodEnd.getFullYear(), periodEnd.getMonth(), 1);
+          while (cur <= endMonth) {
+            const key = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}`;
+            const label = cur.getFullYear() !== new Date().getFullYear()
+              ? `${cur.getFullYear()}.${cur.getMonth() + 1}월`
+              : `${cur.getMonth() + 1}월`;
+            periodMap[key] = { label, sales: 0 };
+            cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
+          }
+        }
         if (cafe24Orders) {
           cafe24Orders.forEach(o => {
             // 혼합 주문 처리를 위해 mall_id 기반 필터링은 제거하고, 아이템별로 검사
@@ -575,12 +590,18 @@ function OnlineStats() {
             }
 
             if (finalMonthlyAmt > 0) {
-                const m = new Date(o.order_date).getMonth() + 1;
-                monthlyMap[m].sales += finalMonthlyAmt;
+                const orderDate = new Date(o.order_date);
+                let key;
+                if (groupByDay) {
+                  key = format(orderDate, 'M/d');
+                } else {
+                  key = `${orderDate.getFullYear()}-${String(orderDate.getMonth() + 1).padStart(2, '0')}`;
+                }
+                if (periodMap[key]) periodMap[key].sales += finalMonthlyAmt;
             }
           });
         }
-        setMonthlyStats(Object.values(monthlyMap));
+        setMonthlyStats(Object.values(periodMap));
       }
     } catch (err) {
       console.error('온라인 통계 집계 에러:', err);
@@ -781,12 +802,14 @@ function OnlineStats() {
           </Grid>
 
           <Paper sx={{ p: 3, mb: 4, borderRadius: 2 }}>
-            <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>월별 총 매출 추이 (해당 연도)</Typography>
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
+              {differenceInCalendarDays(endDate, startDate) <= 31 ? '일별 총 매출 추이' : '월별 총 매출 추이'}
+            </Typography>
             <Box sx={{ width: '100%', height: 300 }}>
               <ResponsiveContainer>
                  <BarChart data={monthlyStats} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" />
+                    <XAxis dataKey="label" />
                     <YAxis tickFormatter={(val) => `${val / 10000}만`} />
                     <Tooltip formatter={(value) => [formatCurrency(value), '온라인 매출액']} />
                     <Bar dataKey="sales" name="매출액" fill="#2196f3" radius={[4, 4, 0, 0]} />
