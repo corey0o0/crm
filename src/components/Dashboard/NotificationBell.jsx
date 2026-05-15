@@ -73,9 +73,10 @@ function NotificationBell() {
       const lastCheckedTimestamp = localStorage.getItem(localStorageKey);
       if (lastCheckedTimestamp) {
         const newUnread = newNotifications.filter(n => new Date(n.created_at) > new Date(lastCheckedTimestamp)).length;
-        // Realtime 업데이트와 충돌을 피하기 위해, fetch 시에는 unreadCount를 직접 설정하지 않고
-        // Realtime 핸들러에서 새로운 알림에 대해서만 unreadCount를 증가시킵니다.
-        // setUnreadCount(newUnread); 
+        setUnreadCount(newUnread);
+      } else {
+        // 첫 방문: 현재 시각을 기준으로 저장 (이후 새로 들어오는 것만 카운트)
+        localStorage.setItem(localStorageKey, new Date().toISOString());
       }
     } catch (error) {
       console.log('[NotificationBell] 알림 기능을 임시로 비활성화합니다:', error.message);
@@ -101,7 +102,7 @@ function NotificationBell() {
         }
 
         channel = supabase
-          .channel('public:notifications')
+          .channel(`notifications-bell-${Date.now()}`)
           .on(
             'postgres_changes',
             { event: 'INSERT', schema: 'public', table: 'notifications' },
