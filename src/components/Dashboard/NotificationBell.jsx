@@ -38,7 +38,8 @@ function NotificationBell() {
   const [anchorEl, setAnchorEl] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [toast, setToast] = useState({ open: false, message: '' });
-  const localStorageKey = 'lastCheckedNotificationTimestamp'; // localStorage 키 정의
+  const [unreadThreshold, setUnreadThreshold] = useState(null); // 드로어 열릴 때 기준 시각
+  const localStorageKey = 'lastCheckedNotificationTimestamp';
 
   const fetchNotifications = async (currentPage = 0) => {
     try {
@@ -151,12 +152,20 @@ function NotificationBell() {
   }, [page]); // page가 변경될 때마다 fetchNotifications를 다시 호출하여 해당 페이지 데이터를 가져옵니다.
 
   const handleClick = (event) => {
+    // 드로어 열릴 때: 현재 lastChecked 기준 시각을 저장 (목록에서 미읽음 구분용)
+    const lastChecked = localStorage.getItem(localStorageKey);
+    setUnreadThreshold(lastChecked);
     setAnchorEl(event.currentTarget);
+  };
+
+  const handleClose = () => {
+    // 드로어 닫힐 때: lastChecked 업데이트 및 미읽음 수 초기화
     const nowTimestamp = new Date().toISOString();
     localStorage.setItem(localStorageKey, nowTimestamp);
     setUnreadCount(0);
+    setUnreadThreshold(null);
+    setAnchorEl(null);
   };
-  const handleClose = () => setAnchorEl(null);
 
   const handleNotificationClick = async (n) => {
     if (n.link) {
@@ -241,20 +250,38 @@ function NotificationBell() {
           ) : (
             notifications.map((n) => {
               const parsed = parseNotificationMessage(n.message);
-              const timeString = new Date(n.created_at).toLocaleString('ko-KR', { 
-                year: 'numeric', month: '2-digit', day: '2-digit', 
-                hour: '2-digit', minute: '2-digit', second: '2-digit' 
+              const timeString = new Date(n.created_at).toLocaleString('ko-KR', {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit'
               });
+              const isUnread = unreadThreshold
+                ? new Date(n.created_at) > new Date(unreadThreshold)
+                : false;
               return (
-                <Card key={n.id} sx={{ mb: 2, borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.05)', cursor: 'pointer', '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.1)' } }} onClick={() => handleNotificationClick(n)}>
+                <Card
+                  key={n.id}
+                  sx={{
+                    mb: 2, borderRadius: 2, cursor: 'pointer',
+                    boxShadow: isUnread ? '0 2px 12px rgba(25,118,210,0.18)' : '0 2px 8px rgba(0,0,0,0.05)',
+                    border: isUnread ? '1.5px solid #1976d2' : '1.5px solid transparent',
+                    bgcolor: isUnread ? '#f0f7ff' : 'white',
+                    '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }
+                  }}
+                  onClick={() => handleNotificationClick(n)}
+                >
                   <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                      <RadioButtonUncheckedIcon color="primary" fontSize="small" sx={{ mr: 1, width: 16, height: 16 }} />
-                      <Typography variant="caption" color="text.secondary">
-                        {parsed.isStructured ? parsed.type : '시스템 알림'} • {timeString}
-                      </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, justifyContent: 'space-between' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <RadioButtonUncheckedIcon color={isUnread ? 'primary' : 'disabled'} fontSize="small" sx={{ mr: 1, width: 16, height: 16 }} />
+                        <Typography variant="caption" color={isUnread ? 'primary' : 'text.secondary'} sx={{ fontWeight: isUnread ? 600 : 400 }}>
+                          {parsed.isStructured ? parsed.type : '시스템 알림'} • {timeString}
+                        </Typography>
+                      </Box>
+                      {isUnread && (
+                        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#1976d2', flexShrink: 0 }} />
+                      )}
                     </Box>
-                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, wordBreak: 'break-word' }}>
+                    <Typography variant="body2" sx={{ fontWeight: isUnread ? 700 : 600, mb: 0.5, wordBreak: 'break-word' }}>
                       {parsed.isStructured ? `${parsed.name} (${parsed.contact})` : parsed.original}
                     </Typography>
                     {parsed.isStructured && (
