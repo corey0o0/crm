@@ -475,17 +475,25 @@ module.exports = function(supabaseAdmin) {
           .map(o => o.order_id)
           .filter(id => !alreadyFetchedOrderIds.has(id));
 
-        if (orderIdsToFetch.length > 0) {
-          console.log(`[Cafe24 Sync] API로 과거 미완료 주문 ${orderIdsToFetch.length}건 추가 상태 조회 시도...`);
-          for (let i = 0; i < orderIdsToFetch.length; i += 100) {
-            const chunkIds = orderIdsToFetch.slice(i, i + 100).join(',');
+        const cafe24OrderIdPattern = /^\d{8}-\d{7}$/;
+        const validOrderIds = orderIdsToFetch.filter(id => cafe24OrderIdPattern.test(id));
+        const skippedCount = orderIdsToFetch.length - validOrderIds.length;
+        if (skippedCount > 0) {
+          console.log(`[Cafe24 Sync] 유효하지 않은 형식의 과거 주문 ${skippedCount}건 제외`);
+        }
+
+        if (validOrderIds.length > 0) {
+          console.log(`[Cafe24 Sync] API로 과거 미완료 주문 ${validOrderIds.length}건 추가 상태 조회 시도...`);
+          for (let i = 0; i < validOrderIds.length; i += 100) {
+            const chunk = validOrderIds.slice(i, i + 100);
+            const chunkIds = chunk.join(',');
             const fetchOldOrders = async (token) => {
                return await axios.get(`https://${mall_id}.cafe24api.com/api/v2/admin/orders`, {
                  params: { order_id: chunkIds, embed: 'items,buyer,receivers' },
                  headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Cafe24-Api-Version': '2026-03-01' }
                });
             };
-            
+
             let res;
             try {
               res = await fetchOldOrders(tokenForRequest);
@@ -499,12 +507,29 @@ module.exports = function(supabaseAdmin) {
                   const detail = retryErr.response?.data?.error?.message || retryErr.message;
                   throw new Error(`과거 주문 권한 오류: ${detail}`);
                 }
+              } else if (e.response?.data?.error?.code === 'E0010' || (e.response?.data?.error?.message || '').toLowerCase().includes('invalid order')) {
+                // 배치 내 일부 주문 ID가 유효하지 않을 경우 개별 조회로 폴백
+                console.log(`[Cafe24 Sync] 배치 조회 실패, 개별 조회로 폴백 (${chunk.length}건)`);
+                for (const singleId of chunk) {
+                  try {
+                    const singleRes = await axios.get(`https://${mall_id}.cafe24api.com/api/v2/admin/orders`, {
+                      params: { order_id: singleId, embed: 'items,buyer,receivers' },
+                      headers: { 'Authorization': `Bearer ${tokenForRequest}`, 'Content-Type': 'application/json', 'X-Cafe24-Api-Version': '2026-03-01' }
+                    });
+                    if (singleRes.data && singleRes.data.orders) {
+                      allOrders = allOrders.concat(singleRes.data.orders);
+                    }
+                  } catch (singleErr) {
+                    console.log(`[Cafe24 Sync] 주문 ${singleId} 개별 조회 실패: ${singleErr.response?.data?.error?.message || singleErr.message}`);
+                  }
+                }
+                continue;
               } else {
                 const detail = e.response?.data?.error?.message || e.message;
                 throw new Error(`과거 주문 API 에러: ${detail}`);
               }
             }
-            if (res.data && res.data.orders) {
+            if (res && res.data && res.data.orders) {
                allOrders = allOrders.concat(res.data.orders);
             }
           }
