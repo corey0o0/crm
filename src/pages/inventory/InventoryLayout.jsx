@@ -84,6 +84,15 @@ import { logAction, logActions } from '../../utils/auditLog';
 import { checkAndSendLowStockAlerts } from '../../utils/inventoryAlert';
 
 // 창고 및 대리점 코드를 숨기고 이름만 표시하는 유틸리티
+const getSaleType = (note) => {
+  if (!note) return 'direct';
+  if (note.includes('[카페24') || note.includes('[온라인 반품')) return 'online';
+  if (note.includes('[A/S')) return 'as';
+  if (note.includes('[수기판매')) return 'manual_sale';
+  if (note.includes('[매장출고')) return 'store';
+  return 'direct';
+};
+
 const formatLocationName = (locationId, warehouses, dealers) => {
   if (!locationId || locationId === '외부') return '외부';
   if (locationId === 'adjustment') return '재고 조정';
@@ -288,6 +297,7 @@ function InventoryLayout() {
       product: '',
       note: '',
       type: 'all',
+      saleType: 'all',
       sortBy: 'date',
       sortOrder: 'desc'
     };
@@ -2625,8 +2635,9 @@ function InventoryLayout() {
       const matchesDateTo = !filter.dateTo || group.date <= filter.dateTo;
       
       const matchesBrand = !brandLocked || group.items.some(item => allowedBrands.includes(item.productSupplier));
+      const matchesSaleType = filter.saleType === 'all' || group.items.some(item => getSaleType(item.note) === filter.saleType);
 
-      return matchesType && matchesFromLocation && matchesToLocation && matchesProduct && matchesNote && matchesDateFrom && matchesDateTo && matchesBrand;
+      return matchesType && matchesFromLocation && matchesToLocation && matchesProduct && matchesNote && matchesDateFrom && matchesDateTo && matchesBrand && matchesSaleType;
     }).sort((a, b) => {
       const dir = filter.sortOrder === 'asc' ? 1 : -1;
       const key = filter.sortBy;

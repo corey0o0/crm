@@ -684,7 +684,7 @@ function ShipmentForm() {
 
       // ==== 매장/일반 출고 재고 차감 (수불부 동기화) ====
       if (shipmentId && isNowCompleted) {
-        const deductResult = await processShipmentCompletion(shipmentId, shipmentSaveData.brand);
+        const deductResult = await processShipmentCompletion(shipmentId, shipmentSaveData.brand, '출고완료', true);
         if (!deductResult.success) {
           console.error('[Inventory Deduct Error]:', deductResult.message);
         }

@@ -51,6 +51,7 @@ export const getBrandSettings = async (brandCode) => {
  */
 export const processInventory = async (defaultWarehouseId, parts, brandCode, referenceId, referenceType, changeType, isRevert = false, customerName = '', displayRefId = '') => {
   const refStr = displayRefId || referenceId;
+  const txLabel = referenceType === 'manual_sale' ? '수기판매' : referenceType === 'shipment' ? '매장출고' : 'A/S';
   if (!defaultWarehouseId) {
     return {
       success: false,
@@ -86,9 +87,9 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
           from_location: isRevert ? '외부(취소/환불)' : (part.warehouse_id || defaultWarehouseId),
           to_location: isRevert ? (part.warehouse_id || defaultWarehouseId) : '외부(고객)',
           date: format(new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Seoul"})), 'yyyy-MM-dd'),
-          note: isRevert 
-            ? `${referenceType === 'shipment' ? '[매장출고 취소]' : '[A/S 취소]'} 단순 기록 (Ref: ${refStr}${customerName ? `, ${customerName}` : ''})`
-            : `${referenceType === 'shipment' ? '[매장출고 완료]' : '[A/S 완료]'} 단순 기록 (Ref: ${refStr}${customerName ? `, ${customerName}` : ''})`,
+          note: isRevert
+            ? `[${txLabel} 취소] 단순 기록 (Ref: ${refStr}${customerName ? `, ${customerName}` : ''})`
+            : `[${txLabel} 완료] 단순 기록 (Ref: ${refStr}${customerName ? `, ${customerName}` : ''})`,
           is_grouped: true,
           status: '완료'
         });
@@ -129,9 +130,7 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
             from_location: isRevert ? '외부(취소/환불)' : (part.warehouse_id || defaultWarehouseId),
             to_location: isRevert ? (part.warehouse_id || defaultWarehouseId) : '외부(고객)',
             date: format(new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Seoul"})), 'yyyy-MM-dd'),
-            note: `[재고비관리] ${isRevert 
-              ? `${referenceType === 'shipment' ? '[매장출고 취소]' : '[A/S 취소]'}` 
-              : `${referenceType === 'shipment' ? '[매장출고 완료]' : '[A/S 완료]'}`} (Ref: ${refStr}${customerName ? `, ${customerName}` : ''})`,
+            note: `[재고비관리] [${txLabel} ${isRevert ? '취소' : '완료'}] (Ref: ${refStr}${customerName ? `, ${customerName}` : ''})`,
             is_grouped: true,
             status: '완료'
           });
@@ -230,9 +229,9 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
             from_location: isRevert ? '외부(취소/환불)' : (part.warehouse_id || defaultWarehouseId),
             to_location: isRevert ? (part.warehouse_id || defaultWarehouseId) : '외부(고객)',
             date: format(new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Seoul"})), 'yyyy-MM-dd'),
-            note: isRevert 
-              ? `${referenceType === 'shipment' ? '[매장출고 취소]' : '[A/S 취소]'} 재고 복구 (Ref: ${refStr}${customerName ? `, ${customerName}` : ''}) [${previousQuantity} -> ${newQuantity}]`
-              : `${referenceType === 'shipment' ? '[매장출고 완료]' : '[A/S 완료]'} 재고 차감 (Ref: ${refStr}${customerName ? `, ${customerName}` : ''}) [${previousQuantity} -> ${newQuantity}]`,
+            note: isRevert
+              ? `[${txLabel} 취소] 재고 복구 (Ref: ${refStr}${customerName ? `, ${customerName}` : ''}) [${previousQuantity} -> ${newQuantity}]`
+              : `[${txLabel} 완료] 재고 차감 (Ref: ${refStr}${customerName ? `, ${customerName}` : ''}) [${previousQuantity} -> ${newQuantity}]`,
             is_grouped: true,
             status: '완료' // 확정 후 처리이므로 항상 완료
           });
@@ -283,7 +282,7 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
 /**
  * 출고 완료 시 창고 재고 차감 (청담 등)
  */
-export const processShipmentCompletion = async (shipmentId, brandCode, targetStatus = '출고완료') => {
+export const processShipmentCompletion = async (shipmentId, brandCode, targetStatus = '출고완료', isManualSale = false) => {
   try {
     // const brandSettings = await getBrandSettings(brandCode);
     // if (!brandSettings.auto_inventory_deduction) {
@@ -335,7 +334,7 @@ export const processShipmentCompletion = async (shipmentId, brandCode, targetSta
     for (const sp of shipmentParts) {
       if (!sp.inventory_deducted && sp.status !== '반품완료') {
         // 아직 차감되지 않았고, 반품된 것도 아니라면 목표 상태(targetStatus)로 만들면서 차감
-        const res = await updatePartStatus('shipment', shipmentId, sp.id, targetStatus, brandCode);
+        const res = await updatePartStatus(isManualSale ? 'manual_sale' : 'shipment', shipmentId, sp.id, targetStatus, brandCode);
         results.push(res);
         if (!res.success) hasError = true;
       }

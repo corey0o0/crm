@@ -50,19 +50,18 @@ import {
 } from 'recharts';
 
 function OnlineStats() {
-  const { getAllowedMalls, getAllowedBrands } = useAuth();
+  const { getAllowedMalls } = useAuth();
   const allowedMalls = getAllowedMalls();
-  const allowedBrands = getAllowedBrands();
-  const brandLocked = allowedBrands !== 'all' && allowedBrands.length > 0;
+  const mallLocked = allowedMalls !== 'all' && allowedMalls.length > 0;
   const [loading, setLoading] = useState(true);
   const [startDate, setStartDate] = useState(startOfMonth(new Date()));
   const [endDate, setEndDate] = useState(endOfMonth(new Date()));
   const [stats, setStats] = useState({ totalPayment: 0, orderCount: 0, list: [], agencyStats: {}, brandStats: {}, totals: {} });
   const [monthlyStats, setMonthlyStats] = useState([]);
   const [brands, setBrands] = useState(['전체']);
-  const [selectedBrand, setSelectedBrand] = useState(brandLocked ? allowedBrands[0] : '전체');
+  const [selectedBrand, setSelectedBrand] = useState('전체');
   const [malls, setMalls] = useState([]);
-  const [selectedMall, setSelectedMall] = useState('all');
+  const [selectedMall, setSelectedMall] = useState(mallLocked ? allowedMalls[0] : 'all');
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
   const [modalData, setModalData] = useState([]);
@@ -153,7 +152,7 @@ function OnlineStats() {
   const formatDateToEndOfDay = (date) => format(date, 'yyyy-MM-dd') + 'T23:59:59+09:00';
 
   const fetchData = async (qStart, qEnd, qBrand = selectedBrand, qMall = selectedMall) => {
-    if (brandLocked) qBrand = allowedBrands[0];
+    if (mallLocked) qMall = allowedMalls[0];
     setLoading(true);
     try {
       const startDateTime = formatDateToStartOfDay(qStart || startDate);
@@ -199,11 +198,7 @@ function OnlineStats() {
           if (p.barcode) partMapByCode[String(p.barcode).trim()] = p;
           if (p.brand && p.brand.trim() !== '') brandSet.add(p.brand.trim());
         });
-        if (brandLocked) {
-          setBrands(allowedBrands.filter(b => brandSet.has(b)));
-        } else {
-          setBrands(['전체', ...Array.from(brandSet).sort()]);
-        }
+        setBrands(['전체', ...Array.from(brandSet).sort()]);
 
         let filteredOrderCount = 0;
         const filteredList = [];
@@ -731,44 +726,48 @@ function OnlineStats() {
           </LocalizationProvider>
 
           {/* 사이트 필터 */}
-          <FormControl size="small" sx={{ minWidth: 140, height: 40 }}>
-            <InputLabel>사이트별 조회</InputLabel>
-            <Select
-              value={selectedMall}
-              label="사이트별 조회"
-              onChange={(e) => handleMallSelect(e.target.value)}
-              sx={{ height: 40 }}
-            >
-              <MenuItem value="all">전체 사이트</MenuItem>
-              {malls.map(m => (
-                <MenuItem key={m.mall_id} value={m.mall_id}>{m.mall_id === 'slimpack79' ? '엑스라이더(slimpack79)' : m.mall_id === 'nearbike' ? '니어바이크(nearbike)' : m.mall_id}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          
-          {/* 브랜드 선택 */}
-          {brandLocked ? (
-            <Chip label={`브랜드: ${allowedBrands[0]}`} color="primary" sx={{ height: 40, fontSize: '0.95rem', px: 1 }} />
+          {mallLocked ? (
+            <Chip
+              label={allowedMalls[0] === 'nearbike' ? '니어바이크(nearbike)' : allowedMalls[0] === 'slimpack79' ? '엑스라이더(slimpack79)' : allowedMalls[0]}
+              color="primary"
+              sx={{ height: 40, fontSize: '0.95rem', px: 1 }}
+            />
           ) : (
-            <ButtonGroup size="large" variant="outlined" sx={{ height: 40 }}>
-              {brands.map((brand) => (
-                <Button
-                  key={brand}
-                  onClick={() => handleBrandSelect(brand)}
-                  sx={{
-                    minWidth: '60px',
-                    height: '100%',
-                    backgroundColor: selectedBrand === brand ? 'primary.main' : 'inherit',
-                    color: selectedBrand === brand ? 'white' : 'inherit',
-                    fontWeight: selectedBrand === brand ? 'bold' : 'normal',
-                    '&:hover': { backgroundColor: selectedBrand === brand ? 'primary.dark' : '' }
-                  }}
-                >
-                  {brand}
-                </Button>
-              ))}
-            </ButtonGroup>
+            <FormControl size="small" sx={{ minWidth: 140, height: 40 }}>
+              <InputLabel>사이트별 조회</InputLabel>
+              <Select
+                value={selectedMall}
+                label="사이트별 조회"
+                onChange={(e) => handleMallSelect(e.target.value)}
+                sx={{ height: 40 }}
+              >
+                <MenuItem value="all">전체 사이트</MenuItem>
+                {malls.map(m => (
+                  <MenuItem key={m.mall_id} value={m.mall_id}>{m.mall_id === 'slimpack79' ? '엑스라이더(slimpack79)' : m.mall_id === 'nearbike' ? '니어바이크(nearbike)' : m.mall_id}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
           )}
+
+          {/* 브랜드 선택 */}
+          <ButtonGroup size="large" variant="outlined" sx={{ height: 40 }}>
+            {brands.map((brand) => (
+              <Button
+                key={brand}
+                onClick={() => handleBrandSelect(brand)}
+                sx={{
+                  minWidth: '60px',
+                  height: '100%',
+                  backgroundColor: selectedBrand === brand ? 'primary.main' : 'inherit',
+                  color: selectedBrand === brand ? 'white' : 'inherit',
+                  fontWeight: selectedBrand === brand ? 'bold' : 'normal',
+                  '&:hover': { backgroundColor: selectedBrand === brand ? 'primary.dark' : '' }
+                }}
+              >
+                {brand}
+              </Button>
+            ))}
+          </ButtonGroup>
 
           <Button variant="contained" onClick={() => fetchData()} disabled={loading} sx={{ height: 40, bgcolor: '#3182f6', '&:hover': { bgcolor: '#1b64da' }, fontWeight: 'bold', px: 4 }}>조회</Button>
         </Box>

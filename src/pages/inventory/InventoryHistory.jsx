@@ -232,6 +232,22 @@ export default function InventoryHistory() {
                   </FormControl>
 
                   <FormControl size="small" sx={{ width: 130 }}>
+                    <InputLabel>판매 구분</InputLabel>
+                    <Select
+                      value={filter.saleType}
+                      label="판매 구분"
+                      onChange={(e) => setFilter(prev => ({ ...prev, saleType: e.target.value }))}
+                    >
+                      <MenuItem value="all">전체</MenuItem>
+                      <MenuItem value="online">온라인판매</MenuItem>
+                      <MenuItem value="store">매장판매</MenuItem>
+                      <MenuItem value="manual_sale">수기판매</MenuItem>
+                      <MenuItem value="as">A/S</MenuItem>
+                      <MenuItem value="direct">직접등록</MenuItem>
+                    </Select>
+                  </FormControl>
+
+                  <FormControl size="small" sx={{ width: 130 }}>
                     <InputLabel>정렬 기준</InputLabel>
                     <Select
                       value={filter.sortBy}
@@ -330,7 +346,7 @@ export default function InventoryHistory() {
                   <Button variant="contained" onClick={() => showSnackbar('필터가 적용되었습니다.', 'success')} sx={{ bgcolor: '#3182f6' }}>검색</Button>
                   <Button variant="outlined" onClick={() => {
                     setFilter({
-                      dateFrom: '', dateTo: '', fromLocation: '', toLocation: '', product: '', note: '', type: 'all', sortBy: 'date', sortOrder: 'desc'
+                      dateFrom: '', dateTo: '', fromLocation: '', toLocation: '', product: '', note: '', type: 'all', saleType: 'all', sortBy: 'date', sortOrder: 'desc'
                     });
                     setDateFilter('all');
                   }}>초기화</Button>

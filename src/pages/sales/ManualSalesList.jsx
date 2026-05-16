@@ -445,7 +445,7 @@ export default function ManualSalesList({ isEmbedded = false }) {
 
         // 출고 완료인 경우 수불부 재동기화
         if (shipment.status === '출고완료') {
-          await processShipmentCompletion(shipment.id, shipment.brand);
+          await processShipmentCompletion(shipment.id, shipment.brand, '출고완료', true);
         }
 
         currentIdx++;
