@@ -45,8 +45,10 @@ const getKoStatus = (status) => {
 };
 
 function SalesHistory() {
-  const { getAllowedMalls } = useAuth();
+  const { getAllowedMalls, getAllowedBrands } = useAuth();
   const allowedMalls = getAllowedMalls();
+  const allowedBrands = getAllowedBrands();
+  const brandLocked = allowedBrands !== 'all' && allowedBrands.length > 0;
   const [loading, setLoading] = useState(true);
   const [flatRows, setFlatRows] = useState([]);   // 품목 단위로 펼친 데이터
   const [searchTerm, setSearchTerm] = useState('');
@@ -55,7 +57,7 @@ function SalesHistory() {
   const [filterType, setFilterType] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sellerFilter, setSellerFilter] = useState('all');
-  const [brandFilter, setBrandFilter] = useState('all');
+  const [brandFilter, setBrandFilter] = useState(brandLocked ? allowedBrands[0] : 'all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [dateType, setDateType] = useState('주문/출고/완료일자');
   const [sellers, setSellers] = useState(['all']);
@@ -724,7 +726,7 @@ function SalesHistory() {
     uniqueSellers.add('고객');
     setSellers(['all', '전체 대리점', ...Array.from(uniqueSellers)]);
     setStatuses(['all', ...Array.from(uniqueStatuses)]);
-    setBrands(['all', ...Array.from(uniqueBrands)]);
+    setBrands(brandLocked ? allowedBrands.filter(b => uniqueBrands.has(b)) : ['all', ...Array.from(uniqueBrands)]);
 
     rows.sort((a, b) => new Date(b.date_val) - new Date(a.date_val));
     setFlatRows(rows);
@@ -1172,12 +1174,16 @@ function SalesHistory() {
                 </Select>
               </FormControl>
 
-              <FormControl size="small" sx={{ width: 130 }}>
-                <InputLabel>브랜드</InputLabel>
-                <Select value={brandFilter} label="브랜드" onChange={e => { setBrandFilter(e.target.value); setPage(0); }}>
-                  {brands.map(b => <MenuItem key={b} value={b}>{b === 'all' ? '전체 브랜드' : b}</MenuItem>)}
-                </Select>
-              </FormControl>
+              {brandLocked ? (
+                <Chip label={`브랜드: ${allowedBrands[0]}`} color="primary" sx={{ height: 40, fontSize: '0.875rem', px: 0.5 }} />
+              ) : (
+                <FormControl size="small" sx={{ width: 130 }}>
+                  <InputLabel>브랜드</InputLabel>
+                  <Select value={brandFilter} label="브랜드" onChange={e => { setBrandFilter(e.target.value); setPage(0); }}>
+                    {brands.map(b => <MenuItem key={b} value={b}>{b === 'all' ? '전체 브랜드' : b}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              )}
 
               <ToggleButtonGroup
                 value={categoryFilter}

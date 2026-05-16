@@ -79,6 +79,7 @@ import { inventoryApi } from '../../api/inventoryApi';
 import { supabase } from '../../lib/supabaseClient';
 import { fetchFromSupabase } from '../../utils/restApiUtils';
 import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
+import { useAuth } from '../../contexts/AuthContext';
 import { logAction, logActions } from '../../utils/auditLog';
 import { checkAndSendLowStockAlerts } from '../../utils/inventoryAlert';
 
@@ -96,6 +97,10 @@ const formatLocationName = (locationId, warehouses, dealers) => {
 };
 
 function InventoryLayout() {
+  const { getAllowedBrands } = useAuth();
+  const allowedBrands = getAllowedBrands();
+  const brandLocked = allowedBrands !== 'all' && allowedBrands.length > 0;
+
   const [openDialog, setOpenDialog] = useState(false);
   // 창고별 상세 재고 Dialog 상태
   const [warehouseDetailOpen, setWarehouseDetailOpen] = useState(false);
@@ -2619,7 +2624,9 @@ function InventoryLayout() {
       const matchesDateFrom = !filter.dateFrom || group.date >= filter.dateFrom;
       const matchesDateTo = !filter.dateTo || group.date <= filter.dateTo;
       
-      return matchesType && matchesFromLocation && matchesToLocation && matchesProduct && matchesNote && matchesDateFrom && matchesDateTo;
+      const matchesBrand = !brandLocked || group.items.some(item => allowedBrands.includes(item.productSupplier));
+
+      return matchesType && matchesFromLocation && matchesToLocation && matchesProduct && matchesNote && matchesDateFrom && matchesDateTo && matchesBrand;
     }).sort((a, b) => {
       const dir = filter.sortOrder === 'asc' ? 1 : -1;
       const key = filter.sortBy;
@@ -2652,7 +2659,7 @@ function InventoryLayout() {
       if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
       return String(av).localeCompare(String(bv)) * dir;
     });
-  }, [groupedTransactions, filter, locationMappings]);
+  }, [groupedTransactions, filter, locationMappings, brandLocked, allowedBrands]);
 
   // 대시보드 통계 데이터 (useMemo로 메모이제이션)
   const dashboardStats = useMemo(() => {
