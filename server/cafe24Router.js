@@ -633,10 +633,11 @@ module.exports = function(supabaseAdmin) {
       //   → 두 값은 절대 겹치지 않아야 함
       // ──────────────────────────────────────────────────
 
-      // 1) PG 실결제액 (카드/무통장/네이버페이 등 외부 결제수단)
-      const pg_payment = Number(order.payment_amount || 0) + Number(order.naver_point || 0) + Number(order.prepaid_amount || 0);
+      // 1) PG 실결제액 (카드/무통장 등 외부 결제수단)
+      //    naver_point는 할인처리 대상이므로 pg_payment에서 제외 (mileage_used에 합산)
+      const pg_payment = Number(order.payment_amount || 0) + Number(order.prepaid_amount || 0);
 
-      // 2) 쇼핑몰 내부 재화 사용액 (예치금 + 적립금/마일리지)
+      // 2) 쇼핑몰 내부 재화 사용액 (예치금 + 적립금/마일리지 + 네이버페이포인트)
       //    카페24 API 버전에 따라 필드명이 다름:
       //    - 구버전: order.deposit / order.mileage
       //    - 신버전(2026-03-01~): actual_order_amount.credits_spent_amount(예치금) / points_spent_amount(적립금)
@@ -645,10 +646,12 @@ module.exports = function(supabaseAdmin) {
         Number(order.deposit || 0) ||
         Number((order.actual_order_amount && order.actual_order_amount.deposit) || 0) ||
         Number((order.actual_order_amount && order.actual_order_amount.credits_spent_amount) || 0);
+      const naver_point_used = Number(order.naver_point || 0);
       const mileage_used =
         Number(order.mileage || 0) ||
         Number((order.actual_order_amount && order.actual_order_amount.mileage) || 0) ||
-        Number((order.actual_order_amount && order.actual_order_amount.points_spent_amount) || 0);
+        Number((order.actual_order_amount && order.actual_order_amount.points_spent_amount) || 0) ||
+        naver_point_used;
       const internal_points_total = deposit_used + mileage_used;
 
       const isPartiallyCanceled = order.canceled === 'M' || (order.items && order.items.some(i => ['C11','C40','R40','E40'].includes(i.order_status)));
