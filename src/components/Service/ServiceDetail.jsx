@@ -1100,7 +1100,7 @@ function ServiceDetail() {
 
       console.log('Available parts:', data);
 
-      setAvailableParts(data);
+      setAvailableParts((data || []).filter(p => !(p.memo || '').includes('[HIDDEN]')));
     } catch (err) {
       console.error('Error fetching parts:', err);
       setError(err.message);

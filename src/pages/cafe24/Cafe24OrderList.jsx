@@ -227,8 +227,8 @@ export default function Cafe24OrderList() {
   };
 
   const fetchParts = async () => {
-    const { data } = await supabase.from('parts').select('id, name, barcode, code, brand, price').order('name');
-    if (data) setAvailableParts(data);
+    const { data } = await supabase.from('parts').select('id, name, barcode, code, brand, price, memo').order('name');
+    if (data) setAvailableParts(data.filter(p => !(p.memo || '').includes('[HIDDEN]')));
   };
 
   const handleExportExcel = async () => {

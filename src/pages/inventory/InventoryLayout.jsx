@@ -281,6 +281,8 @@ function InventoryLayout() {
 
   const [batchFromLocation, setBatchFromLocation] = useState('');
   const [batchToLocation, setBatchToLocation] = useState('');
+  const [editBatchFromLocation, setEditBatchFromLocation] = useState('');
+  const [editBatchToLocation, setEditBatchToLocation] = useState('');
 
   // 상품 데이터
   const [products, setProducts] = useState([]);
@@ -730,9 +732,12 @@ function InventoryLayout() {
   // 거래내역 수정 모드 시작
   const startEditTransaction = () => {
     if (selectedTransaction) {
+      // 모든 항목의 노트가 동일할 때만 공통 메모 필드에 표시 (다르면 개별 메모로만 관리)
+      const itemNotes = (selectedTransaction.items || []).map(i => i.note || '');
+      const allSameNote = itemNotes.length > 0 && itemNotes.every(n => n === itemNotes[0]);
       setEditFormData({
         date: selectedTransaction.date || '',
-        note: selectedTransaction.note || '',
+        note: allSameNote ? (itemNotes[0] || '') : '',
         fromLocation: selectedTransaction.fromLocation || '',
         toLocation: selectedTransaction.toLocation || ''
       });
@@ -768,6 +773,18 @@ function InventoryLayout() {
     setEditMode(false);
     setEditFormData({});
     setEditProducts([]);
+    setEditBatchFromLocation('');
+    setEditBatchToLocation('');
+  };
+
+  // 수정 모드 출발지/목적지 일괄 적용
+  const handleEditBatchApplyLocation = () => {
+    if (!editBatchFromLocation && !editBatchToLocation) return;
+    setEditProducts(prev => prev.map(p => ({
+      ...p,
+      ...(editBatchFromLocation ? { fromLocation: editBatchFromLocation } : {}),
+      ...(editBatchToLocation ? { toLocation: editBatchToLocation } : {})
+    })));
   };
 
   // 수정 모드에서 상품 추가
@@ -805,7 +822,6 @@ function InventoryLayout() {
         const groupId = selectedTransaction.groupId || selectedTransaction.id;
 
         const baseDate = editFormData.date || selectedTransaction.date;
-        const baseNote = editFormData.note || selectedTransaction.note || null;
         const txType = selectedTransaction.type;
 
         const commonNote = (editFormData.note ?? '').toString().trim();
@@ -823,7 +839,7 @@ function InventoryLayout() {
             fromLocation: item.fromLocation || null,
             toLocation: item.toLocation || null,
             date: baseDate,
-            note: (commonNote !== '' ? commonNote : ((item.note ?? '').toString().trim() || baseNote)),
+            note: (commonNote !== '' ? commonNote : ((item.note ?? '').toString().trim() || null)),
             additionalNote: item.additionalNote || null,
             createdAt: new Date().toISOString(),
             isGrouped: true
@@ -2966,7 +2982,8 @@ function InventoryLayout() {
     handleTableCellHover, handleTableCellHoverLeave, handlePageChange, handleBarcodeScan, startBarcodeScan,
     handleBarcodeScanError, handleDragOver, handleDragLeave, handleDrop,
     totalPages, recalculateAllInventory, deleteTransaction,
-    batchFromLocation, setBatchFromLocation, batchToLocation, setBatchToLocation, showOriginalHistory, setShowOriginalHistory, handleSubmitTransaction, downloadExcelTemplate, handleExcelDataSubmit, handleBatchApplyLocation, handleDirectInventoryEdit};
+    batchFromLocation, setBatchFromLocation, batchToLocation, setBatchToLocation, showOriginalHistory, setShowOriginalHistory, handleSubmitTransaction, downloadExcelTemplate, handleExcelDataSubmit, handleBatchApplyLocation, handleDirectInventoryEdit,
+    editBatchFromLocation, setEditBatchFromLocation, editBatchToLocation, setEditBatchToLocation, handleEditBatchApplyLocation};
 
   return (
     <Box sx={{ width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>

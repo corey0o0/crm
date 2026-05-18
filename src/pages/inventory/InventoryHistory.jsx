@@ -27,7 +27,8 @@ export default function InventoryHistory() {
     handleCloseExcelUpload, handleExcelFileUpload, excelFile, excelUploadType, setExcelUploadType,
     handleOpenExcelUpload, transactionDetailOpen, closeTransactionDetail,
     selectedTransaction, startEditTransaction, recalculateAllInventory, deleteTransaction
-  , batchFromLocation, setBatchFromLocation, batchToLocation, setBatchToLocation, showOriginalHistory, setShowOriginalHistory, handleSubmitTransaction, downloadExcelTemplate, handleDragOver, handleDragLeave, handleDrop, handleExcelDataSubmit, handleBatchApplyLocation, warehouseDetailTarget, warehouseDetailOpen, closeWarehouseDetail, barcodeScannerOpen, setBarcodeScannerOpen, setCurrentScanningRow, handleBarcodeScan, handleBarcodeScanError, excelData, isDragOver, snackbar, setSnackbar, isSubmittingTransaction} = context;
+  , batchFromLocation, setBatchFromLocation, batchToLocation, setBatchToLocation, showOriginalHistory, setShowOriginalHistory, handleSubmitTransaction, downloadExcelTemplate, handleDragOver, handleDragLeave, handleDrop, handleExcelDataSubmit, handleBatchApplyLocation, warehouseDetailTarget, warehouseDetailOpen, closeWarehouseDetail, barcodeScannerOpen, setBarcodeScannerOpen, setCurrentScanningRow, handleBarcodeScan, handleBarcodeScanError, excelData, isDragOver, snackbar, setSnackbar, isSubmittingTransaction,
+    editBatchFromLocation, setEditBatchFromLocation, editBatchToLocation, setEditBatchToLocation, handleEditBatchApplyLocation} = context;
 
   const [detailProcessing, setDetailProcessing] = useState(false);
 
@@ -1024,6 +1025,58 @@ export default function InventoryHistory() {
                           />
                         </Grid>
                       </Grid>
+
+                      {/* 출발지/목적지 일괄 적용 */}
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2, p: 1.5, backgroundColor: '#f0f4ff', borderRadius: 1, flexWrap: 'wrap' }}>
+                        <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 'medium', whiteSpace: 'nowrap' }}>출발지/목적지 일괄 적용:</Typography>
+                        <Autocomplete
+                          sx={{ width: 160 }}
+                          size="small"
+                          options={[
+                            ...visibleWarehouses.map(w => ({ ...w, type: 'warehouse' })),
+                            ...dealers.map(d => ({ ...d, type: 'dealer' }))
+                          ]}
+                          getOptionLabel={(option) => `${option.name} (${option.type === 'warehouse' ? '창고' : '대리점'})`}
+                          value={(() => {
+                            const w = warehouses.find(w => w.id === editBatchFromLocation);
+                            if (w) return { ...w, type: 'warehouse' };
+                            const d = dealers.find(d => d.id === editBatchFromLocation);
+                            if (d) return { ...d, type: 'dealer' };
+                            return null;
+                          })()}
+                          onChange={(event, value) => setEditBatchFromLocation(value?.id || '')}
+                          isOptionEqualToValue={(option, value) => option?.id === value?.id}
+                          renderInput={(params) => <TextField {...params} variant="standard" label="일괄 출발지" placeholder="출발지 선택" />}
+                        />
+                        <Autocomplete
+                          sx={{ width: 160 }}
+                          size="small"
+                          options={[
+                            ...visibleWarehouses.map(w => ({ ...w, type: 'warehouse' })),
+                            ...dealers.map(d => ({ ...d, type: 'dealer' }))
+                          ]}
+                          getOptionLabel={(option) => `${option.name} (${option.type === 'warehouse' ? '창고' : '대리점'})`}
+                          value={(() => {
+                            const w = warehouses.find(w => w.id === editBatchToLocation);
+                            if (w) return { ...w, type: 'warehouse' };
+                            const d = dealers.find(d => d.id === editBatchToLocation);
+                            if (d) return { ...d, type: 'dealer' };
+                            return null;
+                          })()}
+                          onChange={(event, value) => setEditBatchToLocation(value?.id || '')}
+                          isOptionEqualToValue={(option, value) => option?.id === value?.id}
+                          renderInput={(params) => <TextField {...params} variant="standard" label="일괄 목적지" placeholder="목적지 선택" />}
+                        />
+                        <Button
+                          variant="contained"
+                          size="small"
+                          onClick={handleEditBatchApplyLocation}
+                          disabled={!editBatchFromLocation && !editBatchToLocation}
+                        >
+                          전체 적용
+                        </Button>
+                      </Box>
+
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                         <Typography variant="h6">상품 목록</Typography>
                         <Button
@@ -1035,7 +1088,7 @@ export default function InventoryHistory() {
                           상품 추가
                         </Button>
                       </Box>
-                      
+
                       <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
                         <Table size="small">
                           <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
@@ -1287,6 +1340,58 @@ export default function InventoryHistory() {
                           />
                         </Grid>
                       </Grid>
+
+                      {/* 출발지/목적지 일괄 적용 */}
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2, p: 1.5, backgroundColor: '#f0f4ff', borderRadius: 1, flexWrap: 'wrap' }}>
+                        <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 'medium', whiteSpace: 'nowrap' }}>출발지/목적지 일괄 적용:</Typography>
+                        <Autocomplete
+                          sx={{ width: 160 }}
+                          size="small"
+                          options={[
+                            ...visibleWarehouses.map(w => ({ ...w, type: 'warehouse' })),
+                            ...dealers.map(d => ({ ...d, type: 'dealer' }))
+                          ]}
+                          getOptionLabel={(option) => `${option.name} (${option.type === 'warehouse' ? '창고' : '대리점'})`}
+                          value={(() => {
+                            const w = warehouses.find(w => w.id === editBatchFromLocation);
+                            if (w) return { ...w, type: 'warehouse' };
+                            const d = dealers.find(d => d.id === editBatchFromLocation);
+                            if (d) return { ...d, type: 'dealer' };
+                            return null;
+                          })()}
+                          onChange={(event, value) => setEditBatchFromLocation(value?.id || '')}
+                          isOptionEqualToValue={(option, value) => option?.id === value?.id}
+                          renderInput={(params) => <TextField {...params} variant="standard" label="일괄 출발지" placeholder="출발지 선택" />}
+                        />
+                        <Autocomplete
+                          sx={{ width: 160 }}
+                          size="small"
+                          options={[
+                            ...visibleWarehouses.map(w => ({ ...w, type: 'warehouse' })),
+                            ...dealers.map(d => ({ ...d, type: 'dealer' }))
+                          ]}
+                          getOptionLabel={(option) => `${option.name} (${option.type === 'warehouse' ? '창고' : '대리점'})`}
+                          value={(() => {
+                            const w = warehouses.find(w => w.id === editBatchToLocation);
+                            if (w) return { ...w, type: 'warehouse' };
+                            const d = dealers.find(d => d.id === editBatchToLocation);
+                            if (d) return { ...d, type: 'dealer' };
+                            return null;
+                          })()}
+                          onChange={(event, value) => setEditBatchToLocation(value?.id || '')}
+                          isOptionEqualToValue={(option, value) => option?.id === value?.id}
+                          renderInput={(params) => <TextField {...params} variant="standard" label="일괄 목적지" placeholder="목적지 선택" />}
+                        />
+                        <Button
+                          variant="contained"
+                          size="small"
+                          onClick={handleEditBatchApplyLocation}
+                          disabled={!editBatchFromLocation && !editBatchToLocation}
+                        >
+                          전체 적용
+                        </Button>
+                      </Box>
+
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                         <Typography variant="h6">상품 목록</Typography>
                         <Button
@@ -1298,7 +1403,7 @@ export default function InventoryHistory() {
                           상품 추가
                         </Button>
                       </Box>
-                      
+
                       <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
                         <Table size="small">
                           <TableHead sx={{ backgroundColor: '#f5f5f5' }}>

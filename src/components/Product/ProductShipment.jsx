@@ -491,8 +491,9 @@ function ProductShipment() {
         .order('name');
       
       if (error) throw error;
-      setParts(data || []);
-      setFilteredParts(data || []);
+      const visibleParts = (data || []).filter(p => !(p.memo || '').includes('[HIDDEN]'));
+      setParts(visibleParts);
+      setFilteredParts(visibleParts);
     } catch (err) {
       console.error('Error fetching parts:', err);
       setSnackbar({

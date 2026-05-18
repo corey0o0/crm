@@ -486,7 +486,7 @@ function AddService() {
         .order('name');
 
       if (error) throw error;
-      setAvailableParts(data);
+      setAvailableParts((data || []).filter(p => !(p.memo || '').includes('[HIDDEN]')));
     } catch (err) {
       console.error('Error fetching parts:', err);
       setSnackbar({
