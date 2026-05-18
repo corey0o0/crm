@@ -412,11 +412,12 @@ export default function Cafe24OrderList() {
     // 2. 이미 반영 완료된 주문은 일부 아이템 교환/취소가 있어도 "반영 완료"로 유지
     if (order.is_transferred) return false;
     
-    // 3. 미반영 주문: 아이템 중 하나라도 취소/반품/교환 상태면 반품건으로 분류
-    if (order.order_items && order.order_items.some(item => {
-      const itemStatus = String(item.order_status).trim();
-      return itemStatus.startsWith('C') || itemStatus.startsWith('R') || itemStatus.startsWith('E');
-    })) return true;
+    // 3. 미반영 주문: 취소/반품/교환 완료 상태 아이템이 하나라도 있으면 반품건으로 분류
+    //    진행 중(C00, C10, E00 등)은 제외 — 완료된 것만 해당
+    const COMPLETED_CANCEL_STATUSES = ['C11','C40','C47','C48','C49','R40','R34','R36','E40','C34','C36'];
+    if (order.order_items && order.order_items.some(item =>
+      COMPLETED_CANCEL_STATUSES.includes(String(item.order_status).trim())
+    )) return true;
     return false;
   };
 
@@ -1049,7 +1050,7 @@ export default function Cafe24OrderList() {
     if (!window.confirm(`이 상품의 매핑을 삭제하시겠습니까?\n(${mapping.cafe24_product_code})`)) return;
     try {
       await deleteCafe24ProductMapping(mapping.mall_id, mapping.cafe24_product_code);
-      setMappingsList(prev => prev.filter(m => m.cafe24_product_code !== mapping.cafe24_product_code));
+      setMappingsList(prev => prev.filter(m => !(m.cafe24_product_code === mapping.cafe24_product_code && m.mall_id === mapping.mall_id)));
     } catch (e) {
       alert(e.message);
     }
@@ -1225,14 +1226,21 @@ export default function Cafe24OrderList() {
   const handleEditingItemChange = (index, field, value) => {
     const updated = [...editingItems];
     updated[index][field] = value;
-    
-    // 수량이나 단가를 수정한 경우, 라인 총 결제액(payment_amount)을 자동 재계산
-    if (field === 'quantity' || field === 'product_price') {
+
+    // 품목(part_id) 교체 시 해당 부품의 단가로 자동 갱신
+    if (field === 'part_id' && value) {
+      const part = availableParts.find(p => p.id === value);
+      if (part && part.price) {
+        updated[index].product_price = part.price;
+        updated[index].payment_amount = part.price * Number(updated[index].quantity || 1);
+      }
+    } else if (field === 'quantity' || field === 'product_price') {
+      // 수량이나 단가를 수정한 경우, 라인 총 결제액(payment_amount)을 자동 재계산
       const qty = Number(updated[index].quantity || 1);
       const uPrice = Number(updated[index].product_price || 0);
       updated[index].payment_amount = qty * uPrice;
     }
-    
+
     setEditingItems(updated);
   };
 

@@ -653,7 +653,9 @@ module.exports = function(supabaseAdmin) {
 
       const isPartiallyCanceled = order.canceled === 'M' || (order.items && order.items.some(i => ['C11','C40','R40','E40'].includes(i.order_status)));
 
-      const shipping_fee = Number((order.actual_order_amount && order.actual_order_amount.shipping_fee) || 0);
+      const shipping_fee =
+        Number((order.actual_order_amount && order.actual_order_amount.shipping_fee) || 0) ||
+        Number(order.shipping_fee || 0);
 
       let items_payment_sum = 0;
       if (formattedItems && formattedItems.length > 0) {
@@ -663,24 +665,33 @@ module.exports = function(supabaseAdmin) {
         }, 0);
       }
 
-      // 3) total_amount 결정 (= 실제 현금/카드 결제액만)
+      // 3) total_amount 결정
+      //    - 예치금(deposit): 정상 판매 처리 → total_amount에 포함
+      //    - 적립금(mileage): 할인 처리 → total_amount 제외, used_points로만 추적
       let total_amount = 0;
       let amount_decision_path = '';
 
       const paymentMethodStr = order.payment_method_name ? order.payment_method_name.join(',') : (order.payment_method ? order.payment_method.join(',') : '');
 
-      if (internal_points_total > 0 && pg_payment === 0) {
-        // 케이스A: 전액 적립금/예치금 결제 (현금 0원)
+      if (mileage_used > 0 && deposit_used === 0 && pg_payment === 0) {
+        // 케이스A: 전액 적립금 결제 → 할인 처리, 실매출 0
         total_amount = 0;
-        amount_decision_path = '전액 내부재화 결제 (적립금/예치금) → 실결제 0';
-      } else if (internal_points_total > 0 && pg_payment > 0) {
-        // 케이스B: 적립금/예치금 + PG 혼합결제 → 실결제는 PG만
-        total_amount = pg_payment;
-        amount_decision_path = '혼합결제 (PG만 실결제)';
+        amount_decision_path = '전액 적립금 결제 → 할인 처리, 실매출 0';
+      } else if (deposit_used > 0) {
+        // 케이스B: 예치금 포함 결제 → 예치금은 정상 판매(실매출), PG도 있으면 합산
+        total_amount = pg_payment + deposit_used;
+        amount_decision_path = `예치금 포함 결제 → PG(${pg_payment}) + 예치금(${deposit_used}) 실매출`;
       } else if ((paymentMethodStr.includes('예치금') || paymentMethodStr.includes('적립금') || paymentMethodStr.includes('마일리지')) && pg_payment === 0) {
-        // 케이스C: 결제수단명이 내부재화(예치금/적립금/마일리지)이지만 API 필드가 안 내려온 경우
-        total_amount = 0;
-        amount_decision_path = '내부재화 단독결제 (결제수단명 기반) → 실결제 0';
+        // 케이스C: 결제수단명 기반 (API 필드 미수신)
+        if (paymentMethodStr.includes('예치금')) {
+          // 예치금 단독: 정상 판매, 금액 불명시 품목합산으로 추정
+          total_amount = Number((order.actual_order_amount && order.actual_order_amount.payment_amount) || 0) || items_payment_sum;
+          amount_decision_path = '예치금 단독결제 (결제수단명 기반) → 정상 판매';
+        } else {
+          // 적립금/마일리지 단독: 할인 처리
+          total_amount = 0;
+          amount_decision_path = '적립금/마일리지 단독결제 (결제수단명 기반) → 할인 처리';
+        }
       } else if (pg_payment > 0) {
         // 케이스D: PG 단독결제 (가장 일반적)
         total_amount = pg_payment;
@@ -702,20 +713,20 @@ module.exports = function(supabaseAdmin) {
         }
       }
 
-      // 4) used_points 결정 (= 예치금 + 적립금 합계)
-      //    명시적 데이터가 있으면 그걸 쓰고, 없으면 (주문총액 - 실결제액)으로 유추
-      //    단, 입금전(N10) 상태는 아직 결제가 완료되지 않았으므로 적립금/예치금을 0으로 처리
+      // 4) used_points = 적립금(mileage)만 할인 처리로 기록
+      //    예치금은 total_amount에 포함됐으므로 used_points에서 제외
+      //    입금전(N10) 상태는 결제 미완료이므로 0 처리
       const orderStatus = (order.items && order.items.length > 0 && order.items[0].order_status) || '';
       const isUnpaid = orderStatus === 'N10';
-      
+
       if (isUnpaid) {
         total_amount = 0;
         amount_decision_path += ' [입금전 → 실결제 0 처리]';
       }
-      
+
       const used_points = isUnpaid ? 0 : (
-        internal_points_total > 0 
-          ? internal_points_total 
+        mileage_used > 0
+          ? mileage_used
           : Math.max(0, items_payment_sum + shipping_fee - Number(total_amount))
       );
       
