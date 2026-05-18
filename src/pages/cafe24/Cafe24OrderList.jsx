@@ -1255,15 +1255,23 @@ export default function Cafe24OrderList() {
         is_edited_in_crm: true
       }));
 
+      const newTotalAmount = sanitizedItems.reduce((sum, item) => {
+        const isCancelled = ['C11', 'C40', 'R40', 'E40'].includes(item.order_status);
+        return sum + (isCancelled ? 0 : Number(item.payment_amount || 0));
+      }, 0);
+
+      const updatePayload = { order_items: sanitizedItems };
+      if (newTotalAmount > 0) updatePayload.total_amount = newTotalAmount;
+
       const { error } = await supabase.from('cafe24_orders')
-        .update({ order_items: sanitizedItems })
+        .update(updatePayload)
         .eq('id', editingOrder.id);
-        
+
       if (error) throw error;
-      
+
       setOrders(prevOrders => prevOrders.map(order => {
         if (order.id === editingOrder.id) {
-          return { ...order, order_items: sanitizedItems };
+          return { ...order, order_items: sanitizedItems, ...(newTotalAmount > 0 ? { total_amount: newTotalAmount } : {}) };
         }
         return order;
       }));
