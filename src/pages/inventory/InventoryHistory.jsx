@@ -392,7 +392,6 @@ export default function InventoryHistory() {
                     </TableCell>
                     <TableCell>날짜</TableCell>
                     <TableCell>유형</TableCell>
-                    <TableCell align="center">상태</TableCell>
                     <TableCell align="center">확정</TableCell>
                     <TableCell>상품</TableCell>
                     <TableCell align="center">품목수</TableCell>
@@ -406,7 +405,7 @@ export default function InventoryHistory() {
                 <TableBody>
                   {paginatedTransactions.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={11} align="center">검색 결과가 없습니다.</TableCell>
+                      <TableCell colSpan={10} align="center">검색 결과가 없습니다.</TableCell>
                     </TableRow>
                   ) : (
                     paginatedTransactions.map((group) => (
@@ -424,13 +423,6 @@ export default function InventoryHistory() {
                         <TableCell>{group.date}</TableCell>
                         <TableCell>
                           <Chip label={getTransactionTypeInfo(group).label} size="small" color={getTransactionTypeInfo(group).color} />
-                        </TableCell>
-                        <TableCell align="center">
-                          {group.items[0]?.status === '대기' ? (
-                            <Chip label="출고대기" size="small" color="warning" variant="outlined" />
-                          ) : (
-                            <Chip label="완료" size="small" color="success" variant="outlined" />
-                          )}
                         </TableCell>
                         <TableCell align="center">
                           {group.isConfirmed === false ? (
