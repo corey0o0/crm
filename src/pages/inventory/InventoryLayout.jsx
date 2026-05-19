@@ -263,7 +263,8 @@ function InventoryLayout() {
     fromLocation: '',
     toLocation: '',
     note: '',
-    date: new Date().toISOString().split('T')[0]
+    date: new Date().toISOString().split('T')[0],
+    isConfirmed: true
   });
 
   // 다중 상품 입출고용 단일 데이터 (통합)
@@ -739,7 +740,8 @@ function InventoryLayout() {
         date: selectedTransaction.date || '',
         note: allSameNote ? (itemNotes[0] || '') : '',
         fromLocation: selectedTransaction.fromLocation || '',
-        toLocation: selectedTransaction.toLocation || ''
+        toLocation: selectedTransaction.toLocation || '',
+        isConfirmed: selectedTransaction.isConfirmed ?? (selectedTransaction.items?.[0]?.isConfirmed ?? true)
       });
       
       // 상품 정보 초기화
@@ -842,7 +844,8 @@ function InventoryLayout() {
             note: (commonNote !== '' ? commonNote : ((item.note ?? '').toString().trim() || null)),
             additionalNote: item.additionalNote || null,
             createdAt: new Date().toISOString(),
-            isGrouped: true
+            isGrouped: true,
+            isConfirmed: editFormData.isConfirmed ?? true
           }));
 
         if (newRows.length === 0) {
@@ -902,7 +905,8 @@ function InventoryLayout() {
             ? (editFormData.note).toString()
             : (((item.note ?? '').toString().trim() !== '') ? item.note : (selectedTransaction.note || null)),
           additionalNote: item.additionalNote ?? selectedTransaction.additionalNote ?? null,
-          isGrouped: false
+          isGrouped: false,
+          isConfirmed: editFormData.isConfirmed ?? true
         };
         await transactionApi.update(selectedTransaction.id, payload);
       }
@@ -1112,7 +1116,8 @@ function InventoryLayout() {
       fromLocation: '',
       toLocation: '',
       note: '',
-      date: new Date().toISOString().split('T')[0]
+      date: new Date().toISOString().split('T')[0],
+      isConfirmed: true
     });
     // 다중 상품 데이터 초기화 (통합)
     setMultipleIoProducts([
@@ -1222,7 +1227,8 @@ function InventoryLayout() {
         additionalNote: item.additionalNote || '',
         createdAt: new Date().toLocaleString(),
         isGrouped: true,
-        status: '완료'
+        status: '완료',
+        isConfirmed: formData.isConfirmed ?? true
       };
       newTransactions.push(transaction);
     });
@@ -1232,13 +1238,17 @@ function InventoryLayout() {
       return;
     }
 
+    const isConfirmed = formData.isConfirmed ?? true;
+
     setIsSubmittingTransaction(true);
     try {
       await transactionApi.createMany(newTransactions);
       const updatedTransactions = [...newTransactions, ...transactions];
       setTransactions(updatedTransactions);
-      await batchUpdateInventory(newTransactions);
-      showSnackbar(`입출고 등록이 완료되었습니다. (${newTransactions.length}개 상품)`, 'success');
+      if (isConfirmed) {
+        await batchUpdateInventory(newTransactions);
+      }
+      showSnackbar(`입출고 등록이 완료되었습니다. (${newTransactions.length}개 상품)${!isConfirmed ? ' — 미확정: 재고 미반영' : ''}`, 'success');
 
       // 감사 로그: 신규 입출고 등록
       try {
@@ -1437,6 +1447,8 @@ function InventoryLayout() {
         if (!tx.productId) continue;
         // 재고 비관리 상품은 건너뜀
         if (noTrackIds.has(tx.productId)) continue;
+        // 미확정 건은 재고 미반영
+        if (tx.isConfirmed === false) continue;
         const qty = Number(tx.quantity) || 0;
         
         if (tx.type === 'in') {
@@ -2141,10 +2153,13 @@ function InventoryLayout() {
             date: transaction.date,
             createdAt: transaction.createdAt,
             note: transaction.note, // 공용메모 추가
+            isConfirmed: transaction.isConfirmed ?? true,
             items: []
           };
         }
         grouped[key].items.push(transaction);
+        // 그룹 내 하나라도 미확정이면 그룹 전체를 미확정으로 표시
+        if (transaction.isConfirmed === false) grouped[key].isConfirmed = false;
         // 그룹 대표 속성은 'out'(출고)을 우선시함 (환입보다 원본 전송 내역 표시)
         if (transaction.type === 'out') {
           grouped[key].type = 'out';
@@ -2157,6 +2172,7 @@ function InventoryLayout() {
           date: transaction.date,
           createdAt: transaction.createdAt,
           note: transaction.note,
+          isConfirmed: transaction.isConfirmed ?? true,
           items: [transaction]
         };
       }

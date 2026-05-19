@@ -425,11 +425,16 @@ export default function InventoryHistory() {
                           <Chip label={getTransactionTypeInfo(group).label} size="small" color={getTransactionTypeInfo(group).color} />
                         </TableCell>
                         <TableCell align="center">
-                          {group.items[0]?.status === '대기' ? (
-                            <Chip label="출고대기" size="small" color="warning" variant="outlined" />
-                          ) : (
-                            <Chip label="완료" size="small" color="success" variant="outlined" />
-                          )}
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'center' }}>
+                            {group.items[0]?.status === '대기' ? (
+                              <Chip label="출고대기" size="small" color="warning" variant="outlined" />
+                            ) : (
+                              <Chip label="완료" size="small" color="success" variant="outlined" />
+                            )}
+                            {group.isConfirmed === false && (
+                              <Chip label="미확정" size="small" color="warning" sx={{ fontSize: '0.65rem', height: 18 }} />
+                            )}
+                          </Box>
                         </TableCell>
                         <TableCell>
                           {group.items.length === 1 ? (
@@ -663,7 +668,7 @@ export default function InventoryHistory() {
           {/* 통합 폼 */}
           <Box sx={{ pt: 2 }}>
               <Grid container spacing={2} sx={{ mb: 3 }}>
-                <Grid item xs={12} md={6}>
+                <Grid item xs={12} md={5}>
                   <TextField
                     fullWidth
                     variant="standard"
@@ -674,7 +679,7 @@ export default function InventoryHistory() {
                     InputLabelProps={{ shrink: true }}
                   />
                 </Grid>
-                <Grid item xs={12} md={6}>
+                <Grid item xs={12} md={5}>
                   <TextField
                     fullWidth
                     variant="standard"
@@ -682,6 +687,22 @@ export default function InventoryHistory() {
                     value={formData.note}
                     onChange={(e) => setFormData(prev => ({ ...prev, note: e.target.value }))}
                     placeholder="모든 상품에 적용될 공통 메모"
+                  />
+                </Grid>
+                <Grid item xs={12} md={2} sx={{ display: 'flex', alignItems: 'flex-end' }}>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={formData.isConfirmed ?? true}
+                        onChange={(e) => setFormData(prev => ({ ...prev, isConfirmed: e.target.checked }))}
+                        color="success"
+                      />
+                    }
+                    label={
+                      <Typography variant="body2" fontWeight="bold" color={(formData.isConfirmed ?? true) ? 'success.main' : 'warning.main'}>
+                        {(formData.isConfirmed ?? true) ? '확정' : '미확정'}
+                      </Typography>
+                    }
                   />
                 </Grid>
               </Grid>
@@ -1013,7 +1034,7 @@ export default function InventoryHistory() {
                             InputLabelProps={{ shrink: true }}
                           />
                         </Grid>
-                        <Grid item xs={12} md={6}>
+                        <Grid item xs={12} md={5}>
                           <TextField
                             fullWidth
                             size="small"
@@ -1022,6 +1043,23 @@ export default function InventoryHistory() {
                             value={editFormData.note || ''}
                             onChange={(e) => setEditFormData(prev => ({ ...prev, note: e.target.value }))}
                             placeholder="해당 거래에 대한 공통 메모"
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={4} sx={{ display: 'flex', alignItems: 'flex-end' }}>
+                          <FormControlLabel
+                            control={
+                              <Switch
+                                checked={editFormData.isConfirmed ?? true}
+                                onChange={(e) => setEditFormData(prev => ({ ...prev, isConfirmed: e.target.checked }))}
+                                color="success"
+                                size="small"
+                              />
+                            }
+                            label={
+                              <Typography variant="body2" fontWeight="bold" color={(editFormData.isConfirmed ?? true) ? 'success.main' : 'warning.main'}>
+                                {(editFormData.isConfirmed ?? true) ? '확정 (재고반영)' : '미확정 (재고미반영)'}
+                              </Typography>
+                            }
                           />
                         </Grid>
                       </Grid>
@@ -1328,7 +1366,7 @@ export default function InventoryHistory() {
                             InputLabelProps={{ shrink: true }}
                           />
                         </Grid>
-                        <Grid item xs={12} md={6}>
+                        <Grid item xs={12} md={5}>
                           <TextField
                             fullWidth
                             size="small"
@@ -1337,6 +1375,23 @@ export default function InventoryHistory() {
                             value={editFormData.note || ''}
                             onChange={(e) => setEditFormData(prev => ({ ...prev, note: e.target.value }))}
                             placeholder="해당 거래에 대한 공통 메모"
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={4} sx={{ display: 'flex', alignItems: 'flex-end' }}>
+                          <FormControlLabel
+                            control={
+                              <Switch
+                                checked={editFormData.isConfirmed ?? true}
+                                onChange={(e) => setEditFormData(prev => ({ ...prev, isConfirmed: e.target.checked }))}
+                                color="success"
+                                size="small"
+                              />
+                            }
+                            label={
+                              <Typography variant="body2" fontWeight="bold" color={(editFormData.isConfirmed ?? true) ? 'success.main' : 'warning.main'}>
+                                {(editFormData.isConfirmed ?? true) ? '확정 (재고반영)' : '미확정 (재고미반영)'}
+                              </Typography>
+                            }
                           />
                         </Grid>
                       </Grid>

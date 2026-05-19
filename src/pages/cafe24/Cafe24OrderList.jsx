@@ -969,6 +969,78 @@ export default function Cafe24OrderList() {
     }
   };
 
+  const handleBatchSmartResolve = async () => {
+    if (!selectedOrders.length) return;
+    const targetOrders = orders.filter(o => selectedOrders.includes(o.id));
+    if (!window.confirm(`선택한 ${targetOrders.length}건에 대해 스마트 처리를 일괄 실행합니다.\n각 주문 상태에 따라 자동으로 처리됩니다. 계속하시겠습니까?`)) return;
+
+    setLoading(true);
+    const results = [];
+    for (const order of targetOrders) {
+      try {
+        const isExchange = String(order.status).trim().startsWith('E') ||
+          (order.order_items && order.order_items.some(i => String(i.order_status).trim().startsWith('E')));
+
+        if (isExchange) {
+          let prevWarehouse = (warehouses.find(w => w.name.includes('청담')) || warehouses[0])?.id || '';
+          if (order.order_items) {
+            const prevItem = order.order_items.find(i => i._warehouse_id && i._warehouse_id !== 'EXCLUDE');
+            if (prevItem) prevWarehouse = prevItem._warehouse_id;
+          }
+          if (order.is_transferred) {
+            const { data } = await supabase.from('pending_outbounds').select('status').eq('order_no', order.order_id).maybeSingle();
+            if (data && data.status === '완료') {
+              await returnCafe24Inventory([order.id]);
+            } else {
+              await cancelSalesTransfer([order.id]);
+            }
+            await supabase.from('cafe24_orders').update({ is_transferred: false }).eq('id', order.id);
+          }
+          const orderDateStr = order.order_date.split('T')[0];
+          await syncCafe24Orders(order.mall_id, orderDateStr, orderDateStr);
+          const { data: updatedOrder } = await supabase.from('cafe24_orders').select('*').eq('id', order.id).single();
+          const tempConfig = { [updatedOrder.id]: {} };
+          if (updatedOrder.order_items) {
+            updatedOrder.order_items.forEach((item, idx) => {
+              if (!['C11', 'C40', 'R40', 'E40'].includes(item.order_status)) {
+                tempConfig[updatedOrder.id][idx] = prevWarehouse;
+              }
+            });
+          }
+          await transferCafe24Orders([updatedOrder.id], tempConfig);
+          results.push({ id: order.order_id, action: '교환 자동처리 완료', ok: true });
+        } else if (!order.is_transferred) {
+          await supabase.from('cafe24_orders').update({ is_deleted: true, is_transferred: false }).eq('id', order.id);
+          results.push({ id: order.order_id, action: '무시 처리 완료', ok: true });
+        } else {
+          const { data } = await supabase.from('pending_outbounds').select('status').eq('order_no', order.order_id).maybeSingle();
+          if (data && data.status === '완료') {
+            await returnCafe24Inventory([order.id]);
+            await supabase.from('cafe24_orders').update({ is_deleted: true, is_transferred: false }).eq('id', order.id);
+            results.push({ id: order.order_id, action: '환입 + 무시 완료', ok: true });
+          } else {
+            await cancelSalesTransfer([order.id]);
+            await supabase.from('cafe24_orders').update({ is_deleted: true, is_transferred: false }).eq('id', order.id);
+            results.push({ id: order.order_id, action: '롤백 + 무시 완료', ok: true });
+          }
+        }
+      } catch (err) {
+        results.push({ id: order.order_id, action: `실패: ${err.message}`, ok: false });
+      }
+    }
+    setLoading(false);
+    const successCount = results.filter(r => r.ok).length;
+    const failCount = results.length - successCount;
+    const detail = results.map(r => `• ${r.id}: ${r.action}`).join('\n');
+    setAlertDialog({
+      open: true,
+      title: `스마트 처리 완료 (성공 ${successCount}건${failCount > 0 ? `, 실패 ${failCount}건` : ''})`,
+      message: detail
+    });
+    setSelectedOrders([]);
+    fetchOrders();
+  };
+
   const openMappingModal = (order, item) => {
     const targetCode = item.custom_product_code || item.product_code;
     setMappingItem({
@@ -1322,6 +1394,10 @@ export default function Cafe24OrderList() {
           </Button>
           <Button size="small" variant="contained" color="primary" onClick={handleSalesTransfer} sx={{ height: 40, lineHeight: 1.2, px: 2, textAlign: 'center' }}>
             판매반영<br/>(전송)
+          </Button>
+          <Box sx={{ width: '1px', height: 30, bgcolor: 'divider', mx: 1 }} />
+          <Button size="small" variant="contained" color="secondary" onClick={handleBatchSmartResolve} sx={{ height: 40, lineHeight: 1.2, px: 2, textAlign: 'center', fontWeight: 'bold' }}>
+            스마트<br/>처리
           </Button>
         </Box>
       ) : (

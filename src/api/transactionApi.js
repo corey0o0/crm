@@ -20,7 +20,8 @@ export const transactionApi = {
       additionalNote: row.additional_note ?? null,
       createdAt: row.created_at ?? null,
       isGrouped: row.is_grouped ?? false,
-      status: row.status ?? '완료'
+      status: row.status ?? '완료',
+      isConfirmed: row.is_confirmed ?? true
     };
   },
   // 최근 거래내역 조회 (기본 500건으로 제한하여 로딩 속도 개선)
@@ -95,7 +96,8 @@ export const transactionApi = {
         note: transaction.note ?? null,
         additional_note: transaction.additionalNote ?? null,
         is_grouped: transaction.isGrouped ?? false,
-        status: transaction.status ?? '완료'
+        status: transaction.status ?? '완료',
+        is_confirmed: transaction.isConfirmed ?? true
       };
       const { data, error } = await supabase
         .from('transactions')
@@ -128,7 +130,8 @@ export const transactionApi = {
         note: t.note ?? null,
         additional_note: t.additionalNote ?? null,
         is_grouped: t.isGrouped ?? false,
-        status: t.status ?? '완료'
+        status: t.status ?? '완료',
+        is_confirmed: t.isConfirmed ?? true
       }));
       const { data, error } = await supabase
         .from('transactions')
@@ -160,7 +163,8 @@ export const transactionApi = {
         note: updates.note ?? null,
         additional_note: updates.additionalNote ?? null,
         is_grouped: updates.isGrouped ?? false,
-        status: updates.status ?? '완료'
+        status: updates.status ?? '완료',
+        is_confirmed: updates.isConfirmed ?? true
       };
       const { data, error } = await supabase
         .from('transactions')
