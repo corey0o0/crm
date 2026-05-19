@@ -393,6 +393,7 @@ export default function InventoryHistory() {
                     <TableCell>날짜</TableCell>
                     <TableCell>유형</TableCell>
                     <TableCell align="center">상태</TableCell>
+                    <TableCell align="center">확정</TableCell>
                     <TableCell>상품</TableCell>
                     <TableCell align="center">품목수</TableCell>
                     <TableCell align="center">수량</TableCell>
@@ -405,7 +406,7 @@ export default function InventoryHistory() {
                 <TableBody>
                   {paginatedTransactions.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} align="center">검색 결과가 없습니다.</TableCell>
+                      <TableCell colSpan={11} align="center">검색 결과가 없습니다.</TableCell>
                     </TableRow>
                   ) : (
                     paginatedTransactions.map((group) => (
@@ -425,16 +426,18 @@ export default function InventoryHistory() {
                           <Chip label={getTransactionTypeInfo(group).label} size="small" color={getTransactionTypeInfo(group).color} />
                         </TableCell>
                         <TableCell align="center">
-                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'center' }}>
-                            {group.items[0]?.status === '대기' ? (
-                              <Chip label="출고대기" size="small" color="warning" variant="outlined" />
-                            ) : (
-                              <Chip label="완료" size="small" color="success" variant="outlined" />
-                            )}
-                            {group.isConfirmed === false && (
-                              <Chip label="미확정" size="small" color="warning" sx={{ fontSize: '0.65rem', height: 18 }} />
-                            )}
-                          </Box>
+                          {group.items[0]?.status === '대기' ? (
+                            <Chip label="출고대기" size="small" color="warning" variant="outlined" />
+                          ) : (
+                            <Chip label="완료" size="small" color="success" variant="outlined" />
+                          )}
+                        </TableCell>
+                        <TableCell align="center">
+                          {group.isConfirmed === false ? (
+                            <Chip label="미확정" size="small" color="warning" variant="outlined" />
+                          ) : (
+                            <Chip label="확정" size="small" color="success" variant="outlined" />
+                          )}
                         </TableCell>
                         <TableCell>
                           {group.items.length === 1 ? (
