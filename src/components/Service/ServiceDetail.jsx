@@ -812,10 +812,18 @@ function ServiceDetail() {
 
     // 3. 출고완료 확인 메시지
     if (newStatus === '출고완료') {
+      const pendingParts = selectedParts.filter(p =>
+        p.status === '준비중' &&
+        p.status !== '반품완료' &&
+        !(p.usage && p.usage.includes('[반품완료]'))
+      );
+      const pendingWarning = pendingParts.length > 0
+        ? `\n\n⚠️ 준비중 상태의 부품이 ${pendingParts.length}개 있습니다.\n(${pendingParts.map(p => p.name || p.part_name || p.part_id || '부품').join(', ')})\n계속 진행하면 해당 부품도 출고완료로 처리됩니다.`
+        : '';
       setConfirmDialog({
         open: true,
         title: 'A/S 완료 확인',
-        message: '해당 A/S를 완료 처리하시겠습니까?',
+        message: `해당 A/S를 완료 처리하시겠습니까?${pendingWarning}`,
         onConfirm: () => {
           const now = new Date();
           const dateStr = now.toISOString().slice(0, 10);
