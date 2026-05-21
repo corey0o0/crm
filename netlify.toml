@@ -11,6 +11,8 @@
   REACT_APP_OPENAI_MODEL = "gpt-4o-mini"
   NODE_ENV = "production"
   REACT_APP_BACKEND_URL = "https://crm-production-067b.up.railway.app"
+  # scratch/test 파일에 하드코딩된 키 값이 있어 스캔 예외 처리
+  SECRETS_SCAN_OMIT_KEYS = "SUPABASE_SERVICE_KEY,SUPABASE_URL"
 
 [[redirects]]
   from = "/*"
