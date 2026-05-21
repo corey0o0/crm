@@ -306,6 +306,121 @@ app.delete('/api/admin/users/:id', adminAuth, async (req, res) => {
 // 백그라운드 스케줄러 실행
 require('./cronJobs')(supabaseAdmin, cafe24Router);
 
+// =============================================
+// 챗봇 API 엔드포인트
+// =============================================
+const CAFE24_STATUS_KO = {
+  'N00':'입금전','N10':'상품준비중','N20':'배송준비중','N21':'배송대기','N22':'배송보류',
+  'N30':'배송중','N40':'배송완료','N50':'배송완료',
+  'C00':'취소신청','C10':'취소접수','C34':'취소처리중','C36':'취소처리중','C40':'취소완료',
+  'C47':'취소완료','C48':'취소완료','C49':'취소완료',
+  'R00':'반품신청','R10':'반품접수','R12':'반품보류','R30':'반품처리중',
+  'R34':'반품처리중','R36':'반품처리중','R40':'반품완료',
+  'E00':'교환신청','E10':'교환접수','E12':'교환보류','E20':'교환준비',
+  'E30':'교환처리중','E32':'교환처리중','E34':'교환처리중','E36':'교환처리중','E40':'교환완료',
+  'M':'배송준비중','T':'배송중','F':'배송완료','W':'배송보류','C':'취소완료','R':'반품완료',
+};
+
+// 주문 조회: GET /api/chatbot/order?order_id=...&phone_last4=...&mall_id=...
+app.get('/api/chatbot/order', async (req, res) => {
+  try {
+    const { order_id, phone_last4, mall_id } = req.query;
+    if (!order_id || !phone_last4 || !mall_id) {
+      return res.status(400).json({ error: 'order_id, phone_last4, mall_id 필수' });
+    }
+    const { data, error } = await supabaseAdmin
+      .from('cafe24_orders')
+      .select('order_id, buyer_phone, order_date, status, total_amount, shipping_fee, order_items')
+      .eq('order_id', order_id.trim())
+      .eq('mall_id', mall_id.trim())
+      .eq('is_deleted', false)
+      .maybeSingle();
+    if (error) { console.error('[chatbot/order]', error); return res.status(500).json({ error: error.message }); }
+    if (!data) return res.json({ found: false });
+
+    const phone = (data.buyer_phone || '').replace(/\D/g, '');
+    if (!phone.endsWith(phone_last4.trim())) return res.json({ found: true, verified: false });
+
+    const CANCEL_STATUS = ['C11','C40','R40','E40'];
+    const rawItems = data.order_items || [];
+    const validItems = rawItems.filter(it => !CANCEL_STATUS.includes(it.order_status));
+    const items = validItems.map(it => ({
+      name: it.product_name || it.name || '상품',
+      qty: it.quantity || 1,
+      price: it.payment_amount || it.product_price || it.price || 0,
+    }));
+
+    const koStatus = CAFE24_STATUS_KO[String(data.status || '').trim()] || data.status || '확인중';
+    return res.json({
+      found: true, verified: true,
+      order: {
+        order_id: data.order_id,
+        order_date: data.order_date ? String(data.order_date).slice(0, 10) : '-',
+        status: koStatus,
+        total_amount: data.total_amount || 0,
+        shipping_fee: data.shipping_fee || 0,
+        items,
+        courier: null,
+        tracking_no: null,
+      }
+    });
+  } catch (err) {
+    console.error('[chatbot/order]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// A/S 조회: GET /api/chatbot/service?input=...&brand=...
+app.get('/api/chatbot/service', async (req, res) => {
+  try {
+    const { input, brand } = req.query;
+    if (!input || !brand) return res.status(400).json({ error: 'input, brand 필수' });
+
+    const clean = input.trim().replace(/-/g, '');
+    let row = null;
+
+    if (/^\d+$/.test(clean)) {
+      const { data } = await supabaseAdmin
+        .from('services')
+        .select('id, customer_name, customer_phone, product_name, symptom, status, reception_date, completion_date')
+        .eq('id', parseInt(clean, 10))
+        .eq('brand', brand.toUpperCase())
+        .maybeSingle();
+      row = data;
+    }
+
+    if (!row) {
+      const { data: rows } = await supabaseAdmin
+        .from('services')
+        .select('id, customer_name, customer_phone, product_name, symptom, status, reception_date, completion_date')
+        .eq('brand', brand.toUpperCase())
+        .ilike('customer_phone', `%${clean}%`)
+        .order('id', { ascending: false })
+        .limit(1);
+      row = rows && rows.length > 0 ? rows[0] : null;
+    }
+
+    if (!row) return res.json({ found: false });
+
+    return res.json({
+      found: true,
+      service: {
+        id: row.id,
+        customer_name: row.customer_name,
+        phone: row.customer_phone,
+        product_name: row.product_name,
+        symptom: row.symptom,
+        status: row.status,
+        reception_date: row.reception_date ? String(row.reception_date).slice(0, 10) : '-',
+        est_completion: row.completion_date ? String(row.completion_date).slice(0, 10) : null,
+      }
+    });
+  } catch (err) {
+    console.error('[chatbot/service]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 서버 시작
 app.listen(port, () => {
   console.log(`서버가 포트 ${port}에서 실행 중입니다.`);
