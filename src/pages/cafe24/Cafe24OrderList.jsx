@@ -1379,6 +1379,9 @@ export default function Cafe24OrderList() {
           <Button size="small" variant="contained" color="secondary" onClick={handleBatchApplyWarehouse} sx={{ height: 40, px: 2, whiteSpace: 'nowrap' }}>
             일괄적용
           </Button>
+          <Button size="small" variant="contained" color="secondary" onClick={handleBatchSmartResolve} sx={{ height: 40, lineHeight: 1.2, px: 2, textAlign: 'center', fontWeight: 'bold' }}>
+            스마트<br/>처리
+          </Button>
           <Box sx={{ width: '1px', height: 30, bgcolor: 'divider', mx: 1 }} />
           <Button size="small" variant="outlined" color="error" onClick={handleDeleteSelected} sx={{ height: 40, px: 2, whiteSpace: 'nowrap' }}>
             삭제
@@ -1394,10 +1397,6 @@ export default function Cafe24OrderList() {
           </Button>
           <Button size="small" variant="contained" color="primary" onClick={handleSalesTransfer} sx={{ height: 40, lineHeight: 1.2, px: 2, textAlign: 'center' }}>
             판매반영<br/>(전송)
-          </Button>
-          <Box sx={{ width: '1px', height: 30, bgcolor: 'divider', mx: 1 }} />
-          <Button size="small" variant="contained" color="secondary" onClick={handleBatchSmartResolve} sx={{ height: 40, lineHeight: 1.2, px: 2, textAlign: 'center', fontWeight: 'bold' }}>
-            스마트<br/>처리
           </Button>
         </Box>
       ) : (
