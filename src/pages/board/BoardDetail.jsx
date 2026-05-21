@@ -102,7 +102,7 @@ function BoardDetail() {
           </Typography>
         </Box>
         <Stack direction="row" spacing={1} flexShrink={0}>
-          <Button variant="outlined" size="small" startIcon={<ListIcon />} onClick={() => navigate('/board')}>
+          <Button variant="outlined" size="small" startIcon={<ListIcon />} onClick={() => navigate(isCafe24 ? '/board-cafe24' : '/board')}>
             목록
           </Button>
           {isCafe24 && post.cafe24_url && (

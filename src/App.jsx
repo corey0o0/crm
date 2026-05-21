@@ -59,6 +59,7 @@ import BoardList from './pages/board/BoardList';
 import BoardNew from './pages/board/BoardNew';
 import BoardDetail from './pages/board/BoardDetail';
 import BoardEdit from './pages/board/BoardEdit';
+import Cafe24Board from './pages/board/Cafe24Board';
 import PendingOrderList from './pages/pendingOrders/PendingOrderList';
 import PendingOrderDetail from './pages/pendingOrders/PendingOrderDetail';
 import Cafe24Settings from './components/Settings/Cafe24Settings';
@@ -156,10 +157,13 @@ function AppRouter() {
           <Route path="settings/product-sync" element={<PermissionRoute requiredPermission={MENU_KEYS.ADMIN_TOOLS}><ProductComparisonDashboard /></PermissionRoute>} />
 
           {/* 게시판 */}
-          <Route path="board" element={<PermissionRoute requiredPermission={[MENU_KEYS.BOARD_GROUP, MENU_KEYS.BOARD_INTERNAL, MENU_KEYS.BOARD_CAFE24]}><BoardList /></PermissionRoute>} />
-          <Route path="board/new" element={<PermissionRoute requiredPermission={[MENU_KEYS.BOARD_GROUP, MENU_KEYS.BOARD_INTERNAL, MENU_KEYS.BOARD_CAFE24]}><BoardNew /></PermissionRoute>} />
-          <Route path="board/:id" element={<PermissionRoute requiredPermission={[MENU_KEYS.BOARD_GROUP, MENU_KEYS.BOARD_INTERNAL, MENU_KEYS.BOARD_CAFE24]}><BoardDetail /></PermissionRoute>} />
-          <Route path="board/:id/edit" element={<PermissionRoute requiredPermission={[MENU_KEYS.BOARD_GROUP, MENU_KEYS.BOARD_INTERNAL, MENU_KEYS.BOARD_CAFE24]}><BoardEdit /></PermissionRoute>} />
+          <Route path="board" element={<PermissionRoute requiredPermission={[MENU_KEYS.BOARD_GROUP, MENU_KEYS.BOARD_INTERNAL]}><BoardList /></PermissionRoute>} />
+          <Route path="board/new" element={<PermissionRoute requiredPermission={[MENU_KEYS.BOARD_GROUP, MENU_KEYS.BOARD_INTERNAL]}><BoardNew /></PermissionRoute>} />
+          <Route path="board/:id" element={<PermissionRoute requiredPermission={[MENU_KEYS.BOARD_GROUP, MENU_KEYS.BOARD_INTERNAL]}><BoardDetail /></PermissionRoute>} />
+          <Route path="board/:id/edit" element={<PermissionRoute requiredPermission={[MENU_KEYS.BOARD_GROUP, MENU_KEYS.BOARD_INTERNAL]}><BoardEdit /></PermissionRoute>} />
+          {/* 카페24 게시판 */}
+          <Route path="board-cafe24" element={<PermissionRoute requiredPermission={[MENU_KEYS.BOARD_GROUP, MENU_KEYS.BOARD_CAFE24]}><Cafe24Board /></PermissionRoute>} />
+          <Route path="board-cafe24/:id" element={<PermissionRoute requiredPermission={[MENU_KEYS.BOARD_GROUP, MENU_KEYS.BOARD_CAFE24]}><BoardDetail /></PermissionRoute>} />
 
           {/* 출고/판매 관리 */}
           <Route path="sales/entry" element={<PermissionRoute requiredPermission={MENU_KEYS.SALES_ENTRY}><SalesEntry /></PermissionRoute>} />
