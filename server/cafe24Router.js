@@ -718,23 +718,16 @@ module.exports = function(supabaseAdmin) {
 
       // 4) used_points = 적립금(mileage)만 할인 처리로 기록
       //    예치금은 total_amount에 포함됐으므로 used_points에서 제외
-      //    입금전(N00) 상태는 결제 미완료이므로 0 처리 (N10=상품준비중은 결제 완료 상태)
       const orderStatus = (order.items && order.items.length > 0 && order.items[0].order_status) || '';
-      const isUnpaid = orderStatus === 'N00';
 
-      if (isUnpaid) {
-        total_amount = 0;
-        amount_decision_path += ' [입금전 → 실결제 0 처리]';
-      }
-
-      const used_points = isUnpaid ? 0 : (
+      const used_points = (
         mileage_used > 0
           ? mileage_used
           : Math.max(0, items_payment_sum + shipping_fee - Number(total_amount))
       );
-      
-      // Audit Log (total_amount=0인 비N10 건만 출력)
-      if (total_amount === 0 && !isUnpaid) {
+
+      // Audit Log (total_amount=0인 건만 출력)
+      if (total_amount === 0) {
         console.log(`[Amount Audit] order_id=${order.order_id} | path=${amount_decision_path} | pg=${pg_payment} | internal=${internal_points_total} | items_sum=${items_payment_sum} | method=${paymentMethodStr}`);
       }
 
