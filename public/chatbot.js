@@ -1,0 +1,807 @@
+(function () {
+  'use strict';
+
+  // ─── BRAND CONFIG ─────────────────────────────────────────────────────────
+  // Cafe24 footer에서 <script>window.CHATBOT_BRAND='nb'</script> 로 지정
+  const BRAND_KEY = (window.CHATBOT_BRAND || 'nb').toLowerCase();
+
+  const BRAND_CONFIG = {
+    nb: {
+      name: '니어바이크 고객센터',
+      shopName: '니어바이크',
+      shopUrl: 'www.nearbike.co.kr',
+      color: '#1a73e8',
+      avatar: '🚲',
+      dbBrand: 'NB',
+      mallId: 'nearbike',
+      systemPrompt: `[역할]
+당신은 니어바이크(www.nearbike.co.kr) 자전거 전문 쇼핑몰의 AI 고객센터 챗봇입니다.
+
+[목표]
+배송, 반품/교환, A/S, 결제 관련 일반 문의를 처리합니다.
+
+[정보 출처 — 반드시 아래 정보만 사용]
+- 취급 제품: 자전거, 자전거 부품, 자전거 용품, 라이딩 의류
+- 고객센터: 평일 09:00~18:00 (주말/공휴일 휴무)
+- 배송: 평균 2~3 영업일, 제주/도서산간 +2일
+- 반품: 수령 후 7일 이내 / 단순변심 왕복배송비 고객부담 / 불량·오배송 무료
+- 결제수단: 신용카드, 무통장입금, 카카오페이, 네이버페이
+
+[안전·정책 규칙]
+1. 위 정보에 없는 내용은 절대 추측하지 마세요.
+2. 모르는 경우 고객센터(평일 09:00~18:00) 이관을 안내하세요.
+3. 개인정보를 요청하거나 수집하지 마세요.
+4. 고객이 불만·화남을 표현하면 공감 후 즉시 고객센터 연결을 안내하세요.
+
+[출력 형식] 한국어, 친절하고 간결하게, 3문장 이내`,
+      faqs: [
+        { keywords: ['배송', '도착', '언제', '며칠', '기간', '얼마나'], answer: '일반 배송은 평균 2~3 영업일 소요됩니다. 제주도 및 도서산간 지역은 추가 1~2일이 더 걸릴 수 있습니다. 주문 후 발송 시 문자로 운송장 번호를 안내해 드립니다.' },
+        { keywords: ['반품', '환불', '취소'], answer: '수령 후 7일 이내 반품 신청이 가능합니다. 단순변심의 경우 왕복 배송비는 고객 부담이며, 불량·오배송의 경우 무료로 처리해 드립니다.' },
+        { keywords: ['교환'], answer: '수령 후 7일 이내 교환 신청이 가능합니다. 고객센터(평일 09:00~18:00)로 먼저 연락주시면 안내해 드립니다.' },
+        { keywords: ['AS', 'A/S', '수리', '고장', '파손'], answer: 'A/S 접수는 고객센터(평일 09:00~18:00)로 연락주시거나 A/S 현황 버튼으로 접수번호 조회가 가능합니다.' },
+        { keywords: ['결제', '카드', '무통장', '카카오페이', '네이버페이'], answer: '신용카드, 무통장입금, 카카오페이, 네이버페이를 지원합니다. 무통장입금은 3일 이내 입금 확인이 필요합니다.' },
+        { keywords: ['고객센터', '전화', '연락', '운영시간', '영업시간'], answer: '고객센터 운영시간은 평일 09:00~18:00입니다. 주말·공휴일은 휴무이며, 운영시간 외 문의는 1:1 문의를 이용해주세요.' },
+        { keywords: ['사이즈', '크기', '호환', '규격'], answer: '자전거 사이즈 및 부품 호환성은 제품마다 다를 수 있습니다. 모델명과 함께 고객센터로 문의주시면 상세히 안내해 드립니다.' },
+        { keywords: ['재고', '품절', '입고'], answer: '재고 현황은 상품 페이지에서 실시간 확인이 가능합니다. 품절 상품 입고 일정은 고객센터로 문의해 주세요.' },
+      ],
+    },
+    xrb: {
+      name: 'X-RIDER 고객센터',
+      shopName: 'X-RIDER',
+      shopUrl: 'slimpack.co.kr',
+      color: '#e53935',
+      avatar: '⚡',
+      dbBrand: 'XRB',
+      mallId: 'slimpack79',
+      systemPrompt: `[역할]
+당신은 X-RIDER(slimpack.co.kr) 전동킥보드·전동자전거 전문 쇼핑몰의 AI 고객센터 챗봇입니다.
+
+[목표]
+배송, 반품/교환, A/S, 면허/법규, 배터리, 부품 호환성 등 일반 문의를 처리합니다.
+
+[정보 출처 — 반드시 아래 정보만 사용]
+- 쇼핑몰: slimpack.co.kr
+- 취급 제품: 전동킥보드, 전동자전거, 개인형 이동장치(PM) 및 관련 부품/용품
+- 고객센터: 평일 09:00~18:00 (주말/공휴일 휴무)
+- 배송: 평균 2~3 영업일, 제주/도서산간 +2일
+- 반품: 수령 후 7일 이내 / 단순변심 왕복배송비 고객부담 / 불량·오배송 무료
+- 결제수단: 신용카드, 무통장입금, 카카오페이, 네이버페이
+- 면허: 전동킥보드 운행 시 원동기면허(또는 이상) 필수, 헬멧 착용 의무
+- 주행: 자전거도로 이용 가능(25km/h 이하), 인도·차도 주행 금지, 2인 탑승 금지
+- 배터리: 충전 시간·주행거리는 제품별 상이, 완전 방전 상태 장기 보관 금지
+- 부품: 정품 부품 권장, 타 브랜드 부품 호환 여부는 제품별 상이
+
+[안전·정책 규칙]
+1. 위 정보에 없는 내용은 절대 추측하지 마세요.
+2. 법규 관련 최신 정보는 도로교통법 확인 또는 고객센터 이관을 안내하세요.
+3. 개인정보를 요청하거나 수집하지 마세요.
+4. 고객이 불만·화남을 표현하면 공감 후 즉시 고객센터 연결을 안내하세요.
+
+[출력 형식] 한국어, 친절하고 간결하게, 3문장 이내`,
+      faqs: [
+        // ── 공통 CS ──
+        {
+          keywords: ['배송', '도착', '언제', '며칠', '기간', '얼마나'],
+          answer: '일반 배송은 평균 2~3 영업일 소요됩니다. 제주도 및 도서산간 지역은 추가 1~2일이 더 걸릴 수 있으며, 발송 후 문자로 운송장 번호를 안내해 드립니다.',
+        },
+        {
+          keywords: ['반품', '환불', '취소'],
+          answer: '수령 후 7일 이내 반품 신청이 가능합니다. 단순변심의 경우 왕복 배송비는 고객 부담이며, 불량·오배송의 경우 무료로 처리해 드립니다.',
+        },
+        {
+          keywords: ['교환'],
+          answer: '수령 후 7일 이내 교환 신청이 가능합니다. 고객센터(평일 09:00~18:00)로 먼저 연락 주시면 절차를 안내해 드립니다.',
+        },
+        {
+          keywords: ['AS', 'A/S', '수리', '고장', '파손'],
+          answer: 'A/S 접수는 고객센터(평일 09:00~18:00)로 연락 주시거나, A/S 현황 버튼으로 접수번호 조회가 가능합니다. 보증기간 내 제조 하자는 무상 수리됩니다.',
+        },
+        {
+          keywords: ['결제', '카드', '무통장', '카카오페이', '네이버페이'],
+          answer: '신용카드, 무통장입금, 카카오페이, 네이버페이를 지원합니다. 무통장입금은 3일 이내 입금 확인이 필요합니다.',
+        },
+        {
+          keywords: ['고객센터', '전화', '연락', '운영시간', '영업시간'],
+          answer: '고객센터 운영시간은 평일 09:00~18:00입니다. 주말·공휴일은 휴무이며, 운영시간 외 문의는 홈페이지 1:1 문의를 이용해주세요.',
+        },
+        // ── 면허 / 법규 ──
+        {
+          keywords: ['면허', '운전면허', '자격', '몇 살', '나이', '미성년'],
+          answer: '전동킥보드 운행 시 원동기면허(125cc 이하) 이상 소지가 필수입니다. 만 16세 미만은 운행이 불가하며, 무면허 운행은 법적 처벌 대상입니다.',
+        },
+        {
+          keywords: ['헬멧', '안전모', '의무', '착용'],
+          answer: '전동킥보드 운행 시 안전모(헬멧) 착용은 법적 의무입니다. 미착용 시 범칙금이 부과될 수 있으니 반드시 착용해 주세요.',
+        },
+        {
+          keywords: ['도로', '인도', '자전거도로', '주행', '어디', '어디서'],
+          answer: '전동킥보드는 자전거도로(25km/h 이하)와 차도 우측 이용이 가능합니다. 보도(인도) 주행은 법적으로 금지되어 있으며, 2인 탑승도 불가합니다.',
+        },
+        {
+          keywords: ['음주', '음주운전', '술'],
+          answer: '전동킥보드 음주운전은 도로교통법상 금지되어 있으며, 적발 시 처벌 대상입니다. 안전한 이용 부탁드립니다.',
+        },
+        {
+          keywords: ['보험', '사고', '배상', '책임'],
+          answer: '전동킥보드 사고 시 일반 교통사고와 동일하게 처리됩니다. 별도 개인형 이동장치 보험 가입을 권장하며, 자세한 사항은 고객센터로 문의해 주세요.',
+        },
+        // ── 배터리 / 충전 ──
+        {
+          keywords: ['충전', '충전시간', '충전기', '완충'],
+          answer: '충전 시간은 제품별로 다르며 보통 3~6시간 소요됩니다. 반드시 정품 충전기를 사용하시고, 완충 후 장시간 충전기 연결은 배터리 수명에 영향을 줄 수 있습니다.',
+        },
+        {
+          keywords: ['배터리', '수명', '교체', '배터리교체', '방전'],
+          answer: '배터리 수명은 사용 환경에 따라 다르며 보통 300~500회 충전 사이클을 기준으로 합니다. 완전 방전 상태로 장기 보관하면 배터리가 손상될 수 있으니 20~80% 수준을 유지해 보관해 주세요.',
+        },
+        {
+          keywords: ['주행거리', '킬로미터', 'km', '거리', '얼마나 달려'],
+          answer: '주행거리는 탑승자 체중, 경사도, 기온 등에 따라 실제와 차이가 날 수 있습니다. 제품별 공식 주행거리는 상품 상세 페이지에서 확인해 주세요.',
+        },
+        {
+          keywords: ['겨울', '추위', '저온', '날씨', '온도'],
+          answer: '리튬 배터리는 저온 환경(0°C 이하)에서 성능이 저하될 수 있습니다. 실내 보관 및 충전을 권장하며, 장기 미사용 시 20~50% 충전 상태로 서늘한 곳에 보관해 주세요.',
+        },
+        // ── 부품 호환성 ──
+        {
+          keywords: ['호환', '타 브랜드', '다른 브랜드', '부품', '규격'],
+          answer: '부품 호환성은 제품 모델별로 다르게 적용됩니다. 정확한 호환 여부는 모델명과 함께 고객센터로 문의해 주시면 확인해 드립니다.',
+        },
+        {
+          keywords: ['정품', '순정', '부품 구매', '부품 주문'],
+          answer: '정품 부품은 slimpack.co.kr 또는 고객센터를 통해 구매 가능합니다. 비정품 부품 사용 시 A/S가 제한될 수 있으니 정품 사용을 권장합니다.',
+        },
+        {
+          keywords: ['타이어', '튜브', '바퀴', '펑크'],
+          answer: '타이어 및 튜브 교체는 모델별 규격이 다를 수 있습니다. 모델명과 함께 고객센터로 문의해 주시면 적합한 정품 부품을 안내해 드립니다.',
+        },
+        {
+          keywords: ['업그레이드', '튜닝', '속도 올리기', '개조'],
+          answer: '임의 개조 및 속도 제한 해제는 도로교통법 위반이며 안전사고 위험이 있습니다. 또한 제조사 보증이 무효화될 수 있으니 원상태 사용을 권장합니다.',
+        },
+      ],
+    },
+  };
+
+  const BRAND = BRAND_CONFIG[BRAND_KEY] || BRAND_CONFIG.nb;
+
+  // ─── CONFIG ───────────────────────────────────────────────────────────────
+  const _isLocal = window.location.hostname === 'localhost';
+  const CONFIG = {
+    faqThreshold: 1,
+    // 로컬: Express(5001) + Ollama / 프로덕션: Netlify Functions + Claude
+    apiUrl: _isLocal ? 'http://localhost:5001' : 'https://crmapp8893.netlify.app',
+    useLlmProxy: !_isLocal,
+    // 로컬 Ollama 설정
+    ollamaModel: 'gemma4:e2b',
+    ollamaUrl: 'http://localhost:11434/api/chat',
+  };
+
+  // 브랜드별 FAQ / 시스템 프롬프트 사용
+  const FAQS = BRAND.faqs;
+  const SYSTEM_PROMPT = BRAND.systemPrompt;
+
+  const ESCALATION_SIGNALS = ['화나', '짜증', '환불해줘', '고소', '신고', '사기', '최악', '불량품', '소비자원', '항의'];
+  const ORDER_INTENT = ['주문조회', '주문 조회', '주문번호', '배송조회', '배송 조회', '운송장'];
+  const SERVICE_INTENT = ['as현황', 'a/s현황', 'as 현황', 'a/s 현황', '접수현황', '접수 현황', '수리현황', '접수번호', 'as접수', 'a/s접수'];
+
+  // ─── QUICK REPLIES ────────────────────────────────────────────────────────
+  const QUICK_REPLIES = [
+    { label: '📦 주문 조회', value: '주문 조회' },
+    { label: '🔧 A/S 현황', value: 'A/S 현황' },
+    { label: '🚚 배송 문의', value: '배송 문의' },
+    { label: '↩️ 반품/교환', value: '반품 교환 문의' },
+  ];
+
+  // ─── STATUS CONFIG ────────────────────────────────────────────────────────
+  const ORDER_STATUS_COLOR = {
+    '결제완료': '#1a73e8',
+    '배송준비': '#f59e0b',
+    '배송중':   '#8b5cf6',
+    '배송완료': '#10b981',
+    '취소':     '#ef4444',
+    '반품':     '#ef4444',
+  };
+
+  const SERVICE_STEPS = ['접수완료', '부품확인', '수리중', '수리완료', '출고완료'];
+  const SERVICE_STATUS_COLOR = {
+    '접수완료': '#1a73e8',
+    '부품확인': '#f59e0b',
+    '수리중':   '#8b5cf6',
+    '수리완료': '#10b981',
+    '출고완료': '#6b7280',
+  };
+
+  // ─── LOGIC ────────────────────────────────────────────────────────────────
+  function detectEscalation(msg) {
+    return ESCALATION_SIGNALS.some((kw) => msg.includes(kw));
+  }
+
+  function detectOrderIntent(msg) {
+    const n = msg.toLowerCase().replace(/\s/g, '');
+    return ORDER_INTENT.some((kw) => n.includes(kw.toLowerCase().replace(/\s/g, '')));
+  }
+
+  function detectServiceIntent(msg) {
+    const n = msg.toLowerCase().replace(/\s/g, '');
+    return SERVICE_INTENT.some((kw) => n.includes(kw.toLowerCase().replace(/\s/g, '')));
+  }
+
+  function matchFaq(msg) {
+    const n = msg.toLowerCase().replace(/\s/g, '');
+    let best = null, bestScore = 0;
+    for (const faq of FAQS) {
+      let score = 0;
+      for (const kw of faq.keywords) if (n.includes(kw.toLowerCase())) score++;
+      if (score > bestScore) { bestScore = score; best = faq; }
+    }
+    return bestScore >= CONFIG.faqThreshold ? best : null;
+  }
+
+  async function callLlm(msg, history) {
+    if (CONFIG.useLlmProxy) {
+      // 프로덕션: Netlify Function → Claude Haiku
+      const res = await fetch(`${CONFIG.apiUrl}/.netlify/functions/chatbot-chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg, history: history.slice(-6), brand: BRAND_KEY }),
+      });
+      if (!res.ok) throw new Error('LLM 오류');
+      const data = await res.json();
+      return data.reply;
+    } else {
+      // 로컬 개발: Ollama
+      const res = await fetch(CONFIG.ollamaUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: CONFIG.ollamaModel,
+          messages: [
+            { role: 'system', content: SYSTEM_PROMPT },
+            ...history.slice(-6),
+            { role: 'user', content: msg },
+          ],
+          stream: false,
+        }),
+      });
+      if (!res.ok) throw new Error('Ollama error');
+      const data = await res.json();
+      return data.message?.content || '잠시 후 다시 시도해주세요.';
+    }
+  }
+
+  async function lookupOrder(orderId, phoneLast4) {
+    const params = new URLSearchParams({
+      order_id: orderId.trim(),
+      phone_last4: phoneLast4.trim(),
+      mall_id: BRAND.mallId,
+    });
+    const base = CONFIG.useLlmProxy
+      ? `${CONFIG.apiUrl}/.netlify/functions/chatbot-order`
+      : `${CONFIG.apiUrl}/api/chatbot/order`;
+    const res = await fetch(`${base}?${params}`);
+    if (!res.ok) throw new Error('서버 오류');
+    const data = await res.json();
+    if (!data.found) return null;
+    if (!data.verified) return 'wrong_phone';
+    return data.order;
+  }
+
+  async function lookupService(input) {
+    const params = new URLSearchParams({ input: input.trim(), brand: BRAND.dbBrand });
+    const base = CONFIG.useLlmProxy
+      ? `${CONFIG.apiUrl}/.netlify/functions/chatbot-service`
+      : `${CONFIG.apiUrl}/api/chatbot/service`;
+    const res = await fetch(`${base}?${params}`);
+    if (!res.ok) throw new Error('서버 오류');
+    const data = await res.json();
+    return data.found ? data.service : null;
+  }
+
+  // ─── CSS ──────────────────────────────────────────────────────────────────
+  const CSS = `
+    :host { all: initial; }
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Noto Sans KR', sans-serif; }
+
+    #toggle-btn {
+      position: fixed; bottom: 24px; right: 24px;
+      width: 56px; height: 56px; border-radius: 50%;
+      background: ${BRAND.color}; border: none; cursor: pointer;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 99999; transition: transform 0.2s;
+    }
+    #toggle-btn:hover { transform: scale(1.08); }
+    #toggle-btn svg { width: 28px; height: 28px; fill: white; }
+    .unread-dot {
+      position: absolute; top: 2px; right: 2px;
+      width: 12px; height: 12px; border-radius: 50%;
+      background: #ef4444; border: 2px solid white;
+    }
+
+    #chat-window {
+      position: fixed; bottom: 90px; right: 24px;
+      width: 380px; max-height: 600px;
+      background: white; border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+      display: flex; flex-direction: column;
+      z-index: 99998; overflow: hidden;
+      transform-origin: bottom right;
+      transition: transform 0.25s cubic-bezier(.4,0,.2,1), opacity 0.25s;
+    }
+    #chat-window.hidden { transform: scale(0.85); opacity: 0; pointer-events: none; }
+
+    #chat-header {
+      background: ${BRAND.color}; color: white;
+      padding: 14px 16px;
+      display: flex; align-items: center; gap: 10px;
+      flex-shrink: 0;
+    }
+    .avatar {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: rgba(255,255,255,0.25);
+      display: flex; align-items: center; justify-content: center; font-size: 18px;
+    }
+    .hdr-name { font-weight: 700; font-size: 14px; }
+    .hdr-status { font-size: 11px; opacity: 0.85; margin-top: 2px; display: flex; align-items: center; gap: 4px; }
+    .hdr-dot { width: 6px; height: 6px; border-radius: 50%; background: #4ade80; }
+
+    #messages {
+      flex: 1; overflow-y: auto; padding: 16px;
+      display: flex; flex-direction: column; gap: 10px;
+      min-height: 0;
+    }
+    #messages::-webkit-scrollbar { width: 4px; }
+    #messages::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+
+    .msg { display: flex; flex-direction: column; max-width: 86%; }
+    .msg.bot { align-self: flex-start; }
+    .msg.user { align-self: flex-end; }
+
+    .bubble {
+      padding: 10px 14px; border-radius: 18px;
+      font-size: 14px; line-height: 1.55;
+    }
+    .bot .bubble { background: #f1f3f4; color: #222; border-bottom-left-radius: 4px; }
+    .user .bubble { background: ${BRAND.color}; color: white; border-bottom-right-radius: 4px; }
+
+    .msg-meta { font-size: 11px; color: #aaa; margin-top: 4px; padding: 0 4px; display: flex; gap: 6px; align-items: center; }
+    .msg.user .msg-meta { justify-content: flex-end; }
+
+    .badge { padding: 1px 7px; border-radius: 8px; font-size: 10px; font-weight: 700; }
+    .badge-faq     { background: #e8f0fe; color: #1a73e8; }
+    .badge-ai      { background: #fce8ff; color: #8c00c7; }
+    .badge-escalate{ background: #fff3e0; color: #e65100; }
+    .badge-lookup  { background: #e6fff3; color: #059669; }
+
+    /* 빠른 답변 버튼 */
+    .quick-wrap { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 4px; margin-top: 4px; }
+    .qchip {
+      padding: 6px 12px; border-radius: 16px; font-size: 13px;
+      background: #f1f3f4; color: #333; border: 1px solid #e0e0e0;
+      cursor: pointer; white-space: nowrap; transition: all 0.15s;
+      font-family: inherit;
+    }
+    .qchip:hover { background: #f0f4ff; border-color: ${BRAND.color}; color: ${BRAND.color}; }
+
+    /* 정보 카드 */
+    .card {
+      background: white; border: 1px solid #e8eaf0;
+      border-radius: 12px; overflow: hidden;
+      font-size: 13px; min-width: 260px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .card-head {
+      padding: 11px 14px;
+      background: #f8f9ff;
+      border-bottom: 1px solid #e8eaf0;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .card-icon { font-size: 16px; }
+    .card-title { font-weight: 700; font-size: 13px; color: #222; flex: 1; }
+    .card-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 7px; }
+    .card-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+    .card-label { color: #888; font-size: 12px; flex-shrink: 0; padding-top: 1px; }
+    .card-value { color: #222; font-size: 13px; font-weight: 500; text-align: right; }
+    .card-divider { border: none; border-top: 1px solid #f0f0f0; margin: 4px 0; }
+    .card-items { background: #fafafa; border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; }
+    .card-item-row { display: flex; justify-content: space-between; font-size: 12px; color: #444; }
+
+    .status-badge {
+      display: inline-block; padding: 2px 8px; border-radius: 10px;
+      font-size: 11px; font-weight: 700; color: white;
+    }
+
+    /* A/S 진행 단계 */
+    .steps { display: flex; align-items: center; padding: 10px 14px 12px; gap: 0; }
+    .step { display: flex; flex-direction: column; align-items: center; flex: 1; }
+    .step-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: #ddd; border: 2px solid #ddd;
+      transition: all 0.2s;
+    }
+    .step-dot.done { background: #1a73e8; border-color: #1a73e8; }
+    .step-dot.current { background: white; border-color: ${BRAND.color}; box-shadow: 0 0 0 3px rgba(0,0,0,0.1); }
+    .step-label { font-size: 10px; color: #aaa; margin-top: 4px; text-align: center; line-height: 1.2; }
+    .step-label.active { color: #1a73e8; font-weight: 700; }
+    .step-line { flex: 1; height: 2px; background: #ddd; margin-bottom: 14px; }
+    .step-line.done { background: #1a73e8; }
+
+    /* 입력 영역 */
+    #input-area {
+      padding: 10px 12px; border-top: 1px solid #eee;
+      display: flex; gap: 8px; align-items: flex-end;
+      flex-shrink: 0;
+    }
+    #user-input {
+      flex: 1; border: 1px solid #ddd; border-radius: 20px;
+      padding: 9px 14px; font-size: 14px; resize: none; outline: none;
+      max-height: 96px; line-height: 1.45; font-family: inherit;
+      background: #fafafa;
+    }
+    #user-input:focus { border-color: ${BRAND.color}; background: white; }
+    #send-btn {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: ${BRAND.color}; border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; transition: background 0.2s;
+    }
+    #send-btn:hover { filter: brightness(0.88); }
+    #send-btn:disabled { background: #ccc; cursor: default; }
+    #send-btn svg { width: 17px; height: 17px; fill: white; }
+
+    .typing { display: flex; gap: 5px; padding: 12px 14px; background: #f1f3f4; border-radius: 18px; border-bottom-left-radius: 4px; width: fit-content; }
+    .typing span { width: 7px; height: 7px; background: #bbb; border-radius: 50%; animation: bounce 1.2s infinite; }
+    .typing span:nth-child(2) { animation-delay: 0.2s; }
+    .typing span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)} }
+
+    .hint { font-size: 12px; color: #aaa; padding: 2px 4px; }
+  `;
+
+  // ─── UI BUILDERS ──────────────────────────────────────────────────────────
+  function nowTime() {
+    return new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function statusBadge(label, color) {
+    return `<span class="status-badge" style="background:${color || '#888'}">${label}</span>`;
+  }
+
+  function buildOrderCard(order) {
+    const color = ORDER_STATUS_COLOR[order.status] || '#888';
+    const itemsHtml = order.items.map(i =>
+      `<div class="card-item-row"><span>${i.name} × ${i.qty}</span><span>${(i.price * i.qty).toLocaleString()}원</span></div>`
+    ).join('');
+    const trackingHtml = order.tracking_no
+      ? `<div class="card-row"><span class="card-label">운송장</span><span class="card-value">${order.courier} ${order.tracking_no}</span></div>`
+      : `<div class="card-row"><span class="card-label">배송</span><span class="card-value">아직 발송 전입니다</span></div>`;
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="card-head">
+        <span class="card-icon">📦</span>
+        <span class="card-title">주문 ${order.order_id}</span>
+        ${statusBadge(order.status, color)}
+      </div>
+      <div class="card-body">
+        <div class="card-row">
+          <span class="card-label">주문일</span>
+          <span class="card-value">${order.order_date}</span>
+        </div>
+        <hr class="card-divider">
+        <div class="card-items">${itemsHtml}</div>
+        <div class="card-row">
+          <span class="card-label">결제금액</span>
+          <span class="card-value" style="color:#1a73e8;font-weight:700">${order.total_amount.toLocaleString()}원</span>
+        </div>
+        <hr class="card-divider">
+        ${trackingHtml}
+      </div>
+    `;
+    return card;
+  }
+
+  function buildServiceCard(svc) {
+    const currentStep = SERVICE_STEPS.indexOf(svc.status);
+    const color = SERVICE_STATUS_COLOR[svc.status] || '#888';
+
+    const stepsHtml = SERVICE_STEPS.map((step, i) => {
+      const isDone = i < currentStep;
+      const isCurrent = i === currentStep;
+      const dotClass = isDone ? 'done' : isCurrent ? 'current' : '';
+      const labelClass = isCurrent ? 'active' : '';
+      const lineClass = i < SERVICE_STEPS.length - 1 ? (isDone || isCurrent ? 'done' : '') : '';
+      const lineHtml = i < SERVICE_STEPS.length - 1 ? `<div class="step-line ${lineClass}"></div>` : '';
+      return `
+        <div class="step">
+          <div class="step-dot ${dotClass}"></div>
+          <div class="step-label ${labelClass}">${step.replace('완료', '\n완료')}</div>
+        </div>
+        ${lineHtml}
+      `;
+    }).join('');
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="card-head">
+        <span class="card-icon">🔧</span>
+        <span class="card-title">A/S 접수번호 ${svc.id}</span>
+        ${statusBadge(svc.status, color)}
+      </div>
+      <div class="steps">${stepsHtml}</div>
+      <div class="card-body" style="padding-top:0">
+        <div class="card-row">
+          <span class="card-label">제품</span>
+          <span class="card-value">${svc.product_name}</span>
+        </div>
+        <div class="card-row">
+          <span class="card-label">증상</span>
+          <span class="card-value">${svc.symptom}</span>
+        </div>
+        <hr class="card-divider">
+        <div class="card-row">
+          <span class="card-label">접수일</span>
+          <span class="card-value">${svc.reception_date}</span>
+        </div>
+        <div class="card-row">
+          <span class="card-label">예상완료</span>
+          <span class="card-value">${svc.est_completion || '확인 중'}</span>
+        </div>
+      </div>
+    `;
+    return card;
+  }
+
+  // ─── INIT ─────────────────────────────────────────────────────────────────
+  function init() {
+    const host = document.createElement('div');
+    host.id = '__nearbike-chatbot__';
+    document.body.appendChild(host);
+    const shadow = host.attachShadow({ mode: 'open' });
+
+    const style = document.createElement('style');
+    style.textContent = CSS;
+    shadow.appendChild(style);
+
+    // 토글 버튼
+    const toggleBtn = document.createElement('button');
+    toggleBtn.id = 'toggle-btn';
+    toggleBtn.title = '고객센터 챗봇';
+    toggleBtn.innerHTML = `<span style="font-size:24px">${BRAND.avatar}</span>`;
+    shadow.appendChild(toggleBtn);
+
+    // 채팅창
+    const chatWindow = document.createElement('div');
+    chatWindow.id = 'chat-window';
+    chatWindow.className = 'hidden';
+    chatWindow.innerHTML = `
+      <div id="chat-header">
+        <div class="avatar">${BRAND.avatar}</div>
+        <div>
+          <div class="hdr-name">${BRAND.name}</div>
+          <div class="hdr-status"><span class="hdr-dot"></span>AI 챗봇 · 24시간</div>
+        </div>
+      </div>
+      <div id="messages"></div>
+      <div id="input-area">
+        <textarea id="user-input" placeholder="메시지를 입력하세요" rows="1"></textarea>
+        <button id="send-btn"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
+      </div>
+    `;
+    shadow.appendChild(chatWindow);
+
+    const messagesEl = shadow.getElementById('messages');
+    const inputEl    = shadow.getElementById('user-input');
+    const sendBtnEl  = shadow.getElementById('send-btn');
+
+    // 대화 상태
+    let isOpen    = false;
+    let isLoading = false;
+    let history   = [];
+    let convState = { step: 'IDLE', orderNo: null };
+
+    // ── 메시지 추가 헬퍼 ──
+    function addTextMsg(text, role, badgeClass, badgeLabel) {
+      const div = document.createElement('div');
+      div.className = `msg ${role}`;
+      const badgeHtml = badgeClass
+        ? `<span class="badge ${badgeClass}">${badgeLabel}</span>`
+        : '';
+      div.innerHTML = `
+        <div class="bubble">${text.replace(/\n/g, '<br>')}</div>
+        <div class="msg-meta">${badgeHtml}<span>${nowTime()}</span></div>
+      `;
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+      return div;
+    }
+
+    function addCardMsg(cardEl, badgeClass, badgeLabel) {
+      const div = document.createElement('div');
+      div.className = 'msg bot';
+      const badgeHtml = badgeClass
+        ? `<span class="badge ${badgeClass}">${badgeLabel}</span>`
+        : '';
+      div.appendChild(cardEl);
+      const meta = document.createElement('div');
+      meta.className = 'msg-meta';
+      meta.innerHTML = `${badgeHtml}<span>${nowTime()}</span>`;
+      div.appendChild(meta);
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function addQuickReplies(replies) {
+      const wrap = document.createElement('div');
+      wrap.className = 'quick-wrap';
+      replies.forEach(({ label, value }) => {
+        const btn = document.createElement('button');
+        btn.className = 'qchip';
+        btn.textContent = label;
+        btn.onclick = () => { wrap.remove(); processInput(value); };
+        wrap.appendChild(btn);
+      });
+      messagesEl.appendChild(wrap);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function addHint(text) {
+      const div = document.createElement('div');
+      div.className = 'msg bot';
+      div.innerHTML = `<div class="hint">${text}</div>`;
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function showTyping() {
+      const div = document.createElement('div');
+      div.className = 'msg bot';
+      div.id = '__typing__';
+      div.innerHTML = `<div class="typing"><span></span><span></span><span></span></div>`;
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function hideTyping() {
+      shadow.getElementById('__typing__')?.remove();
+    }
+
+    // ── 메시지 처리 핵심 ──
+    async function processInput(text) {
+      if (!text || isLoading) return;
+      isLoading = true;
+      sendBtnEl.disabled = true;
+
+      addTextMsg(text, 'user');
+      showTyping();
+
+      await new Promise((r) => setTimeout(r, 400));
+
+      try {
+        // 1. 감정 신호 → 즉시 이관
+        if (detectEscalation(text)) {
+          hideTyping();
+          addTextMsg('불편을 드려 정말 죄송합니다. 😔\n담당자가 직접 도와드리겠습니다. 고객센터(평일 09:00~18:00)로 연락주시면 신속하게 처리해 드립니다.', 'bot', 'badge-escalate', '상담원 연결');
+          convState = { step: 'IDLE', orderNo: null };
+
+        // 2. 주문 조회 — 주문번호 대기 중
+        } else if (convState.step === 'ORDER_AWAIT_NO') {
+          hideTyping();
+          convState.orderNo = text.trim();
+          convState.step = 'ORDER_AWAIT_PHONE';
+          addTextMsg('본인 확인을 위해 주문 시 입력한 연락처 뒤 4자리를 입력해주세요.', 'bot');
+          addHint('예: 5678');
+
+        // 3. 주문 조회 — 연락처 확인
+        } else if (convState.step === 'ORDER_AWAIT_PHONE') {
+          const savedOrderNo = convState.orderNo;
+          const result = await lookupOrder(convState.orderNo, text);
+          hideTyping();
+          convState = { step: 'IDLE', orderNo: null };
+          if (!result) {
+            addTextMsg(`주문번호 "${savedOrderNo}"를 찾을 수 없습니다. 주문번호를 다시 확인해주세요.`, 'bot');
+          } else if (result === 'wrong_phone') {
+            addTextMsg('연락처 정보가 일치하지 않습니다. 주문 시 입력한 연락처를 확인해주세요.', 'bot');
+          } else {
+            addTextMsg('주문 정보를 확인했습니다. 📦', 'bot', 'badge-lookup', '주문 조회');
+            addCardMsg(buildOrderCard(result), null, null);
+            addQuickReplies([{ label: '↩️ 반품/교환 문의', value: '반품 교환 문의' }, { label: '💬 다른 문의', value: '안녕하세요' }]);
+          }
+
+        // 4. A/S 조회 — 접수번호 대기 중
+        } else if (convState.step === 'SERVICE_AWAIT_ID') {
+          const result = await lookupService(text);
+          hideTyping();
+          convState = { step: 'IDLE', orderNo: null };
+          if (!result) {
+            addTextMsg('A/S 접수 정보를 찾을 수 없습니다. 접수번호 또는 연락처를 다시 확인해주세요.\n고객센터(평일 09:00~18:00)에서도 확인 가능합니다.', 'bot');
+          } else {
+            addTextMsg('A/S 접수 현황을 확인했습니다. 🔧', 'bot', 'badge-lookup', 'A/S 조회');
+            addCardMsg(buildServiceCard(result), null, null);
+            addQuickReplies([{ label: '💬 추가 문의', value: '안녕하세요' }]);
+          }
+
+        // 5. 주문 조회 의도 감지
+        } else if (detectOrderIntent(text)) {
+          hideTyping();
+          convState.step = 'ORDER_AWAIT_NO';
+          addTextMsg('주문 조회를 도와드리겠습니다. 📦\n카페24 주문번호를 입력해주세요.', 'bot');
+          addHint('예: 20240501-000001');
+
+        // 6. A/S 조회 의도 감지
+        } else if (detectServiceIntent(text)) {
+          hideTyping();
+          convState.step = 'SERVICE_AWAIT_ID';
+          addTextMsg('A/S 접수 현황을 확인해드리겠습니다. 🔧\nA/S 접수번호 또는 연락처를 입력해주세요.', 'bot');
+          addHint('예: 1001 또는 010-1234-5678');
+
+        // 7. FAQ 매칭
+        } else {
+          const faq = matchFaq(text);
+          if (faq) {
+            hideTyping();
+            addTextMsg(faq.answer, 'bot', 'badge-faq', 'FAQ');
+          } else {
+            // 8. LLM 폴백
+            const reply = await callLlm(text, history);
+            hideTyping();
+            addTextMsg(reply, 'bot', 'badge-ai', 'AI');
+            history.push({ role: 'user', content: text });
+            history.push({ role: 'assistant', content: reply });
+          }
+        }
+      } catch {
+        hideTyping();
+        addTextMsg('죄송합니다, 잠시 후 다시 시도해주세요.\n고객센터: 평일 09:00~18:00', 'bot');
+      }
+
+      isLoading = false;
+      sendBtnEl.disabled = false;
+      inputEl.focus();
+    }
+
+    function send() {
+      const text = inputEl.value.trim();
+      if (!text) return;
+      inputEl.value = '';
+      inputEl.style.height = 'auto';
+      processInput(text);
+    }
+
+    // ── 채팅창 열기/닫기 ──
+    function openChat() {
+      isOpen = true;
+      chatWindow.classList.remove('hidden');
+      if (messagesEl.children.length === 0) {
+        addTextMsg(`안녕하세요! ${BRAND.name}입니다. ${BRAND.avatar}\n무엇을 도와드릴까요?`, 'bot');
+        addQuickReplies(QUICK_REPLIES);
+      }
+      inputEl.focus();
+    }
+
+    function closeChat() {
+      isOpen = false;
+      chatWindow.classList.add('hidden');
+    }
+
+    // ── 이벤트 바인딩 ──
+    toggleBtn.addEventListener('click', () => (isOpen ? closeChat() : openChat()));
+    sendBtnEl.addEventListener('click', send);
+    inputEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+    });
+    inputEl.addEventListener('input', () => {
+      inputEl.style.height = 'auto';
+      inputEl.style.height = Math.min(inputEl.scrollHeight, 96) + 'px';
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
