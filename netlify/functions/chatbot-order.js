@@ -32,13 +32,30 @@ exports.handler = async (event) => {
     return err(429, `일일 주문 조회 한도(${limit}회)를 초과했습니다. 내일 다시 시도해주세요.`);
   }
 
-  const { data, error } = await supabase
+  const selectCols = 'order_id, buyer_phone, order_date, status, total_amount, shipping_fee, order_items';
+  const mallId = mall_id.trim();
+  const rawId = order_id.trim();
+
+  // 1차: 입력값 그대로
+  let { data, error } = await supabase
     .from('cafe24_orders')
-    .select('order_id, buyer_phone, order_date, status, total_amount, shipping_fee, order_items')
-    .eq('order_id', order_id.trim())
-    .eq('mall_id', mall_id.trim())
+    .select(selectCols)
+    .eq('order_id', rawId)
+    .eq('mall_id', mallId)
     .eq('is_deleted', false)
     .maybeSingle();
+
+  // 2차: mall_id 접두사 붙여서 재시도 (예: nearbike_20260522-0000023)
+  if (!data && !error) {
+    const prefixed = `${mallId}_${rawId}`;
+    ({ data, error } = await supabase
+      .from('cafe24_orders')
+      .select(selectCols)
+      .eq('order_id', prefixed)
+      .eq('mall_id', mallId)
+      .eq('is_deleted', false)
+      .maybeSingle());
+  }
 
   if (error) return err(500, error.message);
   if (!data) return ok({ found: false });
