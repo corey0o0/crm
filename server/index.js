@@ -328,13 +328,20 @@ app.get('/api/chatbot/order', async (req, res) => {
     if (!order_id || !phone_last4 || !mall_id) {
       return res.status(400).json({ error: 'order_id, phone_last4, mall_id 필수' });
     }
-    const { data, error } = await supabaseAdmin
-      .from('cafe24_orders')
-      .select('order_id, buyer_phone, order_date, status, total_amount, shipping_fee, order_items')
-      .eq('order_id', order_id.trim())
-      .eq('mall_id', mall_id.trim())
-      .eq('is_deleted', false)
-      .maybeSingle();
+    const selectCols = 'order_id, buyer_phone, order_date, status, total_amount, shipping_fee, order_items';
+    const mallId = mall_id.trim();
+    const rawId = order_id.trim();
+
+    let { data, error } = await supabaseAdmin
+      .from('cafe24_orders').select(selectCols)
+      .eq('order_id', rawId).eq('mall_id', mallId).eq('is_deleted', false).maybeSingle();
+
+    if (!data && !error) {
+      ({ data, error } = await supabaseAdmin
+        .from('cafe24_orders').select(selectCols)
+        .eq('order_id', `${mallId}_${rawId}`).eq('mall_id', mallId).eq('is_deleted', false).maybeSingle());
+    }
+
     if (error) { console.error('[chatbot/order]', error); return res.status(500).json({ error: error.message }); }
     if (!data) return res.json({ found: false });
 
