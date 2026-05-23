@@ -742,8 +742,8 @@ function ServiceList() {
         query = query.in('id', tagMatchedServiceIds);
       }
       
-      // 첫 페이지만 먼저 가져오기 (검색 결과) - 더 작은 크기로
-      const FIRST_PAGE_SIZE = 20; // 50에서 20으로 줄임
+      // 첫 페이지만 먼저 가져오기 (검색 결과)
+      const FIRST_PAGE_SIZE = 500;
       const firstPageQuery = query.range(0, FIRST_PAGE_SIZE - 1);
       
       // 카운트 쿼리 완전 제거 - 단순화
@@ -867,7 +867,7 @@ function ServiceList() {
         // 정렬 및 제한
         simpleQuery = simpleQuery
           .order('reception_date', { ascending: false })
-          .limit(20);
+          .limit(FIRST_PAGE_SIZE);
         
         console.log('[ServiceList] 최종 쿼리 실행 중...');
         console.log('[ServiceList] 쿼리 객체 상세:', {

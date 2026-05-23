@@ -686,14 +686,14 @@ module.exports = function(supabaseAdmin) {
         amount_decision_path = `예치금 포함 결제 → PG(${pg_payment}) + 예치금(${deposit_used}) 실매출`;
       } else if ((paymentMethodStr.includes('예치금') || paymentMethodStr.includes('적립금') || paymentMethodStr.includes('마일리지') || paymentMethodStr.includes('선불금')) && pg_payment === 0) {
         // 케이스C: 결제수단명 기반 (API 필드 미수신)
-        if (paymentMethodStr.includes('예치금')) {
-          // 예치금 단독: 정상 판매, 금액 불명시 품목합산으로 추정
+        if (paymentMethodStr.includes('예치금') || paymentMethodStr.includes('선불금')) {
+          // 예치금/선불금 단독: 정상 판매(네이버페이 선불금 포함), 금액 불명시 품목합산으로 추정
           total_amount = Number((order.actual_order_amount && order.actual_order_amount.payment_amount) || 0) || items_payment_sum;
-          amount_decision_path = '예치금 단독결제 (결제수단명 기반) → 정상 판매';
+          amount_decision_path = '예치금/선불금 단독결제 (결제수단명 기반) → 정상 판매';
         } else {
-          // 적립금/마일리지/선불금 단독: 할인 처리
+          // 적립금/마일리지 단독: 할인 처리
           total_amount = 0;
-          amount_decision_path = '적립금/마일리지/선불금 단독결제 (결제수단명 기반) → 할인 처리';
+          amount_decision_path = '적립금/마일리지 단독결제 (결제수단명 기반) → 할인 처리';
         }
       } else if (pg_payment > 0) {
         // 케이스D: PG 단독결제 (가장 일반적)
