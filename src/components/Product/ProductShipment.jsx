@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -80,6 +80,46 @@ import { alpha } from '@mui/material/styles';
 
 // 부품 카테고리 정의
 const PART_CATEGORIES = ['기체', '파츠', '공임', '기타'];
+
+const ShipmentSearchTextField = React.memo(function ShipmentSearchTextField({ value, onValueChange, onEnterSearch, sx }) {
+  const [localValue, setLocalValue] = useState(value || '');
+
+  const prevValueRef = useRef(value);
+  useEffect(() => {
+    if (value !== prevValueRef.current) {
+      prevValueRef.current = value;
+      setLocalValue(value || '');
+    }
+  }, [value]);
+
+  const handleChange = useCallback((e) => {
+    const val = e.target.value;
+    setLocalValue(val);
+    onValueChange(val);
+  }, [onValueChange]);
+
+  const handleKeyPress = useCallback((e) => {
+    if (e.key === 'Enter') onEnterSearch(localValue);
+  }, [localValue, onEnterSearch]);
+
+  return (
+    <TextField
+      variant="outlined"
+      placeholder="제품명, 연락처로 검색"
+      value={localValue}
+      onChange={handleChange}
+      onKeyPress={handleKeyPress}
+      sx={sx}
+      InputProps={{
+        startAdornment: (
+          <InputAdornment position="start">
+            <SearchIcon color="action" />
+          </InputAdornment>
+        ),
+      }}
+    />
+  );
+});
 
 function ProductShipment() {
   const [selectedBrand, setSelectedBrand] = useState(() => {
@@ -1164,23 +1204,21 @@ function ProductShipment() {
     setCookie('shipment_sellerFilter', event.target.value);
   };
 
-  // 검색어 변경 핸들러 수정
-  const handleSearchInput = (event) => {
-    setInputValue(event.target.value);
-    // 검색어 입력 시에는 inputValue만 업데이트하고 검색은 실행하지 않음
-  };
+  const searchInputRef = useRef(inputValue);
 
-  // 검색 실행 함수
+  const handleSearchValueChange = useCallback((val) => {
+    searchInputRef.current = val;
+  }, []);
+
+  const commitSearch = useCallback((val) => {
+    setSearchTerm(val);
+    setInputValue(val);
+    setCookie('shipment_searchTerm', val);
+  }, []);
+
+  // 검색 실행 함수 (검색 버튼용)
   const executeSearch = () => {
-    setSearchTerm(inputValue);
-    setCookie('shipment_searchTerm', inputValue);
-  };
-
-  // 엔터키 처리 함수
-  const handleKeyPress = (event) => {
-    if (event.key === 'Enter') {
-      executeSearch();
-    }
+    commitSearch(searchInputRef.current);
   };
 
   // 날짜 필터 초기화 함수 수정
@@ -2687,23 +2725,14 @@ function ProductShipment() {
 
       <Box sx={{ mb: 2 }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'stretch', sm: 'center' }} useFlexGap flexWrap="wrap">
-          <TextField
-            variant="outlined"
-            placeholder="제품명, 연락처로 검색"
+          <ShipmentSearchTextField
             value={inputValue}
-            onChange={handleSearchInput}
-            onKeyPress={handleKeyPress}
-            sx={{ 
+            onValueChange={handleSearchValueChange}
+            onEnterSearch={commitSearch}
+            sx={{
               flex: { xs: '1 1 100%', sm: '0 1 60%' },
               width: { xs: '100%', sm: 'auto' },
               minWidth: { xs: 'auto', sm: 200 }
-            }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon color="action" />
-                </InputAdornment>
-              ),
             }}
           />
           <Box sx={{ display: 'flex', gap: 1, width: { xs: '100%', sm: 'auto' }, flex: { xs: '1 1 100%', sm: 'none' } }}>
@@ -2723,6 +2752,7 @@ function ProductShipment() {
             <Button
               variant="outlined"
               onClick={() => {
+                searchInputRef.current = '';
                 setInputValue('');
                 setSearchTerm('');
               }}
