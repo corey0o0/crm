@@ -125,6 +125,64 @@ function extractDate(dateStr) {
   }
 }
 
+const SearchTextField = React.memo(function SearchTextField({ value, onSearch, onEnterSearch, onClear, sx }) {
+  const [localValue, setLocalValue] = useState(value || '');
+  const timerRef = useRef(null);
+
+  // 부모에서 value가 바뀌면(필터 복원, 초기화) 동기화
+  const prevValueRef = useRef(value);
+  useEffect(() => {
+    if (value !== prevValueRef.current) {
+      prevValueRef.current = value;
+      setLocalValue(value || '');
+    }
+  }, [value]);
+
+  const handleChange = useCallback((e) => {
+    const val = e.target.value;
+    setLocalValue(val);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    const trimmed = val.trim();
+    if (trimmed === '') { onSearch(''); return; }
+    if (trimmed.length < 2) return;
+    timerRef.current = setTimeout(() => onSearch(trimmed), 800);
+  }, [onSearch]);
+
+  const handleKeyPress = useCallback((e) => {
+    if (e.key === 'Enter') {
+      if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+      onEnterSearch(localValue);
+    }
+  }, [localValue, onEnterSearch]);
+
+  const handleClear = useCallback(() => {
+    setLocalValue('');
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+    onClear();
+  }, [onClear]);
+
+  return (
+    <TextField
+      variant="outlined"
+      placeholder="고객명, 전화번호, A/S ID로 검색"
+      value={localValue}
+      onChange={handleChange}
+      onKeyPress={handleKeyPress}
+      sx={sx}
+      size="small"
+      InputProps={{
+        endAdornment: localValue ? (
+          <InputAdornment position="end">
+            <IconButton edge="end" onClick={handleClear} size="small" aria-label="검색어 초기화" sx={{ color: 'gray' }}>
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          </InputAdornment>
+        ) : null
+      }}
+    />
+  );
+});
+
 function ServiceList() {
   const location = useLocation();
   const { getAllowedBrands } = useAuth();
@@ -151,8 +209,6 @@ function ServiceList() {
   // 초기 로딩 방지를 위한 ref
   const isInitialMountRef = useRef(true);
   const isFilterRestoringRef = useRef(false);
-  // 디바운스 타이머 ref
-  const debounceTimerRef = useRef(null);
   const [filteredServices, setFilteredServices] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [inputValue, setInputValue] = useState('');
@@ -2421,49 +2477,6 @@ function ServiceList() {
     }
   };
 
-  // 검색어 입력 처리 함수
-  const handleSearchInput = (event) => {
-    setInputValue(event.target.value);
-  };
-
-  // 실시간 검색을 위한 debounce 효과
-  useEffect(() => {
-    const trimmedValue = inputValue.trim();
-    
-    // 이전 디바운스 타이머 취소
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-      debounceTimerRef.current = null;
-    }
-    
-    // 검색어가 비어있으면 searchTerm만 초기화 (페이지 새로고침 없음)
-    if (trimmedValue === '') {
-      setSearchTerm('');
-      // fetchServices()를 호출하지 않고, searchTerm이 비워지면 자연스럽게 전체 목록이 표시됨
-      return;
-    }
-
-    // 검색어가 1글자면 검색하지 않음
-    if (trimmedValue.length === 1) {
-      return;
-    }
-
-    // 검색어가 2글자 이상이면 800ms 후 자동 검색 (조금 더 여유를 줘서 불필요한 호출 감소)
-    debounceTimerRef.current = setTimeout(() => {
-      console.log('[ServiceList] 실시간 검색 실행:', trimmedValue);
-      debounceTimerRef.current = null;
-      executeSearch();
-    }, 800); // 800ms 대기 후 검색
-
-    // cleanup: 이전 타이머 취소
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-        debounceTimerRef.current = null;
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inputValue]); // executeSearch는 의존성에서 제외 (무한 루프 방지)
 
 
   //1. 초기화 함수 추가
@@ -2655,9 +2668,9 @@ function ServiceList() {
   const [retryCount, setRetryCount] = useState(0); // 재시도 횟수
 
   // 검색 실행 함수 (서버 사이드 검색)
-  const executeSearch = useCallback((overrideStatuses = null, overrideTags = null) => {
+  const executeSearch = useCallback((overrideStatuses = null, overrideTags = null, overrideInput = null) => {
     console.log('[ServiceList] executeSearch 호출됨', { overrideStatuses, overrideTags });
-    const term = inputValue.toLowerCase().trim();
+    const term = (overrideInput !== null ? overrideInput : inputValue).toLowerCase().trim();
     setSearchTerm(term);
     
     // 검색어 로컬스토리지에 저장
@@ -3023,6 +3036,23 @@ function ServiceList() {
     }
   }, [executeSearch, inputValue]);
 
+  // 검색어 입력 처리 (SearchTextField 자식 컴포넌트로부터 호출)
+  const handleSearchFromChild = useCallback((val) => {
+    const trimmed = val.trim();
+    setInputValue(trimmed);
+    executeSearch(null, null, trimmed);
+  }, [executeSearch]);
+
+  const handleEnterFromChild = useCallback((val) => {
+    const trimmed = val.trim();
+    if (trimmed && trimmed.length === 1) {
+      setSnackbar({ open: true, message: '검색어는 최소 2글자 이상 입력해주세요.', severity: 'warning' });
+      return;
+    }
+    setInputValue(trimmed);
+    executeSearch(null, null, trimmed);
+  }, [executeSearch]);
+
   // 페이지 상태가 바뀔 때마다 자동 저장
   useEffect(() => {
     savePageState();
@@ -3357,53 +3387,16 @@ function ServiceList() {
       {/* 단어 검색 필터 섹션 */}
       <Box sx={{ mb: 2 }}>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems={{ xs: 'stretch', md: 'center' }} useFlexGap flexWrap="wrap">
-          <TextField
-            variant="outlined"
-            placeholder="고객명, 전화번호, A/S ID로 검색"
+          <SearchTextField
             value={inputValue}
-            onChange={handleSearchInput}
-            onKeyPress={(e) => {
-              if (e.key === 'Enter') {
-                // 디바운스 타이머 취소 (엔터 키 입력 시 즉시 검색하므로 디바운스 불필요)
-                if (debounceTimerRef.current) {
-                  clearTimeout(debounceTimerRef.current);
-                  debounceTimerRef.current = null;
-                }
-                
-                const term = inputValue.toLowerCase().trim();
-                if (term && term.length === 1) {
-                  setSnackbar({
-                    open: true,
-                    message: '검색어는 최소 2글자 이상 입력해주세요.',
-                    severity: 'warning'
-                  });
-                  return;
-                }
-                // 즉시 검색 실행
-                executeSearch();
-              }
-            }}
-            sx={{ 
+            onSearch={handleSearchFromChild}
+            onEnterSearch={handleEnterFromChild}
+            onClear={handleClearSearch}
+            sx={{
               flex: { xs: '1 1 100%', md: '1 1 auto' },
               width: { xs: '100%', md: 'auto' },
               minWidth: { xs: 'auto', md: 200 },
               maxWidth: { xs: '100%', md: 400 }
-            }}
-            size="small"
-            InputProps={{
-              endAdornment: inputValue ? (
-                <InputAdornment position="end">
-                  <IconButton
-                    edge="end"
-                    onClick={handleClearSearch}
-                    size="small"
-                    aria-label="검색어 초기화"
-                    sx={{ color: 'gray' }}
-                  >
-                    <CloseIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ) : null
             }}
           />
           <TextField
