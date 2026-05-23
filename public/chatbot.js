@@ -775,6 +775,9 @@
     function openChat() {
       isOpen = true;
       chatWindow.classList.remove('hidden');
+      if (toggleBtn.style.left) {
+        applyWindowPos(parseFloat(toggleBtn.style.left), parseFloat(toggleBtn.style.top));
+      }
       if (messagesEl.children.length === 0) {
         addTextMsg(`안녕하세요! ${BRAND.name}입니다. ${BRAND.avatar}\n무엇을 도와드릴까요?`, 'bot');
         addQuickReplies(QUICK_REPLIES);
@@ -787,8 +790,83 @@
       chatWindow.classList.add('hidden');
     }
 
+    // ── 버튼 드래그 이동 ──
+    const POS_KEY = `chatbot_pos_${BRAND_KEY}`;
+    let isDragging = false;
+
+    function applyBtnPos(left, top) {
+      toggleBtn.style.right = '';
+      toggleBtn.style.bottom = '';
+      toggleBtn.style.left = left + 'px';
+      toggleBtn.style.top  = top  + 'px';
+    }
+
+    function applyWindowPos(btnLeft, btnTop) {
+      const W = 380, S = 56, gap = 10;
+      let wLeft = btnLeft + S + gap;
+      if (wLeft + W > window.innerWidth) wLeft = Math.max(0, btnLeft - W - gap);
+      let wTop = Math.max(10, btnTop + S - (chatWindow.offsetHeight || 520));
+      chatWindow.style.right  = '';
+      chatWindow.style.bottom = '';
+      chatWindow.style.left   = wLeft + 'px';
+      chatWindow.style.top    = wTop  + 'px';
+    }
+
+    const savedPos = (() => { try { return JSON.parse(localStorage.getItem(POS_KEY)); } catch { return null; } })();
+    if (savedPos) {
+      applyBtnPos(savedPos.left, savedPos.top);
+      applyWindowPos(savedPos.left, savedPos.top);
+    }
+
+    function startDrag(e) {
+      const isTouch = e.type === 'touchstart';
+      if (!isTouch) e.preventDefault();
+      isDragging = false;
+      const cx0 = isTouch ? e.touches[0].clientX : e.clientX;
+      const cy0 = isTouch ? e.touches[0].clientY : e.clientY;
+      const rect = toggleBtn.getBoundingClientRect();
+      const l0 = rect.left, t0 = rect.top;
+      applyBtnPos(l0, t0);
+
+      function onMove(e) {
+        const cx = isTouch ? e.touches[0].clientX : e.clientX;
+        const cy = isTouch ? e.touches[0].clientY : e.clientY;
+        const dx = cx - cx0, dy = cy - cy0;
+        if (!isDragging && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+          isDragging = true;
+          toggleBtn.style.transition = 'none';
+          toggleBtn.style.transform = 'scale(1.08)';
+        }
+        if (!isDragging) return;
+        const nl = Math.max(0, Math.min(window.innerWidth  - 56, l0 + dx));
+        const nt = Math.max(0, Math.min(window.innerHeight - 56, t0 + dy));
+        applyBtnPos(nl, nt);
+        if (isOpen) applyWindowPos(nl, nt);
+      }
+
+      function onUp() {
+        toggleBtn.style.transition = '';
+        toggleBtn.style.transform  = '';
+        document.removeEventListener(isTouch ? 'touchmove' : 'mousemove', onMove);
+        document.removeEventListener(isTouch ? 'touchend'  : 'mouseup',   onUp);
+        if (isDragging) {
+          const pos = { left: parseFloat(toggleBtn.style.left), top: parseFloat(toggleBtn.style.top) };
+          try { localStorage.setItem(POS_KEY, JSON.stringify(pos)); } catch {}
+        }
+      }
+
+      document.addEventListener(isTouch ? 'touchmove' : 'mousemove', onMove, isTouch ? { passive: true } : undefined);
+      document.addEventListener(isTouch ? 'touchend'  : 'mouseup',   onUp);
+    }
+
+    toggleBtn.addEventListener('mousedown',  startDrag);
+    toggleBtn.addEventListener('touchstart', startDrag, { passive: true });
+
     // ── 이벤트 바인딩 ──
-    toggleBtn.addEventListener('click', () => (isOpen ? closeChat() : openChat()));
+    toggleBtn.addEventListener('click', () => {
+      if (isDragging) { isDragging = false; return; }
+      isOpen ? closeChat() : openChat();
+    });
     sendBtnEl.addEventListener('click', send);
     inputEl.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
