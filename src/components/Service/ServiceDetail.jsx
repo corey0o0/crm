@@ -217,6 +217,8 @@ function ServiceDetail() {
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [brand, setBrand] = useState('');
+  const [prevHistory, setPrevHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   // 창고 상태 추가
   const [warehouses, setWarehouses] = useState([]);
@@ -1569,6 +1571,26 @@ function ServiceDetail() {
       fetchProductNames();
     }
   }, [formData.brand]);
+
+  useEffect(() => {
+    const phone = (formData.customer_phone || '').replace(/\D/g, '');
+    if (phone.length < 8) {
+      setPrevHistory([]);
+      return;
+    }
+    setHistoryLoading(true);
+    supabase
+      .from('services')
+      .select('id, reception_date, product_name, mileage, symptom')
+      .eq('customer_phone', formData.customer_phone)
+      .neq('id', id)
+      .order('reception_date', { ascending: false })
+      .limit(5)
+      .then(({ data }) => {
+        setPrevHistory(data || []);
+        setHistoryLoading(false);
+      });
+  }, [formData.customer_phone, id]);
 
 
 
@@ -2940,6 +2962,50 @@ function ServiceDetail() {
                       </Grid>
                     </Grid>
                   </Box>
+
+                  {/* 이전 A/S 내역 */}
+                  {(historyLoading || prevHistory.length > 0) && (
+                    <Box sx={{ mt: 2 }}>
+                      <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 0 }}>
+                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: '#555', mb: 0.5 }}>
+                          이전 A/S 내역
+                        </Typography>
+                        {historyLoading ? (
+                          <Box sx={{ display: 'flex', justifyContent: 'center', py: 1 }}>
+                            <CircularProgress size={16} />
+                          </Box>
+                        ) : (
+                          <Table size="small" sx={{ tableLayout: 'fixed' }}>
+                            <TableBody>
+                              {prevHistory.map((rec) => (
+                                <TableRow
+                                  key={rec.id}
+                                  hover
+                                  sx={{ cursor: 'pointer', '&:last-child td': { border: 0 } }}
+                                  onClick={() => navigate(`/service/${rec.id}`)}
+                                >
+                                  <TableCell sx={{ py: 0.25, px: 0.5, width: '58px', whiteSpace: 'nowrap', color: '#888', fontSize: '0.68rem', verticalAlign: 'top' }}>
+                                    {String(rec.reception_date || '').slice(2, 10).replace(/-/g, '.')}
+                                  </TableCell>
+                                  <TableCell sx={{ py: 0.25, px: 0.5 }}>
+                                    <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'baseline' }}>
+                                      <Typography sx={{ fontSize: '0.72rem', fontWeight: 500, lineHeight: 1.3 }} noWrap>{rec.product_name || '-'}</Typography>
+                                      {rec.mileage && (
+                                        <Typography sx={{ fontSize: '0.65rem', color: 'text.secondary', lineHeight: 1.3, flexShrink: 0 }} noWrap>{rec.mileage}</Typography>
+                                      )}
+                                    </Box>
+                                    <Typography sx={{ fontSize: '0.68rem', color: '#555', lineHeight: 1.2 }}>
+                                      {(rec.symptom || '-').length > 28 ? (rec.symptom || '-').slice(0, 28) + '…' : (rec.symptom || '-')}
+                                    </Typography>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        )}
+                      </Paper>
+                    </Box>
+                  )}
                 </Grid>
 
                 <Grid item xs={12} sm={6}>
