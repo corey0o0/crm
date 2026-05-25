@@ -156,6 +156,7 @@ function StoreOnlineOutboundTab() {
           if (order.type.includes('A/S')) {
             const { data: prevService } = await supabase.from('services').select('status').eq('id', order.source_id).single();
             await supabase.from('services').update({ status: '준비완료' }).eq('id', order.source_id);
+            await supabase.from('service_parts').update({ status: '준비완료' }).eq('service_id', order.source_id).neq('status', '반품완료');
             if (prevService && prevService.status !== '완료' && prevService.status !== '출고완료' && prevService.status !== '준비완료') {
               await processServiceCompletion(order.source_id, guessedBrand);
             }
@@ -168,7 +169,7 @@ function StoreOnlineOutboundTab() {
           }
         }
       }
-      
+
       alert(`출고가 확정되었습니다.`);
       const completedIds = selectedOrders.map(o => o.id);
       setOrders(orders.filter(o => !completedIds.includes(o.id)));
@@ -201,6 +202,7 @@ function StoreOnlineOutboundTab() {
           if (order.type.includes('A/S')) {
             const { data: prevService } = await supabase.from('services').select('status').eq('id', order.source_id).single();
             await supabase.from('services').update({ status: '준비완료' }).eq('id', order.source_id);
+            await supabase.from('service_parts').update({ status: '준비완료' }).eq('service_id', order.source_id).neq('status', '반품완료');
             if (prevService && prevService.status !== '완료' && prevService.status !== '출고완료' && prevService.status !== '준비완료') {
               await processServiceCompletion(order.source_id, guessedBrand);
             }
@@ -213,7 +215,7 @@ function StoreOnlineOutboundTab() {
           }
         }
       }
-      
+
       showAlert('success', `[관리자 권한] 출고가 강제 확정되었습니다.`);
       const completedIds = selectedOrders.map(o => o.id);
       setOrders(orders.filter(o => !completedIds.includes(o.id)));
