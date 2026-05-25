@@ -358,7 +358,7 @@ function SalesHistoryStats() {
     let asQuery = supabase
       .from('services')
       .select('id, reception_date, completion_date, customer_name, status, note, agencies(name)')
-      .in('status', ['출고완료', '완료'])
+      .in('status', ['출고완료', '완료', '수령완료'])
       .order('completion_date', { ascending: false });
 
     if (startDate && endDate) {
@@ -613,6 +613,8 @@ function SalesHistoryStats() {
             rows.push({ ...baseFields, part_name: pName, part_category: cat, part_brand: brand, quantity: effectiveQty, total_price: total, total_cost: unitCost * effectiveQty });
           }
         });
+      } else {
+        rows.push({ ...baseFields, part_name: 'A/S 수리', part_category: '공임', part_brand: '-', quantity: 1, total_price: 0, total_cost: 0 });
       }
     });
 
