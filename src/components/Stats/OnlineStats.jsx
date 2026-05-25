@@ -224,9 +224,16 @@ function OnlineStats() {
                const cp = it.product_price !== undefined && it.product_price !== null ? Number(it.product_price) : (it.price !== undefined && it.price !== null ? Number(it.price) : 0);
                return acc + (cp * Number(it.quantity || 1));
            }, 0);
-           // 네이버페이 선불금 처리: total_amount=0이면 품목 payment_amount 합계 사용
+           // 선불금 처리: total_amount=0 → payment_amount 합계 → used_points 순으로 폴백
            const _itemPaySum = validItems.reduce((acc, i) => acc + Number(i.payment_amount || 0), 0);
-           const _effTotal = Number(o.total_amount || 0) === 0 && _itemPaySum > 0 ? _itemPaySum : Number(o.total_amount || 0);
+           const isNearbikeMemberDiscount = String(o.order_id || '').startsWith('nearbike_') && Number(o.total_amount || 0) === 0;
+           const _itemPayMethod = (validItems[0]?.payment_method || '').toLowerCase();
+           const isChunbulgeum = _itemPayMethod.includes('선불금');
+           const _effTotal = !isNearbikeMemberDiscount && Number(o.total_amount || 0) === 0
+             ? _itemPaySum > 0 ? _itemPaySum
+               : isChunbulgeum && Number(o.used_points || 0) > 0 ? Number(o.used_points)
+               : 0
+             : Number(o.total_amount || 0);
            const distributableAmount = Math.max(0, _effTotal - Number(o.shipping_fee || 0) - canceledAmount);
 
            let totalWeight = validItems.reduce((acc, i) => {
@@ -502,9 +509,16 @@ function OnlineStats() {
                 const cp = it.product_price !== undefined && it.product_price !== null ? Number(it.product_price) : (it.price !== undefined && it.price !== null ? Number(it.price) : 0);
                 return acc + (cp * Number(it.quantity || 1));
             }, 0);
-            // 네이버페이 선불금 처리
+            // 선불금 처리: total_amount=0 → payment_amount 합계 → used_points 순으로 폴백
             const _itemPaySum2 = validItems.reduce((acc, i) => acc + Number(i.payment_amount || 0), 0);
-            const _effTotal2 = Number(o.total_amount || 0) === 0 && _itemPaySum2 > 0 ? _itemPaySum2 : Number(o.total_amount || 0);
+            const isNearbikeMemberDiscount2 = String(o.order_id || '').startsWith('nearbike_') && Number(o.total_amount || 0) === 0;
+            const _itemPayMethod2 = (validItems[0]?.payment_method || '').toLowerCase();
+            const isChunbulgeum2 = _itemPayMethod2.includes('선불금');
+            const _effTotal2 = !isNearbikeMemberDiscount2 && Number(o.total_amount || 0) === 0
+              ? _itemPaySum2 > 0 ? _itemPaySum2
+                : isChunbulgeum2 && Number(o.used_points || 0) > 0 ? Number(o.used_points)
+                : 0
+              : Number(o.total_amount || 0);
             const distributableAmount = Math.max(0, _effTotal2 - Number(o.shipping_fee || 0) - canceledAmount);
 
             let totalWeight = validItems.reduce((acc, i) => {

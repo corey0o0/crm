@@ -156,7 +156,7 @@ function SalesHistoryStats() {
       // 2. Services
       const { data: asRows, error: asErr } = await supabase.from('service_parts')
         .select('price, quantity, usage, parts(brand, name, code), services!inner(completion_date, status)')
-        .gte('services.completion_date', sDate).lte('services.completion_date', eDate).eq('services.status', '출고완료');
+        .gte('services.completion_date', sDate).lte('services.completion_date', eDate).in('services.status', ['출고완료', '완료', '수령완료']);
       if (asErr) console.error('Services fetch error:', asErr);
       
       (asRows || []).forEach(sp => {
@@ -203,10 +203,16 @@ function SalesHistoryStats() {
 
             const canceledItems = items.filter(it => CANCEL_STATUSES.includes(it.order_status));
             const canceledAmount = canceledItems.reduce((acc, it) => acc + (Number(it.product_price || it.price || 0) * Number(it.quantity || 1)), 0);
-            // 네이버페이 선불금 처리
+            // 선불금 처리: total_amount=0 → payment_amount 합계 → used_points 순으로 폴백
             const _ips = validItems.reduce((acc, i) => acc + Number(i.payment_amount || 0), 0);
             const isNearbikeMemberDiscount = String(o.order_id || '').startsWith('nearbike_') && Number(o.total_amount || 0) === 0;
-            const _et = !isNearbikeMemberDiscount && Number(o.total_amount || 0) === 0 && _ips > 0 ? _ips : Number(o.total_amount || 0);
+            const _itemPayMethod = (validItems[0]?.payment_method || '').toLowerCase();
+            const isChunbulgeum = _itemPayMethod.includes('선불금');
+            const _et = !isNearbikeMemberDiscount && Number(o.total_amount || 0) === 0
+              ? _ips > 0 ? _ips
+                : isChunbulgeum && Number(o.used_points || 0) > 0 ? Number(o.used_points)
+                : 0
+              : Number(o.total_amount || 0);
             const distributableAmount = Math.max(0, _et - Number(o.shipping_fee || 0) - canceledAmount);
 
             let orderItemsSum = 0;
@@ -643,10 +649,16 @@ function SalesHistoryStats() {
 
         const canceledItems = (items || []).filter(it => CANCEL_STATUSES.includes(it.order_status));
         const canceledAmount = canceledItems.reduce((acc, it) => acc + (Number(it.product_price || it.price || 0) * Number(it.quantity || 1)), 0);
-        // 네이버페이 선불금 처리
+        // 선불금 처리: total_amount=0 → payment_amount 합계 → used_points 순으로 폴백
         const _ips2 = validItems.reduce((acc, i) => acc + Number(i.payment_amount || 0), 0);
         const isNearbikeMemberDiscount = String(o.order_id || '').startsWith('nearbike_') && Number(o.total_amount || 0) === 0;
-        const _et2 = !isNearbikeMemberDiscount && Number(o.total_amount || 0) === 0 && _ips2 > 0 ? _ips2 : Number(o.total_amount || 0);
+        const _itemPayMethod2 = (validItems[0]?.payment_method || '').toLowerCase();
+        const isChunbulgeum2 = _itemPayMethod2.includes('선불금');
+        const _et2 = !isNearbikeMemberDiscount && Number(o.total_amount || 0) === 0
+          ? _ips2 > 0 ? _ips2
+            : isChunbulgeum2 && Number(o.used_points || 0) > 0 ? Number(o.used_points)
+            : 0
+          : Number(o.total_amount || 0);
         const distributableAmount = Math.max(0, _et2 - Number(o.shipping_fee || 0) - canceledAmount);
 
         let totalWeight = validItems.reduce((acc, i) => {

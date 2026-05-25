@@ -539,11 +539,17 @@ function SalesHistory() {
 
         const canceledItems = (items || []).filter(it => CANCEL_STATUSES.includes(it.order_status));
         const canceledAmount = canceledItems.reduce((acc, it) => acc + (Number(it.product_price || it.price || 0) * Number(it.quantity || 1)), 0);
-        // 선불금 처리: total_amount=0이면 품목 payment_amount 합계 사용
-        // 단, nearbike_ 주문은 회원할인 전액 건으로 실결제 0원이므로 제외
+        // 선불금 처리: total_amount=0 → payment_amount 합계 → used_points 순으로 폴백
+        // nearbike_ 회원할인 전액 건은 제외
         const itemPaymentSum = validItems.reduce((acc, i) => acc + Number(i.payment_amount || 0), 0);
         const isNearbikeMemberDiscount = String(o.order_id || '').startsWith('nearbike_') && Number(o.total_amount || 0) === 0;
-        const effectiveTotal = !isNearbikeMemberDiscount && Number(o.total_amount || 0) === 0 && itemPaymentSum > 0 ? itemPaymentSum : Number(o.total_amount || 0);
+        const _itemPayMethodH = (validItems[0]?.payment_method || '').toLowerCase();
+        const isChunbulgeumH = _itemPayMethodH.includes('선불금');
+        const effectiveTotal = !isNearbikeMemberDiscount && Number(o.total_amount || 0) === 0
+          ? itemPaymentSum > 0 ? itemPaymentSum
+            : isChunbulgeumH && Number(o.used_points || 0) > 0 ? Number(o.used_points)
+            : 0
+          : Number(o.total_amount || 0);
         const distributableAmount = Math.max(0, effectiveTotal - Number(o.shipping_fee || 0) - canceledAmount);
 
         let totalWeight = validItems.reduce((acc, i) => {

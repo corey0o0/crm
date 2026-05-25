@@ -456,7 +456,7 @@ function SalesStats() {
         `)
         .gte('services.completion_date', startDateTime)
         .lte('services.completion_date', endDateTime)
-        .eq('services.status', '출고완료');
+        .in('services.status', ['출고완료', '완료', '수령완료']);
 
       // forceRefresh가 1 이상일 때 캐시를 사용하지 않도록 설정
       if (forceRefresh > 0) {
