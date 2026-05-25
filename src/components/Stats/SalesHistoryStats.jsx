@@ -1179,6 +1179,10 @@ function SalesHistoryStats() {
       typeNode.totalProfit += (amt - cost);
     });
 
+    if (!sGroupData['A/S 매출']) {
+      sGroupData['A/S 매출'] = { customerType: 'A/S 매출', brands: { '청담본점 (A/S)': { brand: '청담본점 (A/S)', items: { as_total: { name: 'A/S 처리 (공임/부품 포함)', isAirframe: false, isService: true, quantity: 0, amount: 0, cost: 0, profit: 0 } }, subtotalQty: 0, subtotalAmt: 0, subtotalCost: 0, subtotalProfit: 0 } }, totalQty: 0, totalAmt: 0, totalCost: 0, totalProfit: 0 };
+    }
+
     const typeOrder = { '대리점 매출': 1, '일반 고객 매출': 2, 'A/S 매출': 3 };
     const salesArr = Object.values(sGroupData).map(t => ({
       ...t,
