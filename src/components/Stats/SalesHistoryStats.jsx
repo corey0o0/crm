@@ -19,6 +19,8 @@ import SearchIcon from '@mui/icons-material/Search';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import DownloadIcon from '@mui/icons-material/Download';
+import ExcelJS from 'exceljs';
 import { useAuth } from '../../contexts/AuthContext';
 import { MASTER_ACCOUNTS } from '../../config/menuConfig';
 
@@ -356,13 +358,12 @@ function SalesHistoryStats() {
     if (endDate)   shipQuery = shipQuery.lte('order_date', format(endDate, 'yyyy-MM-dd') + 'T23:59:59+09:00');
 
     let asQuery = supabase
-      .from('services')
-      .select('id, reception_date, completion_date, customer_name, status, note, brand, agencies(name)')
-      .in('status', ['출고완료', '완료', '수령완료'])
-      .order('completion_date', { ascending: false });
+      .from('service_parts')
+      .select('id, service_id, quantity, price, usage, parts(name, price), services!inner(id, completion_date, reception_date, customer_name, status, brand)')
+      .in('services.status', ['출고완료', '완료', '수령완료']);
 
-    if (startDate) asQuery = asQuery.gte('completion_date', format(startDate, 'yyyy-MM-dd') + 'T00:00:00+09:00');
-    if (endDate)   asQuery = asQuery.lte('completion_date', format(endDate, 'yyyy-MM-dd') + 'T23:59:59+09:00');
+    if (startDate) asQuery = asQuery.gte('services.completion_date', format(startDate, 'yyyy-MM-dd') + 'T00:00:00+09:00');
+    if (endDate)   asQuery = asQuery.lte('services.completion_date', format(endDate, 'yyyy-MM-dd') + 'T23:59:59+09:00');
 
     let cafeQuery = supabase
       .from('cafe24_orders')
@@ -385,6 +386,9 @@ function SalesHistoryStats() {
       supabase.from('agencies').select('name'),
       supabase.from('inventory').select('product_id, quantity')
     ]);
+
+    console.log('[AS DEBUG] asRes.error:', asRes.error);
+    console.log('[AS DEBUG] asRes.data length:', asRes.data?.length, asRes.data?.[0]);
 
     setAgenciesList((agenciesRes.data || []).map(a => a.name));
 
@@ -451,21 +455,27 @@ function SalesHistoryStats() {
       return getBrandFallback(b, name, code, mallId);
     };
 
-    const asIds = (asRes.data || []).map(s => s.id);
+    const serviceDataMap = {};
     const servicePartsMap = {};
+    (asRes.data || []).forEach(sp => {
+      const svc = sp.services;
+      if (!svc) return;
+      const sid = sp.service_id;
+      if (!serviceDataMap[sid]) serviceDataMap[sid] = svc;
+      if (!servicePartsMap[sid]) servicePartsMap[sid] = [];
+      servicePartsMap[sid].push(sp);
+    });
+    const asIds = Object.keys(serviceDataMap);
     const serviceTxMap = {};
     if (asIds.length > 0) {
-      const [{ data: spData }, { data: txData }] = await Promise.all([
-        supabase.from('service_parts').select('id, service_id, quantity, price, part_id, usage, parts(name, price)').in('service_id', asIds),
-        supabase.from('transactions').select('group_id, product_id, from_location').in('group_id', asIds.map(String)).eq('type', 'out')
-      ]);
-      (spData || []).forEach(sp => {
-        if (!servicePartsMap[sp.service_id]) servicePartsMap[sp.service_id] = [];
-        servicePartsMap[sp.service_id].push(sp);
-      });
+      const { data: txData } = await supabase
+        .from('transactions')
+        .select('group_id, product_id, from_location')
+        .in('group_id', asIds.map(String))
+        .eq('type', 'out');
       (txData || []).forEach(tx => {
-         serviceTxMap[tx.group_id] = tx.from_location;
-         if (tx.product_id) serviceTxMap[`${tx.group_id}_${tx.product_id}`] = tx.from_location;
+        serviceTxMap[tx.group_id] = tx.from_location;
+        if (tx.product_id) serviceTxMap[`${tx.group_id}_${tx.product_id}`] = tx.from_location;
       });
     }
 
@@ -572,41 +582,36 @@ function SalesHistoryStats() {
     });
 
     // A/S 건
-    (asRes.data || []).forEach(s => {
-      const parts = servicePartsMap[s.id] || [];
-      const agencyName = s.agencies?.name || 'A/S수리';
+    Object.entries(serviceDataMap).forEach(([sid, s]) => {
+      const parts = servicePartsMap[sid] || [];
+      const agencyName = 'A/S수리';
       const baseFields = {
-        _id: s.id, _type: 'service', date_val: s.completion_date || s.reception_date, sales_channel: agencyName, customer_name: s.customer_name || '-', service_brand: s.brand || '기타'
+        _id: sid, _type: 'service', date_val: s.completion_date || s.reception_date, sales_channel: agencyName, customer_name: s.customer_name || '-', service_brand: s.brand || '기타'
       };
-      if (parts.length > 0) {
-        parts.forEach((sp) => {
-          let returnedQty = 0;
-          if (sp.usage && sp.usage.includes('[반품완료]')) {
-            returnedQty = sp.quantity;
-          } else if (sp.usage && sp.usage.includes('[부분반품:')) {
-            const matches = sp.usage.match(/\[부분반품:(\d+)개\]/g);
-            if (matches) {
-              matches.forEach(m => {
-                const qtyMatch = m.match(/\[부분반품:(\d+)개\]/);
-                if (qtyMatch && qtyMatch[1]) returnedQty += parseInt(qtyMatch[1], 10);
-              });
-            }
+      parts.forEach((sp) => {
+        let returnedQty = 0;
+        if (sp.usage && sp.usage.includes('[반품완료]')) {
+          returnedQty = sp.quantity;
+        } else if (sp.usage && sp.usage.includes('[부분반품:')) {
+          const matches = sp.usage.match(/\[부분반품:(\d+)개\]/g);
+          if (matches) {
+            matches.forEach(m => {
+              const qtyMatch = m.match(/\[부분반품:(\d+)개\]/);
+              if (qtyMatch && qtyMatch[1]) returnedQty += parseInt(qtyMatch[1], 10);
+            });
           }
-          const effectiveQty = Math.max(0, Number(sp.quantity || 1) - returnedQty);
-
-          const unitPrice = sp.price !== undefined && sp.price !== null ? Number(sp.price) : Number(sp.parts?.price || 0);
-          const total = unitPrice * effectiveQty;
-          if (effectiveQty > 0 || Number(sp.quantity || 1) > 0) {
-            const pName = sp.parts?.name || '부품';
-            const cat = resolveCategory(pName);
-            const brand = resolveBrand(pName);
-            const unitCost = resolveCost(pName);
-            rows.push({ ...baseFields, part_name: pName, part_category: cat, part_brand: brand, quantity: effectiveQty, total_price: total, total_cost: unitCost * effectiveQty });
-          }
-        });
-      } else {
-        rows.push({ ...baseFields, part_name: 'A/S 수리', part_category: '공임', part_brand: '-', quantity: 1, total_price: 0, total_cost: 0 });
-      }
+        }
+        const effectiveQty = Math.max(0, Number(sp.quantity || 1) - returnedQty);
+        const unitPrice = sp.price !== undefined && sp.price !== null ? Number(sp.price) : Number(sp.parts?.price || 0);
+        const total = unitPrice * effectiveQty;
+        if (effectiveQty > 0 || Number(sp.quantity || 1) > 0) {
+          const pName = sp.parts?.name || '부품';
+          const cat = resolveCategory(pName);
+          const brand = resolveBrand(pName);
+          const unitCost = resolveCost(pName);
+          rows.push({ ...baseFields, part_name: pName, part_category: cat, part_brand: brand, quantity: effectiveQty, total_price: total, total_cost: unitCost * effectiveQty });
+        }
+      });
     });
 
     // 온라인 건
@@ -839,6 +844,122 @@ function SalesHistoryStats() {
       console.error('fetchSales 오류:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleExcelDownload = async () => {
+    try {
+      const workbook = new ExcelJS.Workbook();
+      const dateRange = `${format(startDate, 'yyyy-MM-dd')} ~ ${format(endDate, 'yyyy-MM-dd')}`;
+
+      // ── Sheet 1: 판매현황 요약 ──────────────────────────────────────
+      const summarySheet = workbook.addWorksheet('판매현황 요약');
+
+      const titleRow = summarySheet.addRow([`판매현황 통계 (${dateRange})`]);
+      titleRow.getCell(1).font = { bold: true, size: 13 };
+      summarySheet.addRow([]);
+
+      const hRow = summarySheet.addRow(['매출 구분', '판매처', '상품명', '수량', '원가 총액', '판매 금액', '영업이익', '이익률(%)']);
+      hRow.eachCell(cell => {
+        cell.font = { bold: true };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
+        cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+      });
+
+      const addBorder = (row) => row.eachCell(cell => {
+        cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+      });
+
+      comprehensiveSalesGroups.forEach(t => {
+        t.brandsArr.forEach(b => {
+          b.itemsArr.forEach(item => {
+            const pRate = item.amount > 0 ? ((item.profit / item.amount) * 100).toFixed(1) : '0.0';
+            addBorder(summarySheet.addRow([t.customerType, b.brand, item.name, item.quantity, item.cost, item.amount, item.profit, Number(pRate)]));
+          });
+          const bRate = b.subtotalAmt > 0 ? ((b.subtotalProfit / b.subtotalAmt) * 100).toFixed(1) : '0.0';
+          const bSubRow = summarySheet.addRow([t.customerType, `[${b.brand} 소계]`, '', b.subtotalQty, b.subtotalCost, b.subtotalAmt, b.subtotalProfit, Number(bRate)]);
+          bSubRow.eachCell(cell => {
+            cell.font = { bold: true };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F8E9' } };
+            cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+          });
+        });
+        const tRate = t.totalAmt > 0 ? ((t.totalProfit / t.totalAmt) * 100).toFixed(1) : '0.0';
+        const tTotalRow = summarySheet.addRow([`[${t.customerType} 합계]`, '', '', t.totalQty, t.totalCost, t.totalAmt, t.totalProfit, Number(tRate)]);
+        tTotalRow.eachCell(cell => {
+          cell.font = { bold: true };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF9C4' } };
+          cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+        });
+        summarySheet.addRow([]);
+      });
+
+      // 숫자 컬럼 포맷
+      summarySheet.getColumn(5).numFmt = '#,##0';
+      summarySheet.getColumn(6).numFmt = '#,##0';
+      summarySheet.getColumn(7).numFmt = '#,##0';
+      summarySheet.getColumn(8).numFmt = '0.0"%"';
+
+      summarySheet.columns.forEach(col => {
+        let max = 10;
+        col.eachCell({ includeEmpty: true }, cell => {
+          const len = cell.value != null ? String(cell.value).length : 0;
+          if (len > max) max = len;
+        });
+        col.width = Math.min(max + 2, 40);
+      });
+
+      // ── Sheet 2: 원본 데이터 ───────────────────────────────────────
+      const rawSheet = workbook.addWorksheet('판매 원본 데이터');
+      const rawHRow = rawSheet.addRow(['날짜', '유형', '판매처', '고객명', '상품명', '카테고리', '브랜드', '수량', '매출', '원가']);
+      rawHRow.eachCell(cell => {
+        cell.font = { bold: true };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
+        cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+      });
+
+      currentFiltered.forEach(r => {
+        const typeLabel = r._type === 'service' ? 'A/S' : r._type === 'cafe24' ? '온라인' : '출고';
+        const row = rawSheet.addRow([
+          r.date_val ? r.date_val.slice(0, 10) : '-',
+          typeLabel,
+          getSalesChannelName(r),
+          r.customer_name || '-',
+          r.part_name || '-',
+          r.part_category || '-',
+          r.part_brand || '-',
+          Number(r.quantity || 0),
+          Number(r.total_price || 0),
+          Number(r.total_cost || 0)
+        ]);
+        row.eachCell(cell => {
+          cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+        });
+      });
+
+      rawSheet.getColumn(9).numFmt = '#,##0';
+      rawSheet.getColumn(10).numFmt = '#,##0';
+      rawSheet.columns.forEach(col => {
+        let max = 10;
+        col.eachCell({ includeEmpty: true }, cell => {
+          const len = cell.value != null ? String(cell.value).length : 0;
+          if (len > max) max = len;
+        });
+        col.width = Math.min(max + 2, 40);
+      });
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `판매현황통계_${format(startDate, 'yyyyMMdd')}_${format(endDate, 'yyyyMMdd')}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('엑셀 다운로드 오류:', err);
     }
   };
 
@@ -1643,9 +1764,20 @@ function SalesHistoryStats() {
               <Grid container spacing={4}>
               {/* 왼쪽: 판매 매출 */}
               <Grid item xs={12} xl={6}>
-                <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, color: '#424242' }}>
-                  [1] 판매 현황 (총 판매 합계: {formatCurrency(totalAmt)})
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#424242' }}>
+                    [1] 판매 현황 (총 판매 합계: {formatCurrency(totalAmt)})
+                  </Typography>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<DownloadIcon />}
+                    onClick={handleExcelDownload}
+                    sx={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}
+                  >
+                    엑셀 다운로드
+                  </Button>
+                </Box>
                 <TableContainer component={Paper} sx={{ border: '1px solid #cfd8dc', borderRadius: 1, boxShadow: 'none' }}>
                   <Table size="small" sx={{ 
                     '& th, & td': { border: '1px solid #cfd8dc', padding: '8px 10px' },
