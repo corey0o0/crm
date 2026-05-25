@@ -1995,69 +1995,101 @@ function SalesHistoryStats() {
             )}
 
             {tabValue === 1 && (
-              <TableContainer component={Paper} sx={{ border: '1px solid #cfd8dc', borderRadius: 1, boxShadow: 'none' }}>
-                <Table size="small" sx={{ '& th, & td': { border: '1px solid #cfd8dc', padding: '8px 10px' }, '& th': { bgcolor: '#eceff1', fontWeight: 'bold', textAlign: 'center' }}}>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>월</TableCell>
-                      <TableCell>총 판매 금액</TableCell>
-                      {showProfit && <TableCell>총 원가</TableCell>}
-                      {showProfit && <TableCell>영업이익</TableCell>}
-                      {showProfit && <TableCell>이익률</TableCell>}
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {monthlyStats.length === 0 ? (
-                      <TableRow><TableCell colSpan={5} align="center">조회된 월별 데이터가 없습니다.</TableCell></TableRow>
-                    ) : (
-                      monthlyStats.map((row, idx) => (
-                        <TableRow key={idx} hover>
-                          <TableCell align="center">{row.period}</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(row.amount)}</TableCell>
-                          {showProfit && <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatCurrency(row.cost)}</TableCell>}
-                          {showProfit && <TableCell align="right" sx={{ fontWeight: 'bold', color: row.profit < 0 ? '#d32f2f' : '#2e7d32' }}>{formatCurrency(row.profit)}</TableCell>}
-                          {showProfit && <TableCell align="center" sx={{ fontWeight: 'bold', color: row.profit < 0 ? '#d32f2f' : '#2e7d32' }}>
-                            {row.amount > 0 ? ((row.profit / row.amount) * 100).toFixed(1) + '%' : '-'}
-                          </TableCell>}
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+              <Box>
+                <Paper sx={{ p: 2, mb: 2, border: '1px solid #cfd8dc', boxShadow: 'none', borderRadius: 1 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1, color: '#546e7a' }}>{selectedYear}년 월별 매출</Typography>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <BarChart data={monthlyStats.map(r => ({ ...r, label: r.period.replace(`${selectedYear}년 `, '') }))} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                      <YAxis tickFormatter={v => v === 0 ? '0' : `${(v / 10000).toFixed(0)}만`} tick={{ fontSize: 11 }} width={55} />
+                      <Tooltip formatter={(val) => formatCurrency(val)} labelFormatter={l => `${l}`} />
+                      <Bar dataKey="amount" name="판매금액" fill="#1976d2" radius={[3, 3, 0, 0]} />
+                      {showProfit && <Bar dataKey="profit" name="영업이익" fill="#2e7d32" radius={[3, 3, 0, 0]} />}
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Paper>
+                <TableContainer component={Paper} sx={{ border: '1px solid #cfd8dc', borderRadius: 1, boxShadow: 'none' }}>
+                  <Table size="small" sx={{ '& th, & td': { border: '1px solid #cfd8dc', padding: '8px 10px' }, '& th': { bgcolor: '#eceff1', fontWeight: 'bold', textAlign: 'center' }}}>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>월</TableCell>
+                        <TableCell>총 판매 금액</TableCell>
+                        {showProfit && <TableCell>총 원가</TableCell>}
+                        {showProfit && <TableCell>영업이익</TableCell>}
+                        {showProfit && <TableCell>이익률</TableCell>}
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {monthlyStats.length === 0 ? (
+                        <TableRow><TableCell colSpan={5} align="center">조회된 월별 데이터가 없습니다.</TableCell></TableRow>
+                      ) : (
+                        monthlyStats.map((row, idx) => (
+                          <TableRow key={idx} hover>
+                            <TableCell align="center">{row.period}</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(row.amount)}</TableCell>
+                            {showProfit && <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatCurrency(row.cost)}</TableCell>}
+                            {showProfit && <TableCell align="right" sx={{ fontWeight: 'bold', color: row.profit < 0 ? '#d32f2f' : '#2e7d32' }}>{formatCurrency(row.profit)}</TableCell>}
+                            {showProfit && <TableCell align="center" sx={{ fontWeight: 'bold', color: row.profit < 0 ? '#d32f2f' : '#2e7d32' }}>
+                              {row.amount > 0 ? ((row.profit / row.amount) * 100).toFixed(1) + '%' : '-'}
+                            </TableCell>}
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Box>
             )}
 
             {tabValue === 2 && (
-              <TableContainer component={Paper} sx={{ border: '1px solid #cfd8dc', borderRadius: 1, boxShadow: 'none' }}>
-                <Table size="small" sx={{ '& th, & td': { border: '1px solid #cfd8dc', padding: '8px 10px' }, '& th': { bgcolor: '#eceff1', fontWeight: 'bold', textAlign: 'center' }}}>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>주차 (월~일)</TableCell>
-                      <TableCell>총 판매 금액</TableCell>
-                      {showProfit && <TableCell>총 원가</TableCell>}
-                      {showProfit && <TableCell>영업이익</TableCell>}
-                      {showProfit && <TableCell>이익률</TableCell>}
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {weeklyStats.length === 0 ? (
-                      <TableRow><TableCell colSpan={5} align="center">조회된 주별 데이터가 없습니다.</TableCell></TableRow>
-                    ) : (
-                      weeklyStats.map((row, idx) => (
-                        <TableRow key={idx} hover>
-                          <TableCell align="center">{row.period}</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(row.amount)}</TableCell>
-                          {showProfit && <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatCurrency(row.cost)}</TableCell>}
-                          {showProfit && <TableCell align="right" sx={{ fontWeight: 'bold', color: row.profit < 0 ? '#d32f2f' : '#2e7d32' }}>{formatCurrency(row.profit)}</TableCell>}
-                          {showProfit && <TableCell align="center" sx={{ fontWeight: 'bold', color: row.profit < 0 ? '#d32f2f' : '#2e7d32' }}>
-                            {row.amount > 0 ? ((row.profit / row.amount) * 100).toFixed(1) + '%' : '-'}
-                          </TableCell>}
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+              <Box>
+                <Paper sx={{ p: 2, mb: 2, border: '1px solid #cfd8dc', boxShadow: 'none', borderRadius: 1 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1, color: '#546e7a' }}>
+                    {selectedYear}년 {(selectedMonth !== null ? selectedMonth : getMonth(startDate)) + 1}월 주차별 매출
+                  </Typography>
+                  <ResponsiveContainer width="100%" height={240}>
+                    <BarChart data={weeklyStats} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="period" tick={{ fontSize: 12 }} />
+                      <YAxis tickFormatter={v => v === 0 ? '0' : `${(v / 10000).toFixed(0)}만`} tick={{ fontSize: 11 }} width={55} />
+                      <Tooltip formatter={(val) => formatCurrency(val)} labelFormatter={l => `${l}`} />
+                      <Bar dataKey="amount" name="판매금액" fill="#ed6c02" radius={[3, 3, 0, 0]} />
+                      {showProfit && <Bar dataKey="profit" name="영업이익" fill="#2e7d32" radius={[3, 3, 0, 0]} />}
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Paper>
+                <TableContainer component={Paper} sx={{ border: '1px solid #cfd8dc', borderRadius: 1, boxShadow: 'none' }}>
+                  <Table size="small" sx={{ '& th, & td': { border: '1px solid #cfd8dc', padding: '8px 10px' }, '& th': { bgcolor: '#eceff1', fontWeight: 'bold', textAlign: 'center' }}}>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>주차 (월~일)</TableCell>
+                        <TableCell>총 판매 금액</TableCell>
+                        {showProfit && <TableCell>총 원가</TableCell>}
+                        {showProfit && <TableCell>영업이익</TableCell>}
+                        {showProfit && <TableCell>이익률</TableCell>}
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {weeklyStats.length === 0 ? (
+                        <TableRow><TableCell colSpan={5} align="center">조회된 주별 데이터가 없습니다.</TableCell></TableRow>
+                      ) : (
+                        weeklyStats.map((row, idx) => (
+                          <TableRow key={idx} hover>
+                            <TableCell align="center">{row.period}</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(row.amount)}</TableCell>
+                            {showProfit && <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatCurrency(row.cost)}</TableCell>}
+                            {showProfit && <TableCell align="right" sx={{ fontWeight: 'bold', color: row.profit < 0 ? '#d32f2f' : '#2e7d32' }}>{formatCurrency(row.profit)}</TableCell>}
+                            {showProfit && <TableCell align="center" sx={{ fontWeight: 'bold', color: row.profit < 0 ? '#d32f2f' : '#2e7d32' }}>
+                              {row.amount > 0 ? ((row.profit / row.amount) * 100).toFixed(1) + '%' : '-'}
+                            </TableCell>}
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Box>
             )}
 
             {tabValue === 3 && (() => {
