@@ -126,11 +126,32 @@ function SalesHistoryStats() {
 
       // 1. Shipments
       const { data: shipRows, error: shipErr } = await supabase.from('shipments')
-        .select('id, price, shipment_parts(quantity, price, total_price, part_name, part_code, note)')
+        .select('id, note, price, shipment_parts(quantity, price, total_price, part_name, part_code, note)')
         .gte('order_date', sDate).lte('order_date', eDate).in('status', ['출고완료', '완료']);
       if (shipErr) console.error('Shipments fetch error:', shipErr);
-      
+
+      // 중복 방지: shipment.note에 Cafe24 주문번호가 있으면 cafe24 집계와 겹침
+      const dupShipOrderNos = new Set();
+      const shipNoteOrderNos = (shipRows || []).map(s => {
+        const m = s.note ? String(s.note).match(/(20\d{6}-\d{7})/) : null;
+        return m ? m[0] : null;
+      }).filter(Boolean);
+      if (shipNoteOrderNos.length > 0) {
+        for (let i = 0; i < shipNoteOrderNos.length; i += 100) {
+          const chunk = shipNoteOrderNos.slice(i, i + 100);
+          const { data: dupOrders } = await supabase.from('cafe24_orders').select('order_id')
+            .in('order_id', chunk).eq('is_deleted', false).eq('is_transferred', true);
+          (dupOrders || []).forEach(o => dupShipOrderNos.add(o.order_id));
+        }
+      }
+
       (shipRows || []).forEach(s => {
+        // 수기판매 제외 (SalesHistoryStats 메인 집계와 동일 기준)
+        if (s.note && String(s.note).includes('[수기판매]')) return;
+        // Cafe24 중복 방지
+        const noteMatch = s.note ? String(s.note).match(/(20\d{6}-\d{7})/) : null;
+        if (noteMatch && dupShipOrderNos.has(noteMatch[0])) return;
+
         const parts = s.shipment_parts || [];
         if (parts.length === 0) {
            if (!targetBrand || targetBrand === '전체') shipTotal += Number(s.price || 0);
@@ -181,7 +202,7 @@ function SalesHistoryStats() {
 
       // 3. Cafe24
       let cafeQuery = supabase.from('cafe24_orders')
-        .select('total_amount, shipping_fee, order_items, mall_id')
+        .select('total_amount, shipping_fee, order_items, mall_id, order_id, used_points')
         .gte('order_date', sDate).lte('order_date', eDate)
         .eq('is_deleted', false).eq('is_transferred', true);
 
@@ -194,6 +215,8 @@ function SalesHistoryStats() {
       
       (cafeRows || []).forEach(o => {
          const items = o.order_items || [];
+         // 창고 정보 없는 건(반영 예외 처리된 건) 제외 — 메인 집계와 동일 기준
+         if (items.length > 0 && !items.some(item => item._warehouse_id)) return;
          if (items.length === 0) {
             if (!targetBrand || targetBrand === '전체' || getBrandFallback('', '', '', o.mall_id) === targetBrand) {
                cafeTotal += Number(o.total_amount || 0);

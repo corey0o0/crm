@@ -370,6 +370,7 @@ function SalesHistory() {
       const needsVatCorrection = partsRawSum > 0 && shipTotalPrice > 0 && Math.abs((shipTotalPrice / partsRawSum) - 1.1) < 0.01;
       const vatMultiplier = needsVatCorrection ? 1.1 : 1;
 
+      const isManual = !!(s.note && String(s.note).includes('[수기판매]'));
       const baseFields = {
         _orderId: s.id, _type: 'shipment',
         date_val: s.order_date,
@@ -379,6 +380,7 @@ function SalesHistory() {
         note: s.note || '',
         warehouse_name: warehouseName,
         order_no: orderNo,
+        isManual,
       };
       if (parts.length === 0) {
         rows.push({ ...baseFields, _id: `ship_${s.id}_none`, part_name: '(품목 미기재)', part_category: '기타', quantity: 0, unit_price: 0, total_price: shipTotalPrice });
@@ -778,6 +780,7 @@ function SalesHistory() {
 
   // ── 합계 계산 ────────────────────────────────────────
   const totalAmt   = filtered.reduce((a, r) => a + Number(r.total_price || 0), 0);
+  const manualAmt  = filtered.reduce((a, r) => a + (r.isManual ? Number(r.total_price || 0) : 0), 0);
   const totalSupply = Math.round(totalAmt / 1.1);
   const totalVat   = totalAmt - totalSupply;
   const totalQty   = filtered.reduce((a, r) => a + Number(r.quantity || 0), 0);
@@ -975,6 +978,9 @@ function SalesHistory() {
             <Box>
               <Typography variant="body2" color="textSecondary">총 판매액 (합계)</Typography>
               <Typography variant="h5" fontWeight="bold">{totalAmt.toLocaleString()}원</Typography>
+              {manualAmt > 0 && (
+                <Typography variant="caption" color="text.secondary">수기판매 {manualAmt.toLocaleString()}원 포함</Typography>
+              )}
             </Box>
           </Paper>
         </Grid>
@@ -1362,7 +1368,7 @@ function SalesHistory() {
                     key={row._id}
                     hover
                     onClick={() => handleRowClick(row)}
-                    sx={{ cursor: 'pointer', '&:hover': { bgcolor: '#f0f4ff' } }}
+                    sx={{ cursor: 'pointer', '&:hover': { bgcolor: '#f0f4ff' }, ...(row.isManual && { bgcolor: '#fff8e1' }) }}
                   >
                     <TableCell sx={{ color: '#1976d2', whiteSpace: 'nowrap' }}>
                       {row.date_val ? format(new Date(row.date_val), 'yyyy-MM-dd') : '-'}
@@ -1372,6 +1378,7 @@ function SalesHistory() {
                     </TableCell>
                     <TableCell sx={{ fontSize: '0.85rem', color: '#1976d2', fontWeight: 500, whiteSpace: 'nowrap' }}>
                        {row.sales_channel || '-'}
+                       {row.isManual && <Chip size="small" label="수기판매" sx={{ ml: 0.5, height: 16, fontSize: '0.65rem', bgcolor: '#ff9800', color: '#fff' }} />}
                     </TableCell>
                     <TableCell sx={{ fontWeight: 500 }}>
                       <div style={{ display: 'flex', flexDirection: 'column' }}>

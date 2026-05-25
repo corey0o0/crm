@@ -39,6 +39,8 @@ const getBadgeColor = (status) => {
   return 'primary';
 };
 
+const CANCEL_STATUSES = ['C11', 'C34', 'C36', 'C40', 'C47', 'C48', 'C49', 'R34', 'R36', 'R40', 'E40'];
+
 const MEMBER_GROUPS = {
   '12': '사업자회원',
   '15': '엑스라이더',
@@ -414,9 +416,8 @@ export default function Cafe24OrderList() {
     
     // 3. 미반영 주문: 취소/반품/교환 완료 상태 아이템이 하나라도 있으면 반품건으로 분류
     //    진행 중(C00, C10, E00 등)은 제외 — 완료된 것만 해당
-    const COMPLETED_CANCEL_STATUSES = ['C11','C40','C47','C48','C49','R40','R34','R36','E40','C34','C36'];
     if (order.order_items && order.order_items.some(item =>
-      COMPLETED_CANCEL_STATUSES.includes(String(item.order_status).trim())
+      CANCEL_STATUSES.includes(String(item.order_status).trim())
     )) return true;
     return false;
   };
@@ -559,7 +560,7 @@ export default function Cafe24OrderList() {
     for (const order of ordersToTransfer) {
       const items = order.order_items || [];
       for (const item of items) {
-        const isCancelled = ['C11', 'C40', 'R40', 'E40'].includes(item.order_status);
+        const isCancelled = CANCEL_STATUSES.includes(item.order_status);
         if (isCancelled) continue;
         if (!item.part_id && (item.custom_product_code || item.product_code)) {
           hasUnmappedItems = true;
@@ -600,7 +601,7 @@ export default function Cafe24OrderList() {
     const items = order.order_items || [];
     let missingWarehouse = false;
     for (let i = 0; i < items.length; i++) {
-      const isCancelled = ['C11', 'C40', 'R40', 'E40'].includes(items[i].order_status);
+      const isCancelled = CANCEL_STATUSES.includes(items[i].order_status);
       if (isCancelled) continue;
       const val = warehouseConfig[order.id] && warehouseConfig[order.id][i];
       if (!val) {
@@ -614,7 +615,7 @@ export default function Cafe24OrderList() {
     }
 
     const hasUnmappedItem = items.some(item => {
-      const isCancelled = ['C11', 'C40', 'R40', 'E40'].includes(item.order_status);
+      const isCancelled = CANCEL_STATUSES.includes(item.order_status);
       if (isCancelled) return false;
       return !item.part_id && (item.custom_product_code || item.product_code);
     });
@@ -865,7 +866,7 @@ export default function Cafe24OrderList() {
             const tempConfig = { [updatedOrder.id]: {} };
             if (updatedOrder.order_items) {
               updatedOrder.order_items.forEach((item, idx) => {
-                if (!['C11', 'C40', 'R40', 'E40'].includes(item.order_status)) {
+                if (!CANCEL_STATUSES.includes(item.order_status)) {
                   tempConfig[updatedOrder.id][idx] = prevWarehouse;
                 }
               });
@@ -1002,7 +1003,7 @@ export default function Cafe24OrderList() {
           const tempConfig = { [updatedOrder.id]: {} };
           if (updatedOrder.order_items) {
             updatedOrder.order_items.forEach((item, idx) => {
-              if (!['C11', 'C40', 'R40', 'E40'].includes(item.order_status)) {
+              if (!CANCEL_STATUSES.includes(item.order_status)) {
                 tempConfig[updatedOrder.id][idx] = prevWarehouse;
               }
             });
@@ -1328,7 +1329,7 @@ export default function Cafe24OrderList() {
       }));
 
       const newTotalAmount = sanitizedItems.reduce((sum, item) => {
-        const isCancelled = ['C11', 'C40', 'R40', 'E40'].includes(item.order_status);
+        const isCancelled = CANCEL_STATUSES.includes(item.order_status);
         return sum + (isCancelled ? 0 : Number(item.payment_amount || 0));
       }, 0);
 
@@ -1686,17 +1687,17 @@ export default function Cafe24OrderList() {
                   const matchedPart = item.part_id ? availableParts.find(p => p.id === item.part_id) : null;
                   const erpCode = matchedPart ? (matchedPart.barcode || matchedPart.code) : '';
                   const erpName = matchedPart ? matchedPart.name : '';
-                  const isCancelledItem = ['C11', 'C40', 'R40', 'E40'].includes(item.order_status);
+                  const isCancelledItem = CANCEL_STATUSES.includes(item.order_status);
                   const needsMapping = !item.part_id && (item.custom_product_code || item.product_code) && !isCancelledItem;
                   
                   // 계산된 적립금/전체할인 구하기 (DB에 없을 경우를 대비해 프론트엔드에서도 계산)
                   const orderItemsSum = items.reduce((sum, it) => {
-                    const isCancelled = ['C11', 'C40', 'R40', 'E40'].includes(it.order_status);
+                    const isCancelled = CANCEL_STATUSES.includes(it.order_status);
                     return sum + (isCancelled ? 0 : Number(it.payment_amount || 0));
                   }, 0);
                   // 회원등급 할인 합계 (item_discount)
                   const gradeDiscountSum = items.reduce((sum, it) => {
-                    const isCancelled = ['C11', 'C40', 'R40', 'E40'].includes(it.order_status);
+                    const isCancelled = CANCEL_STATUSES.includes(it.order_status);
                     return sum + (isCancelled ? 0 : Number(it.item_discount || 0));
                   }, 0);
                   // 결제수단 분류: 외부 실결제(카드/무통장) vs 내부재화(적립금/회원할인)
@@ -1803,8 +1804,8 @@ export default function Cafe24OrderList() {
                           <Typography 
                             variant="body2" 
                             sx={{ 
-                              textDecoration: item.order_status && item.order_status.match(/^(C40|C47|C48|C49|R40|C11|C34|C36|R34|R36)$/) ? 'line-through' : 'none',
-                              color: item.order_status && item.order_status.match(/^(C40|C47|C48|C49|R40|C11|C34|C36|R34|R36)$/) ? 'text.disabled' : 'inherit'
+                              textDecoration: item.order_status && CANCEL_STATUSES.includes(item.order_status) ? 'line-through' : 'none',
+                              color: item.order_status && CANCEL_STATUSES.includes(item.order_status) ? 'text.disabled' : 'inherit'
                             }}
                           >
                             {item.name}
@@ -1837,7 +1838,7 @@ export default function Cafe24OrderList() {
                         ) : '-'}
                       </TableCell>}
                       {showPriceDetails && <TableCell align="right">
-                        {['C11', 'C40', 'R40', 'E40'].includes(item.order_status) ? (
+                        {CANCEL_STATUSES.includes(item.order_status) ? (
                           <Typography variant="body2" color="error" sx={{ textDecoration: 'line-through' }}>
                             {Number(item.payment_amount === undefined ? (Number(item.price || 0) * Number(item.quantity || 1)) : item.payment_amount).toLocaleString()}
                           </Typography>
@@ -1869,7 +1870,7 @@ export default function Cafe24OrderList() {
                         {erpCode || (needsMapping ? <Chip size="small" label="미스매칭" color="warning" /> : '-')}
                       </TableCell>
                       <TableCell>
-                        {['C11', 'C40', 'R40', 'E40'].includes(item.order_status) ? (
+                        {CANCEL_STATUSES.includes(item.order_status) ? (
                           <Typography variant="caption" color="text.secondary">- (반영 제외)</Typography>
                         ) : (
                           erpName ? (
@@ -1893,7 +1894,7 @@ export default function Cafe24OrderList() {
                         )}
                       </TableCell>
                       <TableCell>
-                        {['C11', 'C40', 'R40', 'E40'].includes(item.order_status) ? (
+                        {CANCEL_STATUSES.includes(item.order_status) ? (
                            <Typography variant="caption" color="text.secondary">취소건 (제외)</Typography>
                         ) : order.is_transferred ? (
                           <Typography variant="body2" color="text.secondary">
@@ -2249,8 +2250,8 @@ export default function Cafe24OrderList() {
                         variant="body2" 
                         sx={{ 
                           fontWeight: 500, 
-                          color: item.order_status && item.order_status.match(/^(C40|C47|C48|C49|R40|E40|C11|C34|C36|R34|R36)$/) ? 'text.disabled' : 'text.primary', 
-                          textDecoration: item.order_status && item.order_status.match(/^(C40|C47|C48|C49|R40|E40|C11|C34|C36|R34|R36)$/) ? 'line-through' : 'none'
+                          color: item.order_status && CANCEL_STATUSES.includes(item.order_status) ? 'text.disabled' : 'text.primary',
+                          textDecoration: item.order_status && CANCEL_STATUSES.includes(item.order_status) ? 'line-through' : 'none'
                         }}
                       >
                         {item.name || item.product_name}
@@ -2328,7 +2329,7 @@ export default function Cafe24OrderList() {
                 </TableCell>
                 <TableCell sx={{ fontWeight: 'bold', color: '#1976d2', fontSize: '1rem' }}>
                   {editingItems.reduce((acc, item) => {
-                    const isCanceled = item.order_status && item.order_status.match(/^(C40|C47|C48|C49|R40|E40|C11|C34|C36|R34|R36)$/);
+                    const isCanceled = item.order_status && CANCEL_STATUSES.includes(item.order_status);
                     if (isCanceled) return acc;
                     return acc + Number(item.payment_amount !== undefined ? item.payment_amount : (item.product_price || 0) * (item.quantity || 1));
                   }, 0).toLocaleString()}
