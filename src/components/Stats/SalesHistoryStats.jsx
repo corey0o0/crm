@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box, Typography, Paper, Grid, Card, CardContent, CircularProgress,
   FormControl, Select, MenuItem, InputLabel, Button, Divider,
@@ -9,7 +9,7 @@ import {
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ko } from 'date-fns/locale';
-import { startOfMonth, endOfMonth, format, startOfYear, endOfYear, startOfWeek, endOfWeek, setMonth } from 'date-fns';
+import { startOfMonth, endOfMonth, format, startOfYear, endOfYear, startOfWeek, endOfWeek, setMonth, getMonth } from 'date-fns';
 import { supabase } from '../../lib/supabaseClient';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -60,8 +60,9 @@ function SalesHistoryStats() {
   const isMaster = user?.email && MASTER_ACCOUNTS.includes(user.email);
   const [loading, setLoading] = useState(true);
   const [flatRows, setFlatRows] = useState([]);
-  const [manualFlatRows, setManualFlatRows] = useState([]); // 수기판매 별도 집계
-  const [inventoryList, setInventoryList] = useState([]); // 재고 목록 상태 추가
+  const [yearFlatRows, setYearFlatRows] = useState([]);
+  const [manualFlatRows, setManualFlatRows] = useState([]);
+  const [inventoryList, setInventoryList] = useState([]);
   const [agenciesList, setAgenciesList] = useState([]);
   const [startDate, setStartDate] = useState(startOfMonth(new Date()));
   const [endDate, setEndDate] = useState(endOfMonth(new Date()));
@@ -81,6 +82,9 @@ function SalesHistoryStats() {
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
+  const selectedMonthRef = useRef(selectedMonth);
+
+  useEffect(() => { selectedMonthRef.current = selectedMonth; }, [selectedMonth]);
 
   const handleYearSelect = (year) => {
     setSelectedYear(year);
@@ -104,6 +108,16 @@ function SalesHistoryStats() {
     fetchSales();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startDate, endDate]);
+
+  useEffect(() => {
+    // month view일 때만 별도로 연간 데이터 fetch (year view는 fetchSales가 이미 전체 연도 로드)
+    if (selectedMonthRef.current !== null) {
+      const yearStart = startOfYear(new Date(selectedYear, 0, 1));
+      const yearEnd = endOfYear(new Date(selectedYear, 11, 31));
+      fetchSales({ overrideStart: yearStart, overrideEnd: yearEnd });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedYear]);
 
   useEffect(() => {
     fetchCompareStats();
@@ -367,8 +381,11 @@ function SalesHistoryStats() {
     }
   };
 
-  const fetchSales = async () => {
-    setLoading(true);
+  const fetchSales = async ({ overrideStart, overrideEnd } = {}) => {
+    const isYearFetch = !!overrideStart;
+    const sDate = overrideStart || startDate;
+    const eDate = overrideEnd || endDate;
+    if (!isYearFetch) setLoading(true);
     try {
 
     let shipQuery = supabase
@@ -377,16 +394,16 @@ function SalesHistoryStats() {
       .in('status', ['출고완료', '완료'])
       .order('order_date', { ascending: false });
 
-    if (startDate) shipQuery = shipQuery.gte('order_date', format(startDate, 'yyyy-MM-dd') + 'T00:00:00+09:00');
-    if (endDate)   shipQuery = shipQuery.lte('order_date', format(endDate, 'yyyy-MM-dd') + 'T23:59:59+09:00');
+    if (sDate) shipQuery = shipQuery.gte('order_date', format(sDate, 'yyyy-MM-dd') + 'T00:00:00+09:00');
+    if (eDate) shipQuery = shipQuery.lte('order_date', format(eDate, 'yyyy-MM-dd') + 'T23:59:59+09:00');
 
     let asQuery = supabase
       .from('service_parts')
       .select('id, service_id, quantity, price, usage, parts(name, price), services!inner(id, completion_date, reception_date, customer_name, status, brand)')
       .in('services.status', ['출고완료', '완료', '수령완료']);
 
-    if (startDate) asQuery = asQuery.gte('services.completion_date', format(startDate, 'yyyy-MM-dd') + 'T00:00:00+09:00');
-    if (endDate)   asQuery = asQuery.lte('services.completion_date', format(endDate, 'yyyy-MM-dd') + 'T23:59:59+09:00');
+    if (sDate) asQuery = asQuery.gte('services.completion_date', format(sDate, 'yyyy-MM-dd') + 'T00:00:00+09:00');
+    if (eDate) asQuery = asQuery.lte('services.completion_date', format(eDate, 'yyyy-MM-dd') + 'T23:59:59+09:00');
 
     let cafeQuery = supabase
       .from('cafe24_orders')
@@ -395,8 +412,8 @@ function SalesHistoryStats() {
       .eq('is_transferred', true)
       .order('order_date', { ascending: false });
 
-    if (startDate) cafeQuery = cafeQuery.gte('order_date', format(startDate, 'yyyy-MM-dd') + 'T00:00:00+09:00');
-    if (endDate)   cafeQuery = cafeQuery.lte('order_date', format(endDate, 'yyyy-MM-dd') + 'T23:59:59+09:00');
+    if (sDate) cafeQuery = cafeQuery.gte('order_date', format(sDate, 'yyyy-MM-dd') + 'T00:00:00+09:00');
+    if (eDate) cafeQuery = cafeQuery.lte('order_date', format(eDate, 'yyyy-MM-dd') + 'T23:59:59+09:00');
 
     if (!allowedMalls.includes('all')) {
       cafeQuery = cafeQuery.in('mall_id', allowedMalls);
@@ -828,8 +845,16 @@ function SalesHistoryStats() {
       }
     });
 
-    setFlatRows(rows);
-    setManualFlatRows(manualRows);
+    if (isYearFetch) {
+      setYearFlatRows(rows);
+    } else {
+      setFlatRows(rows);
+      setManualFlatRows(manualRows);
+      // year view(전체 연도)일 때 yearFlatRows도 동기화
+      if (selectedMonthRef.current === null) setYearFlatRows(rows);
+    }
+
+    if (isYearFetch) return;
 
     // 재고(Inventory) 데이터 가공
     const invQtyMap = {};
@@ -863,7 +888,7 @@ function SalesHistoryStats() {
     } catch (err) {
       console.error('fetchSales 오류:', err);
     } finally {
-      setLoading(false);
+      if (!isYearFetch) setLoading(false);
     }
   };
 
@@ -999,37 +1024,51 @@ function SalesHistoryStats() {
     return true;
   });
 
-  // 월별, 주별 데이터 가공 (필터링된 데이터 기준)
-  const { monthlyStats, weeklyStats } = React.useMemo(() => {
+  // 월별 통계: 필터 무시, 선택 연도 전체 12개월
+  const monthlyStats = React.useMemo(() => {
+    const year = selectedYear;
     const mMap = {};
-    const wMap = {};
-    currentFiltered.forEach(r => {
+    for (let m = 0; m < 12; m++) {
+      const key = `${year}-${String(m + 1).padStart(2, '0')}`;
+      mMap[key] = { period: `${year}년 ${String(m + 1).padStart(2, '0')}월`, amount: 0, cost: 0, profit: 0 };
+    }
+    yearFlatRows.forEach(r => {
       const d = new Date(r.date_val);
+      if (d.getFullYear() !== year) return;
       const mKey = format(d, 'yyyy-MM');
-      const wStart = startOfWeek(d, { weekStartsOn: 1 });
-      const wEnd = endOfWeek(d, { weekStartsOn: 1 });
-      const wKey = format(wStart, 'yyyy-MM-dd');
-      
-      if (!mMap[mKey]) mMap[mKey] = { period: format(d, 'yyyy년 MM월'), amount: 0, cost: 0, profit: 0 };
-      if (!wMap[wKey]) wMap[wKey] = { period: `${format(wStart, 'MM.dd')} ~ ${format(wEnd, 'MM.dd')}`, amount: 0, cost: 0, profit: 0 };
-      
+      if (!mMap[mKey]) return;
       const amt = Number(r.total_price || 0);
       const cost = Number(r.total_cost || 0);
-      
       mMap[mKey].amount += amt;
       mMap[mKey].cost += cost;
       mMap[mKey].profit += (amt - cost);
+    });
+    return Object.values(mMap);
+  }, [yearFlatRows, selectedYear]);
 
+  // 주별 통계: 필터 무시, 선택 월의 전체 주차
+  const weeklyStats = React.useMemo(() => {
+    const year = selectedYear;
+    const activeMonth = selectedMonth !== null ? selectedMonth : getMonth(startDate);
+    const monthRows = yearFlatRows.filter(r => {
+      const d = new Date(r.date_val);
+      return d.getFullYear() === year && d.getMonth() === activeMonth;
+    });
+    const wMap = {};
+    monthRows.forEach(r => {
+      const d = new Date(r.date_val);
+      const wStart = startOfWeek(d, { weekStartsOn: 1 });
+      const wEnd = endOfWeek(d, { weekStartsOn: 1 });
+      const wKey = format(wStart, 'yyyy-MM-dd');
+      if (!wMap[wKey]) wMap[wKey] = { period: `${format(wStart, 'MM.dd')} ~ ${format(wEnd, 'MM.dd')}`, amount: 0, cost: 0, profit: 0 };
+      const amt = Number(r.total_price || 0);
+      const cost = Number(r.total_cost || 0);
       wMap[wKey].amount += amt;
       wMap[wKey].cost += cost;
       wMap[wKey].profit += (amt - cost);
     });
-
-    return {
-      monthlyStats: Object.values(mMap).sort((a, b) => a.period.localeCompare(b.period)),
-      weeklyStats: Object.values(wMap).sort((a, b) => a.period.localeCompare(b.period))
-    };
-  }, [currentFiltered]);
+    return Object.values(wMap).sort((a, b) => a.period.localeCompare(b.period));
+  }, [yearFlatRows, selectedYear, selectedMonth, startDate]);
 
   // 요약
   const totalAmt = currentFiltered.reduce((a, r) => a + Number(r.total_price || 0), 0);
