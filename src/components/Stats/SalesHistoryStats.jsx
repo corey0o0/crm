@@ -357,21 +357,12 @@ function SalesHistoryStats() {
 
     let asQuery = supabase
       .from('services')
-      .select('id, reception_date, completion_date, customer_name, status, note, agencies(name)')
+      .select('id, reception_date, completion_date, customer_name, status, note, brand, agencies(name)')
       .in('status', ['출고완료', '완료', '수령완료'])
       .order('completion_date', { ascending: false });
 
-    if (startDate && endDate) {
-      const sDate = format(startDate, 'yyyy-MM-dd') + 'T00:00:00+09:00';
-      const eDate = format(endDate, 'yyyy-MM-dd') + 'T23:59:59+09:00';
-      asQuery = asQuery.or(`and(completion_date.gte.${sDate},completion_date.lte.${eDate}),and(completion_date.is.null,reception_date.gte.${sDate},reception_date.lte.${eDate})`);
-    } else if (startDate) {
-      const sDate = format(startDate, 'yyyy-MM-dd') + 'T00:00:00+09:00';
-      asQuery = asQuery.or(`completion_date.gte.${sDate},and(completion_date.is.null,reception_date.gte.${sDate})`);
-    } else if (endDate) {
-      const eDate = format(endDate, 'yyyy-MM-dd') + 'T23:59:59+09:00';
-      asQuery = asQuery.or(`completion_date.lte.${eDate},and(completion_date.is.null,reception_date.lte.${eDate})`);
-    }
+    if (startDate) asQuery = asQuery.gte('completion_date', format(startDate, 'yyyy-MM-dd') + 'T00:00:00+09:00');
+    if (endDate)   asQuery = asQuery.lte('completion_date', format(endDate, 'yyyy-MM-dd') + 'T23:59:59+09:00');
 
     let cafeQuery = supabase
       .from('cafe24_orders')
@@ -585,7 +576,7 @@ function SalesHistoryStats() {
       const parts = servicePartsMap[s.id] || [];
       const agencyName = s.agencies?.name || 'A/S수리';
       const baseFields = {
-        _id: s.id, _type: 'service', date_val: s.completion_date || s.reception_date, sales_channel: agencyName, customer_name: s.customer_name || '-'
+        _id: s.id, _type: 'service', date_val: s.completion_date || s.reception_date, sales_channel: agencyName, customer_name: s.customer_name || '-', service_brand: s.brand || '기타'
       };
       if (parts.length > 0) {
         parts.forEach((sp) => {
@@ -1139,11 +1130,12 @@ function SalesHistoryStats() {
       }
       
       const typeNode = sGroupData[customerType];
-      if (!typeNode.brands[channel]) {
-        typeNode.brands[channel] = { brand: channel, items: {}, subtotalQty: 0, subtotalAmt: 0, subtotalCost: 0, subtotalProfit: 0 };
+      const groupKey = isService ? (r.service_brand || '기타') : channel;
+      if (!typeNode.brands[groupKey]) {
+        typeNode.brands[groupKey] = { brand: groupKey, items: {}, subtotalQty: 0, subtotalAmt: 0, subtotalCost: 0, subtotalProfit: 0 };
       }
-      
-      const brandNode = typeNode.brands[channel];
+
+      const brandNode = typeNode.brands[groupKey];
       
       let itemKey = '';
       let itemName = '';
@@ -1180,7 +1172,7 @@ function SalesHistoryStats() {
     });
 
     if (!sGroupData['A/S 매출']) {
-      sGroupData['A/S 매출'] = { customerType: 'A/S 매출', brands: { '청담본점 (A/S)': { brand: '청담본점 (A/S)', items: { as_total: { name: 'A/S 처리 (공임/부품 포함)', isAirframe: false, isService: true, quantity: 0, amount: 0, cost: 0, profit: 0 } }, subtotalQty: 0, subtotalAmt: 0, subtotalCost: 0, subtotalProfit: 0 } }, totalQty: 0, totalAmt: 0, totalCost: 0, totalProfit: 0 };
+      sGroupData['A/S 매출'] = { customerType: 'A/S 매출', brands: { '(해당 기간 없음)': { brand: '(해당 기간 없음)', items: { as_total: { name: 'A/S 처리 내역 없음', isAirframe: false, isService: true, quantity: 0, amount: 0, cost: 0, profit: 0 } }, subtotalQty: 0, subtotalAmt: 0, subtotalCost: 0, subtotalProfit: 0 } }, totalQty: 0, totalAmt: 0, totalCost: 0, totalProfit: 0 };
     }
 
     const typeOrder = { '대리점 매출': 1, '일반 고객 매출': 2, 'A/S 매출': 3 };
