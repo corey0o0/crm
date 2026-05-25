@@ -135,17 +135,8 @@ function SalesHistory() {
       .in('status', ['출고완료', '완료', '수령완료'])
       .order('completion_date', { ascending: false });
 
-    if (activeStart && activeEnd) {
-      const sDate = format(activeStart, 'yyyy-MM-dd') + 'T00:00:00+09:00';
-      const eDate = format(activeEnd, 'yyyy-MM-dd') + 'T23:59:59+09:00';
-      asQuery = asQuery.or(`and(completion_date.gte.${sDate},completion_date.lte.${eDate}),and(completion_date.is.null,reception_date.gte.${sDate},reception_date.lte.${eDate})`);
-    } else if (activeStart) {
-      const sDate = format(activeStart, 'yyyy-MM-dd') + 'T00:00:00+09:00';
-      asQuery = asQuery.or(`completion_date.gte.${sDate},and(completion_date.is.null,reception_date.gte.${sDate})`);
-    } else if (activeEnd) {
-      const eDate = format(activeEnd, 'yyyy-MM-dd') + 'T23:59:59+09:00';
-      asQuery = asQuery.or(`completion_date.lte.${eDate},and(completion_date.is.null,reception_date.lte.${eDate})`);
-    }
+    if (activeStart) asQuery = asQuery.gte('completion_date', format(activeStart, 'yyyy-MM-dd') + 'T00:00:00+09:00');
+    if (activeEnd)   asQuery = asQuery.lte('completion_date', format(activeEnd, 'yyyy-MM-dd') + 'T23:59:59+09:00');
 
     let cafeQuery = supabase
       .from('cafe24_orders')
