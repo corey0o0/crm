@@ -1010,7 +1010,7 @@ function SalesHistoryStats() {
 
   const currentFiltered = flatRows.filter(r => {
     if (filterType !== 'all') {
-      const isAgency = r.sales_channel && !B2C_CHANNELS.includes(r.sales_channel);
+      const isAgency = r._type !== 'service' && r.sales_channel && !B2C_CHANNELS.includes(r.sales_channel);
       
       if (filterType === 'agency') {
         if (!isAgency) return false;
