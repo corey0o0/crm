@@ -65,6 +65,7 @@ function OnlineStats() {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
   const [modalData, setModalData] = useState([]);
+  const [modalShippingTotal, setModalShippingTotal] = useState(0);
   const [rawOrders, setRawOrders] = useState([]);
   const [agencyMapGlobal, setAgencyMapGlobal] = useState({});
 
@@ -116,6 +117,7 @@ function OnlineStats() {
   const handleOpenModal = (title, dataFilter) => {
     setModalTitle(title);
     const items = [];
+    const includedOrderIds = new Set();
     rawOrders.forEach(o => {
       const agName = o.agency_id ? (agencyMapGlobal[o.agency_id] || '미등록 대리점') : '일반 주문';
       (o.order_items || []).forEach(item => {
@@ -130,6 +132,7 @@ function OnlineStats() {
              isCancelled,
              total_price: item._calculated_amount !== undefined ? item._calculated_amount : (Number(item.quantity || 1) * Number(item.product_price || item.price || 0))
            });
+           includedOrderIds.add(o.id);
         }
       });
     });
@@ -138,7 +141,11 @@ function OnlineStats() {
       if (!a._isAirframe && b._isAirframe) return 1;
       return 0;
     });
+    const shippingTotal = rawOrders
+      .filter(o => includedOrderIds.has(o.id))
+      .reduce((sum, o) => sum + Number(o.shipping_fee || 0), 0);
     setModalData(items);
+    setModalShippingTotal(shippingTotal);
     setModalOpen(true);
   };
 
@@ -1137,6 +1144,20 @@ function OnlineStats() {
                   <TableCell colSpan={3} align="right" sx={{ fontWeight: 'bold' }}>파츠 총합 (취소 제외)</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold' }}>{modalData.filter(i => !i._isAirframe && !i.isCancelled).reduce((sum, i) => sum + Number(i.quantity || 1), 0)}개</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(modalData.filter(i => !i._isAirframe && !i.isCancelled).reduce((sum, i) => sum + i.total_price, 0))}</TableCell>
+                </TableRow>
+                {modalShippingTotal > 0 && (
+                  <TableRow sx={{ bgcolor: 'grey.200' }}>
+                    <TableCell colSpan={3} align="right" sx={{ fontWeight: 'bold' }}>배송비 합계</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 'bold' }}>-</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(modalShippingTotal)}</TableCell>
+                  </TableRow>
+                )}
+                <TableRow sx={{ bgcolor: 'primary.light' }}>
+                  <TableCell colSpan={3} align="right" sx={{ fontWeight: 'bold', color: 'primary.contrastText' }}>총 주문 금액 (취소 제외)</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.contrastText' }}>-</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.contrastText' }}>
+                    {formatCurrency(modalData.filter(i => !i.isCancelled).reduce((sum, i) => sum + i.total_price, 0) + modalShippingTotal)}
+                  </TableCell>
                 </TableRow>
               </TableFooter>
             </Table>
