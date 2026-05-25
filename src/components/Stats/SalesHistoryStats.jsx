@@ -410,9 +410,6 @@ function SalesHistoryStats() {
       supabase.from('inventory').select('product_id, quantity')
     ]);
 
-    console.log('[AS DEBUG] asRes.error:', asRes.error);
-    console.log('[AS DEBUG] asRes.data length:', asRes.data?.length, asRes.data?.[0]);
-
     setAgenciesList((agenciesRes.data || []).map(a => a.name));
 
     const warehouseMap = {};

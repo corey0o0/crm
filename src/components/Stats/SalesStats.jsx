@@ -942,20 +942,26 @@ function SalesStats() {
 
   // 범위 합계 조회(간단 총액) - 전월/전년 또는 전주/전년동주 비교용
   const fetchTotalsForRange = async ({ start, end, brand: brandFilter }) => {
-    const startDateTime = format(start, 'yyyy-MM-dd') + ' 00:00:00';
-    const endDateTime = format(end, 'yyyy-MM-dd') + ' 23:59:59';
+    const startDateTime = format(start, 'yyyy-MM-dd') + 'T00:00:00+09:00';
+    const endDateTime = format(end, 'yyyy-MM-dd') + 'T23:59:59+09:00';
     // Shipments 총액
     let shipmentQuery = supabase
       .from('shipments')
-      .select('price, brand, order_date')
+      .select('price, brand, order_date, note, sales_channel')
       .gte('order_date', startDateTime)
-      .lte('order_date', endDateTime);
+      .lte('order_date', endDateTime)
+      .in('status', ['출고완료', '완료']);
     if (brandFilter && brandFilter !== '전체') {
       shipmentQuery = shipmentQuery.eq('brand', brandFilter);
     }
     const { data: shipmentRows, error: shipmentErr } = await shipmentQuery;
     if (shipmentErr) throw shipmentErr;
-    const shipmentTotal = (shipmentRows || []).reduce((sum, r) => sum + (r.price || 0), 0);
+    const filteredShipments = (shipmentRows || []).filter(r => {
+      const channel = extractSalesChannel(r.note, r.sales_channel);
+      const isAgency = channel && !['고객', '-', '일반출고(공홈)', '공홈', '온라인주문', '매장출고', '매장', '청담매장', '기타', '본점', '스마트할부', '라이클', '라이클-우리', '스마트스토어'].includes(channel);
+      return !isAgency;
+    });
+    const shipmentTotal = filteredShipments.reduce((sum, r) => sum + (r.price || 0), 0);
 
     // Service Parts 총액 (공임 포함)
     let spQuery = supabase
@@ -969,18 +975,15 @@ function SalesStats() {
       `)
       .gte('services.completion_date', startDateTime)
       .lte('services.completion_date', endDateTime)
-      .eq('services.status', '출고완료');
+      .in('services.status', ['출고완료', '완료', '수령완료']);
     if (brandFilter && brandFilter !== '전체') {
       spQuery = spQuery.eq('services.brand', brandFilter);
     }
     const { data: spRows, error: spErr } = await spQuery;
     if (spErr) throw spErr;
     const serviceTotal = (spRows || []).reduce((sum, item) => {
-      const isLabor = (item.parts?.name && item.parts.name.includes('공임')) ||
-        (item.usage && item.usage.toString().trim() === '공임') ||
-        (item.parts?.note && item.parts.note.toString().trim() === '공임');
       const total = Math.round((item.quantity || 0) * (item.price || 0));
-      return sum + total + 0; // 공임도 이미 price*qty로 합산됨
+      return sum + total;
     }, 0);
 
     return { shipmentTotal, serviceTotal, total: shipmentTotal + serviceTotal };
