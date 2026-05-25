@@ -197,10 +197,11 @@ function SalesHistoryStats() {
                cafeTotal += Number(o.total_amount || 0);
             }
          } else {
-            const validItems = items.filter(item => !['C11', 'C40', 'R40', 'E40'].includes(item.order_status));
+            const CANCEL_STATUSES = ['C11', 'C34', 'C36', 'C40', 'C47', 'C48', 'C49', 'R34', 'R36', 'R40', 'E40'];
+            const validItems = items.filter(item => !CANCEL_STATUSES.includes(item.order_status));
             if (validItems.length === 0) return;
 
-            const canceledItems = items.filter(it => ['C11', 'C40', 'R40', 'E40'].includes(it.order_status));
+            const canceledItems = items.filter(it => CANCEL_STATUSES.includes(it.order_status));
             const canceledAmount = canceledItems.reduce((acc, it) => acc + (Number(it.product_price || it.price || 0) * Number(it.quantity || 1)), 0);
             // 네이버페이 선불금 처리
             const _ips = validItems.reduce((acc, i) => acc + Number(i.payment_amount || 0), 0);
@@ -627,20 +628,20 @@ function SalesHistoryStats() {
         let orderBrand = '-';
         let orderItemsSum = 0;
         let seenProductCodes = new Set();
-        const validItems = items.filter(item => !['C11', 'C40', 'R40', 'E40'].includes(item.order_status));
+        const CANCEL_STATUSES = ['C11', 'C34', 'C36', 'C40', 'C47', 'C48', 'C49', 'R34', 'R36', 'R40', 'E40'];
+        const validItems = items.filter(item => !CANCEL_STATUSES.includes(item.order_status));
         validItems.sort((a, b) => {
              const amtA = Number(a.payment_amount !== undefined && a.payment_amount !== null ? a.payment_amount : (a.product_price || a.price || 0));
              const amtB = Number(b.payment_amount !== undefined && b.payment_amount !== null ? b.payment_amount : (b.product_price || b.price || 0));
              return amtB - amtA;
         });
         if (validItems.length === 0) {
-          // 유효 항목이 없으면 건너뛰거나 기본값 처리
           return;
         }
-        
+
         const orderRows = [];
 
-        const canceledItems = (items || []).filter(it => ['C11', 'C40', 'R40', 'E40'].includes(it.order_status));
+        const canceledItems = (items || []).filter(it => CANCEL_STATUSES.includes(it.order_status));
         const canceledAmount = canceledItems.reduce((acc, it) => acc + (Number(it.product_price || it.price || 0) * Number(it.quantity || 1)), 0);
         // 네이버페이 선불금 처리
         const _ips2 = validItems.reduce((acc, i) => acc + Number(i.payment_amount || 0), 0);

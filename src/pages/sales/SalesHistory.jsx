@@ -528,15 +528,16 @@ function SalesHistory() {
       } else {
         let orderBrand = '-';
         let seenProductCodes = new Set();
-        const validItems = items.filter(item => !['C11', 'C40', 'R40', 'E40'].includes(item.order_status));
+        const CANCEL_STATUSES = ['C11', 'C34', 'C36', 'C40', 'C47', 'C48', 'C49', 'R34', 'R36', 'R40', 'E40'];
+        const validItems = items.filter(item => !CANCEL_STATUSES.includes(item.order_status));
         validItems.sort((a, b) => {
              const amtA = Number(a.payment_amount !== undefined && a.payment_amount !== null ? a.payment_amount : (a.product_price || a.price || 0));
              const amtB = Number(b.payment_amount !== undefined && b.payment_amount !== null ? b.payment_amount : (b.product_price || b.price || 0));
              return amtB - amtA;
         });
         if (validItems.length === 0) return; // 전액/전부 취소건은 리스트에서 제외
-        
-        const canceledItems = (items || []).filter(it => ['C11', 'C40', 'R40', 'E40'].includes(it.order_status));
+
+        const canceledItems = (items || []).filter(it => CANCEL_STATUSES.includes(it.order_status));
         const canceledAmount = canceledItems.reduce((acc, it) => acc + (Number(it.product_price || it.price || 0) * Number(it.quantity || 1)), 0);
         // 선불금 처리: total_amount=0이면 품목 payment_amount 합계 사용
         // 단, nearbike_ 주문은 회원할인 전액 건으로 실결제 0원이므로 제외

@@ -213,12 +213,13 @@ function OnlineStats() {
           const agName = o.agency_id ? (agencyMap[o.agency_id] || `미등록 대리점`) : '일반 주문';
           if (!agencyStats[agName]) agencyStats[agName] = { amount: 0, count: 0, airframe: 0, airframeAmount: 0, parts: 0, partsAmount: 0 };
 
+          const CANCEL_STATUSES = ['C11', 'C34', 'C36', 'C40', 'C47', 'C48', 'C49', 'R34', 'R36', 'R40', 'E40'];
           const validItems = (o.order_items || []).filter(
-            item => !['C11', 'C40', 'R40', 'E40'].includes(item.order_status)
+            item => !CANCEL_STATUSES.includes(item.order_status)
           );
           if (validItems.length === 0) return; // 전액 취소건은 제외
-          
-           const canceledItems = (o.order_items || []).filter(it => ['C11', 'C40', 'R40', 'E40'].includes(it.order_status));
+
+           const canceledItems = (o.order_items || []).filter(it => CANCEL_STATUSES.includes(it.order_status));
            const canceledAmount = canceledItems.reduce((acc, it) => {
                const cp = it.product_price !== undefined && it.product_price !== null ? Number(it.product_price) : (it.price !== undefined && it.price !== null ? Number(it.price) : 0);
                return acc + (cp * Number(it.quantity || 1));
