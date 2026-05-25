@@ -660,14 +660,14 @@ function SalesHistory() {
               }
           }
 
-          if (!['C11', 'C40', 'R40', 'E40'].includes(item.order_status)) {
+          if (!CANCEL_STATUSES.includes(item.order_status)) {
              orderRows.push({ ...baseFields, warehouse_name: itemWarehouseName, _id: `cafe_${o.id}_${idx}`, part_name: pName, part_category: cat, part_brand: brand, quantity: statQty, unit_price: iPrice, unit_shipping_fee: shipFee, total_price: total, _pCode: pCodeCheck });
           }
         });
         
         orderRows.forEach(r => rows.push(r));
         
-        const canceledItemsList = items.filter(item => ['C11', 'C40', 'R40', 'E40'].includes(item.order_status));
+        const canceledItemsList = items.filter(item => CANCEL_STATUSES.includes(item.order_status));
         canceledItemsList.forEach((item, idx) => {
           let pName = resolvePartName(item.product_name || item.name || '상품', item.custom_product_code, item.product_code, item.part_id);
           const optStr = item.option_value || item.options;

@@ -120,7 +120,7 @@ function OnlineStats() {
       const agName = o.agency_id ? (agencyMapGlobal[o.agency_id] || '미등록 대리점') : '일반 주문';
       (o.order_items || []).forEach(item => {
         if (dataFilter(o, agName, item, item._isAirframe, item._brand)) {
-           const isCancelled = ['C11', 'C40', 'R40', 'E40'].includes(item.order_status);
+           const isCancelled = ['C11', 'C34', 'C36', 'C40', 'C47', 'C48', 'C49', 'R34', 'R36', 'R40', 'E40'].includes(item.order_status);
            items.push({
              ...item,
              order_id: o.order_id,
@@ -335,7 +335,7 @@ function OnlineStats() {
                }
 
                // 취소된 항목은 통계 집계에서 제외
-               const isCancelled = ['C11', 'C40', 'R40', 'E40'].includes(item.order_status);
+               const isCancelled = ['C11', 'C34', 'C36', 'C40', 'C47', 'C48', 'C49', 'R34', 'R36', 'R40', 'E40'].includes(item.order_status);
                if (isCancelled) {
                  return;
                }
@@ -494,9 +494,10 @@ function OnlineStats() {
             // 혼합 주문 처리를 위해 mall_id 기반 필터링은 제거하고, 아이템별로 검사
             
             const items = o.order_items || [];
-            const validItems = items.filter(item => !['C11', 'C40', 'R40', 'E40'].includes(item.order_status));
+            const CANCEL_STATUSES = ['C11', 'C34', 'C36', 'C40', 'C47', 'C48', 'C49', 'R34', 'R36', 'R40', 'E40'];
+            const validItems = items.filter(item => !CANCEL_STATUSES.includes(item.order_status));
             let orderItemsSum = 0;
-            const canceledItems = items.filter(it => ['C11', 'C40', 'R40', 'E40'].includes(it.order_status));
+            const canceledItems = items.filter(it => CANCEL_STATUSES.includes(it.order_status));
             const canceledAmount = canceledItems.reduce((acc, it) => {
                 const cp = it.product_price !== undefined && it.product_price !== null ? Number(it.product_price) : (it.price !== undefined && it.price !== null ? Number(it.price) : 0);
                 return acc + (cp * Number(it.quantity || 1));
