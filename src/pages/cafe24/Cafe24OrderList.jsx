@@ -531,7 +531,7 @@ export default function Cafe24OrderList() {
 
   const handleSalesTransfer = async () => {
     if (!selectedOrders.length) return;
-    const ordersToTransfer = orders.filter(o => selectedOrders.includes(o.id) && !o.is_transferred && !o.is_deleted && String(o.status).trim() !== 'N00');
+    const ordersToTransfer = orders.filter(o => selectedOrders.includes(o.id) && !o.is_transferred && !o.is_deleted && String(o.status).trim() !== 'N00' && !isOrderReturned(o));
     
     if (ordersToTransfer.length === 0) {
       setAlertDialog({ open: true, title: '알림', message: '선택한 주문 중 판매 전송 가능한 건이 없습니다. (이미 전송 완료된 건 또는 입금전 건 제외)' });
@@ -598,6 +598,7 @@ export default function Cafe24OrderList() {
 
   const handleSingleSalesTransfer = async (order) => {
     if (order.is_transferred) return;
+    if (isOrderReturned(order)) return;
     const items = order.order_items || [];
     let missingWarehouse = false;
     for (let i = 0; i < items.length; i++) {
@@ -1962,8 +1963,8 @@ export default function Cafe24OrderList() {
                                 </Box>
                               ) : (
                                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, width: '100%' }}>
-                                  <Button size="small" variant="contained" color="primary" disabled={String(order.status).trim() === 'N00'} onClick={() => handleSingleSalesTransfer(order)} sx={{ width: '100%', py: 0.5, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
-                                    {String(order.status).trim() === 'N00' ? '입금대기' : '판매반영'}
+                                  <Button size="small" variant="contained" color="primary" disabled={String(order.status).trim() === 'N00' || isOrderReturned(order)} onClick={() => handleSingleSalesTransfer(order)} sx={{ width: '100%', py: 0.5, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                                    {String(order.status).trim() === 'N00' ? '입금대기' : isOrderReturned(order) ? '반품/취소' : '판매반영'}
                                   </Button>
                                   {order.is_deleted ? (
                                     <Button size="small" variant="outlined" color="info" onClick={() => handleSingleUnignoreOrder(order)} sx={{ width: '100%', py: 0.5, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>

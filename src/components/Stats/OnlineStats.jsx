@@ -217,11 +217,15 @@ function OnlineStats() {
           let orderTotalForBrand = 0;
           let hasMatchingBrand = false;
 
+          // 창고 정보 없는 건(반영 예외 처리된 건) 제외 — SalesHistory/SalesHistoryStats와 동일 기준
+          const orderItems = o.order_items || [];
+          if (orderItems.length > 0 && !orderItems.some(item => item._warehouse_id)) return;
+
           const agName = o.agency_id ? (agencyMap[o.agency_id] || `미등록 대리점`) : '일반 주문';
           if (!agencyStats[agName]) agencyStats[agName] = { amount: 0, count: 0, airframe: 0, airframeAmount: 0, parts: 0, partsAmount: 0 };
 
           const CANCEL_STATUSES = ['C11', 'C34', 'C36', 'C40', 'C47', 'C48', 'C49', 'R34', 'R36', 'R40', 'E40'];
-          const validItems = (o.order_items || []).filter(
+          const validItems = orderItems.filter(
             item => !CANCEL_STATUSES.includes(item.order_status)
           );
           if (validItems.length === 0) return; // 전액 취소건은 제외
@@ -506,8 +510,9 @@ function OnlineStats() {
         if (cafe24Orders) {
           cafe24Orders.forEach(o => {
             // 혼합 주문 처리를 위해 mall_id 기반 필터링은 제거하고, 아이템별로 검사
-            
             const items = o.order_items || [];
+            // 창고 정보 없는 건(반영 예외 처리된 건) 제외
+            if (items.length > 0 && !items.some(item => item._warehouse_id)) return;
             const CANCEL_STATUSES = ['C11', 'C34', 'C36', 'C40', 'C47', 'C48', 'C49', 'R34', 'R36', 'R40', 'E40'];
             const validItems = items.filter(item => !CANCEL_STATUSES.includes(item.order_status));
             let orderItemsSum = 0;
