@@ -55,14 +55,14 @@ function ServiceStats() {
 
       let mainQuery = supabase
         .from('services')
-        .select('id, reception_date, completion_date, created_at, customer_name, brand, status, type, tags, service_parts(price, quantity, usage, parts(name, code, supply_price))')
-        .gte('reception_date', startDate.toISOString())
-        .lte('reception_date', endDate.toISOString());
+        .select('id, reception_date, completion_date, created_at, customer_name, brand, status, type, tags, service_parts(price, quantity, usage, parts(name, code, cost_price))')
+        .gte('reception_date', format(startDate, 'yyyy-MM-dd'))
+        .lte('reception_date', format(endDate, 'yyyy-MM-dd'));
 
       let backlogQuery = supabase
         .from('services')
         .select('id, reception_date, customer_name, brand, status, type, tags')
-        .not('status', 'in', `(${COMPLETED_STATUSES.join(',')})`)
+        .not('status', 'in', `("${COMPLETED_STATUSES.join('","')}")`)
         .order('reception_date', { ascending: true })
         .limit(300);
 
@@ -159,7 +159,7 @@ function ServiceStats() {
         if (!map[name]) map[name] = { name, count: 0, revenue: 0, cost: 0 };
         map[name].count += qty;
         map[name].revenue += (sp.price || 0) * qty;
-        map[name].cost += (sp.parts?.supply_price || 0) * qty;
+        map[name].cost += (sp.parts?.cost_price || 0) * qty;
       });
     });
     return Object.values(map).sort((a, b) => b.count - a.count).slice(0, 20);
@@ -217,7 +217,7 @@ function ServiceStats() {
       (s.service_parts || []).forEach(sp => {
         const qty = getEffectiveQty(sp);
         map[type].revenue += (sp.price || 0) * qty;
-        map[type].cost += (sp.parts?.supply_price || 0) * qty;
+        map[type].cost += (sp.parts?.cost_price || 0) * qty;
       });
     });
     return Object.values(map).map(r => ({
