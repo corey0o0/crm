@@ -53,6 +53,7 @@ const AVAILABLE_PERMISSIONS = [
   { key: 'sales_stats', label: '매장 매출통계' },
   { key: 'online_stats', label: '온라인 매출통계' },
   { key: 'sales_history_stats', label: '판매현황 통계' },
+  { key: 'service_stats', label: 'A/S 통계' },
   { key: 'service_analysis', label: 'A/S 분석' },
   { key: 'board_group', label: '게시판 메뉴 전체' },
   { key: 'board_internal', label: '내부 게시판' },

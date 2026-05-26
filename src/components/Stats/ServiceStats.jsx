@@ -116,17 +116,20 @@ function ServiceStats() {
 
       // 월별 통계 계산
       const months = eachMonthOfInterval({ start: startDate, end: endDate });
+      const COMPLETED_STATUSES = ['출고완료', '완료', '수령완료'];
+
       const monthlyStats = months.map(month => {
         const monthServices = services.filter(service => {
           const dateStr = service.reception_date || service.created_at;
           if (!dateStr) return false;
           return format(parseISO(dateStr), 'yyyy-MM') === format(month, 'yyyy-MM');
         });
-        
+        const completedMonthServices = monthServices.filter(s => COMPLETED_STATUSES.includes(s.status));
+
         return {
           month: format(month, 'yyyy-MM'),
           count: monthServices.length,
-          amount: monthServices.reduce((sum, service) => {
+          amount: completedMonthServices.reduce((sum, service) => {
             const partsCost = service.service_parts?.reduce((pSum, part) => pSum + ((part.price || 0) * getEffectiveQty(part)), 0) || 0;
             return sum + partsCost;
           }, 0)
@@ -193,8 +196,8 @@ function ServiceStats() {
       }));
 
       // 평균 처리 시간 계산 (완료된 건만)
-      const completedServices = services.filter(service => 
-        service.status && service.status === '출고완료' && service.completion_date
+      const completedServices = services.filter(service =>
+        service.status && COMPLETED_STATUSES.includes(service.status) && service.completion_date
       );
       
       let validCompletedCount = 0;
@@ -219,9 +222,10 @@ function ServiceStats() {
         .sort((a, b) => new Date(b.reception_date || b.created_at) - new Date(a.reception_date || a.created_at))
         .slice(0, 5);
 
+      const completedForAmount = services.filter(s => COMPLETED_STATUSES.includes(s.status));
       setStatsData({
         totalCount: services.length,
-        totalAmount: services.reduce((sum, service) => {
+        totalAmount: completedForAmount.reduce((sum, service) => {
           const partsCost = service.service_parts?.reduce((pSum, part) => pSum + ((part.price || 0) * getEffectiveQty(part)), 0) || 0;
           return sum + partsCost;
         }, 0),

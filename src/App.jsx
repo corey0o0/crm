@@ -124,14 +124,14 @@ function AppRouter() {
           <Route path="telegram-test" element={<PermissionRoute requiredPermission={MENU_KEYS.ADMIN_TOOLS}><TelegramTest /></PermissionRoute>} />
           <Route path="service" element={<PermissionRoute requiredPermission={MENU_KEYS.SERVICES}><ServiceList /></PermissionRoute>} />
           <Route path="service/add" element={<PermissionRoute requiredPermission={MENU_KEYS.SERVICES}><AddService /></PermissionRoute>} />
-          <Route path="service/stats" element={<PermissionRoute requiredPermission={MENU_KEYS.SERVICES}><ServiceStats /></PermissionRoute>} />
+          <Route path="service/stats" element={<PermissionRoute requiredPermission={MENU_KEYS.SERVICE_STATS}><ServiceStats /></PermissionRoute>} />
           <Route path="service/analysis" element={<PermissionRoute requiredPermission={MENU_KEYS.SERVICES}><ServiceAnalysis /></PermissionRoute>} />
           <Route path="service/:id" element={<PermissionRoute requiredPermission={MENU_KEYS.SERVICES}><ServiceDetail /></PermissionRoute>} />
           <Route path="sales/stats" element={<PermissionRoute requiredPermission={MENU_KEYS.SALES_STATS}><SalesStats /></PermissionRoute>} />
           <Route path="sales/history-stats" element={<PermissionRoute requiredPermission={MENU_KEYS.SALES_HISTORY_STATS}><SalesHistoryStats /></PermissionRoute>} />
           <Route path="online/stats" element={<PermissionRoute requiredPermission={MENU_KEYS.ONLINE_STATS}><OnlineStats /></PermissionRoute>} />
           <Route path="stocks" element={<PermissionRoute requiredPermission={MENU_KEYS.STOCKS}><StockList /></PermissionRoute>} />
-          <Route path="stats/service" element={<PermissionRoute requiredPermission={MENU_KEYS.SERVICES}><ServiceStats /></PermissionRoute>} />
+          <Route path="stats/service" element={<PermissionRoute requiredPermission={MENU_KEYS.SERVICE_STATS}><ServiceStats /></PermissionRoute>} />
           <Route path="brand-settings" element={<PermissionRoute requiredPermission={MENU_KEYS.ADMIN_TOOLS}><BrandSettings /></PermissionRoute>} />
           <Route path="inventory-logs" element={<PermissionRoute requiredPermission={MENU_KEYS.INVENTORY_HISTORY}><InventoryLogs /></PermissionRoute>} />
           <Route path="inventory-management" element={<PermissionRoute requiredPermission={[MENU_KEYS.INVENTORY, MENU_KEYS.INVENTORY_HISTORY, MENU_KEYS.INVENTORY_SCAN, MENU_KEYS.INVENTORY_STATUS, MENU_KEYS.INVENTORY_BOXES, MENU_KEYS.INVENTORY_CAFE24_SYNC, MENU_KEYS.INVENTORY_LOCATIONS]}><InventoryLayout /></PermissionRoute>}>
