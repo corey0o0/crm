@@ -34,6 +34,8 @@ const getEffectiveQty = (part) => {
   return Math.max(0, (part.quantity || 0) - returnedQty);
 };
 
+const getTags = (s) => (s.service_tags || []).map(t => t.tag_name);
+
 const fmt = (n) => n.toLocaleString();
 const fmtWon = (n) => `${Math.round(n / 10000)}만원`;
 
@@ -55,13 +57,13 @@ function ServiceStats() {
 
       let mainQuery = supabase
         .from('services')
-        .select('id, reception_date, completion_date, created_at, customer_name, brand, status, type, tags, service_parts(price, quantity, usage, parts(name, code, cost_price))')
+        .select('id, reception_date, completion_date, created_at, customer_name, brand, status, reception_type, service_tags(tag_name), service_parts(price, quantity, usage, parts(name, code, cost_price))')
         .gte('reception_date', format(startDate, 'yyyy-MM-dd'))
         .lte('reception_date', format(endDate, 'yyyy-MM-dd'));
 
       let backlogQuery = supabase
         .from('services')
-        .select('id, reception_date, customer_name, brand, status, type, tags')
+        .select('id, reception_date, customer_name, brand, status, reception_type, service_tags(tag_name)')
         .not('status', 'in', `("${COMPLETED_STATUSES.join('","')}")`)
         .order('reception_date', { ascending: true })
         .limit(300);
@@ -135,7 +137,7 @@ function ServiceStats() {
   // ── 탭 3: 유형 / 태그 ──────────────────────────────────────
   const typeStats = useMemo(() => {
     const counts = {};
-    services.forEach(s => { counts[s.type || '미분류'] = (counts[s.type || '미분류'] || 0) + 1; });
+    services.forEach(s => { counts[s.reception_type || '미분류'] = (counts[s.reception_type || '미분류'] || 0) + 1; });
     return Object.entries(counts)
       .map(([type, count]) => ({ type, count, pct: (count / services.length * 100).toFixed(1) }))
       .sort((a, b) => b.count - a.count);
@@ -143,7 +145,7 @@ function ServiceStats() {
 
   const tagStats = useMemo(() => {
     const counts = {};
-    services.forEach(s => (s.tags || []).forEach(t => { counts[t] = (counts[t] || 0) + 1; }));
+    services.forEach(s => getTags(s).forEach(t => { counts[t] = (counts[t] || 0) + 1; }));
     return Object.entries(counts)
       .map(([tag, count]) => ({ tag, count, pct: (count / services.length * 100).toFixed(1) }))
       .sort((a, b) => b.count - a.count).slice(0, 15);
@@ -171,8 +173,8 @@ function ServiceStats() {
       const brand = s.brand || '미분류';
       if (!map[brand]) map[brand] = { brand, count: 0, tags: {}, types: {} };
       map[brand].count++;
-      (s.tags || []).forEach(t => { map[brand].tags[t] = (map[brand].tags[t] || 0) + 1; });
-      if (s.type) map[brand].types[s.type] = (map[brand].types[s.type] || 0) + 1;
+      getTags(s).forEach(t => { map[brand].tags[t] = (map[brand].tags[t] || 0) + 1; });
+      if (s.reception_type) map[brand].types[s.reception_type] = (map[brand].types[s.reception_type] || 0) + 1;
     });
     return Object.values(map).sort((a, b) => b.count - a.count).map(m => ({
       ...m,
@@ -211,7 +213,7 @@ function ServiceStats() {
   const profitabilityStats = useMemo(() => {
     const map = {};
     completedServices.forEach(s => {
-      const type = s.type || '미분류';
+      const type = s.reception_type || '미분류';
       if (!map[type]) map[type] = { type, revenue: 0, cost: 0, count: 0 };
       map[type].count++;
       (s.service_parts || []).forEach(sp => {
@@ -228,7 +230,7 @@ function ServiceStats() {
 
   const warrantyStats = useMemo(() => {
     const free = completedServices.filter(s =>
-      (s.tags || []).some(t => t.includes('무상')) ||
+      getTags(s).some(t => t.includes('무상')) ||
       (s.service_parts || []).every(sp => (sp.price || 0) === 0)
     ).length;
     const paid = completedServices.length - free;
@@ -374,7 +376,7 @@ function ServiceStats() {
                   <TableBody>
                     {typeStats.map(s => (
                       <TableRow key={s.type}>
-                        <TableCell>{s.type}</TableCell>
+                        <TableCell>{s.type || '미분류'}</TableCell>
                         <TableCell align="right">{s.count}건</TableCell>
                         <TableCell align="right">{s.pct}%</TableCell>
                       </TableRow>
@@ -548,7 +550,7 @@ function ServiceStats() {
                           <Chip size="small" label={s.status || '-'}
                             color={s.status === '부품대기' ? 'warning' : 'default'} variant="outlined" />
                         </TableCell>
-                        <TableCell sx={{ fontSize: 12 }}>{s.type || '-'}</TableCell>
+                        <TableCell sx={{ fontSize: 12 }}>{s.reception_type || '-'}</TableCell>
                         <TableCell align="right">
                           <Typography fontWeight="bold"
                             color={s.waitDays >= 14 ? 'error.main' : s.waitDays >= 7 ? 'warning.main' : 'inherit'}>
@@ -603,7 +605,7 @@ function ServiceStats() {
                   <TableBody>
                     {profitabilityStats.map(r => (
                       <TableRow key={r.type}>
-                        <TableCell>{r.type}</TableCell>
+                        <TableCell>{r.type || '미분류'}</TableCell>
                         <TableCell align="right">{r.count}건</TableCell>
                         <TableCell align="right">{fmt(r.revenue)}원</TableCell>
                         <TableCell align="right" sx={{ color: 'text.secondary', fontSize: 11 }}>{fmt(r.cost)}원</TableCell>
