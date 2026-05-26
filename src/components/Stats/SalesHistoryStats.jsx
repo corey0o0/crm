@@ -390,7 +390,7 @@ function SalesHistoryStats() {
 
     let shipQuery = supabase
       .from('shipments')
-      .select('id, order_date, customer_name, price, sales_channel, status, note, warehouse_id, shipment_parts(id, part_name, quantity, price, total_price, note)')
+      .select('id, order_date, customer_name, price, sales_channel, status, note, tracking_number, warehouse_id, shipment_parts(id, part_name, quantity, price, total_price, note)')
       .in('status', ['출고완료', '완료'])
       .order('order_date', { ascending: false });
 
@@ -535,10 +535,12 @@ function SalesHistoryStats() {
       }
     }
 
-    // === BUG 2 FIX: Deduplicate shipments that have Cafe24 order numbers in note ===
+    // === BUG 2 FIX: Deduplicate shipments that have Cafe24 order numbers in note or tracking_number ===
     const duplicatedCafeOrderNos = new Set();
+    const ORDER_NO_PATTERN = /(20\d{6}-\d{7})/;
     const shipmentCafeOrderNos = (shipRes.data || []).map(s => {
-      const m = s.note ? String(s.note).match(/(20\d{6}-\d{7})/) : null;
+      const m = (s.note ? String(s.note).match(ORDER_NO_PATTERN) : null)
+             || (s.tracking_number ? String(s.tracking_number).match(ORDER_NO_PATTERN) : null);
       return m ? m[0] : null;
     }).filter(Boolean);
 
@@ -582,7 +584,8 @@ function SalesHistoryStats() {
         }
         return;
       }
-      const match = s.note ? String(s.note).match(/(20\d{6}-\d{7})/) : null;
+      const match = (s.note ? String(s.note).match(ORDER_NO_PATTERN) : null)
+                 || (s.tracking_number ? String(s.tracking_number).match(ORDER_NO_PATTERN) : null);
       if (match && duplicatedCafeOrderNos.has(match[0])) {
          return; // 중복 집계 방지 (Bug 2)
       }
