@@ -386,10 +386,10 @@ module.exports = function(supabaseAdmin) {
     const queryEnd = end_date || today.toISOString().split('T')[0];
 
     // Fetch all parts from parts table once for quick lookup
-    const { data: partsList } = await supabaseAdmin.from('parts').select('id, name, barcode');
+    const { data: partsList } = await supabaseAdmin.from('parts').select('id, name, barcode, memo');
     const barcodeToPartsMap = {};
     const nameToPartsMap = {};
-    (partsList || []).forEach(p => {
+    (partsList || []).filter(p => !(p.memo || '').includes('[HIDDEN]')).forEach(p => {
       if(p.barcode) {
         const bc = String(p.barcode).replace(/[^0-9]/g, '');
         if (bc) {
