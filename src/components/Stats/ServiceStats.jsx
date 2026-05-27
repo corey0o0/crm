@@ -74,7 +74,7 @@ function ServiceStats() {
 
       let backlogQuery = supabase
         .from('services')
-        .select('id, reception_date, customer_name, brand, status, reception_type, service_tags(tag_name)')
+        .select('id, reception_date, status')
         .not('status', 'in', `("${COMPLETED_STATUSES.join('","')}")`)
         .order('reception_date', { ascending: true })
         .limit(300);
@@ -540,42 +540,16 @@ function ServiceStats() {
           </Grid>
           <Grid item xs={12} md={7}>
             <Paper sx={{ p: 3 }}>
-              <Typography variant="h6" gutterBottom>
-                현재 미완료 백로그 ({backlog.length}건)
-              </Typography>
-              <TableContainer sx={{ maxHeight: 420 }}>
-                <Table size="small" stickyHeader>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>고객명</TableCell>
-                      <TableCell>브랜드</TableCell>
-                      <TableCell>상태</TableCell>
-                      <TableCell>유형</TableCell>
-                      <TableCell align="right">대기일</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {backlogWithDays.map(s => (
-                      <TableRow key={s.id}
-                        sx={{ bgcolor: s.waitDays >= 14 ? 'error.50' : s.waitDays >= 7 ? 'warning.50' : 'inherit' }}>
-                        <TableCell>{s.customer_name || '-'}</TableCell>
-                        <TableCell>{s.brand || '-'}</TableCell>
-                        <TableCell>
-                          <Chip size="small" label={s.status || '-'}
-                            color={s.status === '부품대기' ? 'warning' : 'default'} variant="outlined" />
-                        </TableCell>
-                        <TableCell sx={{ fontSize: 12 }}>{s.reception_type || '-'}</TableCell>
-                        <TableCell align="right">
-                          <Typography fontWeight="bold"
-                            color={s.waitDays >= 14 ? 'error.main' : s.waitDays >= 7 ? 'warning.main' : 'inherit'}>
-                            {s.waitDays ?? '-'}일
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+              <Typography variant="h6" gutterBottom>현재 미완료 백로그</Typography>
+              <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
+                <Typography variant="h3" fontWeight="bold" color="warning.main">{backlog.length}</Typography>
+                <Typography variant="h6" color="text.secondary">건</Typography>
+              </Box>
+              {backlogWithDays[0] && (
+                <Typography variant="body2" color="error.main" sx={{ mt: 1 }}>
+                  최장 대기 {backlogWithDays[0].waitDays}일
+                </Typography>
+              )}
             </Paper>
           </Grid>
         </Grid>
