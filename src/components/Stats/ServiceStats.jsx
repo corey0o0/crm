@@ -239,8 +239,7 @@ function ServiceStats() {
 
   const warrantyStats = useMemo(() => {
     const free = completedServices.filter(s =>
-      getTags(s).some(t => t.includes('무상')) ||
-      (s.service_parts || []).every(sp => (sp.price || 0) === 0)
+      getTags(s).some(t => t.includes('워런티'))
     ).length;
     const paid = completedServices.length - free;
     return { free, paid, total: completedServices.length };
