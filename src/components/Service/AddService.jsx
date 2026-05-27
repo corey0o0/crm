@@ -432,21 +432,14 @@ function AddService() {
   // 접수일시 변경 시 문의내용 앞에 날짜·시간 자동 삽입
   useEffect(() => {
     if (!formData.reception_date || !formData.reception_time) return;
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const isSameDay = formData.reception_date === todayStr;
     const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
     const d = new Date(`${formData.reception_date}T${formData.reception_time}:00`);
+    const m = d.getMonth() + 1;
+    const day = d.getDate();
+    const dow = DAY_NAMES[d.getDay()];
     const hh = String(d.getHours()).padStart(2, '0');
     const mm = String(d.getMinutes()).padStart(2, '0');
-    let newPrefix = '';
-    if (!isSameDay) {
-      const m = d.getMonth() + 1;
-      const day = d.getDate();
-      const dow = DAY_NAMES[d.getDay()];
-      newPrefix = `[${m}월 ${day}일 (${dow}) ${hh}:${mm}]`;
-    } else {
-      newPrefix = `[${hh}:${mm}]`;
-    }
+    const newPrefix = `[${m}월 ${day}일 (${dow}) ${hh}:${mm}]`;
     if (newPrefix === dateTimePrefixRef.current) return;
     setFormData(prev => {
       let symptom = prev.symptom || '';
