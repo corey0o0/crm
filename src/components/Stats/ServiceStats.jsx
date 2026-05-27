@@ -142,6 +142,31 @@ function ServiceStats() {
       .sort((a, b) => b.count - a.count).slice(0, 15);
   }, [services]);
 
+  const tagPartCorrelation = useMemo(() => {
+    const map = {};
+    services.forEach(s => {
+      const tags = getTags(s);
+      if (tags.length === 0) return;
+      const activeParts = (s.service_parts || []).filter(sp => getEffectiveQty(sp) > 0);
+      tags.forEach(tag => {
+        if (!map[tag]) map[tag] = { tag, total: 0, parts: {} };
+        map[tag].total++;
+        activeParts.forEach(sp => {
+          const name = sp.parts?.name;
+          if (!name) return;
+          map[tag].parts[name] = (map[tag].parts[name] || 0) + 1;
+        });
+      });
+    });
+    return Object.values(map)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 20)
+      .map(r => ({
+        ...r,
+        topParts: Object.entries(r.parts).sort((a, b) => b[1] - a[1]).slice(0, 5),
+      }));
+  }, [services]);
+
   // ── 탭 4: 부품 소모 순위 + 모델별 패턴 ────────────────────
   const partsStats = useMemo(() => {
     const map = {};
@@ -342,6 +367,44 @@ function ServiceStats() {
               <Bar dataKey="count" name="건수" fill="#9c27b0" radius={[0,3,3,0]} />
             </BarChart>
           </ResponsiveContainer>
+        </Paper>
+
+        <Paper sx={{ p: 3, mt: 2 }}>
+          <Typography variant="h6" gutterBottom>태그별 주요 교체 부품</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>태그가 붙은 A/S에서 실제 사용된 부품 상위 5개</Typography>
+          {tagPartCorrelation.length === 0 ? (
+            <Typography color="textSecondary">데이터 없음</Typography>
+          ) : (
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ width: 120 }}>태그</TableCell>
+                    <TableCell align="right" sx={{ width: 60 }}>건수</TableCell>
+                    <TableCell>주요 교체 부품 (건수)</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {tagPartCorrelation.map(r => (
+                    <TableRow key={r.tag}>
+                      <TableCell>
+                        <Chip size="small" label={r.tag} color="primary" variant="outlined" />
+                      </TableCell>
+                      <TableCell align="right">{r.total}</TableCell>
+                      <TableCell>
+                        {r.topParts.length === 0
+                          ? <Typography variant="caption" color="text.secondary">부품 없음</Typography>
+                          : r.topParts.map(([name, cnt]) => (
+                            <Chip key={name} size="small" label={`${name} (${cnt})`}
+                              sx={{ m: 0.3, fontSize: 11 }} variant="outlined" />
+                          ))}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
         </Paper>
       )}
 
