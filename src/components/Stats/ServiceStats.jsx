@@ -351,6 +351,7 @@ function ServiceStats() {
 
       {/* ── 탭 1: 태그 분석 ── */}
       {tabValue === 1 && (
+        <>
         <Paper sx={{ p: 3 }}>
           <Typography variant="h6" gutterBottom>태그별 발생 빈도 (상위 15개)</Typography>
           <Box sx={{ mb: 2 }}>
@@ -406,6 +407,7 @@ function ServiceStats() {
             </TableContainer>
           )}
         </Paper>
+        </>
       )}
 
       {/* ── 탭 3: 부품 소모 순위 + 모델별 패턴 ── */}
