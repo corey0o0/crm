@@ -421,13 +421,13 @@ function ServiceStats() {
         </Grid>
       )}
 
-      {/* ── 탭 4: 처리 시간 분포 + 백로그 ── */}
+      {/* ── 탭 3: 처리 시간 분포 + 백로그 ── */}
       {tabValue === 3 && (
         <Grid container spacing={2}>
-          <Grid item xs={12} md={5}>
+          <Grid item xs={12} md={9}>
             <Paper sx={{ p: 3 }}>
               <Typography variant="h6" gutterBottom>처리 시간 분포</Typography>
-              <ResponsiveContainer width="100%" height={240}>
+              <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={processingTimeStats}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="label" />
@@ -448,7 +448,7 @@ function ServiceStats() {
                         <TableCell>{b.label}</TableCell>
                         <TableCell align="right">{b.count}건</TableCell>
                         <TableCell align="right">{b.pct}%</TableCell>
-                        <TableCell sx={{ width: 100 }}>
+                        <TableCell sx={{ width: 160 }}>
                           <LinearProgress variant="determinate" value={parseFloat(b.pct)}
                             color={b.min >= 15 ? 'error' : b.min >= 8 ? 'warning' : 'success'} />
                         </TableCell>
@@ -459,16 +459,16 @@ function ServiceStats() {
               </TableContainer>
             </Paper>
           </Grid>
-          <Grid item xs={12} md={7}>
-            <Paper sx={{ p: 3 }}>
-              <Typography variant="h6" gutterBottom>현재 미완료 백로그</Typography>
-              <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
-                <Typography variant="h3" fontWeight="bold" color="warning.main">{backlog.length}</Typography>
-                <Typography variant="h6" color="text.secondary">건</Typography>
+          <Grid item xs={12} md={3}>
+            <Paper sx={{ p: 2 }}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>미완료 백로그</Typography>
+              <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
+                <Typography variant="h4" fontWeight="bold" color="warning.main">{backlog.length}</Typography>
+                <Typography variant="body2" color="text.secondary">건</Typography>
               </Box>
               {backlogWithDays[0] && (
-                <Typography variant="body2" color="error.main" sx={{ mt: 1 }}>
-                  최장 대기 {backlogWithDays[0].waitDays}일
+                <Typography variant="caption" color="error.main">
+                  최장 {backlogWithDays[0].waitDays}일 대기
                 </Typography>
               )}
             </Paper>
