@@ -134,24 +134,6 @@ function ServiceStats() {
     });
   }, [services, filterStart, filterEnd]);
 
-  // ── 탭 2: 상태별 ───────────────────────────────────────────
-  const statusStats = useMemo(() => {
-    const counts = {};
-    services.forEach(s => { counts[s.status] = (counts[s.status] || 0) + 1; });
-    return Object.entries(counts)
-      .map(([status, count]) => ({ status, count, pct: (count / services.length * 100).toFixed(1) }))
-      .sort((a, b) => b.count - a.count);
-  }, [services]);
-
-  // ── 탭 3: 유형 / 태그 ──────────────────────────────────────
-  const typeStats = useMemo(() => {
-    const counts = {};
-    services.forEach(s => { counts[s.reception_type || '미분류'] = (counts[s.reception_type || '미분류'] || 0) + 1; });
-    return Object.entries(counts)
-      .map(([type, count]) => ({ type, count, pct: (count / services.length * 100).toFixed(1) }))
-      .sort((a, b) => b.count - a.count);
-  }, [services]);
-
   const tagStats = useMemo(() => {
     const counts = {};
     services.forEach(s => getTags(s).forEach(t => { counts[t] = (counts[t] || 0) + 1; }));
@@ -316,7 +298,6 @@ function ServiceStats() {
       <Paper sx={{ mb: 2 }}>
         <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)} variant="scrollable" scrollButtons="auto">
           <Tab label="월별 추이" />
-          <Tab label="상태·유형" />
           <Tab label="태그 분석" />
           <Tab label="부품·모델 분석" />
           <Tab label="처리 시간·백로그" />
@@ -343,68 +324,8 @@ function ServiceStats() {
         </Paper>
       )}
 
-      {/* ── 탭 1: 상태·유형 ── */}
+      {/* ── 탭 1: 태그 분석 ── */}
       {tabValue === 1 && (
-        <Grid container spacing={2}>
-          <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 3 }}>
-              <Typography variant="h6" gutterBottom>상태별 현황</Typography>
-              <ResponsiveContainer width="100%" height={260}>
-                <PieChart>
-                  <Pie data={statusStats} dataKey="count" nameKey="status" cx="50%" cy="50%" outerRadius={90}
-                    label={({ status, pct }) => `${status} ${pct}%`}>
-                    {statusStats.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Pie>
-                  <RechartsTooltip formatter={(v, n) => [`${v}건`, n]} />
-                </PieChart>
-              </ResponsiveContainer>
-              <TableContainer sx={{ mt: 1 }}>
-                <Table size="small">
-                  <TableBody>
-                    {statusStats.map(s => (
-                      <TableRow key={s.status}>
-                        <TableCell>{s.status}</TableCell>
-                        <TableCell align="right">{s.count}건</TableCell>
-                        <TableCell align="right">{s.pct}%</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Paper>
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 3 }}>
-              <Typography variant="h6" gutterBottom>유형별 현황</Typography>
-              <ResponsiveContainer width="100%" height={260}>
-                <PieChart>
-                  <Pie data={typeStats} dataKey="count" nameKey="type" cx="50%" cy="50%" outerRadius={90}
-                    label={({ type, pct }) => `${type} ${pct}%`}>
-                    {typeStats.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Pie>
-                  <RechartsTooltip />
-                </PieChart>
-              </ResponsiveContainer>
-              <TableContainer sx={{ mt: 1 }}>
-                <Table size="small">
-                  <TableBody>
-                    {typeStats.map(s => (
-                      <TableRow key={s.type}>
-                        <TableCell>{s.type || '미분류'}</TableCell>
-                        <TableCell align="right">{s.count}건</TableCell>
-                        <TableCell align="right">{s.pct}%</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Paper>
-          </Grid>
-        </Grid>
-      )}
-
-      {/* ── 탭 2: 태그 분석 ── */}
-      {tabValue === 2 && (
         <Paper sx={{ p: 3 }}>
           <Typography variant="h6" gutterBottom>태그별 발생 빈도 (상위 15개)</Typography>
           <Box sx={{ mb: 2 }}>
@@ -425,7 +346,7 @@ function ServiceStats() {
       )}
 
       {/* ── 탭 3: 부품 소모 순위 + 모델별 패턴 ── */}
-      {tabValue === 3 && (
+      {tabValue === 2 && (
         <Grid container spacing={2}>
           <Grid item xs={12} md={7}>
             <Paper sx={{ p: 3 }}>
@@ -501,7 +422,7 @@ function ServiceStats() {
       )}
 
       {/* ── 탭 4: 처리 시간 분포 + 백로그 ── */}
-      {tabValue === 4 && (
+      {tabValue === 3 && (
         <Grid container spacing={2}>
           <Grid item xs={12} md={5}>
             <Paper sx={{ p: 3 }}>
@@ -556,24 +477,35 @@ function ServiceStats() {
       )}
 
       {/* ── 탭 5: 수익성 + 재방문 ── */}
-      {tabValue === 5 && (
+      {tabValue === 4 && (
         <Grid container spacing={2}>
           <Grid item xs={12} md={7}>
             <Paper sx={{ p: 3 }}>
               <Typography variant="h6" gutterBottom>유형별 수익성 분석</Typography>
-              <Box sx={{ display: 'flex', gap: 3, mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, mb: 2 }}>
+                <ResponsiveContainer width={120} height={120}>
+                  <PieChart>
+                    <Pie data={[
+                      { name: '일반 유상', value: warrantyStats.paid },
+                      { name: '워런티', value: warrantyStats.free },
+                    ]} dataKey="value" cx="50%" cy="50%" innerRadius={30} outerRadius={55}>
+                      <Cell fill="#1976d2" />
+                      <Cell fill="#2e7d32" />
+                    </Pie>
+                    <RechartsTooltip formatter={(v, n) => [`${v}건`, n]} />
+                  </PieChart>
+                </ResponsiveContainer>
                 <Box>
-                  <Typography variant="caption" color="textSecondary">유상 처리</Typography>
-                  <Typography variant="h6" color="primary.main">{warrantyStats.paid}건</Typography>
-                </Box>
-                <Box>
-                  <Typography variant="caption" color="textSecondary">무상 처리</Typography>
-                  <Typography variant="h6" color="text.secondary">{warrantyStats.free}건</Typography>
-                </Box>
-                <Box>
-                  <Typography variant="caption" color="textSecondary">무상 비율</Typography>
-                  <Typography variant="h6">
-                    {warrantyStats.total > 0 ? (warrantyStats.free / warrantyStats.total * 100).toFixed(1) : 0}%
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                    <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: '#1976d2' }} />
+                    <Typography variant="body2">일반 유상 <b>{warrantyStats.paid}건</b></Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                    <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: '#2e7d32' }} />
+                    <Typography variant="body2">워런티 <b>{warrantyStats.free}건</b></Typography>
+                  </Box>
+                  <Typography variant="caption" color="text.secondary">
+                    워런티 비율 {warrantyStats.total > 0 ? (warrantyStats.free / warrantyStats.total * 100).toFixed(1) : 0}%
                   </Typography>
                 </Box>
               </Box>
