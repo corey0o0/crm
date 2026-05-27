@@ -273,15 +273,15 @@ function ServiceStats() {
 
       {/* 필터 */}
       <Box sx={{ mb: 3, display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
-        <TextField select label="브랜드" value={selectedBrand} onChange={e => setSelectedBrand(e.target.value)} sx={{ width: 150 }}>
+        <TextField select size="small" label="브랜드" value={selectedBrand} onChange={e => setSelectedBrand(e.target.value)} sx={{ width: 130 }}>
           <MenuItem value="전체">전체</MenuItem>
           <MenuItem value="XRB">X-RIDER</MenuItem>
           <MenuItem value="NB">NEARBIKE</MenuItem>
         </TextField>
-        <TextField label="시작일" type="date" value={filterStart} onChange={e => setFilterStart(e.target.value)}
-          InputLabelProps={{ shrink: true }} sx={{ width: 160 }} />
-        <TextField label="종료일" type="date" value={filterEnd} onChange={e => setFilterEnd(e.target.value)}
-          InputLabelProps={{ shrink: true }} sx={{ width: 160 }} />
+        <TextField size="small" label="시작일" type="date" value={filterStart} onChange={e => setFilterStart(e.target.value)}
+          InputLabelProps={{ shrink: true }} sx={{ width: 155 }} />
+        <TextField size="small" label="종료일" type="date" value={filterEnd} onChange={e => setFilterEnd(e.target.value)}
+          InputLabelProps={{ shrink: true }} sx={{ width: 155 }} />
         <Box sx={{ display: 'flex', gap: 1 }}>
           {[3, 6, 12].map(m => (
             <Chip key={m} label={m === 12 ? '1년' : `${m}개월`} onClick={() => setPeriod(m)}
