@@ -39,27 +39,38 @@ const getTags = (s) => (s.service_tags || []).map(t => t.tag_name);
 const fmt = (n) => n.toLocaleString();
 const fmtWon = (n) => `${Math.round(n / 10000)}만원`;
 
+const calcRange = (months) => {
+  const end = endOfMonth(new Date());
+  const start = startOfMonth(subMonths(end, months - 1));
+  return { start: format(start, 'yyyy-MM-dd'), end: format(end, 'yyyy-MM-dd') };
+};
+
 function ServiceStats() {
   const [loading, setLoading] = useState(true);
   const [selectedBrand, setSelectedBrand] = useState('전체');
-  const [selectedPeriod, setSelectedPeriod] = useState(6);
   const [tabValue, setTabValue] = useState(0);
   const [services, setServices] = useState([]);
   const [backlog, setBacklog] = useState([]);
+  const init = calcRange(6);
+  const [filterStart, setFilterStart] = useState(init.start);
+  const [filterEnd, setFilterEnd] = useState(init.end);
 
-  useEffect(() => { fetchServiceStats(); }, [selectedBrand, selectedPeriod]);
+  const setPeriod = (months) => {
+    const r = calcRange(months);
+    setFilterStart(r.start);
+    setFilterEnd(r.end);
+  };
+
+  useEffect(() => { fetchServiceStats(); }, [selectedBrand, filterStart, filterEnd]);
 
   const fetchServiceStats = async () => {
     setLoading(true);
     try {
-      const endDate = endOfMonth(new Date());
-      const startDate = startOfMonth(subMonths(endDate, selectedPeriod - 1));
-
       let mainQuery = supabase
         .from('services')
         .select('id, reception_date, completion_date, created_at, customer_name, brand, status, reception_type, service_tags(tag_name), service_parts(price, quantity, usage, parts(name, code, cost_price))')
-        .gte('reception_date', format(startDate, 'yyyy-MM-dd'))
-        .lte('reception_date', format(endDate, 'yyyy-MM-dd'));
+        .gte('reception_date', filterStart)
+        .lte('reception_date', filterEnd);
 
       let backlogQuery = supabase
         .from('services')
@@ -106,9 +117,7 @@ function ServiceStats() {
 
   // ── 탭 1: 월별 ─────────────────────────────────────────────
   const monthlyStats = useMemo(() => {
-    const endDate = endOfMonth(new Date());
-    const startDate = startOfMonth(subMonths(endDate, selectedPeriod - 1));
-    return eachMonthOfInterval({ start: startDate, end: endDate }).map(month => {
+    return eachMonthOfInterval({ start: parseISO(filterStart), end: parseISO(filterEnd) }).map(month => {
       const key = format(month, 'yyyy-MM');
       const monthSvcs = services.filter(s => {
         const d = s.reception_date || s.created_at;
@@ -123,7 +132,7 @@ function ServiceStats() {
           sum + (s.service_parts || []).reduce((ps, p) => ps + (p.price || 0) * getEffectiveQty(p), 0), 0)
       };
     });
-  }, [services, selectedPeriod]);
+  }, [services, filterStart, filterEnd]);
 
   // ── 탭 2: 상태별 ───────────────────────────────────────────
   const statusStats = useMemo(() => {
@@ -263,17 +272,23 @@ function ServiceStats() {
       </Typography>
 
       {/* 필터 */}
-      <Box sx={{ mb: 3, display: 'flex', gap: 2 }}>
+      <Box sx={{ mb: 3, display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
         <TextField select label="브랜드" value={selectedBrand} onChange={e => setSelectedBrand(e.target.value)} sx={{ width: 150 }}>
           <MenuItem value="전체">전체</MenuItem>
           <MenuItem value="XRB">X-RIDER</MenuItem>
           <MenuItem value="NB">NEARBIKE</MenuItem>
         </TextField>
-        <TextField select label="기간" value={selectedPeriod} onChange={e => setSelectedPeriod(e.target.value)} sx={{ width: 150 }}>
-          <MenuItem value={3}>최근 3개월</MenuItem>
-          <MenuItem value={6}>최근 6개월</MenuItem>
-          <MenuItem value={12}>최근 1년</MenuItem>
-        </TextField>
+        <TextField label="시작일" type="date" value={filterStart} onChange={e => setFilterStart(e.target.value)}
+          InputLabelProps={{ shrink: true }} sx={{ width: 160 }} />
+        <TextField label="종료일" type="date" value={filterEnd} onChange={e => setFilterEnd(e.target.value)}
+          InputLabelProps={{ shrink: true }} sx={{ width: 160 }} />
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          {[3, 6, 12].map(m => (
+            <Chip key={m} label={m === 12 ? '1년' : `${m}개월`} onClick={() => setPeriod(m)}
+              variant={filterStart === calcRange(m).start && filterEnd === calcRange(m).end ? 'filled' : 'outlined'}
+              color="primary" sx={{ cursor: 'pointer' }} />
+          ))}
+        </Box>
       </Box>
 
       {/* 요약 카드 */}
