@@ -3,8 +3,7 @@ import {
   Box, Typography, Paper, Grid, Card, CardContent, CircularProgress,
   FormControl, Select, MenuItem, InputLabel, Button, Divider,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Tabs, Tab, ButtonGroup, Stack, Switch, FormControlLabel, Collapse, IconButton,
-  Dialog, DialogTitle, DialogContent, DialogActions
+  Tabs, Tab, ButtonGroup, Stack, Switch, FormControlLabel, Collapse, IconButton
 } from '@mui/material';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -74,7 +73,6 @@ function SalesHistoryStats() {
   const [showChannelDetail, setShowChannelDetail] = useState(false);
   const [showChannelPieDetail, setShowChannelPieDetail] = useState(false);
   const [compareStats, setCompareStats] = useState({ context: null, mom: null, yoy: null, wow: null, yoyWeek: null });
-  const [selectedAgencyDetail, setSelectedAgencyDetail] = useState(null);
 
 
 
@@ -1131,82 +1129,36 @@ function SalesHistoryStats() {
   const countOnline = uniqueGroups.online.size;
   const countAgency = uniqueGroups.agency.size;
 
-  // ── 대리점 및 B2B/B2C 브랜드 통계 ────────────────────────────────
-  const agencyStats = {};
-  const brandStatsB2B = {};
+  // ── B2C 브랜드 통계 ────────────────────────────────
   const brandStatsB2C = {};
 
   currentFiltered.forEach(r => {
-    if (r._type === 'service') return; // A/S 제외
+    if (r._type === 'service') return;
 
     const isAgency = r.sales_channel && !B2C_CHANNELS.includes(r.sales_channel);
+    if (isAgency) return;
+
     const isAirframe = r.part_category === '기체';
     const qty = Number(r.quantity || 0);
     const price = Number(r.total_price || 0);
     const brandName = r.part_brand && r.part_brand !== '-' ? r.part_brand : '기타 브랜드';
-    let modelName = r.part_name || '알 수 없는 기체';
+    const modelName = r.part_name || '알 수 없는 기체';
 
-    if (isAgency) {
-      let agName = r.sales_channel;
-      if (['대리점출고', '수기판매', '기타 대리점', '대리점'].includes(agName)) {
-         agName = r.customer_name !== '-' && r.customer_name ? r.customer_name : agName;
+    if (!brandStatsB2C[brandName]) {
+      brandStatsB2C[brandName] = { airframes: {}, airframeAmount: 0, parts: 0, partsAmount: 0 };
+    }
+    if (isAirframe) {
+      if (!brandStatsB2C[brandName].airframes[modelName]) {
+        brandStatsB2C[brandName].airframes[modelName] = { qty: 0, amount: 0 };
       }
-
-      if (!agencyStats[agName]) {
-        agencyStats[agName] = { airframe: 0, airframeAmount: 0, parts: 0, partsAmount: 0, count: 0, amount: 0, _orderIds: new Set(), rows: [] };
-      }
-      
-      agencyStats[agName].amount += price;
-      if (r._id) agencyStats[agName]._orderIds.add(r._id);
-      agencyStats[agName].rows.push(r);
-      
-      if (isAirframe) {
-        agencyStats[agName].airframe += qty;
-        agencyStats[agName].airframeAmount += price;
-      } else {
-        agencyStats[agName].parts += qty;
-        agencyStats[agName].partsAmount += price;
-      }
-
-      if (!brandStatsB2B[brandName]) {
-        brandStatsB2B[brandName] = { airframes: {}, airframeAmount: 0, parts: 0, partsAmount: 0 };
-      }
-      if (isAirframe) {
-        if (!brandStatsB2B[brandName].airframes[modelName]) {
-          brandStatsB2B[brandName].airframes[modelName] = { qty: 0, amount: 0 };
-        }
-        brandStatsB2B[brandName].airframes[modelName].qty += qty;
-        brandStatsB2B[brandName].airframes[modelName].amount += price;
-        brandStatsB2B[brandName].airframeAmount += price;
-      } else {
-        brandStatsB2B[brandName].parts += qty;
-        brandStatsB2B[brandName].partsAmount += price;
-      }
+      brandStatsB2C[brandName].airframes[modelName].qty += qty;
+      brandStatsB2C[brandName].airframes[modelName].amount += price;
+      brandStatsB2C[brandName].airframeAmount += price;
     } else {
-      if (!brandStatsB2C[brandName]) {
-        brandStatsB2C[brandName] = { airframes: {}, airframeAmount: 0, parts: 0, partsAmount: 0 };
-      }
-      if (isAirframe) {
-        if (!brandStatsB2C[brandName].airframes[modelName]) {
-          brandStatsB2C[brandName].airframes[modelName] = { qty: 0, amount: 0 };
-        }
-        brandStatsB2C[brandName].airframes[modelName].qty += qty;
-        brandStatsB2C[brandName].airframes[modelName].amount += price;
-        brandStatsB2C[brandName].airframeAmount += price;
-      } else {
-        brandStatsB2C[brandName].parts += qty;
-        brandStatsB2C[brandName].partsAmount += price;
-      }
+      brandStatsB2C[brandName].parts += qty;
+      brandStatsB2C[brandName].partsAmount += price;
     }
   });
-
-  Object.keys(agencyStats).forEach(agName => {
-    agencyStats[agName].count = agencyStats[agName]._orderIds.size;
-  });
-  
-  const totalB2BAirframeAmt = Object.values(brandStatsB2B).reduce((sum, b) => sum + b.airframeAmount, 0);
-  const totalB2BPartsAmt = Object.values(brandStatsB2B).reduce((sum, b) => sum + b.partsAmount, 0);
-  const totalB2BPartsQty = Object.values(brandStatsB2B).reduce((sum, b) => sum + b.parts, 0);
 
   const totalB2CAirframeAmt = Object.values(brandStatsB2C).reduce((sum, b) => sum + b.airframeAmount, 0);
   const totalB2CPartsAmt = Object.values(brandStatsB2C).reduce((sum, b) => sum + b.partsAmount, 0);
@@ -1818,7 +1770,7 @@ function SalesHistoryStats() {
                 <Tab label="월별 매출 통계" />
                 <Tab label="주별 매출 통계" />
                 <Tab label="수기판매 통계" />
-                <Tab label="대리점/브랜드 출고 통계" />
+                <Tab label="브랜드 출고 통계 (B2C)" />
               </Tabs>
             </Paper>
             
@@ -2216,121 +2168,6 @@ function SalesHistoryStats() {
               <Box>
                 <Grid container spacing={3} sx={{ mt: 1, mb: 4 }}>
                   <Grid item xs={12}>
-                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>대리점별 매출 (검색 조건 연동)</Typography>
-                    <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
-                      <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
-                        <TableHead sx={{ bgcolor: 'grey.100' }}>
-                          <TableRow>
-                            <TableCell>대리점명</TableCell>
-                            <TableCell align="right">기체 판매</TableCell>
-                            <TableCell align="right">파츠 판매</TableCell>
-                            <TableCell align="right">주문 건수</TableCell>
-                            <TableCell align="right">총 주문 금액</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {Object.entries(agencyStats).length > 0 ? (
-                            Object.entries(agencyStats)
-                              .sort((a, b) => b[1].amount - a[1].amount)
-                              .map(([agencyName, data]) => (
-                                <TableRow 
-                                  key={agencyName} 
-                                  hover 
-                                  onClick={() => setSelectedAgencyDetail({ agencyName, rows: data.rows })}
-                                  sx={{ cursor: 'pointer' }}
-                                >
-                                  <TableCell sx={{ fontWeight: 'bold' }}>{agencyName}</TableCell>
-                                  <TableCell align="right">
-                                     <Typography variant="body2" sx={{ fontWeight: data.airframe > 0 ? 'bold' : 'normal', color: data.airframe > 0 ? 'primary.main' : 'inherit' }}>{data.airframe}</Typography>
-                                     <Typography variant="caption" color="textSecondary">{formatCurrency(data.airframeAmount)}</Typography>
-                                  </TableCell>
-                                  <TableCell align="right">
-                                     <Typography variant="body2">{data.parts}</Typography>
-                                     <Typography variant="caption" color="textSecondary">{formatCurrency(data.partsAmount)}</Typography>
-                                  </TableCell>
-                                  <TableCell align="right">{data.count}</TableCell>
-                                  <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(data.amount)}</TableCell>
-                                </TableRow>
-                              ))
-                          ) : (
-                            <TableRow><TableCell colSpan={5} align="center">데이터가 없습니다.</TableCell></TableRow>
-                          )}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  </Grid>
-
-                  <Grid item xs={12} md={6}>
-                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>브랜드별 제품 출고 현황 (대리점 B2B)</Typography>
-                    <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
-                      <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
-                        <TableHead sx={{ bgcolor: 'grey.100' }}>
-                          <TableRow>
-                            <TableCell>브랜드명</TableCell>
-                            <TableCell>기체 종류별 판매 대수</TableCell>
-                            <TableCell align="right">기체 합계금액</TableCell>
-                            <TableCell align="right">부품/용품 합계금액</TableCell>
-                            <TableCell align="right">총 합계</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {Object.entries(brandStatsB2B).length > 0 ? (
-                            Object.entries(brandStatsB2B)
-                              .sort((a, b) => (b[1].airframeAmount + b[1].partsAmount) - (a[1].airframeAmount + a[1].partsAmount))
-                              .map(([brandName, data]) => (
-                                <TableRow key={brandName} hover>
-                                  <TableCell sx={{ fontWeight: 'bold', verticalAlign: 'top', pt: 2 }}>{brandName}</TableCell>
-                                  <TableCell sx={{ verticalAlign: 'top', pt: 2 }}>
-                                    {Object.entries(data.airframes).length > 0 ? (
-                                      Object.entries(data.airframes)
-                                        .sort((a, b) => b[1].qty - a[1].qty)
-                                        .map(([model, info], index, arr) => (
-                                          <Box key={model} sx={{ 
-                                            display: 'flex', 
-                                            justifyContent: 'space-between', 
-                                            alignItems: 'center',
-                                            mb: index === arr.length - 1 ? 0 : 1.5,
-                                            pb: index === arr.length - 1 ? 0 : 1.5,
-                                            borderBottom: index === arr.length - 1 ? 'none' : '1px solid #eee'
-                                          }}>
-                                            <Typography variant="body2" color="textSecondary" sx={{ pr: 2, flex: 1, wordBreak: 'keep-all' }}>{model}</Typography>
-                                            <Box sx={{ textAlign: 'right', minWidth: '80px' }}>
-                                              <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{info.qty}</Typography>
-                                              <Typography variant="caption" color="textSecondary">{formatCurrency(info.amount)}</Typography>
-                                            </Box>
-                                          </Box>
-                                        ))
-                                    ) : (
-                                      <Typography variant="body2" color="textSecondary">-</Typography>
-                                    )}
-                                  </TableCell>
-                                  <TableCell align="right" sx={{ verticalAlign: 'top', pt: 2 }}>{formatCurrency(data.airframeAmount)}</TableCell>
-                                  <TableCell align="right" sx={{ verticalAlign: 'top', pt: 2 }}>
-                                     <Typography variant="body2" sx={{ fontWeight: data.parts > 0 ? 'bold' : 'normal', color: data.parts > 0 ? 'primary.main' : 'inherit' }}>{data.parts}</Typography>
-                                     <Typography variant="caption" color="textSecondary">{formatCurrency(data.partsAmount)}</Typography>
-                                  </TableCell>
-                                  <TableCell align="right" sx={{ fontWeight: 'bold', verticalAlign: 'top', pt: 2 }}>{formatCurrency(data.airframeAmount + data.partsAmount)}</TableCell>
-                                </TableRow>
-                              ))
-                          ) : (
-                            <TableRow><TableCell colSpan={5} align="center">데이터가 없습니다.</TableCell></TableRow>
-                          )}
-                        </TableBody>
-                        {Object.entries(brandStatsB2B).length > 0 && (
-                          <TableHead sx={{ bgcolor: 'grey.200' }}>
-                            <TableRow>
-                              <TableCell colSpan={2} align="center" sx={{ fontWeight: 'bold' }}>총합</TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.dark' }}>{formatCurrency(totalB2BAirframeAmt)}</TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.dark' }}>{totalB2BPartsQty} · {formatCurrency(totalB2BPartsAmt)}</TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.dark' }}>{formatCurrency(totalB2BAirframeAmt + totalB2BPartsAmt)}</TableCell>
-                            </TableRow>
-                          </TableHead>
-                        )}
-                      </Table>
-                    </TableContainer>
-                  </Grid>
-
-                  <Grid item xs={12} md={6}>
                     <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>브랜드별 제품 출고 현황 (일반고객 B2C)</Typography>
                     <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
                       <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
@@ -2406,75 +2243,6 @@ function SalesHistoryStats() {
         </>
       )}
 
-      {/* 대리점 상세 내역 모달 */}
-      <Dialog 
-        open={Boolean(selectedAgencyDetail)} 
-        onClose={() => setSelectedAgencyDetail(null)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle sx={{ fontWeight: 'bold', borderBottom: '1px solid #eee' }}>
-          {selectedAgencyDetail?.agencyName} 출고 상세 내역
-        </DialogTitle>
-        <DialogContent sx={{ p: 0 }}>
-          <TableContainer>
-            <Table size="small" stickyHeader>
-              <TableHead>
-                <TableRow>
-                  <TableCell>주문일시</TableCell>
-                  <TableCell>카테고리</TableCell>
-                  <TableCell>브랜드</TableCell>
-                  <TableCell>품목명</TableCell>
-                  <TableCell align="right">수량</TableCell>
-                  <TableCell align="right">판매 금액</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {(() => {
-                  const rows = selectedAgencyDetail?.rows || [];
-                  if (!rows.length) return (
-                    <TableRow><TableCell colSpan={6} align="center">데이터가 없습니다.</TableCell></TableRow>
-                  );
-                  const sortedRows = [...rows].sort((a, b) => {
-                    const catOrder = (r) => r.part_category === '기체' ? 0 : 1;
-                    if (catOrder(a) !== catOrder(b)) return catOrder(a) - catOrder(b);
-                    return new Date(b.created_at || b.date_val) - new Date(a.created_at || a.date_val);
-                  });
-                  const airframeQty = rows.filter(r => r.part_category === '기체').reduce((s, r) => s + Number(r.quantity || 0), 0);
-                  const partsQty = rows.filter(r => r.part_category !== '기체').reduce((s, r) => s + Number(r.quantity || 0), 0);
-                  return (
-                    <>
-                      {sortedRows.map((r, i) => (
-                        <TableRow key={i} hover>
-                          <TableCell>{r.created_at ? format(new Date(r.created_at), 'yyyy-MM-dd HH:mm') : r.date_val?.slice(0, 10)}</TableCell>
-                          <TableCell>{r.part_category}</TableCell>
-                          <TableCell>{r.part_brand || '-'}</TableCell>
-                          <TableCell>{r.part_name}</TableCell>
-                          <TableCell align="right">{Number(r.quantity || 0).toLocaleString()}</TableCell>
-                          <TableCell align="right">{formatCurrency(Number(r.total_price || 0))}</TableCell>
-                        </TableRow>
-                      ))}
-                      <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                        <TableCell colSpan={4} align="right" sx={{ fontWeight: 'bold' }}>기체 수량 합계</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.dark' }}>{airframeQty.toLocaleString()}</TableCell>
-                        <TableCell />
-                      </TableRow>
-                      <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                        <TableCell colSpan={4} align="right" sx={{ fontWeight: 'bold' }}>파츠 수량 합계</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 'bold', color: 'secondary.dark' }}>{partsQty.toLocaleString()}</TableCell>
-                        <TableCell />
-                      </TableRow>
-                    </>
-                  );
-                })()}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setSelectedAgencyDetail(null)} color="primary">닫기</Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 }
