@@ -145,7 +145,7 @@ const SearchTextField = React.memo(function SearchTextField({ value, onSearch, o
     const trimmed = val.trim();
     if (trimmed === '') { onSearch(''); return; }
     if (trimmed.length < 2) return;
-    timerRef.current = setTimeout(() => onSearch(trimmed), 800);
+    timerRef.current = setTimeout(() => onSearch(trimmed), 1500);
   }, [onSearch]);
 
   const handleKeyPress = useCallback((e) => {
@@ -711,7 +711,22 @@ function ServiceList() {
         const safeTerm = searchParams.solutionSearchTerm.replace(/"/g, '');
         query = query.or(`solution.ilike."%${safeTerm}%",symptom.ilike."%${safeTerm}%"`);
       }
-      
+
+      // 사용부품 검색 필터링 (service_parts → parts.name 서브쿼리)
+      if (searchParams.partsSearchTerm && searchParams.partsSearchTerm.length >= 2) {
+        const safeParts = searchParams.partsSearchTerm.replace(/"/g, '');
+        const { data: partsRows } = await supabase
+          .from('service_parts')
+          .select('service_id, parts!inner(name, code)')
+          .or(`parts.name.ilike.%${safeParts}%,parts.code.ilike.%${safeParts}%`);
+        const matchedIds = [...new Set((partsRows || []).map(r => r.service_id))];
+        if (matchedIds.length > 0) {
+          query = query.in('id', matchedIds);
+        } else {
+          query = query.in('id', [-1]); // 결과 없음
+        }
+      }
+
       // 날짜 필터링 (상태 필터링 전에 확인하여 완료일자 검색 시 상태 필터 자동 적용)
       let dateField = 'reception_date';
       if (searchParams.dateFilter && (searchParams.dateFilter.startDate || searchParams.dateFilter.endDate)) {
@@ -856,7 +871,22 @@ function ServiceList() {
           simpleQuery = simpleQuery.or(`solution.ilike."%${safeTerm}%",symptom.ilike."%${safeTerm}%"`);
           console.log('[ServiceList] 처리내역/문의내용 필터 적용 완료');
         }
-        
+
+        // 사용부품 검색 필터링
+        if (searchParams.partsSearchTerm && searchParams.partsSearchTerm.length >= 2) {
+          const safeParts = searchParams.partsSearchTerm.replace(/"/g, '');
+          const { data: partsRows } = await supabase
+            .from('service_parts')
+            .select('service_id, parts!inner(name, code)')
+            .or(`parts.name.ilike.%${safeParts}%,parts.code.ilike.%${safeParts}%`);
+          const matchedIds = [...new Set((partsRows || []).map(r => r.service_id))];
+          if (matchedIds.length > 0) {
+            simpleQuery = simpleQuery.in('id', matchedIds);
+          } else {
+            simpleQuery = simpleQuery.in('id', [-1]);
+          }
+        }
+
         // 날짜 필터링
         if (searchParams.dateFilter && (searchParams.dateFilter.startDate || searchParams.dateFilter.endDate)) {
           console.log('[ServiceList] 날짜 필터링 적용:', {
@@ -1424,9 +1454,10 @@ function ServiceList() {
         const currentDateFilter = dateFilter;
         const currentModelSearchTerm = modelSearchTerm.trim();
         const currentSolutionSearchTerm = solutionSearchTerm.trim();
-        
+        const currentPartsSearchTerm = partsSearchTerm.trim();
+
         // 상태 필터가 없고 다른 필터도 없으면 전체 데이터 로딩
-        if (newSelectedStatuses.length === 0 && !currentInputValue && currentSelectedTags.length === 0 && !currentDateFilter.startDate && !currentDateFilter.endDate && !currentModelSearchTerm && !currentSolutionSearchTerm) {
+        if (newSelectedStatuses.length === 0 && !currentInputValue && currentSelectedTags.length === 0 && !currentDateFilter.startDate && !currentDateFilter.endDate && !currentModelSearchTerm && !currentSolutionSearchTerm && !currentPartsSearchTerm) {
           console.log('[ServiceList] 모든 필터가 없음 - 전체 데이터 로딩');
           fetchServices();
         } else {
@@ -2514,9 +2545,10 @@ function ServiceList() {
     setSelectedTags([]);
     setSearchMode('AND');
     
-    // 기종, 처리내역 검색어 초기화
+    // 기종, 처리내역, 사용부품 검색어 초기화
     setModelSearchTerm('');
     setSolutionSearchTerm('');
+    setPartsSearchTerm('');
 
     // 필터 및 페이지 저장값 삭제
     localStorage.removeItem(FILTER_KEY);
@@ -2552,7 +2584,8 @@ function ServiceList() {
       selectedTags,
       searchMode,
       modelSearchTerm,
-      solutionSearchTerm
+      solutionSearchTerm,
+      partsSearchTerm
     };
     localStorage.setItem(FILTER_KEY, JSON.stringify(filterState));
     setSnackbar({
@@ -2630,7 +2663,8 @@ function ServiceList() {
       setSearchMode(filterState.searchMode || 'AND');
       setModelSearchTerm(filterState.modelSearchTerm || '');
       setSolutionSearchTerm(filterState.solutionSearchTerm || '');
-      
+      setPartsSearchTerm(filterState.partsSearchTerm || '');
+
       // 필터 복원 완료 (약간의 지연 후 플래그 해제)
       setTimeout(() => {
         isFilterRestoringRef.current = false;
@@ -2663,6 +2697,7 @@ function ServiceList() {
   const [selectedTags, setSelectedTags] = useState([]); // 다중 태그
   const [modelSearchTerm, setModelSearchTerm] = useState(''); // 기종 검색어
   const [solutionSearchTerm, setSolutionSearchTerm] = useState(''); // 처리내역 검색어
+  const [partsSearchTerm, setPartsSearchTerm] = useState(''); // 사용부품 검색어
   const [progressiveLoading, setProgressiveLoading] = useState(false); // 점진적 로딩 상태
   const [loadProgress, setLoadProgress] = useState(0); // 로딩 진행률
   const [retryCount, setRetryCount] = useState(0); // 재시도 횟수
@@ -2695,11 +2730,11 @@ function ServiceList() {
     const currentTags = overrideTags !== null ? overrideTags : selectedTags;
 
     // 검색어가 없거나 다른 필터도 없으면 전체 데이터 로딩으로 돌아가기
-    if (!term && currentStatuses.length === 0 && currentTags.length === 0 && !dateFilter.startDate && !dateFilter.endDate && !modelSearchTerm.trim() && !solutionSearchTerm.trim()) {
+    if (!term && currentStatuses.length === 0 && currentTags.length === 0 && !dateFilter.startDate && !dateFilter.endDate && !modelSearchTerm.trim() && !solutionSearchTerm.trim() && !partsSearchTerm.trim()) {
       fetchServices();
       return;
     }
-    
+
     // 서버 사이드 검색 실행
     const searchParams = {
       searchTerm: term,
@@ -2708,7 +2743,8 @@ function ServiceList() {
       dateFilter: (dateFilter.startDate || dateFilter.endDate) ? dateFilter : null,
       searchMode,
       modelSearchTerm: modelSearchTerm.trim(),
-      solutionSearchTerm: solutionSearchTerm.trim()
+      solutionSearchTerm: solutionSearchTerm.trim(),
+      partsSearchTerm: partsSearchTerm.trim()
     };
     
     console.log('[ServiceList] 검색 실행 시 필터 상태:', { 
@@ -2720,7 +2756,7 @@ function ServiceList() {
     });
     
     performServerSearch(searchParams, 0);
-  }, [inputValue, selectedStatuses, selectedTags, dateFilter, searchMode, modelSearchTerm, solutionSearchTerm, fetchServices, performServerSearch]);
+  }, [inputValue, selectedStatuses, selectedTags, dateFilter, searchMode, modelSearchTerm, solutionSearchTerm, partsSearchTerm, fetchServices, performServerSearch]);
   const [networkError, setNetworkError] = useState(false); // 네트워크 오류 상태
   const [isOnline, setIsOnline] = useState(navigator.onLine); // 온라인 상태
   const [backgroundLoading, setBackgroundLoading] = useState(false); // 백그라운드 로딩 상태
@@ -2784,9 +2820,10 @@ function ServiceList() {
         const currentDateFilter = dateFilter;
         const currentModelSearchTerm = modelSearchTerm.trim();
         const currentSolutionSearchTerm = solutionSearchTerm.trim();
-        
+        const currentPartsSearchTerm = partsSearchTerm.trim();
+
         // 상태 필터가 없고 다른 필터도 없으면 전체 데이터 로딩
-        if (value.length === 0 && !currentInputValue && currentSelectedTags.length === 0 && !currentDateFilter.startDate && !currentDateFilter.endDate && !currentModelSearchTerm && !currentSolutionSearchTerm) {
+        if (value.length === 0 && !currentInputValue && currentSelectedTags.length === 0 && !currentDateFilter.startDate && !currentDateFilter.endDate && !currentModelSearchTerm && !currentSolutionSearchTerm && !currentPartsSearchTerm) {
           console.log('[ServiceList] 모든 필터가 없음 - 전체 데이터 로딩');
           fetchServices();
         } else {
@@ -2919,7 +2956,8 @@ function ServiceList() {
             setSearchMode(filterState.searchMode || 'AND');
             setModelSearchTerm(filterState.modelSearchTerm || '');
             setSolutionSearchTerm(filterState.solutionSearchTerm || '');
-            
+            setPartsSearchTerm(filterState.partsSearchTerm || '');
+
             // 필터 복원 후 자동 검색 실행 비활성화 (페이지 로딩 시 불필요한 검색 방지)
             console.log('[ServiceList] 데이터 로드 후 필터 복원 완료 - 자동 검색 비활성화');
             
@@ -2974,7 +3012,8 @@ function ServiceList() {
             setSearchMode(filterState.searchMode || 'AND');
             setModelSearchTerm(filterState.modelSearchTerm || '');
             setSolutionSearchTerm(filterState.solutionSearchTerm || '');
-            
+            setPartsSearchTerm(filterState.partsSearchTerm || '');
+
             console.log('[ServiceList] 필터 상태 복원 완료');
           } catch (err) {
             console.error('강제 필터 상태 복원 실패:', err);
@@ -3023,7 +3062,7 @@ function ServiceList() {
   useEffect(() => {
     saveFilterState();
     // eslint-disable-next-line
-  }, [selectedBrand, statusFilter, dateFilter, inputValue, searchTerm, selectedStatuses, selectedTags, searchMode, modelSearchTerm, solutionSearchTerm]);
+  }, [selectedBrand, statusFilter, dateFilter, inputValue, searchTerm, selectedStatuses, selectedTags, searchMode, modelSearchTerm, solutionSearchTerm, partsSearchTerm]);
 
   
   // 나머지 필터들(태그, 날짜, 기종, 처리내역)은 자동 검색하지 않음 - 검색 버튼 클릭 시에만 실행
@@ -3433,7 +3472,7 @@ function ServiceList() {
             placeholder="처리내역으로 검색"
             value={solutionSearchTerm}
             onChange={(e) => setSolutionSearchTerm(e.target.value)}
-            sx={{ 
+            sx={{
               flex: { xs: '1 1 100%', md: '1 1 auto' },
               width: { xs: '100%', md: 'auto' },
               minWidth: { xs: 'auto', md: 150 },
@@ -3449,6 +3488,35 @@ function ServiceList() {
                     onClick={() => setSolutionSearchTerm('')}
                     size="small"
                     aria-label="문의&처리내역 검색어 초기화"
+                    sx={{ color: 'gray' }}
+                  >
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ) : null
+            }}
+          />
+          <TextField
+            variant="outlined"
+            placeholder="부품명으로 검색"
+            value={partsSearchTerm}
+            onChange={(e) => setPartsSearchTerm(e.target.value)}
+            sx={{
+              flex: { xs: '1 1 100%', md: '1 1 auto' },
+              width: { xs: '100%', md: 'auto' },
+              minWidth: { xs: 'auto', md: 150 },
+              maxWidth: { xs: '100%', md: 200 }
+            }}
+            size="small"
+            label="사용부품 검색"
+            InputProps={{
+              endAdornment: partsSearchTerm ? (
+                <InputAdornment position="end">
+                  <IconButton
+                    edge="end"
+                    onClick={() => setPartsSearchTerm('')}
+                    size="small"
+                    aria-label="사용부품 검색어 초기화"
                     sx={{ color: 'gray' }}
                   >
                     <CloseIcon fontSize="small" />
