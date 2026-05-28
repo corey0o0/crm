@@ -408,14 +408,13 @@ export default function Cafe24OrderList() {
   // - 미반영 주문에서 아이템 일부라도 C/R/E이면 반품/취소교환으로 분류
   const isOrderReturned = (order) => {
     const s = String(order.status).trim();
-    // 1. 주문 메인 상태 자체가 취소/반품/교환이면 무조건 반품건
+    // 1. 교환(E) 완료 + 재고 반영 완료 → 반영완료 탭으로 분류
+    if (s.startsWith('E') && order.is_transferred) return false;
+    // 2. 취소/반품/교환 상태면 반품건
     if (s.startsWith('C') || s.startsWith('R') || s.startsWith('E')) return true;
-    
-    // 2. 이미 반영 완료된 주문은 일부 아이템 교환/취소가 있어도 "반영 완료"로 유지
+    // 3. 반영 완료된 주문은 반영완료 탭 유지
     if (order.is_transferred) return false;
-    
-    // 3. 미반영 주문: 취소/반품/교환 완료 상태 아이템이 하나라도 있으면 반품건으로 분류
-    //    진행 중(C00, C10, E00 등)은 제외 — 완료된 것만 해당
+    // 4. 미반영 주문: 완료된 취소/반품/교환 아이템이 하나라도 있으면 반품건
     if (order.order_items && order.order_items.some(item =>
       CANCEL_STATUSES.includes(String(item.order_status).trim())
     )) return true;
@@ -876,10 +875,7 @@ export default function Cafe24OrderList() {
             // 6. Transfer sales
             await transferCafe24Orders([updatedOrder.id], tempConfig);
 
-            // 7. Mark as resolved (hide from active list)
-            await supabase.from('cafe24_orders').update({ is_deleted: true }).eq('id', updatedOrder.id);
-
-            setAlertDialog({ open: true, title: '스마트 교환 완료', message: '교환건의 재고 복구, 새 품목 동기화, 및 새 품목의 판매반영(재고 차감)이 자동으로 완료되었습니다.\n\n해당 주문은 [반영무시] 탭으로 이동합니다.' });
+            setAlertDialog({ open: true, title: '스마트 교환 완료', message: '교환건의 재고 복구, 새 품목 동기화, 및 새 품목의 판매반영(재고 차감)이 자동으로 완료되었습니다.\n\n해당 주문은 [반영완료] 탭으로 이동합니다.' });
             
             setWarehouseConfig(prev => ({
               ...prev,
@@ -1013,8 +1009,7 @@ export default function Cafe24OrderList() {
             });
           }
           await transferCafe24Orders([updatedOrder.id], tempConfig);
-          await supabase.from('cafe24_orders').update({ is_deleted: true }).eq('id', updatedOrder.id);
-          results.push({ id: order.order_id, action: '교환 자동처리 완료', ok: true });
+          results.push({ id: order.order_id, action: '교환 자동처리 완료 (반영완료 탭)', ok: true });
         } else if (!order.is_transferred) {
           await supabase.from('cafe24_orders').update({ is_deleted: true, is_transferred: false }).eq('id', order.id);
           results.push({ id: order.order_id, action: '무시 처리 완료', ok: true });
