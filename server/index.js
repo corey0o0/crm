@@ -348,7 +348,7 @@ app.get('/api/chatbot/order', async (req, res) => {
     const phone = (data.buyer_phone || '').replace(/\D/g, '');
     if (!phone.endsWith(phone_last4.trim())) return res.json({ found: true, verified: false });
 
-    const CANCEL_STATUS = ['C11','C40','R40','E40'];
+    const CANCEL_STATUS = ['C11', 'C34', 'C36', 'C40', 'C47', 'C48', 'C49', 'R34', 'R36', 'R40', 'E40'];
     const rawItems = data.order_items || [];
     const validItems = rawItems.filter(it => !CANCEL_STATUS.includes(it.order_status));
     const items = validItems.map(it => ({
@@ -413,8 +413,6 @@ app.get('/api/chatbot/service', async (req, res) => {
       found: true,
       service: {
         id: row.id,
-        customer_name: row.customer_name,
-        phone: row.customer_phone,
         product_name: row.product_name,
         symptom: row.symptom,
         status: row.status,

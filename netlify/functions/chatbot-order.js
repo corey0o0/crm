@@ -13,7 +13,7 @@ const CAFE24_STATUS_KO = {
   'M':'배송준비중','T':'배송중','F':'배송완료','W':'배송보류',
 };
 
-const CANCEL_STATUS = ['C11','C40','R40','E40'];
+const CANCEL_STATUS = ['C11', 'C34', 'C36', 'C40', 'C47', 'C48', 'C49', 'R34', 'R36', 'R40', 'E40'];
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return preflight();

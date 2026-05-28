@@ -48,8 +48,6 @@ exports.handler = async (event) => {
     usage: { today: count + 1, limit },
     service: {
       id: row.id,
-      customer_name: row.customer_name,
-      phone: row.customer_phone,
       product_name: row.product_name,
       symptom: row.symptom,
       status: row.status,
