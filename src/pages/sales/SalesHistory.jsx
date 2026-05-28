@@ -3,9 +3,8 @@ import {
   Box, Typography, Paper, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Chip, TextField, Button, Grid, Divider,
   TablePagination, CircularProgress, FormControl, InputLabel, Select, MenuItem, Stack, ButtonGroup,
-  ToggleButton, ToggleButtonGroup, Collapse, IconButton
+  ToggleButton, ToggleButtonGroup
 } from '@mui/material';
-import { ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon } from '@mui/icons-material';
 import { Assessment as AssessmentIcon, FileDownload as FileDownloadIcon } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
@@ -70,8 +69,6 @@ function SalesHistory() {
 
   // 공급가/부가세 표시 토글
   const [showTaxDetails, setShowTaxDetails] = useState(false);
-  // 대리점별/브랜드별 통계 접기
-  const [showAgencyStats, setShowAgencyStats] = useState(false);
 
   // 페이지네이션
   const [page, setPage] = useState(0);
@@ -827,40 +824,6 @@ function SalesHistory() {
   const countOnline = uniqueGroups.online.size;
   const countAgency = uniqueGroups.agency.size;
 
-  // ── 대리점별 매출 & 브랜드별 출고 통계 ──────────────────
-  const agencyBreakdown = {};
-  const brandBreakdown = {};
-  filtered.forEach(r => {
-    const price = Number(r.total_price || 0);
-    const isAgency = r.sales_channel && !B2C_CHANNELS.includes(r.sales_channel);
-    if (!isAgency) return;
-    const agName = r.sales_channel;
-    if (!agencyBreakdown[agName]) agencyBreakdown[agName] = { amount: 0, orders: new Set(), airframe: 0, airframeAmt: 0, parts: 0, partsAmt: 0 };
-    agencyBreakdown[agName].amount += price;
-    if (r._orderId) agencyBreakdown[agName].orders.add(r._orderId);
-    const cat = (r.part_category || '기타').toLowerCase();
-    if (cat === '기체') {
-      agencyBreakdown[agName].airframe += Number(r.quantity || 0);
-      agencyBreakdown[agName].airframeAmt += price;
-    } else {
-      agencyBreakdown[agName].parts += Number(r.quantity || 0);
-      agencyBreakdown[agName].partsAmt += price;
-    }
-    // 브랜드별
-    const brand = r.part_brand && r.part_brand !== '-' ? r.part_brand : '기타';
-    if (!brandBreakdown[brand]) brandBreakdown[brand] = { airframes: {}, airframeTotalQty: 0, airframeAmt: 0, parts: 0, partsAmt: 0 };
-    if (cat === '기체') {
-      const modelName = r.part_name || '알 수 없는 기체';
-      if (!brandBreakdown[brand].airframes[modelName]) brandBreakdown[brand].airframes[modelName] = { qty: 0, amount: 0 };
-      brandBreakdown[brand].airframes[modelName].qty += Number(r.quantity || 0);
-      brandBreakdown[brand].airframes[modelName].amount += price;
-      brandBreakdown[brand].airframeTotalQty += Number(r.quantity || 0);
-      brandBreakdown[brand].airframeAmt += price;
-    } else {
-      brandBreakdown[brand].parts += Number(r.quantity || 0);
-      brandBreakdown[brand].partsAmt += price;
-    }
-  });
 
   // ── 월별 합계 계산 ───────────────────────────────────
   const monthlyTotals = {};
@@ -1018,137 +981,6 @@ function SalesHistory() {
         </Grid>
       </Grid>
 
-      {/* 대리점별 매출 & 브랜드별 출고 현황 */}
-      {Object.keys(agencyBreakdown).length > 0 && (
-        <Paper sx={{ mb: 3 }}>
-          <Box
-            onClick={() => setShowAgencyStats(!showAgencyStats)}
-            sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', '&:hover': { bgcolor: 'grey.50' } }}
-          >
-            <Typography variant="subtitle1" fontWeight="bold">📊 대리점별 매출 / 브랜드별 출고 현황 (B2B)</Typography>
-            <IconButton size="small">{showAgencyStats ? <ExpandLessIcon /> : <ExpandMoreIcon />}</IconButton>
-          </Box>
-          <Collapse in={showAgencyStats}>
-            <Grid container spacing={2} sx={{ p: 2, pt: 0 }}>
-              {/* 대리점별 매출 */}
-              <Grid item xs={12} md={6}>
-                <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1 }}>대리점별 매출</Typography>
-                <TableContainer sx={{ borderRadius: 1, border: '1px solid #e0e0e0' }}>
-                  <Table size="small" sx={{ '& th, & td': { border: '1px solid #e0e0e0', py: 0.8, px: 1.2, fontSize: '0.82rem' } }}>
-                    <TableHead sx={{ bgcolor: 'grey.100' }}>
-                      <TableRow>
-                        <TableCell>대리점명</TableCell>
-                        <TableCell align="right">기체 판매</TableCell>
-                        <TableCell align="right">파츠 판매</TableCell>
-                        <TableCell align="right">주문 건수</TableCell>
-                        <TableCell align="right">총 주문 금액</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {Object.entries(agencyBreakdown)
-                        .sort((a, b) => b[1].amount - a[1].amount)
-                        .map(([name, d]) => (
-                          <TableRow key={name} hover>
-                            <TableCell sx={{ fontWeight: 500 }}>{name}</TableCell>
-                            <TableCell align="right">
-                              <Typography variant="body2" sx={{ fontWeight: d.airframe > 0 ? 'bold' : 'normal', color: d.airframe > 0 ? 'primary.main' : 'inherit' }}>{d.airframe}대</Typography>
-                              <Typography variant="caption" color="textSecondary">{d.airframeAmt.toLocaleString()}원</Typography>
-                            </TableCell>
-                            <TableCell align="right">
-                              <Typography variant="body2">{d.parts}개</Typography>
-                              <Typography variant="caption" color="textSecondary">{d.partsAmt.toLocaleString()}원</Typography>
-                            </TableCell>
-                            <TableCell align="right">{d.orders.size}건</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>{d.amount.toLocaleString()}원</TableCell>
-                          </TableRow>
-                        ))}
-                    </TableBody>
-                    <TableHead sx={{ bgcolor: 'grey.200' }}>
-                      <TableRow>
-                        <TableCell sx={{ fontWeight: 'bold' }}>합계</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                          {Object.values(agencyBreakdown).reduce((s, d) => s + d.airframe, 0)}대 / {Object.values(agencyBreakdown).reduce((s, d) => s + d.airframeAmt, 0).toLocaleString()}원
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                          {Object.values(agencyBreakdown).reduce((s, d) => s + d.parts, 0)}개 / {Object.values(agencyBreakdown).reduce((s, d) => s + d.partsAmt, 0).toLocaleString()}원
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                          {new Set(Object.values(agencyBreakdown).flatMap(d => [...d.orders])).size}건
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
-                          {Object.values(agencyBreakdown).reduce((s, d) => s + d.amount, 0).toLocaleString()}원
-                        </TableCell>
-                      </TableRow>
-                    </TableHead>
-                  </Table>
-                </TableContainer>
-              </Grid>
-
-              {/* 브랜드별 출고 현황 */}
-              <Grid item xs={12} md={6}>
-                <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1 }}>브랜드별 제품 출고 현황 (대리점 B2B)</Typography>
-                <TableContainer sx={{ borderRadius: 1, border: '1px solid #e0e0e0' }}>
-                  <Table size="small" sx={{ '& th, & td': { border: '1px solid #e0e0e0', py: 0.8, px: 1.2, fontSize: '0.82rem' } }}>
-                    <TableHead sx={{ bgcolor: 'grey.100' }}>
-                      <TableRow>
-                        <TableCell>브랜드</TableCell>
-                        <TableCell>기체 종류별 판매</TableCell>
-                        <TableCell align="right">기체 합계</TableCell>
-                        <TableCell align="right">부품/용품</TableCell>
-                        <TableCell align="right">총 합계</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {Object.entries(brandBreakdown)
-                        .sort((a, b) => (b[1].airframeAmt + b[1].partsAmt) - (a[1].airframeAmt + a[1].partsAmt))
-                        .map(([brand, d]) => (
-                          <TableRow key={brand} hover>
-                            <TableCell sx={{ fontWeight: 'bold', verticalAlign: 'top' }}>{brand}</TableCell>
-                            <TableCell sx={{ verticalAlign: 'top' }}>
-                              {Object.entries(d.airframes).length > 0 ? (
-                                Object.entries(d.airframes)
-                                  .sort((a, b) => b[1].qty - a[1].qty)
-                                  .map(([model, info], idx, arr) => (
-                                    <Box key={model} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: idx === arr.length - 1 ? 0 : 0.8, pb: idx === arr.length - 1 ? 0 : 0.8, borderBottom: idx === arr.length - 1 ? 'none' : '1px solid #eee' }}>
-                                      <Typography variant="caption" color="textSecondary" sx={{ pr: 1, flex: 1, wordBreak: 'keep-all' }}>{model}</Typography>
-                                      <Box sx={{ textAlign: 'right', minWidth: 60 }}>
-                                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main', fontSize: '0.8rem' }}>{info.qty}대</Typography>
-                                        <Typography variant="caption" color="textSecondary">{info.amount.toLocaleString()}</Typography>
-                                      </Box>
-                                    </Box>
-                                  ))
-                              ) : <Typography variant="caption" color="textSecondary">-</Typography>}
-                            </TableCell>
-                            <TableCell align="right" sx={{ verticalAlign: 'top' }}>{d.airframeAmt.toLocaleString()}</TableCell>
-                            <TableCell align="right" sx={{ verticalAlign: 'top' }}>
-                              <Typography variant="body2" sx={{ fontSize: '0.82rem' }}>{d.parts}개</Typography>
-                              <Typography variant="caption" color="textSecondary">{d.partsAmt.toLocaleString()}</Typography>
-                            </TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', verticalAlign: 'top' }}>{(d.airframeAmt + d.partsAmt).toLocaleString()}</TableCell>
-                          </TableRow>
-                        ))}
-                    </TableBody>
-                    <TableHead sx={{ bgcolor: 'grey.200' }}>
-                      <TableRow>
-                        <TableCell colSpan={2} sx={{ fontWeight: 'bold' }}>합계</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                          {Object.values(brandBreakdown).reduce((s, d) => s + d.airframeAmt, 0).toLocaleString()}
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                          {Object.values(brandBreakdown).reduce((s, d) => s + d.parts, 0)}개 / {Object.values(brandBreakdown).reduce((s, d) => s + d.partsAmt, 0).toLocaleString()}
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
-                          {Object.values(brandBreakdown).reduce((s, d) => s + d.airframeAmt + d.partsAmt, 0).toLocaleString()}
-                        </TableCell>
-                      </TableRow>
-                    </TableHead>
-                  </Table>
-                </TableContainer>
-              </Grid>
-            </Grid>
-          </Collapse>
-        </Paper>
-      )}
 
       {/* 검색/기간 통합 필터 UI */}
       <Paper sx={{ p: 2, mb: 3 }}>
