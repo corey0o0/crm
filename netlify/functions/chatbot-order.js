@@ -21,10 +21,10 @@ exports.handler = async (event) => {
   const supabase = getSupabase();
   const ip = getIp(event);
   const p = event.queryStringParameters || {};
-  const { order_id, phone_last4, mall_id } = p;
+  const { order_id, buyer_name, phone_last4, mall_id } = p;
 
-  if (!order_id || !phone_last4 || !mall_id) {
-    return err(400, 'order_id, phone_last4, mall_id 필수');
+  if (!order_id || !buyer_name || !phone_last4 || !mall_id) {
+    return err(400, 'order_id, buyer_name, phone_last4, mall_id 필수');
   }
 
   const { allowed, count, limit } = await checkRateLimit(supabase, ip, 'order');
@@ -32,7 +32,7 @@ exports.handler = async (event) => {
     return err(429, `일일 주문 조회 한도(${limit}회)를 초과했습니다. 내일 다시 시도해주세요.`);
   }
 
-  const selectCols = 'order_id, buyer_phone, order_date, status, total_amount, shipping_fee, order_items';
+  const selectCols = 'order_id, buyer_name, buyer_phone, order_date, status, total_amount, shipping_fee, order_items';
   const mallId = mall_id.trim();
   const rawId = order_id.trim();
 
@@ -60,8 +60,12 @@ exports.handler = async (event) => {
   if (error) return err(500, error.message);
   if (!data) return ok({ found: false });
 
+  const dbName = (data.buyer_name || '').replace(/\s/g, '');
+  const inputName = buyer_name.trim().replace(/\s/g, '');
   const phone = (data.buyer_phone || '').replace(/\D/g, '');
-  if (!phone.endsWith(phone_last4.trim())) return ok({ found: true, verified: false });
+  if (!dbName || dbName !== inputName || !phone.endsWith(phone_last4.trim())) {
+    return ok({ found: true, verified: false });
+  }
 
   const rawItems = data.order_items || [];
   const validItems = rawItems.filter(it => !CANCEL_STATUS.includes(it.order_status));

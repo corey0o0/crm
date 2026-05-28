@@ -324,11 +324,11 @@ const CAFE24_STATUS_KO = {
 // 주문 조회: GET /api/chatbot/order?order_id=...&phone_last4=...&mall_id=...
 app.get('/api/chatbot/order', async (req, res) => {
   try {
-    const { order_id, phone_last4, mall_id } = req.query;
-    if (!order_id || !phone_last4 || !mall_id) {
-      return res.status(400).json({ error: 'order_id, phone_last4, mall_id 필수' });
+    const { order_id, buyer_name, phone_last4, mall_id } = req.query;
+    if (!order_id || !buyer_name || !phone_last4 || !mall_id) {
+      return res.status(400).json({ error: 'order_id, buyer_name, phone_last4, mall_id 필수' });
     }
-    const selectCols = 'order_id, buyer_phone, order_date, status, total_amount, shipping_fee, order_items';
+    const selectCols = 'order_id, buyer_name, buyer_phone, order_date, status, total_amount, shipping_fee, order_items';
     const mallId = mall_id.trim();
     const rawId = order_id.trim();
 
@@ -345,8 +345,12 @@ app.get('/api/chatbot/order', async (req, res) => {
     if (error) { console.error('[chatbot/order]', error); return res.status(500).json({ error: error.message }); }
     if (!data) return res.json({ found: false });
 
+    const dbName = (data.buyer_name || '').replace(/\s/g, '');
+    const inputName = buyer_name.trim().replace(/\s/g, '');
     const phone = (data.buyer_phone || '').replace(/\D/g, '');
-    if (!phone.endsWith(phone_last4.trim())) return res.json({ found: true, verified: false });
+    if (!dbName || dbName !== inputName || !phone.endsWith(phone_last4.trim())) {
+      return res.json({ found: true, verified: false });
+    }
 
     const CANCEL_STATUS = ['C11', 'C34', 'C36', 'C40', 'C47', 'C48', 'C49', 'R34', 'R36', 'R40', 'E40'];
     const rawItems = data.order_items || [];

@@ -270,9 +270,10 @@
     }
   }
 
-  async function lookupOrder(orderId, phoneLast4) {
+  async function lookupOrder(orderId, buyerName, phoneLast4) {
     const params = new URLSearchParams({
       order_id: orderId.trim(),
+      buyer_name: buyerName.trim(),
       phone_last4: phoneLast4.trim(),
       mall_id: BRAND.mallId,
     });
@@ -283,7 +284,7 @@
     if (!res.ok) throw new Error('서버 오류');
     const data = await res.json();
     if (!data.found) return null;
-    if (!data.verified) return 'wrong_phone';
+    if (!data.verified) return 'wrong_info';
     return data.order;
   }
 
@@ -601,7 +602,7 @@
     let isOpen    = false;
     let isLoading = false;
     let history   = [];
-    let convState = { step: 'IDLE', orderNo: null };
+    let convState = { step: 'IDLE', orderNo: null, buyerName: null };
 
     // ── 메시지 추가 헬퍼 ──
     function addTextMsg(text, role, badgeClass, badgeLabel) {
@@ -685,26 +686,34 @@
         if (detectEscalation(text)) {
           hideTyping();
           addTextMsg('불편을 드려 정말 죄송합니다. 😔\n담당자가 직접 도와드리겠습니다. 고객센터(평일 09:00~18:00)로 연락주시면 신속하게 처리해 드립니다.', 'bot', 'badge-escalate', '상담원 연결');
-          convState = { step: 'IDLE', orderNo: null };
+          convState = { step: 'IDLE', orderNo: null, buyerName: null };
 
         // 2. 주문 조회 — 주문번호 대기 중
         } else if (convState.step === 'ORDER_AWAIT_NO') {
           hideTyping();
           convState.orderNo = text.trim();
+          convState.step = 'ORDER_AWAIT_NAME';
+          addTextMsg('주문자 이름을 입력해주세요.', 'bot');
+          addHint('예: 홍길동');
+
+        // 3. 주문 조회 — 이름 대기 중
+        } else if (convState.step === 'ORDER_AWAIT_NAME') {
+          hideTyping();
+          convState.buyerName = text.trim();
           convState.step = 'ORDER_AWAIT_PHONE';
-          addTextMsg('본인 확인을 위해 주문 시 입력한 연락처 뒤 4자리를 입력해주세요.', 'bot');
+          addTextMsg('주문 시 입력한 연락처 뒤 4자리를 입력해주세요.', 'bot');
           addHint('예: 5678');
 
-        // 3. 주문 조회 — 연락처 확인
+        // 4. 주문 조회 — 이름 + 연락처 확인
         } else if (convState.step === 'ORDER_AWAIT_PHONE') {
           const savedOrderNo = convState.orderNo;
-          const result = await lookupOrder(convState.orderNo, text);
+          const result = await lookupOrder(convState.orderNo, convState.buyerName, text);
           hideTyping();
-          convState = { step: 'IDLE', orderNo: null };
+          convState = { step: 'IDLE', orderNo: null, buyerName: null };
           if (!result) {
             addTextMsg(`주문번호 "${savedOrderNo}"를 찾을 수 없습니다. 주문번호를 다시 확인해주세요.`, 'bot');
-          } else if (result === 'wrong_phone') {
-            addTextMsg('연락처 정보가 일치하지 않습니다. 주문 시 입력한 연락처를 확인해주세요.', 'bot');
+          } else if (result === 'wrong_info') {
+            addTextMsg('입력하신 정보가 일치하지 않습니다. 이름과 연락처를 다시 확인해주세요.', 'bot');
           } else {
             addTextMsg('주문 정보를 확인했습니다. 📦', 'bot', 'badge-lookup', '주문 조회');
             addCardMsg(buildOrderCard(result), null, null);
@@ -715,7 +724,7 @@
         } else if (convState.step === 'SERVICE_AWAIT_ID') {
           const result = await lookupService(text);
           hideTyping();
-          convState = { step: 'IDLE', orderNo: null };
+          convState = { step: 'IDLE', orderNo: null, buyerName: null };
           if (!result) {
             addTextMsg('A/S 접수 정보를 찾을 수 없습니다. 접수번호 또는 연락처를 다시 확인해주세요.\n고객센터(평일 09:00~18:00)에서도 확인 가능합니다.', 'bot');
           } else {
