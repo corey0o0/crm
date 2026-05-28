@@ -429,9 +429,21 @@ function AddService() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [RECEPTION_TIME_OPTIONS]);
 
-  // 접수일시 변경 시 문의내용 앞에 날짜·시간 자동 삽입
+  // 접수일시 변경 시 문의내용 앞에 날짜·시간 자동 삽입 (현재와 다를 때만)
   useEffect(() => {
     if (!formData.reception_date || !formData.reception_time) return;
+
+    // 현재 날짜·시간 계산 (초기값과 동일한 30분 단위 반올림)
+    const now = new Date();
+    const todayDate = now.toISOString().slice(0, 10);
+    let nowHour = now.getHours();
+    let nowMin = now.getMinutes();
+    if (nowMin > 44) { nowHour += 1; nowMin = 0; }
+    else if (nowMin > 14) { nowMin = 30; }
+    else { nowMin = 0; }
+    if (nowHour < 10 || nowHour > 20 || (nowHour === 20 && nowMin > 0)) { nowHour = 10; nowMin = 30; }
+    const nowTimeStr = `${String(nowHour).padStart(2, '0')}:${String(nowMin).padStart(2, '0')}`;
+
     const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
     const d = new Date(`${formData.reception_date}T${formData.reception_time}:00`);
     const m = d.getMonth() + 1;
@@ -439,7 +451,10 @@ function AddService() {
     const dow = DAY_NAMES[d.getDay()];
     const hh = String(d.getHours()).padStart(2, '0');
     const mm = String(d.getMinutes()).padStart(2, '0');
-    const newPrefix = `[${m}월 ${day}일 (${dow}) ${hh}:${mm}]`;
+
+    // 현재 날짜·시간과 동일하면 prefix 없음
+    const isDifferent = formData.reception_date !== todayDate || formData.reception_time !== nowTimeStr;
+    const newPrefix = isDifferent ? `[${m}월 ${day}일 (${dow}) ${hh}:${mm}]` : '';
     if (newPrefix === dateTimePrefixRef.current) return;
     setFormData(prev => {
       let symptom = prev.symptom || '';
