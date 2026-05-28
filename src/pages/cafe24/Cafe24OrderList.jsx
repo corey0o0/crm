@@ -876,7 +876,10 @@ export default function Cafe24OrderList() {
             // 6. Transfer sales
             await transferCafe24Orders([updatedOrder.id], tempConfig);
 
-            setAlertDialog({ open: true, title: '스마트 교환 완료', message: '교환건의 재고 복구, 새 품목 동기화, 및 새 품목의 판매반영(재고 차감)이 자동으로 완료되었습니다.' });
+            // 7. Mark as resolved (hide from active list)
+            await supabase.from('cafe24_orders').update({ is_deleted: true }).eq('id', updatedOrder.id);
+
+            setAlertDialog({ open: true, title: '스마트 교환 완료', message: '교환건의 재고 복구, 새 품목 동기화, 및 새 품목의 판매반영(재고 차감)이 자동으로 완료되었습니다.\n\n해당 주문은 [반영무시] 탭으로 이동합니다.' });
             
             setWarehouseConfig(prev => ({
               ...prev,
@@ -1010,6 +1013,7 @@ export default function Cafe24OrderList() {
             });
           }
           await transferCafe24Orders([updatedOrder.id], tempConfig);
+          await supabase.from('cafe24_orders').update({ is_deleted: true }).eq('id', updatedOrder.id);
           results.push({ id: order.order_id, action: '교환 자동처리 완료', ok: true });
         } else if (!order.is_transferred) {
           await supabase.from('cafe24_orders').update({ is_deleted: true, is_transferred: false }).eq('id', order.id);
