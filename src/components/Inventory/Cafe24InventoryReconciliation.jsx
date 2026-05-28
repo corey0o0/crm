@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Button, CircularProgress, Alert, Chip, TextField, InputAdornment
@@ -11,6 +11,10 @@ import { getCafe24Malls, compareCafe24Inventory } from '../../utils/cafe24Api';
 const CACHE_KEY = 'cafe24_inventory_comparison_cache';
 
 const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalculatedInventory = {} }) => {
+  // 항상 최신 recalculatedInventory를 참조 (async 함수의 stale closure 방지)
+  const inventoryRef = useRef(recalculatedInventory);
+  useEffect(() => { inventoryRef.current = recalculatedInventory; }, [recalculatedInventory]);
+
   const [malls, setMalls] = useState([]);
   const [loadingConfig, setLoadingConfig] = useState(true);
   
@@ -75,8 +79,9 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
 
       let totalCrmStock = 0;
       const warehouseStocks = {};
+      const inv = inventoryRef.current;
       warehouses.forEach(w => {
-        const stock = recalculatedInventory[w.id]?.[product.id] || 0;
+        const stock = inv[w.id]?.[product.id] || 0;
         warehouseStocks[w.id] = stock;
         totalCrmStock += stock;
       });
