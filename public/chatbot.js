@@ -369,6 +369,20 @@
     return data.found ? data.service : null;
   }
 
+  async function registerService(name, phone, productName, symptom) {
+    const base = CONFIG.useLlmProxy
+      ? `${CONFIG.apiUrl}/.netlify/functions/chatbot-register-service`
+      : `${CONFIG.apiUrl}/api/chatbot/register-service`;
+    const res = await fetch(base, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, phone, product_name: productName, symptom, brand: BRAND_KEY }),
+    });
+    if (!res.ok) throw new Error('서버 오류');
+    const data = await res.json();
+    return data.service_id;
+  }
+
   // ─── CSS ──────────────────────────────────────────────────────────────────
   const CSS = `
     :host { all: initial; }
@@ -672,7 +686,7 @@
     let isOpen    = false;
     let isLoading = false;
     let history   = [];
-    let convState = { step: 'IDLE', orderNo: null, buyerName: null };
+    let convState = { step: 'IDLE', orderNo: null, buyerName: null, asName: null, asPhone: null, asProduct: null };
 
     // ── 메시지 추가 헬퍼 ──
     function addTextMsg(text, role, badgeClass, badgeLabel) {
@@ -774,7 +788,7 @@
         } else if (detectEscalation(text)) {
           hideTyping();
           addTextMsg('불편을 드려 정말 죄송합니다. 😔\n담당자가 직접 도와드리겠습니다. 고객센터(평일 09:00~18:00)로 연락주시면 신속하게 처리해 드립니다.', 'bot', 'badge-escalate', '상담원 연결');
-          convState = { step: 'IDLE', orderNo: null, buyerName: null };
+          convState = { step: 'IDLE', orderNo: null, buyerName: null, asName: null, asPhone: null, asProduct: null };
 
         // 2. 주문 조회 — 주문번호 대기 중
         } else if (convState.step === 'ORDER_AWAIT_NO') {
@@ -797,7 +811,7 @@
           const savedOrderNo = convState.orderNo;
           const result = await lookupOrder(convState.orderNo, convState.buyerName, text);
           hideTyping();
-          convState = { step: 'IDLE', orderNo: null, buyerName: null };
+          convState = { step: 'IDLE', orderNo: null, buyerName: null, asName: null, asPhone: null, asProduct: null };
           if (!result) {
             addTextMsg(`주문번호 "${savedOrderNo}"를 찾을 수 없습니다. 주문번호를 다시 확인해주세요.`, 'bot');
           } else if (result === 'wrong_info') {
@@ -812,7 +826,7 @@
         } else if (convState.step === 'SERVICE_AWAIT_ID') {
           const result = await lookupService(text);
           hideTyping();
-          convState = { step: 'IDLE', orderNo: null, buyerName: null };
+          convState = { step: 'IDLE', orderNo: null, buyerName: null, asName: null, asPhone: null, asProduct: null };
           if (!result) {
             addTextMsg('A/S 접수 정보를 찾을 수 없습니다. 접수번호 또는 연락처를 다시 확인해주세요.\n고객센터(평일 09:00~18:00)에서도 확인 가능합니다.', 'bot');
           } else {
@@ -821,40 +835,83 @@
             addQuickReplies([{ label: '💬 추가 문의', value: '안녕하세요' }]);
           }
 
-        // 5. 주문 조회 의도 감지
+        // 5. A/S 신규 접수 플로우
+        } else if (text === '__as_register__') {
+          hideTyping();
+          convState.step = 'AS_REG_NAME';
+          addTextMsg('A/S 접수를 시작합니다. 📝\n성함을 입력해주세요.', 'bot');
+          addHint('예: 홍길동');
+
+        } else if (convState.step === 'AS_REG_NAME') {
+          hideTyping();
+          convState.asName = text.trim();
+          convState.step = 'AS_REG_PHONE';
+          addTextMsg('연락처를 입력해주세요.', 'bot');
+          addHint('예: 010-1234-5678');
+
+        } else if (convState.step === 'AS_REG_PHONE') {
+          hideTyping();
+          convState.asPhone = text.trim();
+          convState.step = 'AS_REG_PRODUCT';
+          addTextMsg('제품명(모델명)을 입력해주세요.', 'bot');
+          addHint('예: X200 MAX SL / 블레이드FS');
+
+        } else if (convState.step === 'AS_REG_PRODUCT') {
+          hideTyping();
+          convState.asProduct = text.trim();
+          convState.step = 'AS_REG_SYMPTOM';
+          addTextMsg('증상을 간단히 입력해주세요.', 'bot');
+          addHint('예: 전원이 켜지지 않습니다 / E007 오류 발생');
+
+        } else if (convState.step === 'AS_REG_SYMPTOM') {
+          const { asName, asPhone, asProduct } = convState;
+          convState = { step: 'IDLE', orderNo: null, buyerName: null, asName: null, asPhone: null, asProduct: null };
+          const serviceId = await registerService(asName, asPhone, asProduct, text.trim());
+          hideTyping();
+          addTextMsg(
+            `A/S 접수가 완료되었습니다. ✅\n\n접수번호: ${serviceId}\n성함: ${asName}\n제품: ${asProduct}\n\n담당자 확인 후 연락드리겠습니다.\n고객센터: 평일 09:00~18:00`,
+            'bot', 'badge-lookup', 'A/S 접수'
+          );
+          addQuickReplies([
+            { label: '🔧 A/S 현황 조회', value: 'A/S 현황' },
+            { label: '🏠 처음으로', value: '__restart__' },
+          ]);
+
+        // 6. 주문 조회 의도 감지
         } else if (detectOrderIntent(text)) {
           hideTyping();
           convState.step = 'ORDER_AWAIT_NO';
           addTextMsg('주문 조회를 도와드리겠습니다. 📦\n카페24 주문번호를 입력해주세요.', 'bot');
           addHint('예: 20240501-000001');
 
-        // 6. A/S 조회 의도 감지
+        // 7. A/S 조회 의도 감지
         } else if (detectServiceIntent(text)) {
           hideTyping();
           convState.step = 'SERVICE_AWAIT_ID';
           addTextMsg('A/S 접수 현황을 확인해드리겠습니다. 🔧\nA/S 접수번호 또는 연락처를 입력해주세요.', 'bot');
           addHint('예: 1001 또는 010-1234-5678');
 
-        // 7. FAQ 매칭
+        // 8. FAQ 매칭
         } else {
           const faq = matchFaq(text);
           if (faq) {
             hideTyping();
             addTextMsg(faq.answer, 'bot', 'badge-faq', 'FAQ');
             addQuickReplies([
+              { label: '📝 A/S 접수하기', value: '__as_register__' },
+              { label: '🔧 A/S 현황 조회', value: 'A/S 현황' },
               { label: '🏠 처음으로', value: '__restart__' },
-              { label: '🔧 A/S 접수 조회', value: 'A/S 현황' },
             ]);
           } else {
-            // 8. LLM 폴백
+            // 9. LLM 폴백
             const reply = await callLlm(text, history);
             hideTyping();
             addTextMsg(reply, 'bot', 'badge-ai', 'AI');
             history.push({ role: 'user', content: text });
             history.push({ role: 'assistant', content: reply });
-            // A/S 접수 유도
             addQuickReplies([
-              { label: '🔧 A/S 접수 조회', value: 'A/S 현황' },
+              { label: '📝 A/S 접수하기', value: '__as_register__' },
+              { label: '🔧 A/S 현황 조회', value: 'A/S 현황' },
               { label: '🏠 처음으로', value: '__restart__' },
             ]);
           }

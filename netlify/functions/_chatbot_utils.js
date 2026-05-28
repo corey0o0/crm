@@ -9,7 +9,7 @@ const CORS = {
 };
 
 // 타입별 일일 허용 횟수
-const DAILY_LIMITS = { order: 30, service: 30, chat: 15 };
+const DAILY_LIMITS = { order: 30, service: 30, chat: 15, register: 5 };
 
 function getSupabase() {
   return createClient(

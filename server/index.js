@@ -430,6 +430,43 @@ app.get('/api/chatbot/service', async (req, res) => {
   }
 });
 
+// A/S 접수: POST /api/chatbot/register-service
+app.post('/api/chatbot/register-service', async (req, res) => {
+  try {
+    const { name, phone, product_name, symptom, brand } = req.body;
+    if (!name || !phone || !product_name || !symptom || !brand) {
+      return res.status(400).json({ error: 'name, phone, product_name, symptom, brand 필수' });
+    }
+
+    const now = new Date();
+    const kstIso = new Date(now.getTime() + 9 * 3600 * 1000).toISOString().replace('Z', '+09:00');
+
+    const { data, error } = await supabaseAdmin
+      .from('services')
+      .insert({
+        brand: brand.toUpperCase(),
+        customer_name: name.trim(),
+        customer_phone: phone.trim(),
+        product_name: product_name.trim(),
+        symptom: `[챗봇 접수] ${symptom.trim()}`,
+        status: '준비중',
+        reception_type: '기타',
+        writer: '챗봇',
+        reception_date: kstIso,
+        updated_at: now.toISOString(),
+      })
+      .select('id')
+      .single();
+
+    if (error) { console.error('[chatbot/register-service]', error); return res.status(500).json({ error: error.message }); }
+
+    return res.json({ success: true, service_id: data.id });
+  } catch (err) {
+    console.error('[chatbot/register-service]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 서버 시작
 app.listen(port, () => {
   console.log(`서버가 포트 ${port}에서 실행 중입니다.`);
