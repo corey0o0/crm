@@ -4,6 +4,9 @@
   // ─── BRAND CONFIG ─────────────────────────────────────────────────────────
   // Cafe24 footer에서 <script>window.CHATBOT_BRAND='nb'</script> 로 지정
   const BRAND_KEY = (window.CHATBOT_BRAND || 'nb').toLowerCase();
+  // 복수 인스턴스 위치 오프셋 (동시에 여러 브랜드 위젯을 띄울 때 사용)
+  const _offsetRight  = window.CHATBOT_OFFSET_RIGHT  !== undefined ? window.CHATBOT_OFFSET_RIGHT  : 24;
+  const _offsetBottom = window.CHATBOT_OFFSET_BOTTOM !== undefined ? window.CHATBOT_OFFSET_BOTTOM : 24;
 
   const BRAND_CONFIG = {
     nb: {
@@ -413,7 +416,7 @@
     * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Noto Sans KR', sans-serif; }
 
     #toggle-btn {
-      position: fixed; bottom: 24px; right: 24px;
+      position: fixed; bottom: ${_offsetBottom}px; right: ${_offsetRight}px;
       width: 56px; height: 56px; border-radius: 50%;
       background: ${BRAND.color}; border: none; cursor: pointer;
       box-shadow: 0 4px 14px rgba(0,0,0,0.3);
@@ -429,7 +432,7 @@
     }
 
     #chat-window {
-      position: fixed; bottom: 90px; right: 24px;
+      position: fixed; bottom: ${_offsetBottom + 66}px; right: ${_offsetRight}px;
       width: 380px; max-height: 600px;
       background: white; border-radius: 16px;
       box-shadow: 0 8px 32px rgba(0,0,0,0.18);
@@ -667,7 +670,7 @@
   // ─── INIT ─────────────────────────────────────────────────────────────────
   function init() {
     const host = document.createElement('div');
-    host.id = '__nearbike-chatbot__';
+    host.id = `__chatbot_${BRAND_KEY}__`;
     document.body.appendChild(host);
     const shadow = host.attachShadow({ mode: 'open' });
 

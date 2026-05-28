@@ -71,8 +71,11 @@
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
-    <!-- 챗봇 위젯 테스트 (NB 브랜드) -->
-    <script>window.CHATBOT_BRAND = 'nb';</script>
+    <!-- 챗봇 위젯: XRB (오른쪽 아래) -->
+    <script>window.CHATBOT_BRAND = 'xrb'; window.CHATBOT_OFFSET_RIGHT = 24; window.CHATBOT_OFFSET_BOTTOM = 24;</script>
+    <script src="%PUBLIC_URL%/chatbot.js"></script>
+    <!-- 챗봇 위젯: NB (XRB 위) -->
+    <script>window.CHATBOT_BRAND = 'nb'; window.CHATBOT_OFFSET_RIGHT = 24; window.CHATBOT_OFFSET_BOTTOM = 90;</script>
     <script src="%PUBLIC_URL%/chatbot.js"></script>
   </body>
 </html>
