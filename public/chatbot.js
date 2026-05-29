@@ -293,6 +293,8 @@
     '취소':     '#ef4444',
   };
 
+  const GREETING_TRIGGERS = ['안녕', '반갑', '처음', '잘부탁', 'hi', 'hello', '헬로', '하이'];
+
   // ─── LOGIC ────────────────────────────────────────────────────────────────
   function detectEscalation(msg) {
     return ESCALATION_SIGNALS.some((kw) => msg.includes(kw));
@@ -944,8 +946,13 @@
               ...faqs.map(faq => ({ label: faq.keywords[0], value: `__faq_${FAQS.indexOf(faq)}` })),
               { label: '🏠 처음으로', value: '__restart__' },
             ]);
+          } else if (GREETING_TRIGGERS.some(kw => text.toLowerCase().replace(/\s/g,'').includes(kw))) {
+            // 9. 인사 감지 → 환영 + 메뉴
+            hideTyping();
+            addTextMsg(`안녕하세요! ${BRAND.name}입니다. ${BRAND.avatar}\n무엇을 도와드릴까요? 😊`, 'bot');
+            addQuickReplies(CATEGORY_CHIPS);
           } else {
-            // 9. LLM 폴백
+            // 10. LLM 폴백
             const reply = await callLlm(text, history);
             hideTyping();
             addTextMsg(reply, 'bot', 'badge-ai', 'AI');
