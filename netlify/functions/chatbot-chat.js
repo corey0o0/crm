@@ -31,10 +31,26 @@ exports.handler = async (event) => {
   let body;
   try { body = JSON.parse(event.body || '{}'); } catch { return err(400, '잘못된 요청'); }
 
-  const { message, history = [], brand = 'nb' } = body;
+  const { message, history = [], brand = 'nb', mode = 'chat', labels = [] } = body;
   if (!message) return err(400, 'message 필수');
 
-  const systemPrompt = SYSTEM_PROMPTS[brand] || SYSTEM_PROMPTS.nb;
+  let systemPrompt, maxTokens;
+
+  if (mode === 'smart' && labels.length > 0) {
+    const brandName = brand === 'xrb' ? 'X-RIDER' : '니어바이크';
+    const labelList = labels.join(' / ');
+    systemPrompt =
+      `당신은 ${brandName} 고객센터 AI입니다.\n` +
+      `아래 FAQ 카테고리 중 고객 질문이 해당하는 것이 있으면 반드시 JSON {"type":"faq","label":"카테고리명"} 만 반환하세요.\n` +
+      `해당 카테고리가 없을 때만 3문장 이내 한국어로 답변 후 {"type":"reply","reply":"답변내용"} 을 반환하세요.\n` +
+      `반드시 JSON만 반환하고 다른 텍스트는 절대 포함하지 마세요.\n\n` +
+      `FAQ 카테고리: ${labelList}`;
+    maxTokens = 350;
+  } else {
+    systemPrompt = SYSTEM_PROMPTS[brand] || SYSTEM_PROMPTS.nb;
+    maxTokens = 300;
+  }
+
   const messages = [
     ...history.slice(-6).map(h => ({ role: h.role, content: h.content })),
     { role: 'user', content: message },
@@ -49,7 +65,7 @@ exports.handler = async (event) => {
     },
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 300,
+      max_tokens: maxTokens,
       system: systemPrompt,
       messages,
     }),
@@ -62,9 +78,22 @@ exports.handler = async (event) => {
   }
 
   const data = await res.json();
-  const reply = data.content?.[0]?.text || '잠시 후 다시 시도해주세요.';
+  const rawText = data.content?.[0]?.text || '';
 
   await logRequest(supabase, ip, brand, 'chat');
 
-  return ok({ reply, usage: { today: count + 1, limit } });
+  if (mode === 'smart') {
+    // JSON 추출 (LLM이 마크다운 코드블록 등을 붙일 경우 대비)
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        const parsed = JSON.parse(jsonMatch[0]);
+        return ok({ ...parsed, usage: { today: count + 1, limit } });
+      } catch {}
+    }
+    // 파싱 실패 시 일반 답변으로 반환
+    return ok({ type: 'reply', reply: rawText || '잠시 후 다시 시도해주세요.', usage: { today: count + 1, limit } });
+  }
+
+  return ok({ reply: rawText || '잠시 후 다시 시도해주세요.', usage: { today: count + 1, limit } });
 };
