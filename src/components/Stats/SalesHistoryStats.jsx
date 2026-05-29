@@ -2215,51 +2215,6 @@ function SalesHistoryStats() {
             {tabValue === 4 && (
               <Box>
                 <Grid container spacing={3} sx={{ mt: 1, mb: 4 }}>
-                  <Grid item xs={12}>
-                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>대리점별 매출 (검색 조건 연동)</Typography>
-                    <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
-                      <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
-                        <TableHead sx={{ bgcolor: 'grey.100' }}>
-                          <TableRow>
-                            <TableCell>대리점명</TableCell>
-                            <TableCell align="right">기체 판매</TableCell>
-                            <TableCell align="right">파츠 판매</TableCell>
-                            <TableCell align="right">주문 건수</TableCell>
-                            <TableCell align="right">총 주문 금액</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {Object.entries(agencyStats).length > 0 ? (
-                            Object.entries(agencyStats)
-                              .sort((a, b) => b[1].amount - a[1].amount)
-                              .map(([agencyName, data]) => (
-                                <TableRow 
-                                  key={agencyName} 
-                                  hover 
-                                  onClick={() => setSelectedAgencyDetail({ agencyName, rows: data.rows })}
-                                  sx={{ cursor: 'pointer' }}
-                                >
-                                  <TableCell sx={{ fontWeight: 'bold' }}>{agencyName}</TableCell>
-                                  <TableCell align="right">
-                                     <Typography variant="body2" sx={{ fontWeight: data.airframe > 0 ? 'bold' : 'normal', color: data.airframe > 0 ? 'primary.main' : 'inherit' }}>{data.airframe}</Typography>
-                                     <Typography variant="caption" color="textSecondary">{formatCurrency(data.airframeAmount)}</Typography>
-                                  </TableCell>
-                                  <TableCell align="right">
-                                     <Typography variant="body2">{data.parts}</Typography>
-                                     <Typography variant="caption" color="textSecondary">{formatCurrency(data.partsAmount)}</Typography>
-                                  </TableCell>
-                                  <TableCell align="right">{data.count}</TableCell>
-                                  <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(data.amount)}</TableCell>
-                                </TableRow>
-                              ))
-                          ) : (
-                            <TableRow><TableCell colSpan={5} align="center">데이터가 없습니다.</TableCell></TableRow>
-                          )}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  </Grid>
-
                   <Grid item xs={12} md={6}>
                     <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>브랜드별 제품 출고 현황 (대리점 B2B)</Typography>
                     <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
@@ -2396,6 +2351,51 @@ function SalesHistoryStats() {
                             </TableRow>
                           </TableHead>
                         )}
+                      </Table>
+                    </TableContainer>
+                  </Grid>
+
+                  <Grid item xs={12}>
+                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>대리점별 매출 (검색 조건 연동)</Typography>
+                    <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
+                      <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
+                        <TableHead sx={{ bgcolor: 'grey.100' }}>
+                          <TableRow>
+                            <TableCell>대리점명</TableCell>
+                            <TableCell align="right">기체 판매</TableCell>
+                            <TableCell align="right">파츠 판매</TableCell>
+                            <TableCell align="right">주문 건수</TableCell>
+                            <TableCell align="right">총 주문 금액</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {Object.entries(agencyStats).length > 0 ? (
+                            Object.entries(agencyStats)
+                              .sort((a, b) => b[1].amount - a[1].amount)
+                              .map(([agencyName, data]) => (
+                                <TableRow
+                                  key={agencyName}
+                                  hover
+                                  onClick={() => setSelectedAgencyDetail({ agencyName, rows: data.rows })}
+                                  sx={{ cursor: 'pointer' }}
+                                >
+                                  <TableCell sx={{ fontWeight: 'bold' }}>{agencyName}</TableCell>
+                                  <TableCell align="right">
+                                     <Typography variant="body2" sx={{ fontWeight: data.airframe > 0 ? 'bold' : 'normal', color: data.airframe > 0 ? 'primary.main' : 'inherit' }}>{data.airframe}</Typography>
+                                     <Typography variant="caption" color="textSecondary">{formatCurrency(data.airframeAmount)}</Typography>
+                                  </TableCell>
+                                  <TableCell align="right">
+                                     <Typography variant="body2">{data.parts}</Typography>
+                                     <Typography variant="caption" color="textSecondary">{formatCurrency(data.partsAmount)}</Typography>
+                                  </TableCell>
+                                  <TableCell align="right">{data.count}</TableCell>
+                                  <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(data.amount)}</TableCell>
+                                </TableRow>
+                              ))
+                          ) : (
+                            <TableRow><TableCell colSpan={5} align="center">데이터가 없습니다.</TableCell></TableRow>
+                          )}
+                        </TableBody>
                       </Table>
                     </TableContainer>
                   </Grid>
