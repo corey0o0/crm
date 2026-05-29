@@ -308,15 +308,20 @@
     return SERVICE_INTENT.some((kw) => n.includes(kw.toLowerCase().replace(/\s/g, '')));
   }
 
-  function matchFaq(msg) {
+  function matchFaqs(msg, maxResults = 4) {
     const n = msg.toLowerCase().replace(/\s/g, '');
-    let best = null, bestScore = 0;
+    const results = [];
     for (const faq of FAQS) {
       let score = 0;
       for (const kw of faq.keywords) if (n.includes(kw.toLowerCase())) score++;
-      if (score > bestScore) { bestScore = score; best = faq; }
+      if (score >= CONFIG.faqThreshold) results.push({ faq, score });
     }
-    return bestScore >= CONFIG.faqThreshold ? best : null;
+    results.sort((a, b) => b.score - a.score);
+    return results.slice(0, maxResults).map(r => r.faq);
+  }
+
+  function matchFaq(msg) {
+    return matchFaqs(msg, 1)[0] || null;
   }
 
   async function callLlm(msg, history) {
@@ -795,6 +800,20 @@
             addTextMsg('궁금하신 내용을 자유롭게 입력해주세요. 담당 AI가 도와드리겠습니다. 😊', 'bot');
           }
 
+        // FAQ 선택 칩
+        } else if (text.startsWith('__faq_')) {
+          const idx = parseInt(text.slice(6), 10);
+          const faq = FAQS[idx];
+          hideTyping();
+          if (faq) {
+            addTextMsg(faq.answer, 'bot', 'badge-faq', 'FAQ');
+            addQuickReplies([
+              { label: '📝 A/S 접수하기', value: '__as_register__' },
+              { label: '🔧 A/S 현황 조회', value: 'A/S 현황' },
+              { label: '🏠 처음으로', value: '__restart__' },
+            ]);
+          }
+
         // 2. 감정 신호 → 즉시 이관
         } else if (detectEscalation(text)) {
           hideTyping();
@@ -904,13 +923,20 @@
 
         // 8. FAQ 매칭
         } else {
-          const faq = matchFaq(text);
-          if (faq) {
+          const faqs = matchFaqs(text);
+          if (faqs.length === 1) {
             hideTyping();
-            addTextMsg(faq.answer, 'bot', 'badge-faq', 'FAQ');
+            addTextMsg(faqs[0].answer, 'bot', 'badge-faq', 'FAQ');
             addQuickReplies([
               { label: '📝 A/S 접수하기', value: '__as_register__' },
               { label: '🔧 A/S 현황 조회', value: 'A/S 현황' },
+              { label: '🏠 처음으로', value: '__restart__' },
+            ]);
+          } else if (faqs.length > 1) {
+            hideTyping();
+            addTextMsg('관련 항목을 찾았어요. 궁금한 내용을 선택해주세요. 😊', 'bot');
+            addQuickReplies([
+              ...faqs.map(faq => ({ label: faq.keywords[0], value: `__faq_${FAQS.indexOf(faq)}` })),
               { label: '🏠 처음으로', value: '__restart__' },
             ]);
           } else {
