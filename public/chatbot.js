@@ -250,14 +250,32 @@
 
   const TIRE_INFO = {
     xrb: {
-      spec: '이너튜브 20×4.5~4.8',
-      link: 'https://xrider.co.kr/product/%EC%9D%B4%EB%84%88%ED%8A%9C%EB%B8%8C-20x45-48-1%EA%B0%9C/6267/category/221/display/1/',
-      linkLabel: 'X-RIDER 공식 스토어',
+      models: [],
+      default: {
+        spec: '이너튜브 20×4.5~4.8',
+        link: 'https://xrider.co.kr/product/%EC%9D%B4%EB%84%88%ED%8A%9C%EB%B8%8C-20x45-48-1%EA%B0%9C/6267/category/221/display/1/',
+        linkLabel: 'X-RIDER 공식 스토어',
+      },
     },
     nb: {
-      spec: null,
-      link: 'https://nearbike.co.kr/product/search.html?banner_action=&keyword=%ED%8A%9C%EB%B8%8C',
-      linkLabel: '니어바이크 스토어',
+      // 레트로미니를 레트로 앞에 배치 — 부분 문자열 매칭 우선순위
+      models: [
+        { names: ['레트로미니', '레트로 미니'], spec: '16"×4.0"', linkLabel: '레트로미니 튜브 구매',
+          link: 'https://nearbike.co.kr/product/레트로-미니-튜브-16x40/55/category/33/display/1/' },
+        { names: ['레트로fs', '레트로 fs', '레트로'], spec: '20"×4.0"', linkLabel: '레트로FS/레트로 튜브 구매',
+          link: 'https://nearbike.co.kr/product/레트로fs레트로-튜브-20x40/161/category/52/display/1/' },
+        { names: ['블레이드', '스프린터'], spec: '20"×2.4"', linkLabel: '블레이드/스프린터 튜브 구매',
+          link: 'https://nearbike.co.kr/product/블레이드스프린터-튜브-20x24/130/category/55/display/1/' },
+        { names: ['카고'], spec: '20"×3.0"', linkLabel: '카고 튜브 구매',
+          link: 'https://nearbike.co.kr/product/카고-튜브-20x30/72/category/43/display/1/' },
+        { names: ['클래식'], spec: '20"×2.125"', linkLabel: '클래식 튜브 구매',
+          link: 'https://nearbike.co.kr/product/클래식-튜브-20x2125/33/category/32/display/1/' },
+      ],
+      default: {
+        spec: null,
+        link: 'https://nearbike.co.kr/product/search.html?banner_action=&keyword=%ED%8A%9C%EB%B8%8C',
+        linkLabel: '니어바이크 튜브 검색',
+      },
     },
   };
 
@@ -329,9 +347,19 @@
     return TIRE_INTENT.some((kw) => n.includes(kw.replace(/\s/g, '')));
   }
 
+  function lookupTire(model) {
+    const brandInfo = TIRE_INFO[BRAND_KEY];
+    if (!brandInfo) return null;
+    const n = model.toLowerCase().replace(/\s/g, '');
+    for (const entry of (brandInfo.models || [])) {
+      if (entry.names.some(name => n.includes(name.toLowerCase().replace(/\s/g, '')))) return entry;
+    }
+    return brandInfo.default || null;
+  }
+
   function buildTireAnswer(model) {
-    const info = TIRE_INFO[BRAND_KEY];
-    if (!info) return '고객센터(평일 09:00~18:00)로 문의해 주세요.';
+    const info = lookupTire(model);
+    if (!info) return '해당 모델 정보를 찾을 수 없습니다. 고객센터(평일 09:00~18:00)로 문의해 주세요.';
     const specLine = info.spec ? `• 규격: ${info.spec}\n` : '';
     return `${model} 타이어(튜브) 안내 🔧\n\n${specLine}• 구매: <a href="${info.link}" target="_blank" rel="noopener" style="color:#1a73e8">${info.linkLabel}</a>\n\n정품 사용을 권장하며, 교체 시 대리점 또는 A/S 센터 방문을 추천드립니다.`;
   }
