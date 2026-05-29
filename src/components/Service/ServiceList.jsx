@@ -718,7 +718,7 @@ function ServiceList() {
         const { data: partsRows } = await supabase
           .from('service_parts')
           .select('service_id, parts!inner(name, code)')
-          .or(`parts.name.ilike.%${safeParts}%,parts.code.ilike.%${safeParts}%`);
+          .or(`name.ilike.%${safeParts}%,code.ilike.%${safeParts}%`, { foreignTable: 'parts' });
         const matchedIds = [...new Set((partsRows || []).map(r => r.service_id))];
         if (matchedIds.length > 0) {
           query = query.in('id', matchedIds);
@@ -878,7 +878,7 @@ function ServiceList() {
           const { data: partsRows } = await supabase
             .from('service_parts')
             .select('service_id, parts!inner(name, code)')
-            .or(`parts.name.ilike.%${safeParts}%,parts.code.ilike.%${safeParts}%`);
+            .or(`name.ilike.%${safeParts}%,code.ilike.%${safeParts}%`, { foreignTable: 'parts' });
           const matchedIds = [...new Set((partsRows || []).map(r => r.service_id))];
           if (matchedIds.length > 0) {
             simpleQuery = simpleQuery.in('id', matchedIds);
