@@ -776,7 +776,12 @@
       isLoading = true;
       sendBtnEl.disabled = true;
 
-      addTextMsg(text, 'user');
+      // 시스템 칩 값(__*__)은 사용자 말풍선에 미표시, __faq_N은 키워드 레이블로 표시
+      if (text.startsWith('__faq_')) {
+        addTextMsg(FAQS[parseInt(text.slice(6), 10)]?.keywords[0] || text, 'user');
+      } else if (!text.startsWith('__')) {
+        addTextMsg(text, 'user');
+      }
       showTyping();
 
       await new Promise((r) => setTimeout(r, 400));
