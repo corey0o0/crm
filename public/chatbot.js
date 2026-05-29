@@ -246,6 +246,20 @@
   const ESCALATION_SIGNALS = ['화나', '짜증', '환불해줘', '고소', '신고', '사기', '최악', '불량품', '소비자원', '항의'];
   const ORDER_INTENT = ['주문조회', '주문 조회', '주문번호', '배송조회', '배송 조회', '운송장'];
   const SERVICE_INTENT = ['as현황', 'a/s현황', 'as 현황', 'a/s 현황', '접수현황', '접수 현황', '수리현황', '접수번호', 'as접수', 'a/s접수'];
+  const TIRE_INTENT = ['펑크', '타이어교체', '타이어 교체', '타이어구매', '튜브교체', '튜브 교체', '이너튜브', '타이어규격'];
+
+  const TIRE_INFO = {
+    xrb: {
+      spec: '이너튜브 20×4.5~4.8',
+      link: 'https://xrider.co.kr/product/%EC%9D%B4%EB%84%88%ED%8A%9C%EB%B8%8C-20x45-48-1%EA%B0%9C/6267/category/221/display/1/',
+      linkLabel: 'X-RIDER 공식 스토어',
+    },
+    nb: {
+      spec: null,
+      link: 'https://nearbike.co.kr/product/search.html?banner_action=&keyword=%ED%8A%9C%EB%B8%8C',
+      linkLabel: '니어바이크 스토어',
+    },
+  };
 
   // ─── CATEGORY CHIPS (초기 메뉴) ──────────────────────────────────────────
   const CATEGORY_CHIPS = [
@@ -308,6 +322,18 @@
   function detectServiceIntent(msg) {
     const n = msg.toLowerCase().replace(/\s/g, '');
     return SERVICE_INTENT.some((kw) => n.includes(kw.toLowerCase().replace(/\s/g, '')));
+  }
+
+  function detectTireIntent(msg) {
+    const n = msg.toLowerCase().replace(/\s/g, '');
+    return TIRE_INTENT.some((kw) => n.includes(kw.replace(/\s/g, '')));
+  }
+
+  function buildTireAnswer(model) {
+    const info = TIRE_INFO[BRAND_KEY];
+    if (!info) return '고객센터(평일 09:00~18:00)로 문의해 주세요.';
+    const specLine = info.spec ? `• 규격: ${info.spec}\n` : '';
+    return `${model} 타이어(튜브) 안내 🔧\n\n${specLine}• 구매: <a href="${info.link}" target="_blank" rel="noopener" style="color:#1a73e8">${info.linkLabel}</a>\n\n정품 사용을 권장하며, 교체 시 대리점 또는 A/S 센터 방문을 추천드립니다.`;
   }
 
   function matchFaqs(msg, maxResults = 4) {
@@ -914,6 +940,16 @@
             { label: '🏠 처음으로', value: '__restart__' },
           ]);
 
+        // 5-1. 타이어 모델 대기
+        } else if (convState.step === 'TIRE_AWAIT_MODEL') {
+          hideTyping();
+          convState.step = 'IDLE';
+          addTextMsg(buildTireAnswer(text.trim()), 'bot', 'badge-faq', '타이어');
+          addQuickReplies([
+            { label: '📝 A/S 접수하기', value: '__as_register__' },
+            { label: '🏠 처음으로', value: '__restart__' },
+          ]);
+
         // 6. 주문 조회 의도 감지
         } else if (detectOrderIntent(text)) {
           hideTyping();
@@ -927,6 +963,13 @@
           convState.step = 'SERVICE_AWAIT_ID';
           addTextMsg('A/S 접수 현황을 확인해드리겠습니다. 🔧\nA/S 접수번호 또는 연락처를 입력해주세요.', 'bot');
           addHint('예: 1001 또는 010-1234-5678');
+
+        // 7-1. 타이어/펑크 의도 감지
+        } else if (detectTireIntent(text)) {
+          hideTyping();
+          convState.step = 'TIRE_AWAIT_MODEL';
+          addTextMsg('타이어(튜브) 교체를 도와드릴게요. 🔧\n사용 중인 모델명을 알려주세요.', 'bot');
+          addHint(BRAND_KEY === 'xrb' ? '예: X200 MAX SL / X50 FS' : '예: 블레이드FS / 카고');
 
         // 8. FAQ 매칭
         } else {
