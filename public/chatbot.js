@@ -247,6 +247,12 @@
   const ORDER_INTENT = ['주문조회', '주문 조회', '주문번호', '배송조회', '배송 조회', '운송장'];
   const SERVICE_INTENT = ['as현황', 'a/s현황', 'as 현황', 'a/s 현황', '접수현황', '접수 현황', '수리현황', '접수번호', 'as접수', 'a/s접수'];
   const TIRE_INTENT = ['펑크', '타이어교체', '타이어 교체', '타이어구매', '튜브교체', '튜브 교체', '이너튜브', '타이어규격'];
+  const DEALER_INTENT = ['대리점', '판매점', '판매처', '구매처', '가맹점', '어디서살', '어디서구매', '근처매장', '가까운매장', '오프라인'];
+
+  const DEALER_INFO = {
+    nb: { link: 'https://nearbike.co.kr/dealer/list.html', linkLabel: '니어바이크 대리점 찾기', regions: '서울·인천·경기·충청·경상·전라·강원·제주' },
+    xrb: { link: 'https://xrider.co.kr/shopinfo/dealer.html', linkLabel: 'X-RIDER 판매점 안내', regions: '전국 판매점' },
+  };
 
   const TIRE_INFO = {
     xrb: {
@@ -345,6 +351,11 @@
   function detectTireIntent(msg) {
     const n = msg.toLowerCase().replace(/\s/g, '');
     return TIRE_INTENT.some((kw) => n.includes(kw.replace(/\s/g, '')));
+  }
+
+  function detectDealerIntent(msg) {
+    const n = msg.toLowerCase().replace(/\s/g, '');
+    return DEALER_INTENT.some((kw) => n.includes(kw.replace(/\s/g, '')));
   }
 
   function lookupTire(model) {
@@ -992,7 +1003,19 @@
           addTextMsg('A/S 접수 현황을 확인해드리겠습니다. 🔧\nA/S 접수번호 또는 연락처를 입력해주세요.', 'bot');
           addHint('예: 1001 또는 010-1234-5678');
 
-        // 7-1. 타이어/펑크 의도 감지
+        // 7-1. 대리점 안내
+        } else if (detectDealerIntent(text)) {
+          hideTyping();
+          const d = DEALER_INFO[BRAND_KEY];
+          addTextMsg(
+            `가까운 대리점을 찾아드릴게요! 🗺️\n\n• <a href="${d.link}" target="_blank" rel="noopener" style="color:#1a73e8">${d.linkLabel}</a>\n\n${d.regions} 지역별로 확인 가능합니다.`,
+            'bot', 'badge-faq', '대리점'
+          );
+          addQuickReplies([
+            { label: '🏠 처음으로', value: '__restart__' },
+          ]);
+
+        // 7-2. 타이어/펑크 의도 감지
         } else if (detectTireIntent(text)) {
           hideTyping();
           convState.step = 'TIRE_AWAIT_MODEL';
