@@ -1096,12 +1096,14 @@ function AddService() {
       autoSave.clear();
       console.log('[AddService] 등록 성공 - 자동저장 데이터 삭제');
 
-      // 등록 직후 바로 페이지 이동 (인위적 딜레이 제거)
-      if (submitActionRef.current === 'detail') {
-        navigate(`/services/${insertedService.id}`);
-      } else {
-        navigate('/services');
-      }
+      // 스낵바 표시 후 페이지 이동
+      setTimeout(() => {
+        if (submitActionRef.current === 'detail') {
+          navigate(`/services/${insertedService.id}`);
+        } else {
+          navigate('/services');
+        }
+      }, 1500);
 
     } catch (error) {
       console.error('Error in handleSubmit:', {

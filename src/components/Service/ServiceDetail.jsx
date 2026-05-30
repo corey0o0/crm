@@ -1075,8 +1075,8 @@ function ServiceDetail() {
 
       localStorage.setItem('highlightServiceId', id);
 
-      // 성공적으로 모든 작업 완료 후 페이지 이동
-      navigate('/services');
+      // 스낵바 표시 후 페이지 이동
+      setTimeout(() => navigate('/services'), 1500);
 
     } catch (error) {
       console.error('Error in handleSubmit:', error);
