@@ -62,6 +62,7 @@ import {
 import { API_CONFIG } from '../../config/api';
 import { downloadExcel } from '../../utils/excelUtils';
 import { formatKoreanDateTime } from '../../utils/dateUtils';
+import { extractTagsFromSymptom } from '../../utils/symptomTagUtils';
 import { format } from 'date-fns';
 import { sendTelegramNotification } from '../../lib/telegram'; // 텔레그램 유틸리티 함수 import
 import { 
@@ -120,6 +121,7 @@ function AddService() {
     status: '준비중'
   });
   const [tags, setTags] = useState([]);
+  const [suggestedTags, setSuggestedTags] = useState([]);
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
@@ -217,6 +219,14 @@ function AddService() {
       }));
     }
   }, [selectedParts, isSimpleSale]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const extracted = extractTagsFromSymptom(formData.symptom);
+      setSuggestedTags(extracted.filter(t => !tags.includes(t)));
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [formData.symptom, tags]);
 
   const [customerHistoryOpen, setCustomerHistoryOpen] = useState(false);
   const [customerHistoryData, setCustomerHistoryData] = useState([]);
@@ -2945,6 +2955,28 @@ function AddService() {
                     />
                   </Grid>
                   <Grid item xs={12}>
+                    {suggestedTags.length > 0 && (
+                      <Box sx={{ mb: 1.5, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.5 }}>
+                        <Typography variant="caption" sx={{ color: '#e65100', fontWeight: 600, mr: 0.5 }}>
+                          추천 태그
+                        </Typography>
+                        {suggestedTags.map(tag => (
+                          <Chip
+                            key={tag}
+                            label={`+ ${tag}`}
+                            size="small"
+                            onClick={() => setTags(prev => prev.includes(tag) ? prev : [...prev, tag])}
+                            sx={{
+                              bgcolor: '#fff3e0',
+                              color: '#e65100',
+                              border: '1px dashed #ffb74d',
+                              cursor: 'pointer',
+                              '&:hover': { bgcolor: '#ffe0b2' },
+                            }}
+                          />
+                        ))}
+                      </Box>
+                    )}
                     <Autocomplete
                       multiple
                       freeSolo
