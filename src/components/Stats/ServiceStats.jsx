@@ -15,6 +15,8 @@ import {
 } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
 import { format, parseISO, startOfMonth, endOfMonth, eachMonthOfInterval, subMonths, differenceInDays } from 'date-fns';
+import { groupServicesByKeyword } from '../../utils/symptomTagUtils';
+import { generateCorrelationInsights } from '../../utils/aiAnalysisUtils';
 
 const COLORS = ['#1976d2', '#2e7d32', '#ed6c02', '#9c27b0', '#d32f2f', '#0288d1', '#558b2f'];
 const COMPLETED_STATUSES = ['출고완료', '완료', '수령완료'];
@@ -51,6 +53,8 @@ function ServiceStats() {
   const [tabValue, setTabValue] = useState(0);
   const [services, setServices] = useState([]);
   const [backlog, setBacklog] = useState([]);
+  const [correlationInsight, setCorrelationInsight] = useState('');
+  const [correlationLoading, setCorrelationLoading] = useState(false);
   const init = calcRange(6);
   const [filterStart, setFilterStart] = useState(init.start);
   const [filterEnd, setFilterEnd] = useState(init.end);
@@ -68,7 +72,7 @@ function ServiceStats() {
     try {
       let mainQuery = supabase
         .from('services')
-        .select('id, reception_date, completion_date, created_at, customer_name, brand, status, reception_type, service_tags(tag_name), service_parts(price, quantity, usage, parts(name, code, cost_price))')
+        .select('id, reception_date, completion_date, created_at, customer_name, brand, status, reception_type, symptom, solution, service_tags(tag_name), service_parts(price, quantity, usage, parts(name, code, cost_price))')
         .gte('reception_date', filterStart)
         .lte('reception_date', filterEnd);
 
@@ -99,6 +103,10 @@ function ServiceStats() {
   // ── 기본 파생 데이터 ──────────────────────────────────────────
   const completedServices = useMemo(() =>
     services.filter(s => COMPLETED_STATUSES.includes(s.status)), [services]);
+
+  const keywordCorrelationData = useMemo(() =>
+    groupServicesByKeyword(completedServices.filter(s => s.symptom && s.solution)),
+  [completedServices]);
 
   const totalAmount = useMemo(() =>
     completedServices.reduce((sum, s) =>
@@ -327,6 +335,7 @@ function ServiceStats() {
           <Tab label="부품·모델 분석" />
           <Tab label="처리 시간·백로그" />
           <Tab label="수익성·재방문" />
+          <Tab label="키워드 상관관계" />
         </Tabs>
       </Paper>
 
@@ -660,6 +669,83 @@ function ServiceStats() {
             </Paper>
           </Grid>
         </Grid>
+      )}
+      {/* ── 탭 5: 키워드 상관관계 ── */}
+      {tabValue === 5 && (
+        <Paper sx={{ p: 3 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+            <Typography variant="h6">증상 키워드 ↔ 처리내역 상관관계</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              {correlationLoading && <CircularProgress size={18} />}
+              <Chip
+                label="AI 패턴 분석"
+                clickable
+                color="primary"
+                variant="outlined"
+                disabled={correlationLoading || keywordCorrelationData.length === 0}
+                onClick={async () => {
+                  setCorrelationLoading(true);
+                  setCorrelationInsight('');
+                  try {
+                    const result = await generateCorrelationInsights(keywordCorrelationData);
+                    setCorrelationInsight(result);
+                  } catch (e) {
+                    setCorrelationInsight(`분석 오류: ${e.message}`);
+                  } finally {
+                    setCorrelationLoading(false);
+                  }
+                }}
+              />
+            </Box>
+          </Box>
+
+          {keywordCorrelationData.length === 0 ? (
+            <Typography color="textSecondary" align="center" sx={{ py: 4 }}>
+              완료된 A/S에 문의내용·처리내역이 입력된 건이 없습니다.
+            </Typography>
+          ) : (
+            <>
+              <TableContainer sx={{ mb: 3 }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                      <TableCell sx={{ fontWeight: 600 }}>증상 키워드</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 600 }}>건수</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>주요 처리내역 (빈도순)</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {keywordCorrelationData.map((row) => (
+                      <TableRow key={row.keyword} hover>
+                        <TableCell>
+                          <Chip label={row.keyword} size="small" sx={{ bgcolor: '#e3f2fd', color: '#1565c0' }} />
+                        </TableCell>
+                        <TableCell align="right">{row.count}건</TableCell>
+                        <TableCell>
+                          {row.topSolutions.map((s, i) => (
+                            <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.3 }}>
+                              <Typography variant="caption" sx={{ color: '#888', minWidth: 16 }}>{i + 1}.</Typography>
+                              <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 420 }}>
+                                {s.solution}
+                              </Typography>
+                              <Chip label={`${s.count}건`} size="small" sx={{ ml: 0.5, height: 18, fontSize: '0.65rem' }} />
+                            </Box>
+                          ))}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+
+              {correlationInsight && (
+                <Paper variant="outlined" sx={{ p: 2, bgcolor: '#fafafa', whiteSpace: 'pre-wrap', fontSize: '0.9rem', lineHeight: 1.7 }}>
+                  {correlationInsight}
+                </Paper>
+              )}
+            </>
+          )}
+        </Paper>
       )}
     </Box>
   );
