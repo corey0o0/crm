@@ -170,7 +170,7 @@ function StoreOnlineOutboundTab() {
         }
       }
 
-      alert(`출고가 확정되었습니다.`);
+      showAlert('success', `출고가 확정되었습니다.`);
       const completedIds = selectedOrders.map(o => o.id);
       setOrders(orders.filter(o => !completedIds.includes(o.id)));
       setSelectedOrders([]);

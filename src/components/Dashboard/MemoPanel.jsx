@@ -9,7 +9,9 @@ import {
   IconButton,
   Paper,
   Chip,
-  Stack
+  Stack,
+  Snackbar,
+  Alert
 } from '@mui/material';
 import {
   Save as SaveIcon,
@@ -51,6 +53,7 @@ function MemoPanel() {
   const [tempName, setTempName] = useState('');
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState(null);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
   // 개인 메모 불러오기
   useEffect(() => {
@@ -264,9 +267,10 @@ function MemoPanel() {
       }
 
       setLastSaved(new Date());
+      setSnackbar({ open: true, message: '메모가 저장되었습니다.', severity: 'success' });
     } catch (error) {
       console.error('메모 저장 오류:', error);
-      alert('저장 중 오류가 발생했습니다: ' + error.message);
+      setSnackbar({ open: true, message: '저장 중 오류가 발생했습니다: ' + error.message, severity: 'error' });
     } finally {
       setSaving(false);
     }
@@ -396,6 +400,22 @@ function MemoPanel() {
           }}
         />
       </Box>
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={2000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          variant="filled"
+          sx={{ minWidth: '200px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }
