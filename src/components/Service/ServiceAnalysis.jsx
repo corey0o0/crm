@@ -19,7 +19,8 @@ import {
   Tab,
   FormControlLabel,
   Checkbox,
-  Chip
+  Chip,
+  Button,
 } from '@mui/material';
 import {
   BarChart,
@@ -51,7 +52,8 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ko';
-import { getOllamaModels, aiNormalizeServiceData } from '../../utils/aiAnalysisUtils';
+import { getOllamaModels, aiNormalizeServiceData, generateCorrelationInsights } from '../../utils/aiAnalysisUtils';
+import { groupServicesByKeyword } from '../../utils/symptomTagUtils';
 import { API_CONFIG } from '../../config/api';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF7C7C'];
@@ -203,13 +205,16 @@ function ServiceAnalysis() {
     tagPartsData: [],
     trendStats: [],
     costStats: {},
-    durationStats: {}
+    durationStats: {},
+    keywordCorrelationData: [],
   });
   const [aiNormalizationSamples, setAiNormalizationSamples] = useState({
     products: [],
     symptoms: [],
     solutions: []
   });
+  const [correlationInsight, setCorrelationInsight] = useState('');
+  const [correlationLoading, setCorrelationLoading] = useState(false);
 
   const fetchAnalysisData = useCallback(async () => {
     try {
@@ -351,6 +356,9 @@ function ServiceAnalysis() {
           const bTotal = b.solutions.reduce((sum, s) => sum + s.count, 0);
           return bTotal - aTotal;
         });
+
+      // 증상 키워드 ↔ 처리내역 상관관계
+      const keywordCorrelationData = groupServicesByKeyword(completedServices);
 
       // 기종별 분석 (정규화하여 같은 기종으로 묶기)
       const productNormalizedMap = {}; // 정규화된 이름 -> 원본 이름들
@@ -757,7 +765,8 @@ function ServiceAnalysis() {
         durationStats: {
           average: avgDuration,
           distribution: durationStats
-        }
+        },
+        keywordCorrelationData,
       });
 
     } catch (error) {
@@ -1149,6 +1158,7 @@ function ServiceAnalysis() {
               <Tab label="거리별" />
               <Tab label="부품별" />
               <Tab label="태그별" />
+              <Tab label="키워드 상관관계" />
             </Tabs>
           </Paper>
 
@@ -1748,6 +1758,83 @@ function ServiceAnalysis() {
                       </TableBody>
                     </Table>
                   </TableContainer>
+                </>
+              )}
+            </Paper>
+          )}
+          {/* 키워드 상관관계 탭 */}
+          {statsTabValue === 7 && (
+            <Paper sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                <Typography variant="h6">증상 키워드 ↔ 처리내역 상관관계</Typography>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  disabled={correlationLoading || analysisData.keywordCorrelationData.length === 0}
+                  onClick={async () => {
+                    setCorrelationLoading(true);
+                    setCorrelationInsight('');
+                    try {
+                      const result = await generateCorrelationInsights(analysisData.keywordCorrelationData);
+                      setCorrelationInsight(result);
+                    } catch (e) {
+                      setCorrelationInsight(`분석 오류: ${e.message}`);
+                    } finally {
+                      setCorrelationLoading(false);
+                    }
+                  }}
+                >
+                  {correlationLoading ? <CircularProgress size={16} sx={{ mr: 1 }} /> : null}
+                  AI 패턴 분석
+                </Button>
+              </Box>
+
+              {analysisData.keywordCorrelationData.length === 0 ? (
+                <Typography color="textSecondary" align="center" sx={{ py: 4 }}>
+                  완료된 A/S 데이터가 없습니다.
+                </Typography>
+              ) : (
+                <>
+                  <TableContainer sx={{ mb: 3 }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                          <TableCell sx={{ fontWeight: 600 }}>증상 키워드</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 600 }}>건수</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>주요 처리내역 (빈도순)</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {analysisData.keywordCorrelationData.map((row) => (
+                          <TableRow key={row.keyword} hover>
+                            <TableCell>
+                              <Chip label={row.keyword} size="small" sx={{ bgcolor: '#e3f2fd', color: '#1565c0' }} />
+                            </TableCell>
+                            <TableCell align="right">{row.count}건</TableCell>
+                            <TableCell>
+                              {row.topSolutions.map((s, i) => (
+                                <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.3 }}>
+                                  <Typography variant="caption" sx={{ color: '#888', minWidth: 16 }}>
+                                    {i + 1}.
+                                  </Typography>
+                                  <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 400 }}>
+                                    {s.solution}
+                                  </Typography>
+                                  <Chip label={`${s.count}건`} size="small" sx={{ ml: 0.5, height: 18, fontSize: '0.65rem' }} />
+                                </Box>
+                              ))}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+
+                  {correlationInsight && (
+                    <Paper variant="outlined" sx={{ p: 2, bgcolor: '#fafafa', whiteSpace: 'pre-wrap', fontSize: '0.9rem', lineHeight: 1.7 }}>
+                      {correlationInsight}
+                    </Paper>
+                  )}
                 </>
               )}
             </Paper>

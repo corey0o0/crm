@@ -63,6 +63,7 @@ import {
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import { formatKoreanDateTime } from '../../utils/dateUtils';
+import { extractTagsFromSymptom } from '../../utils/symptomTagUtils';
 import { format } from 'date-fns';
 import { sendTelegramNotification } from '../../lib/telegram';
 import { processServiceCompletion, processPartialReturn, processServiceRevert, normalizeServiceStatus } from '../../utils/inventoryUtils';
@@ -132,6 +133,7 @@ function ServiceDetail() {
   const [partQuantity, setPartQuantity] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [tags, setTags] = useState([]);
+  const [suggestedTags, setSuggestedTags] = useState([]);
   const [availableTags] = useState([
     '배터리스위치', '전체점검', '브레이크-패드', '브레이크-로터', '브레이크-교체', '배터리', '펑크',
     '충전기', '모터', '워런티', '사고-보험', 'E07', 'E09', 'E010'
@@ -244,6 +246,15 @@ function ServiceDetail() {
     };
     fetchSettings();
   }, []);
+
+  // symptom 변경 시 태그 자동 추천 (500ms debounce)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const extracted = extractTagsFromSymptom(formData.symptom);
+      setSuggestedTags(extracted.filter(t => !tags.includes(t)));
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [formData.symptom, tags]);
 
   // 변경사항 감지를 위한 상태 추가
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -3204,6 +3215,28 @@ function ServiceDetail() {
                     />
                   </Grid>
                   <Grid item xs={12}>
+                    {suggestedTags.length > 0 && (
+                      <Box sx={{ mb: 1.5, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.5 }}>
+                        <Typography variant="caption" sx={{ color: '#e65100', fontWeight: 600, mr: 0.5 }}>
+                          추천 태그
+                        </Typography>
+                        {suggestedTags.map(tag => (
+                          <Chip
+                            key={tag}
+                            label={`+ ${tag}`}
+                            size="small"
+                            onClick={() => setTags(prev => prev.includes(tag) ? prev : [...prev, tag])}
+                            sx={{
+                              bgcolor: '#fff3e0',
+                              color: '#e65100',
+                              border: '1px dashed #ffb74d',
+                              cursor: 'pointer',
+                              '&:hover': { bgcolor: '#ffe0b2' },
+                            }}
+                          />
+                        ))}
+                      </Box>
+                    )}
                     <Autocomplete
                       multiple
                       freeSolo

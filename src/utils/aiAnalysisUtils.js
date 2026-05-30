@@ -560,3 +560,41 @@ ${JSON.stringify(anomalies, null, 2)}
     throw new Error(`이상 패턴 분석 실패: ${error.message}`);
   }
 };
+
+// 증상 키워드 ↔ 처리내역 상관관계 AI 분석
+export const generateCorrelationInsights = async (keywordCorrelationData) => {
+  if (!keywordCorrelationData || keywordCorrelationData.length === 0) {
+    throw new Error('분석할 상관관계 데이터가 없습니다.');
+  }
+
+  const systemPrompt = `당신은 A/S 서비스 데이터 분석 전문가입니다. 증상 키워드별 처리내역 패턴을 분석하여 실무에 유용한 인사이트를 제공해주세요. 한국어로 작성하세요.`;
+
+  const tableText = keywordCorrelationData
+    .slice(0, 12)
+    .map(row => {
+      const solText = row.topSolutions.map(s => `"${s.solution}"(${s.count}건)`).join(', ');
+      return `- [${row.keyword}] ${row.count}건 → ${solText}`;
+    })
+    .join('\n');
+
+  const prompt = `다음은 A/S 접수 데이터에서 증상 키워드별 주요 처리내역을 집계한 결과입니다:
+
+${tableText}
+
+이 데이터를 바탕으로 다음을 작성해주세요:
+
+## 1. 반복 패턴 요약 (3-5개)
+- 자주 발생하는 증상-처리 패턴을 구체적으로 설명해주세요
+
+## 2. 예방·운영 권고사항 (3-5개)
+- 반복 접수를 줄이거나 처리를 표준화할 수 있는 실행 가능한 방법
+
+## 3. 처리 표준화 제안
+- 같은 증상에 처리내역이 여러 개로 분산된 경우, 통일할 만한 표준 처리 문구 제안`;
+
+  try {
+    return await callOpenAI(prompt, systemPrompt);
+  } catch (error) {
+    throw new Error(`상관관계 분석 실패: ${error.message}`);
+  }
+};
