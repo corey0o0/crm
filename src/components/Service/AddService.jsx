@@ -1212,14 +1212,23 @@ function AddService() {
       const tempFolder = await findOrCreateFolder(tempFolderName, subRootFolder?.id, null);
 
       const uploadResults = [];
-      
-      for (const file of files) {
+      const today = new Date();
+      const datePrefix = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
+      const existingCount = uploadedFiles.length;
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
         try {
           // 이미지 파일인 경우 리사이즈
           let fileToUpload = file;
           if (file.type.startsWith('image/')) {
             fileToUpload = await resizeImage(file);
           }
+
+          // 날짜별 순차 파일명 적용
+          const seq = String(existingCount + i + 1).padStart(3, '0');
+          const ext = file.name.includes('.') ? file.name.split('.').pop() : (file.type.split('/')[1] || 'jpg');
+          fileToUpload = new File([fileToUpload], `${datePrefix}_${seq}.${ext}`, { type: fileToUpload.type });
 
           // 파일 업로드
           const uploadResult = await uploadFileToR2(fileToUpload, tempFolder.id);

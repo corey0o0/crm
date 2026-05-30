@@ -1836,11 +1836,18 @@ function ServiceDetail() {
       const serviceFolder = await findOrCreateFolder(serviceFolderName, subRootFolder?.id, null);
 
       const uploadResults = [];
+      const today = new Date();
+      const datePrefix = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
+      const existingCount = uploadedFiles.length;
 
-      for (const file of files) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
         try {
+          const seq = String(existingCount + i + 1).padStart(3, '0');
+          const ext = file.name.includes('.') ? file.name.split('.').pop() : (file.type.split('/')[1] || 'jpg');
+          const renamedFile = new File([file], `${datePrefix}_${seq}.${ext}`, { type: file.type });
           // 파일 업로드
-          const uploadResult = await uploadFileToR2(file, serviceFolder.id);
+          const uploadResult = await uploadFileToR2(renamedFile, serviceFolder.id);
 
           uploadResults.push({
             id: uploadResult.id,
