@@ -1129,11 +1129,6 @@ function ProductShipment() {
             throw addCustomerError;
           }
 
-          setSnackbar({
-            open: true,
-            message: '출고 정보가 저장되었으며, 새로운 고객이 등록되었습니다.',
-            severity: 'success'
-          });
         } else {
           // 기존 고객 정보 업데이트
           const existingCustomer = existingCustomers[0];
@@ -1157,15 +1152,16 @@ function ProductShipment() {
             throw updateCustomerError;
           }
 
-          setSnackbar({
-            open: true,
-            message: '출고 정보가 저장되었으며, 고객 정보가 업데이트되었습니다.',
-            severity: 'success'
-          });
         }
 
         // 저장 성공 후 하이라이트 제거
         setHighlightedId(null);
+
+        setSnackbar({
+          open: true,
+          message: '출고 정보가 정상적으로 저장되었습니다.',
+          severity: 'success'
+        });
 
         setOpenDialog(false);
         setSelectedParts([]);
