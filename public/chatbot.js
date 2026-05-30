@@ -261,9 +261,34 @@
     ollamaUrl: 'http://localhost:11434/api/chat',
   };
 
-  // 브랜드별 FAQ / 시스템 프롬프트 사용
-  const FAQS = BRAND.faqs;
+  // 세션 ID (채팅 로그 연결용)
+  const SESSION_ID = Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+  // 브랜드별 FAQ / 시스템 프롬프트 사용 (DB 로딩 전 기본값)
+  let FAQS = BRAND.faqs;
   const SYSTEM_PROMPT = BRAND.systemPrompt;
+
+  // DB에서 FAQ 로딩 (sessionStorage 1시간 캐시, 실패 시 기본값 유지)
+  (function loadFaqsFromDB() {
+    if (!CONFIG.useLlmProxy) return; // 로컬 개발 시 스킵
+    try {
+      const cacheKey = 'chatbot_faq_' + BRAND_KEY;
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        const { data, ts } = JSON.parse(cached);
+        if (Date.now() - ts < 3600000 && data && data.length > 0) { FAQS = data; return; }
+      }
+      fetch(CONFIG.apiUrl + '/.netlify/functions/chatbot-faq-list?brand=' + BRAND_KEY)
+        .then(r => r.ok ? r.json() : null)
+        .then(json => {
+          if (json && json.faqs && json.faqs.length > 0) {
+            FAQS = json.faqs;
+            sessionStorage.setItem(cacheKey, JSON.stringify({ data: json.faqs, ts: Date.now() }));
+          }
+        })
+        .catch(() => {});
+    } catch (e) {}
+  })();
 
   const ESCALATION_SIGNALS = ['화나', '짜증', '환불해줘', '고소', '신고', '사기', '최악', '불량품', '소비자원', '항의'];
   const ORDER_INTENT = ['주문조회', '주문 조회', '주문번호', '배송조회', '배송 조회', '운송장'];
@@ -582,7 +607,7 @@
       const res = await fetch(`${CONFIG.apiUrl}/.netlify/functions/chatbot-chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'smart', message: msg, labels, history: history.slice(-6), brand: BRAND_KEY }),
+        body: JSON.stringify({ mode: 'smart', message: msg, labels, history: history.slice(-6), brand: BRAND_KEY, session_id: SESSION_ID }),
       });
       if (!res.ok) throw new Error('LLM 오류');
       const data = await res.json();

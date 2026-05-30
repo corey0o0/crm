@@ -31,7 +31,7 @@ exports.handler = async (event) => {
   let body;
   try { body = JSON.parse(event.body || '{}'); } catch { return err(400, '잘못된 요청'); }
 
-  const { message, history = [], brand = 'nb', mode = 'chat', labels = [] } = body;
+  const { message, history = [], brand = 'nb', mode = 'chat', labels = [], session_id } = body;
   if (!message) return err(400, 'message 필수');
 
   let systemPrompt, maxTokens;
@@ -81,6 +81,24 @@ exports.handler = async (event) => {
   const rawText = data.content?.[0]?.text || '';
 
   await logRequest(supabase, ip, brand, 'chat');
+
+  // 채팅 로그 저장 (비동기, 오류 무시)
+  try {
+    const replyType = mode === 'smart' ? 'faq_llm' : 'llm';
+    const jsonMatch = mode === 'smart' ? rawText.match(/\{[\s\S]*\}/) : null;
+    const parsed = jsonMatch ? (() => { try { return JSON.parse(jsonMatch[0]); } catch { return null; } })() : null;
+    const finalReplyType = (parsed?.type === 'faq') ? 'faq_llm' : replyType;
+    const matchedLabel = parsed?.label || null;
+    const botReply = parsed?.reply || (mode !== 'smart' ? rawText : null);
+    await supabase.from('chat_logs').insert({
+      session_id: session_id || null,
+      brand,
+      user_message: message,
+      bot_reply: botReply?.slice(0, 1000) || null,
+      matched_faq_label: matchedLabel,
+      reply_type: finalReplyType,
+    });
+  } catch {}
 
   if (mode === 'smart') {
     // JSON 추출 (LLM이 마크다운 코드블록 등을 붙일 경우 대비)

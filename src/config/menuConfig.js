@@ -160,6 +160,7 @@ export const MENU_KEYS = {
   MANUAL_SALES: 'manual_sales',
   ONLINE_STATS: 'online_stats',
   SALES_HISTORY_STATS: 'sales_history_stats',
-  SERVICE_STATS: 'service_stats'
+  SERVICE_STATS: 'service_stats',
+  CHATBOT_FAQ: 'chatbot_faq',
 };
 

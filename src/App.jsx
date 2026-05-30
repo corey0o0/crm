@@ -66,6 +66,7 @@ import Cafe24Settings from './components/Settings/Cafe24Settings';
 import ProductComparisonDashboard from './components/Settings/ProductComparisonDashboard';
 import Cafe24OrderList from './pages/cafe24/Cafe24OrderList';
 import EcountDataUploader from './components/Settings/EcountDataUploader';
+import FaqManagement from './components/Chatbot/FaqManagement';
 
 function AppRouter() {
   const { session } = useAuth();
@@ -149,6 +150,9 @@ function AppRouter() {
 
           {/* 관리자 도구 */}
           <Route path="admin/tools" element={<PermissionRoute requiredPermission={MENU_KEYS.ADMIN_TOOLS}><AdminTools /></PermissionRoute>} />
+
+          {/* 챗봇 FAQ 관리 */}
+          <Route path="chatbot/faq" element={<PermissionRoute requiredPermission={MENU_KEYS.CHATBOT_FAQ}><FaqManagement /></PermissionRoute>} />
 
           {/* 카페24 연동 설정 */}
           <Route path="settings/ecount-uploader" element={<PermissionRoute requiredPermission={MENU_KEYS.ADMIN_TOOLS}><EcountDataUploader /></PermissionRoute>} />
