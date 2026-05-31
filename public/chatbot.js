@@ -600,6 +600,15 @@
     return matchFaqs(msg, 1)[0] || null;
   }
 
+  function logFaqMatch(userMsg, faqLabel) {
+    if (!CONFIG.useLlmProxy) return;
+    fetch(`${CONFIG.apiUrl}/.netlify/functions/chatbot-chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'log', message: userMsg, matched_label: faqLabel, brand: BRAND_KEY, session_id: SESSION_ID }),
+    }).catch(() => {});
+  }
+
   async function callLlm(msg, history) {
     if (CONFIG.useLlmProxy) {
       // 프로덕션: Netlify Function → Claude Haiku (smart 모드: FAQ 분류 + 답변 1회 호출)
@@ -1116,6 +1125,7 @@
           const faq = FAQS[idx];
           hideTyping();
           if (faq) {
+            logFaqMatch(text, faq.label);
             addTextMsg(faq.answer, 'bot', 'badge-faq', 'FAQ');
             addQuickReplies([
               { label: '📝 A/S 접수하기', value: '__as_register__' },
@@ -1275,6 +1285,7 @@
           const faqs = matchFaqs(text);
           if (faqs.length === 1) {
             hideTyping();
+            logFaqMatch(text, faqs[0].label);
             addTextMsg(faqs[0].answer, 'bot', 'badge-faq', 'FAQ');
             addQuickReplies([
               { label: '📝 A/S 접수하기', value: '__as_register__' },

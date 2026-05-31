@@ -31,7 +31,24 @@ exports.handler = async (event) => {
   let body;
   try { body = JSON.parse(event.body || '{}'); } catch { return err(400, '잘못된 요청'); }
 
-  const { message, history = [], brand = 'nb', mode = 'chat', labels = [], session_id } = body;
+  const { message, history = [], brand = 'nb', mode = 'chat', labels = [], session_id, matched_label } = body;
+
+  if (mode === 'log') {
+    if (message) {
+      try {
+        await supabase.from('chat_logs').insert({
+          session_id: session_id || null,
+          brand,
+          user_message: message,
+          bot_reply: null,
+          matched_faq_label: matched_label || null,
+          reply_type: 'faq',
+        });
+      } catch {}
+    }
+    return ok({ ok: true });
+  }
+
   if (!message) return err(400, 'message 필수');
 
   let systemPrompt, maxTokens;
