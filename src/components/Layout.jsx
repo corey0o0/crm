@@ -377,10 +377,17 @@ function Layout() {
       ]
     },
 
-    // ⚙️ 설정
-    // { text: '상품 동기화(비교)', icon: <SyncIcon />, path: '/settings/product-sync', key: 'admin_tools' },
-    { text: '관리자 도구', icon: <ScienceIcon />, path: '/admin/tools', key: 'admin_tools' },
-    { text: '챗봇 FAQ 관리', icon: <SmartToyIcon />, path: '/chatbot/faq', key: 'chatbot_faq' }
+    // ⚙️ 관리자
+    {
+      text: '관리자',
+      icon: <ScienceIcon />,
+      path: '',
+      key: 'admin_group',
+      children: [
+        { text: '관리자 도구', icon: <ScienceIcon />, path: '/admin/tools', key: 'admin_tools' },
+        { text: '챗봇 FAQ 관리', icon: <SmartToyIcon />, path: '/chatbot/faq', key: 'chatbot_faq' },
+      ]
+    }
   ];
 
   // 이메일 및 DB 설정 기반 메뉴 필터링
