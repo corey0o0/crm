@@ -13,8 +13,11 @@ import {
   Refresh as RefreshIcon,
   AutoFixHigh as AutoFixHighIcon,
   CheckCircle as CheckCircleIcon,
-  Cancel as CancelIcon
+  Cancel as CancelIcon,
+  Search as SearchIcon,
+  Clear as ClearIcon,
 } from '@mui/icons-material';
+import InputAdornment from '@mui/material/InputAdornment';
 import { supabase } from '../../lib/supabaseClient';
 import { format } from 'date-fns';
 
@@ -42,6 +45,10 @@ export default function FaqManagement() {
   const [editDialog, setEditDialog] = useState({ open: false, item: null });
   const [deleteDialog, setDeleteDialog] = useState({ open: false, id: null });
   const [form, setForm] = useState(EMPTY_FORM);
+  const [searchText, setSearchText] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('ALL');
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [logSearch, setLogSearch] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [enhanceBrand, setEnhanceBrand] = useState('nb');
   const [enhanceLoading, setEnhanceLoading] = useState(false);
@@ -166,6 +173,30 @@ export default function FaqManagement() {
     if (tabValue === 0) fetchFaqs();
   };
 
+  const categories = ['ALL', ...Array.from(new Set(faqs.map(f => f.category).filter(Boolean))).sort()];
+
+  const filteredFaqs = faqs.filter(faq => {
+    if (activeFilter === 'active' && !faq.is_active) return false;
+    if (activeFilter === 'inactive' && faq.is_active) return false;
+    if (categoryFilter !== 'ALL' && faq.category !== categoryFilter) return false;
+    if (searchText.trim()) {
+      const q = searchText.trim().toLowerCase();
+      const inLabel = faq.label?.toLowerCase().includes(q);
+      const inAnswer = faq.answer?.toLowerCase().includes(q);
+      const inKeywords = (faq.keywords || []).some(k => k.toLowerCase().includes(q));
+      if (!inLabel && !inAnswer && !inKeywords) return false;
+    }
+    return true;
+  });
+
+  const filteredLogs = chatLogs.filter(log => {
+    if (!logSearch.trim()) return true;
+    const q = logSearch.trim().toLowerCase();
+    return log.user_message?.toLowerCase().includes(q) ||
+      log.matched_faq_label?.toLowerCase().includes(q) ||
+      log.bot_reply?.toLowerCase().includes(q);
+  });
+
   const brandColor = { SHARED: 'default', NB: 'primary', XRB: 'error' };
   const replyTypeColor = { faq: 'success', faq_llm: 'warning', llm: 'info', error: 'error' };
 
@@ -182,13 +213,45 @@ export default function FaqManagement() {
       {/* ── Tab 0: FAQ 목록 ── */}
       {tabValue === 0 && (
         <Box>
-          <Box sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center' }}>
-            <FormControl size="small" sx={{ minWidth: 120 }}>
+          <Box sx={{ display: 'flex', gap: 1.5, mb: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+            <TextField
+              size="small"
+              placeholder="레이블·키워드·답변 검색"
+              value={searchText}
+              onChange={e => setSearchText(e.target.value)}
+              sx={{ minWidth: 200 }}
+              InputProps={{
+                startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>,
+                endAdornment: searchText ? (
+                  <InputAdornment position="end">
+                    <IconButton size="small" onClick={() => setSearchText('')}><ClearIcon fontSize="small" /></IconButton>
+                  </InputAdornment>
+                ) : null,
+              }}
+            />
+            <FormControl size="small" sx={{ minWidth: 100 }}>
               <InputLabel>브랜드</InputLabel>
               <Select value={brandFilter} onChange={e => setBrandFilter(e.target.value)} label="브랜드">
                 {BRANDS.map(b => <MenuItem key={b} value={b}>{b}</MenuItem>)}
               </Select>
             </FormControl>
+            <FormControl size="small" sx={{ minWidth: 130 }}>
+              <InputLabel>카테고리</InputLabel>
+              <Select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} label="카테고리">
+                {categories.map(c => <MenuItem key={c} value={c}>{c === 'ALL' ? '전체' : c}</MenuItem>)}
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ minWidth: 100 }}>
+              <InputLabel>활성</InputLabel>
+              <Select value={activeFilter} onChange={e => setActiveFilter(e.target.value)} label="활성">
+                <MenuItem value="all">전체</MenuItem>
+                <MenuItem value="active">활성만</MenuItem>
+                <MenuItem value="inactive">비활성만</MenuItem>
+              </Select>
+            </FormControl>
+            <Typography variant="body2" color="text.secondary" sx={{ ml: 0.5 }}>
+              {filteredFaqs.length}/{faqs.length}건
+            </Typography>
             <Box sx={{ flex: 1 }} />
             <Button startIcon={<RefreshIcon />} onClick={fetchFaqs} disabled={loading}>새로고침</Button>
             <Button variant="contained" startIcon={<AddIcon />} onClick={() => openEdit()}>FAQ 추가</Button>
@@ -211,10 +274,12 @@ export default function FaqManagement() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {faqs.length === 0 && (
-                    <TableRow><TableCell colSpan={7} align="center" sx={{ py: 4, color: 'text.secondary' }}>FAQ가 없습니다. 추가해주세요.</TableCell></TableRow>
+                  {filteredFaqs.length === 0 && (
+                    <TableRow><TableCell colSpan={7} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                      {faqs.length === 0 ? 'FAQ가 없습니다. 추가해주세요.' : '검색 결과가 없습니다.'}
+                    </TableCell></TableRow>
                   )}
-                  {faqs.map(faq => (
+                  {filteredFaqs.map(faq => (
                     <TableRow key={faq.id} sx={{ opacity: faq.is_active ? 1 : 0.45 }}>
                       <TableCell><Chip label={faq.brand} size="small" color={brandColor[faq.brand] || 'default'} /></TableCell>
                       <TableCell><Typography variant="body2" fontWeight="bold">{faq.label}</Typography></TableCell>
@@ -259,7 +324,22 @@ export default function FaqManagement() {
       {/* ── Tab 1: 채팅 로그 ── */}
       {tabValue === 1 && (
         <Box>
-          <Box sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center' }}>
+          <Box sx={{ display: 'flex', gap: 1.5, mb: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+            <TextField
+              size="small"
+              placeholder="메시지·FAQ명 검색"
+              value={logSearch}
+              onChange={e => setLogSearch(e.target.value)}
+              sx={{ minWidth: 180 }}
+              InputProps={{
+                startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>,
+                endAdornment: logSearch ? (
+                  <InputAdornment position="end">
+                    <IconButton size="small" onClick={() => setLogSearch('')}><ClearIcon fontSize="small" /></IconButton>
+                  </InputAdornment>
+                ) : null,
+              }}
+            />
             <FormControl size="small" sx={{ minWidth: 100 }}>
               <InputLabel>브랜드</InputLabel>
               <Select value={logBrandFilter} onChange={e => setLogBrandFilter(e.target.value)} label="브랜드">
@@ -274,6 +354,9 @@ export default function FaqManagement() {
                 {REPLY_TYPES.map(t => <MenuItem key={t} value={t}>{t === 'all' ? '전체' : t}</MenuItem>)}
               </Select>
             </FormControl>
+            <Typography variant="body2" color="text.secondary" sx={{ ml: 0.5 }}>
+              {filteredLogs.length}/{chatLogs.length}건
+            </Typography>
             <Box sx={{ flex: 1 }} />
             <Button startIcon={<RefreshIcon />} onClick={fetchChatLogs} disabled={loading}>새로고침</Button>
           </Box>
@@ -294,10 +377,12 @@ export default function FaqManagement() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {chatLogs.length === 0 && (
-                    <TableRow><TableCell colSpan={6} align="center" sx={{ py: 4, color: 'text.secondary' }}>채팅 로그가 없습니다.</TableCell></TableRow>
+                  {filteredLogs.length === 0 && (
+                    <TableRow><TableCell colSpan={6} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                      {chatLogs.length === 0 ? '채팅 로그가 없습니다.' : '검색 결과가 없습니다.'}
+                    </TableCell></TableRow>
                   )}
-                  {chatLogs.map(log => (
+                  {filteredLogs.map(log => (
                     <TableRow key={log.id}>
                       <TableCell sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
                         {format(new Date(log.created_at), 'MM/dd HH:mm')}
