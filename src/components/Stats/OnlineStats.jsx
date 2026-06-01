@@ -422,6 +422,7 @@ function OnlineStats() {
                         }
                      }
 
+                     item._modelName = modelName;
                      if (!brandStats[customerType][sup].airframes[modelName]) {
                         brandStats[customerType][sup].airframes[modelName] = { qty: 0, amount: 0 };
                      }
@@ -882,7 +883,7 @@ function OnlineStats() {
                               sx={{ cursor: 'pointer', color: 'primary.main', textDecoration: 'underline' }}
                             >{agencyName}</TableCell>
                             <TableCell align="right">
-                               <Typography variant="body2" sx={{ fontWeight: data.airframe > 0 ? 'bold' : 'normal', color: data.airframe > 0 ? 'primary.main' : 'inherit' }}>{data.airframe}대</Typography>
+                               <Typography variant="body2" sx={{ fontWeight: data.airframe > 0 ? 'bold' : 'normal', color: data.airframe > 0 ? 'primary.main' : 'inherit' }}>{data.airframe}</Typography>
                                <Typography variant="caption" color="textSecondary">{formatCurrency(data.airframeAmount)}</Typography>
                             </TableCell>
                             <TableCell align="right">
@@ -939,7 +940,11 @@ function OnlineStats() {
                                     }}>
                                       <Typography variant="body2" color="textSecondary" sx={{ pr: 2, flex: 1, wordBreak: 'keep-all' }}>{model}</Typography>
                                       <Box sx={{ textAlign: 'right', minWidth: '80px' }}>
-                                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{info.qty}대</Typography>
+                                        <Typography
+                                          variant="body2"
+                                          sx={{ fontWeight: 'bold', color: 'primary.main', cursor: 'pointer', textDecoration: 'underline' }}
+                                          onClick={() => handleOpenModal(`${brandName} - ${model} 기체 상세`, (o, agName, item, isAirframe, brand) => o.agency_id && brand === brandName && isAirframe && item._modelName === model)}
+                                        >{info.qty}</Typography>
                                         <Typography variant="caption" color="textSecondary">{formatCurrency(info.amount)}</Typography>
                                       </Box>
                                     </Box>
@@ -950,7 +955,11 @@ function OnlineStats() {
                             </TableCell>
                             <TableCell align="right" sx={{ verticalAlign: 'top', pt: 2 }}>{formatCurrency(data.airframeAmount)}</TableCell>
                             <TableCell align="right" sx={{ verticalAlign: 'top', pt: 2 }}>
-                               <Typography variant="body2" sx={{ fontWeight: data.parts > 0 ? 'bold' : 'normal', color: data.parts > 0 ? 'primary.main' : 'inherit' }}>{data.parts}개</Typography>
+                               <Typography
+                                 variant="body2"
+                                 sx={{ fontWeight: data.parts > 0 ? 'bold' : 'normal', color: data.parts > 0 ? 'primary.main' : 'inherit', cursor: data.parts > 0 ? 'pointer' : 'default', textDecoration: data.parts > 0 ? 'underline' : 'none' }}
+                                 onClick={() => data.parts > 0 && handleOpenModal(`${brandName} - 파츠/용품 상세`, (o, agName, item, isAirframe, brand) => o.agency_id && brand === brandName && !isAirframe)}
+                               >{data.parts}</Typography>
                                <Typography variant="caption" color="textSecondary">{formatCurrency(data.partsAmount)}</Typography>
                             </TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', verticalAlign: 'top', pt: 2 }}>{formatCurrency(data.airframeAmount + data.partsAmount)}</TableCell>
@@ -1116,6 +1125,7 @@ function OnlineStats() {
                 <TableRow sx={{ bgcolor: 'grey.100' }}>
                   <TableCell>주문일</TableCell>
                   <TableCell>주문번호</TableCell>
+                  <TableCell>주문자/대리점</TableCell>
                   <TableCell>상품명</TableCell>
                   <TableCell align="right">수량</TableCell>
                   <TableCell align="right">결제금액</TableCell>
@@ -1125,7 +1135,8 @@ function OnlineStats() {
                 {modalData.length > 0 ? modalData.map((row, idx) => (
                   <TableRow key={idx} hover sx={{ opacity: row.isCancelled ? 0.6 : 1 }}>
                     <TableCell>{row.order_date ? row.order_date.split('T')[0] : ''}</TableCell>
-                    <TableCell>{String(row.order_id || '').includes('_') ? String(row.order_id).split('_').slice(1).join('_') : row.order_id}</TableCell>
+                    <TableCell sx={{ fontSize: '0.78rem' }}>{String(row.order_id || '').includes('_') ? String(row.order_id).split('_').slice(1).join('_') : row.order_id}</TableCell>
+                    <TableCell sx={{ fontSize: '0.82rem' }}>{row.agency_name !== '일반 주문' ? row.agency_name : (row.buyer_name || '-')}</TableCell>
                     <TableCell>
                        {row.isCancelled && <Box component="span" sx={{ color: 'error.main', fontWeight: 'bold', mr: 1 }}>[취소/반품]</Box>}
                        <span style={{ textDecoration: row.isCancelled ? 'line-through' : 'none' }}>
@@ -1141,24 +1152,24 @@ function OnlineStats() {
               </TableBody>
               <TableFooter>
                 <TableRow sx={{ bgcolor: 'grey.200' }}>
-                  <TableCell colSpan={3} align="right" sx={{ fontWeight: 'bold' }}>기체 총합 (취소 제외)</TableCell>
+                  <TableCell colSpan={4} align="right" sx={{ fontWeight: 'bold' }}>기체 총합 (취소 제외)</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold' }}>{modalData.filter(i => i._isAirframe && !i.isCancelled).reduce((sum, i) => sum + Number(i.quantity || 1), 0)}대</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(modalData.filter(i => i._isAirframe && !i.isCancelled).reduce((sum, i) => sum + i.total_price, 0))}</TableCell>
                 </TableRow>
                 <TableRow sx={{ bgcolor: 'grey.200' }}>
-                  <TableCell colSpan={3} align="right" sx={{ fontWeight: 'bold' }}>파츠 총합 (취소 제외)</TableCell>
+                  <TableCell colSpan={4} align="right" sx={{ fontWeight: 'bold' }}>파츠 총합 (취소 제외)</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold' }}>{modalData.filter(i => !i._isAirframe && !i.isCancelled).reduce((sum, i) => sum + Number(i.quantity || 1), 0)}개</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(modalData.filter(i => !i._isAirframe && !i.isCancelled).reduce((sum, i) => sum + i.total_price, 0))}</TableCell>
                 </TableRow>
                 {modalShippingTotal > 0 && (
                   <TableRow sx={{ bgcolor: 'grey.200' }}>
-                    <TableCell colSpan={3} align="right" sx={{ fontWeight: 'bold' }}>배송비 합계</TableCell>
+                    <TableCell colSpan={4} align="right" sx={{ fontWeight: 'bold' }}>배송비 합계</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 'bold' }}>-</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(modalShippingTotal)}</TableCell>
                   </TableRow>
                 )}
                 <TableRow sx={{ bgcolor: 'primary.light' }}>
-                  <TableCell colSpan={3} align="right" sx={{ fontWeight: 'bold', color: 'primary.contrastText' }}>총 주문 금액 (취소 제외)</TableCell>
+                  <TableCell colSpan={4} align="right" sx={{ fontWeight: 'bold', color: 'primary.contrastText' }}>총 주문 금액 (취소 제외)</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.contrastText' }}>-</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.contrastText' }}>
                     {formatCurrency(modalData.filter(i => !i.isCancelled).reduce((sum, i) => sum + i.total_price, 0) + modalShippingTotal)}
