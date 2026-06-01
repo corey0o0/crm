@@ -243,7 +243,10 @@ function SalesHistoryStats() {
             if (validItems.length === 0) return;
 
             const canceledItems = items.filter(it => CANCEL_STATUSES.includes(it.order_status));
-            const canceledAmount = canceledItems.reduce((acc, it) => acc + (Number(it.product_price || it.price || 0) * Number(it.quantity || 1)), 0);
+            const canceledAmount = canceledItems.reduce((acc, it) => {
+              if (it.payment_amount !== undefined && it.payment_amount !== null) return acc + Number(it.payment_amount);
+              return acc + (Number(it.product_price || it.price || 0) * Number(it.quantity || 1));
+            }, 0);
             // 선불금 처리: total_amount=0 → payment_amount 합계 → used_points 순으로 폴백
             const _ips = validItems.reduce((acc, i) => acc + Number(i.payment_amount || 0), 0);
             const isNearbikeMemberDiscount = String(o.order_id || '').startsWith('nearbike_') && Number(o.total_amount || 0) === 0;
@@ -688,7 +691,10 @@ function SalesHistoryStats() {
         const orderRows = [];
 
         const canceledItems = (items || []).filter(it => CANCEL_STATUSES.includes(it.order_status));
-        const canceledAmount = canceledItems.reduce((acc, it) => acc + (Number(it.product_price || it.price || 0) * Number(it.quantity || 1)), 0);
+        const canceledAmount = canceledItems.reduce((acc, it) => {
+          if (it.payment_amount !== undefined && it.payment_amount !== null) return acc + Number(it.payment_amount);
+          return acc + (Number(it.product_price || it.price || 0) * Number(it.quantity || 1));
+        }, 0);
         // 선불금 처리: total_amount=0 → payment_amount 합계 → used_points 순으로 폴백
         const _ips2 = validItems.reduce((acc, i) => acc + Number(i.payment_amount || 0), 0);
         const isNearbikeMemberDiscount = String(o.order_id || '').startsWith('nearbike_') && Number(o.total_amount || 0) === 0;
