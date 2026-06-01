@@ -210,7 +210,7 @@ function OnlineStats() {
       if (cafe24Orders) {
         let total = 0;
         const agencyStats = {};
-        const brandStats = { agency: {}, general: {} };
+        const brandStats = { agency_xrb: {}, agency_nb: {}, general_xrb: {}, general_nb: {} };
         const generalProductStats = {};
         const agencyMap = {};
         agenciesData?.forEach(a => { agencyMap[a.id] = a.name; });
@@ -396,7 +396,8 @@ function OnlineStats() {
                 }
 
                 const isGeneral = !o.agency_id;
-                const customerType = isGeneral ? 'general' : 'agency';
+                const mallSuffix = o.mall_id === 'nearbike' ? '_nb' : '_xrb';
+                const customerType = (isGeneral ? 'general' : 'agency') + mallSuffix;
 
                 if (isGeneral) {
                     if (isAirframe) {
@@ -675,6 +676,75 @@ function OnlineStats() {
     }).format(value);
   };
 
+  const renderBrandTable = (brandData, isAgency) => {
+    const entries = Object.entries(brandData || {});
+    const totalAirframeAmt = entries.reduce((s, [,d]) => s + d.airframeAmount, 0);
+    const totalPartsAmt = entries.reduce((s, [,d]) => s + d.partsAmount, 0);
+    const totalPartsQty = entries.reduce((s, [,d]) => s + d.parts, 0);
+    return (
+      <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
+        <TableHead sx={{ bgcolor: 'grey.100' }}>
+          <TableRow>
+            <TableCell>브랜드명</TableCell>
+            <TableCell>기체 종류별 판매 대수</TableCell>
+            <TableCell align="right">기체 합계금액</TableCell>
+            <TableCell align="right">부품/용품 합계금액</TableCell>
+            <TableCell align="right">총 합계</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {entries.length > 0 ? (
+            entries
+              .sort((a, b) => (b[1].airframeAmount + b[1].partsAmount) - (a[1].airframeAmount + a[1].partsAmount))
+              .map(([brandName, data]) => (
+                <TableRow key={brandName} hover>
+                  <TableCell
+                    onClick={() => handleOpenModal(`${isAgency ? '대리점(B2B)' : '일반고객(B2C)'} - ${brandName} 판매 상세 내역`, (o, agName, item, isAirframe, brand) => (isAgency ? !!o.agency_id : !o.agency_id) && brand === brandName)}
+                    sx={{ fontWeight: 'bold', verticalAlign: 'top', pt: 2, cursor: 'pointer', color: 'primary.main', textDecoration: 'underline' }}
+                  >{brandName}</TableCell>
+                  <TableCell sx={{ verticalAlign: 'top', pt: 2 }}>
+                    {Object.entries(data.airframes).length > 0 ? (
+                      Object.entries(data.airframes).sort((a, b) => b[1].qty - a[1].qty).map(([model, info], idx, arr) => (
+                        <Box key={model} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: idx === arr.length - 1 ? 0 : 1.5, pb: idx === arr.length - 1 ? 0 : 1.5, borderBottom: idx === arr.length - 1 ? 'none' : '1px solid #eee' }}>
+                          <Typography variant="body2" color="textSecondary" sx={{ pr: 2, flex: 1, wordBreak: 'keep-all' }}>{model}</Typography>
+                          <Box sx={{ textAlign: 'right', minWidth: '80px' }}>
+                            <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main', cursor: 'pointer', textDecoration: 'underline' }}
+                              onClick={(e) => { e.stopPropagation(); handleOpenModal(`${brandName} - ${model} 기체 상세`, (o, agName, item, isAirframe, brand) => (isAgency ? !!o.agency_id : !o.agency_id) && brand === brandName && isAirframe && item._modelName === model); }}
+                            >{info.qty}</Typography>
+                            <Typography variant="caption" color="textSecondary">{formatCurrency(info.amount)}</Typography>
+                          </Box>
+                        </Box>
+                      ))
+                    ) : <Typography variant="body2" color="textSecondary">-</Typography>}
+                  </TableCell>
+                  <TableCell align="right" sx={{ verticalAlign: 'top', pt: 2 }}>{formatCurrency(data.airframeAmount)}</TableCell>
+                  <TableCell align="right" sx={{ verticalAlign: 'top', pt: 2 }}>
+                    <Typography variant="body2" sx={{ fontWeight: data.parts > 0 ? 'bold' : 'normal', color: data.parts > 0 ? 'primary.main' : 'inherit', cursor: data.parts > 0 ? 'pointer' : 'default', textDecoration: data.parts > 0 ? 'underline' : 'none' }}
+                      onClick={() => data.parts > 0 && handleOpenModal(`${brandName} - 파츠/용품 상세`, (o, agName, item, isAirframe, brand) => (isAgency ? !!o.agency_id : !o.agency_id) && brand === brandName && !isAirframe)}
+                    >{data.parts}</Typography>
+                    <Typography variant="caption" color="textSecondary">{formatCurrency(data.partsAmount)}</Typography>
+                  </TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 'bold', verticalAlign: 'top', pt: 2 }}>{formatCurrency(data.airframeAmount + data.partsAmount)}</TableCell>
+                </TableRow>
+              ))
+          ) : (
+            <TableRow><TableCell colSpan={5} align="center">데이터가 없습니다.</TableCell></TableRow>
+          )}
+        </TableBody>
+        {entries.length > 0 && (
+          <TableHead sx={{ bgcolor: 'grey.200' }}>
+            <TableRow>
+              <TableCell colSpan={2} align="center" sx={{ fontWeight: 'bold' }}>총합</TableCell>
+              <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.dark' }}>{formatCurrency(totalAirframeAmt)}</TableCell>
+              <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.dark' }}>{totalPartsQty}개 / {formatCurrency(totalPartsAmt)}</TableCell>
+              <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.dark' }}>{formatCurrency(totalAirframeAmt + totalPartsAmt)}</TableCell>
+            </TableRow>
+          </TableHead>
+        )}
+      </Table>
+    );
+  };
+
   return (
     <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -925,154 +995,26 @@ function OnlineStats() {
             </Grid>
 
             <Grid item xs={12} md={6}>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>브랜드별 제품 출고 현황 (대리점 B2B)</Typography>
+              {/* B2B - XRB */}
+              <Typography variant="h6" sx={{ mb: 1, fontWeight: 'bold' }}>브랜드별 제품 출고 현황 (대리점 B2B)</Typography>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold', color: '#1565c0' }}>▶ XRB (엑스라이더)</Typography>
+              <TableContainer component={Paper} sx={{ borderRadius: 2, mb: 2 }}>
+                {renderBrandTable(stats.brandStats?.agency_xrb, true)}
+              </TableContainer>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold', color: '#2e7d32' }}>▶ NB (니어바이크)</Typography>
               <TableContainer component={Paper} sx={{ borderRadius: 2, mb: 4 }}>
-                <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
-                  <TableHead sx={{ bgcolor: 'grey.100' }}>
-                    <TableRow>
-                      <TableCell>브랜드명</TableCell>
-                      <TableCell>기체 종류별 판매 대수</TableCell>
-                      <TableCell align="right">기체 합계금액</TableCell>
-                      <TableCell align="right">부품/용품 합계금액</TableCell>
-                      <TableCell align="right">총 합계</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {Object.entries(stats.brandStats?.agency || {}).length > 0 ? (
-                      Object.entries(stats.brandStats.agency)
-                        .sort((a, b) => (b[1].airframeAmount + b[1].partsAmount) - (a[1].airframeAmount + a[1].partsAmount))
-                        .map(([brandName, data]) => (
-                          <TableRow key={brandName} hover>
-                            <TableCell 
-                              onClick={() => handleOpenModal(`대리점(B2B) - ${brandName} 판매 상세 내역`, (o, agName, item, isAirframe, brand) => o.agency_id && brand === brandName)}
-                              sx={{ fontWeight: 'bold', verticalAlign: 'top', pt: 2, cursor: 'pointer', color: 'primary.main', textDecoration: 'underline' }}
-                            >{brandName}</TableCell>
-                            <TableCell sx={{ verticalAlign: 'top', pt: 2 }}>
-                              {Object.entries(data.airframes).length > 0 ? (
-                                Object.entries(data.airframes)
-                                  .sort((a, b) => b[1].qty - a[1].qty)
-                                  .map(([model, info], index, arr) => (
-                                    <Box key={model} sx={{ 
-                                      display: 'flex', 
-                                      justifyContent: 'space-between', 
-                                      alignItems: 'center',
-                                      mb: index === arr.length - 1 ? 0 : 1.5,
-                                      pb: index === arr.length - 1 ? 0 : 1.5,
-                                      borderBottom: index === arr.length - 1 ? 'none' : '1px solid #eee'
-                                    }}>
-                                      <Typography variant="body2" color="textSecondary" sx={{ pr: 2, flex: 1, wordBreak: 'keep-all' }}>{model}</Typography>
-                                      <Box sx={{ textAlign: 'right', minWidth: '80px' }}>
-                                        <Typography
-                                          variant="body2"
-                                          sx={{ fontWeight: 'bold', color: 'primary.main', cursor: 'pointer', textDecoration: 'underline' }}
-                                          onClick={() => handleOpenModal(`${brandName} - ${model} 기체 상세`, (o, agName, item, isAirframe, brand) => o.agency_id && brand === brandName && isAirframe && item._modelName === model)}
-                                        >{info.qty}</Typography>
-                                        <Typography variant="caption" color="textSecondary">{formatCurrency(info.amount)}</Typography>
-                                      </Box>
-                                    </Box>
-                                  ))
-                              ) : (
-                                <Typography variant="body2" color="textSecondary">-</Typography>
-                              )}
-                            </TableCell>
-                            <TableCell align="right" sx={{ verticalAlign: 'top', pt: 2 }}>{formatCurrency(data.airframeAmount)}</TableCell>
-                            <TableCell align="right" sx={{ verticalAlign: 'top', pt: 2 }}>
-                               <Typography
-                                 variant="body2"
-                                 sx={{ fontWeight: data.parts > 0 ? 'bold' : 'normal', color: data.parts > 0 ? 'primary.main' : 'inherit', cursor: data.parts > 0 ? 'pointer' : 'default', textDecoration: data.parts > 0 ? 'underline' : 'none' }}
-                                 onClick={() => data.parts > 0 && handleOpenModal(`${brandName} - 파츠/용품 상세`, (o, agName, item, isAirframe, brand) => o.agency_id && brand === brandName && !isAirframe)}
-                               >{data.parts}</Typography>
-                               <Typography variant="caption" color="textSecondary">{formatCurrency(data.partsAmount)}</Typography>
-                            </TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', verticalAlign: 'top', pt: 2 }}>{formatCurrency(data.airframeAmount + data.partsAmount)}</TableCell>
-                          </TableRow>
-                        ))
-                    ) : (
-                      <TableRow><TableCell colSpan={5} align="center">데이터가 없습니다.</TableCell></TableRow>
-                    )}
-                  </TableBody>
-                  {Object.entries(stats.brandStats?.agency || {}).length > 0 && stats.totals?.b2b && (
-                  <TableHead sx={{ bgcolor: 'grey.200' }}>
-                    <TableRow>
-                      <TableCell colSpan={2} align="center" sx={{ fontWeight: 'bold' }}>총합</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.dark' }}>{formatCurrency(stats.totals.b2b.airframeAmt)}</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.dark' }}>{stats.totals.b2b.parts}개 / {formatCurrency(stats.totals.b2b.partsAmt)}</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.dark' }}>{formatCurrency(stats.totals.b2b.airframeAmt + stats.totals.b2b.partsAmt)}</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  )}
-                </Table>
+                {renderBrandTable(stats.brandStats?.agency_nb, true)}
               </TableContainer>
 
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>브랜드별 제품 출고 현황 (일반고객 B2C)</Typography>
+              {/* B2C - XRB */}
+              <Typography variant="h6" sx={{ mb: 1, fontWeight: 'bold' }}>브랜드별 제품 출고 현황 (일반고객 B2C)</Typography>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold', color: '#1565c0' }}>▶ XRB (엑스라이더)</Typography>
+              <TableContainer component={Paper} sx={{ borderRadius: 2, mb: 2 }}>
+                {renderBrandTable(stats.brandStats?.general_xrb, false)}
+              </TableContainer>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold', color: '#2e7d32' }}>▶ NB (니어바이크)</Typography>
               <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
-                <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
-                  <TableHead sx={{ bgcolor: 'grey.100' }}>
-                    <TableRow>
-                      <TableCell>브랜드명</TableCell>
-                      <TableCell>기체 종류별 판매 대수</TableCell>
-                      <TableCell align="right">기체 합계금액</TableCell>
-                      <TableCell align="right">부품/용품 합계금액</TableCell>
-                      <TableCell align="right">총 합계</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {Object.entries(stats.brandStats?.general || {}).length > 0 ? (
-                      Object.entries(stats.brandStats.general)
-                        .sort((a, b) => (b[1].airframeAmount + b[1].partsAmount) - (a[1].airframeAmount + a[1].partsAmount))
-                        .map(([brandName, data]) => (
-                          <TableRow key={brandName} hover>
-                            <TableCell 
-                              onClick={() => handleOpenModal(`일반고객(B2C) - ${brandName} 판매 상세 내역`, (o, agName, item, isAirframe, brand) => !o.agency_id && brand === brandName)}
-                              sx={{ fontWeight: 'bold', verticalAlign: 'top', pt: 2, cursor: 'pointer', color: 'primary.main', textDecoration: 'underline' }}
-                            >{brandName}</TableCell>
-                            <TableCell sx={{ verticalAlign: 'top', pt: 2 }}>
-                              {Object.entries(data.airframes).length > 0 ? (
-                                Object.entries(data.airframes)
-                                  .sort((a, b) => b[1].qty - a[1].qty)
-                                  .map(([model, info], index, arr) => (
-                                    <Box key={model} sx={{ 
-                                      display: 'flex', 
-                                      justifyContent: 'space-between',
-                                      alignItems: 'center', 
-                                      mb: index === arr.length - 1 ? 0 : 1.5,
-                                      pb: index === arr.length - 1 ? 0 : 1.5,
-                                      borderBottom: index === arr.length - 1 ? 'none' : '1px solid #eee'
-                                    }}>
-                                      <Typography variant="body2" color="textSecondary" sx={{ pr: 2, flex: 1, wordBreak: 'keep-all' }}>{model}</Typography>
-                                      <Box sx={{ textAlign: 'right', minWidth: '80px' }}>
-                                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{info.qty}대</Typography>
-                                        <Typography variant="caption" color="textSecondary">{formatCurrency(info.amount)}</Typography>
-                                      </Box>
-                                    </Box>
-                                  ))
-                              ) : (
-                                <Typography variant="body2" color="textSecondary">-</Typography>
-                              )}
-                            </TableCell>
-                            <TableCell align="right" sx={{ verticalAlign: 'top', pt: 2 }}>{formatCurrency(data.airframeAmount)}</TableCell>
-                            <TableCell align="right" sx={{ verticalAlign: 'top', pt: 2 }}>
-                               <Typography variant="body2" sx={{ fontWeight: data.parts > 0 ? 'bold' : 'normal', color: data.parts > 0 ? 'primary.main' : 'inherit' }}>{data.parts}개</Typography>
-                               <Typography variant="caption" color="textSecondary">{formatCurrency(data.partsAmount)}</Typography>
-                            </TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', verticalAlign: 'top', pt: 2 }}>{formatCurrency(data.airframeAmount + data.partsAmount)}</TableCell>
-                          </TableRow>
-                        ))
-                    ) : (
-                      <TableRow><TableCell colSpan={5} align="center">데이터가 없습니다.</TableCell></TableRow>
-                    )}
-                  </TableBody>
-                  {Object.entries(stats.brandStats?.general || {}).length > 0 && stats.totals?.b2c && (
-                  <TableHead sx={{ bgcolor: 'grey.200' }}>
-                    <TableRow>
-                      <TableCell colSpan={2} align="center" sx={{ fontWeight: 'bold' }}>총합</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.dark' }}>{formatCurrency(stats.totals.b2c.airframeAmt)}</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.dark' }}>{stats.totals.b2c.parts}개 / {formatCurrency(stats.totals.b2c.partsAmt)}</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.dark' }}>{formatCurrency(stats.totals.b2c.airframeAmt + stats.totals.b2c.partsAmt)}</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  )}
-                </Table>
+                {renderBrandTable(stats.brandStats?.general_nb, false)}
               </TableContainer>
             </Grid>
           </Grid>
