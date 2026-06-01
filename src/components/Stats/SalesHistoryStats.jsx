@@ -72,6 +72,7 @@ function SalesHistoryStats() {
   const [showProfit, setShowProfit] = useState(false);
   const [qtyDetailModal, setQtyDetailModal] = useState({ open: false, title: '', rows: [] });
   const [brandDetailModal, setBrandDetailModal] = useState({ open: false, title: '', rows: [] });
+  const [salesBrandFilter, setSalesBrandFilter] = useState('전체');
   const [showCatDetail, setShowCatDetail] = useState(false);
   const [showChannelDetail, setShowChannelDetail] = useState(false);
   const [showChannelPieDetail, setShowChannelPieDetail] = useState(false);
@@ -1092,6 +1093,8 @@ function SalesHistoryStats() {
 
   // 요약
   const totalAmt = currentFiltered.reduce((a, r) => a + Number(r.total_price || 0), 0);
+  const displayAmt = salesBrandFilter === '전체' ? totalAmt
+    : currentFiltered.filter(r => r._type === 'service' || r.part_brand === salesBrandFilter).reduce((a, r) => a + Number(r.total_price || 0), 0);
   const totalQty = currentFiltered.reduce((a, r) => a + Number(r.quantity || 0), 0);
   const totalCost = currentFiltered.reduce((a, r) => a + Number(r.total_cost || 0), 0);
   const totalProfit = totalAmt - totalCost;
@@ -1295,103 +1298,69 @@ function SalesHistoryStats() {
 
   // 보고서용 다차원 그룹화 로직 (브랜드별, 대리점별, 종합, 시계열)
     // 개편된 보고서용 다차원 그룹화 로직 (브랜드별, 채널별 종합)
-  const { comprehensiveSalesGroups, comprehensiveInventoryGroups } = React.useMemo(() => {
-    // 1. 판매 매출 그룹화
-    // 구조: CustomerType(대리점/일반고객/A/S) -> Channel -> ItemKey -> { qty, amount }
-    const sGroupData = {};
-    
-    currentFiltered.forEach(r => {
-      const channel = getSalesChannelName(r);
-      
-      // 대분류: 대리점 / 일반고객 / A/S
-      let customerType = '일반 고객 매출';
-      
-      if (r._type === 'service') {
-        customerType = 'A/S 매출';
-      } else {
-        const isAgency = r.sales_channel && !B2C_CHANNELS.includes(r.sales_channel);
-        if (isAgency) {
-          customerType = '대리점 매출';
+  const { comprehensiveSalesGroups, xrbSalesGroups, nbSalesGroups, comprehensiveInventoryGroups } = React.useMemo(() => {
+    // 1. 판매 매출 그룹화 helper
+    const buildSalesGroups = (rows) => {
+      const sGroupData = {};
+      rows.forEach(r => {
+        const channel = getSalesChannelName(r);
+        let customerType = '일반 고객 매출';
+        if (r._type === 'service') {
+          customerType = 'A/S 매출';
         } else {
-          customerType = '일반 고객 매출';
+          const isAgency = r.sales_channel && !B2C_CHANNELS.includes(r.sales_channel);
+          customerType = isAgency ? '대리점 매출' : '일반 고객 매출';
         }
+        let pName = r.part_name || '상품';
+        const isAirframe = r.part_category === '기체';
+        const isService = r._type === 'service';
+        const qty = Number(r.quantity || 0);
+        const amt = Number(r.total_price || 0);
+        const cost = Number(r.total_cost || 0);
+        if (!sGroupData[customerType]) {
+          sGroupData[customerType] = { customerType, brands: {}, totalQty: 0, totalAmt: 0, totalCost: 0, totalProfit: 0 };
+        }
+        const typeNode = sGroupData[customerType];
+        const groupKey = isService ? (r.service_brand || '기타') : channel;
+        if (!typeNode.brands[groupKey]) {
+          typeNode.brands[groupKey] = { brand: groupKey, items: {}, subtotalQty: 0, subtotalAmt: 0, subtotalCost: 0, subtotalProfit: 0 };
+        }
+        const brandNode = typeNode.brands[groupKey];
+        let itemKey = '', itemName = '';
+        if (isService) { itemKey = 'as_total'; itemName = 'A/S 처리 (공임/부품 포함)'; }
+        else if (!isAirframe) { itemKey = 'parts_total'; itemName = '[ 파츠 총합 ]'; }
+        else { itemKey = pName; itemName = pName; }
+        if (!brandNode.items[itemKey]) {
+           brandNode.items[itemKey] = { name: itemName, isAirframe, isService, quantity: 0, amount: 0, cost: 0, profit: 0, sourceRows: [] };
+        }
+        brandNode.items[itemKey].quantity += qty;
+        brandNode.items[itemKey].amount += amt;
+        brandNode.items[itemKey].cost += cost;
+        brandNode.items[itemKey].profit += (amt - cost);
+        brandNode.items[itemKey].sourceRows.push(r);
+        brandNode.subtotalQty += qty; brandNode.subtotalAmt += amt; brandNode.subtotalCost += cost; brandNode.subtotalProfit += (amt - cost);
+        typeNode.totalQty += qty; typeNode.totalAmt += amt; typeNode.totalCost += cost; typeNode.totalProfit += (amt - cost);
+      });
+      if (!sGroupData['A/S 매출']) {
+        sGroupData['A/S 매출'] = { customerType: 'A/S 매출', brands: { '(해당 기간 없음)': { brand: '(해당 기간 없음)', items: { as_total: { name: 'A/S 처리 내역 없음', isAirframe: false, isService: true, quantity: 0, amount: 0, cost: 0, profit: 0, sourceRows: [] } }, subtotalQty: 0, subtotalAmt: 0, subtotalCost: 0, subtotalProfit: 0 } }, totalQty: 0, totalAmt: 0, totalCost: 0, totalProfit: 0 };
       }
-      
-      // 기체 vs 파츠 분류
-      let pName = r.part_name || '상품';
-      
-      const isAirframe = r.part_category === '기체';
-      const isService = r._type === 'service';
-      
-      const qty = Number(r.quantity || 0);
-      const amt = Number(r.total_price || 0);
-      const cost = Number(r.total_cost || 0);
+      const typeOrder = { '대리점 매출': 1, '일반 고객 매출': 2, 'A/S 매출': 3 };
+      return Object.values(sGroupData).map(t => ({
+        ...t,
+        brandsArr: Object.values(t.brands).map(b => ({
+          ...b,
+          itemsArr: Object.values(b.items).sort((i1, i2) => {
+            if (i1.isService) return 1; if (i2.isService) return -1;
+            if (i1.isAirframe && !i2.isAirframe) return -1; if (!i1.isAirframe && i2.isAirframe) return 1;
+            return i2.amount - i1.amount;
+          })
+        })).sort((a,b) => b.subtotalAmt - a.subtotalAmt)
+      })).sort((a,b) => (typeOrder[a.customerType] || 99) - (typeOrder[b.customerType] || 99));
+    };
 
-      if (!sGroupData[customerType]) {
-        sGroupData[customerType] = { customerType, brands: {}, totalQty: 0, totalAmt: 0, totalCost: 0, totalProfit: 0 };
-      }
-      
-      const typeNode = sGroupData[customerType];
-      const groupKey = isService ? (r.service_brand || '기타') : channel;
-      if (!typeNode.brands[groupKey]) {
-        typeNode.brands[groupKey] = { brand: groupKey, items: {}, subtotalQty: 0, subtotalAmt: 0, subtotalCost: 0, subtotalProfit: 0 };
-      }
-
-      const brandNode = typeNode.brands[groupKey];
-      
-      let itemKey = '';
-      let itemName = '';
-      
-      if (isService) {
-        itemKey = 'as_total';
-        itemName = 'A/S 처리 (공임/부품 포함)';
-      } else if (!isAirframe) {
-        itemKey = 'parts_total';
-        itemName = '[ 파츠 총합 ]';
-      } else {
-        itemKey = pName;
-        itemName = pName;
-      }
-      
-      if (!brandNode.items[itemKey]) {
-         brandNode.items[itemKey] = { name: itemName, isAirframe, isService, quantity: 0, amount: 0, cost: 0, profit: 0, sourceRows: [] };
-      }
-
-      brandNode.items[itemKey].quantity += qty;
-      brandNode.items[itemKey].amount += amt;
-      brandNode.items[itemKey].cost += cost;
-      brandNode.items[itemKey].profit += (amt - cost);
-      brandNode.items[itemKey].sourceRows.push(r);
-      
-      brandNode.subtotalQty += qty;
-      brandNode.subtotalAmt += amt;
-      brandNode.subtotalCost += cost;
-      brandNode.subtotalProfit += (amt - cost);
-
-      typeNode.totalQty += qty;
-      typeNode.totalAmt += amt;
-      typeNode.totalCost += cost;
-      typeNode.totalProfit += (amt - cost);
-    });
-
-    if (!sGroupData['A/S 매출']) {
-      sGroupData['A/S 매출'] = { customerType: 'A/S 매출', brands: { '(해당 기간 없음)': { brand: '(해당 기간 없음)', items: { as_total: { name: 'A/S 처리 내역 없음', isAirframe: false, isService: true, quantity: 0, amount: 0, cost: 0, profit: 0 } }, subtotalQty: 0, subtotalAmt: 0, subtotalCost: 0, subtotalProfit: 0 } }, totalQty: 0, totalAmt: 0, totalCost: 0, totalProfit: 0 };
-    }
-
-    const typeOrder = { '대리점 매출': 1, '일반 고객 매출': 2, 'A/S 매출': 3 };
-    const salesArr = Object.values(sGroupData).map(t => ({
-      ...t,
-      brandsArr: Object.values(t.brands).map(b => ({
-        ...b,
-        itemsArr: Object.values(b.items).sort((i1, i2) => {
-             if (i1.isService) return 1;
-             if (i2.isService) return -1;
-             if (i1.isAirframe && !i2.isAirframe) return -1;
-             if (!i1.isAirframe && i2.isAirframe) return 1;
-             return i2.amount - i1.amount;
-        })
-      })).sort((a,b) => b.subtotalAmt - a.subtotalAmt)
-    })).sort((a,b) => (typeOrder[a.customerType] || 99) - (typeOrder[b.customerType] || 99));
+    const salesArr = buildSalesGroups(currentFiltered);
+    const xrbArr = buildSalesGroups(currentFiltered.filter(r => r._type === 'service' || r.part_brand === 'XRB'));
+    const nbArr = buildSalesGroups(currentFiltered.filter(r => r._type === 'service' || r.part_brand === 'NB'));
 
     // 2. 재고 현황 그룹화
     // 구조: Brand -> ItemKey -> { qty, amount }
@@ -1445,9 +1414,75 @@ function SalesHistoryStats() {
 
     return {
       comprehensiveSalesGroups: salesArr,
+      xrbSalesGroups: xrbArr,
+      nbSalesGroups: nbArr,
       comprehensiveInventoryGroups: invArr
     };
   }, [currentFiltered, inventoryList]);
+  const renderSalesTable = (groups) => (
+    <TableContainer component={Paper} sx={{ border: '1px solid #cfd8dc', borderRadius: 1, boxShadow: 'none' }}>
+      <Table size="small" sx={{ '& th, & td': { border: '1px solid #cfd8dc', padding: '8px 10px' }, '& th': { bgcolor: '#eceff1', fontWeight: 'bold', textAlign: 'center', fontSize: '0.85rem' }, '& td': { fontSize: '0.85rem' } }}>
+        <TableHead>
+          <TableRow>
+            <TableCell width={showProfit ? "15%" : "20%"}>매출 구분 (고객유형)</TableCell>
+            <TableCell width={showProfit ? "15%" : "20%"}>판매처</TableCell>
+            <TableCell width={showProfit ? "25%" : "40%"}>상품명 (기종-색상 / 파츠)</TableCell>
+            <TableCell width="8%">수량</TableCell>
+            {showProfit && <TableCell width="12%">원가 총액</TableCell>}
+            <TableCell width="12%">판매 금액</TableCell>
+            {showProfit && <TableCell width="10%">영업이익</TableCell>}
+            {showProfit && <TableCell width="8%">이익률</TableCell>}
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {groups.length === 0 ? (
+            <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3 }}>조회된 매출 데이터가 없습니다.</TableCell></TableRow>
+          ) : (
+            groups.map((t, tIdx) => {
+              const typeRowSpan = t.brandsArr.reduce((sum, b) => sum + b.itemsArr.length + 1, 0);
+              return t.brandsArr.map((b, bIdx) => {
+                const brandRowSpan = b.itemsArr.length + 1;
+                return (
+                  <React.Fragment key={`${tIdx}-${bIdx}`}>
+                    {b.itemsArr.map((item, iIdx) => (
+                      <TableRow key={`${tIdx}-${bIdx}-${iIdx}`} hover>
+                        {bIdx === 0 && iIdx === 0 && (
+                          <TableCell rowSpan={typeRowSpan} align="center" sx={{ fontWeight: 'bold', bgcolor: '#f8f9fa' }}>{t.customerType}</TableCell>
+                        )}
+                        {iIdx === 0 && (
+                          <TableCell rowSpan={brandRowSpan} align="center" sx={{ fontWeight: 'bold', borderRight: '1px solid #cfd8dc' }}>{b.brand}</TableCell>
+                        )}
+                        <TableCell sx={{ color: item.isService ? '#ed6c02' : (!item.isAirframe ? '#607d8b' : 'inherit'), fontWeight: !item.isAirframe ? 'bold' : 'normal' }}>
+                          {item.name}
+                        </TableCell>
+                        <TableCell align="center" sx={{ fontWeight: !item.isAirframe || item.isService ? 'bold' : 'normal', cursor: 'pointer', color: '#1565c0', textDecoration: 'underline' }}
+                          onClick={() => setQtyDetailModal({ open: true, title: `${item.name} 상세 내역`, rows: item.sourceRows || [] })}>
+                          {item.quantity}
+                        </TableCell>
+                        {showProfit && <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatCurrency(item.cost)}</TableCell>}
+                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(item.amount)}</TableCell>
+                        {showProfit && <TableCell align="right" sx={{ fontWeight: 'bold', color: item.profit < 0 ? '#d32f2f' : '#2e7d32' }}>{formatCurrency(item.profit)}</TableCell>}
+                        {showProfit && <TableCell align="center" sx={{ fontWeight: 'bold', color: item.profit < 0 ? '#d32f2f' : '#2e7d32' }}>{item.amount > 0 ? ((item.profit / item.amount) * 100).toFixed(1) + '%' : '-'}</TableCell>}
+                      </TableRow>
+                    ))}
+                    <TableRow sx={{ bgcolor: '#f1f8e9' }}>
+                      <TableCell sx={{ fontWeight: 'bold', color: '#33691e', fontSize: '0.8rem' }} align="right">[{b.brand} 소계]</TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 'bold', color: '#33691e' }}>{b.subtotalQty}</TableCell>
+                      {showProfit && <TableCell align="right" sx={{ fontWeight: 'bold', color: '#33691e' }}>{formatCurrency(b.subtotalCost)}</TableCell>}
+                      <TableCell align="right" sx={{ fontWeight: 'bold', color: '#33691e' }}>{formatCurrency(b.subtotalAmt)}</TableCell>
+                      {showProfit && <TableCell align="right" sx={{ fontWeight: 'bold', color: b.subtotalProfit < 0 ? '#d32f2f' : '#2e7d32' }}>{formatCurrency(b.subtotalProfit)}</TableCell>}
+                      {showProfit && <TableCell align="center" sx={{ fontWeight: 'bold', color: b.subtotalProfit < 0 ? '#d32f2f' : '#2e7d32' }}>{b.subtotalAmt > 0 ? ((b.subtotalProfit / b.subtotalAmt) * 100).toFixed(1) + '%' : '-'}</TableCell>}
+                    </TableRow>
+                  </React.Fragment>
+                );
+              });
+            })
+          )}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  );
+
   return (
     <Box sx={{ p: 3, bgcolor: '#f4f6f8', minHeight: '100vh' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -1848,115 +1883,31 @@ function SalesHistoryStats() {
               <Grid item xs={12} xl={6}>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
                   <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#424242' }}>
-                    [1] 판매 현황 (총 판매 합계: {formatCurrency(totalAmt)})
+                    [1] 판매 현황 ({salesBrandFilter !== '전체' ? salesBrandFilter + ' ' : ''}총 판매 합계: {formatCurrency(displayAmt)})
                   </Typography>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<DownloadIcon />}
-                    onClick={handleExcelDownload}
-                    sx={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}
-                  >
-                    엑셀 다운로드
-                  </Button>
+                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                    <ButtonGroup size="small" variant="outlined">
+                      {['전체', 'XRB', 'NB'].map(b => (
+                        <Button key={b} variant={salesBrandFilter === b ? 'contained' : 'outlined'} onClick={() => setSalesBrandFilter(b)}>{b}</Button>
+                      ))}
+                    </ButtonGroup>
+                    <Button variant="outlined" size="small" startIcon={<DownloadIcon />} onClick={handleExcelDownload} sx={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
+                      엑셀 다운로드
+                    </Button>
+                  </Box>
                 </Box>
-                <TableContainer component={Paper} sx={{ border: '1px solid #cfd8dc', borderRadius: 1, boxShadow: 'none' }}>
-                  <Table size="small" sx={{ 
-                    '& th, & td': { border: '1px solid #cfd8dc', padding: '8px 10px' },
-                    '& th': { bgcolor: '#eceff1', fontWeight: 'bold', textAlign: 'center', fontSize: '0.85rem' },
-                    '& td': { fontSize: '0.85rem' }
-                  }}>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell width={showProfit ? "15%" : "20%"}>매출 구분 (고객유형)</TableCell>
-                        <TableCell width={showProfit ? "15%" : "20%"}>판매처</TableCell>
-                        <TableCell width={showProfit ? "25%" : "40%"}>상품명 (기종-색상 / 파츠)</TableCell>
-                        <TableCell width="8%">수량</TableCell>
-                        {showProfit && <TableCell width="12%">원가 총액</TableCell>}
-                        <TableCell width="12%">판매 금액</TableCell>
-                        {showProfit && <TableCell width="10%">영업이익</TableCell>}
-                        {showProfit && <TableCell width="8%">이익률</TableCell>}
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {comprehensiveSalesGroups.length === 0 ? (
-                        <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3 }}>조회된 매출 데이터가 없습니다.</TableCell></TableRow>
-                      ) : (
-                        comprehensiveSalesGroups.map((t, tIdx) => {
-                          const typeRowSpan = t.brandsArr.reduce((sum, b) => sum + b.itemsArr.length + 1, 0); // +1 for brand subtotal
-                          
-                          return t.brandsArr.map((b, bIdx) => {
-                            const brandRowSpan = b.itemsArr.length + 1; // +1 for subtotal
-                            
-                            return (
-                              <React.Fragment key={`${tIdx}-${bIdx}`}>
-                                {b.itemsArr.map((item, iIdx) => (
-                                  <TableRow key={`${tIdx}-${bIdx}-${iIdx}`} hover>
-                                    {bIdx === 0 && iIdx === 0 && (
-                                      <TableCell rowSpan={typeRowSpan} align="center" sx={{ fontWeight: 'bold', bgcolor: '#f8f9fa' }}>
-                                        {t.customerType}
-                                      </TableCell>
-                                    )}
-                                    {iIdx === 0 && (
-                                      <TableCell rowSpan={brandRowSpan} align="center" sx={{ fontWeight: 'bold', borderRight: '1px solid #cfd8dc' }}>
-                                        {b.brand}
-                                      </TableCell>
-                                    )}
-                                    <TableCell sx={{ color: item.isService ? '#ed6c02' : (!item.isAirframe ? '#607d8b' : 'inherit'), fontWeight: !item.isAirframe ? 'bold' : 'normal' }}>
-                                      {item.name}
-                                    </TableCell>
-                                    <TableCell
-                                      align="center"
-                                      sx={{ fontWeight: !item.isAirframe || item.isService ? 'bold' : 'normal', cursor: 'pointer', color: '#1565c0', textDecoration: 'underline' }}
-                                      onClick={() => setQtyDetailModal({ open: true, title: `${item.name} 상세 내역`, rows: item.sourceRows || [] })}
-                                    >
-                                      {item.quantity}
-                                    </TableCell>
-                                    {showProfit && (
-                                      <TableCell align="right" sx={{ color: 'text.secondary' }}>
-                                        {formatCurrency(item.cost)}
-                                      </TableCell>
-                                    )}
-                                    <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                                      {formatCurrency(item.amount)}
-                                    </TableCell>
-                                    {showProfit && (
-                                      <TableCell align="right" sx={{ fontWeight: 'bold', color: item.profit < 0 ? '#d32f2f' : '#2e7d32' }}>
-                                        {formatCurrency(item.profit)}
-                                      </TableCell>
-                                    )}
-                                    {showProfit && (
-                                      <TableCell align="center" sx={{ fontWeight: 'bold', color: item.profit < 0 ? '#d32f2f' : '#2e7d32' }}>
-                                        {item.amount > 0 ? ((item.profit / item.amount) * 100).toFixed(1) + '%' : '-'}
-                                      </TableCell>
-                                    )}
-                                  </TableRow>
-                                ))}
-                                {/* 판매처별 소계 행 */}
-                                <TableRow sx={{ bgcolor: '#f1f8e9' }}>
-                                  <TableCell sx={{ fontWeight: 'bold', color: '#33691e', fontSize: '0.8rem' }} align="right">[{b.brand} 소계]</TableCell>
-                                  <TableCell align="center" sx={{ fontWeight: 'bold', color: '#33691e' }}>{b.subtotalQty}</TableCell>
-                                  {showProfit && (
-                                    <TableCell align="right" sx={{ fontWeight: 'bold', color: '#33691e' }}>{formatCurrency(b.subtotalCost)}</TableCell>
-                                  )}
-                                  <TableCell align="right" sx={{ fontWeight: 'bold', color: '#33691e' }}>{formatCurrency(b.subtotalAmt)}</TableCell>
-                                  {showProfit && (
-                                    <TableCell align="right" sx={{ fontWeight: 'bold', color: b.subtotalProfit < 0 ? '#d32f2f' : '#2e7d32' }}>{formatCurrency(b.subtotalProfit)}</TableCell>
-                                  )}
-                                  {showProfit && (
-                                    <TableCell align="center" sx={{ fontWeight: 'bold', color: b.subtotalProfit < 0 ? '#d32f2f' : '#2e7d32' }}>
-                                      {b.subtotalAmt > 0 ? ((b.subtotalProfit / b.subtotalAmt) * 100).toFixed(1) + '%' : '-'}
-                                    </TableCell>
-                                  )}
-                                </TableRow>
-                              </React.Fragment>
-                            );
-                          });
-                        })
-                      )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                {salesBrandFilter !== 'NB' && (
+                  <>
+                    {salesBrandFilter === '전체' && <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#1565c0', mb: 1 }}>▶ XRB (엑스라이더)</Typography>}
+                    {renderSalesTable(xrbSalesGroups)}
+                  </>
+                )}
+                {salesBrandFilter !== 'XRB' && (
+                  <>
+                    {salesBrandFilter === '전체' && <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#2e7d32', mt: 2, mb: 1 }}>▶ NB (니어바이크)</Typography>}
+                    {renderSalesTable(nbSalesGroups)}
+                  </>
+                )}
               </Grid>
 
               {/* 오른쪽: 재고 현황 */}
