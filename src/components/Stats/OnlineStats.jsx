@@ -129,6 +129,7 @@ function OnlineStats() {
              order_date: o.order_date,
              buyer_name: o.buyer_name,
              agency_name: agName,
+             mall_id: o.mall_id,
              isCancelled,
              total_price: item._calculated_amount !== undefined ? item._calculated_amount : (Number(item.quantity || 1) * Number(item.product_price || item.price || 0))
            });
@@ -1127,6 +1128,7 @@ function OnlineStats() {
                 <TableRow sx={{ bgcolor: 'grey.100' }}>
                   <TableCell>주문일</TableCell>
                   <TableCell>주문번호</TableCell>
+                  <TableCell>쇼핑몰</TableCell>
                   <TableCell>주문자/대리점</TableCell>
                   <TableCell>상품명</TableCell>
                   <TableCell align="right">수량</TableCell>
@@ -1138,6 +1140,7 @@ function OnlineStats() {
                   <TableRow key={idx} hover sx={{ opacity: row.isCancelled ? 0.6 : 1 }}>
                     <TableCell>{row.order_date ? row.order_date.split('T')[0] : ''}</TableCell>
                     <TableCell sx={{ fontSize: '0.78rem' }}>{String(row.order_id || '').includes('_') ? String(row.order_id).split('_').slice(1).join('_') : row.order_id}</TableCell>
+                    <TableCell sx={{ fontSize: '0.78rem', color: row.mall_id === 'nearbike' ? '#2e7d32' : '#1565c0' }}>{row.mall_id === 'slimpack79' ? 'XRB' : row.mall_id === 'nearbike' ? 'NB' : (row.mall_id || '-')}</TableCell>
                     <TableCell sx={{ fontSize: '0.82rem' }}>{row.agency_name !== '일반 주문' ? row.agency_name : (row.buyer_name || '-')}</TableCell>
                     <TableCell>
                        {row.isCancelled && <Box component="span" sx={{ color: 'error.main', fontWeight: 'bold', mr: 1 }}>[취소/반품]</Box>}
@@ -1149,29 +1152,29 @@ function OnlineStats() {
                     <TableCell align="right" sx={{ textDecoration: row.isCancelled ? 'line-through' : 'none' }}>{formatCurrency(row.total_price)}</TableCell>
                   </TableRow>
                 )) : (
-                  <TableRow><TableCell colSpan={5} align="center">판매 내역이 없습니다.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} align="center">판매 내역이 없습니다.</TableCell></TableRow>
                 )}
               </TableBody>
               <TableFooter>
                 <TableRow sx={{ bgcolor: 'grey.200' }}>
-                  <TableCell colSpan={4} align="right" sx={{ fontWeight: 'bold' }}>기체 총합 (취소 제외)</TableCell>
+                  <TableCell colSpan={5} align="right" sx={{ fontWeight: 'bold' }}>기체 총합 (취소 제외)</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold' }}>{modalData.filter(i => i._isAirframe && !i.isCancelled).reduce((sum, i) => sum + Number(i.quantity || 1), 0)}대</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(modalData.filter(i => i._isAirframe && !i.isCancelled).reduce((sum, i) => sum + i.total_price, 0))}</TableCell>
                 </TableRow>
                 <TableRow sx={{ bgcolor: 'grey.200' }}>
-                  <TableCell colSpan={4} align="right" sx={{ fontWeight: 'bold' }}>파츠 총합 (취소 제외)</TableCell>
+                  <TableCell colSpan={5} align="right" sx={{ fontWeight: 'bold' }}>파츠 총합 (취소 제외)</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold' }}>{modalData.filter(i => !i._isAirframe && !i.isCancelled).reduce((sum, i) => sum + Number(i.quantity || 1), 0)}개</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(modalData.filter(i => !i._isAirframe && !i.isCancelled).reduce((sum, i) => sum + i.total_price, 0))}</TableCell>
                 </TableRow>
                 {modalShippingTotal > 0 && (
                   <TableRow sx={{ bgcolor: 'grey.200' }}>
-                    <TableCell colSpan={4} align="right" sx={{ fontWeight: 'bold' }}>배송비 합계</TableCell>
+                    <TableCell colSpan={5} align="right" sx={{ fontWeight: 'bold' }}>배송비 합계</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 'bold' }}>-</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(modalShippingTotal)}</TableCell>
                   </TableRow>
                 )}
                 <TableRow sx={{ bgcolor: 'primary.light' }}>
-                  <TableCell colSpan={4} align="right" sx={{ fontWeight: 'bold', color: 'primary.contrastText' }}>총 주문 금액 (취소 제외)</TableCell>
+                  <TableCell colSpan={5} align="right" sx={{ fontWeight: 'bold', color: 'primary.contrastText' }}>총 주문 금액 (취소 제외)</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.contrastText' }}>-</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.contrastText' }}>
                     {formatCurrency(modalData.filter(i => !i.isCancelled).reduce((sum, i) => sum + i.total_price, 0) + modalShippingTotal)}
