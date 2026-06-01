@@ -68,6 +68,7 @@ function SalesHistoryStats() {
   const [endDate, setEndDate] = useState(endOfMonth(new Date()));
   const [filterType, setFilterType] = useState('all');
   const [filterChannel, setFilterChannel] = useState('전체');
+  const [filterBrand, setFilterBrand] = useState('전체');
   const [tabValue, setTabValue] = useState(0);
   const [showProfit, setShowProfit] = useState(false);
   const [qtyDetailModal, setQtyDetailModal] = useState({ open: false, title: '', rows: [] });
@@ -485,7 +486,7 @@ function SalesHistoryStats() {
       if (name && partsMap[name]) return partsMap[name];
       const n = (name || '').toLowerCase();
       if (n.includes('교환') || n.includes('수리') || n.includes('공임') || n.includes('출장') || n.includes('작업')) return '공임';
-      if (n.includes('자전거') || n.includes('기체') || n.includes('완차') || n.includes('스쿠터')) return '기체';
+      if (n.includes('전기자전거') || n.includes('기체') || n.includes('완차') || n.includes('스쿠터')) return '기체';
       if (code && (code.startsWith('XRBP') || code.startsWith('NBP'))) return '부품';
       if (code && (code.startsWith('XRBS') || code.startsWith('NBS'))) return '공임';
       return '기타';
@@ -1042,6 +1043,7 @@ function SalesHistoryStats() {
       }
     }
     if (filterChannel !== '전체' && getSalesChannelName(r) !== filterChannel) return false;
+    if (filterBrand !== '전체' && r.part_brand !== filterBrand) return false;
     return true;
   });
 
@@ -1593,6 +1595,15 @@ function SalesHistoryStats() {
               {Array.from(new Set(flatRows.map(r => getSalesChannelName(r)))).sort().map(ch => (
                  <MenuItem key={ch} value={ch}>{ch}</MenuItem>
               ))}
+            </Select>
+          </FormControl>
+
+          <FormControl size="small" sx={{ width: 110 }}>
+            <InputLabel>브랜드</InputLabel>
+            <Select value={filterBrand} label="브랜드" onChange={(e) => setFilterBrand(e.target.value)}>
+              <MenuItem value="전체">전체</MenuItem>
+              <MenuItem value="XRB">XRB</MenuItem>
+              <MenuItem value="NB">NB</MenuItem>
             </Select>
           </FormControl>
 
