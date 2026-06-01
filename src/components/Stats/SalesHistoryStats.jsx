@@ -70,6 +70,7 @@ function SalesHistoryStats() {
   const [filterChannel, setFilterChannel] = useState('전체');
   const [tabValue, setTabValue] = useState(0);
   const [showProfit, setShowProfit] = useState(false);
+  const [qtyDetailModal, setQtyDetailModal] = useState({ open: false, title: '', rows: [] });
   const [showCatDetail, setShowCatDetail] = useState(false);
   const [showChannelDetail, setShowChannelDetail] = useState(false);
   const [showChannelPieDetail, setShowChannelPieDetail] = useState(false);
@@ -664,7 +665,7 @@ function SalesHistoryStats() {
       if (!hasWarehouseInfo) return;
 
       const baseFields = {
-        _id: o.id, _type: 'cafe24', date_val: o.order_date, sales_channel: o.agencies?.name || '온라인주문', customer_name: o.buyer_name || '-', mall_id: o.mall_id
+        _id: o.id, _type: 'cafe24', date_val: o.order_date, sales_channel: o.agencies?.name || '온라인주문', customer_name: o.buyer_name || '-', mall_id: o.mall_id, order_id: o.order_id
       };
       if (items.length === 0) {
         rows.push({ ...baseFields, part_category: '기타', part_brand: '-', quantity: 0, total_price: Number(o.total_amount || 0), total_cost: 0 });
@@ -1335,13 +1336,14 @@ function SalesHistoryStats() {
       }
       
       if (!brandNode.items[itemKey]) {
-         brandNode.items[itemKey] = { name: itemName, isAirframe, isService, quantity: 0, amount: 0, cost: 0, profit: 0 };
+         brandNode.items[itemKey] = { name: itemName, isAirframe, isService, quantity: 0, amount: 0, cost: 0, profit: 0, sourceRows: [] };
       }
-      
+
       brandNode.items[itemKey].quantity += qty;
       brandNode.items[itemKey].amount += amt;
       brandNode.items[itemKey].cost += cost;
       brandNode.items[itemKey].profit += (amt - cost);
+      brandNode.items[itemKey].sourceRows.push(r);
       
       brandNode.subtotalQty += qty;
       brandNode.subtotalAmt += amt;
@@ -1885,7 +1887,11 @@ function SalesHistoryStats() {
                                     <TableCell sx={{ color: item.isService ? '#ed6c02' : (!item.isAirframe ? '#607d8b' : 'inherit'), fontWeight: !item.isAirframe ? 'bold' : 'normal' }}>
                                       {item.name}
                                     </TableCell>
-                                    <TableCell align="center" sx={{ fontWeight: !item.isAirframe || item.isService ? 'bold' : 'normal' }}>
+                                    <TableCell
+                                      align="center"
+                                      sx={{ fontWeight: !item.isAirframe || item.isService ? 'bold' : 'normal', cursor: 'pointer', color: '#1565c0', textDecoration: 'underline' }}
+                                      onClick={() => setQtyDetailModal({ open: true, title: `${item.name} 상세 내역`, rows: item.sourceRows || [] })}
+                                    >
                                       {item.quantity}
                                     </TableCell>
                                     {showProfit && (
@@ -2473,6 +2479,51 @@ function SalesHistoryStats() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setSelectedAgencyDetail(null)} color="primary">닫기</Button>
+        </DialogActions>
+      </Dialog>
+      {/* 수량 클릭 상세 모달 */}
+      <Dialog open={qtyDetailModal.open} onClose={() => setQtyDetailModal({ open: false, title: '', rows: [] })} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ fontWeight: 'bold', borderBottom: '1px solid #e0e0e0' }}>
+          {qtyDetailModal.title} (총 {qtyDetailModal.rows.length}건)
+        </DialogTitle>
+        <DialogContent sx={{ p: 0 }}>
+          <TableContainer>
+            <Table size="small" sx={{ '& th, & td': { border: '1px solid #e0e0e0', padding: '7px 10px', fontSize: '0.83rem' }, '& th': { bgcolor: '#eceff1', fontWeight: 'bold' } }}>
+              <TableHead>
+                <TableRow>
+                  <TableCell>날짜</TableCell>
+                  <TableCell>주문번호</TableCell>
+                  <TableCell>고객명</TableCell>
+                  <TableCell>판매처</TableCell>
+                  <TableCell>상품명</TableCell>
+                  <TableCell align="center">수량</TableCell>
+                  <TableCell align="right">판매금액</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {qtyDetailModal.rows.length === 0 ? (
+                  <TableRow><TableCell colSpan={7} align="center" sx={{ py: 3 }}>데이터가 없습니다.</TableCell></TableRow>
+                ) : (
+                  [...qtyDetailModal.rows]
+                    .sort((a, b) => (a.date_val || '').localeCompare(b.date_val || ''))
+                    .map((r, idx) => (
+                      <TableRow key={idx} hover>
+                        <TableCell>{r.date_val ? String(r.date_val).slice(0, 10) : '-'}</TableCell>
+                        <TableCell sx={{ fontSize: '0.78rem', color: '#555' }}>{r.order_id || '-'}</TableCell>
+                        <TableCell>{r.customer_name || '-'}</TableCell>
+                        <TableCell>{r.sales_channel || '-'}</TableCell>
+                        <TableCell>{r.part_name || '-'}</TableCell>
+                        <TableCell align="center">{r.quantity}</TableCell>
+                        <TableCell align="right">{formatCurrency(r.total_price || 0)}</TableCell>
+                      </TableRow>
+                    ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setQtyDetailModal({ open: false, title: '', rows: [] })}>닫기</Button>
         </DialogActions>
       </Dialog>
     </Box>
