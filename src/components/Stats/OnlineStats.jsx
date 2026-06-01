@@ -117,9 +117,9 @@ function OnlineStats() {
   const handleOpenModal = (title, dataFilter) => {
     setModalTitle(title);
     const items = [];
-    const includedOrderIds = new Set();
     rawOrders.forEach(o => {
       const agName = o.agency_id ? (agencyMapGlobal[o.agency_id] || '미등록 대리점') : '일반 주문';
+      let orderHasMatch = false;
       (o.order_items || []).forEach(item => {
         if (dataFilter(o, agName, item, item._isAirframe, item._brand)) {
            const isCancelled = ['C11', 'C34', 'C36', 'C40', 'C47', 'C48', 'C49', 'R34', 'R36', 'R40', 'E40'].includes(item.order_status);
@@ -133,20 +133,39 @@ function OnlineStats() {
              isCancelled,
              total_price: item._calculated_amount !== undefined ? item._calculated_amount : (Number(item.quantity || 1) * Number(item.product_price || item.price || 0))
            });
-           includedOrderIds.add(o.id);
+           orderHasMatch = true;
         }
       });
+      if (orderHasMatch && Number(o.shipping_fee || 0) > 0) {
+        items.push({
+          order_id: o.order_id,
+          order_date: o.order_date,
+          buyer_name: o.buyer_name,
+          agency_name: agName,
+          mall_id: o.mall_id,
+          isCancelled: false,
+          isShipping: true,
+          name: '배송비',
+          quantity: '-',
+          total_price: Number(o.shipping_fee),
+          _isAirframe: false,
+          _brand: ''
+        });
+      }
     });
     items.sort((a, b) => {
+      const dateComp = (a.order_date || '').localeCompare(b.order_date || '');
+      if (dateComp !== 0) return dateComp;
+      const idComp = (a.order_id || '').localeCompare(b.order_id || '');
+      if (idComp !== 0) return idComp;
+      if (a.isShipping && !b.isShipping) return 1;
+      if (!a.isShipping && b.isShipping) return -1;
       if (a._isAirframe && !b._isAirframe) return -1;
       if (!a._isAirframe && b._isAirframe) return 1;
       return 0;
     });
-    const shippingTotal = rawOrders
-      .filter(o => includedOrderIds.has(o.id))
-      .reduce((sum, o) => sum + Number(o.shipping_fee || 0), 0);
     setModalData(items);
-    setModalShippingTotal(shippingTotal);
+    setModalShippingTotal(0);
     setModalOpen(true);
   };
 
@@ -1137,19 +1156,19 @@ function OnlineStats() {
               </TableHead>
               <TableBody>
                 {modalData.length > 0 ? modalData.map((row, idx) => (
-                  <TableRow key={idx} hover sx={{ opacity: row.isCancelled ? 0.6 : 1 }}>
-                    <TableCell>{row.order_date ? row.order_date.split('T')[0] : ''}</TableCell>
-                    <TableCell sx={{ fontSize: '0.78rem' }}>{String(row.order_id || '').includes('_') ? String(row.order_id).split('_').slice(1).join('_') : row.order_id}</TableCell>
-                    <TableCell sx={{ fontSize: '0.78rem', color: row.mall_id === 'nearbike' ? '#2e7d32' : '#1565c0' }}>{row.mall_id === 'slimpack79' ? 'XRB' : row.mall_id === 'nearbike' ? 'NB' : (row.mall_id || '-')}</TableCell>
-                    <TableCell sx={{ fontSize: '0.82rem' }}>{row.agency_name !== '일반 주문' ? row.agency_name : (row.buyer_name || '-')}</TableCell>
-                    <TableCell>
+                  <TableRow key={idx} hover sx={{ opacity: row.isCancelled ? 0.6 : 1, bgcolor: row.isShipping ? '#f8f9fa' : 'inherit' }}>
+                    <TableCell sx={{ color: row.isShipping ? '#888' : 'inherit' }}>{row.order_date ? row.order_date.split('T')[0] : ''}</TableCell>
+                    <TableCell sx={{ fontSize: '0.78rem', color: row.isShipping ? '#888' : 'inherit' }}>{String(row.order_id || '').includes('_') ? String(row.order_id).split('_').slice(1).join('_') : row.order_id}</TableCell>
+                    <TableCell sx={{ fontSize: '0.78rem', color: row.isShipping ? '#888' : (row.mall_id === 'nearbike' ? '#2e7d32' : '#1565c0') }}>{row.isShipping ? '' : (row.mall_id === 'slimpack79' ? 'XRB' : row.mall_id === 'nearbike' ? 'NB' : (row.mall_id || '-'))}</TableCell>
+                    <TableCell sx={{ fontSize: '0.82rem', color: row.isShipping ? '#888' : 'inherit' }}>{row.isShipping ? '' : (row.agency_name !== '일반 주문' ? row.agency_name : (row.buyer_name || '-'))}</TableCell>
+                    <TableCell sx={{ fontStyle: row.isShipping ? 'italic' : 'normal', color: row.isShipping ? '#888' : 'inherit' }}>
                        {row.isCancelled && <Box component="span" sx={{ color: 'error.main', fontWeight: 'bold', mr: 1 }}>[취소/반품]</Box>}
                        <span style={{ textDecoration: row.isCancelled ? 'line-through' : 'none' }}>
                          {row._resolvedName || row.name || row.product_name}
                        </span>
                     </TableCell>
-                    <TableCell align="right" sx={{ textDecoration: row.isCancelled ? 'line-through' : 'none' }}>{row.quantity}개</TableCell>
-                    <TableCell align="right" sx={{ textDecoration: row.isCancelled ? 'line-through' : 'none' }}>{formatCurrency(row.total_price)}</TableCell>
+                    <TableCell align="right" sx={{ textDecoration: row.isCancelled ? 'line-through' : 'none', color: row.isShipping ? '#888' : 'inherit' }}>{row.isShipping ? '-' : `${row.quantity}개`}</TableCell>
+                    <TableCell align="right" sx={{ textDecoration: row.isCancelled ? 'line-through' : 'none', color: row.isShipping ? '#888' : 'inherit', fontStyle: row.isShipping ? 'italic' : 'normal' }}>{formatCurrency(row.total_price)}</TableCell>
                   </TableRow>
                 )) : (
                   <TableRow><TableCell colSpan={7} align="center">판매 내역이 없습니다.</TableCell></TableRow>
@@ -1163,21 +1182,14 @@ function OnlineStats() {
                 </TableRow>
                 <TableRow sx={{ bgcolor: 'grey.200' }}>
                   <TableCell colSpan={5} align="right" sx={{ fontWeight: 'bold' }}>파츠 총합 (취소 제외)</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 'bold' }}>{modalData.filter(i => !i._isAirframe && !i.isCancelled).reduce((sum, i) => sum + Number(i.quantity || 1), 0)}개</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(modalData.filter(i => !i._isAirframe && !i.isCancelled).reduce((sum, i) => sum + i.total_price, 0))}</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 'bold' }}>{modalData.filter(i => !i._isAirframe && !i.isCancelled && !i.isShipping).reduce((sum, i) => sum + Number(i.quantity || 1), 0)}개</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(modalData.filter(i => !i._isAirframe && !i.isCancelled && !i.isShipping).reduce((sum, i) => sum + i.total_price, 0))}</TableCell>
                 </TableRow>
-                {modalShippingTotal > 0 && (
-                  <TableRow sx={{ bgcolor: 'grey.200' }}>
-                    <TableCell colSpan={5} align="right" sx={{ fontWeight: 'bold' }}>배송비 합계</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 'bold' }}>-</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(modalShippingTotal)}</TableCell>
-                  </TableRow>
-                )}
                 <TableRow sx={{ bgcolor: 'primary.light' }}>
                   <TableCell colSpan={5} align="right" sx={{ fontWeight: 'bold', color: 'primary.contrastText' }}>총 주문 금액 (취소 제외)</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.contrastText' }}>-</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.contrastText' }}>
-                    {formatCurrency(modalData.filter(i => !i.isCancelled).reduce((sum, i) => sum + i.total_price, 0) + modalShippingTotal)}
+                    {formatCurrency(modalData.filter(i => !i.isCancelled).reduce((sum, i) => sum + i.total_price, 0))}
                   </TableCell>
                 </TableRow>
               </TableFooter>
