@@ -551,15 +551,24 @@ function SalesHistoryStats() {
 
     if (shipmentCafeOrderNos.length > 0) {
       // 100개 단위로 끊어서 조회 (Supabase 필터 길이 제한 대비)
+      // mall 접두사(nearbike_ 등) 버전도 함께 검색하여 미스매칭 방지
+      const MALL_PREFIXES = ['nearbike_'];
       for (let i = 0; i < shipmentCafeOrderNos.length; i += 100) {
         const chunk = shipmentCafeOrderNos.slice(i, i + 100);
+        const extendedChunk = [...chunk];
+        chunk.forEach(no => MALL_PREFIXES.forEach(prefix => extendedChunk.push(`${prefix}${no}`)));
         const { data: dupCafeOrders } = await supabase
           .from('cafe24_orders')
           .select('order_id')
-          .in('order_id', chunk)
+          .in('order_id', extendedChunk)
           .eq('is_deleted', false)
           .eq('is_transferred', true);
-        (dupCafeOrders || []).forEach(o => duplicatedCafeOrderNos.add(o.order_id));
+        (dupCafeOrders || []).forEach(o => {
+          duplicatedCafeOrderNos.add(o.order_id);
+          // 접두사 없는 raw 번호도 추가하여 패턴 매칭 커버
+          const raw = o.order_id.includes('_') ? o.order_id.split('_').slice(1).join('_') : o.order_id;
+          duplicatedCafeOrderNos.add(raw);
+        });
       }
     }
     // =================================================================================
