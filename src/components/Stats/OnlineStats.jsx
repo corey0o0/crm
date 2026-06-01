@@ -232,6 +232,7 @@ function OnlineStats() {
 
            const canceledItems = (o.order_items || []).filter(it => CANCEL_STATUSES.includes(it.order_status));
            const canceledAmount = canceledItems.reduce((acc, it) => {
+               if (it.payment_amount !== undefined && it.payment_amount !== null) return acc + Number(it.payment_amount);
                const cp = it.product_price !== undefined && it.product_price !== null ? Number(it.product_price) : (it.price !== undefined && it.price !== null ? Number(it.price) : 0);
                return acc + (cp * Number(it.quantity || 1));
            }, 0);
@@ -519,6 +520,7 @@ function OnlineStats() {
             let orderItemsSum = 0;
             const canceledItems = items.filter(it => CANCEL_STATUSES.includes(it.order_status));
             const canceledAmount = canceledItems.reduce((acc, it) => {
+                if (it.payment_amount !== undefined && it.payment_amount !== null) return acc + Number(it.payment_amount);
                 const cp = it.product_price !== undefined && it.product_price !== null ? Number(it.product_price) : (it.price !== undefined && it.price !== null ? Number(it.price) : 0);
                 return acc + (cp * Number(it.quantity || 1));
             }, 0);
