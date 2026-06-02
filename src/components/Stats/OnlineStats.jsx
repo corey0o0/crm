@@ -886,34 +886,11 @@ function OnlineStats() {
             </FormControl>
           )}
 
-          {/* 브랜드 선택 */}
-          <ButtonGroup size="large" variant="outlined" sx={{ height: 40 }}>
-            {brands.map((brand) => (
-              <Button
-                key={brand}
-                onClick={() => handleBrandSelect(brand)}
-                sx={{
-                  minWidth: '60px',
-                  height: '100%',
-                  backgroundColor: selectedBrand === brand ? 'primary.main' : 'inherit',
-                  color: selectedBrand === brand ? 'white' : 'inherit',
-                  fontWeight: selectedBrand === brand ? 'bold' : 'normal',
-                  '&:hover': { backgroundColor: selectedBrand === brand ? 'primary.dark' : '' }
-                }}
-              >
-                {brand}
-              </Button>
-            ))}
-          </ButtonGroup>
-
+          {/* 브랜드 선택 버튼 숨김 처리 */}
           <Button variant="contained" onClick={() => fetchData()} disabled={loading} sx={{ height: 40, bgcolor: '#3182f6', '&:hover': { bgcolor: '#1b64da' }, fontWeight: 'bold', px: 4 }}>조회</Button>
         </Box>
 
-        <Box sx={{ mt: 2 }}>
-          <Button variant="outlined" color="warning" startIcon={<RefreshIcon />} onClick={() => fetchData()} sx={{ fontWeight: 'bold' }}>
-            매출 강제 재계산 (캐시 무시)
-          </Button>
-        </Box>
+        {/* 강제 재계산 버튼 숨김 처리 */}
       </Paper>
 
       {loading ? (
