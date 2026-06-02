@@ -359,7 +359,7 @@ function OnlineStats() {
                }
                
                item._calculated_amount = amount;
-               const isAirframe = p ? (p.note?.includes('기체')) : (pName.includes('기체') || pName.includes('차체'));
+               const isAirframe = p ? (p.note?.includes('기체')) : (pName.includes('기체') || pName.includes('차체') || pName.includes('완차') || pName.includes('스쿠터') || pName.includes('전기자전거'));
                let sup = p ? (p.brand || '') : '';
                const KNOWN_BRANDS_ONLINE = ['XRB', 'NB'];
                if (!sup || sup.trim() === '' || sup === '기타 브랜드' || !KNOWN_BRANDS_ONLINE.includes(sup)) {
@@ -471,16 +471,31 @@ function OnlineStats() {
           }
 
           if (hasMatchingBrand) {
-              const validOrderTotal = (o._validOrderTotal || 0) + Number(o.shipping_fee || 0);
-              
+              const shipFee = Number(o.shipping_fee || 0);
+              const validOrderTotal = (o._validOrderTotal || 0) + shipFee;
+
               if (qBrand === '전체') {
                  total += validOrderTotal;
                  if (agencyStats[agName]) {
                     agencyStats[agName].amount += validOrderTotal;
                     agencyStats[agName].count += 1;
                  }
+                 // 배송비를 파츠 합계에 반영 (mall 기준 브랜드 결정)
+                 if (shipFee > 0) {
+                    const shipBrandSuffix = o.mall_id === 'nearbike' ? '_nb' : '_xrb';
+                    const shipCustomerType = (o.agency_id ? 'agency' : 'general') + shipBrandSuffix;
+                    const shipBrand = o.mall_id === 'nearbike' ? 'NB' : 'XRB';
+                    if (!brandStats[shipCustomerType]) brandStats[shipCustomerType] = {};
+                    if (!brandStats[shipCustomerType][shipBrand]) {
+                       brandStats[shipCustomerType][shipBrand] = { airframes: {}, airframeTotalQty: 0, parts: 0, airframeAmount: 0, partsAmount: 0 };
+                    }
+                    brandStats[shipCustomerType][shipBrand].parts += 0; // qty는 추가 안 함
+                    brandStats[shipCustomerType][shipBrand].partsAmount += shipFee;
+                    if (o.agency_id) totalB2BPartsAmt += shipFee;
+                    else totalB2CPartsAmt += shipFee;
+                 }
               } else {
-                 const apportionedShipping = (o._validOrderTotal > 0) ? Math.floor(Number(o.shipping_fee || 0) * (orderTotalForBrand / o._validOrderTotal)) : 0;
+                 const apportionedShipping = (o._validOrderTotal > 0) ? Math.floor(shipFee * (orderTotalForBrand / o._validOrderTotal)) : 0;
                  const adjustedTotalForBrand = orderTotalForBrand + apportionedShipping;
                  total += adjustedTotalForBrand;
                  if (agencyStats[agName]) {
@@ -589,7 +604,7 @@ function OnlineStats() {
             validItems.forEach((item, idx) => {
                const pName = item.name || item.product_name || '';
                const pCode = String(item.custom_product_code || item.product_code || '').trim();
-               const isAirframe = pName.includes('기체') || pName.includes('차체');
+               const isAirframe = pName.includes('기체') || pName.includes('차체') || pName.includes('완차') || pName.includes('스쿠터') || pName.includes('전기자전거');
                let itemBrand = '';
                if (o.mall_id === 'slimpack79') itemBrand = 'XRB';
                else if (o.mall_id === 'nearbike') itemBrand = 'NB';
