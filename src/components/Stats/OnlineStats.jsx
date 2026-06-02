@@ -361,10 +361,11 @@ function OnlineStats() {
                item._calculated_amount = amount;
                const isAirframe = p ? (p.note?.includes('기체')) : (pName.includes('기체') || pName.includes('차체'));
                let sup = p ? (p.brand || '') : '';
-               if (!sup || sup.trim() === '' || sup === '기타 브랜드') {
+               const KNOWN_BRANDS_ONLINE = ['XRB', 'NB'];
+               if (!sup || sup.trim() === '' || sup === '기타 브랜드' || !KNOWN_BRANDS_ONLINE.includes(sup)) {
                   if (o.mall_id === 'slimpack79') sup = 'XRB';
                   else if (o.mall_id === 'nearbike') sup = 'NB';
-                  else sup = '기타 브랜드';
+                  else sup = sup || '기타 브랜드';
                }
                item._brand = sup;
                item._isAirframe = isAirframe;

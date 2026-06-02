@@ -27,16 +27,22 @@ import { MASTER_ACCOUNTS } from '../../config/menuConfig';
 const COLORS = ['#1976d2', '#2e7d32', '#ed6c02', '#9c27b0', '#d32f2f', '#0288d1', '#7b1fa2'];
 
 export const getBrandFallback = (brand, name, code = '', mallId = '') => {
-  if (brand && brand !== '-' && brand !== '기타') return brand;
+  const KNOWN_BRANDS = ['XRB', 'NB'];
   const c = (code || '').toUpperCase();
   const n = (name || '').toLowerCase();
+  // 코드/이름 기반 브랜드 우선 판별
   if (c.startsWith('XRB') || n.includes('xrb') || n.includes('엑스알비')) return 'XRB';
   if (c.startsWith('NB') || n.includes('nearbike') || n.includes('니어바이크') || n.includes('전동포')) return 'NB';
+  // XRB/NB로 명시된 브랜드는 그대로
+  if (brand && KNOWN_BRANDS.includes(brand)) return brand;
+  // mallId가 있으면 주문 위치 기준으로 분류 (COMMON 등 포함)
   if (mallId) {
     const m = mallId.toLowerCase();
     if (m === 'slimpack79') return 'XRB';
     if (m === 'nearbike') return 'NB';
   }
+  // mallId 없을 때 기존 브랜드 유지 (비온라인 출고)
+  if (brand && brand !== '-' && brand !== '기타') return brand;
   return '기타';
 };
 
