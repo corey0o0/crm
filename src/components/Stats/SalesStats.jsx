@@ -1950,24 +1950,7 @@ function SalesStats() {
             >
               조회
             </Button>
-            <Button
-              variant="outlined"
-              color="secondary"
-              onClick={handleForceRecalculate}
-              sx={{
-                height: 40,
-                borderColor: '#ff9800',
-                color: '#ff9800',
-                '&:hover': {
-                  bgcolor: '#fff8e1',
-                  borderColor: '#ff8f00'
-                }
-              }}
-              disabled={loading}
-              startIcon={<RefreshIcon />}
-            >
-              매출 강제 재계산 (캐시 무시)
-            </Button>
+            {/* 매출 강제 재계산 버튼 숨김 처리 */}
           </Box>
         </Paper>
 
