@@ -421,10 +421,9 @@ function ShipmentList() {
   useEffect(() => {
     const trimmedValue = inputValue.trim();
 
-    // 검색어가 비어있으면 searchTerm만 초기화 (페이지 새로고침 없음)
+    // 검색어가 비어있으면 searchTerm만 초기화 (활성 검색 중이었을 때만 재로딩)
     if (trimmedValue === '') {
-      setSearchTerm('');
-      // fetchShipments()를 호출하지 않고, searchTerm이 비워지면 자연스럽게 전체 목록이 표시됨
+      if (hasActiveSearch) setSearchTerm('');
       return;
     }
 
@@ -441,7 +440,7 @@ function ShipmentList() {
 
     // cleanup: 이전 타이머 취소
     return () => clearTimeout(debounceTimer);
-  }, [inputValue]);
+  }, [inputValue, hasActiveSearch]);
 
   const executeSearch = () => {
     setSearchTerm(inputValue);

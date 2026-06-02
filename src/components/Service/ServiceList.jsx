@@ -2730,8 +2730,9 @@ function ServiceList() {
     const currentTags = overrideTags !== null ? overrideTags : selectedTags;
 
     // 검색어가 없거나 다른 필터도 없으면 전체 데이터 로딩으로 돌아가기
+    // 이미 전체 데이터를 보고 있는 경우(hasActiveSearch=false)엔 재로딩 생략
     if (!term && currentStatuses.length === 0 && currentTags.length === 0 && !dateFilter.startDate && !dateFilter.endDate && !modelSearchTerm.trim() && !solutionSearchTerm.trim() && !partsSearchTerm.trim()) {
-      fetchServices();
+      if (hasActiveSearch) fetchServices();
       return;
     }
 
@@ -2756,7 +2757,7 @@ function ServiceList() {
     });
     
     performServerSearch(searchParams, 0);
-  }, [inputValue, selectedStatuses, selectedTags, dateFilter, searchMode, modelSearchTerm, solutionSearchTerm, partsSearchTerm, fetchServices, performServerSearch]);
+  }, [inputValue, selectedStatuses, selectedTags, dateFilter, searchMode, modelSearchTerm, solutionSearchTerm, partsSearchTerm, fetchServices, performServerSearch, hasActiveSearch]);
   const [networkError, setNetworkError] = useState(false); // 네트워크 오류 상태
   const [isOnline, setIsOnline] = useState(navigator.onLine); // 온라인 상태
   const [backgroundLoading, setBackgroundLoading] = useState(false); // 백그라운드 로딩 상태
