@@ -1583,16 +1583,7 @@ function SalesHistoryStats() {
             />
           </LocalizationProvider>
 
-          <FormControl size="small" sx={{ width: 130 }}>
-            <InputLabel>구분</InputLabel>
-            <Select value={filterType} label="구분" onChange={(e) => setFilterType(e.target.value)}>
-              <MenuItem value="all">전체</MenuItem>
-              <MenuItem value="shipment">매장출고</MenuItem>
-              <MenuItem value="agency">대리점출고</MenuItem>
-              <MenuItem value="cafe24">온라인주문</MenuItem>
-              <MenuItem value="service">A/S</MenuItem>
-            </Select>
-          </FormControl>
+          {/* 구분 필터 숨김 처리 — 판매처 필터와 중복 */}
 
           <FormControl size="small" sx={{ width: 150 }}>
             <InputLabel>판매처</InputLabel>
