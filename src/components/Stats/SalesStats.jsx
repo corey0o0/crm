@@ -54,6 +54,17 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import { downloadExcel } from '../../utils/excelUtils';
 import DownloadIcon from '@mui/icons-material/Download';
 import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
+import { getBrandFallback } from './SalesHistoryStats';
+
+const B2C_CHANNELS = ['공홈', '청담매장', '라이클', '라이클-우리', '스마트할부', '스마트스토어', '기타', '온라인주문', '고객', '-', '본사/기본', '과거 이카운트 이관', '일반출고(공홈)', '매장출고', '본점', '매장'];
+
+const resolvePartCategory = (category, name) => {
+  if (category) return category;
+  const n = (name || '').toLowerCase();
+  if (n.includes('공임') || n.includes('수리') || n.includes('교환') || n.includes('출장') || n.includes('작업')) return '공임';
+  if (n.includes('기체') || n.includes('차체') || n.includes('완차') || n.includes('스쿠터') || n.includes('전기자전거')) return '기체';
+  return '부품';
+};
 
 const getCategoryChipProps = (category) => {
   switch (category) {
@@ -292,7 +303,7 @@ function SalesStats() {
       const shipmentsData = (rawShipmentsData || []).filter(shipment => {
         const channel = extractSalesChannel(shipment.note, shipment.sales_channel);
         // 대리점 제외 (지정된 매장 관련 채널이 아니면 대리점으로 간주)
-        const isAgency = channel && !['고객', '-', '일반출고(공홈)', '공홈', '온라인주문', '매장출고', '매장', '청담매장', '기타', '본점', '스마트할부', '라이클', '라이클-우리', '스마트스토어'].includes(channel);
+        const isAgency = channel && !B2C_CHANNELS.includes(channel);
         if (isAgency) return false;
         return true;
       });
@@ -343,11 +354,11 @@ function SalesStats() {
               shipment_id: part.shipment_id,
               name: part.part_name,
               code: part.part_code,
-              part_category: part.part_category,
+              part_category: resolvePartCategory(part.part_category, part.part_name),
               quantity: effectiveQty,
               price: part.price,
               total: effectiveTotal,
-              brand: shipment.brand,
+              brand: getBrandFallback(shipment.brand, part.part_name, part.part_code),
               customer_name: shipment.customer_name,
               customer_phone: shipment.customer_phone,
               sales_channel: extractSalesChannel(shipment.note, shipment.sales_channel),
@@ -393,7 +404,7 @@ function SalesStats() {
             quantity: actualQuantity,
             price: displayedUnitPrice,
             total: originalShipmentTotal,
-            brand: shipment.brand,
+            brand: getBrandFallback(shipment.brand, shipment.product_name),
             customer_name: shipment.customer_name,
             customer_phone: shipment.customer_phone,
             sales_channel: salesChannel,
@@ -421,7 +432,7 @@ function SalesStats() {
               quantity: 1, // 개별 부품으로 세분화
               price: displayedUnitPrice,
               total: displayedUnitPrice,
-              brand: shipment.brand,
+              brand: getBrandFallback(shipment.brand, individualName),
               customer_name: shipment.customer_name,
               customer_phone: shipment.customer_phone,
               sales_channel: salesChannel,
@@ -525,7 +536,7 @@ function SalesStats() {
               price: item.price || 0,
               total: effectiveTotal,
               usage: item.usage || 'AS',  // 기본값을 'AS'로 설정
-              brand: item.services.brand
+              brand: getBrandFallback(item.services.brand, item.parts.name, item.parts.code)
             });
           }
         });
