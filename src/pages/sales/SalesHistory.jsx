@@ -57,6 +57,7 @@ function SalesHistory() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [sellerFilter, setSellerFilter] = useState('all');
   const [brandFilter, setBrandFilter] = useState(brandLocked ? allowedBrands[0] : 'all');
+  const [salesBrandFilter, setSalesBrandFilter] = useState('전체');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [dateType, setDateType] = useState('주문/출고/완료일자');
   const [sellers, setSellers] = useState(['all']);
@@ -764,6 +765,7 @@ function SalesHistory() {
     }
 
     if (brandFilter !== 'all' && brandFilter !== '전체 브랜드' && r.part_brand !== brandFilter) return false;
+    if (salesBrandFilter !== '전체' && r.part_brand !== salesBrandFilter) return false;
 
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
@@ -838,26 +840,42 @@ function SalesHistory() {
     monthlyTotals[monthKey].total  += Number(r.total_price || 0);
   });
 
+  // ── 브랜드 섹션 정렬 (전체 선택 시 XRB → NB → 기타 순) ─────
+  const displayRows = salesBrandFilter !== '전체' ? filtered : [
+    ...filtered.filter(r => r.part_brand === 'XRB'),
+    ...filtered.filter(r => r.part_brand === 'NB'),
+    ...filtered.filter(r => r.part_brand !== 'XRB' && r.part_brand !== 'NB'),
+  ];
+
   // ── 페이지네이션 ─────────────────────────────────────
-  const paginatedItems = filtered.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-  
+  const paginatedItems = displayRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+
   const paginated = [];
+  let lastBrandSection = null;
   paginatedItems.forEach((r, idx) => {
-    paginated.push(r);
-    const globalIdx = page * rowsPerPage + idx;
-    const currentMonth = r.date_val ? format(new Date(r.date_val), 'yyyy/MM') : '';
-    const nextItem = filtered[globalIdx + 1];
-    const nextMonth = nextItem?.date_val ? format(new Date(nextItem.date_val), 'yyyy/MM') : '';
-    
-    // 월이 바뀌거나 마지막 항목인 경우에만 해당 월의 요약행 삽입
-    if (currentMonth && currentMonth !== nextMonth) {
-      paginated.push({ _isMonthSummary: true, _month: currentMonth, ...monthlyTotals[currentMonth] });
+    // 전체 모드: 브랜드 섹션 헤더 삽입
+    if (salesBrandFilter === '전체') {
+      const b = r.part_brand === 'XRB' ? 'XRB' : r.part_brand === 'NB' ? 'NB' : '기타';
+      if (b !== lastBrandSection) {
+        lastBrandSection = b;
+        paginated.push({ _isBrandHeader: true, _brand: b });
+      }
+      paginated.push(r);
+    } else {
+      paginated.push(r);
+      const globalIdx = page * rowsPerPage + idx;
+      const currentMonth = r.date_val ? format(new Date(r.date_val), 'yyyy/MM') : '';
+      const nextItem = displayRows[globalIdx + 1];
+      const nextMonth = nextItem?.date_val ? format(new Date(nextItem.date_val), 'yyyy/MM') : '';
+      if (currentMonth && currentMonth !== nextMonth) {
+        paginated.push({ _isMonthSummary: true, _month: currentMonth, ...monthlyTotals[currentMonth] });
+      }
     }
   });
 
   // ── 행 클릭 ─────────────────────────────────────────
   const handleRowClick = (row) => {
-    if (row._isMonthSummary) return;
+    if (row._isMonthSummary || row._isBrandHeader) return;
     setEditTarget({ id: row._orderId, type: row._type });
     setEditOpen(true);
   };
@@ -1013,16 +1031,21 @@ function SalesHistory() {
                 </Select>
               </FormControl>
 
-              {brandLocked ? (
+              {brandLocked && (
                 <Chip label={`브랜드: ${allowedBrands[0]}`} color="primary" sx={{ height: 40, fontSize: '0.875rem', px: 0.5 }} />
-              ) : (
-                <FormControl size="small" sx={{ width: 130 }}>
-                  <InputLabel>브랜드</InputLabel>
-                  <Select value={brandFilter} label="브랜드" onChange={e => { setBrandFilter(e.target.value); setPage(0); }}>
-                    {brands.map(b => <MenuItem key={b} value={b}>{b === 'all' ? '전체 브랜드' : b}</MenuItem>)}
-                  </Select>
-                </FormControl>
               )}
+
+              <ToggleButtonGroup
+                value={salesBrandFilter}
+                exclusive
+                onChange={(e, val) => { if (val !== null) { setSalesBrandFilter(val); setPage(0); } }}
+                size="small"
+                sx={{ height: 40 }}
+              >
+                <ToggleButton value="전체" sx={{ px: 1.5, fontSize: '0.8rem' }}>전체</ToggleButton>
+                <ToggleButton value="XRB" sx={{ px: 1.5, fontSize: '0.8rem', '&.Mui-selected': { bgcolor: '#1565c0', color: '#fff', '&:hover': { bgcolor: '#0d47a1' } } }}>XRB</ToggleButton>
+                <ToggleButton value="NB" sx={{ px: 1.5, fontSize: '0.8rem', '&.Mui-selected': { bgcolor: '#2e7d32', color: '#fff', '&:hover': { bgcolor: '#1b5e20' } } }}>NB</ToggleButton>
+              </ToggleButtonGroup>
 
               <ToggleButtonGroup
                 value={categoryFilter}
@@ -1149,6 +1172,18 @@ function SalesHistory() {
               </TableRow>
             ) : (
               paginated.map((row, idx) => {
+                // 브랜드 섹션 헤더 행
+                if (row._isBrandHeader) {
+                  const isXRB = row._brand === 'XRB';
+                  const isNB = row._brand === 'NB';
+                  return (
+                    <TableRow key={`brand_${row._brand}_${idx}`} sx={{ bgcolor: isXRB ? '#e3f2fd' : isNB ? '#e8f5e9' : '#f5f5f5' }}>
+                      <TableCell colSpan={showTaxDetails ? 14 : 12} sx={{ fontWeight: 'bold', fontSize: '0.875rem', color: isXRB ? '#1565c0' : isNB ? '#2e7d32' : '#616161', py: 1 }}>
+                        ▶ {isXRB ? 'XRB (엑스라이더)' : isNB ? 'NB (니어바이크)' : '기타 브랜드'}
+                      </TableCell>
+                    </TableRow>
+                  );
+                }
                 // 월별 합계 행
                 if (row._isMonthSummary) {
                   return (
