@@ -1102,7 +1102,7 @@ function SalesHistoryStats() {
   // 요약
   const totalAmt = currentFiltered.reduce((a, r) => a + Number(r.total_price || 0), 0);
   const displayAmt = salesBrandFilter === '전체' ? totalAmt
-    : currentFiltered.filter(r => r._type === 'service' || r.part_brand === salesBrandFilter).reduce((a, r) => a + Number(r.total_price || 0), 0);
+    : currentFiltered.filter(r => r.part_brand === salesBrandFilter).reduce((a, r) => a + Number(r.total_price || 0), 0);
   const totalQty = currentFiltered.reduce((a, r) => a + Number(r.quantity || 0), 0);
   const totalCost = currentFiltered.reduce((a, r) => a + Number(r.total_cost || 0), 0);
   const totalProfit = totalAmt - totalCost;
@@ -1367,8 +1367,8 @@ function SalesHistoryStats() {
     };
 
     const salesArr = buildSalesGroups(currentFiltered);
-    const xrbArr = buildSalesGroups(currentFiltered.filter(r => r._type === 'service' || r.part_brand === 'XRB'));
-    const nbArr = buildSalesGroups(currentFiltered.filter(r => r._type === 'service' || r.part_brand === 'NB'));
+    const xrbArr = buildSalesGroups(currentFiltered.filter(r => r.part_brand === 'XRB'));
+    const nbArr = buildSalesGroups(currentFiltered.filter(r => r.part_brand === 'NB'));
 
     // 2. 재고 현황 그룹화
     // 구조: Brand -> ItemKey -> { qty, amount }
