@@ -1048,7 +1048,14 @@ function SalesHistoryStats() {
         if (r._type !== filterType) return false;
       }
     }
-    if (filterChannel !== '전체' && getSalesChannelName(r) !== filterChannel) return false;
+    if (filterChannel !== '전체') {
+      if (filterChannel === '대리점') {
+        const isAgency = r._type !== 'service' && r._type !== 'cafe24' && r.sales_channel && !B2C_CHANNELS.includes(r.sales_channel);
+        if (!isAgency) return false;
+      } else if (getSalesChannelName(r) !== filterChannel) {
+        return false;
+      }
+    }
     if (filterBrand !== '전체' && r.part_brand !== filterBrand) return false;
     return true;
   });
@@ -1589,8 +1596,13 @@ function SalesHistoryStats() {
             <InputLabel>판매처</InputLabel>
             <Select value={filterChannel} label="판매처" onChange={(e) => setFilterChannel(e.target.value)}>
               <MenuItem value="전체">전체</MenuItem>
-              {Array.from(new Set(flatRows.map(r => getSalesChannelName(r)))).sort().map(ch => (
-                 <MenuItem key={ch} value={ch}>{ch}</MenuItem>
+              <MenuItem value="대리점">대리점</MenuItem>
+              {Array.from(new Set(
+                flatRows
+                  .filter(r => !(r._type !== 'service' && r._type !== 'cafe24' && r.sales_channel && !B2C_CHANNELS.includes(r.sales_channel)))
+                  .map(r => getSalesChannelName(r))
+              )).sort().map(ch => (
+                <MenuItem key={ch} value={ch}>{ch}</MenuItem>
               ))}
             </Select>
           </FormControl>
