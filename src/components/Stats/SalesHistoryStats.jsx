@@ -1799,7 +1799,17 @@ function SalesHistoryStats() {
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartChannel}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
+                      <XAxis
+                        dataKey="name"
+                        interval={4}
+                        tick={({ x, y, payload }) => (
+                          <g transform={`translate(${x},${y})`}>
+                            <text x={0} y={0} dy={12} textAnchor="middle" fill="#666" fontSize={10}>
+                              {payload.value.length > 6 ? payload.value.slice(0, 6) + '…' : payload.value}
+                            </text>
+                          </g>
+                        )}
+                      />
                       <YAxis hide />
                       <Tooltip formatter={(val) => formatCurrency(val)} />
                       <Bar name="매출" dataKey="value">
