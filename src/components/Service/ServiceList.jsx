@@ -2757,7 +2757,7 @@ function ServiceList() {
     });
     
     performServerSearch(searchParams, 0);
-  }, [inputValue, selectedStatuses, selectedTags, dateFilter, searchMode, modelSearchTerm, solutionSearchTerm, partsSearchTerm, fetchServices, performServerSearch, hasActiveSearch]);
+  }, [inputValue, selectedStatuses, selectedTags, dateFilter, searchMode, modelSearchTerm, solutionSearchTerm, partsSearchTerm, fetchServices, performServerSearch]);
   const [networkError, setNetworkError] = useState(false); // 네트워크 오류 상태
   const [isOnline, setIsOnline] = useState(navigator.onLine); // 온라인 상태
   const [backgroundLoading, setBackgroundLoading] = useState(false); // 백그라운드 로딩 상태
