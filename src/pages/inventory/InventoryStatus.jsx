@@ -25,6 +25,18 @@ export default function InventoryStatus() {
   const [qtyFilterValue, setQtyFilterValue] = useState('');
   const [qtyFilterMode, setQtyFilterMode] = useState('lte'); // 'lte' = 이하, 'gte' = 이상
 
+  // 기체/파츠 분류 필터 ('all' | 'machine' | 'parts')
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  // 제품코드 패턴으로 기체/파츠 구분: 브랜드(XRB/NB/COM) 뒤 첫 글자 M=기체, P=파츠, S=공임
+  const getPartCategory = (code) => {
+    const m = String(code || '').trim().match(/^(?:XRB|NB|COM)([A-Z])/i);
+    if (!m) return 'other';
+    const c = m[1].toUpperCase();
+    if (c === 'M') return 'machine';
+    if (c === 'P') return 'parts';
+    return 'other';
+  };
+
   const handleOpenEdit = (e, warehouseId, productId, currentQty) => {
     setEditData({ warehouseId, productId, currentQty, newQty: currentQty, reason: '재고 현황에서 직접 수정' });
     setEditPopoverAnchor(e.currentTarget);
@@ -53,6 +65,8 @@ export default function InventoryStatus() {
           if (!p.track_inventory) return false;
           // 검색 필터
           if (term && !p.name?.toLowerCase().includes(term) && !p.code?.toLowerCase().includes(term) && !p.barcode?.toLowerCase().includes(term)) return false;
+          // 기체/파츠 필터
+          if (categoryFilter !== 'all' && getPartCategory(p.code) !== categoryFilter) return false;
           return true;
         });
         rows = rows.filter(p => {
@@ -143,6 +157,7 @@ export default function InventoryStatus() {
                       setOverallStockFilter('all');
                       setQtyFilterValue('');
                       setQtyFilterMode('lte');
+                      setCategoryFilter('all');
                       setStatusPage(0);
                     }}
                     sx={{ minWidth: 'auto', px: 1.5, color: '#888', borderColor: '#ccc' }}
@@ -178,6 +193,32 @@ export default function InventoryStatus() {
                   >
                     마이너스
                   </Button>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 1, borderLeft: '1px solid #ddd', pl: 1 }}>
+                    <Button
+                      size="small"
+                      variant={categoryFilter === 'all' ? 'contained' : 'outlined'}
+                      color="secondary"
+                      onClick={() => { setCategoryFilter('all'); setStatusPage(0); }}
+                    >
+                      전체
+                    </Button>
+                    <Button
+                      size="small"
+                      variant={categoryFilter === 'machine' ? 'contained' : 'outlined'}
+                      color="secondary"
+                      onClick={() => { setCategoryFilter('machine'); setStatusPage(0); }}
+                    >
+                      기체
+                    </Button>
+                    <Button
+                      size="small"
+                      variant={categoryFilter === 'parts' ? 'contained' : 'outlined'}
+                      color="secondary"
+                      onClick={() => { setCategoryFilter('parts'); setStatusPage(0); }}
+                    >
+                      파츠
+                    </Button>
+                  </Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 1, borderLeft: '1px solid #ddd', pl: 1 }}>
                     <TextField
                       size="small"
