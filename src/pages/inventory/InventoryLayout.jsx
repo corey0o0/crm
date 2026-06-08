@@ -1736,12 +1736,16 @@ function InventoryLayout() {
         for (let i = 0; i < svcIds.length; i += chunkSize) {
           const { data: sps } = await supabase
             .from('service_parts')
-            .select('part_id, quantity')
+            .select('part_id, quantity, usage')
             .in('service_id', svcIds.slice(i, i + chunkSize))
             .neq('status', '반품완료');
           for (const sp of (sps || [])) {
             const part = productMap.get(sp.part_id);
             if (!part) continue;
+            // 워런티(무상보증)·반품완료 건은 재고 차감 대상이 아님 → 대사에서 제외
+            // (inventoryUtils.js processServiceCompletion과 동일 기준)
+            const u = sp.usage || '';
+            if (u.includes('워런티') || u.includes('Warranty') || u.includes('[반품완료]')) continue;
             addSale(sp.part_id, part.name, part.code, sp.quantity || 0, 'A/S');
           }
         }
