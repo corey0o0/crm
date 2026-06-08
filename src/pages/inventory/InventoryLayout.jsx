@@ -1774,23 +1774,33 @@ function InventoryLayout() {
         }
       }
 
-      // 4. 입출고 트랜잭션 출고 (창고→외부, 창고이동/직접수정 제외)
-      const { data: outTxs } = await supabase
+      // 4. 입출고 트랜잭션 순출고 = 창고→외부 출고(+) − 외부취소/환불→창고 복구(−)
+      //    A/S 취소→재완료, 반품 등으로 복구(type=in)된 건을 차감해야 실제 순출고와 일치
+      const { data: allTxs } = await supabase
         .from('transactions')
-        .select('product_id, product_name, product_code, quantity, from_location, to_location')
-        .eq('type', 'out')
+        .select('product_id, product_name, product_code, quantity, type, from_location, to_location, note')
         .gte('date', dateFrom)
         .lte('date', dateTo);
 
       const txByProduct = {};
-      for (const tx of (outTxs || [])) {
-        if (noTrackIds.has(tx.product_id)) continue;
-        if (!whIds.includes(tx.from_location)) continue; // 창고에서 나간 것만
-        if (whIds.includes(tx.to_location)) continue;    // 창고이동 제외
-        if (tx.to_location === 'direct_edit') continue;  // 직접수정 제외
+      const bump = (tx, delta) => {
         const pid = tx.product_id;
         if (!txByProduct[pid]) txByProduct[pid] = { name: tx.product_name || '', code: tx.product_code || '', txQty: 0 };
-        txByProduct[pid].txQty += (tx.quantity || 0);
+        txByProduct[pid].txQty += delta;
+      };
+      for (const tx of (allTxs || [])) {
+        if (noTrackIds.has(tx.product_id)) continue;
+        const note = tx.note || '';
+        const fromWh = whIds.includes(tx.from_location);
+        const toWh = whIds.includes(tx.to_location);
+        if (tx.type === 'out' && fromWh && !toWh && tx.to_location !== 'direct_edit') {
+          // 창고→외부 출고: +
+          bump(tx, tx.quantity || 0);
+        } else if (tx.type === 'in' && toWh && !fromWh && tx.from_location !== 'direct_edit'
+                   && (note.includes('취소') || note.includes('복구') || note.includes('환불') || note.includes('반품'))) {
+          // 외부취소/환불→창고 복구: − (출고 취소분이므로 순출고에서 제외)
+          bump(tx, -(tx.quantity || 0));
+        }
       }
 
       // 5. 직접수정 (net delta)
