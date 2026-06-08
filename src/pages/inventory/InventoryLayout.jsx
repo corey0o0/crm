@@ -1747,15 +1747,16 @@ function InventoryLayout() {
         }
       }
 
-      // 3. 카페24 온라인 — cafe24_orders.order_items (취소건 제외)
+      // 3. 카페24 온라인 — cafe24_orders.order_items (취소건/반영무시 제외)
       let onlineUnmatched = 0;
       const { data: cafeOrders } = await supabase
         .from('cafe24_orders')
-        .select('order_items')
+        .select('order_items, is_deleted')
         .gte('order_date', dateFrom)
         .lte('order_date', dateTo + 'T23:59:59');
 
       for (const o of (cafeOrders || [])) {
+        if (o.is_deleted) continue; // 반영 무시(is_deleted) 처리된 주문 제외
         for (const it of (o.order_items || [])) {
           if (CANCEL_STATUSES.has(it.order_status)) continue;
           const qty = Number(it.quantity || 1);
