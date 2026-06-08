@@ -1063,16 +1063,21 @@ module.exports = function(supabaseAdmin) {
       // 필수적으로 쓰일 트랜잭션과 인벤토리 정보 집계
       const requiredInventoryKeys = new Set(); // FORMAT: 'warehouseId_partId'
       const itemsToDeduct = [];
+      // 매핑 실패 품목 수집 — 하나라도 있는 주문은 통째로 보류(재고 미차감, is_transferred 미마킹)
+      const skippedItemsByOrder = {}; // orderId -> [{ name, code }]
+      const validOrderIds = new Set(); // 전 품목 매핑 성공한 주문만 실제 전송
 
       orders.forEach(order => {
         const items = order.order_items || [];
+        let anyDeducted = false; // 이 주문에서 실제 차감된 품목이 1개라도 있는가
+
         items.forEach((item, index) => {
           // 부분 취소/반품/교환 건은 재고 차감 및 매출 연동에서 제외
           const isCancelled = ['C11', 'C40', 'R40', 'E40'].includes(item.order_status);
           if (isCancelled) return;
 
           let wid = (warehouseConfig && warehouseConfig[order.id] && warehouseConfig[order.id][index]) || 'DEFAULT';
-          
+
           if (wid === 'DEFAULT' || !wid) {
              wid = defaultWarehouseId;
           }
@@ -1089,11 +1094,28 @@ module.exports = function(supabaseAdmin) {
           }
 
           if (mappedPartId) {
+             // 매핑된 품목은 기존대로 재고 차감 (일반 전송: 부분 미매핑은 스킵 진행)
              const supplier = partsCacheById[mappedPartId]?.brand || 'XRB';
              itemsToDeduct.push({ order, item, wid, mappedPartId, supplier });
              requiredInventoryKeys.add(`${wid}_${mappedPartId}`);
+             anyDeducted = true;
+          } else {
+             // 매핑 실패 — 보류/경고용으로 기록
+             if (!skippedItemsByOrder[order.id]) skippedItemsByOrder[order.id] = [];
+             skippedItemsByOrder[order.id].push({
+               name: item.name || '(이름없음)',
+               code: item.custom_product_code || item.product_code || ''
+             });
           }
         });
+
+        // is_transferred 마킹 기준:
+        //  - 1개라도 차감됨 → 완료 마킹 (기존 동작, 일반 전송 호환)
+        //  - 차감 0건 + 매핑 실패 품목 있음 → 보류(미마킹). 스마트처리 "0건인데 완료" 증상 방지
+        //  - 차감 0건 + 매핑 실패 없음(순수 취소/제외) → 기존처럼 완료 마킹
+        if (anyDeducted || !skippedItemsByOrder[order.id]) {
+          validOrderIds.add(order.id);
+        }
       });
 
       // 일괄 재고 조회 (현재 재고)
@@ -1203,11 +1225,12 @@ module.exports = function(supabaseAdmin) {
       }
 
       // 최종 상태 변경 (개별 order_items에 _warehouse_id 및 part_id 기록) - 속도 최적화(병렬 처리)
-      const updatePromises = orders.map(order => {
+      // 매핑 실패 품목이 있어 보류된 주문(validOrderIds 미포함)은 is_transferred 마킹하지 않음
+      const updatePromises = orders.filter(order => validOrderIds.has(order.id)).map(order => {
         const updatedItems = (order.order_items || []).map((item, index) => {
           let wid = (warehouseConfig && warehouseConfig[order.id] && warehouseConfig[order.id][index]) || 'DEFAULT';
           if (wid === 'DEFAULT' || !wid) wid = defaultWarehouseId;
-          
+
           let mappedPartId = item.part_id;
 
           if (!mappedPartId) {
@@ -1216,7 +1239,7 @@ module.exports = function(supabaseAdmin) {
               mappedPartId = partsCacheByCode[String(pCode).trim()].id;
             }
           }
-          
+
           return { ...item, _warehouse_id: wid, part_id: mappedPartId };
         });
         return supabaseAdmin.from('cafe24_orders').update({ is_transferred: true, is_deleted: false, order_items: updatedItems }).eq('id', order.id);
@@ -1227,7 +1250,29 @@ module.exports = function(supabaseAdmin) {
         await Promise.all(updatePromises.slice(i, i + 50));
       }
 
-      res.json({ success: true, message: `${orders.length}건 일괄 전송(출고/차감) 완료` });
+      // 매핑 실패 품목/보류 주문 상세 구성
+      const orderIdToNo = {};
+      orders.forEach(o => { orderIdToNo[o.id] = o.order_id; });
+      // skippedOrders: 매핑 실패 품목이 있는 주문 전체 (부분 스킵 포함, 경고용)
+      // held: true = 차감 0건으로 전송 보류된 주문(미전송 유지), false = 부분 스킵(전송됨)
+      const skippedOrders = Object.keys(skippedItemsByOrder).map(oid => ({
+        orderId: oid,
+        orderNo: orderIdToNo[oid] || oid,
+        held: !validOrderIds.has(oid),
+        items: skippedItemsByOrder[oid]
+      }));
+      const heldCount = skippedOrders.filter(s => s.held).length;
+      const transferredCount = validOrderIds.size;
+
+      res.json({
+        success: true,
+        message: heldCount > 0
+          ? `${transferredCount}건 전송, ${heldCount}건 보류(미매핑 품목으로 전송 불가)`
+          : `${transferredCount}건 일괄 전송(출고/차감) 완료`,
+        transferredCount,
+        heldCount,
+        skippedOrders
+      });
       
       } catch (innerError) {
         // 처리 중 에러 발생 시 Lock 해제 및 롤백 수행

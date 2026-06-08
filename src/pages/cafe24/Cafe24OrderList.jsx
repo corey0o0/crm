@@ -873,15 +873,28 @@ export default function Cafe24OrderList() {
             }
 
             // 6. Transfer sales
-            await transferCafe24Orders([updatedOrder.id], tempConfig);
+            const transferRes = await transferCafe24Orders([updatedOrder.id], tempConfig);
 
-            setAlertDialog({ open: true, title: '스마트 교환 완료', message: '교환건의 재고 복구, 새 품목 동기화, 및 새 품목의 판매반영(재고 차감)이 자동으로 완료되었습니다.\n\n해당 주문은 [반영완료] 탭으로 이동합니다.' });
-            
+            const skipped = transferRes?.skippedOrders || [];
+            if (skipped.length > 0) {
+              const isHeld = skipped.some(s => s.held);
+              const itemList = skipped.flatMap(s => s.items.map(it => `  • ${it.name}${it.code ? ` (${it.code})` : ''}`)).join('\n');
+              setAlertDialog({
+                open: true,
+                title: isHeld ? '⚠️ 스마트 교환 보류 (미매핑 품목)' : '⚠️ 일부 품목 미반영',
+                message: isHeld
+                  ? `다음 품목이 ERP 부품과 매칭되지 않아 전송이 보류되었습니다. (현재 상태: 미전송 유지)\n\n${itemList}\n\n[부품 매핑]에서 해당 품목을 연결한 뒤 다시 스마트 처리해주세요.`
+                  : `교환 반영은 완료됐으나, 다음 품목은 ERP 부품과 매칭되지 않아 재고 차감에서 제외되었습니다.\n\n${itemList}\n\n필요 시 [부품 매핑] 후 재처리해주세요.`
+              });
+            } else {
+              setAlertDialog({ open: true, title: '스마트 교환 완료', message: '교환건의 재고 복구, 새 품목 동기화, 및 새 품목의 판매반영(재고 차감)이 자동으로 완료되었습니다.\n\n해당 주문은 [반영완료] 탭으로 이동합니다.' });
+            }
+
             setWarehouseConfig(prev => ({
               ...prev,
               ...tempConfig
             }));
-            
+
             fetchOrders();
           } catch(err) {
             setAlertDialog({ open: true, title: '교환 자동 처리 실패', message: err.message });
@@ -1008,8 +1021,18 @@ export default function Cafe24OrderList() {
               }
             });
           }
-          await transferCafe24Orders([updatedOrder.id], tempConfig);
-          results.push({ id: order.order_id, action: '교환 자동처리 완료 (반영완료 탭)', ok: true });
+          const transferRes = await transferCafe24Orders([updatedOrder.id], tempConfig);
+          const skipped = transferRes?.skippedOrders || [];
+          const held = skipped.some(s => s.held);
+          if (held) {
+            const names = skipped.flatMap(s => s.items.map(it => it.name)).join(', ');
+            results.push({ id: order.order_id, action: `보류: 미매핑 품목(${names}) — 부품 매핑 후 재처리 필요`, ok: false });
+          } else if (skipped.length > 0) {
+            const names = skipped.flatMap(s => s.items.map(it => it.name)).join(', ');
+            results.push({ id: order.order_id, action: `완료(일부 미반영: ${names})`, ok: true });
+          } else {
+            results.push({ id: order.order_id, action: '교환 자동처리 완료 (반영완료 탭)', ok: true });
+          }
         } else if (!order.is_transferred) {
           await supabase.from('cafe24_orders').update({ is_deleted: true, is_transferred: false }).eq('id', order.id);
           results.push({ id: order.order_id, action: '무시 처리 완료', ok: true });
