@@ -76,6 +76,7 @@ import { ko } from 'date-fns/locale';
 import { format, parseISO, isValid } from 'date-fns';
 import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { getCookie, setCookie, removeCookie, getJSONCookie, setJSONCookie } from '../../utils/cookieUtils';
+import { processShipmentCompletion, processShipmentRevert } from '../../utils/inventoryUtils';
 import { alpha } from '@mui/material/styles';
 
 // 부품 카테고리 정의
@@ -994,8 +995,12 @@ function ProductShipment() {
 
       // 선택된 부품 정보를 shipment_parts 테이블에 저장
       try {
-        // 기존 부품 정보 삭제 (수정 시)
+        // 기존 부품 정보 삭제 (수정 시) — 출고완료 상태였다면 재고 먼저 복구
         if (selectedShipment.id) {
+          const originalShipment = shipments.find(s => s.id === selectedShipment.id);
+          if (originalShipment?.status === '출고완료') {
+            await processShipmentRevert(selectedShipment.id, selectedBrand);
+          }
           const { error: deletePartsError } = await supabase
             .from('shipment_parts')
             .delete()
@@ -1091,6 +1096,11 @@ function ProductShipment() {
       } catch (partsError) {
         console.error('부품 정보 처리 중 오류:', partsError);
         // 부품 정보 저장 실패는 전체 프로세스를 중단시키지 않음
+      }
+
+      // 출고완료 상태인 경우 재고 차감 및 입출고 내역 생성
+      if (savedShipment.status === '출고완료') {
+        await processShipmentCompletion(savedShipment.id, selectedBrand);
       }
 
       // 고객 정보 저장 로직 수정

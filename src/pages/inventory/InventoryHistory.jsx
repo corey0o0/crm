@@ -338,10 +338,10 @@ export default function InventoryHistory() {
                   />
                   <TextField
                     size="small"
-                    label="메모 검색"
+                    label="메모/주문번호 검색"
                     value={filter.note}
                     onChange={(e) => setFilter(prev => ({ ...prev, note: e.target.value }))}
-                    sx={{ width: 150 }}
+                    sx={{ width: 180 }}
                   />
                   
                   <Button variant="contained" onClick={() => showSnackbar('필터가 적용되었습니다.', 'success')} sx={{ bgcolor: '#3182f6' }}>검색</Button>

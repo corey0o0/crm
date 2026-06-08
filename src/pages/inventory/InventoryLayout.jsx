@@ -2653,11 +2653,15 @@ function InventoryLayout() {
                              return pName.includes(searchTerm) || pCode.includes(searchTerm) || pBarcode.includes(searchTerm);
                            });
       
-      const cleanSearchTerm = (filter.note || '').toLowerCase().replace(/^shp-/, '').trim();
-      
-      const matchesNote = !filter.note || 
-                         group.items.some(item => 
+      const cleanSearchTerm = (filter.note || '').toLowerCase()
+        .replace(/^shp-/i, '')
+        .replace(/^nearbike_/i, '')
+        .trim();
+
+      const matchesNote = !filter.note ||
+                         group.items.some(item =>
                            (item.note || '').toLowerCase().includes(cleanSearchTerm) ||
+                           (item.additionalNote || '').toLowerCase().includes(cleanSearchTerm) ||
                            String(item.id).toLowerCase().includes(cleanSearchTerm)
                          ) ||
                          (group.note || '').toLowerCase().includes(cleanSearchTerm) ||
