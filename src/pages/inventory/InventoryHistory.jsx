@@ -2044,7 +2044,6 @@ export default function InventoryHistory() {
       />
 
         </Box>
-        </Box>
 
       {/* 재고 검증 결과 Dialog */}
       <Dialog open={verifyOpen || false} onClose={() => setVerifyOpen(false)} maxWidth="md" fullWidth>
@@ -2103,6 +2102,7 @@ export default function InventoryHistory() {
         </DialogActions>
       </Dialog>
 
+    </Box>
   );
 }
 
