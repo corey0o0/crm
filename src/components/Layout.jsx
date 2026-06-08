@@ -329,7 +329,8 @@ function Layout() {
         { text: 'A/S 관리', icon: <BuildIcon />, path: '/services', key: 'services' },
         { text: '매장 출고관리', icon: <LocalShippingIcon />, path: '/shipment', key: 'shipment' },
         { text: '온라인 주문관리', icon: <ShoppingCartOutlinedIcon />, path: '/cafe24/orders', key: 'cafe24_orders' },
-        ...(isInspectionEnabled ? [{ text: '출고 검수', icon: <CalendarTodayIcon />, path: '/inventory-management/scan', key: 'outbound_scan' }] : []),
+        // 출고 검수 메뉴 숨김 처리 (2026-06)
+        // ...(isInspectionEnabled ? [{ text: '출고 검수', icon: <CalendarTodayIcon />, path: '/inventory-management/scan', key: 'outbound_scan' }] : []),
         { text: '수기 판매관리', icon: <LocalShippingIcon />, path: '/sales/manual', key: 'sales_manual' },
         { text: '판매 현황', icon: <HistoryIcon />, path: '/sales/history', key: 'sales_history' },
         // { text: '세금계산서 발행', icon: <ReceiptIcon />, path: '/sales/tax-invoice', key: 'tax_invoice' }
