@@ -714,7 +714,7 @@
 
     #chat-window {
       position: fixed; bottom: ${_offsetBottom + 66}px; right: ${_offsetRight}px;
-      width: 380px; max-height: 600px;
+      width: 380px; max-width: calc(100vw - 32px); max-height: min(600px, calc(100vh - 120px));
       background: white; border-radius: 16px;
       box-shadow: 0 8px 32px rgba(0,0,0,0.18);
       display: flex; flex-direction: column;
@@ -1371,10 +1371,18 @@
     }
 
     function applyWindowPos(btnLeft, btnTop) {
-      const W = 380, S = 56, gap = 10;
+      const S = 56, gap = 10, margin = 8;
+      // 패널 너비는 화면 폭에 맞춰 제한 (좁은 화면 잘림 방지)
+      const W = Math.min(380, window.innerWidth - margin * 2);
+      // 기본은 버튼 오른쪽, 넘치면 버튼 왼쪽
       let wLeft = btnLeft + S + gap;
-      if (wLeft + W > window.innerWidth) wLeft = Math.max(0, btnLeft - W - gap);
-      let wTop = Math.max(10, btnTop + S - (chatWindow.offsetHeight || 520));
+      if (wLeft + W > window.innerWidth) wLeft = btnLeft - W - gap;
+      // 좌우 경계 내로 강제 클램핑
+      wLeft = Math.max(margin, Math.min(wLeft, window.innerWidth - W - margin));
+      const H = chatWindow.offsetHeight || 520;
+      // 기본은 버튼 위로 띄우되, 상하 경계 내로 클램핑
+      let wTop = btnTop + S - H;
+      wTop = Math.max(margin, Math.min(wTop, window.innerHeight - H - margin));
       chatWindow.style.right  = '';
       chatWindow.style.bottom = '';
       chatWindow.style.left   = wLeft + 'px';
