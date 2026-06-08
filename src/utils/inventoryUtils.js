@@ -471,7 +471,9 @@ export const processServiceCompletion = async (serviceId, brandCode) => {
     if (serviceParts && serviceParts.length > 0) {
       serviceParts.forEach(sp => {
         let returnedQty = 0;
-        if (sp.usage && (sp.usage.includes('[반품완료]') || sp.usage.includes('워런티') || sp.usage.includes('Warranty'))) {
+        // 반품완료 건만 재고 차감 제외 (재고로 복귀하므로).
+        // 워런티/무상보증은 매출만 0원이고 부품은 실제 사용되므로 재고 차감 대상.
+        if (sp.usage && sp.usage.includes('[반품완료]')) {
           returnedQty = sp.quantity;
         } else if (sp.usage) {
           const matches = sp.usage.match(/\[부분반품:(\d+)개\]/g);

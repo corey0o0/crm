@@ -1742,10 +1742,10 @@ function InventoryLayout() {
           for (const sp of (sps || [])) {
             const part = productMap.get(sp.part_id);
             if (!part) continue;
-            // 워런티(무상보증)·반품완료 건은 재고 차감 대상이 아님 → 대사에서 제외
-            // (inventoryUtils.js processServiceCompletion과 동일 기준)
+            // 반품완료 건만 재고 차감 대상이 아님 → 대사에서 제외
+            // (워런티/무상보증은 부품 실제 사용 → 재고 차감 대상이므로 포함)
             const u = sp.usage || '';
-            if (u.includes('워런티') || u.includes('Warranty') || u.includes('[반품완료]')) continue;
+            if (u.includes('[반품완료]')) continue;
             addSale(sp.part_id, part.name, part.code, sp.quantity || 0, 'A/S');
           }
         }
