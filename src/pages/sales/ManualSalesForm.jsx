@@ -419,7 +419,7 @@ function ShipmentForm() {
         .order('name');
 
       if (error) throw error;
-      setAllParts(data || []);
+      setAllParts((data || []).filter(p => !(p.memo || '').includes('[HIDDEN]')));
       // 필터링된 부품 목록 초기화는 useMemo에서 처리
     } catch (error) {
       console.error('Error fetching parts:', error);

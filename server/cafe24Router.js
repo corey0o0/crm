@@ -1046,13 +1046,13 @@ module.exports = function(supabaseAdmin) {
           const chunkStr = chunk.map(c => `"${String(c).replace(/"/g, '')}"`).join(',');
           fetchPromises.push(
             supabaseAdmin.from('parts')
-              .select('id, code, barcode, brand')
+              .select('id, code, barcode, brand, memo')
               .or(`code.in.(${chunkStr}),barcode.in.(${chunkStr})`)
           );
         }
         const results = await Promise.all(fetchPromises);
         results.forEach(({ data: pData }) => {
-          (pData || []).forEach(p => {
+          (pData || []).filter(p => !(p.memo || '').includes('[HIDDEN]')).forEach(p => {
             if (p.code) partsCacheByCode[String(p.code).trim()] = p;
             if (p.barcode) partsCacheByCode[String(p.barcode).trim()] = p;
             partsCacheById[p.id] = p;
