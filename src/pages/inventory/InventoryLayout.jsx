@@ -1579,6 +1579,7 @@ function InventoryLayout() {
       const dbInventory = latestInventory || inventory;
       const warehouseMap = new Map((warehouses || []).map(w => [w.id, w]));
       const productMap = new Map((products || []).map(p => [p.id, p]));
+      const noTrackIds = new Set((products || []).filter(p => p.track_inventory === false).map(p => p.id));
 
       // 트랜잭션 기반 창고별 재고 계산 (recalculateAllInventory 로직과 동일)
       const expected = {};
@@ -1590,6 +1591,7 @@ function InventoryLayout() {
 
       for (const tx of sortedTxs) {
         if (!tx.productId || tx.isConfirmed === false) continue;
+        if (noTrackIds.has(tx.productId)) continue;
         const qty = Number(tx.quantity) || 0;
         const isReset = tx.groupId && String(tx.groupId).startsWith('reset-all-');
 
@@ -1633,6 +1635,7 @@ function InventoryLayout() {
       for (const [whId, prods] of Object.entries(dbInventory)) {
         for (const [productIdStr, actualQty] of Object.entries(prods)) {
           const productId = parseInt(productIdStr, 10);
+          if (noTrackIds.has(productId)) continue;
           const key = `${whId}_${productId}`;
           checked.add(key);
           const expectedQty = (expected[whId] || {})[productId] || 0;
@@ -1649,6 +1652,7 @@ function InventoryLayout() {
       for (const [whId, prods] of Object.entries(expected)) {
         for (const [productIdStr, expectedQty] of Object.entries(prods)) {
           const productId = parseInt(productIdStr, 10);
+          if (noTrackIds.has(productId)) continue;
           const key = `${whId}_${productId}`;
           if (!checked.has(key) && expectedQty !== 0) {
             const wh = warehouseMap.get(whId);
