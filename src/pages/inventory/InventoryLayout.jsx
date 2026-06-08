@@ -2617,6 +2617,10 @@ function InventoryLayout() {
         matchesType = getTransactionTypeInfo(group).label === '수입';
       } else if (filter.type === 'adjustment') {
         matchesType = getTransactionTypeInfo(group).label === '재고 조정';
+      } else if (filter.type === 'warehouse_transfer') {
+        matchesType = getTransactionTypeInfo(group).label === '창고이동';
+      } else if (filter.type === 'direct_edit') {
+        matchesType = getTransactionTypeInfo(group).label === '직접 수정';
       } else {
         matchesType = group.type === filter.type;
       }      

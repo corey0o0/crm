@@ -228,6 +228,8 @@ export default function InventoryHistory() {
                       <MenuItem value="import">수입</MenuItem>
                       <MenuItem value="in">입고</MenuItem>
                       <MenuItem value="out">출고</MenuItem>
+                      <MenuItem value="warehouse_transfer">창고이동</MenuItem>
+                      <MenuItem value="direct_edit">직접 수정</MenuItem>
                       <MenuItem value="adjustment">재고 조정</MenuItem>
                     </Select>
                   </FormControl>
