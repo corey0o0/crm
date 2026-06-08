@@ -28,7 +28,8 @@ export default function InventoryHistory() {
     handleOpenExcelUpload, transactionDetailOpen, closeTransactionDetail,
     selectedTransaction, startEditTransaction, recalculateAllInventory, deleteTransaction
   , batchFromLocation, setBatchFromLocation, batchToLocation, setBatchToLocation, showOriginalHistory, setShowOriginalHistory, handleSubmitTransaction, downloadExcelTemplate, handleDragOver, handleDragLeave, handleDrop, handleExcelDataSubmit, handleBatchApplyLocation, warehouseDetailTarget, warehouseDetailOpen, closeWarehouseDetail, barcodeScannerOpen, setBarcodeScannerOpen, setCurrentScanningRow, handleBarcodeScan, handleBarcodeScanError, excelData, isDragOver, snackbar, setSnackbar, isSubmittingTransaction,
-    editBatchFromLocation, setEditBatchFromLocation, editBatchToLocation, setEditBatchToLocation, handleEditBatchApplyLocation} = context;
+    editBatchFromLocation, setEditBatchFromLocation, editBatchToLocation, setEditBatchToLocation, handleEditBatchApplyLocation,
+    verifyInventory, verifyResults, verifyOpen, setVerifyOpen, verifyLoading} = context;
 
   const [detailProcessing, setDetailProcessing] = useState(false);
 
@@ -107,6 +108,15 @@ export default function InventoryHistory() {
             disabled={products.length === 0}
           >
             엑셀 업로드
+          </Button>
+          <Button
+            variant="outlined"
+            color="warning"
+            onClick={verifyInventory}
+            disabled={verifyLoading}
+            startIcon={verifyLoading ? <CircularProgress size={16} /> : null}
+          >
+            재고 검증
           </Button>
           <Button
             variant="outlined"
@@ -2035,6 +2045,63 @@ export default function InventoryHistory() {
 
         </Box>
         </Box>
+
+      {/* 재고 검증 결과 Dialog */}
+      <Dialog open={verifyOpen || false} onClose={() => setVerifyOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          재고 검증 결과
+          <IconButton onClick={() => setVerifyOpen(false)} size="small"><CloseIcon /></IconButton>
+        </DialogTitle>
+        <DialogContent>
+          {verifyResults && (
+            <>
+              <Box sx={{ mb: 2 }}>
+                {verifyResults.length === 0 ? (
+                  <Alert severity="success">모든 창고 재고가 트랜잭션 기록과 일치합니다. ✓</Alert>
+                ) : (
+                  <Alert severity="warning">
+                    불일치 {verifyResults.length}건 발견 — 트랜잭션 합산값과 DB 실제값이 다릅니다.
+                  </Alert>
+                )}
+              </Box>
+              {verifyResults.length > 0 && (
+                <TableContainer component={Paper} variant="outlined">
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: 'grey.100' }}>
+                        <TableCell>창고</TableCell>
+                        <TableCell>제품</TableCell>
+                        <TableCell align="right">트랜잭션 합산</TableCell>
+                        <TableCell align="right">DB 실제값</TableCell>
+                        <TableCell align="right">차이</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {verifyResults.map((r, i) => (
+                        <TableRow key={i} sx={{ bgcolor: Math.abs(r.diff) >= 10 ? 'error.50' : 'warning.50' }}>
+                          <TableCell>{r.whName}</TableCell>
+                          <TableCell>
+                            <Typography variant="body2">{r.productName}</Typography>
+                            <Typography variant="caption" color="text.secondary">{r.productCode}</Typography>
+                          </TableCell>
+                          <TableCell align="right">{r.expectedQty}</TableCell>
+                          <TableCell align="right">{r.actualQty}</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold', color: r.diff > 0 ? 'success.main' : 'error.main' }}>
+                            {r.diff > 0 ? '+' : ''}{r.diff}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setVerifyOpen(false)}>닫기</Button>
+        </DialogActions>
+      </Dialog>
 
   );
 }

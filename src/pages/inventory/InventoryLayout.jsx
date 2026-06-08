@@ -245,6 +245,9 @@ function InventoryLayout() {
   const [pendingInventory, setPendingInventory] = useState({});
   const [loading, setLoading] = useState(false);
   const [isSubmittingTransaction, setIsSubmittingTransaction] = useState(false);
+  const [verifyOpen, setVerifyOpen] = useState(false);
+  const [verifyResults, setVerifyResults] = useState(null);
+  const [verifyLoading, setVerifyLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
@@ -1565,6 +1568,104 @@ function InventoryLayout() {
       if (!silent) showSnackbar('재고 재계산 중 오류가 발생했습니다.', 'error');
     } finally {
       if (!silent) setLoading(false);
+    }
+  };
+
+  // 재고 검증: 트랜잭션 합산 vs DB 실제값 비교
+  const verifyInventory = async () => {
+    setVerifyLoading(true);
+    try {
+      const latestInventory = await fetchInventoryData();
+      const dbInventory = latestInventory || inventory;
+      const warehouseMap = new Map((warehouses || []).map(w => [w.id, w]));
+      const productMap = new Map((products || []).map(p => [p.id, p]));
+
+      // 트랜잭션 기반 창고별 재고 계산 (recalculateAllInventory 로직과 동일)
+      const expected = {};
+      const sortedTxs = [...transactions].sort((a, b) => {
+        const ta = a.createdAt || a.date || '';
+        const tb = b.createdAt || b.date || '';
+        return ta < tb ? -1 : ta > tb ? 1 : 0;
+      });
+
+      for (const tx of sortedTxs) {
+        if (!tx.productId || tx.isConfirmed === false) continue;
+        const qty = Number(tx.quantity) || 0;
+        const isReset = tx.groupId && String(tx.groupId).startsWith('reset-all-');
+
+        if (tx.type === 'in') {
+          const toWh = warehouseMap.get(tx.toLocation);
+          if (toWh) {
+            if (!expected[tx.toLocation]) expected[tx.toLocation] = {};
+            if (isReset && tx.fromLocation === 'adjustment') {
+              expected[tx.toLocation][tx.productId] = qty;
+            } else {
+              expected[tx.toLocation][tx.productId] = (expected[tx.toLocation][tx.productId] || 0) + qty;
+            }
+          }
+          const fromWh = warehouseMap.get(tx.fromLocation);
+          if (fromWh) {
+            if (!expected[tx.fromLocation]) expected[tx.fromLocation] = {};
+            expected[tx.fromLocation][tx.productId] = (expected[tx.fromLocation][tx.productId] || 0) - qty;
+          }
+        } else if (tx.type === 'out') {
+          const fromWh = warehouseMap.get(tx.fromLocation);
+          if (fromWh) {
+            if (!expected[tx.fromLocation]) expected[tx.fromLocation] = {};
+            if (isReset && tx.toLocation === 'adjustment') {
+              expected[tx.fromLocation][tx.productId] = qty;
+            } else {
+              expected[tx.fromLocation][tx.productId] = (expected[tx.fromLocation][tx.productId] || 0) - qty;
+            }
+          }
+          const toWh = warehouseMap.get(tx.toLocation);
+          if (toWh) {
+            if (!expected[tx.toLocation]) expected[tx.toLocation] = {};
+            expected[tx.toLocation][tx.productId] = (expected[tx.toLocation][tx.productId] || 0) + qty;
+          }
+        }
+      }
+
+      // DB 실제값과 비교
+      const results = [];
+      const checked = new Set();
+
+      for (const [whId, prods] of Object.entries(dbInventory)) {
+        for (const [productIdStr, actualQty] of Object.entries(prods)) {
+          const productId = parseInt(productIdStr, 10);
+          const key = `${whId}_${productId}`;
+          checked.add(key);
+          const expectedQty = (expected[whId] || {})[productId] || 0;
+          const diff = actualQty - expectedQty;
+          if (diff !== 0) {
+            const wh = warehouseMap.get(whId);
+            const prod = productMap.get(productId);
+            results.push({ whId, whName: wh?.name || whId, productId, productName: prod?.name || `ID:${productId}`, productCode: prod?.code || '', expectedQty, actualQty, diff });
+          }
+        }
+      }
+
+      // expected에는 있지만 DB에 없는 것도 체크
+      for (const [whId, prods] of Object.entries(expected)) {
+        for (const [productIdStr, expectedQty] of Object.entries(prods)) {
+          const productId = parseInt(productIdStr, 10);
+          const key = `${whId}_${productId}`;
+          if (!checked.has(key) && expectedQty !== 0) {
+            const wh = warehouseMap.get(whId);
+            const prod = productMap.get(productId);
+            results.push({ whId, whName: wh?.name || whId, productId, productName: prod?.name || `ID:${productId}`, productCode: prod?.code || '', expectedQty, actualQty: 0, diff: -expectedQty });
+          }
+        }
+      }
+
+      results.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+      setVerifyResults(results);
+      setVerifyOpen(true);
+    } catch (err) {
+      console.error('재고 검증 실패:', err);
+      showSnackbar('재고 검증 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setVerifyLoading(false);
     }
   };
 
@@ -3007,7 +3108,8 @@ function InventoryLayout() {
     handleBarcodeScanError, handleDragOver, handleDragLeave, handleDrop,
     totalPages, recalculateAllInventory, deleteTransaction,
     batchFromLocation, setBatchFromLocation, batchToLocation, setBatchToLocation, showOriginalHistory, setShowOriginalHistory, handleSubmitTransaction, downloadExcelTemplate, handleExcelDataSubmit, handleBatchApplyLocation, handleDirectInventoryEdit,
-    editBatchFromLocation, setEditBatchFromLocation, editBatchToLocation, setEditBatchToLocation, handleEditBatchApplyLocation};
+    editBatchFromLocation, setEditBatchFromLocation, editBatchToLocation, setEditBatchToLocation, handleEditBatchApplyLocation,
+    verifyInventory, verifyResults, verifyOpen, setVerifyOpen, verifyLoading};
 
   return (
     <Box sx={{ width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
