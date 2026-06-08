@@ -29,9 +29,16 @@ export default function InventoryHistory() {
     selectedTransaction, startEditTransaction, recalculateAllInventory, deleteTransaction
   , batchFromLocation, setBatchFromLocation, batchToLocation, setBatchToLocation, showOriginalHistory, setShowOriginalHistory, handleSubmitTransaction, downloadExcelTemplate, handleDragOver, handleDragLeave, handleDrop, handleExcelDataSubmit, handleBatchApplyLocation, warehouseDetailTarget, warehouseDetailOpen, closeWarehouseDetail, barcodeScannerOpen, setBarcodeScannerOpen, setCurrentScanningRow, handleBarcodeScan, handleBarcodeScanError, excelData, isDragOver, snackbar, setSnackbar, isSubmittingTransaction,
     editBatchFromLocation, setEditBatchFromLocation, editBatchToLocation, setEditBatchToLocation, handleEditBatchApplyLocation,
-    verifyInventory, verifyResults, verifyOpen, setVerifyOpen, verifyLoading} = context;
+    verifyInventory, verifyResults, verifyOpen, setVerifyOpen, verifyLoading,
+    reconcileInventory, reconcileResults, reconcileOpen, setReconcileOpen, reconcileLoading} = context;
 
   const [detailProcessing, setDetailProcessing] = useState(false);
+  const [reconcileDateFrom, setReconcileDateFrom] = useState(() => {
+    const d = new Date(); d.setDate(1);
+    return d.toISOString().slice(0, 10);
+  });
+  const [reconcileDateTo, setReconcileDateTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [reconcileDialogOpen, setReconcileDialogOpen] = useState(false);
 
   return (
 
@@ -75,6 +82,13 @@ export default function InventoryHistory() {
             startIcon={verifyLoading ? <CircularProgress size={16} /> : null}
           >
             재고 검증
+          </Button>
+          <Button
+            variant="outlined"
+            color="info"
+            onClick={() => setReconcileDialogOpen(true)}
+          >
+            기간별 대사
           </Button>
           <Button
             variant="outlined"
@@ -1914,6 +1928,127 @@ export default function InventoryHistory() {
       />
 
         </Box>
+
+      {/* 기간별 대사 — 날짜 선택 Dialog */}
+      <Dialog open={reconcileDialogOpen} onClose={() => setReconcileDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>기간별 대사</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <TextField
+              label="시작일"
+              type="date"
+              size="small"
+              fullWidth
+              value={reconcileDateFrom}
+              onChange={e => setReconcileDateFrom(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+            />
+            <TextField
+              label="종료일"
+              type="date"
+              size="small"
+              fullWidth
+              value={reconcileDateTo}
+              onChange={e => setReconcileDateTo(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setReconcileDialogOpen(false)}>취소</Button>
+          <Button
+            variant="contained"
+            disabled={reconcileLoading}
+            startIcon={reconcileLoading ? <CircularProgress size={16} /> : null}
+            onClick={async () => {
+              setReconcileDialogOpen(false);
+              await reconcileInventory(reconcileDateFrom, reconcileDateTo);
+            }}
+          >
+            조회
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 기간별 대사 결과 Dialog */}
+      <Dialog open={reconcileOpen || false} onClose={() => setReconcileOpen(false)} maxWidth="lg" fullWidth>
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          기간별 대사 결과 {reconcileResults && `(${reconcileResults.dateFrom} ~ ${reconcileResults.dateTo})`}
+          <IconButton onClick={() => setReconcileOpen(false)} size="small"><CloseIcon /></IconButton>
+        </DialogTitle>
+        <DialogContent>
+          {reconcileResults && (
+            <>
+              <Box sx={{ mb: 2 }}>
+                {reconcileResults.rows.filter(r => r.diff !== 0).length === 0 ? (
+                  <Alert severity="success">판매현황과 입출고 기록이 모두 일치합니다. ✓</Alert>
+                ) : (
+                  <Alert severity="warning">
+                    불일치 {reconcileResults.rows.filter(r => r.diff !== 0).length}건
+                    — 판매현황 출고수량과 입출고 트랜잭션이 다릅니다.
+                  </Alert>
+                )}
+                {reconcileResults.onlineUnmatched > 0 && (
+                  <Alert severity="info" sx={{ mt: 1 }}>
+                    온라인 주문 중 상품 매칭 실패: {reconcileResults.onlineUnmatched}개 (코드/바코드 미등록 상품)
+                  </Alert>
+                )}
+              </Box>
+              <Box sx={{ mb: 1, display: 'flex', gap: 1 }}>
+                <Chip size="small" label={`전체 ${reconcileResults.rows.length}종`} />
+                <Chip size="small" color="error" label={`불일치 ${reconcileResults.rows.filter(r => r.diff !== 0).length}종`} />
+                <Chip size="small" color="success" label={`일치 ${reconcileResults.rows.filter(r => r.diff === 0).length}종`} />
+              </Box>
+              <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 500 }}>
+                <Table size="small" stickyHeader>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ bgcolor: 'grey.100' }}>제품</TableCell>
+                      <TableCell align="right" sx={{ bgcolor: 'grey.100', color: 'primary.main' }}>판매현황<br/>출고</TableCell>
+                      <TableCell align="center" sx={{ bgcolor: 'grey.100' }}>판매<br/>채널</TableCell>
+                      <TableCell align="right" sx={{ bgcolor: 'grey.100', color: 'secondary.main' }}>입출고<br/>트랜잭션</TableCell>
+                      <TableCell align="right" sx={{ bgcolor: 'grey.100', color: 'text.secondary' }}>직접<br/>수정</TableCell>
+                      <TableCell align="right" sx={{ bgcolor: 'grey.100' }}>차이</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {reconcileResults.rows.map((r, i) => (
+                      <TableRow
+                        key={i}
+                        sx={{ bgcolor: r.diff !== 0 ? (Math.abs(r.diff) >= 5 ? 'error.50' : 'warning.50') : 'inherit' }}
+                      >
+                        <TableCell>
+                          <Typography variant="body2">{r.name}</Typography>
+                          <Typography variant="caption" color="text.secondary">{r.code}</Typography>
+                        </TableCell>
+                        <TableCell align="right">{r.salesQty}</TableCell>
+                        <TableCell align="center">
+                          <Typography variant="caption" color="text.secondary">{r.channels || '-'}</Typography>
+                        </TableCell>
+                        <TableCell align="right">{r.txQty}</TableCell>
+                        <TableCell align="right" sx={{ color: r.editQty > 0 ? 'success.main' : r.editQty < 0 ? 'error.main' : 'inherit' }}>
+                          {r.editQty !== 0 ? (r.editQty > 0 ? `+${r.editQty}` : r.editQty) : '-'}
+                        </TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 'bold', color: r.diff > 0 ? 'error.main' : r.diff < 0 ? 'warning.main' : 'success.main' }}>
+                          {r.diff === 0 ? '✓' : (r.diff > 0 ? `+${r.diff}` : r.diff)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                * 판매현황 = 온라인+매장+A/S 출고완료 (공임/배송비 등 재고비관리 제외) | 차이 = 판매현황 - 입출고 트랜잭션<br/>
+                * 양수(+): 판매 기록 있으나 트랜잭션 누락 | 음수(-): 트랜잭션만 있고 판매 기록 없음
+              </Typography>
+            </>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setReconcileOpen(false); setReconcileDialogOpen(true); }}>다시 조회</Button>
+          <Button onClick={() => setReconcileOpen(false)}>닫기</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* 재고 검증 결과 Dialog */}
       <Dialog open={verifyOpen || false} onClose={() => setVerifyOpen(false)} maxWidth="md" fullWidth>

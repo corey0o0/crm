@@ -248,6 +248,9 @@ function InventoryLayout() {
   const [verifyOpen, setVerifyOpen] = useState(false);
   const [verifyResults, setVerifyResults] = useState(null);
   const [verifyLoading, setVerifyLoading] = useState(false);
+  const [reconcileOpen, setReconcileOpen] = useState(false);
+  const [reconcileResults, setReconcileResults] = useState(null);
+  const [reconcileLoading, setReconcileLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
@@ -1670,6 +1673,169 @@ function InventoryLayout() {
       showSnackbar('재고 검증 중 오류가 발생했습니다.', 'error');
     } finally {
       setVerifyLoading(false);
+    }
+  };
+
+  // 기간별 재고 대사: 판매현황 vs 입출고 트랜잭션 vs 직접수정 비교
+  const reconcileInventory = async (dateFrom, dateTo) => {
+    setReconcileLoading(true);
+    try {
+      const whIds = (warehouses || []).map(w => w.id);
+      const productMap = new Map((products || []).map(p => [p.id, p]));
+      const partsByCode = new Map((products || []).map(p => [String(p.code || '').trim(), p]));
+      const partsByBarcode = new Map((products || []).filter(p => p.barcode).map(p => [String(p.barcode).trim(), p]));
+      // 재고 비관리 상품(공임/배송비 등) 제외
+      const noTrackIds = new Set((products || []).filter(p => p.track_inventory === false).map(p => p.id));
+      // 카페24 온라인 취소 상태 코드 (SalesHistory.jsx와 동일)
+      const CANCEL_STATUSES = new Set(['C11', 'C34', 'C36', 'C40', 'C47', 'C48', 'C49', 'R34', 'R36', 'R40', 'E40']);
+
+      const salesByProduct = {};
+      const addSale = (pid, name, code, qty, channel) => {
+        if (!pid || noTrackIds.has(pid)) return;
+        if (!salesByProduct[pid]) salesByProduct[pid] = { name, code, salesQty: 0, saleTypes: new Set() };
+        salesByProduct[pid].salesQty += qty;
+        salesByProduct[pid].saleTypes.add(channel);
+      };
+
+      // 1. 매장출고/수기판매 — shipments (출고완료, 날짜범위) + shipment_parts
+      const { data: shipList } = await supabase
+        .from('shipments')
+        .select('id')
+        .eq('status', '출고완료')
+        .gte('shipment_date', dateFrom)
+        .lte('shipment_date', dateTo);
+
+      const shipIds = (shipList || []).map(s => s.id);
+      if (shipIds.length > 0) {
+        const chunkSize = 200;
+        for (let i = 0; i < shipIds.length; i += chunkSize) {
+          const { data: sps } = await supabase
+            .from('shipment_parts')
+            .select('part_code, part_name, quantity')
+            .in('shipment_id', shipIds.slice(i, i + chunkSize))
+            .neq('status', '반품완료');
+          for (const sp of (sps || [])) {
+            const part = partsByCode.get(String(sp.part_code || '').trim());
+            if (!part) continue;
+            addSale(part.id, part.name, part.code, sp.quantity || 0, '매장');
+          }
+        }
+      }
+
+      // 2. A/S 출고 — services (출고완료, completion_date 범위) + service_parts
+      const { data: svcList } = await supabase
+        .from('services')
+        .select('id')
+        .eq('status', '출고완료')
+        .gte('completion_date', dateFrom)
+        .lte('completion_date', dateTo + 'T23:59:59');
+
+      const svcIds = (svcList || []).map(s => s.id);
+      if (svcIds.length > 0) {
+        const chunkSize = 200;
+        for (let i = 0; i < svcIds.length; i += chunkSize) {
+          const { data: sps } = await supabase
+            .from('service_parts')
+            .select('part_id, quantity')
+            .in('service_id', svcIds.slice(i, i + chunkSize))
+            .neq('status', '반품완료');
+          for (const sp of (sps || [])) {
+            const part = productMap.get(sp.part_id);
+            if (!part) continue;
+            addSale(sp.part_id, part.name, part.code, sp.quantity || 0, 'A/S');
+          }
+        }
+      }
+
+      // 3. 카페24 온라인 — cafe24_orders.order_items (취소건 제외)
+      let onlineUnmatched = 0;
+      const { data: cafeOrders } = await supabase
+        .from('cafe24_orders')
+        .select('order_items')
+        .gte('order_date', dateFrom)
+        .lte('order_date', dateTo + 'T23:59:59');
+
+      for (const o of (cafeOrders || [])) {
+        for (const it of (o.order_items || [])) {
+          if (CANCEL_STATUSES.has(it.order_status)) continue;
+          const qty = Number(it.quantity || 1);
+          let part = (it.part_id && productMap.get(it.part_id)) || null;
+          if (!part) {
+            const c = String(it.custom_product_code || it.product_code || '').trim();
+            part = partsByCode.get(c) || partsByBarcode.get(c);
+          }
+          if (part) addSale(part.id, part.name, part.code, qty, '온라인');
+          else onlineUnmatched += qty;
+        }
+      }
+
+      // 4. 입출고 트랜잭션 출고 (창고→외부, 창고이동/직접수정 제외)
+      const { data: outTxs } = await supabase
+        .from('transactions')
+        .select('product_id, product_name, product_code, quantity, from_location, to_location')
+        .eq('type', 'out')
+        .gte('date', dateFrom)
+        .lte('date', dateTo);
+
+      const txByProduct = {};
+      for (const tx of (outTxs || [])) {
+        if (noTrackIds.has(tx.product_id)) continue;
+        if (!whIds.includes(tx.from_location)) continue; // 창고에서 나간 것만
+        if (whIds.includes(tx.to_location)) continue;    // 창고이동 제외
+        if (tx.to_location === 'direct_edit') continue;  // 직접수정 제외
+        const pid = tx.product_id;
+        if (!txByProduct[pid]) txByProduct[pid] = { name: tx.product_name || '', code: tx.product_code || '', txQty: 0 };
+        txByProduct[pid].txQty += (tx.quantity || 0);
+      }
+
+      // 5. 직접수정 (net delta)
+      const { data: editTxs } = await supabase
+        .from('transactions')
+        .select('product_id, product_name, quantity, type, from_location, to_location')
+        .or('from_location.eq.direct_edit,to_location.eq.direct_edit')
+        .gte('date', dateFrom)
+        .lte('date', dateTo);
+
+      const editByProduct = {};
+      for (const tx of (editTxs || [])) {
+        if (noTrackIds.has(tx.product_id)) continue;
+        const pid = tx.product_id;
+        if (!editByProduct[pid]) editByProduct[pid] = { name: tx.product_name || '', qty: 0 };
+        editByProduct[pid].qty += tx.type === 'in' ? tx.quantity : -tx.quantity;
+      }
+
+      // 6. 전체 제품 합산
+      const allPids = new Set([
+        ...Object.keys(salesByProduct).map(Number),
+        ...Object.keys(txByProduct).map(Number),
+        ...Object.keys(editByProduct).map(Number)
+      ]);
+
+      const results = [];
+      for (const pid of allPids) {
+        if (noTrackIds.has(pid)) continue;
+        const part = productMap.get(pid);
+        const salesInfo = salesByProduct[pid];
+        const txInfo = txByProduct[pid];
+        const editInfo = editByProduct[pid];
+        const name = part?.name || salesInfo?.name || txInfo?.name || editInfo?.name || `ID:${pid}`;
+        const code = part?.code || salesInfo?.code || txInfo?.code || '';
+        const salesQty = salesInfo?.salesQty || 0;
+        const channels = salesInfo ? Array.from(salesInfo.saleTypes).join(',') : '';
+        const txQty = txInfo?.txQty || 0;
+        const editQty = editInfo?.qty || 0;
+        const diff = salesQty - txQty;
+        results.push({ pid, name, code, salesQty, channels, txQty, editQty, diff });
+      }
+
+      results.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+      setReconcileResults({ dateFrom, dateTo, rows: results, onlineUnmatched });
+      setReconcileOpen(true);
+    } catch (err) {
+      console.error('기간별 대사 실패:', err);
+      showSnackbar('기간별 대사 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setReconcileLoading(false);
     }
   };
 
@@ -3113,7 +3279,8 @@ function InventoryLayout() {
     totalPages, recalculateAllInventory, deleteTransaction,
     batchFromLocation, setBatchFromLocation, batchToLocation, setBatchToLocation, showOriginalHistory, setShowOriginalHistory, handleSubmitTransaction, downloadExcelTemplate, handleExcelDataSubmit, handleBatchApplyLocation, handleDirectInventoryEdit,
     editBatchFromLocation, setEditBatchFromLocation, editBatchToLocation, setEditBatchToLocation, handleEditBatchApplyLocation,
-    verifyInventory, verifyResults, verifyOpen, setVerifyOpen, verifyLoading};
+    verifyInventory, verifyResults, verifyOpen, setVerifyOpen, verifyLoading,
+    reconcileInventory, reconcileResults, reconcileOpen, setReconcileOpen, reconcileLoading};
 
   return (
     <Box sx={{ width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
