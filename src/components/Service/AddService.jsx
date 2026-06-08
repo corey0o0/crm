@@ -984,6 +984,7 @@ function AddService() {
           part_id: part.id,
           quantity: part.quantity,
           price: part.price,
+          status: part.status || formData.status || '준비중',
           usage: part.usage || 'A/S'
         }));
         const { error: partsError } = await supabase.from('service_parts').insert(partsToInsert);
