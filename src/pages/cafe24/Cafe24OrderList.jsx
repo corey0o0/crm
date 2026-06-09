@@ -1752,6 +1752,14 @@ export default function Cafe24OrderList() {
                     return Number(order.used_points !== undefined && order.used_points !== null ? order.used_points : calculatedUsedPoints);
                   })();
 
+                  // 총결제액 옆 내부재화(예치금/적립금) 라벨
+                  const internalFundLabel = [...new Set(
+                    String(items[0]?.payment_method || '')
+                      .split(/[,/\s]+/)
+                      .map(s => s.trim())
+                      .filter(s => s === '예치금' || s === '적립금')
+                  )].join(', ');
+
                   acc.push(
                     <TableRow key={`${order.id}-${idx}`} hover selected={selectedOrders.includes(order.id)}>
                       {idx === 0 && (
@@ -1880,6 +1888,11 @@ export default function Cafe24OrderList() {
                         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
                           <Box display="flex" alignItems="center" justifyContent="flex-end" gap={0.5}>
                             <strong>{effectiveTotalAmount.toLocaleString()}</strong>
+                            {internalFundLabel && (
+                              <Typography component="span" variant="caption" color="info.main" sx={{ fontWeight: 600 }}>
+                                ({internalFundLabel})
+                              </Typography>
+                            )}
                           </Box>
                           {isPrepaid && (
                             <Chip label="선불금 처리" size="small" color="info" variant="filled" sx={{ height: 16, fontSize: '0.6rem' }} />
