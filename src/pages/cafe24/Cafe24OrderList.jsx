@@ -1820,6 +1820,8 @@ export default function Cafe24OrderList() {
                       .map(s => s.trim())
                       .filter(s => s === '예치금' || s === '적립금')
                   )].join(', ');
+                  // 내부재화 사용 금액: 적립금은 사용 포인트(used_points), 예치금은 결제총액(예치금 전액 결제)
+                  const internalFundAmount = displayUsedPoints > 0 ? displayUsedPoints : effectiveTotalAmount;
 
                   acc.push(
                     <TableRow key={`${order.id}-${idx}`} hover selected={selectedOrders.includes(order.id)}>
@@ -1951,7 +1953,7 @@ export default function Cafe24OrderList() {
                             <strong>{effectiveTotalAmount.toLocaleString()}</strong>
                             {internalFundLabel && (
                               <Typography component="span" variant="caption" color="info.main" sx={{ fontWeight: 600 }}>
-                                ({internalFundLabel})
+                                ({internalFundLabel}{internalFundAmount > 0 ? ` ${internalFundAmount.toLocaleString()}원` : ''})
                               </Typography>
                             )}
                           </Box>
