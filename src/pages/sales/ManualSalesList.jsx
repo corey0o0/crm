@@ -11,8 +11,15 @@ import { ko } from 'date-fns/locale';
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO } from 'date-fns';
 import { processShipmentRevert, processShipmentCompletion } from '../../utils/inventoryUtils';
 import { logAction } from '../../utils/auditLog';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function ManualSalesList({ isEmbedded = false }) {
+  const { getAllowedBrands } = useAuth();
+  const allowedBrands = getAllowedBrands();
+  // 브랜드 접근 권한: 제한 시 해당 브랜드만 조회 (NB는 NEARBIKE 표기 포함)
+  const brandFilterList = (allowedBrands === 'all' || !Array.isArray(allowedBrands) || allowedBrands.length === 0)
+    ? null
+    : [...new Set(allowedBrands.flatMap(b => (b === 'NB' ? ['NB', 'NEARBIKE'] : [b])))];
   const [loading, setLoading] = useState(true);
   const [shipments, setShipments] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -67,6 +74,8 @@ export default function ManualSalesList({ isEmbedded = false }) {
       
       // 수기 판매 및 엑셀 업로드 데이터만 조회
       query = query.in('record_type', ['manual_sale', 'excel_upload']);
+      // 브랜드 접근 권한 적용
+      if (brandFilterList) query = query.in('brand', brandFilterList);
 
       if (statusFilter !== 'all') {
         query = query.eq('status', statusFilter);
@@ -108,6 +117,7 @@ export default function ManualSalesList({ isEmbedded = false }) {
 
       // 전체 합계 계산 (현재 필터 조건 반영)
       let sumQuery = supabase.from('shipments').select('price').in('record_type', ['manual_sale', 'excel_upload']);
+      if (brandFilterList) sumQuery = sumQuery.in('brand', brandFilterList);
       if (statusFilter !== 'all') sumQuery = sumQuery.eq('status', statusFilter);
       if (sellerFilter !== 'all') sumQuery = sumQuery.eq('sales_channel', sellerFilter);
       if (customerFilter !== 'all') sumQuery = sumQuery.eq('customer_name', customerFilter);
@@ -510,7 +520,9 @@ export default function ManualSalesList({ isEmbedded = false }) {
   const handleExportExcel = async () => {
     try {
       let query = supabase.from('shipments').select('*, shipment_parts(*)');
-      
+      // 브랜드 접근 권한 적용 (선택 항목/전체 모두)
+      if (brandFilterList) query = query.in('brand', brandFilterList);
+
       if (selectedItems.length > 0) {
         // 선택된 항목만 다운로드
         query = query.in('id', selectedItems);

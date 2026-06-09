@@ -407,7 +407,7 @@ export default function UserMenuSettings() {
             </FormGroup>
           </Paper>
 
-          <Typography variant="subtitle2" gutterBottom sx={{ mt: 3 }}>브랜드 접근 권한 (A/S, 매장출고) - 미선택 시 전체 허용</Typography>
+          <Typography variant="subtitle2" gutterBottom sx={{ mt: 3 }}>브랜드 접근 권한 (A/S, 매장출고, 수기판매) - 미선택 시 전체 허용</Typography>
           <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
             <FormGroup>
               <Grid container>
