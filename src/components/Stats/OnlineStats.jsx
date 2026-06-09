@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
+import { getBrandFallback } from './SalesHistoryStats';
 import {
   Box,
   Paper,
@@ -218,13 +219,26 @@ function OnlineStats() {
         setRawOrders(cafe24Orders);
         const partMapById = {};
         const partMapByCode = {};
+        const partMapByName = {};
         const brandSet = new Set(['XRB', 'NB']);
-        partsData?.forEach(p => { 
-          partMapById[p.id] = p; 
+        partsData?.forEach(p => {
+          partMapById[p.id] = p;
           if (p.code) partMapByCode[String(p.code).trim()] = p;
           if (p.barcode) partMapByCode[String(p.barcode).trim()] = p;
+          if (p.name) partMapByName[p.name] = p;
           if (p.brand && p.brand.trim() !== '') brandSet.add(p.brand.trim());
         });
+        // 브랜드 판정: 제품(part_id→code→name) 기준 + getBrandFallback — 판매현황 통계와 동일 (몰 기준 fallback 아님)
+        const resolveBrandOnline = (partId, code, fallbackName, mallId) => {
+          let name = fallbackName;
+          if (partId && partMapById[partId]?.name) name = partMapById[partId].name;
+          else if (code && partMapByCode[code]?.name) name = partMapByCode[code].name;
+          let b = '';
+          if (partId && partMapById[partId]?.brand) b = partMapById[partId].brand;
+          else if (code && partMapByCode[code]?.brand) b = partMapByCode[code].brand;
+          else if (name && partMapByName[name]?.brand) b = partMapByName[name].brand;
+          return getBrandFallback(b, name, code, mallId);
+        };
         setBrands(['전체', ...Array.from(brandSet).sort()]);
 
         let filteredOrderCount = 0;
@@ -360,13 +374,7 @@ function OnlineStats() {
                
                item._calculated_amount = amount;
                const isAirframe = p ? (p.note?.includes('기체')) : (pName.includes('기체') || pName.includes('차체') || pName.includes('완차') || pName.includes('스쿠터') || pName.includes('전기자전거'));
-               let sup = p ? (p.brand || '') : '';
-               const KNOWN_BRANDS_ONLINE = ['XRB', 'NB'];
-               if (!sup || sup.trim() === '' || sup === '기타 브랜드' || !KNOWN_BRANDS_ONLINE.includes(sup)) {
-                  if (o.mall_id === 'slimpack79') sup = 'XRB';
-                  else if (o.mall_id === 'nearbike') sup = 'NB';
-                  else sup = sup || '기타 브랜드';
-               }
+               let sup = resolveBrandOnline(item.part_id, pCode, pName, o.mall_id);
                item._brand = sup;
                item._isAirframe = isAirframe;
 

@@ -202,7 +202,7 @@ function SalesHistoryStats() {
 
       // 2. Services
       const { data: asRows, error: asErr } = await supabase.from('service_parts')
-        .select('price, quantity, usage, parts(brand, name, code), services!inner(completion_date, status)')
+        .select('price, quantity, usage, parts(brand, name, code), services!inner(completion_date, status, brand)')
         .gte('services.completion_date', sDate).lte('services.completion_date', eDate).in('services.status', ['출고완료', '완료', '수령완료']);
       if (asErr) console.error('Services fetch error:', asErr);
       
@@ -217,7 +217,8 @@ function SalesHistoryStats() {
              });
           }
           const effectiveQty = Math.max(0, Number(sp.quantity || 1) - returnedQty);
-          const b = getBrandFallback(sp.parts?.brand, sp.parts?.name, sp.parts?.code);
+          // A/S 브랜드는 수리 대상 기체(services.brand) 기준 — 메인 집계와 동일하게 통일
+          const b = getBrandFallback(sp.services?.brand, '', '', '');
           if (!targetBrand || targetBrand === '전체' || b === targetBrand) {
             const unitPrice = Number(sp.price || sp.parts?.price || 0);
             asTotal += (unitPrice * effectiveQty);
@@ -498,9 +499,11 @@ function SalesHistoryStats() {
       return '기타';
     };
 
-    const resolveBrand = (name, code = '', mallId = '') => {
+    const resolveBrand = (name, code = '', mallId = '', partId = null) => {
       let b = '';
-      if (code && partsBrandByCode[code]) b = partsBrandByCode[code];
+      // part_id 우선 조회 — 바코드/코드 충돌(중복 부품) 시 정확한 브랜드 보장
+      if (partId && partsBrandById[partId]) b = partsBrandById[partId];
+      else if (code && partsBrandByCode[code]) b = partsBrandByCode[code];
       else if (name && partsBrandMap[name]) b = partsBrandMap[name];
       return getBrandFallback(b, name, code, mallId);
     };
@@ -669,7 +672,8 @@ function SalesHistoryStats() {
         if (effectiveQty > 0 || Number(sp.quantity || 1) > 0) {
           const pName = sp.parts?.name || '부품';
           const cat = resolveCategory(pName);
-          const brand = resolveBrand(pName);
+          // A/S 부품 브랜드는 수리 대상 기체(services.brand) 기준으로 통일 — 매장매출통계/A/S통계와 동일 (부품 자체 브랜드 아님)
+          const brand = getBrandFallback(s.brand, '', '', '');
           const unitCost = resolveCost(pName);
           rows.push({ ...baseFields, part_name: pName, part_category: cat, part_brand: brand, quantity: effectiveQty, total_price: total, total_cost: unitCost * effectiveQty });
         }
@@ -799,7 +803,7 @@ function SalesHistoryStats() {
 
           // part_id가 있으면 직접 ID 기반 조회 우선 (바코드/코드 충돌 방지)
           const cat = (item.part_id && partsById[item.part_id]) ? partsById[item.part_id] : resolveCategory(pName, itemCode);
-          const brand = resolveBrand(pName, itemCode, o.mall_id);
+          const brand = resolveBrand(pName, itemCode, o.mall_id, item.part_id);
           const unitCost = (item.part_id && typeof partsCostById[item.part_id] === 'number') ? partsCostById[item.part_id] : resolveCost(pName, itemCode);
           
           if (idx === 0) {
