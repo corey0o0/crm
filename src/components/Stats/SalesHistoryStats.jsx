@@ -150,7 +150,7 @@ function SalesHistoryStats() {
 
       // 1. Shipments
       const { data: shipRows, error: shipErr } = await supabase.from('shipments')
-        .select('id, note, price, shipment_parts(quantity, price, total_price, part_name, part_code, note)')
+        .select('id, note, price, brand, shipment_parts(quantity, price, total_price, part_name, part_code, note)')
         .gte('order_date', sDate).lte('order_date', eDate).in('status', ['출고완료', '완료']);
       if (shipErr) console.error('Shipments fetch error:', shipErr);
 
@@ -191,7 +191,7 @@ function SalesHistoryStats() {
                });
              }
              const effectiveQty = Math.max(0, Number(p.quantity || 1) - returnedQty);
-             const b = getBrandFallback(null, p.part_name, p.part_code);
+             const b = getBrandFallback(s.brand, p.part_name, p.part_code);
              if (!targetBrand || targetBrand === '전체' || b === targetBrand) {
                 const pPrice = Number(p.price || 0);
                 shipTotal += pPrice * effectiveQty;
@@ -404,7 +404,7 @@ function SalesHistoryStats() {
 
     let shipQuery = supabase
       .from('shipments')
-      .select('id, order_date, customer_name, price, sales_channel, status, note, tracking_number, warehouse_id, shipment_parts(id, part_name, quantity, price, total_price, note)')
+      .select('id, order_date, customer_name, price, brand, sales_channel, status, note, tracking_number, warehouse_id, shipment_parts(id, part_name, quantity, price, total_price, note)')
       .in('status', ['출고완료', '완료'])
       .order('order_date', { ascending: false });
 
@@ -602,7 +602,8 @@ function SalesHistoryStats() {
             const effectiveQty = Math.max(0, Number(p.quantity || 1));
             const total = Number(p.price || 0) * effectiveQty;
             const cat = resolveCategory(p.part_name, p.part_code);
-            const brand = resolveBrand(p.part_name, p.part_code);
+            // 매장출고 부품 브랜드는 출고건(shipment.brand) 기준으로 통일 — 실제 출고/판매 내역·매장매출통계와 동일 (부품 코드 우연 의존 아님)
+            const brand = getBrandFallback(s.brand, p.part_name, p.part_code, '');
             const unitCost = resolveCost(p.part_name, p.part_code);
             manualRows.push({ ...baseFields, part_name: p.part_name || '기체/상품', part_category: cat, part_brand: brand, quantity: effectiveQty, total_price: total, total_cost: unitCost * effectiveQty });
           });
@@ -639,7 +640,8 @@ function SalesHistoryStats() {
           
           const total = Number(p.price || 0) * effectiveQty;
           const cat = resolveCategory(p.part_name, p.part_code);
-          const brand = resolveBrand(p.part_name, p.part_code);
+          // 매장출고 부품 브랜드는 출고건(shipment.brand) 기준으로 통일 — 실제 출고/판매 내역·매장매출통계와 동일
+          const brand = getBrandFallback(s.brand, p.part_name, p.part_code, '');
           const unitCost = resolveCost(p.part_name, p.part_code);
           rows.push({ ...baseFields, part_name: p.part_name || '기체/상품', part_category: cat, part_brand: brand, quantity: effectiveQty, total_price: total, total_cost: unitCost * effectiveQty });
         });
