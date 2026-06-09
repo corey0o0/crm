@@ -77,6 +77,8 @@ import { format, parseISO, isValid } from 'date-fns';
 import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { getCookie, setCookie, removeCookie, getJSONCookie, setJSONCookie } from '../../utils/cookieUtils';
 import { processShipmentCompletion, processShipmentRevert } from '../../utils/inventoryUtils';
+import { checkSaleDuplicate } from '../../utils/duplicateCheck';
+import DuplicateWarningDialog from '../common/DuplicateWarningDialog';
 import { alpha } from '@mui/material/styles';
 
 // 부품 카테고리 정의
@@ -152,6 +154,8 @@ function ProductShipment() {
   const [selectedShipment, setSelectedShipment] = useState(null);
   const [openDialog, setOpenDialog] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [dupWarnings, setDupWarnings] = useState([]);
+  const [dupDialogOpen, setDupDialogOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
@@ -892,7 +896,8 @@ function ProductShipment() {
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (forceArg) => {
+    const force = forceArg === true;
     try {
       // 필수 필드 검증
       const requiredFields = {
@@ -926,6 +931,23 @@ function ProductShipment() {
           severity: 'warning'
         });
         return;
+      }
+
+      // 중복 등록 실시간 검사 (강행 시 건너뜀)
+      if (!force) {
+        const dups = await checkSaleDuplicate({
+          note: selectedShipment.note,
+          trackingNumber: selectedShipment.tracking_number,
+          customerName: selectedShipment.customer_name,
+          orderDate: selectedShipment.order_date,
+          parts: selectedParts,
+          excludeId: selectedShipment.id || null,
+        });
+        if (dups.length > 0) {
+          setDupWarnings(dups);
+          setDupDialogOpen(true);
+          return;
+        }
       }
 
       // 첫 번째 제품 정보를 기본 필드에 저장
@@ -3328,7 +3350,14 @@ function ProductShipment() {
           </Button>
         </DialogActions>
       </Dialog>
-      
+
+      <DuplicateWarningDialog
+        open={dupDialogOpen}
+        warnings={dupWarnings}
+        onCancel={() => setDupDialogOpen(false)}
+        onProceed={() => { setDupDialogOpen(false); handleSave(true); }}
+      />
+
       {/* 스낵바 */}
       <Snackbar
         open={snackbar.open}

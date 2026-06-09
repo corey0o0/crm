@@ -82,6 +82,8 @@ import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../../utils/
 import { useAuth } from '../../contexts/AuthContext';
 import { logAction, logActions } from '../../utils/auditLog';
 import { checkAndSendLowStockAlerts } from '../../utils/inventoryAlert';
+import { checkTransactionDuplicate } from '../../utils/duplicateCheck';
+import DuplicateWarningDialog from '../../components/common/DuplicateWarningDialog';
 
 // 창고 및 대리점 코드를 숨기고 이름만 표시하는 유틸리티
 const getSaleType = (note) => {
@@ -245,6 +247,8 @@ function InventoryLayout() {
   const [pendingInventory, setPendingInventory] = useState({});
   const [loading, setLoading] = useState(false);
   const [isSubmittingTransaction, setIsSubmittingTransaction] = useState(false);
+  const [txDupWarnings, setTxDupWarnings] = useState([]);
+  const [txDupDialogOpen, setTxDupDialogOpen] = useState(false);
   const [verifyOpen, setVerifyOpen] = useState(false);
   const [verifyResults, setVerifyResults] = useState(null);
   const [verifyLoading, setVerifyLoading] = useState(false);
@@ -1140,7 +1144,8 @@ function InventoryLayout() {
     ]);
   };
 
-  const handleSubmitTransaction = useCallback(async () => {
+  const handleSubmitTransaction = useCallback(async (forceArg) => {
+    const force = forceArg === true;
     // 통합 제출: 각 행의 fromLocation이 창고이면 '출고', 아니면 '입고'로 판단
     // 유효성 검사
     let errorMessage = '모든 상품의 필수 항목을 올바르게 입력해주세요.';
@@ -1242,6 +1247,16 @@ function InventoryLayout() {
     if (newTransactions.length === 0) {
       showSnackbar('등록할 유효한 상품이 없습니다.', 'error');
       return;
+    }
+
+    // 중복 등록 실시간 검사 (강행 시 건너뜀)
+    if (!force) {
+      const dups = await checkTransactionDuplicate(newTransactions);
+      if (dups.length > 0) {
+        setTxDupWarnings(dups);
+        setTxDupDialogOpen(true);
+        return;
+      }
     }
 
     const isConfirmed = formData.isConfirmed ?? true;
@@ -3300,6 +3315,13 @@ function InventoryLayout() {
   return (
     <Box sx={{ width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
       <Outlet context={contextValue} />
+      <DuplicateWarningDialog
+        open={txDupDialogOpen}
+        warnings={txDupWarnings}
+        onCancel={() => setTxDupDialogOpen(false)}
+        onProceed={() => { setTxDupDialogOpen(false); handleSubmitTransaction(true); }}
+        proceedLabel="무시하고 등록"
+      />
     </Box>
   );
 }

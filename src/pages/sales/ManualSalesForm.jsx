@@ -49,6 +49,8 @@ import { format } from 'date-fns';
 import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { sendTelegramNotification } from '../../lib/telegram';
 import { processShipmentCompletion, processShipmentRevert } from '../../utils/inventoryUtils';
+import { checkSaleDuplicate } from '../../utils/duplicateCheck';
+import DuplicateWarningDialog from '../../components/common/DuplicateWarningDialog';
 // 부품 카테고리 자동 결정 함수 (setSelectedCategory 호출 제거, 카테고리 반환)
 const determinePartCategory = (part) => {
   if (!part) return '기타';
@@ -141,6 +143,8 @@ function ShipmentForm() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [initialData, setInitialData] = useState(null);
   const [isFormSubmitted, setIsFormSubmitted] = useState(false);
+  const [dupWarnings, setDupWarnings] = useState([]);
+  const [dupDialogOpen, setDupDialogOpen] = useState(false);
 
   // 임시 저장
   const [hasTempData, setHasTempData] = useState(false);
@@ -541,7 +545,8 @@ function ShipmentForm() {
     setSelectedParts(prev => prev.filter(part => part.id !== id));
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (forceArg) => {
+    const force = forceArg === true;
     if (saving) return; // 이중 클릭 방지
     
     // 필수 입력값 검증
@@ -570,6 +575,23 @@ function ShipmentForm() {
         severity: 'warning'
       });
       return;
+    }
+
+    // 중복 등록 실시간 검사 (강행 시 건너뜀)
+    if (!force) {
+      const dups = await checkSaleDuplicate({
+        note: shipmentData.note,
+        trackingNumber: shipmentData.tracking_number,
+        customerName: shipmentData.customer_name,
+        orderDate: shipmentData.order_date,
+        parts: selectedParts,
+        excludeId: isEditMode ? id : null,
+      });
+      if (dups.length > 0) {
+        setDupWarnings(dups);
+        setDupDialogOpen(true);
+        return;
+      }
     }
 
     setSaving(true);
@@ -1993,6 +2015,13 @@ function ShipmentForm() {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      <DuplicateWarningDialog
+        open={dupDialogOpen}
+        warnings={dupWarnings}
+        onCancel={() => setDupDialogOpen(false)}
+        onProceed={() => { setDupDialogOpen(false); handleSubmit(true); }}
+      />
     </Box>
   );
 }
