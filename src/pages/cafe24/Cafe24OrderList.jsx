@@ -1826,6 +1826,12 @@ export default function Cafe24OrderList() {
                       .map(s => s.trim())
                       .filter(s => s === '예치금' || s === '적립금')
                   )].join(', ');
+                  // 부분취소/부분교환 판별: 헤더 status는 취소(C/R)·교환(E)인데 유효 품목도 함께 있는 경우
+                  const _hdrStatus = String(order.status || '').trim();
+                  const _hasCancelItem = (items || []).some(it => CANCEL_STATUSES.includes(String(it.order_status).trim()));
+                  const _hasValidItem = (items || []).some(it => !CANCEL_STATUSES.includes(String(it.order_status).trim()));
+                  const isPartialCancel = (_hdrStatus.startsWith('C') || _hdrStatus.startsWith('R')) && _hasCancelItem && _hasValidItem;
+                  const isPartialExchange = _hdrStatus.startsWith('E') && _hasCancelItem && _hasValidItem;
 
                   acc.push(
                     <TableRow key={`${order.id}-${idx}`} hover selected={selectedOrders.includes(order.id)}>
@@ -1854,6 +1860,8 @@ export default function Cafe24OrderList() {
                             <Typography variant="caption" color="text.secondary">{formatDate(order.order_date)}</Typography>
                             <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
                               <Chip label={getKoStatus(order.status)} size="small" color={getBadgeColor(order.status)} variant={order.status.startsWith('N') ? 'outlined' : 'filled'} sx={{ height: 18, fontSize: '0.7rem' }} />
+                              {isPartialCancel && <Chip label="부분취소" size="small" color="warning" variant="outlined" sx={{ height: 18, fontSize: '0.7rem' }} />}
+                              {isPartialExchange && <Chip label="부분교환" size="small" color="warning" variant="outlined" sx={{ height: 18, fontSize: '0.7rem' }} />}
                             </Box>
                           </Box>
                         </TableCell>
