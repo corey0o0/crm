@@ -408,13 +408,19 @@ export default function Cafe24OrderList() {
   // - 미반영 주문에서 아이템 일부라도 C/R/E이면 반품/취소교환으로 분류
   const isOrderReturned = (order) => {
     const s = String(order.status).trim();
-    // 1. 교환(E) 완료 + 재고 반영 완료 → 반영완료 탭으로 분류
-    if (s.startsWith('E') && order.is_transferred) return false;
-    // 2. 취소/반품/교환 상태면 반품건
+    // 1. 이미 재고 반영(전송)된 주문
+    if (order.is_transferred) {
+      // 전체 취소/반품(유효 품목 0)인데 아직 반영 상태면 롤백 필요 → 반품/취소교환 탭 유지
+      const validItems = (order.order_items || []).filter(item =>
+        !CANCEL_STATUSES.includes(String(item.order_status).trim())
+      );
+      if (validItems.length === 0 && (s.startsWith('C') || s.startsWith('R'))) return true;
+      // 부분취소/교환 등 유효 품목이 반영된 경우 → 반영완료 탭
+      return false;
+    }
+    // 2. 미반영 주문: 메인 status가 취소/반품/교환이면 반품건
     if (s.startsWith('C') || s.startsWith('R') || s.startsWith('E')) return true;
-    // 3. 반영 완료된 주문은 반영완료 탭 유지
-    if (order.is_transferred) return false;
-    // 4. 미반영 주문: 완료된 취소/반품/교환 아이템이 하나라도 있으면 반품건
+    // 3. 미반영 주문: 완료된 취소/반품/교환 아이템이 하나라도 있으면 반품건
     if (order.order_items && order.order_items.some(item =>
       CANCEL_STATUSES.includes(String(item.order_status).trim())
     )) return true;
