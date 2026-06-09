@@ -906,8 +906,47 @@ export default function Cafe24OrderList() {
       return;
     }
 
-    // 1. 미전송 상태인 경우 무시 처리
+    // 1. 미전송 상태
     if (!order.is_transferred) {
+      const _items = order.order_items || [];
+      const _validIdx = _items
+        .map((it, idx) => ({ it, idx }))
+        .filter(x => !CANCEL_STATUSES.includes(String(x.it.order_status).trim()));
+
+      // 1-A. 부분취소: 유효 품목이 남아 있으면 취소품목만 제외하고 유효품목만 판매반영
+      if (_validIdx.length > 0) {
+        const defWarehouse = (warehouses.find(w => w.name.includes('청담')) || warehouses[0])?.id || '';
+        setConfirmDialog({
+          open: true,
+          title: '부분 취소 - 유효 품목만 판매 반영',
+          message: `이 주문은 부분 취소 건입니다.\n취소 품목은 제외하고, 유효 품목 ${_validIdx.length}건만 판매 반영(재고 차감)하시겠습니까?\n(차감 창고: 품목별 지정 창고, 없으면 기본 청담)`,
+          onConfirm: async () => {
+            setLoading(true);
+            try {
+              const tempConfig = { [order.id]: {} };
+              _validIdx.forEach(({ it, idx }) => {
+                tempConfig[order.id][idx] = (it._warehouse_id && it._warehouse_id !== 'EXCLUDE') ? it._warehouse_id : defWarehouse;
+              });
+              const transferRes = await transferCafe24Orders([order.id], tempConfig);
+              const skipped = transferRes?.skippedOrders || [];
+              if (skipped.some(s => s.held)) {
+                const itemList = skipped.flatMap(s => s.items.map(it => `  • ${it.name}${it.code ? ` (${it.code})` : ''}`)).join('\n');
+                setAlertDialog({ open: true, title: '⚠️ 일부 품목 미매핑(보류)', message: `다음 품목이 ERP 부품과 매칭되지 않아 보류되었습니다. (현재 상태: 미전송 유지)\n\n${itemList}\n\n[부품 매핑]에서 연결 후 다시 스마트 처리해주세요.` });
+              } else {
+                setAlertDialog({ open: true, title: '부분 취소 반영 완료', message: '취소 품목을 제외하고 유효 품목만 판매 반영(재고 차감)되었습니다.\n해당 주문은 [반영완료] 탭으로 이동합니다.' });
+              }
+              fetchOrders();
+            } catch (err) {
+              setAlertDialog({ open: true, title: '부분 반영 실패', message: err.message });
+            } finally {
+              setLoading(false);
+            }
+          }
+        });
+        return;
+      }
+
+      // 1-B. 전체취소: 무시 처리
       setConfirmDialog({
         open: true,
         title: '반영 예외(무시) 자동 처리',
@@ -1034,8 +1073,30 @@ export default function Cafe24OrderList() {
             results.push({ id: order.order_id, action: '교환 자동처리 완료 (반영완료 탭)', ok: true });
           }
         } else if (!order.is_transferred) {
-          await supabase.from('cafe24_orders').update({ is_deleted: true, is_transferred: false }).eq('id', order.id);
-          results.push({ id: order.order_id, action: '무시 처리 완료', ok: true });
+          const _items = order.order_items || [];
+          const _validIdx = _items
+            .map((it, idx) => ({ it, idx }))
+            .filter(x => !CANCEL_STATUSES.includes(String(x.it.order_status).trim()));
+          if (_validIdx.length > 0) {
+            // 부분취소: 취소품목 제외하고 유효품목만 판매반영
+            const defWarehouse = (warehouses.find(w => w.name.includes('청담')) || warehouses[0])?.id || '';
+            const tempConfig = { [order.id]: {} };
+            _validIdx.forEach(({ it, idx }) => {
+              tempConfig[order.id][idx] = (it._warehouse_id && it._warehouse_id !== 'EXCLUDE') ? it._warehouse_id : defWarehouse;
+            });
+            const transferRes = await transferCafe24Orders([order.id], tempConfig);
+            const skipped = transferRes?.skippedOrders || [];
+            if (skipped.some(s => s.held)) {
+              const names = skipped.flatMap(s => s.items.map(it => it.name)).join(', ');
+              results.push({ id: order.order_id, action: `부분취소 보류: 미매핑(${names}) — 부품 매핑 후 재처리`, ok: false });
+            } else {
+              results.push({ id: order.order_id, action: `부분취소: 유효품목 ${_validIdx.length}건 판매반영 (반영완료 탭)`, ok: true });
+            }
+          } else {
+            // 전체취소: 무시 처리
+            await supabase.from('cafe24_orders').update({ is_deleted: true, is_transferred: false }).eq('id', order.id);
+            results.push({ id: order.order_id, action: '전체취소 무시 처리 완료', ok: true });
+          }
         } else {
           const { data } = await supabase.from('pending_outbounds').select('status').eq('order_no', order.order_id).maybeSingle();
           if (data && data.status === '완료') {
