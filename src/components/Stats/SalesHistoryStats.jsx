@@ -1440,7 +1440,13 @@ function SalesHistoryStats() {
       comprehensiveInventoryGroups: invArr
     };
   }, [currentFiltered, inventoryList]);
-  const renderSalesTable = (groups) => (
+  const renderSalesTable = (groups, brandLabel = '') => {
+    // 브랜드 테이블 전체 총합 (고객유형 소계들의 합)
+    const gTotalQty = groups.reduce((a, t) => a + (t.totalQty || 0), 0);
+    const gTotalCost = groups.reduce((a, t) => a + (t.totalCost || 0), 0);
+    const gTotalAmt = groups.reduce((a, t) => a + (t.totalAmt || 0), 0);
+    const gTotalProfit = groups.reduce((a, t) => a + (t.totalProfit || 0), 0);
+    return (
     <TableContainer component={Paper} sx={{ border: '1px solid #cfd8dc', borderRadius: 1, boxShadow: 'none' }}>
       <Table size="small" sx={{ '& th, & td': { border: '1px solid #cfd8dc', padding: '8px 10px' }, '& th': { bgcolor: '#eceff1', fontWeight: 'bold', textAlign: 'center', fontSize: '0.85rem' }, '& td': { fontSize: '0.85rem' } }}>
         <TableHead>
@@ -1499,10 +1505,21 @@ function SalesHistoryStats() {
               });
             })
           )}
+          {groups.length > 0 && (
+            <TableRow sx={{ bgcolor: '#dcedc8' }}>
+              <TableCell colSpan={3} align="right" sx={{ fontWeight: 'bold', color: '#1b5e20', fontSize: '0.85rem' }}>{brandLabel ? `${brandLabel} 총 합계` : '총 합계'}</TableCell>
+              <TableCell align="center" sx={{ fontWeight: 'bold', color: '#1b5e20' }}>{gTotalQty}</TableCell>
+              {showProfit && <TableCell align="right" sx={{ fontWeight: 'bold', color: '#1b5e20' }}>{formatCurrency(gTotalCost)}</TableCell>}
+              <TableCell align="right" sx={{ fontWeight: 'bold', color: '#1b5e20', fontSize: '0.9rem' }}>{formatCurrency(gTotalAmt)}</TableCell>
+              {showProfit && <TableCell align="right" sx={{ fontWeight: 'bold', color: gTotalProfit < 0 ? '#d32f2f' : '#1b5e20' }}>{formatCurrency(gTotalProfit)}</TableCell>}
+              {showProfit && <TableCell align="center" sx={{ fontWeight: 'bold', color: gTotalProfit < 0 ? '#d32f2f' : '#1b5e20' }}>{gTotalAmt > 0 ? ((gTotalProfit / gTotalAmt) * 100).toFixed(1) + '%' : '-'}</TableCell>}
+            </TableRow>
+          )}
         </TableBody>
       </Table>
     </TableContainer>
-  );
+    );
+  };
 
   return (
     <Box sx={{ p: 3, bgcolor: '#f4f6f8', minHeight: '100vh' }}>
@@ -1935,13 +1952,13 @@ function SalesHistoryStats() {
                 {salesBrandFilter !== 'NB' && (
                   <>
                     {salesBrandFilter === '전체' && <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#1565c0', mb: 1 }}>▶ XRB (엑스라이더)</Typography>}
-                    {renderSalesTable(xrbSalesGroups)}
+                    {renderSalesTable(xrbSalesGroups, 'XRB')}
                   </>
                 )}
                 {salesBrandFilter !== 'XRB' && (
                   <>
                     {salesBrandFilter === '전체' && <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#2e7d32', mt: 2, mb: 1 }}>▶ NB (니어바이크)</Typography>}
-                    {renderSalesTable(nbSalesGroups)}
+                    {renderSalesTable(nbSalesGroups, 'NB')}
                   </>
                 )}
               </Grid>
