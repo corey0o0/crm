@@ -1966,7 +1966,7 @@ export default function Cafe24OrderList() {
                             {internalFundLabel && (
                               <Typography component="span" variant="caption" color="info.main" sx={{ fontWeight: 600 }}>
                                 {internalFundLabel === '예치금'
-                                  ? `(${effectiveTotalAmount.toLocaleString()})`
+                                  ? `(${Number(order.deposit_used != null ? order.deposit_used : effectiveTotalAmount).toLocaleString()})`
                                   : `(${internalFundLabel})`}
                               </Typography>
                             )}

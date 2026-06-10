@@ -716,6 +716,15 @@ module.exports = function(supabaseAdmin) {
         }
       }
 
+      // 3-2) deposit_used_stored = 예치금 실사용액 (별도 컬럼 저장용)
+      //    - 적립금(used_points)과 달리 예치금은 total_amount에 포함되어 그동안 별도로 추적되지 않았다.
+      //    - 기본값은 API에서 받은 deposit_used.
+      //    - API 예치금 필드 미수신 + PG 0 + 결제수단명이 '예치금'인 단독 주문은 전액이 예치금 → total_amount.
+      let deposit_used_stored = deposit_used;
+      if (deposit_used_stored === 0 && pg_payment === 0 && paymentMethodStr.includes('예치금')) {
+        deposit_used_stored = Number(total_amount) || 0;
+      }
+
       // 4) used_points = 적립금(mileage)만 할인 처리로 기록
       //    예치금은 total_amount에 포함됐으므로 used_points에서 제외
       const orderStatus = (order.items && order.items.length > 0 && order.items[0].order_status) || '';
@@ -740,6 +749,7 @@ module.exports = function(supabaseAdmin) {
         total_amount: total_amount,
         shipping_fee: shipping_fee,
         used_points: used_points,
+        deposit_used: deposit_used_stored,
         order_items: formattedItems,
         status: (order.items && order.items.length > 0 && order.items.some(i => i.order_status === 'N50')) 
                 ? 'N50'
@@ -765,14 +775,15 @@ module.exports = function(supabaseAdmin) {
     const FETCH_CHUNK = 200;
     for (let i = 0; i < orderIds.length; i += FETCH_CHUNK) {
       const chunk = orderIds.slice(i, i + FETCH_CHUNK);
-      const { data } = await supabaseAdmin.from('cafe24_orders').select('order_id, is_transferred, order_items, total_amount, shipping_fee, used_points, agency_id').in('order_id', chunk);
+      const { data } = await supabaseAdmin.from('cafe24_orders').select('order_id, is_transferred, order_items, total_amount, shipping_fee, used_points, deposit_used, agency_id').in('order_id', chunk);
       if (data) {
-        data.forEach(row => existingOrderMap.set(row.order_id, { 
-          items: row.order_items, 
+        data.forEach(row => existingOrderMap.set(row.order_id, {
+          items: row.order_items,
           isTransferred: row.is_transferred,
           total_amount: row.total_amount,
           shipping_fee: row.shipping_fee,
           used_points: row.used_points,
+          deposit_used: row.deposit_used,
           agency_id: row.agency_id
         }));
       }
@@ -790,6 +801,8 @@ module.exports = function(supabaseAdmin) {
           if (existingData.total_amount !== undefined) p.total_amount = existingData.total_amount;
           if (existingData.shipping_fee !== undefined) p.shipping_fee = existingData.shipping_fee;
           if (existingData.used_points !== undefined) p.used_points = existingData.used_points;
+          // deposit_used: 이미 백필된 값이 있으면 보존, 아직 NULL이면 새로 계산된 값으로 백필 허용
+          if (existingData.deposit_used !== undefined && existingData.deposit_used !== null) p.deposit_used = existingData.deposit_used;
         }
 
         if (existingData.items && Array.isArray(existingData.items) && p.order_items) {
