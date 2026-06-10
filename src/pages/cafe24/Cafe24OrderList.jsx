@@ -2054,7 +2054,9 @@ export default function Cafe24OrderList() {
                               )}
                               {(() => {
                                 const isCanceledOrReturned = order.status && (String(order.status).trim().startsWith('C') || String(order.status).trim().startsWith('R') || String(order.status).trim().startsWith('E'));
-                                if (isCanceledOrReturned) {
+                                // 부분취소/부분교환: 헤더는 N상태(유효품목 잔존)지만 일부 품목이 취소/교환/반품 → 스마트 처리 노출
+                                // (미전송 한정: 전송완료 부분취소는 전체 롤백 위험이 있어 제외, 반영취소로 처리)
+                                if (isCanceledOrReturned || (_hasCancelItem && !order.is_transferred)) {
                                    return (
                                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'center', width: '100%', mb: 1, pb: 1, borderBottom: '1px dashed #e0e0e0' }}>
                                         <Button size="small" variant="contained" color="secondary" disableElevation onClick={() => handleSmartResolve(order)} sx={{ width: '100%', py: 0.5, fontSize: '0.75rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
