@@ -1389,11 +1389,30 @@
       chatWindow.style.top    = wTop  + 'px';
     }
 
-    const savedPos = (() => { try { return JSON.parse(localStorage.getItem(POS_KEY)); } catch { return null; } })();
-    if (savedPos) {
-      applyBtnPos(savedPos.left, savedPos.top);
-      applyWindowPos(savedPos.left, savedPos.top);
+    // 저장 좌표를 화면 경계 내로 강제 클램핑 (좁아진 화면/스테일 좌표로 버튼이 화면 밖에 숨는 문제 방지)
+    function clampBtnPos(left, top) {
+      const maxL = Math.max(0, window.innerWidth  - 56);
+      const maxT = Math.max(0, window.innerHeight - 56);
+      return {
+        left: Math.max(0, Math.min(Number(left) || 0, maxL)),
+        top:  Math.max(0, Math.min(Number(top)  || 0, maxT)),
+      };
     }
+
+    const savedPos = (() => { try { return JSON.parse(localStorage.getItem(POS_KEY)); } catch { return null; } })();
+    if (savedPos && Number.isFinite(Number(savedPos.left)) && Number.isFinite(Number(savedPos.top))) {
+      const p = clampBtnPos(savedPos.left, savedPos.top);
+      applyBtnPos(p.left, p.top);
+      applyWindowPos(p.left, p.top);
+    }
+
+    // 화면 크기 변경 시 버튼이 경계 밖으로 나가면 다시 안으로 끌어옴
+    window.addEventListener('resize', () => {
+      if (!toggleBtn.style.left) return; // 기본(우하단 CSS) 위치면 무시
+      const p = clampBtnPos(parseFloat(toggleBtn.style.left), parseFloat(toggleBtn.style.top));
+      applyBtnPos(p.left, p.top);
+      if (isOpen) applyWindowPos(p.left, p.top);
+    });
 
     function startDrag(e) {
       const isTouch = e.type === 'touchstart';
