@@ -31,7 +31,7 @@ export default function ChatbotSettings() {
     // 누락 브랜드 기본값 채움
     BRANDS.forEach(b => {
       if (!map[b.key]) map[b.key] = {
-        brand: b.key, enabled: true, hours_start: '09:00', hours_end: '18:00',
+        brand: b.key, enabled: true, naver_enabled: true, hours_start: '09:00', hours_end: '18:00',
         days: [1, 2, 3, 4, 5],
         offhours_message: '지금은 상담 운영시간이 아닙니다. A/S 접수를 남겨주시면 영업시간에 순차적으로 연락드리겠습니다.',
         offhours_image_url: '',
@@ -54,6 +54,7 @@ export default function ChatbotSettings() {
     const payload = {
       brand,
       enabled: !!r.enabled,
+      naver_enabled: r.naver_enabled !== false,
       hours_start: r.hours_start || '09:00',
       hours_end: r.hours_end || '18:00',
       days: r.days || [],
@@ -88,6 +89,24 @@ export default function ChatbotSettings() {
                     control={<Switch checked={!!r.enabled} onChange={e => patch(b.key, 'enabled', e.target.checked)} color="primary" />}
                     label={<Typography fontWeight="bold" color={r.enabled ? 'primary.main' : 'text.disabled'}>{r.enabled ? 'ON' : 'OFF'}</Typography>}
                     labelPlacement="start"
+                  />
+                </Box>
+                <Divider sx={{ mb: 1.5 }} />
+
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, opacity: r.enabled ? 1 : 0.5 }}>
+                  <Box>
+                    <Typography variant="subtitle2">네이버 톡톡</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      OFF 시 톡톡만 안내 메시지로 응대 (웹 위젯은 계속 동작)
+                    </Typography>
+                  </Box>
+                  <FormControlLabel
+                    control={<Switch checked={r.enabled && r.naver_enabled !== false} disabled={!r.enabled}
+                      onChange={e => patch(b.key, 'naver_enabled', e.target.checked)} color="primary" size="small" />}
+                    label={<Typography variant="body2" fontWeight="bold"
+                      color={r.enabled && r.naver_enabled !== false ? 'primary.main' : 'text.disabled'}>
+                      {r.enabled && r.naver_enabled !== false ? 'ON' : 'OFF'}</Typography>}
+                    labelPlacement="start" sx={{ mr: 0 }}
                   />
                 </Box>
                 <Divider sx={{ mb: 2 }} />

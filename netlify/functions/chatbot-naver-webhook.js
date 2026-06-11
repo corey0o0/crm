@@ -12,7 +12,7 @@
 //
 const { getSupabase, ok, err } = require('./_chatbot_utils');
 const { textMessage, imageMessage, naverSend } = require('./_naver_utils');
-const { getSettings, isWithinHours } = require('./_chatbot_settings');
+const { getSettings, isWithinHours, isNaverEnabled } = require('./_chatbot_settings');
 
 // OFF/운영시간 외 안내 전송 (텍스트 + 선택 이미지)
 async function sendOffNotice(brand, user, s) {
@@ -52,11 +52,12 @@ exports.handler = async (event) => {
 
   const supabase = getSupabase();
   const settings = await getSettings(supabase, brand);
+  const naverOn = isNaverEnabled(settings); // 마스터 ON && 톡톡 토글 ON
   const within = isWithinHours(settings);
 
   // open: 입장 인사 (OFF면 안내만, 운영시간 외면 인사+안내)
   if (evType === 'open') {
-    if (!settings.enabled) { await sendOffNotice(brand, user, settings); return ok({}); }
+    if (!naverOn) { await sendOffNotice(brand, user, settings); return ok({}); }
     await naverSend(brand, textMessage(user, welcomeText(brand), CATEGORIES));
     if (!within) await sendOffNotice(brand, user, settings);
     return ok({});
@@ -74,8 +75,8 @@ exports.handler = async (event) => {
     const code = body.textContent?.code || ''; // 빠른응답/버튼 클릭 시 code 전달
     if (!text.trim() && !code) return ok({});
 
-    // OFF면 처리하지 않고 안내만
-    if (!settings.enabled) { await sendOffNotice(brand, user, settings); return ok({}); }
+    // 톡톡 OFF면 처리하지 않고 안내만
+    if (!naverOn) { await sendOffNotice(brand, user, settings); return ok({}); }
 
     const base = process.env.URL || process.env.DEPLOY_PRIME_URL || '';
     try {

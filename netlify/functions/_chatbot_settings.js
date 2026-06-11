@@ -6,6 +6,7 @@
 
 const DEFAULTS = {
   enabled: true,
+  naver_enabled: true, // 네이버 톡톡 전용 토글 (마스터 enabled 와 AND)
   hours_start: '09:00',
   hours_end: '18:00',
   days: [1, 2, 3, 4, 5],
@@ -44,4 +45,10 @@ function isWithinHours(s) {
   return hm >= start || hm < end; // 자정 넘김
 }
 
-module.exports = { DEFAULTS, dbBrandOf, getSettings, nowKST, isWithinHours };
+// 네이버 톡톡이 활성인지 — 마스터 ON 이면서 톡톡 토글도 ON 일 때만
+function isNaverEnabled(s) {
+  const set = { ...DEFAULTS, ...(s || {}) };
+  return !!set.enabled && set.naver_enabled !== false;
+}
+
+module.exports = { DEFAULTS, dbBrandOf, getSettings, nowKST, isWithinHours, isNaverEnabled };
