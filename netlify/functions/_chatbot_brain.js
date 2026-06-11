@@ -225,12 +225,19 @@ function buildDealerList(region) {
   return `🗺️ ${region} 대리점 (총 ${list.length}곳)\n\n${items}`;
 }
 
-// ── FAQ 스코어링 (DB faq_items 행: {label, keywords(콤마문자열), answer}) ──
+// ── FAQ 스코어링 (DB faq_items 행: {label, keywords, answer}) ──
+// keywords가 배열/JSON문자열/콤마문자열 어느 형태로 와도 안전하게 처리(배포 환경 차이 방어)
+function kwList(raw) {
+  if (Array.isArray(raw)) return raw;
+  const s = String(raw || '').trim();
+  if (s.startsWith('[')) { try { const a = JSON.parse(s); if (Array.isArray(a)) return a; } catch {} }
+  return s.split(',');
+}
 function matchFaqs(faqRows, msg, threshold = 1, maxResults = 4) {
   const n = normalizeInput(msg);
   const scored = [];
   for (const f of (faqRows || [])) {
-    const kws = String(f.keywords || '').split(',').map((k) => squash(k)).filter(Boolean);
+    const kws = kwList(f.keywords).map((k) => squash(k)).filter(Boolean);
     let score = 0;
     for (const kw of kws) if (n.includes(kw)) score++;
     if (score >= threshold) scored.push({ f, score });
