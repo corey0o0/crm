@@ -1720,8 +1720,8 @@ export default function Cafe24OrderList() {
               {showPriceDetails && <TableCell align="right"><strong>배송비</strong></TableCell>}
               {showPriceDetails && <TableCell align="right"><strong>등급할인</strong></TableCell>}
               {showPriceDetails && <TableCell align="right"><strong>실결제액</strong></TableCell>}
-              <TableCell align="right"><strong>적립금</strong></TableCell>
-              <TableCell align="right"><strong>총결제액</strong></TableCell>
+              <TableCell align="right"><strong>예치금/적립금</strong></TableCell>
+              <TableCell align="right"><strong>반영금액(실결제금액)</strong></TableCell>
               <TableCell><strong>품목코드(ERP)</strong></TableCell>
               <TableCell><strong>품목명(ERP)</strong></TableCell>
               <TableCell><strong>출고창고(필수)</strong></TableCell>
@@ -1806,25 +1806,40 @@ export default function Cafe24OrderList() {
                         ? Number(order.used_points)
                         : 0
                     : Number(order.total_amount || 0);
+                  // 실결제 현금(외부 결제액): 선불금은 반영금액 자체가 현금, 그 외엔 품목실결제 + 배송비
+                  const realCashAmount = isChunbulgeum ? effectiveTotalAmount : (orderItemsSum + Number(order.shipping_fee || 0));
                   // 선불금: 외부 결제수단·반영완료·회원할인 주문에는 표시 안 함
                   const isPrepaid = !isNearbikeMemberDiscount && !isRealPaymentMethod && !order.is_transferred && Number(order.total_amount || 0) === 0 && orderItemsSum > 0;
                   const calculatedUsedPoints = Math.max(0, orderItemsSum + Number(order.shipping_fee || 0) - effectiveTotalAmount);
-                  const isUnpaidOrder = order.status === 'N10' || (items.length > 0 && items[0].order_status === 'N10');
+                  const isUnpaidOrder = order.status === 'N00' || (items.length > 0 && items[0].order_status === 'N00');
                   // displayUsedPoints 결정:
                   // - 외부 결제수단이면서 DB total_amount=0(잘못 저장) → DB used_points도 잘못된 값이므로 재계산 사용
                   // - 적립금 주문에서 DB used_points=0이지만 계산값이 있으면 → 계산값 사용 (mileage 미캡처 방어)
                   const displayUsedPoints = isUnpaidOrder ? 0 : (() => {
+                    // 선불금(네이버페이 등): used_points에 선불결제액이 담겨 반영금액으로 표시되므로 적립금으로 중복 표시하지 않음
+                    if (isChunbulgeum && !itemPaymentMethod.includes('적립금')) return 0;
                     if (isRealPaymentMethod && Number(order.total_amount || 0) === 0) return calculatedUsedPoints;
                     if (isNearbikeMemberDiscount && !order.used_points && calculatedUsedPoints > 0) return calculatedUsedPoints;
                     return Number(order.used_points !== undefined && order.used_points !== null ? order.used_points : calculatedUsedPoints);
                   })();
 
-                  // 총결제액 옆 내부재화(예치금/적립금) 라벨
+                  // 내부재화(예치금/적립금) 라벨
                   const internalFundLabel = [...new Set(
                     String(items[0]?.payment_method || '')
                       .split(/[,/\s]+/)
                       .map(s => s.trim())
                       .filter(s => s === '예치금' || s === '적립금')
+                  )].join(', ');
+                  // 예치금 표시액: 결제수단에 예치금 포함 시 deposit_used(전액 예치금이면 effectiveTotalAmount 폴백), 아니면 deposit_used
+                  const displayDeposit = internalFundLabel.includes('예치금')
+                    ? Number(order.deposit_used != null ? order.deposit_used : effectiveTotalAmount)
+                    : Number(order.deposit_used || 0);
+                  // 실결제 수단(예치금/적립금 제외) — 하단 라벨 윗줄
+                  const realPaymentLabel = [...new Set(
+                    String(items[0]?.payment_method || '')
+                      .split(/[,/\s]+/)
+                      .map(s => s.trim())
+                      .filter(s => s && s !== '예치금' && s !== '적립금')
                   )].join(', ');
                   // 부분취소/부분교환 판별: 헤더 status는 취소(C/R)·교환(E)인데 유효 품목도 함께 있는 경우
                   const _hdrStatus = String(order.status || '').trim();
@@ -1953,29 +1968,43 @@ export default function Cafe24OrderList() {
                         )}
                       </TableCell>}
                       {idx === 0 && <TableCell align="right" rowSpan={items.length}>
-                        {displayUsedPoints > 0 ? (
-                          <Typography variant="body2" color="secondary.main" fontWeight="bold">
-                            -{displayUsedPoints.toLocaleString()}
-                          </Typography>
+                        {(displayDeposit > 0 || displayUsedPoints > 0) ? (
+                          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.75 }}>
+                            {displayDeposit > 0 && (
+                              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.25 }}>
+                                <Typography variant="body2" color="info.main" fontWeight="bold">
+                                  -{displayDeposit.toLocaleString()}
+                                </Typography>
+                                <Chip label="예치금" size="small" variant="outlined" color="info" sx={{ height: 16, fontSize: '0.6rem' }} />
+                              </Box>
+                            )}
+                            {displayUsedPoints > 0 && (
+                              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.25 }}>
+                                <Typography variant="body2" color="secondary.main" fontWeight="bold">
+                                  -{displayUsedPoints.toLocaleString()}
+                                </Typography>
+                                <Chip label="적립금" size="small" variant="outlined" color="secondary" sx={{ height: 16, fontSize: '0.6rem' }} />
+                              </Box>
+                            )}
+                          </Box>
                         ) : '-'}
                       </TableCell>}
                       {idx === 0 && <TableCell align="right" rowSpan={items.length}>
                         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
-                          <Box display="flex" alignItems="center" justifyContent="flex-end" gap={0.5}>
+                          <Box display="flex" alignItems="baseline" justifyContent="flex-end" gap={0.5}>
                             <strong>{effectiveTotalAmount.toLocaleString()}</strong>
-                            {internalFundLabel && (
-                              <Typography component="span" variant="caption" color="info.main" sx={{ fontWeight: 600 }}>
-                                {internalFundLabel === '예치금'
-                                  ? `(${Number(order.deposit_used != null ? order.deposit_used : effectiveTotalAmount).toLocaleString()})`
-                                  : `(${internalFundLabel})`}
+                            {/* 실결제현금이 반영금액과 다를 때만(예치금 포함으로 총액이 부풀려진 경우) 괄호로 실결제 병기 */}
+                            {realCashAmount !== effectiveTotalAmount && (
+                              <Typography component="span" variant="caption" color="text.secondary">
+                                ({realCashAmount.toLocaleString()})
                               </Typography>
                             )}
                           </Box>
                           {isPrepaid && (
                             <Chip label="선불금 처리" size="small" color="info" variant="filled" sx={{ height: 16, fontSize: '0.6rem' }} />
                           )}
-                          {items[0]?.payment_method && (
-                            <Chip label={items[0].payment_method} size="small" variant="outlined" sx={{ height: 16, fontSize: '0.65rem', color: 'text.secondary' }} />
+                          {realPaymentLabel && (
+                            <Chip label={realPaymentLabel} size="small" variant="outlined" sx={{ height: 16, fontSize: '0.65rem', color: 'text.secondary' }} />
                           )}
                         </Box>
                       </TableCell>}
