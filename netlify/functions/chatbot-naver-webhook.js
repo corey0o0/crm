@@ -27,8 +27,10 @@ function welcomeText(brand) {
 }
 
 exports.handler = async (event) => {
-  // 등록/헬스체크용 GET → 200
-  if (event.httpMethod === 'GET') return ok({ ok: true });
+  // 등록/헬스체크용 GET → 200 (env 설정 여부만 불리언으로 노출, 값은 비노출)
+  if (event.httpMethod === 'GET') {
+    return ok({ ok: true, auth: { nb: !!process.env.NAVER_AUTH_NB, xrb: !!process.env.NAVER_AUTH_XRB } });
+  }
   if (event.httpMethod !== 'POST') return err(405, 'POST only');
 
   const brand = (event.queryStringParameters?.brand || 'nb').toLowerCase();
