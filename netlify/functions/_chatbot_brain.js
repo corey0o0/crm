@@ -84,7 +84,7 @@ function lookupTire(brand, model) {
 }
 function buildTireAnswer(brand, model) {
   const info = lookupTire(brand, model);
-  if (!info) return '해당 모델 정보를 찾을 수 없습니다. 고객센터(평일 09:00~18:00)로 문의해 주세요.';
+  if (!info) return '해당 모델 정보를 찾을 수 없습니다. 모델명을 다시 알려주시거나 [A/S 접수]를 남겨주시면 담당자가 확인 후 안내해 드립니다.';
   const spec = info.spec ? `• 규격: ${info.spec}\n` : '';
   return `${model} 타이어(튜브) 안내 🔧\n\n${spec}• 구매: ${info.linkLabel}\n${info.link}\n\n정품 사용을 권장하며, 교체 시 대리점 또는 A/S 센터 방문을 추천드립니다.`;
 }

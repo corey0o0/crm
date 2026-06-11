@@ -110,9 +110,8 @@ exports.handler = async (event) => {
     // ── 1) 컨트롤 코드 라우팅 ──
     if (code === 'RESTART') { await clearState(supabase, user); return done(brand, user, welcomeText(brand), CATEGORIES); }
     if (code === 'AGENT') {
-      // TODO: handover_v1 프로토콜 연동 (파트너센터 상담직원 모드)
       await clearState(supabase, user);
-      return done(brand, user, '상담원 연결을 요청했습니다. 평일 09:00~18:00에 순차적으로 답변드립니다.');
+      return done(brand, user, '상담은 챗봇으로 도와드리고 있어요 😊\n챗봇으로 해결이 어려운 내용은 아래 [A/S 접수]를 남겨주시면 담당자가 확인 후 처리해 드립니다.', POST_MENU);
     }
     if (code === 'CAT_OTHER') return done(brand, user, '궁금하신 내용을 자유롭게 입력해 주세요. 담당 AI가 도와드리겠습니다 😊');
     if (SUB[code]) return done(brand, user, '아래에서 선택하시거나 직접 입력해 주세요.', SUB[code]);
@@ -135,7 +134,7 @@ exports.handler = async (event) => {
     // ── 2) 감정 신호 → 상담원 이관 ──
     if (brain.detectEscalation(input)) {
       await clearState(supabase, user);
-      return done(brand, user, '불편을 드려 정말 죄송합니다 😔\n담당자가 직접 도와드리겠습니다. 고객센터(평일 09:00~18:00)로 연락주시면 신속히 처리해 드립니다.');
+      return done(brand, user, '불편을 드려 정말 죄송합니다 😔\n빠르게 도와드릴 수 있도록 아래 [A/S 접수]를 남겨주시면 담당자가 확인 후 신속히 처리해 드리겠습니다.', POST_MENU);
     }
     // ── 2-1) 진행 중 취소 ──
     if (state.step !== 'IDLE' && brain.isCancel(input)) {
@@ -183,13 +182,13 @@ exports.handler = async (event) => {
 
     // ── 7) LLM smart 폴백 (FAQ 분류 우선) ──
     const { allowed, limit } = await checkRateLimit(supabase, `naver:${user}`, 'chat');
-    if (!allowed) return done(brand, user, `오늘 AI 응답 한도(${limit}회)를 초과했습니다.\n평일 09:00~18:00 고객센터로 문의해 주세요.`, POST_MENU);
+    if (!allowed) return done(brand, user, `오늘 AI 응답 한도(${limit}회)를 초과했습니다.\n아래 [A/S 접수]를 남겨주시면 담당자가 확인 후 안내해 드립니다.`, POST_MENU);
     const { answer } = await smartLlm(brand, input, faqs, user);
     await logRequest(supabase, `naver:${user}`, brand, 'chat');
     return done(brand, user, answer, POST_MENU);
   } catch (e) {
     console.error('[naver-worker] 예외:', e.message);
-    return done(brand, user, '죄송합니다, 잠시 후 다시 시도해 주세요.\n고객센터: 평일 09:00~18:00');
+    return done(brand, user, '죄송합니다, 잠시 후 다시 시도해 주세요.\n계속 문제가 있으면 [A/S 접수]를 남겨주시면 담당자가 확인해 드립니다.', POST_MENU);
   }
 };
 
