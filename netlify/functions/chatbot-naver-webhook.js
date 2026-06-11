@@ -11,7 +11,14 @@
 // → 여기서는 즉시 200 ACK만 하고, 무거운 처리(FAQ/LLM/조회)는 백그라운드 함수로 위임한다.
 //
 const { getSupabase, ok, err } = require('./_chatbot_utils');
-const { textMessage, naverSend } = require('./_naver_utils');
+const { textMessage, imageMessage, naverSend } = require('./_naver_utils');
+const { getSettings, isWithinHours } = require('./_chatbot_settings');
+
+// OFF/운영시간 외 안내 전송 (텍스트 + 선택 이미지)
+async function sendOffNotice(brand, user, s) {
+  await naverSend(brand, textMessage(user, s.offhours_message || '지금은 상담 운영시간이 아닙니다. A/S 접수를 남겨주시면 영업시간에 연락드리겠습니다.'));
+  if (s.offhours_image_url) await naverSend(brand, imageMessage(user, s.offhours_image_url));
+}
 
 // 위젯의 4개 카테고리 → 빠른응답 버튼
 const CATEGORIES = [
@@ -44,10 +51,14 @@ exports.handler = async (event) => {
   if (!user) return ok({});
 
   const supabase = getSupabase();
+  const settings = await getSettings(supabase, brand);
+  const within = isWithinHours(settings);
 
-  // open: 입장 인사 + 카테고리 (빠르므로 인라인 push)
+  // open: 입장 인사 (OFF면 안내만, 운영시간 외면 인사+안내)
   if (evType === 'open') {
+    if (!settings.enabled) { await sendOffNotice(brand, user, settings); return ok({}); }
     await naverSend(brand, textMessage(user, welcomeText(brand), CATEGORIES));
+    if (!within) await sendOffNotice(brand, user, settings);
     return ok({});
   }
 
@@ -62,6 +73,9 @@ exports.handler = async (event) => {
     const text = body.textContent?.text || '';
     const code = body.textContent?.code || ''; // 빠른응답/버튼 클릭 시 code 전달
     if (!text.trim() && !code) return ok({});
+
+    // OFF면 처리하지 않고 안내만
+    if (!settings.enabled) { await sendOffNotice(brand, user, settings); return ok({}); }
 
     const base = process.env.URL || process.env.DEPLOY_PRIME_URL || '';
     try {

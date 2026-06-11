@@ -290,6 +290,26 @@
     } catch (e) {}
   })();
 
+  // 운영설정(ON/OFF·시간) — 기본 활성, 실패 시 활성 유지
+  let CHAT_SETTINGS = { enabled: true, withinHours: true, offhoursMessage: '', offhoursImageUrl: null };
+  let _hostEl = null;
+  (function loadChatSettings() {
+    if (!CONFIG.useLlmProxy) return;
+    fetch(CONFIG.apiUrl + '/.netlify/functions/chatbot-settings?brand=' + BRAND_KEY)
+      .then(r => r.ok ? r.json() : null)
+      .then(s => {
+        if (!s) return;
+        CHAT_SETTINGS = {
+          enabled: s.enabled !== false,
+          withinHours: s.withinHours !== false,
+          offhoursMessage: s.offhours_message || '',
+          offhoursImageUrl: s.offhours_image_url || null,
+        };
+        if (!CHAT_SETTINGS.enabled && _hostEl) _hostEl.style.display = 'none';
+      })
+      .catch(() => {});
+  })();
+
   const ESCALATION_SIGNALS = ['화나', '짜증', '환불해줘', '고소', '신고', '사기', '최악', '불량품', '소비자원', '항의'];
   const ORDER_INTENT = ['주문조회', '주문 조회', '주문번호', '배송조회', '배송 조회', '운송장'];
   const SERVICE_INTENT = ['as현황', 'a/s현황', 'as 현황', 'a/s 현황', '접수현황', '접수 현황', '수리현황', '접수번호', 'as접수', 'a/s접수'];
@@ -953,6 +973,8 @@
     const host = document.createElement('div');
     host.id = `__chatbot_${BRAND_KEY}__`;
     document.body.appendChild(host);
+    _hostEl = host;
+    if (CHAT_SETTINGS.enabled === false) host.style.display = 'none'; // OFF면 위젯 숨김
     const shadow = host.attachShadow({ mode: 'open' });
 
     const style = document.createElement('style');
@@ -1350,6 +1372,13 @@
       if (messagesEl.children.length === 0) {
         addTextMsg(`안녕하세요! ${BRAND.name}입니다. ${BRAND.avatar}\n무엇을 도와드릴까요?`, 'bot');
         addQuickReplies(CATEGORY_CHIPS);
+        // 운영시간 외 안내
+        if (!CHAT_SETTINGS.withinHours && CHAT_SETTINGS.offhoursMessage) {
+          addTextMsg(CHAT_SETTINGS.offhoursMessage, 'bot', 'badge-escalate', '상담시간 외');
+          if (CHAT_SETTINGS.offhoursImageUrl) {
+            addTextMsg(`<img src="${CHAT_SETTINGS.offhoursImageUrl}" alt="안내" style="max-width:100%;border-radius:8px">`, 'bot');
+          }
+        }
       }
       inputEl.focus();
     }

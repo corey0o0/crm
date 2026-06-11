@@ -54,6 +54,11 @@ function compositeMessage(user, cards) {
   };
 }
 
+// 이미지 메시지
+function imageMessage(user, imageUrl) {
+  return { event: 'send', user, imageContent: { imageUrl } };
+}
+
 // 작성중(typing) 표시 on/off
 function typing(user, on) {
   return { event: 'action', user, options: { action: on ? 'typingOn' : 'typingOff' } };
@@ -102,6 +107,6 @@ async function clearState(supabase, user) {
 
 module.exports = {
   SEND_API, NAVER_ACL_CIDRS,
-  authKeyFor, textMessage, compositeMessage, typing, naverSend,
+  authKeyFor, textMessage, compositeMessage, imageMessage, typing, naverSend,
   getState, setState, clearState,
 };

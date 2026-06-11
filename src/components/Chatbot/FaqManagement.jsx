@@ -20,6 +20,7 @@ import {
 import InputAdornment from '@mui/material/InputAdornment';
 import { supabase } from '../../lib/supabaseClient';
 import { format } from 'date-fns';
+import ChatbotSettings from './ChatbotSettings';
 
 const BRANDS = ['ALL', 'SHARED', 'NB', 'XRB'];
 const REPLY_TYPES = ['all', 'faq', 'faq_llm', 'llm'];
@@ -208,7 +209,11 @@ export default function FaqManagement() {
         <Tab label="FAQ 목록" />
         <Tab label="채팅 로그" />
         <Tab label="AI 제안" />
+        <Tab label="운영 설정" />
       </Tabs>
+
+      {/* ── Tab 3: 운영 설정 (ON/OFF·시간) ── */}
+      {tabValue === 3 && <ChatbotSettings />}
 
       {/* ── Tab 0: FAQ 목록 ── */}
       {tabValue === 0 && (
