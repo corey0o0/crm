@@ -55,9 +55,9 @@ exports.handler = async (event) => {
   const naverOn = isNaverEnabled(settings); // 마스터 ON && 톡톡 토글 ON
   const within = isWithinHours(settings);
 
-  // open: 입장 인사 (OFF면 안내만, 운영시간 외면 인사+안내)
+  // open: 입장 인사 (OFF면 완전 무응답, 운영시간 외면 인사+안내)
   if (evType === 'open') {
-    if (!naverOn) { await sendOffNotice(brand, user, settings); return ok({}); }
+    if (!naverOn) return ok({}); // 톡톡 OFF → 아무것도 보내지 않음(완전 무음)
     await naverSend(brand, textMessage(user, welcomeText(brand), CATEGORIES));
     if (!within) await sendOffNotice(brand, user, settings);
     return ok({});
@@ -75,8 +75,8 @@ exports.handler = async (event) => {
     const code = body.textContent?.code || ''; // 빠른응답/버튼 클릭 시 code 전달
     if (!text.trim() && !code) return ok({});
 
-    // 톡톡 OFF면 처리하지 않고 안내만
-    if (!naverOn) { await sendOffNotice(brand, user, settings); return ok({}); }
+    // 톡톡 OFF면 완전 무응답(아무것도 보내지 않음)
+    if (!naverOn) return ok({});
 
     const base = process.env.URL || process.env.DEPLOY_PRIME_URL || '';
     try {

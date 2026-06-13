@@ -97,7 +97,7 @@ export default function ChatbotSettings() {
                   <Box>
                     <Typography variant="subtitle2">네이버 톡톡</Typography>
                     <Typography variant="caption" color="text.secondary">
-                      OFF 시 톡톡만 안내 메시지로 응대 (웹 위젯은 계속 동작)
+                      OFF 시 톡톡 응대 완전 중지 — 안내 메시지도 보내지 않음 (웹 위젯은 계속 동작)
                     </Typography>
                   </Box>
                   <FormControlLabel
