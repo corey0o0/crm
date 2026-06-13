@@ -45,7 +45,7 @@ const CONTROL = new Set([
   'RESTART', 'AGENT', 'CAT_ORDER', 'CAT_SERVICE', 'CAT_PRODUCT', 'CAT_OTHER',
   'FLOW_ORDER', 'FLOW_AS_LOOKUP', 'FLOW_AS_REGISTER',
 ]);
-const isControl = (c) => CONTROL.has(c) || c.startsWith('FAQ::') || c.startsWith('REGION::');
+const isControl = (c) => CONTROL.has(c) || c.startsWith('CAT_') || c.startsWith('FLOW_') || c.startsWith('FAQ::') || c.startsWith('REGION::');
 
 function welcomeText(brand) {
   const m = brain.BRAND_META[brand] || brain.BRAND_META.nb;
@@ -95,11 +95,22 @@ async function done(brand, user, text, quick) {
 exports.handler = async (event) => {
   let body;
   try { body = JSON.parse(event.body || '{}'); } catch { return { statusCode: 200, body: '' }; }
-  const { brand = 'nb', user, text = '', code = '' } = body;
+  const { brand = 'nb', user, text = '', hasImage = false } = body;
+  let code = body.code || '';
   if (!user) return { statusCode: 200, body: '' };
 
   const supabase = getSupabase();
   await naverSend(brand, typing(user, true));
+
+  // 사진 수신 — 봇은 이미지를 볼 수 없으므로 추측 답변 대신 A/S 접수로 유도
+  if (hasImage) {
+    return done(brand, user, '사진 잘 받았습니다 📷\n사진만으로는 정확한 진단이 어려워, 아래 [A/S 접수]를 남겨주시면 담당자가 사진과 함께 확인해 정확히 안내해 드릴게요.', POST_MENU);
+  }
+
+  // 레거시/혼선 코드 정규화 (옛 환영메뉴 코드 호환: CAT_AS/CAT_FAQ/CAT_AGENT)
+  if (code === 'CAT_AS') code = 'CAT_SERVICE';
+  else if (code === 'CAT_AGENT') code = 'AGENT';
+  else if (code === 'CAT_FAQ') code = 'CAT_OTHER';
 
   // 빠른응답 코드가 control이면 그대로, 아니면 사용자 텍스트로 취급
   const input = (code && !isControl(code)) ? code : String(text || '').trim();

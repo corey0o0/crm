@@ -20,12 +20,12 @@ async function sendOffNotice(brand, user, s) {
   if (s.offhours_image_url) await naverSend(brand, imageMessage(user, s.offhours_image_url));
 }
 
-// 위젯의 4개 카테고리 → 빠른응답 버튼
+// 빠른응답 버튼 — worker(chatbot-naver-worker-background)의 CATEGORIES 코드와 반드시 일치해야 함
 const CATEGORIES = [
-  { title: '🛒 주문/배송 조회', code: 'CAT_ORDER' },
-  { title: '🔧 A/S 조회·접수', code: 'CAT_AS' },
-  { title: '❓ 자주 묻는 질문', code: 'CAT_FAQ' },
-  { title: '💬 상담원 연결', code: 'CAT_AGENT' },
+  { title: '📦 주문·배송', code: 'CAT_ORDER' },
+  { title: '🔧 A/S·수리', code: 'CAT_SERVICE' },
+  { title: '📖 제품·매뉴얼', code: 'CAT_PRODUCT' },
+  { title: '💬 기타 문의', code: 'CAT_OTHER' },
 ];
 
 function welcomeText(brand) {
@@ -71,9 +71,13 @@ exports.handler = async (event) => {
 
   // send: 사용자 입력(또는 빠른응답 code) → 무거운 처리는 백그라운드로 위임
   if (evType === 'send') {
+    // 상담원(운영자)이 수동 응대 중이면(handover standby) 봇은 끼어들지 않음
+    if (body.options?.standby || body.standby) return ok({});
+
     const text = body.textContent?.text || '';
     const code = body.textContent?.code || ''; // 빠른응답/버튼 클릭 시 code 전달
-    if (!text.trim() && !code) return ok({});
+    const hasImage = !!(body.imageContent && (body.imageContent.imageUrl || body.imageContent.url));
+    if (!text.trim() && !code && !hasImage) return ok({});
 
     // 톡톡 OFF면 완전 무응답(아무것도 보내지 않음)
     if (!naverOn) return ok({});
@@ -84,7 +88,7 @@ exports.handler = async (event) => {
       await fetch(`${base}/.netlify/functions/chatbot-naver-worker-background`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brand, user, text, code }),
+        body: JSON.stringify({ brand, user, text, code, hasImage }),
       });
     } catch (e) {
       console.error('[naver-webhook] worker 트리거 실패:', e.message);
