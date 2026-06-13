@@ -1,5 +1,13 @@
 'use strict';
 const { getSupabase, getIp, checkRateLimit, logRequest, ok, err, preflight } = require('./_chatbot_utils');
+const { getSettings } = require('./_chatbot_settings');
+
+// 모드별 모델 — 자연스러운 대화(rag/chat)는 Sonnet, 분류(smart)는 빠른 Haiku
+const MODEL_BY_MODE = {
+  smart: 'claude-haiku-4-5-20251001',
+  rag: 'claude-sonnet-4-6',
+  chat: 'claude-sonnet-4-6',
+};
 
 const SYSTEM_PROMPTS = {
   nb: `[역할] 니어바이크(www.nearbike.co.kr) 전기자전거(e-bike) 전문 쇼핑몰 AI 고객센터입니다.
@@ -35,7 +43,7 @@ exports.handler = async (event) => {
   let body;
   try { body = JSON.parse(event.body || '{}'); } catch { return err(400, '잘못된 요청'); }
 
-  const { message, history = [], brand = 'nb', mode = 'chat', labels = [], session_id, matched_label } = body;
+  const { message, history = [], brand = 'nb', mode = 'chat', labels = [], knowledge = '', session_id, matched_label } = body;
 
   if (mode === 'log') {
     if (message) {
@@ -69,11 +77,38 @@ exports.handler = async (event) => {
       `반드시 JSON만 반환하고 다른 텍스트는 절대 포함하지 마세요.\n\n` +
       `FAQ 카테고리: ${labelList}`;
     maxTokens = 350;
+  } else if (mode === 'rag') {
+    // RAG: FAQ 지식으로 근거를 잡되, 사람 상담원처럼 자연스럽게 재구성해 답변
+    const brandName = brand === 'xrb' ? 'X-RIDER' : '니어바이크';
+    const persona = brand === 'xrb' ? '엑스라이더 상담매니저' : '니어바이크 상담매니저';
+    const ebikeNote = brand === 'xrb'
+      ? '취급 제품은 전동킥보드·전동자전거입니다.'
+      : '취급 제품은 전기자전거(PAS 전동)입니다. "켜짐/전원/시동/배터리" 문의는 전동 제품 기준으로 답하세요.';
+    const know = String(knowledge || '').slice(0, 12000);
+    systemPrompt =
+      `당신은 ${brandName}의 친절한 ${persona}입니다. 게시판 안내문이 아니라, 사람처럼 1:1로 따뜻하게 상담하세요.\n` +
+      `${ebikeNote}\n` +
+      `[말투] 먼저 공감/맞장구를 한 뒤 핵심을 알려주세요. 2~4문장으로 짧고 자연스럽게. 매번 같은 문구를 반복하지 말고, 딱딱한 "~안내드립니다" 톤은 피하세요. 이모지는 메시지당 1개 이하.\n` +
+      `[근거] 아래 [자료]에 있는 내용만 사실 근거로 사용하세요. 자료에 없는 수치·규격·정책은 절대 지어내지 말고, 모르면 솔직히 모른다고 한 뒤 직접 확인이 필요하면 "A/S 접수"를 자연스럽게 권하세요.\n` +
+      `[맥락] 이전 대화를 참고해 이어서 답하세요. 고객이 이미 말한 모델/내용을 다시 묻지 말고, 했던 안내를 반복하지 마세요.\n` +
+      `[고객센터] 이 채팅이 곧 고객센터이며 전화 상담은 운영하지 않습니다. 전화번호·"전화로 연락"·"고객센터로 전화" 같은 통화 안내는 절대 하지 마세요. 개인정보는 수집하지 마세요.\n\n` +
+      `[자료]\n${know || '(관련 자료 없음)'}`;
+    maxTokens = 450;
   } else {
     systemPrompt = SYSTEM_PROMPTS[brand] || SYSTEM_PROMPTS.nb;
     maxTokens = 300;
   }
 
+  // 관리자가 등록한 금지 표현 주입 (모든 모드 공통)
+  try {
+    const settings = await getSettings(supabase, brand);
+    const forbidden = Array.isArray(settings.forbidden_phrases) ? settings.forbidden_phrases.filter(Boolean) : [];
+    if (forbidden.length) {
+      systemPrompt += `\n\n[절대 금지] 다음 표현·문구는 어떤 경우에도 답변에 포함하지 마세요(유사 표현도 금지): ${forbidden.map((s) => `"${s}"`).join(', ')}.`;
+    }
+  } catch {}
+
+  const model = MODEL_BY_MODE[mode] || 'claude-haiku-4-5-20251001';
   const messages = [
     ...history.slice(-6).map(h => ({ role: h.role, content: h.content })),
     { role: 'user', content: message },
@@ -87,7 +122,7 @@ exports.handler = async (event) => {
       'content-type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
+      model,
       max_tokens: maxTokens,
       system: systemPrompt,
       messages,
@@ -107,7 +142,7 @@ exports.handler = async (event) => {
 
   // 채팅 로그 저장 (비동기, 오류 무시)
   try {
-    const replyType = mode === 'smart' ? 'faq_llm' : 'llm';
+    const replyType = mode === 'smart' ? 'faq_llm' : (mode === 'rag' ? 'rag' : 'llm');
     const jsonMatch = mode === 'smart' ? rawText.match(/\{[\s\S]*\}/) : null;
     const parsed = jsonMatch ? (() => { try { return JSON.parse(jsonMatch[0]); } catch { return null; } })() : null;
     const finalReplyType = (parsed?.type === 'faq') ? 'faq_llm' : replyType;

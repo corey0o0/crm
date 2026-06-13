@@ -12,6 +12,7 @@ const DEFAULTS = {
   days: [1, 2, 3, 4, 5],
   offhours_message: '지금은 상담 운영시간이 아닙니다. A/S 접수를 남겨주시면 영업시간에 순차적으로 연락드리겠습니다.',
   offhours_image_url: null,
+  forbidden_phrases: [], // 답변에서 절대 쓰면 안 되는 표현(관리자 추가)
 };
 
 const dbBrandOf = (brand) => (String(brand || '').toLowerCase() === 'xrb' ? 'XRB' : 'NB');

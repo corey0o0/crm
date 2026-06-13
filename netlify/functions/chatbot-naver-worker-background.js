@@ -5,7 +5,7 @@
 // 비즈니스 로직(주문/AS/등록)은 기존 함수 내부 HTTP 재사용, 대화 두뇌는 _chatbot_brain.
 //
 const { getSupabase, checkRateLimit, logRequest } = require('./_chatbot_utils');
-const { textMessage, naverSend, typing, getState, setState, clearState } = require('./_naver_utils');
+const { textMessage, naverSend, typing, getState, setState, clearState, getHistory, appendHistory, clearHistory } = require('./_naver_utils');
 const brain = require('./_chatbot_brain');
 
 const base = () => process.env.URL || process.env.DEPLOY_PRIME_URL || '';
@@ -72,18 +72,17 @@ async function loadFaqs(supabase, brand) {
   return data || [];
 }
 
-// smart LLM (기존 chatbot-chat smart 모드 재사용: FAQ 분류 우선 → 답변)
-async function smartLlm(brand, message, faqs, user) {
-  const labels = faqs.filter((f) => f.label).map((f) => f.label);
+// RAG LLM — FAQ 전체를 지식으로 주고, 사람 상담원처럼 맥락(history) 이어 자연스럽게 답변
+async function ragLlm(brand, message, faqs, user, history) {
+  const knowledge = faqs
+    .filter((f) => f.label && f.answer)
+    .map((f) => `### ${f.label}\n${f.answer}`)
+    .join('\n\n');
   const res = await callFn('chatbot-chat', {
     method: 'POST', user,
-    body: { mode: 'smart', message, labels, brand, session_id: `naver:${user}` },
+    body: { mode: 'rag', message, brand, knowledge, history, session_id: `naver:${user}` },
   });
-  if (res && res.type === 'faq' && res.label) {
-    const hit = faqs.find((f) => f.label === res.label);
-    if (hit) return { answer: hit.answer };
-  }
-  return { answer: (res && res.reply) || '잠시 후 다시 시도해 주세요.' };
+  return (res && res.reply) || '죄송해요, 잠시 후 다시 시도해 주세요. 계속 안 되면 아래 [A/S 접수]를 남겨주시면 담당자가 확인해 드릴게요.';
 }
 
 const send = (brand, user, text, quick) => naverSend(brand, textMessage(user, text, quick));
@@ -108,7 +107,7 @@ exports.handler = async (event) => {
 
   try {
     // ── 1) 컨트롤 코드 라우팅 ──
-    if (code === 'RESTART') { await clearState(supabase, user); return done(brand, user, welcomeText(brand), CATEGORIES); }
+    if (code === 'RESTART') { await clearState(supabase, user); await clearHistory(supabase, user); return done(brand, user, welcomeText(brand), CATEGORIES); }
     if (code === 'AGENT') {
       await clearState(supabase, user);
       return done(brand, user, '상담은 챗봇으로 도와드리고 있어요 😊\n챗봇으로 해결이 어려운 내용은 아래 [A/S 접수]를 남겨주시면 담당자가 확인 후 처리해 드립니다.', POST_MENU);
@@ -167,23 +166,13 @@ exports.handler = async (event) => {
     // ── 5) 인사 ──
     if (brain.isGreeting(input)) return done(brand, user, welcomeText(brand), CATEGORIES);
 
-    // ── 6) FAQ 매칭 (다중 키워드 스코어링) ──
-    const faqs = await loadFaqs(supabase, brand);
-    const matched = brain.matchFaqs(faqs, input);
-    if (matched.length === 1) {
-      try { await supabase.from('chat_logs').insert({ session_id: `naver:${user}`, brand, user_message: input, bot_reply: null, matched_faq_label: matched[0].label, reply_type: 'faq' }); } catch {}
-      return done(brand, user, matched[0].answer, POST_MENU);
-    }
-    if (matched.length > 1) {
-      const chips = matched.map((f) => ({ title: f.label, code: `FAQ::${f.label}` }));
-      chips.push({ title: '🏠 처음으로', code: 'RESTART' });
-      return done(brand, user, '관련 항목을 찾았어요. 궁금한 내용을 선택해 주세요 😊', chips.slice(0, 13));
-    }
-
-    // ── 7) LLM smart 폴백 (FAQ 분류 우선) ──
+    // ── 6) RAG 자연어 답변 (FAQ 지식 기반 + 대화 맥락 유지) ──
     const { allowed, limit } = await checkRateLimit(supabase, `naver:${user}`, 'chat');
-    if (!allowed) return done(brand, user, `오늘 AI 응답 한도(${limit}회)를 초과했습니다.\n아래 [A/S 접수]를 남겨주시면 담당자가 확인 후 안내해 드립니다.`, POST_MENU);
-    const { answer } = await smartLlm(brand, input, faqs, user);
+    if (!allowed) return done(brand, user, `오늘 AI 응답 한도(${limit}회)를 초과했어요. 아래 [A/S 접수]를 남겨주시면 담당자가 확인 후 안내해 드릴게요.`, POST_MENU);
+    const faqs = await loadFaqs(supabase, brand);
+    const history = await getHistory(supabase, user);
+    const answer = await ragLlm(brand, input, faqs, user, history);
+    await appendHistory(supabase, user, [{ role: 'user', content: input }, { role: 'assistant', content: answer }]);
     await logRequest(supabase, `naver:${user}`, brand, 'chat');
     return done(brand, user, answer, POST_MENU);
   } catch (e) {

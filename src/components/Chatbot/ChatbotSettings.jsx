@@ -35,6 +35,7 @@ export default function ChatbotSettings() {
         days: [1, 2, 3, 4, 5],
         offhours_message: '지금은 상담 운영시간이 아닙니다. A/S 접수를 남겨주시면 영업시간에 순차적으로 연락드리겠습니다.',
         offhours_image_url: '',
+        forbidden_phrases: [],
       };
     });
     setRows(map);
@@ -60,6 +61,8 @@ export default function ChatbotSettings() {
       days: r.days || [],
       offhours_message: r.offhours_message || '',
       offhours_image_url: r.offhours_image_url || null,
+      forbidden_phrases: (Array.isArray(r.forbidden_phrases) ? r.forbidden_phrases : String(r.forbidden_phrases || '').split('\n'))
+        .map(s => s.trim()).filter(Boolean),
       updated_at: new Date().toISOString(),
     };
     const { error } = await supabase.from('chatbot_settings').upsert(payload, { onConflict: 'brand' });
@@ -137,6 +140,12 @@ export default function ChatbotSettings() {
                 <Typography variant="subtitle2" sx={{ mb: 1 }}>안내 이미지 URL <Typography component="span" variant="caption" color="text.secondary">(선택, https://)</Typography></Typography>
                 <TextField fullWidth size="small" placeholder="https://..." value={r.offhours_image_url || ''}
                   onChange={e => patch(b.key, 'offhours_image_url', e.target.value)} sx={{ mb: 2 }} />
+
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>답변 금지어 <Typography component="span" variant="caption" color="text.secondary">(한 줄에 하나씩 — 봇이 이 표현을 답변에 쓰지 않음)</Typography></Typography>
+                <TextField multiline minRows={2} fullWidth size="small"
+                  placeholder={'예) 평일 09:00~18:00\n전화로 문의\n타사 제품'}
+                  value={Array.isArray(r.forbidden_phrases) ? r.forbidden_phrases.join('\n') : (r.forbidden_phrases || '')}
+                  onChange={e => patch(b.key, 'forbidden_phrases', e.target.value.split('\n'))} sx={{ mb: 2 }} />
 
                 <Button variant="contained" startIcon={<SaveIcon />} onClick={() => save(b.key)}
                   disabled={saving === b.key} fullWidth>

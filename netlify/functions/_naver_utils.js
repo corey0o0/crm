@@ -105,8 +105,36 @@ async function clearState(supabase, user) {
   await setState(supabase, user, { step: 'IDLE', data: {} });
 }
 
+// ── 대화 히스토리 (사람처럼 맥락 유지) — state 와 분리된 history 컬럼 ──
+// 플로우 setState 가 덮어쓰지 않도록 별도 컬럼으로 관리. 최근 8턴만 유지.
+async function getHistory(supabase, user) {
+  const { data } = await supabase
+    .from('chatbot_naver_sessions')
+    .select('history')
+    .eq('naver_user', user)
+    .maybeSingle();
+  return Array.isArray(data?.history) ? data.history : [];
+}
+async function appendHistory(supabase, user, turns) {
+  const clean = (turns || [])
+    .filter((t) => t && t.role && t.content)
+    .map((t) => ({ role: t.role, content: String(t.content).slice(0, 600) }));
+  if (!clean.length) return;
+  const cur = await getHistory(supabase, user);
+  const history = [...cur, ...clean].slice(-8);
+  await supabase
+    .from('chatbot_naver_sessions')
+    .upsert({ naver_user: user, history, updated_at: new Date().toISOString() }, { onConflict: 'naver_user' });
+}
+async function clearHistory(supabase, user) {
+  await supabase
+    .from('chatbot_naver_sessions')
+    .upsert({ naver_user: user, history: [], updated_at: new Date().toISOString() }, { onConflict: 'naver_user' });
+}
+
 module.exports = {
   SEND_API, NAVER_ACL_CIDRS,
   authKeyFor, textMessage, compositeMessage, imageMessage, typing, naverSend,
   getState, setState, clearState,
+  getHistory, appendHistory, clearHistory,
 };

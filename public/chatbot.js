@@ -676,6 +676,23 @@
     }
   }
 
+  // RAG: FAQ 전체를 지식으로 주고 사람처럼 자연스럽게(Sonnet) 답변
+  async function ragLlm(msg, history) {
+    if (!CONFIG.useLlmProxy) {
+      const r = await callLlm(msg, history);
+      return r.reply || '잠시 후 다시 시도해주세요.';
+    }
+    const knowledge = FAQS.filter(f => f.label && f.answer).map(f => `### ${f.label}\n${f.answer}`).join('\n\n');
+    const res = await fetch(`${CONFIG.apiUrl}/.netlify/functions/chatbot-chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'rag', message: msg, knowledge, history: history.slice(-6), brand: BRAND_KEY, session_id: SESSION_ID }),
+    });
+    if (!res.ok) throw new Error('LLM 오류');
+    const data = await res.json();
+    return data.reply || '잠시 후 다시 시도해주세요. 계속 안 되면 A/S 접수를 남겨주세요.';
+  }
+
   async function lookupOrder(orderId, buyerName, phoneLast4) {
     const params = new URLSearchParams({
       order_id: orderId.trim(),
@@ -1310,47 +1327,24 @@
           addTextMsg('타이어(튜브) 교체를 도와드릴게요. 🔧\n사용 중인 모델명을 알려주세요.', 'bot');
           addHint(BRAND_KEY === 'xrb' ? '예: X200 MAX SL / X50 FS' : '예: 블레이드FS / 카고');
 
-        // 8. FAQ 매칭
+        // 8. 인사 감지 → 환영 + 메뉴
+        } else if (GREETING_TRIGGERS.some(kw => text.toLowerCase().replace(/\s/g,'').includes(kw))) {
+          hideTyping();
+          addTextMsg(`안녕하세요! ${BRAND.name}입니다. ${BRAND.avatar}\n무엇을 도와드릴까요? 😊`, 'bot');
+          addQuickReplies(CATEGORY_CHIPS);
+
+        // 9. 그 외 자유 질문 → RAG 자연어 답변 (FAQ 지식 기반 + 맥락 유지)
         } else {
-          const faqs = matchFaqs(text);
-          if (faqs.length === 1) {
-            hideTyping();
-            logFaqMatch(text, faqs[0].label);
-            addTextMsg(faqs[0].answer, 'bot', 'badge-faq', 'FAQ');
-            addQuickReplies([
-              { label: '📝 A/S 접수하기', value: '__as_register__' },
-              { label: '🔧 A/S 현황 조회', value: 'A/S 현황' },
-              { label: '🏠 처음으로', value: '__restart__' },
-            ]);
-          } else if (faqs.length > 1) {
-            hideTyping();
-            addTextMsg('관련 항목을 찾았어요. 궁금한 내용을 선택해주세요. 😊', 'bot');
-            addQuickReplies([
-              ...faqs.map(faq => ({ label: faq.keywords[0], value: `__faq_${FAQS.indexOf(faq)}` })),
-              { label: '🏠 처음으로', value: '__restart__' },
-            ]);
-          } else if (GREETING_TRIGGERS.some(kw => text.toLowerCase().replace(/\s/g,'').includes(kw))) {
-            // 9. 인사 감지 → 환영 + 메뉴
-            hideTyping();
-            addTextMsg(`안녕하세요! ${BRAND.name}입니다. ${BRAND.avatar}\n무엇을 도와드릴까요? 😊`, 'bot');
-            addQuickReplies(CATEGORY_CHIPS);
-          } else {
-            // 10. LLM 폴백 (smart 모드: FAQ 분류 우선 시도)
-            const result = await callLlm(text, history);
-            hideTyping();
-            if (result.isFaq) {
-              addTextMsg(result.faq.answer, 'bot', 'badge-faq', 'FAQ');
-            } else {
-              addTextMsg(result.reply, 'bot', 'badge-ai', 'AI');
-              history.push({ role: 'user', content: text });
-              history.push({ role: 'assistant', content: result.reply });
-            }
-            addQuickReplies([
-              { label: '📝 A/S 접수하기', value: '__as_register__' },
-              { label: '🔧 A/S 현황 조회', value: 'A/S 현황' },
-              { label: '🏠 처음으로', value: '__restart__' },
-            ]);
-          }
+          const reply = await ragLlm(text, history);
+          hideTyping();
+          addTextMsg(reply, 'bot', 'badge-ai', 'AI');
+          history.push({ role: 'user', content: text });
+          history.push({ role: 'assistant', content: reply });
+          addQuickReplies([
+            { label: '📝 A/S 접수하기', value: '__as_register__' },
+            { label: '🔧 A/S 현황 조회', value: 'A/S 현황' },
+            { label: '🏠 처음으로', value: '__restart__' },
+          ]);
         }
       } catch {
         hideTyping();
