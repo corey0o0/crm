@@ -5,7 +5,7 @@
 // 비즈니스 로직(주문/AS/등록)은 기존 함수 내부 HTTP 재사용, 대화 두뇌는 _chatbot_brain.
 //
 const { getSupabase, checkRateLimit, logRequest } = require('./_chatbot_utils');
-const { textMessage, naverSend, typing, getState, setState, clearState, getHistory, appendHistory, clearHistory } = require('./_naver_utils');
+const { textMessage, naverSend, typing, getState, setState, clearState, getHistory, appendHistory, clearHistory, passThread, takeThread, setHandover, isHandover } = require('./_naver_utils');
 const brain = require('./_chatbot_brain');
 
 const base = () => process.env.URL || process.env.DEPLOY_PRIME_URL || '';
@@ -92,6 +92,19 @@ async function done(brand, user, text, quick) {
   return { statusCode: 200, body: '' };
 }
 
+// 상담원 연결 요청 감지 (명시적 표현만)
+const wantsAgent = (s) => /(상담원|상담사|상담직원|채팅상담)/.test(s) || /(직원|담당자|사람)\s*(이?랑|하고|한테|와|과)?\s*(연결|통화|상담|바꿔|불러)/.test(s);
+
+// 상담원에게 인계(passThread) — 안내 후 제어권을 파트너센터 상담원(targetId=1)에게 넘김
+async function goAgent(supabase, brand, user) {
+  await clearState(supabase, user);
+  await naverSend(brand, typing(user, false));
+  await send(brand, user, '상담원에게 연결해 드릴게요 🙂\n잠시만 기다려 주시면 순차적으로 답변드립니다. (연결 중에는 챗봇이 응답하지 않아요)');
+  await setHandover(supabase, user, true);
+  await naverSend(brand, passThread(user, 1));
+  return { statusCode: 200, body: '' };
+}
+
 exports.handler = async (event) => {
   let body;
   try { body = JSON.parse(event.body || '{}'); } catch { return { statusCode: 200, body: '' }; }
@@ -100,6 +113,14 @@ exports.handler = async (event) => {
   if (!user) return { statusCode: 200, body: '' };
 
   const supabase = getSupabase();
+
+  // 상담원 응대 중(handover)이면 봇은 침묵 — '처음으로(RESTART)'로만 챗봇 회수
+  if (await isHandover(supabase, user)) {
+    if (code !== 'RESTART') return { statusCode: 200, body: '' };
+    await setHandover(supabase, user, false);
+    await naverSend(brand, takeThread(user));
+  }
+
   await naverSend(brand, typing(user, true));
 
   // 사진 수신 — 봇은 이미지를 볼 수 없으므로 추측 답변 대신 A/S 접수로 유도
@@ -119,11 +140,8 @@ exports.handler = async (event) => {
   try {
     // ── 1) 컨트롤 코드 라우팅 ──
     if (code === 'RESTART') { await clearState(supabase, user); await clearHistory(supabase, user); return done(brand, user, welcomeText(brand), CATEGORIES); }
-    if (code === 'AGENT') {
-      await clearState(supabase, user);
-      return done(brand, user, '상담은 챗봇으로 도와드리고 있어요 😊\n챗봇으로 해결이 어려운 내용은 아래 [A/S 접수]를 남겨주시면 담당자가 확인 후 처리해 드립니다.', POST_MENU);
-    }
-    if (code === 'CAT_OTHER') return done(brand, user, '궁금하신 내용을 자유롭게 입력해 주세요. 담당 AI가 도와드리겠습니다 😊');
+    if (code === 'AGENT') return goAgent(supabase, brand, user);
+    if (code === 'CAT_OTHER') return done(brand, user, '궁금하신 내용을 자유롭게 입력해 주세요. 담당 AI가 도와드리겠습니다 😊\n상담원 연결이 필요하시면 아래 버튼을 눌러주세요.', [{ title: '💬 상담원 연결', code: 'AGENT' }, { title: '🏠 처음으로', code: 'RESTART' }]);
     if (SUB[code]) return done(brand, user, '아래에서 선택하시거나 직접 입력해 주세요.', SUB[code]);
     if (code === 'FLOW_ORDER') { await setState(supabase, user, { step: 'ORDER_NO', data: {} }); return done(brand, user, '주문번호를 입력해 주세요. (예: 20260522-0000023)'); }
     if (code === 'FLOW_AS_LOOKUP') { await setState(supabase, user, { step: 'AS_INPUT', data: {} }); return done(brand, user, 'A/S 접수번호 또는 연락처를 입력해 주세요.'); }
@@ -176,6 +194,9 @@ exports.handler = async (event) => {
 
     // ── 5) 인사 ──
     if (brain.isGreeting(input)) return done(brand, user, welcomeText(brand), CATEGORIES);
+
+    // ── 5-1) 상담원 연결 요청 → 핸드오버 ──
+    if (wantsAgent(input)) return goAgent(supabase, brand, user);
 
     // ── 6) RAG 자연어 답변 (FAQ 지식 기반 + 대화 맥락 유지) ──
     const { allowed, limit } = await checkRateLimit(supabase, `naver:${user}`, 'chat');

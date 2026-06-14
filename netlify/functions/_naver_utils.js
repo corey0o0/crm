@@ -64,6 +64,18 @@ function typing(user, on) {
   return { event: 'action', user, options: { action: on ? 'typingOn' : 'typingOff' } };
 }
 
+// ── 핸드오버(상담원 전환) 이벤트 (Handover API V1) ──
+// 봇 → 상담원(파트너센터, targetId=1)에게 대화 제어권 넘김
+function passThread(user, targetId = 1, metadata) {
+  const options = { control: 'passThread', targetId };
+  if (metadata) options.metadata = typeof metadata === 'string' ? metadata : JSON.stringify(metadata);
+  return { event: 'handover', user, options };
+}
+// 봇이 제어권 회수
+function takeThread(user) {
+  return { event: 'handover', user, options: { control: 'takeThread', metadata: '' } };
+}
+
 // 네이버 톡톡 send API 호출
 async function naverSend(brand, payload) {
   const key = authKeyFor(brand);
@@ -132,9 +144,26 @@ async function clearHistory(supabase, user) {
     .upsert({ naver_user: user, history: [], updated_at: new Date().toISOString() }, { onConflict: 'naver_user' });
 }
 
+// ── 핸드오버 상태 플래그 (상담원 응대 중이면 봇 침묵) ──
+async function setHandover(supabase, user, on) {
+  await supabase
+    .from('chatbot_naver_sessions')
+    .upsert({ naver_user: user, handover: !!on, updated_at: new Date().toISOString() }, { onConflict: 'naver_user' });
+}
+async function isHandover(supabase, user) {
+  const { data } = await supabase
+    .from('chatbot_naver_sessions')
+    .select('handover')
+    .eq('naver_user', user)
+    .maybeSingle();
+  return !!data?.handover;
+}
+
 module.exports = {
   SEND_API, NAVER_ACL_CIDRS,
   authKeyFor, textMessage, compositeMessage, imageMessage, typing, naverSend,
+  passThread, takeThread,
   getState, setState, clearState,
   getHistory, appendHistory, clearHistory,
+  setHandover, isHandover,
 };

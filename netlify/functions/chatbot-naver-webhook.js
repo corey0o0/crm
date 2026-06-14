@@ -11,7 +11,7 @@
 // → 여기서는 즉시 200 ACK만 하고, 무거운 처리(FAQ/LLM/조회)는 백그라운드 함수로 위임한다.
 //
 const { getSupabase, ok, err } = require('./_chatbot_utils');
-const { textMessage, imageMessage, naverSend } = require('./_naver_utils');
+const { textMessage, imageMessage, naverSend, setHandover, isHandover } = require('./_naver_utils');
 const { getSettings, isWithinHours, isNaverEnabled } = require('./_chatbot_settings');
 
 // OFF/운영시간 외 안내 전송 (텍스트 + 선택 이미지)
@@ -66,6 +66,24 @@ exports.handler = async (event) => {
   // leave: 세션 정리
   if (evType === 'leave') {
     try { await supabase.from('chatbot_naver_sessions').delete().eq('naver_user', user); } catch {}
+    return ok({});
+  }
+
+  // handover: 제어권 변경 (상담원 인계/복귀)
+  if (evType === 'handover') {
+    const ctrl = body.options?.control;
+    const targetId = body.options?.targetId;
+    if (ctrl === 'passThread' && (targetId === 1 || targetId === '1')) {
+      // 상담원에게 제어권 넘어감 → 봇 침묵
+      try { await setHandover(supabase, user, true); } catch {}
+    } else {
+      // 봇에게 제어권 복귀(상담원 상담 종료 등) → 봇 재개
+      let was = false;
+      try { was = await isHandover(supabase, user); await setHandover(supabase, user, false); } catch {}
+      if (naverOn && was) {
+        await naverSend(brand, textMessage(user, '상담원 상담이 마무리되었어요. 더 궁금한 점이 있으면 편하게 입력해 주세요 🙂'));
+      }
+    }
     return ok({});
   }
 
