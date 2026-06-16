@@ -69,7 +69,7 @@ import { styled } from '@mui/material/styles';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
-import { getUserMenuKeys } from '../config/menuConfig';
+import { getUserMenuKeys, MASTER_ACCOUNTS } from '../config/menuConfig';
 import NotificationBell from './Dashboard/NotificationBell';
 import ServiceCalendar from './ServiceCalendar';
 import dayjs from 'dayjs';
@@ -386,7 +386,7 @@ function Layout() {
       key: 'admin_group',
       children: [
         { text: '관리자 도구', icon: <ScienceIcon />, path: '/admin/tools', key: 'admin_tools' },
-        { text: '챗봇 FAQ 관리', icon: <SmartToyIcon />, path: '/chatbot/faq', key: 'chatbot_faq' },
+        { text: '챗봇 FAQ 관리', icon: <SmartToyIcon />, path: '/chatbot/faq', key: 'chatbot_faq', masterOnly: true },
       ]
     }
   ];
@@ -395,14 +395,15 @@ function Layout() {
   const getFilteredMenu = (items, keys) => {
     if (keys === 'all') return items;
     
+    // 비마스터(keys !== 'all')는 masterOnly 항목 제외 (마스터는 위에서 조기 반환)
     return items.reduce((acc, item) => {
       if (item.children) {
-        const filteredChildren = item.children.filter(child => keys.includes(child.key));
+        const filteredChildren = item.children.filter(child => keys.includes(child.key) && !child.masterOnly);
         if (filteredChildren.length > 0) {
           acc.push({ ...item, children: filteredChildren });
         }
       } else {
-        if (keys.includes(item.key)) {
+        if (keys.includes(item.key) && !item.masterOnly) {
           acc.push(item);
         }
       }

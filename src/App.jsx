@@ -152,7 +152,7 @@ function AppRouter() {
           <Route path="admin/tools" element={<PermissionRoute requiredPermission={MENU_KEYS.ADMIN_TOOLS}><AdminTools /></PermissionRoute>} />
 
           {/* 챗봇 FAQ 관리 */}
-          <Route path="chatbot/faq" element={<PermissionRoute requiredPermission={MENU_KEYS.CHATBOT_FAQ}><FaqManagement /></PermissionRoute>} />
+          <Route path="chatbot/faq" element={<PermissionRoute masterOnly><FaqManagement /></PermissionRoute>} />
 
           {/* 카페24 연동 설정 */}
           <Route path="settings/ecount-uploader" element={<PermissionRoute requiredPermission={MENU_KEYS.ADMIN_TOOLS}><EcountDataUploader /></PermissionRoute>} />
