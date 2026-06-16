@@ -4,10 +4,9 @@
  * 동적 권한(userMenuPermissions)을 받아와서 사용자별 메뉴를 반환합니다.
  */
 
-// 관리자 계정 (모든 메뉴 무조건 접근 가능)
+// 마스터 계정 (모든 메뉴 무조건 접근 가능)
+// ⚠️ 실제 존재하는 계정만 등록할 것 — 죽은 이메일을 남겨두면 추후 동일 이메일 가입 시 자동 마스터 권한 부여됨
 export const MASTER_ACCOUNTS = [
-  'admin@xrider.com',
-  'manager@xrider.com',
   'master@slimpack.com'
 ];
 
