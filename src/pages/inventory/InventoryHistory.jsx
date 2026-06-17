@@ -1668,7 +1668,8 @@ export default function InventoryHistory() {
                 엑셀 다운로드
               </Button>
               <Button onClick={closeTransactionDetail} disabled={detailProcessing}>닫기</Button>
-              <Button 
+              {isMaster && (<>
+              <Button
                 disabled={detailProcessing}
                 onClick={async () => {
                   if (!selectedTransaction) return;
@@ -1684,8 +1685,8 @@ export default function InventoryHistory() {
                   } finally {
                     setDetailProcessing(false);
                   }
-                }} 
-                variant="outlined" 
+                }}
+                variant="outlined"
                 color="error"
               >
                 {detailProcessing ? '처리 중...' : '삭제'}
@@ -1693,6 +1694,7 @@ export default function InventoryHistory() {
               <Button onClick={startEditTransaction} variant="outlined" color="primary" disabled={detailProcessing}>
                 수정
               </Button>
+              </>)}
             </>
           ) : (
             <>
