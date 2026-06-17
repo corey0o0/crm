@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { getAppSetting } from '../api/settingsApi';
-import { hasMenuAccess, getAllowedMalls, getAllowedBrands, hasActionPermission } from '../config/menuConfig';
+import { hasMenuAccess, getAllowedMalls, getAllowedBrands, hasActionPermission, MASTER_ACCOUNTS } from '../config/menuConfig';
 
 const AuthContext = createContext({});
 
@@ -163,11 +163,15 @@ export const AuthProvider = ({ children }) => {
     return getAllowedBrands(user.email, userMenuPermissions);
   };
 
+  // 마스터(관리자) 계정 여부 — 재고 변경 등 민감 동작 제어용
+  const isMaster = !!user?.email && MASTER_ACCOUNTS.includes(user.email);
+
   const value = {
     user,
     session,
     loading,
     userMenuPermissions,
+    isMaster,
     hasPermission,
     getAllowedMalls: allowedMalls,
     getAllowedBrands: allowedBrands,

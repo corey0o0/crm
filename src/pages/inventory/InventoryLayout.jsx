@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import ExcelJS from 'exceljs';
 import BarcodeInspectTab from '../../components/Inventory/tabs/BarcodeInspectTab';
 import StoreOnlineOutboundTab from '../../components/Inventory/tabs/StoreOnlineOutboundTab';
@@ -108,7 +108,10 @@ const formatLocationName = (locationId, warehouses, dealers) => {
 };
 
 function InventoryLayout() {
-  const { getAllowedBrands } = useAuth();
+  const { getAllowedBrands, isMaster } = useAuth();
+  // useCallback 핸들러의 stale closure 방지를 위해 최신 isMaster 를 ref 로 참조
+  const isMasterRef = useRef(isMaster);
+  isMasterRef.current = isMaster;
   const allowedBrands = getAllowedBrands();
   const brandLocked = allowedBrands !== 'all' && allowedBrands.length > 0;
 
@@ -147,6 +150,7 @@ function InventoryLayout() {
   const [selectedTransactions, setSelectedTransactions] = useState([]);
   
   const handleDeleteSelectedTransactions = async () => {
+    if (!isMasterRef.current) { showSnackbar('거래내역 삭제는 마스터(관리자)만 가능합니다.', 'error'); return; }
     if (selectedTransactions.length === 0) return;
     if (!window.confirm(`선택한 ${selectedTransactions.length}개의 거래내역을 삭제하시겠습니까?\n※ 삭제 시 해당 거래로 인한 재고 변동이 자동으로 복구됩니다.`)) return;
     try {
@@ -825,6 +829,7 @@ function InventoryLayout() {
 
   // 거래내역 수정 저장 (useCallback으로 메모이제이션)
   const saveEditTransaction = useCallback(async () => {
+    if (!isMasterRef.current) { showSnackbar('입출고 내역 수정은 마스터(관리자)만 가능합니다.', 'error'); return; }
     if (!selectedTransaction) return;
 
     try {
@@ -959,6 +964,7 @@ function InventoryLayout() {
 
   // 거래내역 삭제 (useCallback으로 메모이제이션)
   const deleteTransaction = useCallback(async (transactionId) => {
+    if (!isMasterRef.current) { showSnackbar('거래내역 삭제는 마스터(관리자)만 가능합니다.', 'error'); return; }
     try {
       // 서버에서 거래내역 삭제
       await transactionApi.delete(transactionId);
@@ -1145,6 +1151,7 @@ function InventoryLayout() {
   };
 
   const handleSubmitTransaction = useCallback(async (forceArg) => {
+    if (!isMasterRef.current) { showSnackbar('입출고 등록은 마스터(관리자)만 가능합니다.', 'error'); return; }
     const force = forceArg === true;
     // 통합 제출: 각 행의 fromLocation이 창고이면 '출고', 아니면 '입고'로 판단
     // 유효성 검사
@@ -1415,6 +1422,8 @@ function InventoryLayout() {
 
   // 기존 내역 전체를 기반으로 재고(inventory 및 parts) 전면 재계산 (시스템 복구용)
   const recalculateAllInventory = async (silent = false) => {
+    // 사용자가 직접 실행하는 재계산은 마스터만 (수정/삭제 후 내부 silent 재계산은 허용)
+    if (!silent && !isMasterRef.current) { showSnackbar('재고 전체 재계산은 마스터(관리자)만 가능합니다.', 'error'); return; }
     if (!silent) {
       if (!window.confirm('경고: 현재 데이터베이스의 모든 입출고 내역을 기반으로 재고를 0부터 다시 계산합니다. 이 작업은 되돌릴 수 없습니다. 진행하시겠습니까?')) {
         return;
@@ -2117,6 +2126,7 @@ function InventoryLayout() {
 
   // 엑셀 데이터로 입고/출고 처리 (통합) (useCallback으로 메모이제이션)
   const handleExcelDataSubmit = useCallback(async () => {
+    if (!isMasterRef.current) { showSnackbar('엑셀 입출고 등록은 마스터(관리자)만 가능합니다.', 'error'); return; }
     if (excelData.length === 0) {
       showSnackbar('처리할 데이터가 없습니다.', 'error');
       return;
@@ -3210,6 +3220,7 @@ function InventoryLayout() {
     }
   }, []);
   const handleDirectInventoryEdit = async (warehouseId, productId, currentQty, newQty, reason) => {
+    if (!isMasterRef.current) { showSnackbar('재고 직접 수정은 마스터(관리자)만 가능합니다.', 'error'); return; }
     if (newQty === currentQty) return;
     
     const product = products.find(p => p.id === productId);
@@ -3306,7 +3317,7 @@ function InventoryLayout() {
     handleDeleteSelectedTransactions, handleViewOriginal, handleDateFilterClick, handleTableCellClick,
     handleTableCellHover, handleTableCellHoverLeave, handlePageChange, handleBarcodeScan, startBarcodeScan,
     handleBarcodeScanError, handleDragOver, handleDragLeave, handleDrop,
-    totalPages, recalculateAllInventory, deleteTransaction,
+    totalPages, recalculateAllInventory, deleteTransaction, isMaster,
     batchFromLocation, setBatchFromLocation, batchToLocation, setBatchToLocation, showOriginalHistory, setShowOriginalHistory, handleSubmitTransaction, downloadExcelTemplate, handleExcelDataSubmit, handleBatchApplyLocation, handleDirectInventoryEdit,
     editBatchFromLocation, setEditBatchFromLocation, editBatchToLocation, setEditBatchToLocation, handleEditBatchApplyLocation,
     verifyInventory, verifyResults, verifyOpen, setVerifyOpen, verifyLoading,

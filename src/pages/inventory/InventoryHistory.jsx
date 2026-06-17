@@ -26,7 +26,7 @@ export default function InventoryHistory() {
     addIoProductRow, removeIoProductRow, updateIoProductRow, excelUploadOpen,
     handleCloseExcelUpload, handleExcelFileUpload, excelFile, excelUploadType, setExcelUploadType,
     handleOpenExcelUpload, transactionDetailOpen, closeTransactionDetail,
-    selectedTransaction, startEditTransaction, recalculateAllInventory, deleteTransaction
+    selectedTransaction, startEditTransaction, recalculateAllInventory, deleteTransaction, isMaster
   , batchFromLocation, setBatchFromLocation, batchToLocation, setBatchToLocation, showOriginalHistory, setShowOriginalHistory, handleSubmitTransaction, downloadExcelTemplate, handleDragOver, handleDragLeave, handleDrop, handleExcelDataSubmit, handleBatchApplyLocation, warehouseDetailTarget, warehouseDetailOpen, closeWarehouseDetail, barcodeScannerOpen, setBarcodeScannerOpen, setCurrentScanningRow, handleBarcodeScan, handleBarcodeScanError, excelData, isDragOver, snackbar, setSnackbar, isSubmittingTransaction,
     editBatchFromLocation, setEditBatchFromLocation, editBatchToLocation, setEditBatchToLocation, handleEditBatchApplyLocation,
     verifyInventory, verifyResults, verifyOpen, setVerifyOpen, verifyLoading,
@@ -62,7 +62,8 @@ export default function InventoryHistory() {
             variant="contained"
             color="primary"
             onClick={handleOpenDialog}
-            disabled={products.length === 0}
+            disabled={products.length === 0 || !isMaster}
+            title={!isMaster ? '입출고 등록은 마스터(관리자)만 가능합니다' : undefined}
           >
             입출고 등록
           </Button>
@@ -70,7 +71,8 @@ export default function InventoryHistory() {
             variant="outlined"
             color="primary"
             onClick={() => handleOpenExcelUpload('unified')}
-            disabled={products.length === 0}
+            disabled={products.length === 0 || !isMaster}
+            title={!isMaster ? '엑셀 입출고 등록은 마스터(관리자)만 가능합니다' : undefined}
           >
             엑셀 업로드
           </Button>
@@ -256,7 +258,7 @@ export default function InventoryHistory() {
           {/* 거래 내역 보기 전환 및 렌더 */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
             <Box>
-              {transactionViewMode === 'list' && selectedTransactions.length > 0 && (
+              {isMaster && transactionViewMode === 'list' && selectedTransactions.length > 0 && (
                 <Button size="small" variant="outlined" color="error" onClick={handleDeleteSelectedTransactions}>
                   선택 삭제 ({selectedTransactions.length})
                 </Button>
