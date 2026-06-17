@@ -12,7 +12,7 @@ export default function InventoryStatus() {
   const {
     products, visibleWarehouses: warehouses, dealers, inventory, overallSearch, setOverallSearch,
     overallStockFilter, setOverallStockFilter, setFilter, setDateFilter, fetchProducts, fetchWarehouses,
-    fetchDealers, toggleWarehouseSync, openWarehouseDetail, fetchTransactions, fetchInventoryData, warehouseDetailOpen, closeWarehouseDetail, warehouseDetailTarget, warehouseDetailFilter, setWarehouseDetailFilter, warehouseDetailSearch, setWarehouseDetailSearch, warehouseDetailBelow, setWarehouseDetailBelow, handleDirectInventoryEdit
+    fetchDealers, toggleWarehouseSync, openWarehouseDetail, fetchTransactions, fetchInventoryData, warehouseDetailOpen, closeWarehouseDetail, warehouseDetailTarget, warehouseDetailFilter, setWarehouseDetailFilter, warehouseDetailSearch, setWarehouseDetailSearch, warehouseDetailBelow, setWarehouseDetailBelow, handleDirectInventoryEdit, isMaster
   } = context;
 
   const [editPopoverAnchor, setEditPopoverAnchor] = useState(null);
@@ -38,6 +38,7 @@ export default function InventoryStatus() {
   };
 
   const handleOpenEdit = (e, warehouseId, productId, currentQty) => {
+    if (!isMaster) return; // 재고 직접 수정은 마스터(관리자)만
     setEditData({ warehouseId, productId, currentQty, newQty: currentQty, reason: '재고 현황에서 직접 수정' });
     setEditPopoverAnchor(e.currentTarget);
   };
@@ -309,10 +310,10 @@ export default function InventoryStatus() {
                             key={`cell-${p.id}-${w.id}`}
                             align="right"
                             sx={{
-                              width: 120, maxWidth: 140, cursor: 'pointer',
+                              width: 120, maxWidth: 140, cursor: isMaster ? 'pointer' : 'default',
                               fontWeight: 'bold',
                               color: cellQty === 0 ? 'text.disabled' : 'inherit',
-                              '&:hover': { bgcolor: 'action.hover' },
+                              ...(isMaster ? { '&:hover': { bgcolor: 'action.hover' } } : {}),
                               ...(cellQty < 0 ? { bgcolor: '#ffebee', color: '#c62828' } : {})
                             }}
                             onClick={(e) => handleOpenEdit(e, w.id, p.id, cellQty)}
