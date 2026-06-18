@@ -24,7 +24,6 @@ const SUB = {
     { title: '↩️ 반품/교환', code: '반품 교환' },
   ],
   CAT_SERVICE: [
-    { title: '🔧 A/S 현황', code: 'FLOW_AS_LOOKUP' },
     { title: '📝 A/S 접수', code: 'FLOW_AS_REGISTER' },
     { title: '🛡 보증 안내', code: '보증기간 보증부품' },
     { title: '❗ 오류코드', code: '오류코드 에러코드' },
@@ -37,7 +36,6 @@ const SUB = {
 };
 const POST_MENU = [
   { title: '📝 A/S 접수', code: 'FLOW_AS_REGISTER' },
-  { title: '🔧 A/S 현황', code: 'FLOW_AS_LOOKUP' },
   { title: '🏠 처음으로', code: 'RESTART' },
 ];
 

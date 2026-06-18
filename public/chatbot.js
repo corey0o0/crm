@@ -70,7 +70,7 @@
         // ── NB 전용 ──
         { label: 'A/S접수', keywords: ['AS', 'A/S', '수리', '고장', '파손',
             '고장났', '망가졌', '부서졌', '이상해요', '이상한데', '작동이상', '작동안해', '뭔가이상', '수리맡기', 'as신청', '수리받고싶', 'a/s신청'],
-          answer: 'A/S 접수는 챗봇의 A/S 접수 버튼으로 바로 남기실 수 있고, A/S 현황 버튼으로 접수번호 조회도 가능합니다.' },
+          answer: 'A/S 접수는 챗봇의 A/S 접수 버튼으로 바로 남기실 수 있습니다.' },
         { label: '사이즈호환', keywords: ['사이즈', '크기', '호환', '규격'], answer: '자전거 사이즈 및 부품 호환성은 제품마다 다를 수 있습니다. 모델명을 알려주시면 상세히 안내해 드리고, 추가 확인이 필요하면 A/S 접수를 도와드립니다.' },
         { label: '재고품절', keywords: ['재고', '품절', '입고'], answer: '재고 현황은 상품 페이지에서 실시간 확인이 가능합니다. 품절 상품 입고 일정은 채팅으로 문의하시거나 A/S 접수를 남겨주시면 안내해 드립니다.' },
         // ── 모델 제원 ──
@@ -156,7 +156,7 @@
           label: 'A/S접수',
           keywords: ['AS', 'A/S', '수리', '고장', '파손',
             '고장났', '망가졌', '부서졌', '이상해요', '이상한데', '작동이상', '작동안해', '수리맡기', 'as신청', 'a/s신청'],
-          answer: 'A/S 접수는 챗봇의 A/S 접수 버튼으로 바로 남기실 수 있고, A/S 현황 버튼으로 접수번호 조회도 가능합니다. 보증기간 내 제조 하자는 무상 수리됩니다.',
+          answer: 'A/S 접수는 챗봇의 A/S 접수 버튼으로 바로 남기실 수 있습니다. 보증기간 내 제조 하자는 무상 수리됩니다.',
         },
         // ── 면허 / 법규 ──
         {
@@ -503,7 +503,6 @@
       { label: '↩️ 반품/교환', value: '반품 교환 문의' },
     ],
     '__cat_service__': [
-      { label: '🔧 A/S 현황', value: 'A/S 현황' },
       { label: '🛡 보증 안내', value: '보증기간 보증부품' },
       { label: '❗ 오류코드 안내', value: '오류코드 에러코드' },
     ],
@@ -1176,7 +1175,6 @@
             addTextMsg(faq.answer, 'bot', 'badge-faq', 'FAQ');
             addQuickReplies([
               { label: '📝 A/S 접수하기', value: '__as_register__' },
-              { label: '🔧 A/S 현황 조회', value: 'A/S 현황' },
               { label: '🏠 처음으로', value: '__restart__' },
             ]);
           }
@@ -1277,7 +1275,6 @@
             'bot', 'badge-lookup', 'A/S 접수'
           );
           addQuickReplies([
-            { label: '🔧 A/S 현황 조회', value: 'A/S 현황' },
             { label: '🏠 처음으로', value: '__restart__' },
           ]);
 
@@ -1342,7 +1339,6 @@
           history.push({ role: 'assistant', content: reply });
           addQuickReplies([
             { label: '📝 A/S 접수하기', value: '__as_register__' },
-            { label: '🔧 A/S 현황 조회', value: 'A/S 현황' },
             { label: '🏠 처음으로', value: '__restart__' },
           ]);
         }
