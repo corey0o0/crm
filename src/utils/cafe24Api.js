@@ -7,32 +7,23 @@ import { supabase } from '../lib/supabaseClient';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 
 async function fetchWithAuth(url, options = {}) {
-  // 먼저 세션 확인 후, 만료되었으면 자동 갱신 시도
-  let { data: { session } } = await supabase.auth.getSession();
-  
-  if (!session?.access_token) {
-    // 세션이 없거나 만료된 경우 리프레시 시도
-    const { data: refreshData } = await supabase.auth.refreshSession();
-    session = refreshData?.session;
-  }
-
-  const headers = {
+  // ⚠️ 토큰 갱신은 Supabase autoRefreshToken 에 위임한다.
+  // 수동 refreshSession() 은 자동 갱신과 동시 실행되면 refresh token 회전 충돌
+  // ("Invalid Refresh Token: Refresh Token Not Found")로 강제 로그아웃을 유발하므로 사용하지 않는다.
+  const buildHeaders = (s) => ({
     ...options.headers,
-    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
-  };
+    ...(s?.access_token ? { Authorization: `Bearer ${s.access_token}` } : {})
+  });
 
-  const resp = await fetch(url, { ...options, headers });
-  
-  // 401 응답 시 세션 갱신 후 한 번 더 재시도
-  if (resp.status === 401 && session?.access_token) {
-    const { data: refreshData } = await supabase.auth.refreshSession();
-    const newSession = refreshData?.session;
-    if (newSession?.access_token) {
-      const retryHeaders = {
-        ...options.headers,
-        Authorization: `Bearer ${newSession.access_token}`
-      };
-      return fetch(url, { ...options, headers: retryHeaders });
+  // getSession() 은 만료 임박 시 자동 갱신된 유효 토큰을 반환한다.
+  const { data: { session } } = await supabase.auth.getSession();
+  let resp = await fetch(url, { ...options, headers: buildHeaders(session) });
+
+  // 401 이면 세션을 한 번 더 읽어(백그라운드 자동 갱신 반영) 토큰이 바뀐 경우에만 1회 재시도.
+  if (resp.status === 401) {
+    const { data: { session: latest } } = await supabase.auth.getSession();
+    if (latest?.access_token && latest.access_token !== session?.access_token) {
+      resp = await fetch(url, { ...options, headers: buildHeaders(latest) });
     }
   }
 
