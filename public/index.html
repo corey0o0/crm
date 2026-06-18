@@ -71,11 +71,6 @@
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
-    <!-- 챗봇 위젯: XRB (오른쪽 아래) -->
-    <script>window.CHATBOT_BRAND = 'xrb'; window.CHATBOT_OFFSET_RIGHT = 24; window.CHATBOT_OFFSET_BOTTOM = 24;</script>
-    <script src="%PUBLIC_URL%/chatbot.js"></script>
-    <!-- 챗봇 위젯: NB (XRB 위) -->
-    <script>window.CHATBOT_BRAND = 'nb'; window.CHATBOT_OFFSET_RIGHT = 24; window.CHATBOT_OFFSET_BOTTOM = 90;</script>
-    <script src="%PUBLIC_URL%/chatbot.js"></script>
+    <!-- 챗봇 위젯(XRB/NB)은 로그인한 마스터 계정에서만 React(Layout)가 동적으로 로드함 -->
   </body>
 </html>

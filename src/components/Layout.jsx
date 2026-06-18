@@ -202,6 +202,39 @@ function Layout() {
     fetchInspectionSettings();
   }, []);
 
+  // 챗봇 위젯(XRB/NB): 로그인한 마스터 계정에서만 동적 로드. Layout 은 로그인 후에만 렌더되므로 '로그인 후 작동' 보장.
+  useEffect(() => {
+    const isMasterUser = !!user?.email && MASTER_ACCOUNTS.includes(user.email);
+    if (!isMasterUser || window.__crmChatbotLoaded) return;
+    window.__crmChatbotLoaded = true;
+
+    const base = process.env.PUBLIC_URL || '';
+    const loadWidget = (brand, bottom) => new Promise((resolve) => {
+      window.CHATBOT_BRAND = brand;
+      window.CHATBOT_OFFSET_RIGHT = 24;
+      window.CHATBOT_OFFSET_BOTTOM = bottom;
+      const s = document.createElement('script');
+      s.src = `${base}/chatbot.js`;
+      s.async = false;
+      s.dataset.crmChatbot = '1';
+      s.onload = resolve;
+      s.onerror = resolve;
+      document.body.appendChild(s);
+    });
+    // 순차 주입(브랜드 전역값을 각 스크립트 실행 시점에 정확히 읽도록)
+    (async () => { await loadWidget('xrb', 24); await loadWidget('nb', 90); })();
+
+    return () => {
+      // 로그아웃/계정전환 시 위젯 제거 (비마스터 노출 방지)
+      ['__chatbot_xrb__', '__chatbot_nb__'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.remove();
+      });
+      document.querySelectorAll('script[data-crm-chatbot]').forEach((s) => s.remove());
+      window.__crmChatbotLoaded = false;
+    };
+  }, [user]);
+
   const handleMenuClick = (item) => {
     if (item.children) {
       setOpenSubMenus(prev => ({ ...prev, [item.key]: !prev[item.key] }));
