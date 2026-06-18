@@ -59,10 +59,12 @@ module.exports = function(supabaseAdmin, cafe24Router) {
 
   console.log('[Cron] 백그라운드 스케줄러(cronJobs)가 활성화되었습니다. (주기: 매 30분)');
 
-  // 매일 새벽 4시 0분에 데이터베이스 백업 실행
-  cron.schedule('0 4 * * *', async () => {
-    console.log('[Cron Job] 자동 데이터 백업 스케줄러를 시작합니다.');
-    await executeBackup(supabaseAdmin);
-  });
-  console.log('[Cron] 자동 백업 스케줄러가 활성화되었습니다. (주기: 매일 새벽 4시)');
+  // [비활성화] 자동 백업은 GitHub Actions(.github/workflows/daily-backup.yml, scripts/supabase-backup.js)가
+  // 매일 R2(crm-img/database_backups/)로 수행하고 backup_history에 기록한다.
+  // 이 서버 cron 은 버킷명(crm-storage) 불일치로 실패하던 중복 경로라 비활성화함.
+  // cron.schedule('0 4 * * *', async () => {
+  //   console.log('[Cron Job] 자동 데이터 백업 스케줄러를 시작합니다.');
+  //   await executeBackup(supabaseAdmin);
+  // });
+  console.log('[Cron] 자동 백업은 GitHub Actions가 담당(서버 cron 백업 비활성화).');
 };

@@ -121,6 +121,24 @@ async function runBackup() {
     console.error("❌ R2 업로드 실패:", error);
     process.exit(1);
   }
+
+  // 백업 이력 기록 (CRM 백업 화면 표시용). 자동 백업은 master 계정 명의로 기록.
+  // 실패해도 백업 자체엔 영향 없도록 별도 try/catch.
+  try {
+    await supabase.from('backup_history').insert({
+      user_id: 'e387e888-ae0d-465a-9ffb-2323f4e3f733', // master@slimpack.com
+      backup_type: 'scheduled',
+      file_name: fileName,
+      cloudflare_r2_file_id: fileName,
+      file_size: Buffer.byteLength(fileContent),
+      total_tables: backupData.metadata.totalTables,
+      total_records: totalRecords,
+      status: 'success'
+    });
+    console.log('📝 backup_history 기록 완료');
+  } catch (histErr) {
+    console.error('⚠️ backup_history 기록 실패(백업 자체는 성공):', histErr.message);
+  }
 }
 
 runBackup();
