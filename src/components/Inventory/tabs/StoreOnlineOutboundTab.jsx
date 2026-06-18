@@ -32,8 +32,8 @@ function StoreOnlineOutboundTab() {
   const [logs, setLogs] = useState([]);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [alertState, setAlertState] = useState({ show: false, type: 'info', message: '' });
-  // 전역 검수 설정(inspection_settings.shipment_enabled). 기본 true(안전: 로드 실패 시 검수 요구)
-  const [isInspectionEnabled, setIsInspectionEnabled] = useState(true);
+  // 전역 검수 설정(inspection_settings.shipment_enabled). 기본 false(로드 실패 시 출고가 막히지 않게)
+  const [isInspectionEnabled, setIsInspectionEnabled] = useState(false);
 
   const inputRef = useRef(null);
 
