@@ -495,7 +495,7 @@ function StoreOnlineOutboundTab() {
                         </Button>
                       )}
                       <Button variant="contained" color="primary" size="large" onClick={handleConfirm} disabled={isInspectionEnabled && totalScanned === 0}>
-                        선택건 출고 확정{!isInspectionEnabled ? ' (검수 미사용)' : ''}
+                        선택건 출고 확정
                       </Button>
                     </Box>
                   </Paper>
