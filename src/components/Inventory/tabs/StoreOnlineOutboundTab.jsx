@@ -20,6 +20,7 @@ import { supabase } from '../../../lib/supabaseClient';
 import { processShipmentCompletion, processServiceCompletion } from '../../../utils/inventoryUtils';
 import { useAuth } from '../../../contexts/AuthContext';
 import { MASTER_ACCOUNTS } from '../../../config/menuConfig';
+import { getAppSetting } from '../../../api/settingsApi';
 
 function StoreOnlineOutboundTab() {
   const { user } = useAuth();
@@ -31,7 +32,9 @@ function StoreOnlineOutboundTab() {
   const [logs, setLogs] = useState([]);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [alertState, setAlertState] = useState({ show: false, type: 'info', message: '' });
-  
+  // 전역 검수 설정(inspection_settings.shipment_enabled). 기본 true(안전: 로드 실패 시 검수 요구)
+  const [isInspectionEnabled, setIsInspectionEnabled] = useState(true);
+
   const inputRef = useRef(null);
 
   const fetchData = async () => {
@@ -63,6 +66,12 @@ function StoreOnlineOutboundTab() {
 
   useEffect(() => {
     fetchData();
+    (async () => {
+      try {
+        const { data } = await getAppSetting('inspection_settings');
+        if (data && typeof data.shipment_enabled !== 'undefined') setIsInspectionEnabled(!!data.shipment_enabled);
+      } catch (e) { /* 로드 실패 시 기본 true 유지 */ }
+    })();
   }, []);
 
   const handleToggleOrder = (order) => {
@@ -138,7 +147,7 @@ function StoreOnlineOutboundTab() {
       order.items.every(i => i.scanned === i.expected)
     );
     
-    const confirmMsg = isComplete 
+    const confirmMsg = (!isInspectionEnabled || isComplete)
       ? `선택된 ${selectedOrders.length}건의 출고를 확정하시겠습니까?`
       : '검수되지 않거나 수량이 맞지 않는 항목이 있습니다. 강제 확정/출고하시겠습니까?';
       
@@ -485,8 +494,8 @@ function StoreOnlineOutboundTab() {
                           [관리자] 선택건 강제 출고 (검수패스)
                         </Button>
                       )}
-                      <Button variant="contained" color="primary" size="large" onClick={handleConfirm} disabled={totalScanned === 0}>
-                        선택건 출고 확정
+                      <Button variant="contained" color="primary" size="large" onClick={handleConfirm} disabled={isInspectionEnabled && totalScanned === 0}>
+                        선택건 출고 확정{!isInspectionEnabled ? ' (검수 미사용)' : ''}
                       </Button>
                     </Box>
                   </Paper>
