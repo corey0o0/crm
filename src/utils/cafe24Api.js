@@ -6,25 +6,49 @@ import { supabase } from '../lib/supabaseClient';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 
+// 토큰 갱신 동시호출 합치기(dedup): 여러 cafe24 호출이 동시에 갱신을 부르면 refresh token 회전 충돌로
+// 강제 로그아웃이 나므로, 진행 중인 갱신이 있으면 그 Promise 를 공유한다.
+let _sessionRefreshPromise = null;
+function refreshSessionOnce() {
+  if (!_sessionRefreshPromise) {
+    _sessionRefreshPromise = supabase.auth.refreshSession().finally(() => { _sessionRefreshPromise = null; });
+  }
+  return _sessionRefreshPromise;
+}
+
+// 만료/임박(60초 이내)이면 1회만(dedup) 갱신해 유효 세션 반환.
+// 자동갱신(autoRefreshToken)이 탭 비활성 등으로 지연돼 만료 토큰이 전송되는 것을 방지.
+async function getValidSession() {
+  let { data: { session } } = await supabase.auth.getSession();
+  const nowSec = Math.floor(Date.now() / 1000);
+  const needRefresh = !session?.access_token || (session.expires_at && session.expires_at - nowSec < 60);
+  if (needRefresh) {
+    try {
+      const { data } = await refreshSessionOnce();
+      if (data?.session) session = data.session;
+    } catch (_) { /* 갱신 실패 시 기존 세션으로 시도 */ }
+  }
+  return session;
+}
+
 async function fetchWithAuth(url, options = {}) {
-  // ⚠️ 토큰 갱신은 Supabase autoRefreshToken 에 위임한다.
-  // 수동 refreshSession() 은 자동 갱신과 동시 실행되면 refresh token 회전 충돌
-  // ("Invalid Refresh Token: Refresh Token Not Found")로 강제 로그아웃을 유발하므로 사용하지 않는다.
   const buildHeaders = (s) => ({
     ...options.headers,
     ...(s?.access_token ? { Authorization: `Bearer ${s.access_token}` } : {})
   });
 
-  // getSession() 은 만료 임박 시 자동 갱신된 유효 토큰을 반환한다.
-  const { data: { session } } = await supabase.auth.getSession();
+  let session = await getValidSession();
   let resp = await fetch(url, { ...options, headers: buildHeaders(session) });
 
-  // 401 이면 세션을 한 번 더 읽어(백그라운드 자동 갱신 반영) 토큰이 바뀐 경우에만 1회 재시도.
+  // 401 이면 토큰 만료/회전 가능성 → 1회만(dedup) 강제 갱신 후 토큰이 바뀐 경우 1회 재시도.
   if (resp.status === 401) {
-    const { data: { session: latest } } = await supabase.auth.getSession();
-    if (latest?.access_token && latest.access_token !== session?.access_token) {
-      resp = await fetch(url, { ...options, headers: buildHeaders(latest) });
-    }
+    try {
+      const { data } = await refreshSessionOnce();
+      const fresh = data?.session;
+      if (fresh?.access_token && fresh.access_token !== session?.access_token) {
+        resp = await fetch(url, { ...options, headers: buildHeaders(fresh) });
+      }
+    } catch (_) { /* 갱신 실패 시 원래 응답 반환 */ }
   }
 
   return resp;
