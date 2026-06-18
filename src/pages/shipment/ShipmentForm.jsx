@@ -50,6 +50,8 @@ import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { sendTelegramNotification } from '../../lib/telegram';
 import { processShipmentCompletion, processShipmentRevert } from '../../utils/inventoryUtils';
 import { logAction } from '../../utils/auditLog';
+import { pendingOutboundApi } from '../../api/pendingOutboundApi';
+import { getAppSetting } from '../../api/settingsApi';
 
 
 // 부품 카테고리 자동 결정 함수 (setSelectedCategory 호출 제거, 카테고리 반환)
@@ -149,6 +151,15 @@ function ShipmentForm({ isManualB2B = false }) {
   const { user } = useAuth();
   const isMaster = MASTER_ACCOUNTS.includes(user?.email);
   const [isInspectionEnabled, setIsInspectionEnabled] = useState(false);
+  // 입출고 검수 전역 설정 로드 (수기판매 검수 연결용). 기본 false
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await getAppSetting('inspection_settings');
+        if (data && typeof data.shipment_enabled !== 'undefined') setIsInspectionEnabled(!!data.shipment_enabled);
+      } catch (e) { /* 실패 시 false 유지 */ }
+    })();
+  }, []);
 
   useEffect(() => {
     const fetchGlobalSettings = async () => {
@@ -714,11 +725,14 @@ function ShipmentForm({ isManualB2B = false }) {
       const totalPrice = selectedParts.reduce((sum, part) => sum + calculateTotal(part), 0);
       const combinedProductName = selectedParts.map(p => p.part_name).join(', ');
 
+      // 수기판매 검수 연결: 검수ON + 수기판매(B2B) + 신규 + 비마스터 → 검수큐 경유(부품준비), 검수완료 시 출고완료·매출 반영
+      const routeToInspection = isInspectionEnabled && isManualB2B && !isEditMode && !isMaster;
+
       const shipmentSaveData = {
         brand: shipmentData.brand,
         order_date: shipmentData.order_date,
         shipment_date: shipmentData.shipment_date,
-        status: shipmentData.status,
+        status: routeToInspection ? '부품준비' : shipmentData.status,
         customer_name: (shipmentData.customer_name || '').trim(),
         customer_phone: (shipmentData.customer_phone || '').trim(),
         customer_address: (shipmentData.customer_address || '').trim(),
@@ -803,6 +817,28 @@ function ShipmentForm({ isManualB2B = false }) {
         if (insertPartsError) throw new Error(`부품 정보 저장 중 오류: ${insertPartsError.message} `);
       }
 
+      // ==== 수기판매 검수 연결: 검수큐로 전송 (재고 차감은 검수완료 시 스캔탭에서 처리) ====
+      if (routeToInspection && shipmentId) {
+        try {
+          await pendingOutboundApi.create({
+            order_no: `MS-${String(shipmentId).slice(0, 8).toUpperCase()}`,
+            type: '수기판매 출고',
+            source_id: shipmentId,
+            status: '대기',
+            items: selectedParts.map(p => ({
+              part_id: p.id,
+              name: p.part_name,
+              code: p.part_code || '',
+              barcode: p.part_code || '',
+              expected_qty: p.quantity || 1
+            }))
+          });
+        } catch (poErr) {
+          console.error('[수기판매 검수큐 등록 실패]:', poErr);
+          throw new Error('검수 대기열 등록 중 오류: ' + poErr.message);
+        }
+      }
+
       // ==== 매장/일반 출고 재고 차감 (수불부 동기화) ====
       if (shipmentId && isNowCompleted) {
         const deductResult = await processShipmentCompletion(shipmentId, shipmentSaveData.brand);
@@ -821,7 +857,9 @@ function ShipmentForm({ isManualB2B = false }) {
       // 등록 성공 후 알림 추가
       setSnackbar({
         open: true,
-        message: isEditMode ? '출고 정보가 수정되었습니다.' : '출고 정보가 등록되었습니다.',
+        message: routeToInspection
+          ? '검수 대기열에 등록되었습니다. 검수 완료 시 출고/매출이 반영됩니다.'
+          : (isEditMode ? '출고 정보가 수정되었습니다.' : '출고 정보가 등록되었습니다.'),
         severity: 'success'
       });
 
