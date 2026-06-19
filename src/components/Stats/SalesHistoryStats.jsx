@@ -938,7 +938,11 @@ function SalesHistoryStats() {
       titleRow.getCell(1).font = { bold: true, size: 13 };
       summarySheet.addRow([]);
 
-      const hRow = summarySheet.addRow(['매출 구분', '판매처', '상품명', '수량', '원가 총액', '판매 금액', '영업이익', '이익률(%)']);
+      // 비마스터는 원가/영업이익/이익률 컬럼 제외 (원가 노출 방지)
+      const summaryHeader = isMaster
+        ? ['매출 구분', '판매처', '상품명', '수량', '원가 총액', '판매 금액', '영업이익', '이익률(%)']
+        : ['매출 구분', '판매처', '상품명', '수량', '판매 금액'];
+      const hRow = summarySheet.addRow(summaryHeader);
       hRow.eachCell(cell => {
         cell.font = { bold: true };
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
@@ -953,10 +957,16 @@ function SalesHistoryStats() {
         t.brandsArr.forEach(b => {
           b.itemsArr.forEach(item => {
             const pRate = item.amount > 0 ? ((item.profit / item.amount) * 100).toFixed(1) : '0.0';
-            addBorder(summarySheet.addRow([t.customerType, b.brand, item.name, item.quantity, item.cost, item.amount, item.profit, Number(pRate)]));
+            const itemRow = isMaster
+              ? [t.customerType, b.brand, item.name, item.quantity, item.cost, item.amount, item.profit, Number(pRate)]
+              : [t.customerType, b.brand, item.name, item.quantity, item.amount];
+            addBorder(summarySheet.addRow(itemRow));
           });
           const bRate = b.subtotalAmt > 0 ? ((b.subtotalProfit / b.subtotalAmt) * 100).toFixed(1) : '0.0';
-          const bSubRow = summarySheet.addRow([t.customerType, `[${b.brand} 소계]`, '', b.subtotalQty, b.subtotalCost, b.subtotalAmt, b.subtotalProfit, Number(bRate)]);
+          const bSubData = isMaster
+            ? [t.customerType, `[${b.brand} 소계]`, '', b.subtotalQty, b.subtotalCost, b.subtotalAmt, b.subtotalProfit, Number(bRate)]
+            : [t.customerType, `[${b.brand} 소계]`, '', b.subtotalQty, b.subtotalAmt];
+          const bSubRow = summarySheet.addRow(bSubData);
           bSubRow.eachCell(cell => {
             cell.font = { bold: true };
             cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F8E9' } };
@@ -964,7 +974,10 @@ function SalesHistoryStats() {
           });
         });
         const tRate = t.totalAmt > 0 ? ((t.totalProfit / t.totalAmt) * 100).toFixed(1) : '0.0';
-        const tTotalRow = summarySheet.addRow([`[${t.customerType} 합계]`, '', '', t.totalQty, t.totalCost, t.totalAmt, t.totalProfit, Number(tRate)]);
+        const tTotalData = isMaster
+          ? [`[${t.customerType} 합계]`, '', '', t.totalQty, t.totalCost, t.totalAmt, t.totalProfit, Number(tRate)]
+          : [`[${t.customerType} 합계]`, '', '', t.totalQty, t.totalAmt];
+        const tTotalRow = summarySheet.addRow(tTotalData);
         tTotalRow.eachCell(cell => {
           cell.font = { bold: true };
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF9C4' } };
@@ -974,10 +987,14 @@ function SalesHistoryStats() {
       });
 
       // 숫자 컬럼 포맷
-      summarySheet.getColumn(5).numFmt = '#,##0';
-      summarySheet.getColumn(6).numFmt = '#,##0';
-      summarySheet.getColumn(7).numFmt = '#,##0';
-      summarySheet.getColumn(8).numFmt = '0.0"%"';
+      if (isMaster) {
+        summarySheet.getColumn(5).numFmt = '#,##0';
+        summarySheet.getColumn(6).numFmt = '#,##0';
+        summarySheet.getColumn(7).numFmt = '#,##0';
+        summarySheet.getColumn(8).numFmt = '0.0"%"';
+      } else {
+        summarySheet.getColumn(5).numFmt = '#,##0';
+      }
 
       summarySheet.columns.forEach(col => {
         let max = 10;
@@ -990,7 +1007,11 @@ function SalesHistoryStats() {
 
       // ── Sheet 2: 원본 데이터 ───────────────────────────────────────
       const rawSheet = workbook.addWorksheet('판매 원본 데이터');
-      const rawHRow = rawSheet.addRow(['날짜', '유형', '판매처', '고객명', '상품명', '카테고리', '브랜드', '수량', '매출', '원가']);
+      // 비마스터는 원가 컬럼 제외 (원가 노출 방지)
+      const rawHeader = isMaster
+        ? ['날짜', '유형', '판매처', '고객명', '상품명', '카테고리', '브랜드', '수량', '매출', '원가']
+        : ['날짜', '유형', '판매처', '고객명', '상품명', '카테고리', '브랜드', '수량', '매출'];
+      const rawHRow = rawSheet.addRow(rawHeader);
       rawHRow.eachCell(cell => {
         cell.font = { bold: true };
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
@@ -999,7 +1020,7 @@ function SalesHistoryStats() {
 
       currentFiltered.forEach(r => {
         const typeLabel = r._type === 'service' ? 'A/S' : r._type === 'cafe24' ? '온라인' : '출고';
-        const row = rawSheet.addRow([
+        const rawData = [
           r.date_val ? r.date_val.slice(0, 10) : '-',
           typeLabel,
           getSalesChannelName(r),
@@ -1008,16 +1029,17 @@ function SalesHistoryStats() {
           r.part_category || '-',
           r.part_brand || '-',
           Number(r.quantity || 0),
-          Number(r.total_price || 0),
-          Number(r.total_cost || 0)
-        ]);
+          Number(r.total_price || 0)
+        ];
+        if (isMaster) rawData.push(Number(r.total_cost || 0));
+        const row = rawSheet.addRow(rawData);
         row.eachCell(cell => {
           cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
         });
       });
 
       rawSheet.getColumn(9).numFmt = '#,##0';
-      rawSheet.getColumn(10).numFmt = '#,##0';
+      if (isMaster) rawSheet.getColumn(10).numFmt = '#,##0';
       rawSheet.columns.forEach(col => {
         let max = 10;
         col.eachCell({ includeEmpty: true }, cell => {

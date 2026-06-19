@@ -17,6 +17,8 @@ import { supabase } from '../../lib/supabaseClient';
 import { format, parseISO, startOfMonth, endOfMonth, eachMonthOfInterval, subMonths, differenceInDays } from 'date-fns';
 import { groupServicesByKeyword } from '../../utils/symptomTagUtils';
 import { generateCorrelationInsights } from '../../utils/aiAnalysisUtils';
+import { useAuth } from '../../contexts/AuthContext';
+import { MASTER_ACCOUNTS } from '../../config/menuConfig';
 
 const COLORS = ['#1976d2', '#2e7d32', '#ed6c02', '#9c27b0', '#d32f2f', '#0288d1', '#558b2f'];
 const COMPLETED_STATUSES = ['출고완료', '완료', '수령완료'];
@@ -48,6 +50,8 @@ const calcRange = (months) => {
 };
 
 function ServiceStats() {
+  const { user } = useAuth();
+  const isMaster = user?.email && MASTER_ACCOUNTS.includes(user.email);
   const [loading, setLoading] = useState(true);
   const [selectedBrand, setSelectedBrand] = useState('전체');
   const [tabValue, setTabValue] = useState(0);
@@ -446,8 +450,8 @@ function ServiceStats() {
                           <TableCell>부품명</TableCell>
                           <TableCell align="right">수량</TableCell>
                           <TableCell align="right">매출</TableCell>
-                          <TableCell align="right">원가</TableCell>
-                          <TableCell align="right">이익</TableCell>
+                          {isMaster && <TableCell align="right">원가</TableCell>}
+                          {isMaster && <TableCell align="right">이익</TableCell>}
                         </TableRow>
                       </TableHead>
                       <TableBody>
@@ -456,10 +460,12 @@ function ServiceStats() {
                             <TableCell sx={{ fontSize: 12 }}>{p.name}</TableCell>
                             <TableCell align="right">{p.count}개</TableCell>
                             <TableCell align="right">{fmt(p.revenue)}원</TableCell>
-                            <TableCell align="right" sx={{ color: 'text.secondary', fontSize: 11 }}>{fmt(p.cost)}원</TableCell>
+                            {isMaster && <TableCell align="right" sx={{ color: 'text.secondary', fontSize: 11 }}>{fmt(p.cost)}원</TableCell>}
+                            {isMaster && (
                             <TableCell align="right" sx={{ color: p.revenue - p.cost >= 0 ? 'success.main' : 'error.main' }}>
                               {fmt(p.revenue - p.cost)}원
                             </TableCell>
+                            )}
                           </TableRow>
                         ))}
                       </TableBody>
@@ -591,9 +597,9 @@ function ServiceStats() {
                       <TableCell>유형</TableCell>
                       <TableCell align="right">건수</TableCell>
                       <TableCell align="right">매출</TableCell>
-                      <TableCell align="right">원가</TableCell>
-                      <TableCell align="right">이익</TableCell>
-                      <TableCell align="right">마진율</TableCell>
+                      {isMaster && <TableCell align="right">원가</TableCell>}
+                      {isMaster && <TableCell align="right">이익</TableCell>}
+                      {isMaster && <TableCell align="right">마진율</TableCell>}
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -602,11 +608,13 @@ function ServiceStats() {
                         <TableCell>{r.type || '미분류'}</TableCell>
                         <TableCell align="right">{r.count}건</TableCell>
                         <TableCell align="right">{fmt(r.revenue)}원</TableCell>
-                        <TableCell align="right" sx={{ color: 'text.secondary', fontSize: 11 }}>{fmt(r.cost)}원</TableCell>
+                        {isMaster && <TableCell align="right" sx={{ color: 'text.secondary', fontSize: 11 }}>{fmt(r.cost)}원</TableCell>}
+                        {isMaster && (
                         <TableCell align="right" sx={{ color: r.profit >= 0 ? 'success.main' : 'error.main', fontWeight: 'bold' }}>
                           {fmt(r.profit)}원
                         </TableCell>
-                        <TableCell align="right">{r.margin}%</TableCell>
+                        )}
+                        {isMaster && <TableCell align="right">{r.margin}%</TableCell>}
                       </TableRow>
                     ))}
                     {profitabilityStats.length > 0 && (
@@ -614,13 +622,17 @@ function ServiceStats() {
                         <TableCell><b>합계</b></TableCell>
                         <TableCell align="right"><b>{profitabilityStats.reduce((s, r) => s + r.count, 0)}건</b></TableCell>
                         <TableCell align="right"><b>{fmt(profitabilityStats.reduce((s, r) => s + r.revenue, 0))}원</b></TableCell>
+                        {isMaster && (
                         <TableCell align="right" sx={{ color: 'text.secondary', fontSize: 11 }}>
                           {fmt(profitabilityStats.reduce((s, r) => s + r.cost, 0))}원
                         </TableCell>
+                        )}
+                        {isMaster && (
                         <TableCell align="right" sx={{ color: 'success.main', fontWeight: 'bold' }}>
                           {fmt(profitabilityStats.reduce((s, r) => s + r.profit, 0))}원
                         </TableCell>
-                        <TableCell />
+                        )}
+                        {isMaster && <TableCell />}
                       </TableRow>
                     )}
                   </TableBody>

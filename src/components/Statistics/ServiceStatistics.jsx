@@ -39,6 +39,8 @@ import {
   Cell
 } from 'recharts';
 import { supabase } from '../../lib/supabaseClient';
+import { useAuth } from '../../contexts/AuthContext';
+import { MASTER_ACCOUNTS } from '../../config/menuConfig';
 import { startOfWeek, endOfWeek, format, parseISO, addDays } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -48,6 +50,8 @@ import CalendarViewWeekIcon from '@mui/icons-material/CalendarViewWeek';
 import CalendarViewMonthIcon from '@mui/icons-material/CalendarViewMonth';
 
 function ServiceStatistics() {
+  const { user } = useAuth();
+  const isMaster = user?.email && MASTER_ACCOUNTS.includes(user.email);
   const theme = useTheme();
   const [selectedBrand, setSelectedBrand] = useState('XRB');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -262,18 +266,24 @@ function ServiceStatistics() {
     
     let csvContent = "data:text/csv;charset=utf-8,";
     
-    // 헤더 추가
-    csvContent += "기간,건수,파츠매출,파츠비용,공임,총매출,순이익,이익률\n";
-    
+    // 헤더 추가 (비마스터는 원가/순이익/이익률 제외)
+    csvContent += isMaster
+      ? "기간,건수,파츠매출,파츠비용,공임,총매출,순이익,이익률\n"
+      : "기간,건수,파츠매출,공임,총매출\n";
+
     // 데이터 행 추가
     data.forEach(row => {
-      const period = viewMode === 'monthly' ? `${row.month}월` : 
-                    viewMode === 'weekly' ? format(parseISO(row.week.split('~')[0]), 'MM/dd') : 
+      const period = viewMode === 'monthly' ? `${row.month}월` :
+                    viewMode === 'weekly' ? format(parseISO(row.week.split('~')[0]), 'MM/dd') :
                     format(parseISO(row.date), 'MM/dd');
-      const profit = row.totalProfit;
-      const margin = row.totalRevenue ? ((row.totalProfit / row.totalRevenue) * 100).toFixed(1) : 0;
-      
-      csvContent += `${period},${row.count},${row.partsRevenue},${row.partsCost},${row.laborRevenue},${row.totalRevenue},${profit},${margin}%\n`;
+
+      if (isMaster) {
+        const profit = row.totalProfit;
+        const margin = row.totalRevenue ? ((row.totalProfit / row.totalRevenue) * 100).toFixed(1) : 0;
+        csvContent += `${period},${row.count},${row.partsRevenue},${row.partsCost},${row.laborRevenue},${row.totalRevenue},${profit},${margin}%\n`;
+      } else {
+        csvContent += `${period},${row.count},${row.partsRevenue},${row.laborRevenue},${row.totalRevenue}\n`;
+      }
     });
     
     const encodedUri = encodeURI(csvContent);
@@ -525,12 +535,16 @@ function ServiceStatistics() {
                   {profitAnalysis.partsRevenue?.toLocaleString()}원
                 </Typography>
               </Box>
+              {isMaster && (
               <Box sx={{ mb: 2 }}>
                 <Typography variant="body2" color="textSecondary">비용</Typography>
                 <Typography variant="h5" color="error">
                   {profitAnalysis.partsCost?.toLocaleString()}원
                 </Typography>
               </Box>
+              )}
+              {isMaster && (
+              <>
               <Divider sx={{ my: 2 }} />
               <Box>
                 <Typography variant="body2" color="textSecondary">순이익</Typography>
@@ -538,6 +552,8 @@ function ServiceStatistics() {
                   {(profitAnalysis.partsRevenue - profitAnalysis.partsCost)?.toLocaleString()}원
                 </Typography>
               </Box>
+              </>
+              )}
             </CardContent>
           </Card>
         </Grid>
@@ -571,23 +587,29 @@ function ServiceStatistics() {
                   {profitAnalysis.totalRevenue?.toLocaleString()}원
                 </Typography>
               </Box>
+              {isMaster && (
               <Box sx={{ mb: 2 }}>
                 <Typography variant="body2" color="textSecondary">순이익</Typography>
                 <Typography variant="h5" color="success.main">
                   {profitAnalysis.totalProfit?.toLocaleString()}원
                 </Typography>
               </Box>
+              )}
+              {isMaster && (
+              <>
               <Divider sx={{ my: 2 }} />
               <Box>
                 <Typography variant="body2" color="textSecondary">이익률</Typography>
                 <Typography variant="h5" color={
-                  profitAnalysis.totalRevenue && ((profitAnalysis.totalProfit / profitAnalysis.totalRevenue) * 100) > 20 
-                    ? 'success.main' 
+                  profitAnalysis.totalRevenue && ((profitAnalysis.totalProfit / profitAnalysis.totalRevenue) * 100) > 20
+                    ? 'success.main'
                     : 'warning.main'
                 }>
                   {profitAnalysis.totalRevenue ? ((profitAnalysis.totalProfit / profitAnalysis.totalRevenue) * 100).toFixed(1) : '0.0'}%
                 </Typography>
               </Box>
+              </>
+              )}
             </CardContent>
           </Card>
         </Grid>
@@ -613,11 +635,11 @@ function ServiceStatistics() {
                 <TableCell>{viewMode === 'daily' ? '날짜' : viewMode === 'weekly' ? '주차' : '월'}</TableCell>
                 <TableCell align="right">건수</TableCell>
                 <TableCell align="right">파츠 매출</TableCell>
-                <TableCell align="right">파츠 비용</TableCell>
+                {isMaster && <TableCell align="right">파츠 비용</TableCell>}
                 <TableCell align="right">공임</TableCell>
                 <TableCell align="right">총 매출</TableCell>
-                <TableCell align="right">순이익</TableCell>
-                <TableCell align="right">이익률</TableCell>
+                {isMaster && <TableCell align="right">순이익</TableCell>}
+                {isMaster && <TableCell align="right">이익률</TableCell>}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -633,20 +655,22 @@ function ServiceStatistics() {
                   </TableCell>
                   <TableCell align="right">{row.count}건</TableCell>
                   <TableCell align="right">{row.partsRevenue?.toLocaleString()}원</TableCell>
-                  <TableCell align="right">{row.partsCost?.toLocaleString()}원</TableCell>
+                  {isMaster && <TableCell align="right">{row.partsCost?.toLocaleString()}원</TableCell>}
                   <TableCell align="right">{row.laborRevenue?.toLocaleString()}원</TableCell>
                   <TableCell align="right">{row.totalRevenue?.toLocaleString()}원</TableCell>
-                  <TableCell align="right">{row.totalProfit?.toLocaleString()}원</TableCell>
-                  <TableCell 
+                  {isMaster && <TableCell align="right">{row.totalProfit?.toLocaleString()}원</TableCell>}
+                  {isMaster && (
+                  <TableCell
                     align="right"
                     sx={{
-                      color: row.totalRevenue && ((row.totalProfit / row.totalRevenue) * 100) > 20 
-                        ? 'success.main' 
+                      color: row.totalRevenue && ((row.totalProfit / row.totalRevenue) * 100) > 20
+                        ? 'success.main'
                         : 'warning.main'
                     }}
                   >
                     {row.totalRevenue ? ((row.totalProfit / row.totalRevenue) * 100).toFixed(1) : 0}%
                   </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>

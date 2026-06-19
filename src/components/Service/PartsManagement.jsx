@@ -82,7 +82,8 @@ const PartsFormDialog = memo(({
   brands,
   getNextPartCode,
   getNextBarcode,
-  existingParts = []
+  existingParts = [],
+  isMaster = false
 }) => {
   const [formData, setFormData] = useState({
     name: '',
@@ -512,6 +513,7 @@ const PartsFormDialog = memo(({
             />
             {renderVatButtons('price')}
           </Grid>
+          {isMaster && (
           <Grid item xs={12} sm={6} md={3}>
             <TextField
               fullWidth
@@ -523,6 +525,7 @@ const PartsFormDialog = memo(({
             />
             {renderVatButtons('costPrice')}
           </Grid>
+          )}
           <Grid item xs={12} sm={6} md={3}>
             <TextField
               fullWidth
@@ -1243,7 +1246,8 @@ function PartsManagement() {
         code: code ? String(code).trim() : '',
         name: String(name).trim(),
         name_en: String(name_en).trim(),
-        cost_price: Number(String(cost_price).replace(/[^0-9]/g, '') || 0),
+        // 비마스터는 원가(cost_price)를 import하지 않음 (기존 값 보존)
+        ...(isMaster ? { cost_price: Number(String(cost_price).replace(/[^0-9]/g, '') || 0) } : {}),
         supply_price: Number(String(supply_price).replace(/[^0-9]/g, '') || 0),
         special_price: Number(String(special_price).replace(/[^0-9]/g, '') || 0),
         price: Number(String(price).replace(/[^0-9]/g, '') || 0),
@@ -1524,7 +1528,7 @@ function PartsManagement() {
         '코드': 'XL-001',
         '제품명': '컴프레서',
         '영문명': 'Compressor',
-        '원가': 80000,
+        ...(isMaster ? { '원가': 80000 } : {}),
         '공급가': 100000,
         '특별공급가': 95000,
         '판매가': 150000,
@@ -1536,7 +1540,7 @@ function PartsManagement() {
         '코드': 'NB-001',
         '제품명': '필터',
         '영문명': '',
-        '원가': 0,
+        ...(isMaster ? { '원가': 0 } : {}),
         '공급가': 0,
         '특별공급가': 0,
         '판매가': 0,
@@ -1550,7 +1554,7 @@ function PartsManagement() {
       { label: '코드', key: '코드' },
       { label: '제품명', key: '제품명' },
       { label: '영문명', key: '영문명' },
-      { label: '원가', key: '원가' },
+      ...(isMaster ? [{ label: '원가', key: '원가' }] : []),
       { label: '공급가', key: '공급가' },
       { label: '특별공급가', key: '특별공급가' },
       { label: '판매가', key: '판매가' },
@@ -1572,7 +1576,7 @@ function PartsManagement() {
       '코드': part.code || '',
       '제품명': part.name || '',
       '영문명': part.name_en || '',
-      '원가': Number(part.cost_price) || 0,
+      ...(isMaster ? { '원가': Number(part.cost_price) || 0 } : {}),
       '공급가': Number(part.supply_price) || 0,
       '특별공급가': Number(part.special_price) || 0,
       '판매가': Number(part.price) || 0,
@@ -1586,7 +1590,7 @@ function PartsManagement() {
       { label: '코드', key: '코드' },
       { label: '제품명', key: '제품명' },
       { label: '영문명', key: '영문명' },
-      { label: '원가', key: '원가' },
+      ...(isMaster ? [{ label: '원가', key: '원가' }] : []),
       { label: '공급가', key: '공급가' },
       { label: '특별공급가', key: '특별공급가' },
       { label: '판매가', key: '판매가' },
@@ -1905,6 +1909,12 @@ function PartsManagement() {
     if (batchEditMode === 'percent' && (value < 0 || value > 200)) {
        showSnackbar('유효한 퍼센트 범위를 입력해주세요 (0~200).', 'warning');
        return;
+    }
+
+    // 비마스터는 원가(cost_price) 일괄 수정 불가
+    if (batchEditTarget === 'cost_price' && !isMaster) {
+      showSnackbar('원가 수정 권한이 없습니다.', 'warning');
+      return;
     }
 
     try {
@@ -2600,6 +2610,7 @@ function PartsManagement() {
         getNextPartCode={getNextPartCode}
         getNextBarcode={getNextBarcode}
         existingParts={parts}
+        isMaster={isMaster}
       />
 
       <Snackbar
@@ -2804,7 +2815,7 @@ function PartsManagement() {
           <FormControl component="fieldset" sx={{ width: '100%', mb: 3 }}>
             <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>적용 대상 선택</Typography>
             <RadioGroup row value={batchEditTarget} onChange={(e) => setBatchEditTarget(e.target.value)}>
-              <FormControlLabel value="cost_price" control={<Radio />} label="매입가" />
+              {isMaster && <FormControlLabel value="cost_price" control={<Radio />} label="매입가" />}
               <FormControlLabel value="supply_price" control={<Radio />} label="공급가" />
               <FormControlLabel value="special_price" control={<Radio />} label="특별 공급가" />
             </RadioGroup>
