@@ -994,6 +994,9 @@
 
   // ─── INIT ─────────────────────────────────────────────────────────────────
   function init() {
+    // 중복 생성 방지: 같은 브랜드 위젯 host 가 이미 있으면 재초기화하지 않음
+    // (스크립트가 두 번 실행돼도 버튼/창이 복제되지 않도록 멱등 보장)
+    if (document.getElementById(`__chatbot_${BRAND_KEY}__`)) return;
     const host = document.createElement('div');
     host.id = `__chatbot_${BRAND_KEY}__`;
     document.body.appendChild(host);

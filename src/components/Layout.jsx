@@ -233,7 +233,10 @@ function Layout() {
       document.querySelectorAll('script[data-crm-chatbot]').forEach((s) => s.remove());
       window.__crmChatbotLoaded = false;
     };
-  }, [user]);
+    // 의존성은 이메일(계정)만: user 객체 참조가 토큰 갱신/리렌더로 바뀌어도
+    // 위젯을 teardown→재로드 하지 않도록 해 중복(복제) 생성 경쟁을 방지.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.email]);
 
   const handleMenuClick = (item) => {
     if (item.children) {
