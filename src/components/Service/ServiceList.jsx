@@ -82,6 +82,32 @@ import { logAction } from '../../utils/auditLog';
 // KST 변환 함수 추가
 // function toKST(dateString) { ... } // 삭제
 
+// 반품/취소 수량 파싱 (ServiceDetail.getReturnedQty와 동일 규칙)
+// usage 문자열에 [반품완료] 포함 시 전체 반품(-1), [부분반품:N개] 포함 시 부분 반품 수량 합산
+const getReturnedQty = (usage) => {
+  if (!usage) return 0;
+  if (usage.includes('[반품완료]')) return -1; // -1: 전체 반품
+  let rQty = 0;
+  if (usage.includes('[부분반품:')) {
+    const matches = usage.match(/\[부분반품:(\d+)개\]/g);
+    if (matches) {
+      matches.forEach(m => {
+        const qMatch = m.match(/\[부분반품:(\d+)개\]/);
+        if (qMatch) rQty += parseInt(qMatch[1], 10);
+      });
+    }
+  }
+  return rQty;
+};
+
+// 사용부품 실결제 합계 계산 (반품/취소 수량 제외)
+const calcActivePartsTotal = (parts) =>
+  (parts || []).reduce((sum, sp) => {
+    const rQty = getReturnedQty(sp.usage);
+    const effectiveQty = rQty === -1 ? 0 : Math.max(0, (Number(sp.quantity) || 1) - rQty);
+    return sum + (Number(sp.price) || 0) * effectiveQty;
+  }, 0);
+
 // 개발 모드 전용 디버그 로그
 const ENABLE_DEBUG_LOGS = false;
 const debugLog = (...args) => {
@@ -1899,16 +1925,22 @@ function ServiceList() {
               title={
                 <Box>
                   <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>사용부품</Typography>
-                  {row.service_parts.map((sp, idx) => (
-                    <Typography key={idx} variant="body2" sx={{ whiteSpace: 'nowrap' }}>
-                      {sp.parts?.name || '-'} : {sp.price?.toLocaleString() || 0}원 × {sp.quantity ?? 1}
-                    </Typography>
-                  ))}
+                  {row.service_parts.map((sp, idx) => {
+                    const rQty = getReturnedQty(sp.usage);
+                    const isFullReturn = rQty === -1;
+                    return (
+                      <Typography
+                        key={idx}
+                        variant="body2"
+                        sx={{ whiteSpace: 'nowrap', textDecoration: isFullReturn ? 'line-through' : 'none', opacity: isFullReturn ? 0.6 : 1 }}
+                      >
+                        {sp.parts?.name || '-'} : {sp.price?.toLocaleString() || 0}원 × {sp.quantity ?? 1}
+                        {isFullReturn ? ' (취소)' : rQty > 0 ? ` (부분취소 ${rQty}개)` : ''}
+                      </Typography>
+                    );
+                  })}
                   <Typography variant="body2" sx={{ fontWeight: 900, color: '#fff', mt: 1 }}>
-                    합계: {row.service_parts.reduce((sum, sp) => {
-                      const partTotal = (sp.price || 0) * (sp.quantity ?? 1);
-                      return sum + partTotal;
-                    }, 0).toLocaleString()}원
+                    합계: {calcActivePartsTotal(row.service_parts).toLocaleString()}원
                   </Typography>
                 </Box>
               }
@@ -2188,16 +2220,22 @@ function ServiceList() {
                 title={
                   <Box>
                     <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>사용부품</Typography>
-                    {row.service_parts.map((sp, idx) => (
-                      <Typography key={idx} variant="body2" sx={{ whiteSpace: 'nowrap' }}>
-                        {sp.parts?.name || '-'} : {sp.price?.toLocaleString() || 0}원 × {sp.quantity ?? 1}
-                      </Typography>
-                    ))}
+                    {row.service_parts.map((sp, idx) => {
+                      const rQty = getReturnedQty(sp.usage);
+                      const isFullReturn = rQty === -1;
+                      return (
+                        <Typography
+                          key={idx}
+                          variant="body2"
+                          sx={{ whiteSpace: 'nowrap', textDecoration: isFullReturn ? 'line-through' : 'none', opacity: isFullReturn ? 0.6 : 1 }}
+                        >
+                          {sp.parts?.name || '-'} : {sp.price?.toLocaleString() || 0}원 × {sp.quantity ?? 1}
+                          {isFullReturn ? ' (취소)' : rQty > 0 ? ` (부분취소 ${rQty}개)` : ''}
+                        </Typography>
+                      );
+                    })}
                     <Typography variant="body2" sx={{ fontWeight: 900, color: '#fff', mt: 1 }}>
-                      합계: {row.service_parts.reduce((sum, sp) => {
-                        const partTotal = (sp.price || 0) * (sp.quantity ?? 1);
-                        return sum + partTotal;
-                      }, 0).toLocaleString()}원
+                      합계: {calcActivePartsTotal(row.service_parts).toLocaleString()}원
                     </Typography>
                   </Box>
                 }
