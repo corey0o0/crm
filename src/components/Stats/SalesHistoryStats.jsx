@@ -23,6 +23,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import ExcelJS from 'exceljs';
 import { useAuth } from '../../contexts/AuthContext';
 import { MASTER_ACCOUNTS } from '../../config/menuConfig';
+import { downloadExcel } from '../../utils/excelUtils';
 
 const COLORS = ['#1976d2', '#2e7d32', '#ed6c02', '#9c27b0', '#d32f2f', '#0288d1', '#7b1fa2'];
 
@@ -1339,6 +1340,37 @@ function SalesHistoryStats() {
 
   const formatCurrency = (val) => new Intl.NumberFormat('ko-KR').format(val) + '원';
 
+  // 수량 상세 모달 내역 엑셀 다운로드
+  const handleExportQtyDetail = () => {
+    const rows = [...(qtyDetailModal.rows || [])].sort(
+      (a, b) => (a.date_val || '').localeCompare(b.date_val || '')
+    );
+    if (rows.length === 0) return;
+    const exportData = rows.map((r) => ({
+      날짜: r.date_val ? String(r.date_val).slice(0, 10) : '',
+      주문번호: r.order_id || '',
+      고객명: r.customer_name || '',
+      판매처: r.sales_channel || '',
+      상품명: r.part_name || '',
+      수량: r.quantity ?? 0,
+      판매금액: r.total_price || 0,
+    }));
+    const headers = [
+      { label: '날짜', key: '날짜' },
+      { label: '주문번호', key: '주문번호' },
+      { label: '고객명', key: '고객명' },
+      { label: '판매처', key: '판매처' },
+      { label: '상품명', key: '상품명' },
+      { label: '수량', key: '수량' },
+      { label: '판매금액', key: '판매금액' },
+    ];
+    const safeTitle = (qtyDetailModal.title || '판매상세')
+      .replace(/[\\/:*?"<>|[\]]/g, '')
+      .trim();
+    const today = format(new Date(), 'yyyy-MM-dd');
+    downloadExcel(exportData, headers, `${safeTitle}_${today}`);
+  };
+
   // 보고서용 다차원 그룹화 로직 (브랜드별, 대리점별, 종합, 시계열)
     // 개편된 보고서용 다차원 그룹화 로직 (브랜드별, 채널별 종합)
   const { comprehensiveSalesGroups, xrbSalesGroups, nbSalesGroups, comprehensiveInventoryGroups } = React.useMemo(() => {
@@ -2581,8 +2613,18 @@ function SalesHistoryStats() {
 
       {/* 수량 클릭 상세 모달 */}
       <Dialog open={qtyDetailModal.open} onClose={() => setQtyDetailModal({ open: false, title: '', rows: [] })} maxWidth="md" fullWidth>
-        <DialogTitle sx={{ fontWeight: 'bold', borderBottom: '1px solid #e0e0e0' }}>
-          {qtyDetailModal.title} (총 {qtyDetailModal.rows.length}건)
+        <DialogTitle sx={{ fontWeight: 'bold', borderBottom: '1px solid #e0e0e0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+          <span>{qtyDetailModal.title} (총 {qtyDetailModal.rows.length}건)</span>
+          <Button
+            startIcon={<DownloadIcon />}
+            variant="contained"
+            size="small"
+            disabled={qtyDetailModal.rows.length === 0}
+            onClick={handleExportQtyDetail}
+            sx={{ flexShrink: 0 }}
+          >
+            엑셀 다운로드
+          </Button>
         </DialogTitle>
         <DialogContent sx={{ p: 0 }}>
           <TableContainer>
