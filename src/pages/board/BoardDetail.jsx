@@ -165,6 +165,10 @@ function BoardDetail() {
           sx={{
             '& p': { my: 0.5 },
             '& img': { maxWidth: '100%', borderRadius: 1 },
+            // 에디터에서 작성한 표 렌더링(신규 표는 인라인 스타일이 없으므로 여기서 테두리 적용)
+            '& table': { borderCollapse: 'collapse', width: '100%', margin: '8px 0' },
+            '& th, & td': { border: '1px solid #ccc', padding: '8px' },
+            '& th': { background: '#f5f5f5', fontWeight: 600 },
             lineHeight: 1.8
           }}
           dangerouslySetInnerHTML={{

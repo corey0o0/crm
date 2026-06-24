@@ -18,7 +18,7 @@ import {
   Edit as EditIcon,
   Check as CheckIcon
 } from '@mui/icons-material';
-import QuillEditor from '../common/QuillEditor';
+import RichTextEditor from '../common/RichTextEditor';
 import { supabase } from '../../lib/supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -385,19 +385,13 @@ function MemoPanel() {
 
       {/* 에디터 */}
       <Box sx={{ flex: 1, overflow: 'hidden' }}>
-        <QuillEditor
+        <RichTextEditor
+          key={`${memoType}-${selectedMemoTab}`}
           value={currentMemoContent}
           onChange={(value) => handleMemoChange(selectedMemoTab, value)}
-          style={{ height: 'calc(100% - 42px)' }}
-          modules={{
-            toolbar: [
-              [{ header: [1, 2, 3, false] }],
-              ['bold', 'italic', 'underline', 'strike'],
-              [{ list: 'ordered' }, { list: 'bullet' }],
-              [{ color: [] }, { background: [] }],
-              ['clean']
-            ]
-          }}
+          enableTable={false}
+          enableImage={false}
+          minHeight={300}
         />
       </Box>
 

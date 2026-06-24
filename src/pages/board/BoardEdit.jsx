@@ -1,9 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { Box, Paper, Typography, TextField, Button, Stack, LinearProgress } from '@mui/material';
 import { useNavigate, useParams } from 'react-router-dom';
-import QuillEditor from '../../components/common/QuillEditor';
-import DOMPurify from 'dompurify';
+import RichTextEditor from '../../components/common/RichTextEditor';
+import { uploadFileToR2 } from '../../utils/cloudflareR2Utils';
+
+const isImageFile = (name = '') => /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(name);
+
+const escapeHtml = (s = '') =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 function BoardEdit() {
   const { id } = useParams();
@@ -11,31 +16,10 @@ function BoardEdit() {
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [htmlMode, setHtmlMode] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const editorRef = useRef(null);
   const navigate = useNavigate();
-
-  const quillModules = {
-    toolbar: [
-      [{ header: [1, 2, 3, false] }],
-      ['bold', 'italic', 'underline', 'strike'],
-      [{ list: 'ordered' }, { list: 'bullet' }],
-      [{ align: [] }],
-      [{ color: [] }, { background: [] }],
-      ['link'],
-      ['clean']
-    ]
-  };
-
-  const quillFormats = [
-    'header',
-    'bold', 'italic', 'underline', 'strike',
-    'list', 'bullet',
-    'align',
-    'color', 'background',
-    'link'
-  ];
 
   useEffect(() => {
     const loadPost = async () => {
@@ -53,32 +37,10 @@ function BoardEdit() {
     loadPost();
   }, [id]);
 
-  const insertTable = () => {
-    const tableHtml = `
-<table style="border-collapse:collapse;width:100%;margin:8px 0">
-  <thead>
-    <tr>
-      <th style="border:1px solid #ccc;padding:8px;background:#f5f5f5">제목1</th>
-      <th style="border:1px solid #ccc;padding:8px;background:#f5f5f5">제목2</th>
-      <th style="border:1px solid #ccc;padding:8px;background:#f5f5f5">제목3</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td style="border:1px solid #ccc;padding:8px">&nbsp;</td>
-      <td style="border:1px solid #ccc;padding:8px">&nbsp;</td>
-      <td style="border:1px solid #ccc;padding:8px">&nbsp;</td>
-    </tr>
-    <tr>
-      <td style="border:1px solid #ccc;padding:8px">&nbsp;</td>
-      <td style="border:1px solid #ccc;padding:8px">&nbsp;</td>
-      <td style="border:1px solid #ccc;padding:8px">&nbsp;</td>
-    </tr>
-  </tbody>
-</table>
-`;
-    setContent((prev) => (prev || '') + tableHtml);
-    setHtmlMode(true);
+  // 본문 이미지 업로드(툴바 이미지 버튼) → R2
+  const handleImageUpload = async (file) => {
+    const res = await uploadFileToR2(file, 'board');
+    return res?.url || null;
   };
 
   const handleSave = async () => {
@@ -98,6 +60,7 @@ function BoardEdit() {
     }
   };
 
+  // 파일 첨부 → R2 업로드 후 에디터 커서 위치에 삽입(이미지는 <img>, 그 외는 링크)
   const handleFilesSelected = async (e) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
@@ -107,29 +70,29 @@ function BoardEdit() {
       const uploaded = [];
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        const path = `board/${Date.now()}_${Math.random().toString(36).slice(2)}_${file.name}`;
-        const { error } = await supabase.storage.from('receipts').upload(path, file, {
-          cacheControl: '3600',
-          upsert: false
-        });
-        if (error) {
-          console.error('파일 업로드 오류:', error);
-          continue;
-        }
-        const { data: urlData } = await supabase.storage.from('receipts').getPublicUrl(path);
-        if (urlData?.publicUrl) {
-          uploaded.push({ name: file.name, url: urlData.publicUrl, path });
+        try {
+          const res = await uploadFileToR2(file, 'board');
+          if (res?.url) uploaded.push({ name: file.name, url: res.url });
+        } catch (err) {
+          console.error('파일 업로드 오류:', err);
         }
         setUploadProgress(Math.round(((i + 1) / files.length) * 100));
       }
       if (uploaded.length > 0) {
-        const linksHtml = uploaded.map((f) => `<p><a href="${f.url}" target="_blank" rel="noopener noreferrer">${f.name}</a></p>`).join('');
-        setContent((prev) => (prev || '') + DOMPurify.sanitize(linksHtml));
+        const html = uploaded
+          .map((f) =>
+            isImageFile(f.name)
+              ? `<p><img src="${f.url}" alt="${escapeHtml(f.name)}" /></p>`
+              : `<p><a href="${f.url}" target="_blank" rel="noopener noreferrer">${escapeHtml(f.name)}</a></p>`
+          )
+          .join('');
+        editorRef.current?.insertContent(html);
       }
     } catch (err) {
       console.error('첨부 처리 오류:', err);
     } finally {
       setUploading(false);
+      e.target.value = '';
     }
   };
 
@@ -141,42 +104,12 @@ function BoardEdit() {
       <Paper sx={{ p: 2 }}>
         <Stack spacing={2}>
           <TextField label="제목" value={title} onChange={(e) => setTitle(e.target.value)} fullWidth />
-          <Stack direction="row" justifyContent="space-between" alignItems="center">
-            <Typography variant="body2" color="text.secondary">
-              {htmlMode ? 'HTML 원본을 직접 입력합니다.' : '서식 있는 편집기로 작성합니다.'}
-            </Typography>
-            <Stack direction="row" spacing={1}>
-              <Button size="small" variant="outlined" onClick={insertTable}>표 삽입</Button>
-              <Button size="small" variant="outlined" onClick={() => setHtmlMode((v) => !v)}>
-                {htmlMode ? '에디터 모드' : 'HTML 모드'}
-              </Button>
-            </Stack>
-          </Stack>
-          {htmlMode ? (
-            <TextField
-              label="HTML"
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              fullWidth
-              multiline
-              rows={14}
-            />
-          ) : (
-            <Box sx={{
-              '& .ql-editor': { minHeight: 240 },
-              '& .ql-container': { borderBottomLeftRadius: 4, borderBottomRightRadius: 4 },
-              '& .ql-toolbar': { borderTopLeftRadius: 4, borderTopRightRadius: 4 }
-            }}>
-              <QuillEditor
-                theme="snow"
-                value={content}
-                onChange={setContent}
-                modules={quillModules}
-                formats={quillFormats}
-                placeholder="내용을 입력하세요..."
-              />
-            </Box>
-          )}
+          <RichTextEditor
+            ref={editorRef}
+            value={content}
+            onChange={setContent}
+            onImageUpload={handleImageUpload}
+          />
           <Stack direction="row" spacing={1} alignItems="center">
             <Button variant="outlined" component="label">
               파일 첨부

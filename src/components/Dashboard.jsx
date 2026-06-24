@@ -29,7 +29,7 @@ import Snackbar from '@mui/material/Snackbar';
 import MuiAlert from '@mui/material/Alert';
 import Tooltip from '@mui/material/Tooltip';
 import SendIcon from '@mui/icons-material/Send';
-import QuillEditor from './common/QuillEditor';
+import RichTextEditor from './common/RichTextEditor';
 import DOMPurify from 'dompurify';
 
 function Dashboard() {
@@ -964,14 +964,12 @@ function Dashboard() {
                     borderRight: '1px solid #ccc',
                   }
                 }}>
-                  <QuillEditor
+                  <RichTextEditor
                     key={`${memoType}-memo-0`}
-                    ref={quillRefs[0]}
-                    theme="snow"
                     value={memoList[0]?.content || ''}
                     onChange={(content) => handleMemoContentChange(0, content)}
-                    modules={quillModules}
-                    formats={quillFormats}
+                    enableTable={false}
+                    enableImage={false}
                     placeholder="메모를 입력하세요..."
                   />
                 </Box>
@@ -1072,14 +1070,12 @@ function Dashboard() {
                     borderRight: '1px solid #ccc',
                   }
                 }}>
-                  <QuillEditor
+                  <RichTextEditor
                     key={`${memoType}-memo-2`}
-                    ref={quillRefs[2]}
-                    theme="snow"
                     value={memoList[2]?.content || ''}
                     onChange={(content) => handleMemoContentChange(2, content)}
-                    modules={quillModules}
-                    formats={quillFormats}
+                    enableTable={false}
+                    enableImage={false}
                     placeholder="메모를 입력하세요..."
                   />
                 </Box>
@@ -1181,14 +1177,12 @@ function Dashboard() {
                 borderRight: '1px solid #ccc',
               }
             }}>
-              <QuillEditor
+              <RichTextEditor
                 key={`${memoType}-memo-1`}
-                ref={quillRefs[1]}
-                theme="snow"
                 value={memoList[1]?.content || ''}
                 onChange={(content) => handleMemoContentChange(1, content)}
-                modules={quillModules}
-                formats={quillFormats}
+                enableTable={false}
+                enableImage={false}
                 placeholder="메모를 입력하세요..."
               />
             </Box>
