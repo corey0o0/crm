@@ -180,8 +180,18 @@ const RichTextEditor = forwardRef(function RichTextEditor(
   };
 
   useImperativeHandle(ref, () => ({
-    // 비제어 에디터에 외부에서 HTML을 커서 위치에 삽입 (예: 파일 첨부 결과)
-    insertContent: (html) => rteRef.current?.editor?.chain().focus().insertContent(html).run(),
+    // 외부에서 HTML 삽입(파일 첨부 등). HTML 모드면 원본 textarea 끝에, 아니면 에디터 커서에.
+    insertContent: (html) => {
+      if (htmlMode) {
+        setHtmlText((prev) => {
+          const next = (prev || '') + html;
+          onChange?.(next);
+          return next;
+        });
+      } else {
+        rteRef.current?.editor?.chain().focus().insertContent(html).run();
+      }
+    },
     getHTML: () => rteRef.current?.editor?.getHTML() ?? '',
     // 저장용 권위 콘텐츠: HTML 모드면 원본 textarea, 아니면 에디터 HTML
     getContent: () => (htmlMode ? htmlText : (rteRef.current?.editor?.getHTML() ?? '')),
