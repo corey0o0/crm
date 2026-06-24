@@ -157,12 +157,13 @@ const RichTextEditor = forwardRef(function RichTextEditor(
     enableTable = true,
     enableImage = true,
     enableHtmlMode = false,
+    initialHtmlMode = false,
   },
   ref
 ) {
   const rteRef = useRef(null);
-  const [htmlMode, setHtmlMode] = useState(false);
-  const [htmlText, setHtmlText] = useState('');
+  const [htmlMode, setHtmlMode] = useState(initialHtmlMode);
+  const [htmlText, setHtmlText] = useState(initialHtmlMode ? value : '');
 
   // 에디터(WYSIWYG) ↔ HTML 원본 모드 전환
   const toggleHtmlMode = () => {
@@ -182,6 +183,8 @@ const RichTextEditor = forwardRef(function RichTextEditor(
     // 비제어 에디터에 외부에서 HTML을 커서 위치에 삽입 (예: 파일 첨부 결과)
     insertContent: (html) => rteRef.current?.editor?.chain().focus().insertContent(html).run(),
     getHTML: () => rteRef.current?.editor?.getHTML() ?? '',
+    // 현재 HTML 모드 여부 — 저장 시 is_html 플래그 기록용
+    isHtmlMode: () => htmlMode,
     get editor() {
       return rteRef.current?.editor ?? null;
     },

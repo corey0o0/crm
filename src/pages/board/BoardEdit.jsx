@@ -16,6 +16,7 @@ function BoardEdit() {
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isHtml, setIsHtml] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const editorRef = useRef(null);
@@ -28,6 +29,8 @@ function BoardEdit() {
         if (error) throw error;
         setTitle(data.title || '');
         setContent(data.content || '');
+        // HTML 모드로 작성된 글(또는 iframe/style/script 포함)은 수정도 HTML 모드로 열어 원본 보존
+        setIsHtml(!!data.is_html || /<(iframe|style|script)\b/i.test(data.content || ''));
       } catch (e) {
         console.error('게시글 불러오기 오류:', e);
       } finally {
@@ -47,9 +50,10 @@ function BoardEdit() {
     if (!title.trim() || !content.trim()) return;
     try {
       setSaving(true);
+      const is_html = editorRef.current?.isHtmlMode?.() ?? isHtml;
       const { error } = await supabase
         .from('board_posts')
-        .update({ title, content, updated_at: new Date().toISOString() })
+        .update({ title, content, is_html, updated_at: new Date().toISOString() })
         .eq('id', id);
       if (error) throw error;
       navigate(`/board/${id}`);
@@ -110,6 +114,7 @@ function BoardEdit() {
             onChange={setContent}
             onImageUpload={handleImageUpload}
             enableHtmlMode
+            initialHtmlMode={isHtml}
           />
           <Stack direction="row" spacing={1} alignItems="center">
             <Button variant="outlined" component="label">
