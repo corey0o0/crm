@@ -167,7 +167,22 @@ function BoardDetail() {
             '& img': { maxWidth: '100%', borderRadius: 1 },
             lineHeight: 1.8
           }}
-          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content) }}
+          dangerouslySetInnerHTML={{
+            __html: DOMPurify.sanitize(post.content, {
+              // 인라인 CSS·<style> 블록·표·임베드는 허용, JavaScript(<script>·on* 핸들러)는 기본값대로 차단
+              // FORCE_BODY: <style>을 body 컨텍스트로 파싱해 살림 (없으면 <head>로 빠져 제거됨)
+              // 주의: <style> 규칙은 페이지 전역 적용 — 작성 시 body{}/*{} 같은 광범위 선택자 금지
+              FORCE_BODY: true,
+              ADD_TAGS: ['style', 'iframe'],
+              ADD_ATTR: [
+                'style', 'class',
+                'target', 'rel',
+                'allow', 'allowfullscreen', 'frameborder', 'scrolling',
+                'colspan', 'rowspan', 'width', 'height',
+                'align', 'valign', 'border', 'cellpadding', 'cellspacing', 'bgcolor'
+              ]
+            })
+          }}
         />
       </Paper>
 

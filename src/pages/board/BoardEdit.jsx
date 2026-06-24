@@ -53,6 +53,34 @@ function BoardEdit() {
     loadPost();
   }, [id]);
 
+  const insertTable = () => {
+    const tableHtml = `
+<table style="border-collapse:collapse;width:100%;margin:8px 0">
+  <thead>
+    <tr>
+      <th style="border:1px solid #ccc;padding:8px;background:#f5f5f5">제목1</th>
+      <th style="border:1px solid #ccc;padding:8px;background:#f5f5f5">제목2</th>
+      <th style="border:1px solid #ccc;padding:8px;background:#f5f5f5">제목3</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="border:1px solid #ccc;padding:8px">&nbsp;</td>
+      <td style="border:1px solid #ccc;padding:8px">&nbsp;</td>
+      <td style="border:1px solid #ccc;padding:8px">&nbsp;</td>
+    </tr>
+    <tr>
+      <td style="border:1px solid #ccc;padding:8px">&nbsp;</td>
+      <td style="border:1px solid #ccc;padding:8px">&nbsp;</td>
+      <td style="border:1px solid #ccc;padding:8px">&nbsp;</td>
+    </tr>
+  </tbody>
+</table>
+`;
+    setContent((prev) => (prev || '') + tableHtml);
+    setHtmlMode(true);
+  };
+
   const handleSave = async () => {
     if (!title.trim() || !content.trim()) return;
     try {
@@ -117,9 +145,12 @@ function BoardEdit() {
             <Typography variant="body2" color="text.secondary">
               {htmlMode ? 'HTML 원본을 직접 입력합니다.' : '서식 있는 편집기로 작성합니다.'}
             </Typography>
-            <Button size="small" variant="outlined" onClick={() => setHtmlMode((v) => !v)}>
-              {htmlMode ? '에디터 모드' : 'HTML 모드'}
-            </Button>
+            <Stack direction="row" spacing={1}>
+              <Button size="small" variant="outlined" onClick={insertTable}>표 삽입</Button>
+              <Button size="small" variant="outlined" onClick={() => setHtmlMode((v) => !v)}>
+                {htmlMode ? '에디터 모드' : 'HTML 모드'}
+              </Button>
+            </Stack>
           </Stack>
           {htmlMode ? (
             <TextField
