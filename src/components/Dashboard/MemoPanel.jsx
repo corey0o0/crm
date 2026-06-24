@@ -389,7 +389,6 @@ function MemoPanel() {
           key={`${memoType}-${selectedMemoTab}`}
           value={currentMemoContent}
           onChange={(value) => handleMemoChange(selectedMemoTab, value)}
-          enableTable={false}
           enableImage={false}
           minHeight={300}
         />

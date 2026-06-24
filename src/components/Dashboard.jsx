@@ -968,7 +968,6 @@ function Dashboard() {
                     key={`${memoType}-memo-0`}
                     value={memoList[0]?.content || ''}
                     onChange={(content) => handleMemoContentChange(0, content)}
-                    enableTable={false}
                     enableImage={false}
                     placeholder="메모를 입력하세요..."
                   />
@@ -1074,7 +1073,6 @@ function Dashboard() {
                     key={`${memoType}-memo-2`}
                     value={memoList[2]?.content || ''}
                     onChange={(content) => handleMemoContentChange(2, content)}
-                    enableTable={false}
                     enableImage={false}
                     placeholder="메모를 입력하세요..."
                   />
@@ -1181,7 +1179,6 @@ function Dashboard() {
                 key={`${memoType}-memo-1`}
                 value={memoList[1]?.content || ''}
                 onChange={(content) => handleMemoContentChange(1, content)}
-                enableTable={false}
                 enableImage={false}
                 placeholder="메모를 입력하세요..."
               />
