@@ -16,6 +16,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { postCafe24Comment } from '../../utils/cafe24Api';
 import DOMPurify from 'dompurify';
 import { DEFAULT_CATEGORY } from './boardCategories';
+import BoardAttachments from './BoardAttachments';
 
 function BoardDetail() {
   const { id } = useParams();
@@ -193,6 +194,12 @@ function BoardDetail() {
           }}
         />
       </Paper>
+
+      {Array.isArray(post.attachments) && post.attachments.length > 0 && (
+        <Paper sx={{ p: 2, mb: 2 }}>
+          <BoardAttachments attachments={post.attachments} />
+        </Paper>
+      )}
 
       {/* 카페24 게시글: 답글 작성 */}
       {isCafe24 && post.cafe24_article_no && (

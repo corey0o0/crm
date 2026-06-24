@@ -5,11 +5,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import RichTextEditor from '../../components/common/RichTextEditor';
 import { uploadFileToR2 } from '../../utils/cloudflareR2Utils';
 import { BOARD_CATEGORIES, DEFAULT_CATEGORY } from './boardCategories';
-
-const isImageFile = (name = '') => /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(name);
-
-const escapeHtml = (s = '') =>
-  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+import BoardAttachments from './BoardAttachments';
 
 function BoardEdit() {
   const { id } = useParams();
@@ -21,6 +17,7 @@ function BoardEdit() {
   const [isHtml, setIsHtml] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [attachments, setAttachments] = useState([]);
   const editorRef = useRef(null);
   const navigate = useNavigate();
 
@@ -32,6 +29,7 @@ function BoardEdit() {
         setTitle(data.title || '');
         setCategory(data.category || DEFAULT_CATEGORY);
         setContent(data.content || '');
+        setAttachments(Array.isArray(data.attachments) ? data.attachments : []);
         // HTML 모드로 작성된 글(또는 iframe/style/script 포함)은 수정도 HTML 모드로 열어 원본 보존
         setIsHtml(!!data.is_html || /<(iframe|style|script)\b/i.test(data.content || ''));
       } catch (e) {
@@ -57,7 +55,7 @@ function BoardEdit() {
       const html = editorRef.current?.getContent?.() ?? content;
       const { error } = await supabase
         .from('board_posts')
-        .update({ title, content: html, category, is_html, updated_at: new Date().toISOString() })
+        .update({ title, content: html, category, is_html, attachments, updated_at: new Date().toISOString() })
         .eq('id', id);
       if (error) throw error;
       navigate(`/board/${id}`);
@@ -80,21 +78,14 @@ function BoardEdit() {
         const file = files[i];
         try {
           const res = await uploadFileToR2(file, 'board');
-          if (res?.url) uploaded.push({ name: file.name, url: res.url });
+          if (res?.url) uploaded.push({ name: file.name, url: res.url, path: res.id || res.fileId || null });
         } catch (err) {
           console.error('파일 업로드 오류:', err);
         }
         setUploadProgress(Math.round(((i + 1) / files.length) * 100));
       }
       if (uploaded.length > 0) {
-        const html = uploaded
-          .map((f) =>
-            isImageFile(f.name)
-              ? `<p><img src="${f.url}" alt="${escapeHtml(f.name)}" /></p>`
-              : `<p><a href="${f.url}" target="_blank" rel="noopener noreferrer">${escapeHtml(f.name)}</a></p>`
-          )
-          .join('');
-        editorRef.current?.insertContent(html);
+        setAttachments((prev) => [...prev, ...uploaded]);
       }
     } catch (err) {
       console.error('첨부 처리 오류:', err);
@@ -144,6 +135,11 @@ function BoardEdit() {
               </Box>
             )}
           </Stack>
+          <BoardAttachments
+            attachments={attachments}
+            editable
+            onRemove={(i) => setAttachments((prev) => prev.filter((_, idx) => idx !== i))}
+          />
           <Stack direction="row" spacing={1} justifyContent="flex-end">
             <Button variant="outlined" onClick={() => navigate(`/board/${id}`)}>취소</Button>
             <Button variant="contained" onClick={handleSave} disabled={saving}>저장</Button>

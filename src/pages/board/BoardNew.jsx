@@ -5,11 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import RichTextEditor from '../../components/common/RichTextEditor';
 import { uploadFileToR2 } from '../../utils/cloudflareR2Utils';
 import { BOARD_CATEGORIES, DEFAULT_CATEGORY } from './boardCategories';
-
-const isImageFile = (name = '') => /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(name);
-
-const escapeHtml = (s = '') =>
-  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+import BoardAttachments from './BoardAttachments';
 
 function BoardNew() {
   const [title, setTitle] = useState('');
@@ -18,6 +14,7 @@ function BoardNew() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [attachments, setAttachments] = useState([]);
   const editorRef = useRef(null);
   const navigate = useNavigate();
 
@@ -36,7 +33,7 @@ function BoardNew() {
       const html = editorRef.current?.getContent?.() ?? content;
       const { data, error } = await supabase
         .from('board_posts')
-        .insert([{ title, content: html, category, is_html, author_id: user?.id || null, author_email: user?.email || null }])
+        .insert([{ title, content: html, category, is_html, attachments, author_id: user?.id || null, author_email: user?.email || null }])
         .select();
       if (error) throw error;
       const id = data?.[0]?.id;
@@ -60,21 +57,14 @@ function BoardNew() {
         const file = files[i];
         try {
           const res = await uploadFileToR2(file, 'board');
-          if (res?.url) uploaded.push({ name: file.name, url: res.url });
+          if (res?.url) uploaded.push({ name: file.name, url: res.url, path: res.id || res.fileId || null });
         } catch (err) {
           console.error('파일 업로드 오류:', err);
         }
         setUploadProgress(Math.round(((i + 1) / files.length) * 100));
       }
       if (uploaded.length > 0) {
-        const html = uploaded
-          .map((f) =>
-            isImageFile(f.name)
-              ? `<p><img src="${f.url}" alt="${escapeHtml(f.name)}" /></p>`
-              : `<p><a href="${f.url}" target="_blank" rel="noopener noreferrer">${escapeHtml(f.name)}</a></p>`
-          )
-          .join('');
-        editorRef.current?.insertContent(html);
+        setAttachments((prev) => [...prev, ...uploaded]);
       }
     } catch (err) {
       console.error('첨부 처리 오류:', err);
@@ -121,6 +111,11 @@ function BoardNew() {
               </Box>
             )}
           </Stack>
+          <BoardAttachments
+            attachments={attachments}
+            editable
+            onRemove={(i) => setAttachments((prev) => prev.filter((_, idx) => idx !== i))}
+          />
           <Stack direction="row" spacing={1} justifyContent="flex-end">
             <Button variant="outlined" onClick={() => navigate('/board')}>취소</Button>
             <Button variant="contained" onClick={handleSave} disabled={saving}>저장</Button>
