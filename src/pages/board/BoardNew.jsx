@@ -33,9 +33,10 @@ function BoardNew() {
       setSaving(true);
       const user = (await supabase.auth.getUser()).data.user;
       const is_html = editorRef.current?.isHtmlMode?.() || false;
+      const html = editorRef.current?.getContent?.() ?? content;
       const { data, error } = await supabase
         .from('board_posts')
-        .insert([{ title, content, category, is_html, author_id: user?.id || null, author_email: user?.email || null }])
+        .insert([{ title, content: html, category, is_html, author_id: user?.id || null, author_email: user?.email || null }])
         .select();
       if (error) throw error;
       const id = data?.[0]?.id;

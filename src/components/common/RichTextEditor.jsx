@@ -183,6 +183,8 @@ const RichTextEditor = forwardRef(function RichTextEditor(
     // 비제어 에디터에 외부에서 HTML을 커서 위치에 삽입 (예: 파일 첨부 결과)
     insertContent: (html) => rteRef.current?.editor?.chain().focus().insertContent(html).run(),
     getHTML: () => rteRef.current?.editor?.getHTML() ?? '',
+    // 저장용 권위 콘텐츠: HTML 모드면 원본 textarea, 아니면 에디터 HTML
+    getContent: () => (htmlMode ? htmlText : (rteRef.current?.editor?.getHTML() ?? '')),
     // 현재 HTML 모드 여부 — 저장 시 is_html 플래그 기록용
     isHtmlMode: () => htmlMode,
     get editor() {
@@ -251,7 +253,7 @@ const RichTextEditor = forwardRef(function RichTextEditor(
         extensions={extensions}
         content={value}
         editable
-        onUpdate={({ editor }) => onChange?.(editor.getHTML())}
+        onUpdate={({ editor }) => { if (!htmlMode) onChange?.(editor.getHTML()); }}
         editorProps={{ attributes: { 'data-placeholder': placeholder } }}
         RichTextFieldProps={{ variant: 'outlined' }}
         renderControls={() => (

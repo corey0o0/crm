@@ -54,9 +54,10 @@ function BoardEdit() {
     try {
       setSaving(true);
       const is_html = editorRef.current?.isHtmlMode?.() ?? isHtml;
+      const html = editorRef.current?.getContent?.() ?? content;
       const { error } = await supabase
         .from('board_posts')
-        .update({ title, content, category, is_html, updated_at: new Date().toISOString() })
+        .update({ title, content: html, category, is_html, updated_at: new Date().toISOString() })
         .eq('id', id);
       if (error) throw error;
       navigate(`/board/${id}`);
