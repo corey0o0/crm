@@ -3,16 +3,20 @@ import { supabase } from '../../lib/supabaseClient';
 import {
   Box, Paper, Typography, Button, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, CircularProgress,
-  Stack
+  Stack, Tabs, Tab, Chip
 } from '@mui/material';
 import { Add as AddIcon, Forum as ForumIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { safeRetry, isOffline } from '../../utils/networkUtils';
+import { BOARD_CATEGORIES, DEFAULT_CATEGORY } from './boardCategories';
 
 function BoardList() {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [cat, setCat] = useState('전체');
   const navigate = useNavigate();
+
+  const filtered = cat === '전체' ? posts : posts.filter((p) => (p.category || DEFAULT_CATEGORY) === cat);
 
   const fetchPosts = useCallback(async () => {
     try {
@@ -58,6 +62,19 @@ function BoardList() {
         </Button>
       </Stack>
 
+      <Tabs
+        value={cat}
+        onChange={(e, v) => setCat(v)}
+        variant="scrollable"
+        scrollButtons="auto"
+        sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}
+      >
+        <Tab value="전체" label="전체" />
+        {BOARD_CATEGORIES.map((c) => (
+          <Tab key={c} value={c} label={c} />
+        ))}
+      </Tabs>
+
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
           <CircularProgress />
@@ -68,19 +85,21 @@ function BoardList() {
             <Table size="small">
               <TableHead>
                 <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                  <TableCell sx={{ fontWeight: 600, width: '50%' }}>제목</TableCell>
+                  <TableCell sx={{ fontWeight: 600, width: '12%' }}>카테고리</TableCell>
+                  <TableCell sx={{ fontWeight: 600, width: '43%' }}>제목</TableCell>
                   <TableCell sx={{ fontWeight: 600, width: '25%' }}>작성자</TableCell>
-                  <TableCell sx={{ fontWeight: 600, width: '25%' }}>작성일</TableCell>
+                  <TableCell sx={{ fontWeight: 600, width: '20%' }}>작성일</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {posts.map((p) => (
+                {filtered.map((p) => (
                   <TableRow
                     key={p.id}
                     hover
                     sx={{ cursor: 'pointer' }}
                     onClick={() => navigate(`/board/${p.id}`)}
                   >
+                    <TableCell><Chip size="small" label={p.category || DEFAULT_CATEGORY} /></TableCell>
                     <TableCell>{p.title}</TableCell>
                     <TableCell>{p.author_email || '-'}</TableCell>
                     <TableCell>
@@ -91,9 +110,9 @@ function BoardList() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {posts.length === 0 && (
+                {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={3} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                    <TableCell colSpan={4} align="center" sx={{ py: 4, color: 'text.secondary' }}>
                       게시글이 없습니다.
                     </TableCell>
                   </TableRow>

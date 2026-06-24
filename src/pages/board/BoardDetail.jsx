@@ -15,6 +15,7 @@ import {
 import { useNavigate, useParams } from 'react-router-dom';
 import { postCafe24Comment } from '../../utils/cafe24Api';
 import DOMPurify from 'dompurify';
+import { DEFAULT_CATEGORY } from './boardCategories';
 
 function BoardDetail() {
   const { id } = useParams();
@@ -80,6 +81,9 @@ function BoardDetail() {
       <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 2 }}>
         <Box sx={{ flex: 1, mr: 2 }}>
           <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 0.5 }}>
+            {!isCafe24 && (
+              <Chip label={post.category || DEFAULT_CATEGORY} size="small" sx={{ height: 22, fontSize: '0.7rem' }} />
+            )}
             <Typography variant="h5" fontWeight={700}>{post.title}</Typography>
             {isCafe24 && (
               <Chip

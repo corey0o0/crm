@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { Box, Paper, Typography, TextField, Button, Stack, LinearProgress } from '@mui/material';
+import { Box, Paper, Typography, TextField, Button, Stack, LinearProgress, MenuItem } from '@mui/material';
 import { useNavigate, useParams } from 'react-router-dom';
 import RichTextEditor from '../../components/common/RichTextEditor';
 import { uploadFileToR2 } from '../../utils/cloudflareR2Utils';
+import { BOARD_CATEGORIES, DEFAULT_CATEGORY } from './boardCategories';
 
 const isImageFile = (name = '') => /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(name);
 
@@ -13,6 +14,7 @@ const escapeHtml = (s = '') =>
 function BoardEdit() {
   const { id } = useParams();
   const [title, setTitle] = useState('');
+  const [category, setCategory] = useState(DEFAULT_CATEGORY);
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -28,6 +30,7 @@ function BoardEdit() {
         const { data, error } = await supabase.from('board_posts').select('*').eq('id', id).single();
         if (error) throw error;
         setTitle(data.title || '');
+        setCategory(data.category || DEFAULT_CATEGORY);
         setContent(data.content || '');
         // HTML 모드로 작성된 글(또는 iframe/style/script 포함)은 수정도 HTML 모드로 열어 원본 보존
         setIsHtml(!!data.is_html || /<(iframe|style|script)\b/i.test(data.content || ''));
@@ -53,7 +56,7 @@ function BoardEdit() {
       const is_html = editorRef.current?.isHtmlMode?.() ?? isHtml;
       const { error } = await supabase
         .from('board_posts')
-        .update({ title, content, is_html, updated_at: new Date().toISOString() })
+        .update({ title, content, category, is_html, updated_at: new Date().toISOString() })
         .eq('id', id);
       if (error) throw error;
       navigate(`/board/${id}`);
@@ -107,7 +110,20 @@ function BoardEdit() {
       <Typography variant="h5" sx={{ mb: 2 }}>글 수정</Typography>
       <Paper sx={{ p: 2 }}>
         <Stack spacing={2}>
-          <TextField label="제목" value={title} onChange={(e) => setTitle(e.target.value)} fullWidth />
+          <Stack direction="row" spacing={1}>
+            <TextField
+              select
+              label="카테고리"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              sx={{ width: 140 }}
+            >
+              {BOARD_CATEGORIES.map((c) => (
+                <MenuItem key={c} value={c}>{c}</MenuItem>
+              ))}
+            </TextField>
+            <TextField label="제목" value={title} onChange={(e) => setTitle(e.target.value)} fullWidth />
+          </Stack>
           <RichTextEditor
             ref={editorRef}
             value={content}

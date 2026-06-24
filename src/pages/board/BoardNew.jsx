@@ -1,9 +1,10 @@
 import React, { useRef, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { Box, Paper, Typography, TextField, Button, Stack, LinearProgress } from '@mui/material';
+import { Box, Paper, Typography, TextField, Button, Stack, LinearProgress, MenuItem } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import RichTextEditor from '../../components/common/RichTextEditor';
 import { uploadFileToR2 } from '../../utils/cloudflareR2Utils';
+import { BOARD_CATEGORIES, DEFAULT_CATEGORY } from './boardCategories';
 
 const isImageFile = (name = '') => /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(name);
 
@@ -12,6 +13,7 @@ const escapeHtml = (s = '') =>
 
 function BoardNew() {
   const [title, setTitle] = useState('');
+  const [category, setCategory] = useState(DEFAULT_CATEGORY);
   const [content, setContent] = useState('');
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -33,7 +35,7 @@ function BoardNew() {
       const is_html = editorRef.current?.isHtmlMode?.() || false;
       const { data, error } = await supabase
         .from('board_posts')
-        .insert([{ title, content, is_html, author_id: user?.id || null, author_email: user?.email || null }])
+        .insert([{ title, content, category, is_html, author_id: user?.id || null, author_email: user?.email || null }])
         .select();
       if (error) throw error;
       const id = data?.[0]?.id;
@@ -86,7 +88,20 @@ function BoardNew() {
       <Typography variant="h5" sx={{ mb: 2 }}>글쓰기</Typography>
       <Paper sx={{ p: 2 }}>
         <Stack spacing={2}>
-          <TextField label="제목" value={title} onChange={(e) => setTitle(e.target.value)} fullWidth />
+          <Stack direction="row" spacing={1}>
+            <TextField
+              select
+              label="카테고리"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              sx={{ width: 140 }}
+            >
+              {BOARD_CATEGORIES.map((c) => (
+                <MenuItem key={c} value={c}>{c}</MenuItem>
+              ))}
+            </TextField>
+            <TextField label="제목" value={title} onChange={(e) => setTitle(e.target.value)} fullWidth />
+          </Stack>
           <RichTextEditor
             ref={editorRef}
             value={content}
