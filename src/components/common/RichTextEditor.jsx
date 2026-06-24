@@ -9,7 +9,7 @@ import Link from '@tiptap/extension-link';
 import { TableRow } from '@tiptap/extension-table-row';
 import { TableHeader } from '@tiptap/extension-table-header';
 import { TableCell } from '@tiptap/extension-table-cell';
-import { Box, Popover, Typography } from '@mui/material';
+import { Box, Button, Popover, Stack, TextField, Typography } from '@mui/material';
 import TableChartIcon from '@mui/icons-material/TableChart';
 import {
   RichTextEditor as MuiRichTextEditor,
@@ -156,10 +156,27 @@ const RichTextEditor = forwardRef(function RichTextEditor(
     minHeight = 280,
     enableTable = true,
     enableImage = true,
+    enableHtmlMode = false,
   },
   ref
 ) {
   const rteRef = useRef(null);
+  const [htmlMode, setHtmlMode] = useState(false);
+  const [htmlText, setHtmlText] = useState('');
+
+  // 에디터(WYSIWYG) ↔ HTML 원본 모드 전환
+  const toggleHtmlMode = () => {
+    const editor = rteRef.current?.editor;
+    if (!htmlMode) {
+      // WYSIWYG → HTML: 현재 에디터 HTML을 원본으로
+      setHtmlText(editor?.getHTML() ?? value ?? '');
+      setHtmlMode(true);
+    } else {
+      // HTML → WYSIWYG: 원본을 에디터에 반영(미지원 태그는 제거될 수 있음)
+      editor?.commands.setContent(htmlText || '', true);
+      setHtmlMode(false);
+    }
+  };
 
   useImperativeHandle(ref, () => ({
     // 비제어 에디터에 외부에서 HTML을 커서 위치에 삽입 (예: 파일 첨부 결과)
@@ -170,13 +187,14 @@ const RichTextEditor = forwardRef(function RichTextEditor(
     },
   }));
 
-  // 외부에서 value가 바뀌면(탭 전환·비동기 로드) 에디터 내용 동기화. 타이핑 중에는 no-op.
+  // 외부에서 value가 바뀌면(탭 전환·비동기 로드) 에디터 내용 동기화. 타이핑·HTML모드 중에는 no-op.
   useEffect(() => {
+    if (htmlMode) return;
     const editor = rteRef.current?.editor;
     if (!editor) return;
     if (value === editor.getHTML()) return;
     editor.commands.setContent(value || '', false);
-  }, [value]);
+  }, [value, htmlMode]);
 
   const extensions = [
     StarterKit,
@@ -205,17 +223,27 @@ const RichTextEditor = forwardRef(function RichTextEditor(
   };
 
   return (
-    <Box
-      sx={{
-        '& .ProseMirror': { minHeight },
-        // 에디터 안 표 테두리(저장 후 상세화면 CSS와 동일 톤)
-        '& .ProseMirror table': { borderCollapse: 'collapse', width: '100%', margin: '8px 0' },
-        '& .ProseMirror th, & .ProseMirror td': { border: '1px solid #ccc', padding: '8px', minWidth: '1em' },
-        '& .ProseMirror th': { background: '#f5f5f5', fontWeight: 600 },
-        '& .ProseMirror img': { maxWidth: '100%', height: 'auto', borderRadius: 4 },
-      }}
-    >
-      <MuiRichTextEditor
+    <Box>
+      {enableHtmlMode && (
+        <Stack direction="row" justifyContent="flex-end" sx={{ mb: 1 }}>
+          <Button size="small" variant="outlined" onClick={toggleHtmlMode}>
+            {htmlMode ? '에디터 모드' : 'HTML 모드'}
+          </Button>
+        </Stack>
+      )}
+
+      <Box
+        sx={{
+          display: htmlMode ? 'none' : 'block',
+          '& .ProseMirror': { minHeight },
+          // 에디터 안 표 테두리(저장 후 상세화면 CSS와 동일 톤)
+          '& .ProseMirror table': { borderCollapse: 'collapse', width: '100%', margin: '8px 0' },
+          '& .ProseMirror th, & .ProseMirror td': { border: '1px solid #ccc', padding: '8px', minWidth: '1em' },
+          '& .ProseMirror th': { background: '#f5f5f5', fontWeight: 600 },
+          '& .ProseMirror img': { maxWidth: '100%', height: 'auto', borderRadius: 4 },
+        }}
+      >
+        <MuiRichTextEditor
         ref={rteRef}
         extensions={extensions}
         content={value}
@@ -257,6 +285,19 @@ const RichTextEditor = forwardRef(function RichTextEditor(
           </>
         )}
       </MuiRichTextEditor>
+      </Box>
+
+      {htmlMode && (
+        <TextField
+          label="HTML 원본"
+          value={htmlText}
+          onChange={(e) => { setHtmlText(e.target.value); onChange?.(e.target.value); }}
+          fullWidth
+          multiline
+          minRows={12}
+          helperText="HTML 원본을 직접 편집합니다. '에디터 모드'로 돌아가면 에디터가 지원하지 않는 태그(iframe·style·script 등)는 제거될 수 있습니다. 원본 그대로 저장하려면 HTML 모드에서 저장하세요."
+        />
+      )}
     </Box>
   );
 });

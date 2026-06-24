@@ -91,6 +91,7 @@ function BoardNew() {
             value={content}
             onChange={setContent}
             onImageUpload={handleImageUpload}
+            enableHtmlMode
           />
           <Stack direction="row" spacing={1} alignItems="center">
             <Button variant="outlined" component="label">
