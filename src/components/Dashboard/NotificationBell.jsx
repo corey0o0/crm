@@ -73,8 +73,12 @@ function NotificationBell() {
 
       const lastCheckedTimestamp = localStorage.getItem(localStorageKey);
       if (lastCheckedTimestamp) {
-        const newUnread = newNotifications.filter(n => new Date(n.created_at) > new Date(lastCheckedTimestamp)).length;
-        setUnreadCount(newUnread);
+        // 미읽음 수는 현재 페이지(20개)가 아닌 전체에서 카운트해야 배지가 20에서 막히지 않음
+        const { count: unread } = await supabase
+          .from('notifications')
+          .select('*', { count: 'exact', head: true })
+          .gt('created_at', lastCheckedTimestamp);
+        setUnreadCount(unread || 0);
       } else {
         // 첫 방문: 현재 시각을 기준으로 저장 (이후 새로 들어오는 것만 카운트)
         localStorage.setItem(localStorageKey, new Date().toISOString());
