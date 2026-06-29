@@ -39,6 +39,37 @@ export default function InventoryHistory() {
   });
   const [reconcileDateTo, setReconcileDateTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [reconcileDialogOpen, setReconcileDialogOpen] = useState(false);
+  // 취소/삭제 이력(아카이브) 조회
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [archiveRows, setArchiveRows] = useState([]);
+  const [archiveLoading, setArchiveLoading] = useState(false);
+  const [archiveSearch, setArchiveSearch] = useState('');
+
+  const openArchive = async () => {
+    setArchiveOpen(true);
+    setArchiveLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('transactions_archive')
+        .select('*')
+        .order('archived_at', { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      setArchiveRows(data || []);
+    } catch (e) {
+      showSnackbar && showSnackbar('취소/삭제 이력 조회 실패: ' + e.message, 'error');
+      setArchiveRows([]);
+    } finally {
+      setArchiveLoading(false);
+    }
+  };
+
+  const filteredArchive = archiveRows.filter(r => {
+    const q = archiveSearch.trim().toLowerCase();
+    if (!q) return true;
+    return [r.group_id, r.product_name, r.product_code, r.note, r.from_location, r.to_location]
+      .some(v => String(v || '').toLowerCase().includes(q));
+  });
 
   return (
 
@@ -58,6 +89,13 @@ export default function InventoryHistory() {
               상품 데이터가 없습니다. 상품을 먼저 등록/업로드 해주세요.
             </Alert>
           )}
+          <Button
+            variant="outlined"
+            color="secondary"
+            onClick={openArchive}
+          >
+            취소/삭제 이력
+          </Button>
           <Button
             variant="contained"
             color="primary"
@@ -1971,6 +2009,74 @@ export default function InventoryHistory() {
           >
             조회
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 취소/삭제 이력(아카이브) Dialog */}
+      <Dialog open={archiveOpen} onClose={() => setArchiveOpen(false)} maxWidth="lg" fullWidth>
+        <DialogTitle>
+          취소/삭제된 입출고 이력
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+            삭제(취소/반품/재처리)된 입출고 기록이 자동 보관됩니다. (최근 500건)
+          </Typography>
+        </DialogTitle>
+        <DialogContent dividers>
+          <TextField
+            size="small"
+            fullWidth
+            placeholder="주문/그룹 ID, 상품명, 코드, 메모, 창고로 검색"
+            value={archiveSearch}
+            onChange={(e) => setArchiveSearch(e.target.value)}
+            sx={{ mb: 2 }}
+          />
+          {archiveLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>
+          ) : (
+            <TableContainer component={Paper} sx={{ maxHeight: 480 }}>
+              <Table size="small" stickyHeader>
+                <TableHead>
+                  <TableRow sx={{ '& th': { bgcolor: '#f5f5f5', fontWeight: 'bold' } }}>
+                    <TableCell>보관일시</TableCell>
+                    <TableCell>거래일</TableCell>
+                    <TableCell>유형</TableCell>
+                    <TableCell>상품</TableCell>
+                    <TableCell align="center">수량</TableCell>
+                    <TableCell>출발지</TableCell>
+                    <TableCell>목적지</TableCell>
+                    <TableCell>그룹ID</TableCell>
+                    <TableCell>메모</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredArchive.length === 0 ? (
+                    <TableRow><TableCell colSpan={9} align="center" sx={{ py: 3 }}>보관된 이력이 없습니다.</TableCell></TableRow>
+                  ) : (
+                    filteredArchive.map((r) => (
+                      <TableRow key={r.archive_id} hover>
+                        <TableCell sx={{ whiteSpace: 'nowrap', fontSize: '0.8rem' }}>{r.archived_at ? new Date(r.archived_at).toLocaleString('ko-KR') : '-'}</TableCell>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>{r.date || '-'}</TableCell>
+                        <TableCell>
+                          <Chip size="small" label={r.type === 'out' ? '출고' : r.type === 'in' ? '입고' : r.type} color={r.type === 'out' ? 'error' : 'success'} variant="outlined" />
+                        </TableCell>
+                        <TableCell>{r.product_name}{r.product_code ? ` (${r.product_code})` : ''}</TableCell>
+                        <TableCell align="center">{r.quantity}</TableCell>
+                        <TableCell>{r.from_location || '-'}</TableCell>
+                        <TableCell>{r.to_location || '-'}</TableCell>
+                        <TableCell sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>{r.group_id || '-'}</TableCell>
+                        <TableCell sx={{ fontSize: '0.8rem' }}>{r.note || '-'}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Typography variant="caption" color="text.secondary" sx={{ mr: 'auto', ml: 1 }}>
+            {filteredArchive.length}건
+          </Typography>
+          <Button onClick={() => setArchiveOpen(false)}>닫기</Button>
         </DialogActions>
       </Dialog>
 
