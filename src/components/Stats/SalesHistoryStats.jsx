@@ -78,6 +78,7 @@ function SalesHistoryStats() {
   const [filterBrand, setFilterBrand] = useState('전체');
   const [tabValue, setTabValue] = useState(0);
   const [showProfit, setShowProfit] = useState(false);
+  const [showZeroStock, setShowZeroStock] = useState(false); // 창고 종합 재고 현황: 재고 0 상품 표시 여부
   const [qtyDetailModal, setQtyDetailModal] = useState({ open: false, title: '', rows: [] });
   const [brandDetailModal, setBrandDetailModal] = useState({ open: false, title: '', rows: [] });
   const [salesBrandFilter, setSalesBrandFilter] = useState('전체');
@@ -1478,14 +1479,17 @@ function SalesHistoryStats() {
         brandNode.totalAmt += amt;
     });
     
-    const invArr = Object.values(iGroupData).map(b => ({
-      ...b,
-      itemsArr: Object.values(b.items).sort((i1, i2) => {
+    const invArr = Object.values(iGroupData).map(b => {
+      let itemsArr = Object.values(b.items);
+      // 재고 0 상품 숨김 토글
+      if (!showZeroStock) itemsArr = itemsArr.filter(i => Number(i.quantity) !== 0);
+      itemsArr = itemsArr.sort((i1, i2) => {
          if (i1.isAirframe && !i2.isAirframe) return -1;
          if (!i1.isAirframe && i2.isAirframe) return 1;
          return i2.amount - i1.amount;
-      })
-    })).sort((a,b) => b.totalAmt - a.totalAmt);
+      });
+      return { ...b, itemsArr };
+    }).filter(b => b.itemsArr.length > 0).sort((a,b) => b.totalAmt - a.totalAmt);
 
     return {
       comprehensiveSalesGroups: salesArr,
@@ -1493,7 +1497,7 @@ function SalesHistoryStats() {
       nbSalesGroups: nbArr,
       comprehensiveInventoryGroups: invArr
     };
-  }, [currentFiltered, inventoryList]);
+  }, [currentFiltered, inventoryList, showZeroStock]);
   const renderSalesTable = (groups, brandLabel = '') => {
     // 브랜드 테이블 전체 총합 (고객유형 소계들의 합)
     const gTotalQty = groups.reduce((a, t) => a + (t.totalQty || 0), 0);
@@ -2019,9 +2023,16 @@ function SalesHistoryStats() {
 
               {/* 오른쪽: 재고 현황 */}
               <Grid item xs={12} xl={6}>
-                <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, color: '#424242' }}>
-                  [2] 창고 종합 재고 현황
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#424242' }}>
+                    [2] 창고 종합 재고 현황
+                  </Typography>
+                  <FormControlLabel
+                    control={<Switch size="small" checked={showZeroStock} onChange={(e) => setShowZeroStock(e.target.checked)} color="primary" />}
+                    label="재고 0 상품 표시"
+                    sx={{ m: 0, '& .MuiFormControlLabel-label': { fontSize: '0.8rem', color: '#607d8b' } }}
+                  />
+                </Box>
                 <TableContainer component={Paper} sx={{ border: '1px solid #cfd8dc', borderRadius: 1, boxShadow: 'none' }}>
                   <Table size="small" sx={{ 
                     '& th, & td': { border: '1px solid #cfd8dc', padding: '8px 10px' },
