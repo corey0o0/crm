@@ -3,8 +3,9 @@ import {
   Box, Typography, Paper, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, TextField, MenuItem, Button, Chip, IconButton,
   TablePagination, CircularProgress, Tooltip, Dialog, DialogTitle,
-  DialogContent, DialogActions, InputAdornment, Grid, Stack
+  DialogContent, DialogActions, InputAdornment, Grid, Stack, Tabs, Tab
 } from '@mui/material';
+import DbChangeLogViewer from './DbChangeLogViewer';
 import {
   Search as SearchIcon,
   Refresh as RefreshIcon,
@@ -56,6 +57,7 @@ const TABLE_LABELS = {
 };
 
 export default function AuditLogViewer() {
+  const [tabValue, setTabValue] = useState(0);
   const [logs, setLogs] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -160,9 +162,17 @@ export default function AuditLogViewer() {
     <Box>
       <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
         📋 감사 로그
-        <Chip label={`총 ${totalCount.toLocaleString()}건`} size="small" color="primary" variant="outlined" />
+        {tabValue === 0 && <Chip label={`총 ${totalCount.toLocaleString()}건`} size="small" color="primary" variant="outlined" />}
       </Typography>
 
+      <Tabs value={tabValue} onChange={(e, v) => setTabValue(v)} sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
+        <Tab label="앱 활동 로그" />
+        <Tab label="DB 변경 이력" />
+      </Tabs>
+
+      {tabValue === 1 && <DbChangeLogViewer />}
+
+      {tabValue === 0 && (<>
       {/* 필터 영역 */}
       <Paper sx={{ p: 2, mb: 2 }}>
         <Grid container spacing={1.5} alignItems="center">
@@ -435,6 +445,7 @@ export default function AuditLogViewer() {
           <Button onClick={() => setDetailOpen(false)}>닫기</Button>
         </DialogActions>
       </Dialog>
+      </>)}
     </Box>
   );
 }
