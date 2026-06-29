@@ -523,7 +523,9 @@ function SalesHistory() {
         let orderBrand = '-';
         let seenProductCodes = new Set();
         const CANCEL_STATUSES = ['C11', 'C34', 'C36', 'C40', 'C47', 'C48', 'C49', 'R34', 'R36', 'R40', 'E40'];
-        const validItems = items.filter(item => !CANCEL_STATUSES.includes(item.order_status));
+        // 교환/취소 상태여도 실결제(payment_amount>0)가 있으면 유효 거래로 인정 (예: 교환 차액 결제)
+        const isValidItem = (it) => !CANCEL_STATUSES.includes(it.order_status) || Number(it.payment_amount || 0) > 0;
+        const validItems = items.filter(isValidItem);
         validItems.sort((a, b) => {
              const amtA = Number(a.payment_amount !== undefined && a.payment_amount !== null ? a.payment_amount : (a.product_price || a.price || 0));
              const amtB = Number(b.payment_amount !== undefined && b.payment_amount !== null ? b.payment_amount : (b.product_price || b.price || 0));
@@ -531,7 +533,7 @@ function SalesHistory() {
         });
         if (validItems.length === 0) return; // 전액/전부 취소건은 리스트에서 제외
 
-        const canceledItems = (items || []).filter(it => CANCEL_STATUSES.includes(it.order_status));
+        const canceledItems = (items || []).filter(it => !isValidItem(it));
         const canceledAmount = canceledItems.reduce((acc, it) => acc + (Number(it.product_price || it.price || 0) * Number(it.quantity || 1)), 0);
         // 선불금 처리: total_amount=0 → payment_amount 합계 → used_points 순으로 폴백
         // nearbike_ 회원할인 전액 건은 제외
@@ -660,14 +662,14 @@ function SalesHistory() {
               }
           }
 
-          if (!CANCEL_STATUSES.includes(item.order_status)) {
+          if (isValidItem(item)) {
              orderRows.push({ ...baseFields, warehouse_name: itemWarehouseName, _id: `cafe_${o.id}_${idx}`, part_name: pName, part_category: cat, part_brand: brand, quantity: statQty, unit_price: iPrice, unit_shipping_fee: shipFee, total_price: total, _pCode: pCodeCheck });
           }
         });
-        
+
         orderRows.forEach(r => rows.push(r));
-        
-        const canceledItemsList = items.filter(item => CANCEL_STATUSES.includes(item.order_status));
+
+        const canceledItemsList = items.filter(item => !isValidItem(item));
         canceledItemsList.forEach((item, idx) => {
           let pName = resolvePartName(item.product_name || item.name || '상품', item.custom_product_code, item.product_code, item.part_id);
           const optStr = item.option_value || item.options;

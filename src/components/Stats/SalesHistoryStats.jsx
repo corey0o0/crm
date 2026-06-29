@@ -250,10 +250,12 @@ function SalesHistoryStats() {
             }
          } else {
             const CANCEL_STATUSES = ['C11', 'C34', 'C36', 'C40', 'C47', 'C48', 'C49', 'R34', 'R36', 'R40', 'E40'];
-            const validItems = items.filter(item => !CANCEL_STATUSES.includes(item.order_status));
+            // 교환/취소 상태여도 실결제(payment_amount>0)가 있으면 유효 매출로 인정 (예: 교환 차액 결제)
+            const isValidItem = (it) => !CANCEL_STATUSES.includes(it.order_status) || Number(it.payment_amount || 0) > 0;
+            const validItems = items.filter(isValidItem);
             if (validItems.length === 0) return;
 
-            const canceledItems = items.filter(it => CANCEL_STATUSES.includes(it.order_status));
+            const canceledItems = items.filter(it => !isValidItem(it));
             const canceledAmount = canceledItems.reduce((acc, it) => {
               if (it.payment_amount !== undefined && it.payment_amount !== null) return acc + Number(it.payment_amount);
               return acc + (Number(it.product_price || it.price || 0) * Number(it.quantity || 1));
@@ -703,7 +705,9 @@ function SalesHistoryStats() {
         let orderItemsSum = 0;
         let seenProductCodes = new Set();
         const CANCEL_STATUSES = ['C11', 'C34', 'C36', 'C40', 'C47', 'C48', 'C49', 'R34', 'R36', 'R40', 'E40'];
-        const validItems = items.filter(item => !CANCEL_STATUSES.includes(item.order_status));
+        // 교환/취소 상태여도 실결제(payment_amount>0)가 있으면 유효 매출로 인정 (예: 교환 차액 결제)
+        const isValidItem = (it) => !CANCEL_STATUSES.includes(it.order_status) || Number(it.payment_amount || 0) > 0;
+        const validItems = items.filter(isValidItem);
         validItems.sort((a, b) => {
              const amtA = Number(a.payment_amount !== undefined && a.payment_amount !== null ? a.payment_amount : (a.product_price || a.price || 0));
              const amtB = Number(b.payment_amount !== undefined && b.payment_amount !== null ? b.payment_amount : (b.product_price || b.price || 0));
@@ -715,7 +719,7 @@ function SalesHistoryStats() {
 
         const orderRows = [];
 
-        const canceledItems = (items || []).filter(it => CANCEL_STATUSES.includes(it.order_status));
+        const canceledItems = (items || []).filter(it => !isValidItem(it));
         const canceledAmount = canceledItems.reduce((acc, it) => {
           if (it.payment_amount !== undefined && it.payment_amount !== null) return acc + Number(it.payment_amount);
           return acc + (Number(it.product_price || it.price || 0) * Number(it.quantity || 1));
