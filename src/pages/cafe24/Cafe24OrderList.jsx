@@ -1778,6 +1778,8 @@ export default function Cafe24OrderList() {
                   const erpCode = matchedPart ? (matchedPart.barcode || matchedPart.code) : '';
                   const erpName = matchedPart ? matchedPart.name : '';
                   const isCancelledItem = CANCEL_STATUSES.includes(item.order_status);
+                  // 교환 차액 결제(payment_amount>0)는 정상 매출이므로 표시상 취소 처리하지 않음
+                  const isCancelledDisplay = isCancelledItem && !(Number(item.payment_amount || 0) > 0);
                   const needsMapping = !item.part_id && (item.custom_product_code || item.product_code) && !isCancelledItem;
                   
                   // 계산된 적립금/전체할인 구하기 (DB에 없을 경우를 대비해 프론트엔드에서도 계산)
@@ -1925,8 +1927,8 @@ export default function Cafe24OrderList() {
                           <Typography 
                             variant="body2" 
                             sx={{ 
-                              textDecoration: item.order_status && CANCEL_STATUSES.includes(item.order_status) ? 'line-through' : 'none',
-                              color: item.order_status && CANCEL_STATUSES.includes(item.order_status) ? 'text.disabled' : 'inherit'
+                              textDecoration: isCancelledDisplay ? 'line-through' : 'none',
+                              color: isCancelledDisplay ? 'text.disabled' : 'inherit'
                             }}
                           >
                             {item.name}
@@ -1959,7 +1961,7 @@ export default function Cafe24OrderList() {
                         ) : '-'}
                       </TableCell>}
                       {showPriceDetails && <TableCell align="right">
-                        {CANCEL_STATUSES.includes(item.order_status) ? (
+                        {isCancelledDisplay ? (
                           <Typography variant="body2" color="error" sx={{ textDecoration: 'line-through' }}>
                             {Number(item.payment_amount === undefined ? (Number(item.price || 0) * Number(item.quantity || 1)) : item.payment_amount).toLocaleString()}
                           </Typography>
@@ -2012,7 +2014,7 @@ export default function Cafe24OrderList() {
                         {erpCode || (needsMapping ? <Chip size="small" label="미스매칭" color="warning" /> : '-')}
                       </TableCell>
                       <TableCell>
-                        {CANCEL_STATUSES.includes(item.order_status) ? (
+                        {isCancelledDisplay ? (
                           <Typography variant="caption" color="text.secondary">- (반영 제외)</Typography>
                         ) : (
                           erpName ? (
@@ -2036,7 +2038,7 @@ export default function Cafe24OrderList() {
                         )}
                       </TableCell>
                       <TableCell>
-                        {CANCEL_STATUSES.includes(item.order_status) ? (
+                        {isCancelledDisplay ? (
                            <Typography variant="caption" color="text.secondary">취소건 (제외)</Typography>
                         ) : order.is_transferred ? (
                           <Typography variant="body2" color="text.secondary">

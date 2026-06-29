@@ -1270,7 +1270,14 @@ function SalesHistory() {
                       {row.part_brand || '-'}
                     </TableCell>
                     <TableCell sx={{ minWidth: 150 }}>
-                      <Typography variant="body2" sx={{ textDecoration: row.isCancelled ? 'line-through' : 'none', color: row.isCancelled ? 'text.secondary' : 'inherit' }}>{row.part_name}</Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        {row.isCancelled && (
+                          <Chip size="small" label="취소/반품" color="error" variant="outlined" sx={{ height: 18, fontSize: '0.65rem', '& .MuiChip-label': { px: 0.6 } }} />
+                        )}
+                        <Typography variant="body2" sx={{ textDecoration: row.isCancelled ? 'line-through' : 'none', color: row.isCancelled ? 'text.secondary' : 'inherit' }}>
+                          {row.isCancelled ? String(row.part_name).replace(/^\[(취소\/반품|반품)\]\s*/, '') : row.part_name}
+                        </Typography>
+                      </Box>
                       {row.unit_shipping_fee > 0 && <Typography variant="caption" color="textSecondary">배송비 포함</Typography>}
                     </TableCell>
                     <TableCell align="right" sx={{ textDecoration: row.isCancelled ? 'line-through' : 'none', color: row.isCancelled ? 'text.secondary' : 'inherit' }}>{Number(row.quantity).toLocaleString()}</TableCell>
