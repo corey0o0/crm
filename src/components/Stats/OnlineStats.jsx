@@ -123,7 +123,8 @@ function OnlineStats() {
       let orderHasMatch = false;
       (o.order_items || []).forEach(item => {
         if (dataFilter(o, agName, item, item._isAirframe, item._brand)) {
-           const isCancelled = ['C11', 'C34', 'C36', 'C40', 'C47', 'C48', 'C49', 'R34', 'R36', 'R40', 'E40'].includes(item.order_status);
+           // 교환/취소 상태여도 실결제(payment_amount>0)가 있으면 정상 매출 → 취소표시 안 함
+           const isCancelled = ['C11', 'C34', 'C36', 'C40', 'C47', 'C48', 'C49', 'R34', 'R36', 'R40', 'E40'].includes(item.order_status) && !(Number(item.payment_amount || 0) > 0);
            items.push({
              ...item,
              order_id: o.order_id,
@@ -382,8 +383,8 @@ function OnlineStats() {
                  return; // 현재 선택된 브랜드가 아니면 패스
                }
 
-               // 취소된 항목은 통계 집계에서 제외
-               const isCancelled = ['C11', 'C34', 'C36', 'C40', 'C47', 'C48', 'C49', 'R34', 'R36', 'R40', 'E40'].includes(item.order_status);
+               // 취소된 항목은 통계 집계에서 제외 (단, 실결제 payment_amount>0인 교환건은 정상 매출로 포함)
+               const isCancelled = ['C11', 'C34', 'C36', 'C40', 'C47', 'C48', 'C49', 'R34', 'R36', 'R40', 'E40'].includes(item.order_status) && !(Number(item.payment_amount || 0) > 0);
                if (isCancelled) {
                  return;
                }
