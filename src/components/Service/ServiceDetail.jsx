@@ -82,6 +82,11 @@ import {
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
 
 
+// 사용부품 행의 클라이언트 측 고유키.
+// 같은 part_id를 반품완료한 뒤 다시 추가하는 경우(같은 id가 두 줄 공존) 행을 구별하기 위함.
+let __partUidSeq = 0;
+const makePartUid = () => `p_${Date.now().toString(36)}_${(__partUidSeq++).toString(36)}`;
+
 export const getReturnedQty = (usage) => {
   if (!usage) return 0;
   if (usage.includes('[반품완료]')) return -1; // -1 means fully returned
@@ -659,6 +664,7 @@ function ServiceDetail() {
           const part = partsData.find(p => p.id === sp.part_id);
           return {
             ...part,
+            _uid: sp.id, // service_parts row id를 행 고유키로 사용
             record_id: sp.id,
             quantity: sp.quantity,
             price: sp.price,
@@ -1157,15 +1163,24 @@ function ServiceDetail() {
 
   const handleAddPart = () => {
     if (selectedPart && partQuantity > 0) {
-      const existingPartIndex = selectedParts.findIndex(p => p.id === selectedPart.id);
+      // 반품(전체/부분)된 항목에는 합치지 않는다.
+      // 반품완료 후 같은 부품을 다시 추가하려면 새 행으로 추가되어야 함.
+      const existingPartIndex = selectedParts.findIndex(p =>
+        p.id === selectedPart.id &&
+        p.status !== '반품완료' &&
+        getReturnedQty(p.usage) === 0
+      );
 
       if (existingPartIndex >= 0) {
         const updatedParts = [...selectedParts];
-        updatedParts[existingPartIndex].quantity += partQuantity;
-        updatedParts[existingPartIndex].total = updatedParts[existingPartIndex].price * updatedParts[existingPartIndex].quantity;
+        const tgt = { ...updatedParts[existingPartIndex] };
+        tgt.quantity += partQuantity;
+        tgt.total = tgt.price * tgt.quantity;
+        updatedParts[existingPartIndex] = tgt;
         setSelectedParts(updatedParts);
       } else {
         const newPart = {
+          _uid: makePartUid(),
           id: selectedPart.id,
           name: selectedPart.name,
           code: selectedPart.code,
@@ -1203,8 +1218,8 @@ function ServiceDetail() {
     }
   };
 
-  const handleRemovePart = (partId) => {
-    setSelectedParts(prev => prev.filter(part => part.id !== partId));
+  const handleRemovePart = (rowUid) => {
+    setSelectedParts(prev => prev.filter(part => part._uid !== rowUid));
   };
 
   const isDeducted = ['부품준비', '준비완료', '반품완료', '출고완료', '취소'].includes(formData?.status);
@@ -1226,8 +1241,8 @@ function ServiceDetail() {
       
       const newUsageSuffix = qty === part.quantity ? '[반품완료]' : `[부분반품:${qty}개]`;
 
-      setSelectedParts(prev => prev.map(p => 
-        p.id === part.id ? { ...p, usage: (p.usage ? p.usage + ' ' : '') + newUsageSuffix } : p
+      setSelectedParts(prev => prev.map(p =>
+        p._uid === part._uid ? { ...p, usage: (p.usage ? p.usage + ' ' : '') + newUsageSuffix } : p
       ));
       
       if (formData.status === '출고완료') {
@@ -2459,7 +2474,7 @@ function ServiceDetail() {
               const effectiveQty = isFullyReturned ? 0 : Math.max(0, (part.quantity || 1) - rQty);
               const rowStyle = isFullyReturned ? { opacity: 0.5, textDecoration: 'line-through' } : (rQty > 0 ? { bgcolor: '#fff3e0' } : {});
               return (
-              <TableRow key={part.id} sx={rowStyle}>
+              <TableRow key={part._uid || part.id} sx={rowStyle}>
                 <TableCell>
                   <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                     <Box>{part.name} {rQty > 0 && <span style={{color: '#ed6c02', fontSize: '0.8rem', marginLeft: 4}}>[{rQty}개 반품]</span>}</Box>
@@ -2572,7 +2587,7 @@ function ServiceDetail() {
                     {(!isDeducted || !part.record_id) ? (
                       <IconButton
                         size="small"
-                        onClick={() => handleRemovePart(part.id)}
+                        onClick={() => handleRemovePart(part._uid)}
                         color="error"
                       >
                         <DeleteIcon fontSize="small" />
