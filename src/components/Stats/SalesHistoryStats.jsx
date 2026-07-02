@@ -94,6 +94,8 @@ function SalesHistoryStats() {
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [selectedQuarter, setSelectedQuarter] = useState(null);
+  const [selectedHalf, setSelectedHalf] = useState(null);
   const selectedMonthRef = useRef(selectedMonth);
 
   useEffect(() => { selectedMonthRef.current = selectedMonth; }, [selectedMonth]);
@@ -105,6 +107,8 @@ function SalesHistoryStats() {
     setStartDate(newStartDate);
     setEndDate(newEndDate);
     setSelectedMonth(null);
+    setSelectedQuarter(null);
+    setSelectedHalf(null);
   };
 
   const handleMonthSelect = (monthIndex) => {
@@ -114,6 +118,32 @@ function SalesHistoryStats() {
     setSelectedMonth(monthIndex);
     setStartDate(newStartDate);
     setEndDate(newEndDate);
+    setSelectedQuarter(null);
+    setSelectedHalf(null);
+  };
+
+  const handleQuarterSelect = (quarter) => {
+    const startMonth = (quarter - 1) * 3;
+    const endMonth = startMonth + 2;
+    const newStartDate = startOfMonth(new Date(selectedYear, startMonth, 1));
+    const newEndDate = endOfMonth(new Date(selectedYear, endMonth, 1));
+    setSelectedQuarter(quarter);
+    setStartDate(newStartDate);
+    setEndDate(newEndDate);
+    setSelectedMonth(null);
+    setSelectedHalf(null);
+  };
+
+  const handleHalfSelect = (half) => {
+    const startMonth = half === 'H1' ? 0 : 6;
+    const endMonth = half === 'H1' ? 5 : 11;
+    const newStartDate = startOfMonth(new Date(selectedYear, startMonth, 1));
+    const newEndDate = endOfMonth(new Date(selectedYear, endMonth, 1));
+    setSelectedHalf(half);
+    setStartDate(newStartDate);
+    setEndDate(newEndDate);
+    setSelectedMonth(null);
+    setSelectedQuarter(null);
   };
 
   useEffect(() => {
@@ -1653,6 +1683,54 @@ function SalesHistoryStats() {
                   }}
                 >
                   {idx + 1}월
+                </Button>
+              ))}
+            </ButtonGroup>
+          </Box>
+
+          {/* 분기 선택 */}
+          <Box>
+            <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
+              분기 선택
+            </Typography>
+            <ButtonGroup size="small" variant="outlined">
+              {[1, 2, 3, 4].map((q) => (
+                <Button
+                  key={q}
+                  onClick={() => handleQuarterSelect(q)}
+                  sx={{
+                    minWidth: '50px',
+                    backgroundColor: selectedQuarter === q ? 'primary.main' : 'inherit',
+                    color: selectedQuarter === q ? 'white' : 'inherit',
+                    fontWeight: selectedQuarter === q ? 'bold' : 'normal',
+                    '&:hover': { backgroundColor: selectedQuarter === q ? 'primary.dark' : '' }
+                  }}
+                >
+                  {q}분기
+                </Button>
+              ))}
+            </ButtonGroup>
+          </Box>
+
+          {/* 상하반기 선택 */}
+          <Box>
+            <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
+              반기 선택
+            </Typography>
+            <ButtonGroup size="small" variant="outlined">
+              {[{ key: 'H1', label: '상반기' }, { key: 'H2', label: '하반기' }].map(({ key, label }) => (
+                <Button
+                  key={key}
+                  onClick={() => handleHalfSelect(key)}
+                  sx={{
+                    minWidth: '65px',
+                    backgroundColor: selectedHalf === key ? 'primary.main' : 'inherit',
+                    color: selectedHalf === key ? 'white' : 'inherit',
+                    fontWeight: selectedHalf === key ? 'bold' : 'normal',
+                    '&:hover': { backgroundColor: selectedHalf === key ? 'primary.dark' : '' }
+                  }}
+                >
+                  {label}
                 </Button>
               ))}
             </ButtonGroup>
