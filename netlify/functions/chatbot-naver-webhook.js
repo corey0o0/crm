@@ -3,8 +3,9 @@
 // 네이버 톡톡 webhook 수신 엔드포인트 (동기 진입점)
 //
 // [파트너센터 등록]
-//   이벤트 받을 URL : https://<사이트>/.netlify/functions/chatbot-naver-webhook?brand=nb
-//                     (X-RIDER 계정은 ?brand=xrb)
+//   이벤트 받을 URL : https://<사이트>/.netlify/functions/chatbot-naver-webhook?brand=nb   (스마트스토어)
+//                     https://<사이트>/.netlify/functions/chatbot-naver-webhook?brand=nb2  (공식홈페이지)
+//                     https://<사이트>/.netlify/functions/chatbot-naver-webhook?brand=xrb  (X-RIDER)
 //   사용 event      : open, send, leave  (echo/friend 미사용)
 //
 // 네이버 톡톡 webhook은 읽기 타임아웃이 5초라 LLM 응답을 동기로 못 돌린다.
@@ -36,7 +37,7 @@ function welcomeText(brand) {
 exports.handler = async (event) => {
   // 등록/헬스체크용 GET → 200 (env 설정 여부만 불리언으로 노출, 값은 비노출)
   if (event.httpMethod === 'GET') {
-    return ok({ ok: true, auth: { nb: !!process.env.NAVER_AUTH_NB, xrb: !!process.env.NAVER_AUTH_XRB } });
+    return ok({ ok: true, auth: { nb: !!process.env.NAVER_AUTH_NB, nb2: !!process.env.NAVER_AUTH_NB2, xrb: !!process.env.NAVER_AUTH_XRB } });
   }
   if (event.httpMethod !== 'POST') return err(405, 'POST only');
 

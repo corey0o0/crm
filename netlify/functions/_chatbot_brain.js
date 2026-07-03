@@ -7,6 +7,7 @@
 
 const BRAND_META = {
   nb:  { name: '니어바이크', avatar: '🚲', dbBrand: 'NB',  mallId: 'nearbike'   },
+  nb2: { name: '니어바이크', avatar: '🚲', dbBrand: 'NB',  mallId: 'nearbike'   },
   xrb: { name: 'X-RIDER',   avatar: '🛴', dbBrand: 'XRB', mallId: 'slimpack79' },
 };
 

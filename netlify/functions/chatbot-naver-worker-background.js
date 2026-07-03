@@ -178,7 +178,7 @@ exports.handler = async (event) => {
     if (brain.detectOrder(input)) { await setState(supabase, user, { step: 'ORDER_NO', data: {} }); return done(brand, user, '주문 조회를 도와드리겠습니다 📦\n주문번호를 입력해 주세요. (예: 20260522-0000023)'); }
     if (brain.detectService(input)) { await setState(supabase, user, { step: 'AS_INPUT', data: {} }); return done(brand, user, 'A/S 접수 현황을 확인해드리겠습니다 🔧\nA/S 접수번호 또는 연락처를 입력해 주세요.'); }
     if (brain.detectDealer(input)) {
-      if (brand === 'nb') {
+      if (brand === 'nb' || brand === 'nb2') {
         const chips = brain.dealerRegions().map((r) => ({ title: `🗺️ ${r}`, code: `REGION::${r}` }));
         return done(brand, user, '가까운 대리점을 찾아드릴게요 🗺️\n지역을 선택해 주세요.', chips.slice(0, 13));
       }

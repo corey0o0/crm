@@ -4,7 +4,8 @@
 // 공식 API: https://github.com/navertalk/chatbot-api
 //
 // [필수 환경변수]
-//   NAVER_AUTH_NB   : 니어바이크 톡톡 계정 발신 인증키 (ct_...)
+//   NAVER_AUTH_NB   : 니어바이크 스마트스토어 톡톡 발신 인증키
+//   NAVER_AUTH_NB2  : 니어바이크 공식홈페이지 톡톡 발신 인증키
 //   NAVER_AUTH_XRB  : X-RIDER 톡톡 계정 발신 인증키 (ct_...)
 //   URL             : Netlify가 자동 주입하는 사이트 URL (내부 함수 호출용)
 //
@@ -16,7 +17,7 @@ const NAVER_ACL_CIDRS = ['211.249.40.0/27', '211.249.68.0/27', '220.230.168.0/27
 
 // brand → 발신 인증키 (톡톡 계정마다 다름)
 function authKeyFor(brand) {
-  const map = { nb: process.env.NAVER_AUTH_NB, xrb: process.env.NAVER_AUTH_XRB };
+  const map = { nb: process.env.NAVER_AUTH_NB, nb2: process.env.NAVER_AUTH_NB2, xrb: process.env.NAVER_AUTH_XRB };
   return map[brand] || null;
 }
 

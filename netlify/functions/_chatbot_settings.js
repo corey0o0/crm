@@ -1,7 +1,7 @@
 'use strict';
 //
 // 챗봇 운영설정(ON/OFF·시간) 공용 헬퍼 — 톡톡 봇/위젯 공통.
-// chatbot_settings 테이블(brand PK: NB/XRB) 기준, KST(UTC+9)로 운영시간 판정.
+// chatbot_settings 테이블(brand PK: NB/NB2/XRB) 기준, KST(UTC+9)로 운영시간 판정.
 //
 
 const DEFAULTS = {
@@ -15,7 +15,12 @@ const DEFAULTS = {
   forbidden_phrases: [], // 답변에서 절대 쓰면 안 되는 표현(관리자 추가)
 };
 
-const dbBrandOf = (brand) => (String(brand || '').toLowerCase() === 'xrb' ? 'XRB' : 'NB');
+const dbBrandOf = (brand) => {
+  const b = String(brand || '').toLowerCase();
+  if (b === 'xrb') return 'XRB';
+  if (b === 'nb2') return 'NB2';
+  return 'NB';
+};
 
 async function getSettings(supabase, brand) {
   try {
