@@ -75,6 +75,7 @@ function BoardDetail() {
   }
 
   const isCafe24 = post.source === 'cafe24';
+  const answers = Array.isArray(post.answers) ? post.answers : [];
 
   return (
     <Box sx={{ p: 2, maxWidth: 900 }}>
@@ -136,30 +137,45 @@ function BoardDetail() {
         </Stack>
       </Stack>
 
-      {/* 카페24 게시글 정보 배너 */}
+      {/* 카페24 질문자 정보 배너 */}
       {isCafe24 && (
         <Paper
-          sx={{
-            p: 1.5, mb: 2, bgcolor: '#fff8f5',
-            border: '1px solid #FF6B35', borderRadius: 2
-          }}
+          sx={{ p: 1.5, mb: 2, bgcolor: '#fff8f5', border: '1px solid #FF6B35', borderRadius: 2 }}
           elevation={0}
         >
-          <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap">
-            <StoreIcon sx={{ color: '#FF6B35', fontSize: 18 }} />
-            <Typography variant="body2" sx={{ color: '#FF6B35', fontWeight: 600 }}>
-              카페24 게시글
-            </Typography>
-            {post.cafe24_writer_email && (
-              <Typography variant="body2" color="text.secondary">
-                작성자 이메일: {post.cafe24_writer_email}
+          <Stack direction="row" alignItems="center" spacing={2} flexWrap="wrap">
+            <Stack direction="row" alignItems="center" spacing={0.5}>
+              <StoreIcon sx={{ color: '#FF6B35', fontSize: 18 }} />
+              <Typography variant="body2" sx={{ color: '#FF6B35', fontWeight: 700 }}>
+                질문자 정보
               </Typography>
-            )}
-            {post.cafe24_board_no && (
-              <Typography variant="body2" color="text.secondary">
-                게시판: {post.cafe24_board_no}번 · 게시글: {post.cafe24_article_no}번
-              </Typography>
-            )}
+            </Stack>
+            <Stack direction="row" spacing={2} flexWrap="wrap">
+              {post.cafe24_writer_name && (
+                <Typography variant="body2">
+                  <span style={{ color: '#888', marginRight: 4 }}>이름</span>
+                  <strong>{post.cafe24_writer_name}</strong>
+                </Typography>
+              )}
+              {post.cafe24_writer_email && (
+                <Typography variant="body2">
+                  <span style={{ color: '#888', marginRight: 4 }}>이메일</span>
+                  <strong>{post.cafe24_writer_email}</strong>
+                </Typography>
+              )}
+              {post.cafe24_mall_id && (
+                <Typography variant="body2" color="text.secondary">
+                  사이트: {post.cafe24_mall_id} · 게시판 {post.cafe24_board_no}번 · 글 {post.cafe24_article_no}번
+                </Typography>
+              )}
+            </Stack>
+            <Chip
+              label={answers.length > 0 ? `답변 ${answers.length}개` : '미답변'}
+              size="small"
+              sx={answers.length > 0
+                ? { bgcolor: '#e8f5e9', color: '#2e7d32', fontWeight: 600, height: 22 }
+                : { bgcolor: '#fff3e0', color: '#e65100', fontWeight: 600, height: 22 }}
+            />
           </Stack>
         </Paper>
       )}
@@ -199,6 +215,47 @@ function BoardDetail() {
         <Paper sx={{ p: 2, mb: 2 }}>
           <BoardAttachments attachments={post.attachments} />
         </Paper>
+      )}
+
+      {/* 카페24 답변 목록 */}
+      {isCafe24 && answers.length > 0 && (
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1, color: '#2e7d32' }}>
+            💬 답변 ({answers.length})
+          </Typography>
+          <Stack spacing={1.5}>
+            {answers.map((a, i) => (
+              <Paper
+                key={a.comment_no || i}
+                elevation={0}
+                sx={{ p: 2, border: '1px solid #c8e6c9', borderRadius: 2, bgcolor: '#f9fbe7' }}
+              >
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Chip label="답변" size="small" sx={{ bgcolor: '#2e7d32', color: 'white', height: 20, fontSize: '0.7rem' }} />
+                    {a.writer_name && (
+                      <Typography variant="body2" fontWeight={600}>{a.writer_name}</Typography>
+                    )}
+                    {a.writer_email && (
+                      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.78rem' }}>
+                        {a.writer_email}
+                      </Typography>
+                    )}
+                  </Stack>
+                  {a.created_date && (
+                    <Typography variant="caption" color="text.secondary">
+                      {new Date(a.created_date).toLocaleString('ko-KR')}
+                    </Typography>
+                  )}
+                </Stack>
+                <Divider sx={{ mb: 1 }} />
+                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.8 }}>
+                  {a.content}
+                </Typography>
+              </Paper>
+            ))}
+          </Stack>
+        </Box>
       )}
 
       {/* 카페24 게시글: 답글 작성 */}

@@ -3,9 +3,9 @@ import { supabase } from '../../lib/supabaseClient';
 import {
   Box, Paper, Typography, Button, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, CircularProgress, Chip,
-  Alert, Stack
+  Alert, Stack, ToggleButtonGroup, ToggleButton
 } from '@mui/material';
-import { Sync as SyncIcon, Store as StoreIcon } from '@mui/icons-material';
+import { Sync as SyncIcon, Store as StoreIcon, QuestionAnswer as QAIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { safeRetry, isOffline } from '../../utils/networkUtils';
 import { syncCafe24Posts, getCafe24Malls } from '../../utils/cafe24Api';
@@ -17,6 +17,7 @@ function Cafe24Board() {
   const [syncMsg, setSyncMsg] = useState(null);
   const [cafe24Malls, setCafe24Malls] = useState([]);
   const [autoSynced, setAutoSynced] = useState(false);
+  const [selectedMall, setSelectedMall] = useState('all');
   const navigate = useNavigate();
 
   const fetchPosts = useCallback(async () => {
@@ -49,7 +50,6 @@ function Cafe24Board() {
     }).catch(() => {});
   }, [fetchPosts]);
 
-  // 최초 진입 시 백그라운드 자동 동기화
   useEffect(() => {
     const activeMalls = cafe24Malls.filter(m => m.connected);
     if (activeMalls.length > 0 && !autoSynced) {
@@ -93,12 +93,24 @@ function Cafe24Board() {
     }
   };
 
+  // 사이트별 필터
+  const mallIds = ['all', ...new Set(posts.map(p => p.cafe24_mall_id).filter(Boolean))];
+  const filtered = selectedMall === 'all' ? posts : posts.filter(p => p.cafe24_mall_id === selectedMall);
+
+  const mallLabel = (id) => {
+    if (id === 'all') return '전체';
+    if (id === 'nearbike') return '니어바이크';
+    if (id === 'slimpack79') return 'X-RIDER';
+    return id;
+  };
+
   return (
     <Box sx={{ p: 2 }}>
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
         <Stack direction="row" alignItems="center" spacing={1}>
-          <StoreIcon sx={{ color: '#FF6B35' }} />
-          <Typography variant="h5" fontWeight={700}>카페24 게시판</Typography>
+          <QAIcon sx={{ color: '#FF6B35' }} />
+          <Typography variant="h5" fontWeight={700}>카페24 Q&A</Typography>
+          <Chip label={`${filtered.length}건`} size="small" sx={{ bgcolor: '#fff3ee', color: '#FF6B35', fontWeight: 600 }} />
         </Stack>
         <Button
           variant="outlined"
@@ -111,6 +123,37 @@ function Cafe24Board() {
           {syncing ? '동기화 중...' : '동기화'}
         </Button>
       </Stack>
+
+      {/* 사이트 필터 */}
+      {mallIds.length > 1 && (
+        <ToggleButtonGroup
+          value={selectedMall}
+          exclusive
+          onChange={(_, v) => v && setSelectedMall(v)}
+          size="small"
+          sx={{ mb: 2 }}
+        >
+          {mallIds.map(id => (
+            <ToggleButton
+              key={id}
+              value={id}
+              sx={{
+                px: 2, fontSize: '0.8rem', fontWeight: 600,
+                '&.Mui-selected': { bgcolor: '#FF6B35', color: 'white', '&:hover': { bgcolor: '#e55a2b' } }
+              }}
+            >
+              {mallLabel(id)}
+              {id !== 'all' && (
+                <Chip
+                  label={posts.filter(p => p.cafe24_mall_id === id).length}
+                  size="small"
+                  sx={{ ml: 0.5, height: 18, fontSize: '0.7rem', bgcolor: 'rgba(0,0,0,0.1)', color: 'inherit' }}
+                />
+              )}
+            </ToggleButton>
+          ))}
+        </ToggleButtonGroup>
+      )}
 
       {syncMsg && (
         <Alert severity={syncMsg.type} onClose={() => setSyncMsg(null)} sx={{ mb: 2 }}>
@@ -128,14 +171,16 @@ function Cafe24Board() {
             <Table size="small">
               <TableHead>
                 <TableRow sx={{ bgcolor: '#fff8f5' }}>
-                  <TableCell sx={{ fontWeight: 600, width: '15%' }}>쇼핑몰</TableCell>
-                  <TableCell sx={{ fontWeight: 600, width: '45%' }}>제목</TableCell>
-                  <TableCell sx={{ fontWeight: 600, width: '20%' }}>작성자</TableCell>
-                  <TableCell sx={{ fontWeight: 600, width: '20%' }}>작성일</TableCell>
+                  <TableCell sx={{ fontWeight: 600, width: '12%' }}>사이트</TableCell>
+                  <TableCell sx={{ fontWeight: 600, width: '38%' }}>제목</TableCell>
+                  <TableCell sx={{ fontWeight: 600, width: '18%' }}>질문자</TableCell>
+                  <TableCell sx={{ fontWeight: 600, width: '20%' }}>이메일</TableCell>
+                  <TableCell sx={{ fontWeight: 600, width: '8%' }} align="center">답변</TableCell>
+                  <TableCell sx={{ fontWeight: 600, width: '12%' }}>작성일</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {posts.map((p) => (
+                {filtered.map((p) => (
                   <TableRow
                     key={p.id}
                     hover
@@ -144,26 +189,41 @@ function Cafe24Board() {
                   >
                     <TableCell>
                       <Chip
-                        label={p.cafe24_mall_id || 'cafe24'}
+                        label={mallLabel(p.cafe24_mall_id)}
                         size="small"
                         icon={<StoreIcon style={{ fontSize: 12 }} />}
                         sx={{ bgcolor: '#FF6B35', color: 'white', height: 22, fontSize: '0.75rem' }}
                       />
                     </TableCell>
-                    <TableCell>{p.title}</TableCell>
-                    <TableCell>{p.cafe24_writer_name || p.cafe24_writer_email || '-'}</TableCell>
+                    <TableCell sx={{ maxWidth: 280 }}>
+                      <Typography variant="body2" noWrap>{p.title}</Typography>
+                    </TableCell>
                     <TableCell>
-                      {new Date(p.created_at).toLocaleString('ko-KR', {
-                        year: 'numeric', month: '2-digit', day: '2-digit',
-                        hour: '2-digit', minute: '2-digit'
-                      })}
+                      <Typography variant="body2">{p.cafe24_writer_name || '-'}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.78rem' }}>
+                        {p.cafe24_writer_email || '-'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell align="center">
+                      {p.answer_count > 0 ? (
+                        <Chip label="답변완료" size="small" sx={{ bgcolor: '#e8f5e9', color: '#2e7d32', height: 20, fontSize: '0.7rem', fontWeight: 600 }} />
+                      ) : (
+                        <Chip label="미답변" size="small" sx={{ bgcolor: '#fff3e0', color: '#e65100', height: 20, fontSize: '0.7rem' }} />
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.78rem' }}>
+                        {new Date(p.created_at).toLocaleDateString('ko-KR')}
+                      </Typography>
                     </TableCell>
                   </TableRow>
                 ))}
-                {posts.length === 0 && (
+                {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={4} align="center" sx={{ py: 4, color: 'text.secondary' }}>
-                      카페24 게시글이 없습니다. 동기화 버튼을 눌러주세요.
+                    <TableCell colSpan={6} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                      {posts.length === 0 ? '동기화 버튼을 눌러 데이터를 가져오세요.' : '해당 사이트의 게시글이 없습니다.'}
                     </TableCell>
                   </TableRow>
                 )}

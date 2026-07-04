@@ -337,8 +337,24 @@ module.exports = function(supabaseAdmin) {
         const resp = await axios.get(`https://${mall_id}.cafe24api.com/api/v2/admin/boards/${bNo}/articles?limit=50`, {
            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Cafe24-Api-Version': '2026-03-01' }
         });
-        
+
         for (const article of resp.data.articles || []) {
+          // 댓글(답변) 수집
+          let answers = [];
+          try {
+            const cResp = await axios.get(
+              `https://${mall_id}.cafe24api.com/api/v2/admin/boards/${bNo}/articles/${article.article_no}/comments?limit=50`,
+              { headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Cafe24-Api-Version': '2026-03-01' } }
+            );
+            answers = (cResp.data.comments || []).map(c => ({
+              comment_no: c.comment_no,
+              content: c.content || '',
+              writer_name: c.writer?.name || null,
+              writer_email: c.writer?.email || null,
+              created_date: c.created_date || null,
+            }));
+          } catch (_) { /* 댓글 조회 실패 시 빈 배열 유지 */ }
+
           const payload = {
             title: article.title,
             content: article.content || article.content_text || '',
@@ -351,7 +367,9 @@ module.exports = function(supabaseAdmin) {
             cafe24_url: `https://${mall_id}.cafe24.com/board/${bNo}/article/${article.article_no}`,
             cafe24_mall_id: mall_id,
             synced_at: new Date().toISOString(),
-            created_at: article.created_date || new Date().toISOString()
+            created_at: article.created_date || new Date().toISOString(),
+            answers,
+            answer_count: answers.length,
           };
 
           const { data: existing } = await supabaseAdmin.from('board_posts').select('id')
@@ -363,7 +381,7 @@ module.exports = function(supabaseAdmin) {
           let err = null;
           if (existing) err = (await supabaseAdmin.from('board_posts').update(payload).eq('id', existing.id)).error;
           else err = (await supabaseAdmin.from('board_posts').insert(payload)).error;
-          
+
           if (err) totalSkipped++; else totalInserted++;
         }
       }
