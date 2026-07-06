@@ -157,17 +157,26 @@ export async function getCafe24Boards(mall_id) {
 }
 
 export async function syncCafe24Posts(mall_id, board_no) {
-  const resp = await fetchWithAuth(`${BACKEND_URL}/api/cafe24/sync/${mall_id}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ board_no })
-  });
-
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({}));
-    throw new Error(err.error || '동기화 실패');
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 60000);
+  try {
+    const resp = await fetchWithAuth(`${BACKEND_URL}/api/cafe24/sync/${mall_id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ board_no }),
+      signal: controller.signal,
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.error || '동기화 실패');
+    }
+    return resp.json();
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error('동기화 시간 초과 (60초). 잠시 후 다시 시도해주세요.');
+    throw e;
+  } finally {
+    clearTimeout(timer);
   }
-  return resp.json();
 }
 
 export async function postCafe24Comment({ mall_id, board_no, article_no, content }) {

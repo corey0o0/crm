@@ -16,7 +16,6 @@ function Cafe24Board() {
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState(null);
   const [cafe24Malls, setCafe24Malls] = useState([]);
-  const [autoSynced, setAutoSynced] = useState(false);
   const [selectedMall, setSelectedMall] = useState('all');
   const navigate = useNavigate();
 
@@ -50,23 +49,6 @@ function Cafe24Board() {
     }).catch(() => {});
   }, [fetchPosts]);
 
-  useEffect(() => {
-    const activeMalls = cafe24Malls.filter(m => m.mall_id && m.board_no);
-    if (activeMalls.length > 0 && !autoSynced) {
-      setAutoSynced(true);
-      const runAutoSync = async () => {
-        try {
-          for (const m of activeMalls) {
-            await syncCafe24Posts(m.mall_id, m.board_no || 1);
-          }
-          fetchPosts();
-        } catch (e) {
-          console.error('[Auto Sync Error]', e);
-        }
-      };
-      runAutoSync();
-    }
-  }, [cafe24Malls, autoSynced, fetchPosts]);
 
   const handleSync = async () => {
     setSyncing(true);
