@@ -51,7 +51,7 @@ function Cafe24Board() {
   }, [fetchPosts]);
 
   useEffect(() => {
-    const activeMalls = cafe24Malls.filter(m => m.connected);
+    const activeMalls = cafe24Malls.filter(m => m.mall_id && m.board_no);
     if (activeMalls.length > 0 && !autoSynced) {
       setAutoSynced(true);
       const runAutoSync = async () => {
@@ -72,8 +72,8 @@ function Cafe24Board() {
     setSyncing(true);
     setSyncMsg(null);
     try {
-      const activeMalls = cafe24Malls.filter(m => m.connected);
-      if (activeMalls.length === 0) throw new Error('연동된 카페24 쇼핑몰이 없습니다.');
+      const activeMalls = cafe24Malls.filter(m => m.mall_id && m.board_no);
+      if (activeMalls.length === 0) throw new Error('동기화할 카페24 쇼핑몰이 없습니다.');
 
       let allMsg = '';
       for (const m of activeMalls) {
