@@ -476,7 +476,9 @@ function ShipmentDetail() {
           const { error: insertError } = await supabase.from('shipment_parts').insert([partData]);
           if (insertError) throw new Error(`새 부품 추가 중 오류: ${insertError.message}`);
         } else {
-          const { error: updateError } = await supabase.from('shipment_parts').update(partData).eq('id', part.id);
+          // inventory_deducted는 재고 차감 로직이 관리 — 부품 수정 시 덮어쓰지 않음
+          const { inventory_deducted: _id, ...updateData } = partData;
+          const { error: updateError } = await supabase.from('shipment_parts').update(updateData).eq('id', part.id);
           if (updateError) throw new Error(`부품 정보 업데이트 중 오류: ${updateError.message}`);
         }
       }

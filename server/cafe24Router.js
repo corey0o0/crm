@@ -1064,6 +1064,10 @@ module.exports = function(supabaseAdmin) {
         return res.json({ success: true, message: '전송할 유효한 주문이 없거나 이미 처리 중입니다.' });
       }
 
+      // 롤백용: 실제 반영된 재고 delta 추적 (catch 블록에서 역방향 원복)
+      const appliedInventoryDeltas = []; // { wid, pid, delta }
+      const currentInventoryMap = {}; // 표시용 재고 스냅샷 (note의 [prev -> new] 계산)
+
       try {
 
       // 3. 일괄 조회 (Bulk Fetch) 단계
@@ -1159,8 +1163,7 @@ module.exports = function(supabaseAdmin) {
         }
       });
 
-      // 일괄 재고 조회 (현재 재고)
-      const currentInventoryMap = {}; 
+      // 일괄 재고 조회 (현재 재고, 표시용)
       if (requiredInventoryKeys.size > 0) {
         const wIds = Array.from(new Set(Array.from(requiredInventoryKeys).map(k => k.split('_')[0])));
         const pIds = Array.from(new Set(Array.from(requiredInventoryKeys).map(k => k.split('_')[1])));
@@ -1189,27 +1192,19 @@ module.exports = function(supabaseAdmin) {
       // 4. 일괄 데이터 준비 (메모리 연산)
       const transactionsToInsert = [];
       const inventoryLogsToInsert = [];
-      const inventoryToUpsertMap = {};
-      
+      const inventoryDeltaMap = {}; // 'wid_pid' -> 누적 차감 delta (음수)
+
       itemsToDeduct.forEach(({ order, item, wid, mappedPartId, supplier }) => {
          const orderDateStr = order.order_date ? new Date(order.order_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
          const wName = warehouseMap[wid] || '기본창고';
-         
+
          const invKey = `${wid}_${mappedPartId}`;
-         // 누적 계산을 위해 map에 들어있는 최신 개수 확인
-         let prevQty = currentInventoryMap[invKey] || 0;
-         if (inventoryToUpsertMap[invKey] !== undefined) {
-            prevQty = inventoryToUpsertMap[invKey].quantity;
-         }
-            
-         const newQty = prevQty - Number(item.quantity || 1);
-            
-         inventoryToUpsertMap[invKey] = {
-            warehouse_id: wid,
-            product_id: mappedPartId,
-            quantity: newQty,
-            updated_at: new Date().toISOString()
-         };
+         const qty = Number(item.quantity || 1);
+         // prev/new는 note 표시용 추정치 — 실제 반영은 adjust_inventory RPC 증분
+         const prevQty = currentInventoryMap[invKey] || 0;
+         const newQty = prevQty - qty;
+         currentInventoryMap[invKey] = newQty;
+         inventoryDeltaMap[invKey] = (inventoryDeltaMap[invKey] || 0) - qty;
 
          transactionsToInsert.push({
             group_id: String(order.id),
@@ -1228,8 +1223,9 @@ module.exports = function(supabaseAdmin) {
          });
 
          inventoryLogsToInsert.push({
-            part_id: null, // workaround: inventory_logs.part_id is UUID but parts.id is INTEGER
+            part_id: mappedPartId,
             part_name: item.name,
+            warehouse_id: wid,
             part_code: item.custom_product_code || item.product_code || '',
             brand_code: ((item.custom_product_code || item.product_code || '').toUpperCase().startsWith('NB') || (item.custom_product_code || item.product_code || '').toUpperCase().includes('NEARBIKE')) || (item.name && (item.name.toUpperCase().startsWith('NB') || item.name.includes('니어'))) ? 'NB' : 'XRB',
             change_type: 'shipment_complete',
@@ -1250,12 +1246,18 @@ module.exports = function(supabaseAdmin) {
         }
       }
 
-      const invUpsertArray = Object.values(inventoryToUpsertMap);
-      if (invUpsertArray.length > 0) {
-        for (let i = 0; i < invUpsertArray.length; i += 500) {
-           const { error: invErr } = await supabaseAdmin.from('inventory').upsert(invUpsertArray.slice(i, i + 500), { onConflict: 'warehouse_id,product_id' });
-           if (invErr) throw new Error(`재고 저장 실패: ${invErr.message}`);
-        }
+      // 재고 반영: 원자적 증분 RPC (절대값 upsert는 동시 차감분을 덮어써 유실시킴)
+      for (const [key, delta] of Object.entries(inventoryDeltaMap)) {
+        const sep = key.indexOf('_');
+        const wid = key.slice(0, sep);
+        const pid = parseInt(key.slice(sep + 1), 10);
+        const { error: invErr } = await supabaseAdmin.rpc('adjust_inventory', {
+          p_warehouse_id: wid,
+          p_product_id: pid,
+          p_quantity_change: delta
+        });
+        if (invErr) throw new Error(`재고 저장 실패: ${invErr.message}`);
+        appliedInventoryDeltas.push({ wid, pid, delta });
       }
 
       if (inventoryLogsToInsert.length > 0) {
@@ -1324,16 +1326,13 @@ module.exports = function(supabaseAdmin) {
             await supabaseAdmin.from('transactions').delete().in('group_id', orderIdStrs).in('status', ['완료']);
             await supabaseAdmin.from('inventory_logs').delete().in('reference_id', orderIds).eq('reference_type', 'cafe24_order');
             
-            if (Object.keys(currentInventoryMap).length > 0) {
-                const rollbackInvArray = Object.keys(currentInventoryMap).map(key => {
-                    const [wid, pid] = key.split('_');
-                    return { warehouse_id: wid, product_id: parseInt(pid, 10), quantity: currentInventoryMap[key], updated_at: new Date().toISOString() };
+            // 반영된 delta만 역방향 RPC로 원복 (스냅샷 절대값 복원은 동시 변경분을 덮어씀)
+            for (const { wid, pid, delta } of appliedInventoryDeltas) {
+                await supabaseAdmin.rpc('adjust_inventory', {
+                  p_warehouse_id: wid,
+                  p_product_id: pid,
+                  p_quantity_change: -delta
                 });
-                if (rollbackInvArray.length > 0) {
-                    for (let i = 0; i < rollbackInvArray.length; i += 500) {
-                        await supabaseAdmin.from('inventory').upsert(rollbackInvArray.slice(i, i + 500), { onConflict: 'warehouse_id,product_id' });
-                    }
-                }
             }
         } catch (rollbackErr) {
             console.error('[Rollback Error]', rollbackErr);
@@ -1392,21 +1391,12 @@ module.exports = function(supabaseAdmin) {
           for (const tx of txs) {
             // 출고(out) 트랜잭션이면 출발 창고(from_location)의 재고를 원복(더하기)
             if (tx.type === 'out' && tx.from_location && tx.product_id) {
-              const { data: currentInv } = await supabaseAdmin.from('inventory')
-                .select('quantity')
-                .eq('warehouse_id', tx.from_location)
-                .eq('product_id', tx.product_id)
-                .maybeSingle();
-
-              const currentQty = currentInv ? currentInv.quantity : 0;
-              const restoredQty = currentQty + Math.abs(Number(tx.quantity) || 0);
-
-              await supabaseAdmin.from('inventory').upsert({
-                warehouse_id: tx.from_location,
-                product_id: tx.product_id,
-                quantity: restoredQty,
-                updated_at: new Date().toISOString()
-              }, { onConflict: 'warehouse_id,product_id' });
+              const { error: rpcErr } = await supabaseAdmin.rpc('adjust_inventory', {
+                p_warehouse_id: tx.from_location,
+                p_product_id: tx.product_id,
+                p_quantity_change: Math.abs(Number(tx.quantity) || 0)
+              });
+              if (rpcErr) throw new Error(`재고 복구 실패: ${rpcErr.message}`);
             }
           }
         }
@@ -1497,23 +1487,16 @@ module.exports = function(supabaseAdmin) {
 
           const qtyToReturn = Number(item.quantity || 1);
 
-          // a. 현재 창고 재고 가져오기
-          const { data: currentInv } = await supabaseAdmin.from('inventory')
-            .select('quantity')
-            .eq('warehouse_id', wid)
-            .eq('product_id', mappedPartId)
-            .maybeSingle();
-
-          const currentQty = currentInv ? currentInv.quantity : 0;
-          const newQty = currentQty + qtyToReturn;
-
-          // b. 재고 업데이트 (+)
-          await supabaseAdmin.from('inventory').upsert({
-            warehouse_id: wid,
-            product_id: mappedPartId,
-            quantity: newQty,
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'warehouse_id,product_id' });
+          // a+b. 원자적 증분 RPC로 재고 환입 (+)
+          const { data: rpcData, error: rpcErr } = await supabaseAdmin.rpc('adjust_inventory', {
+            p_warehouse_id: wid,
+            p_product_id: mappedPartId,
+            p_quantity_change: qtyToReturn
+          });
+          if (rpcErr) throw new Error(`재고 환입 실패: ${rpcErr.message}`);
+          const rpcRow = rpcData && rpcData[0];
+          const newQty = rpcRow ? (rpcRow.out_quantity !== undefined ? rpcRow.out_quantity : rpcRow.quantity) : qtyToReturn;
+          const currentQty = newQty - qtyToReturn;
 
           // c. 트랜잭션 기록 (입고)
           const wName = warehouseMap[wid] || '기본창고';
@@ -1535,8 +1518,9 @@ module.exports = function(supabaseAdmin) {
 
           // d. 인벤토리 로그 기록
           await supabaseAdmin.from('inventory_logs').insert({
-            part_id: null, // workaround
+            part_id: mappedPartId,
             part_name: item.name,
+            warehouse_id: wid,
             part_code: item.custom_product_code || item.product_code || '',
             brand_code: ((item.custom_product_code || item.product_code || '').toUpperCase().startsWith('NB') || (item.custom_product_code || item.product_code || '').toUpperCase().includes('NEARBIKE')) || (item.name && (item.name.toUpperCase().startsWith('NB') || item.name.includes('니어'))) ? 'NB' : 'XRB',
             change_type: 'return',

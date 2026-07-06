@@ -3254,11 +3254,13 @@ function InventoryLayout() {
       await transactionApi.createMany([transaction]);
       
       // 2. \ud574\ub2f9 \uc140\ub9cc \uc9c1\uc811 DB \uc5c5\ub370\uc774\ud2b8 (\uc804\uccb4 \uc7ac\uacc4\uc0b0 \ub300\uc2e0)
-      await inventoryApi.upsertMany([{
-        warehouse_id: warehouseId,
-        product_id: parseInt(productId, 10),
-        quantity: newQty
-      }]);
+      // 원자적 증분 RPC 사용 (절대값 upsert는 동시 변경분을 덮어써 유실시킴)
+      const { error: rpcErr } = await supabase.rpc('adjust_inventory', {
+        p_warehouse_id: warehouseId,
+        p_product_id: parseInt(productId, 10),
+        p_quantity_change: delta
+      });
+      if (rpcErr) throw rpcErr;
       
       // 3. \ub85c\uceec \uc0c1\ud0dc \uc989\uc2dc \ubc18\uc601
       setInventory(prev => ({

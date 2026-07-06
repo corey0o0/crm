@@ -196,9 +196,10 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
         const { error: logError } = await supabase
           .from('inventory_logs')
           .insert({
-            part_id: null, // 외래키/타입(uuid) 충돌 방지를 위해 임시 null 처리 (향후 DB 타입 변경 필요)
+            part_id: part.part_id,
             part_name: part.part_name,
             part_code: part.part_code,
+            warehouse_id: part.warehouse_id || defaultWarehouseId,
             brand_code: inferredBrandCode,
             change_type: changeType,
             quantity_change: quantityChange,
