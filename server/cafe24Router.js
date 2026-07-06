@@ -332,29 +332,44 @@ module.exports = function(supabaseAdmin) {
       const token = await getValidToken(mall_id);
       let totalInserted = 0, totalSkipped = 0;
 
+      const hdrs = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Cafe24-Api-Version': '2026-03-01' };
+
       for (const bNo of boardNos) {
         if (!bNo) continue;
-        const resp = await axios.get(`https://${mall_id}.cafe24api.com/api/v2/admin/boards/${bNo}/articles?limit=50`, {
-           headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Cafe24-Api-Version': '2026-03-01' }
-        });
+        const resp = await axios.get(`https://${mall_id}.cafe24api.com/api/v2/admin/boards/${bNo}/articles?limit=50`, { headers: hdrs });
+        const articles = resp.data.articles || [];
+        if (!articles.length) continue;
 
-        for (const article of resp.data.articles || []) {
-          // 댓글(답변) 수집
-          let answers = [];
+        // 댓글 병렬 수집 (글 전체 동시 호출)
+        const answersArr = await Promise.all(articles.map(async (article) => {
           try {
             const cResp = await axios.get(
               `https://${mall_id}.cafe24api.com/api/v2/admin/boards/${bNo}/articles/${article.article_no}/comments?limit=50`,
-              { headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Cafe24-Api-Version': '2026-03-01' } }
+              { headers: hdrs, timeout: 5000 }
             );
-            answers = (cResp.data.comments || []).map(c => ({
+            return (cResp.data.comments || []).map(c => ({
               comment_no: c.comment_no,
               content: c.content || '',
               writer_name: c.writer?.name || null,
               writer_email: c.writer?.email || null,
               created_date: c.created_date || null,
             }));
-          } catch (_) { /* 댓글 조회 실패 시 빈 배열 유지 */ }
+          } catch (_) { return []; }
+        }));
 
+        // 기존 글 ID 일괄 조회
+        const articleNos = articles.map(a => a.article_no);
+        const { data: existingRows } = await supabaseAdmin.from('board_posts')
+          .select('id, cafe24_article_no')
+          .eq('cafe24_mall_id', mall_id)
+          .eq('cafe24_board_no', bNo)
+          .in('cafe24_article_no', articleNos);
+        const existingMap = Object.fromEntries((existingRows || []).map(r => [r.cafe24_article_no, r.id]));
+
+        const now = new Date().toISOString();
+        for (let i = 0; i < articles.length; i++) {
+          const article = articles[i];
+          const answers = answersArr[i];
           const payload = {
             title: article.title,
             content: article.content || article.content_text || '',
@@ -366,21 +381,16 @@ module.exports = function(supabaseAdmin) {
             cafe24_writer_email: article.writer?.email || null,
             cafe24_url: `https://${mall_id}.cafe24.com/board/${bNo}/article/${article.article_no}`,
             cafe24_mall_id: mall_id,
-            synced_at: new Date().toISOString(),
-            created_at: article.created_date || new Date().toISOString(),
+            synced_at: now,
+            created_at: article.created_date || now,
             answers,
             answer_count: answers.length,
           };
 
-          const { data: existing } = await supabaseAdmin.from('board_posts').select('id')
-            .eq('cafe24_mall_id', mall_id)
-            .eq('cafe24_board_no', bNo)
-            .eq('cafe24_article_no', article.article_no)
-            .maybeSingle();
-
-          let err = null;
-          if (existing) err = (await supabaseAdmin.from('board_posts').update(payload).eq('id', existing.id)).error;
-          else err = (await supabaseAdmin.from('board_posts').insert(payload)).error;
+          const existingId = existingMap[article.article_no];
+          const { error: err } = existingId
+            ? await supabaseAdmin.from('board_posts').update(payload).eq('id', existingId)
+            : await supabaseAdmin.from('board_posts').insert(payload);
 
           if (err) totalSkipped++; else totalInserted++;
         }
