@@ -97,6 +97,13 @@ function Cafe24Board() {
   const mallIds = ['all', ...new Set(posts.map(p => p.cafe24_mall_id).filter(Boolean))];
   const filtered = selectedMall === 'all' ? posts : posts.filter(p => p.cafe24_mall_id === selectedMall);
 
+  const boardLabel = (boardNo) => {
+    const n = parseInt(boardNo);
+    if (n === 9) return { label: '1:1상담', color: '#7b1fa2', bg: '#f3e5f5' };
+    if (n === 6) return { label: '상품Q&A', color: '#1565c0', bg: '#e3f2fd' };
+    return { label: `게시판${boardNo}`, color: '#555', bg: '#f5f5f5' };
+  };
+
   const mallLabel = (id) => {
     if (id === 'all') return '전체';
     if (id === 'nearbike') return '니어바이크';
@@ -172,7 +179,8 @@ function Cafe24Board() {
               <TableHead>
                 <TableRow sx={{ bgcolor: '#fff8f5' }}>
                   <TableCell sx={{ fontWeight: 600, width: '12%' }}>사이트</TableCell>
-                  <TableCell sx={{ fontWeight: 600, width: '38%' }}>제목</TableCell>
+                  <TableCell sx={{ fontWeight: 600, width: '10%' }}>구분</TableCell>
+                  <TableCell sx={{ fontWeight: 600, width: '28%' }}>제목</TableCell>
                   <TableCell sx={{ fontWeight: 600, width: '18%' }}>질문자</TableCell>
                   <TableCell sx={{ fontWeight: 600, width: '20%' }}>이메일</TableCell>
                   <TableCell sx={{ fontWeight: 600, width: '8%' }} align="center">답변</TableCell>
@@ -195,7 +203,12 @@ function Cafe24Board() {
                         sx={{ bgcolor: '#FF6B35', color: 'white', height: 22, fontSize: '0.75rem' }}
                       />
                     </TableCell>
-                    <TableCell sx={{ maxWidth: 280 }}>
+                    <TableCell>
+                      {(() => { const b = boardLabel(p.cafe24_board_no); return (
+                        <Chip label={b.label} size="small" sx={{ bgcolor: b.bg, color: b.color, fontWeight: 700, height: 22, fontSize: '0.72rem' }} />
+                      ); })()}
+                    </TableCell>
+                    <TableCell sx={{ maxWidth: 240 }}>
                       <Typography variant="body2" noWrap>{p.title}</Typography>
                     </TableCell>
                     <TableCell>
@@ -222,7 +235,7 @@ function Cafe24Board() {
                 ))}
                 {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                    <TableCell colSpan={7} align="center" sx={{ py: 4, color: 'text.secondary' }}>
                       {posts.length === 0 ? '동기화 버튼을 눌러 데이터를 가져오세요.' : '해당 사이트의 게시글이 없습니다.'}
                     </TableCell>
                   </TableRow>
