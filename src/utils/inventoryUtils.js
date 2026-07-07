@@ -315,7 +315,7 @@ export const processShipmentCompletion = async (shipmentId, brandCode, targetSta
         warehouseId = defaultWh.id;
       } else {
         // 청담 매장이 없으면 아무 창고나 첫번째 것을 사용
-        const { data: anyWh } = await supabase.from('warehouses').select('id').limit(1).maybeSingle();
+        const { data: anyWh } = await supabase.from('warehouses').select('id').order('name').limit(1).maybeSingle();
         if (anyWh) warehouseId = anyWh.id;
         else throw new Error('시스템에 등록된 창고가 없어 재고 차감이 불가능합니다.');
       }
@@ -376,7 +376,7 @@ export const processShipmentRevert = async (shipmentId, brandCode) => {
       if (defaultWh) {
         warehouseId = defaultWh.id;
       } else {
-        const { data: anyWh } = await supabase.from('warehouses').select('id').limit(1).maybeSingle();
+        const { data: anyWh } = await supabase.from('warehouses').select('id').order('name').limit(1).maybeSingle();
         if (anyWh) warehouseId = anyWh.id;
         else throw new Error('시스템에 등록된 창고가 없어 재고 복구가 불가능합니다.');
       }
@@ -429,7 +429,7 @@ export const processServiceCompletion = async (serviceId, brandCode) => {
       if (defaultWh) {
         warehouseId = defaultWh.id;
       } else {
-        const { data: anyWh } = await supabase.from('warehouses').select('id').limit(1).maybeSingle();
+        const { data: anyWh } = await supabase.from('warehouses').select('id').order('name').limit(1).maybeSingle();
         if (anyWh) warehouseId = anyWh.id;
         else throw new Error('A/S 처리에 할당된 창고가 없습니다.');
       }
@@ -518,21 +518,7 @@ export const processServiceCompletion = async (serviceId, brandCode) => {
       console.log(`[A/S Inventory Sync] 상태가 '${service.status}'(정규화: '${normalizedSvcStatus}')이므로 재고 차감 생략 (기존 차감 건이 있다면 자동 복구)`);
     }
 
-    // 3. 기존 모든 차감 내역 완전 복구 (Revert All) 후 현재 상태로 신규 차감 (Re-Deduct)
-    const partsToRevert = [];
-    Object.keys(netDeductions).forEach(key => {
-      const deducted = netDeductions[key].net_qty;
-      if (deducted > 0) {
-        partsToRevert.push({
-          part_id: netDeductions[key].part_id,
-          part_name: netDeductions[key].part_name,
-          part_code: netDeductions[key].part_code,
-          quantity: deducted,
-          warehouse_id: netDeductions[key].warehouse_id
-        });
-      }
-    });
-
+    // 3. 기존 트랜잭션 삭제 → 재고 직접 복원(트랜잭션 없음) → 현재 상태만 신규 차감
     const partsToDeduct = [];
     Object.keys(effectiveParts).forEach(key => {
       const needed = effectiveParts[key].effective_qty;
@@ -547,20 +533,26 @@ export const processServiceCompletion = async (serviceId, brandCode) => {
       }
     });
 
-    const results = [];
-    
-    if (partsToRevert.length > 0) {
-      console.log(`[A/S Inventory Sync] 기존 차감량 완전 복구 (${partsToRevert.length}품목)`, partsToRevert);
-      const revertResult = await processInventory(warehouseId, partsToRevert, brandCode, serviceId, 'service', 'service_revert', true, service.customer_name || '', String(serviceId));
-      if (!revertResult.success) {
-        console.error('재고 복구(Delta) 중 오류 발생:', revertResult);
-        return revertResult;
-      }
-      results.push(...revertResult.results);
+    // 기존 group_id 트랜잭션 전체 삭제 (누적 방지)
+    await supabase.from('transactions').delete().eq('group_id', String(serviceId));
+
+    // 이전 순차감분을 트랜잭션 없이 재고만 직접 복원
+    const revertEntries = Object.values(netDeductions).filter(d => d.net_qty > 0 && d.part_id);
+    if (revertEntries.length > 0) {
+      console.log(`[A/S Inventory Sync] 재고 직접 복원 (${revertEntries.length}품목, 트랜잭션 미생성)`);
+      await Promise.all(revertEntries.map(d =>
+        supabase.rpc('adjust_inventory', {
+          p_warehouse_id: d.warehouse_id,
+          p_product_id: d.part_id,
+          p_quantity_change: d.net_qty
+        })
+      ));
     }
 
+    const results = [];
+
     if (partsToDeduct.length > 0) {
-      console.log(`[A/S Inventory Sync] 현재 필요 수량 전면 재차감 (${partsToDeduct.length}품목)`, partsToDeduct);
+      console.log(`[A/S Inventory Sync] 현재 필요 수량 차감 (${partsToDeduct.length}품목)`, partsToDeduct);
       const deductResult = await processInventory(warehouseId, partsToDeduct, brandCode, serviceId, 'service', 'service_complete', false, service.customer_name || '', String(serviceId));
       if (!deductResult.success) {
         console.error('재고 차감(Delta) 중 오류 발생:', deductResult);
@@ -590,7 +582,7 @@ export const processServiceRevert = async (serviceId, brandCode) => {
       if (defaultWh) {
         warehouseId = defaultWh.id;
       } else {
-        const { data: anyWh } = await supabase.from('warehouses').select('id').limit(1).maybeSingle();
+        const { data: anyWh } = await supabase.from('warehouses').select('id').order('name').limit(1).maybeSingle();
         if (anyWh) warehouseId = anyWh.id;
         else throw new Error('창고 미지정');
       }
@@ -649,11 +641,11 @@ export const processPartialReturn = async (sourceType, orderId, recordId, quanti
 
     if (sourceType === 'shipment') {
        if (partInfo.part_code) {
-         const { data: searchRes } = await supabase.from('parts').select('id').eq('code', partInfo.part_code).limit(1).maybeSingle();
+         const { data: searchRes } = await supabase.from('parts').select('id').eq('code', partInfo.part_code).order('id').limit(1).maybeSingle();
          if (searchRes) finalPartId = searchRes.id;
        }
        if (!finalPartId && partInfo.part_name) {
-         const { data: searchRes2 } = await supabase.from('parts').select('id').eq('name', partInfo.part_name).limit(1).maybeSingle();
+         const { data: searchRes2 } = await supabase.from('parts').select('id').eq('name', partInfo.part_name).order('id').limit(1).maybeSingle();
          if (searchRes2) finalPartId = searchRes2.id;
        }
     } else {
@@ -745,7 +737,7 @@ export const updatePartStatus = async (sourceType, orderId, recordId, newStatus,
       const { data: defaultWh } = await supabase.from('warehouses').select('id').ilike('name', '%청담%').limit(1).maybeSingle();
       warehouseId = defaultWh ? defaultWh.id : null;
       if (!warehouseId) {
-        const { data: anyWh } = await supabase.from('warehouses').select('id').limit(1).maybeSingle();
+        const { data: anyWh } = await supabase.from('warehouses').select('id').order('name').limit(1).maybeSingle();
         warehouseId = anyWh ? anyWh.id : null;
       }
       if (!warehouseId) throw new Error('창고 정보 없음');
@@ -776,11 +768,11 @@ export const updatePartStatus = async (sourceType, orderId, recordId, newStatus,
 
     if (sourceType === 'shipment') {
        if (partInfo.part_code) {
-         const { data: searchRes } = await supabase.from('parts').select('id').eq('code', partInfo.part_code).limit(1).maybeSingle();
+         const { data: searchRes } = await supabase.from('parts').select('id').eq('code', partInfo.part_code).order('id').limit(1).maybeSingle();
          if (searchRes) finalPartId = searchRes.id;
        }
        if (!finalPartId && partInfo.part_name) {
-         const { data: searchRes2 } = await supabase.from('parts').select('id').eq('name', partInfo.part_name).limit(1).maybeSingle();
+         const { data: searchRes2 } = await supabase.from('parts').select('id').eq('name', partInfo.part_name).order('id').limit(1).maybeSingle();
          if (searchRes2) finalPartId = searchRes2.id;
        }
     } else {

@@ -26,7 +26,7 @@ export default function InventoryHistory() {
     addIoProductRow, removeIoProductRow, updateIoProductRow, excelUploadOpen,
     handleCloseExcelUpload, handleExcelFileUpload, excelFile, excelUploadType, setExcelUploadType,
     handleOpenExcelUpload, transactionDetailOpen, closeTransactionDetail,
-    selectedTransaction, startEditTransaction, recalculateAllInventory, deleteTransaction, isMaster
+    selectedTransaction, startEditTransaction, deleteTransaction, isMaster
   , batchFromLocation, setBatchFromLocation, batchToLocation, setBatchToLocation, showOriginalHistory, setShowOriginalHistory, handleSubmitTransaction, downloadExcelTemplate, handleDragOver, handleDragLeave, handleDrop, handleExcelDataSubmit, handleBatchApplyLocation, warehouseDetailTarget, warehouseDetailOpen, closeWarehouseDetail, barcodeScannerOpen, setBarcodeScannerOpen, setCurrentScanningRow, handleBarcodeScan, handleBarcodeScanError, excelData, isDragOver, snackbar, setSnackbar, isSubmittingTransaction,
     editBatchFromLocation, setEditBatchFromLocation, editBatchToLocation, setEditBatchToLocation, handleEditBatchApplyLocation,
     verifyInventory, verifyResults, verifyOpen, setVerifyOpen, verifyLoading,
@@ -1711,7 +1711,7 @@ export default function InventoryHistory() {
                 disabled={detailProcessing}
                 onClick={async () => {
                   if (!selectedTransaction) return;
-                  if (!window.confirm('이 거래내역을 삭제하시겠습니까? 재고가 자동으로 재계산됩니다.')) return;
+                  if (!window.confirm('이 거래내역을 삭제하시겠습니까?')) return;
                   setDetailProcessing(true);
                   try {
                     const items = selectedTransaction.items || [selectedTransaction];

@@ -1100,6 +1100,9 @@ function SalesHistory() {
                 </Box>
               </LocalizationProvider>
             </Stack>
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+              매장출고·카페24: 주문일 기준 &nbsp;|&nbsp; A/S: 완료일 기준
+            </Typography>
           </Grid>
 
           {/* 검색명 입력 & 버튼 그룹 */}

@@ -827,6 +827,38 @@ function InventoryLayout() {
     setEditProducts(updated);
   };
 
+  // 트랜잭션 목록의 재고 효과를 적용(reverse=false) 또는 역방향(reverse=true)으로 처리
+  const applyTransactionInventory = async (txList, reverse = false) => {
+    const warehouseMap = new Map((warehouses || []).map(w => [w.id, w]));
+    const rpcMap = {};
+    const sign = reverse ? -1 : 1;
+    const addDelta = (wid, pid, d) => {
+      const key = `${wid}_${pid}`;
+      if (!rpcMap[key]) rpcMap[key] = { wid, pid, delta: 0 };
+      rpcMap[key].delta += d;
+    };
+    for (const tx of txList) {
+      if (tx.isConfirmed === false) continue;
+      const qty = parseInt(tx.quantity, 10) || 0;
+      if (qty === 0 || !tx.productId) continue;
+      const pid = parseInt(tx.productId, 10);
+      if (tx.type === 'in') {
+        if (warehouseMap.get(tx.toLocation)) addDelta(tx.toLocation, pid, sign * qty);
+        if (warehouseMap.get(tx.fromLocation)) addDelta(tx.fromLocation, pid, -sign * qty);
+      } else if (tx.type === 'out') {
+        if (warehouseMap.get(tx.fromLocation)) addDelta(tx.fromLocation, pid, -sign * qty);
+        if (warehouseMap.get(tx.toLocation)) addDelta(tx.toLocation, pid, sign * qty);
+      }
+    }
+    const entries = Object.values(rpcMap).filter(e => e.delta !== 0);
+    if (entries.length === 0) return;
+    await Promise.all(entries.map(e =>
+      supabase.rpc('adjust_inventory', {
+        p_warehouse_id: e.wid, p_product_id: e.pid, p_quantity_change: e.delta
+      })
+    ));
+  };
+
   // 거래내역 수정 저장 (useCallback으로 메모이제이션)
   const saveEditTransaction = useCallback(async () => {
     if (!isMasterRef.current) { showSnackbar('입출고 내역 수정은 마스터(관리자)만 가능합니다.', 'error'); return; }
@@ -886,15 +918,18 @@ function InventoryLayout() {
           status: it.status
         }));
 
+        await applyTransactionInventory(backupItems, true);
         await transactionApi.deleteByGroupId(groupId);
 
         try {
           await transactionApi.createMany(newRows);
+          await applyTransactionInventory(newRows, false);
         } catch (createErr) {
-          // 재생성 실패 시 원본 복원
+          // 재생성 실패 시 원본 복원 + 재고 복원
           console.error('거래내역 재생성 실패, 원본 복원 시도:', createErr);
           try {
             await transactionApi.createMany(backupItems);
+            await applyTransactionInventory(backupItems, false);
             showSnackbar('수정에 실패하여 원본을 복원했습니다.', 'error');
           } catch (restoreErr) {
             console.error('원본 복원도 실패:', restoreErr);
@@ -923,11 +958,12 @@ function InventoryLayout() {
           isGrouped: false,
           isConfirmed: editFormData.isConfirmed ?? true
         };
+        await applyTransactionInventory([selectedTransaction], true);
         await transactionApi.update(selectedTransaction.id, payload);
+        await applyTransactionInventory([payload], false);
       }
 
-      // 수정 후 전체 재고 재계산으로 일관성 보장 (조용히 실행)
-      await recalculateAllInventory(true);
+      await fetchInventoryData();
 
       // 서버에서 최신 거래내역 다시 반영
       const latest = await transactionApi.getAll();
@@ -966,11 +1002,15 @@ function InventoryLayout() {
   const deleteTransaction = useCallback(async (transactionId) => {
     if (!isMasterRef.current) { showSnackbar('거래내역 삭제는 마스터(관리자)만 가능합니다.', 'error'); return; }
     try {
+      // 삭제 전 재고 역방향 적용
+      const txToDelete = (transactions || []).find(t => t.id === transactionId);
+      if (txToDelete && txToDelete.isConfirmed !== false) {
+        await applyTransactionInventory([txToDelete], true);
+      }
       // 서버에서 거래내역 삭제
       await transactionApi.delete(transactionId);
       
-      // 삭제 후 전체 재고 재계산으로 일관성 보장 (조용히 실행)
-      await recalculateAllInventory(true);
+      await fetchInventoryData();
 
       // 서버에서 최신 거래내역 다시 가져오기
       const updatedTransactions = await transactionApi.getAll();
@@ -1420,183 +1460,6 @@ function InventoryLayout() {
     }
   };
 
-  // 기존 내역 전체를 기반으로 재고(inventory 및 parts) 전면 재계산 (시스템 복구용)
-  const recalculateAllInventory = async (silent = false) => {
-    // 사용자가 직접 실행하는 재계산은 마스터만 (수정/삭제 후 내부 silent 재계산은 허용)
-    if (!silent && !isMasterRef.current) { showSnackbar('재고 전체 재계산은 마스터(관리자)만 가능합니다.', 'error'); return; }
-    if (!silent) {
-      if (!window.confirm('경고: 현재 데이터베이스의 모든 입출고 내역을 기반으로 재고를 0부터 다시 계산합니다. 이 작업은 되돌릴 수 없습니다. 진행하시겠습니까?')) {
-        return;
-      }
-    }
-    if (!silent) setLoading(true);
-    try {
-      if (!silent) showSnackbar('재고 전면 재계산을 시작합니다...', 'info');
-      
-      // 1. 서버에서 모든 트랜잭션 가져오기 (오래된 순으로 정렬)
-      const allTx = await transactionApi.getAll();
-      const sortedTx = [...allTx].sort((a, b) => {
-        const dateA = a.date || a.createdAt;
-        const dateB = b.date || b.createdAt;
-        const timeDiff = new Date(dateA) - new Date(dateB);
-        if (timeDiff !== 0) return timeDiff;
-        // 같은 날짜 내에서 리셋(reset-all-*) 건은 항상 먼저 처리
-        // (리셋 후 수동 조정이 덮어쓰여야 하므로)
-        const aIsReset = a.groupId && String(a.groupId).startsWith('reset-all-');
-        const bIsReset = b.groupId && String(b.groupId).startsWith('reset-all-');
-        if (aIsReset && !bIsReset) return -1;
-        if (!aIsReset && bIsReset) return 1;
-        // 그 외에는 생성일시(createdAt)로 정밀하게 비교
-        return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
-      });
-      
-      // 2. 초기 재고 설정 (0으로 초기화)
-      const newInventory = {};
-      const warehouseMap = new Map((warehouses || []).map(w => [w.id, w]));
-      
-      warehouses.forEach(w => {
-        newInventory[w.id] = {};
-        products.forEach(p => {
-          newInventory[w.id][p.id] = 0;
-        });
-      });
-
-      const stockUpdates = {}; // { productId: finalStock }
-      // 재고 비관리 상품 ID 목록 (track_inventory === false)
-      const noTrackIds = new Set(
-        products.filter(p => p.track_inventory === false).map(p => p.id)
-      );
-      products.forEach(p => {
-        if (!noTrackIds.has(p.id)) {
-          stockUpdates[p.id] = 0;
-        }
-      });
-
-      // 3. 트랜잭션 순차 적용
-      for (const tx of sortedTx) {
-        if (!tx.productId) continue;
-        // 재고 비관리 상품은 건너뜀
-        if (noTrackIds.has(tx.productId)) continue;
-        // 미확정 건은 재고 미반영
-        if (tx.isConfirmed === false) continue;
-        const qty = Number(tx.quantity) || 0;
-        
-        if (tx.type === 'in') {
-          const toWh = warehouseMap.get(tx.toLocation);
-          if (toWh) {
-            if (!newInventory[tx.toLocation]) newInventory[tx.toLocation] = {};
-            // adjustment 입고도 일반 입고와 동일하게 더하기(ADD) 처리
-            // batchUpdateInventory와 동작 일치시킴 (등록 시와 재계산 시 결과 동일)
-            // 리셋 스크립트(reset-all-*, qty=0)는 리셋 전용 로직에서 별도 처리
-            const isResetEntry = tx.groupId && String(tx.groupId).startsWith('reset-all-');
-            if (isResetEntry && tx.fromLocation === 'adjustment') {
-              // 리셋 건: 해당 값으로 덮어쓰기 (재고를 0으로 초기화)
-              const oldQty = newInventory[tx.toLocation][tx.productId] || 0;
-              newInventory[tx.toLocation][tx.productId] = qty;
-              if (toWh.syncWithProductStock) {
-                stockUpdates[tx.productId] = (stockUpdates[tx.productId] || 0) + (qty - oldQty);
-              }
-            } else {
-              // 일반 입고 및 수동 재고 조정: 더하기(ADD) 처리
-              newInventory[tx.toLocation][tx.productId] = (newInventory[tx.toLocation][tx.productId] || 0) + qty;
-              if (toWh.syncWithProductStock) {
-                stockUpdates[tx.productId] = (stockUpdates[tx.productId] || 0) + qty;
-              }
-            }
-          }
-        } else if (tx.type === 'out') {
-          const fromWh = warehouseMap.get(tx.fromLocation);
-          if (fromWh) {
-            if (!newInventory[tx.fromLocation]) newInventory[tx.fromLocation] = {};
-            const isResetEntry = tx.groupId && String(tx.groupId).startsWith('reset-all-');
-            if (isResetEntry && tx.toLocation === 'adjustment') {
-              // 리셋 건: 해당 값으로 덮어쓰기
-              const oldQty = newInventory[tx.fromLocation][tx.productId] || 0;
-              newInventory[tx.fromLocation][tx.productId] = qty;
-              if (fromWh.syncWithProductStock) {
-                stockUpdates[tx.productId] = (stockUpdates[tx.productId] || 0) + (qty - oldQty);
-              }
-            } else {
-              // 일반 출고: 차감(SUB) 처리
-              newInventory[tx.fromLocation][tx.productId] = (newInventory[tx.fromLocation][tx.productId] || 0) - qty;
-              if (fromWh.syncWithProductStock) {
-                stockUpdates[tx.productId] = (stockUpdates[tx.productId] || 0) - qty;
-              }
-            }
-          }
-        } else if (tx.type === 'move') {
-          const fromWh = warehouseMap.get(tx.fromLocation);
-          const toWh = warehouseMap.get(tx.toLocation);
-          if (fromWh) {
-            if (!newInventory[tx.fromLocation]) newInventory[tx.fromLocation] = {};
-            newInventory[tx.fromLocation][tx.productId] = (newInventory[tx.fromLocation][tx.productId] || 0) - qty;
-            if (fromWh.syncWithProductStock) {
-              stockUpdates[tx.productId] = (stockUpdates[tx.productId] || 0) - qty;
-            }
-          }
-          if (toWh) {
-            if (!newInventory[tx.toLocation]) newInventory[tx.toLocation] = {};
-            newInventory[tx.toLocation][tx.productId] = (newInventory[tx.toLocation][tx.productId] || 0) + qty;
-            if (toWh.syncWithProductStock) {
-              stockUpdates[tx.productId] = (stockUpdates[tx.productId] || 0) + qty;
-            }
-          }
-        } else if (tx.type === 'adjustment') {
-          const toWh = warehouseMap.get(tx.toLocation);
-          if (toWh) {
-            if (!newInventory[tx.toLocation]) newInventory[tx.toLocation] = {};
-            const oldQty = newInventory[tx.toLocation][tx.productId] || 0;
-            newInventory[tx.toLocation][tx.productId] = qty;
-            if (toWh.syncWithProductStock) {
-              stockUpdates[tx.productId] = (stockUpdates[tx.productId] || 0) + (qty - oldQty);
-            }
-          }
-        }
-      }
-
-      // 4. DB 일괄 업데이트 준비 (inventory 테이블)
-      const inventoryUpserts = [];
-      for (const [whId, prods] of Object.entries(newInventory)) {
-        for (const [pId, qty] of Object.entries(prods)) {
-          inventoryUpserts.push({
-            warehouse_id: whId,
-            product_id: parseInt(pId, 10),
-            quantity: qty
-          });
-        }
-      }
-      
-      if (inventoryUpserts.length > 0) {
-        const chunkSize = 100;
-        for (let i = 0; i < inventoryUpserts.length; i += chunkSize) {
-          const chunk = inventoryUpserts.slice(i, i + chunkSize);
-          await inventoryApi.upsertMany(chunk);
-        }
-      }
-
-      // 5. DB 일괄 업데이트 준비 (parts 테이블)
-      const stockUpdatesArray = Object.entries(stockUpdates);
-      const chunkSizeParts = 100;
-      for (let i = 0; i < stockUpdatesArray.length; i += chunkSizeParts) {
-        const chunk = stockUpdatesArray.slice(i, i + chunkSizeParts);
-        await Promise.all(chunk.map(([pId, qty]) => {
-          const finalQty = Math.max(0, qty); // parts 테이블 재고는 음수 불가
-          return supabase.from('parts').update({ stock: finalQty }).eq('id', pId);
-        }));
-      }
-
-      // 6. 데이터 리프레시
-      await fetchInventoryData();
-      await fetchProducts();
-      if (!silent) showSnackbar('재고 재계산이 성공적으로 완료되었습니다!', 'success');
-      
-    } catch (err) {
-      console.error('재고 재계산 실패:', err);
-      if (!silent) showSnackbar('재고 재계산 중 오류가 발생했습니다.', 'error');
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  };
 
   // 재고 검증: 트랜잭션 합산 vs DB 실제값 비교
   const verifyInventory = async () => {
@@ -1608,7 +1471,7 @@ function InventoryLayout() {
       const productMap = new Map((products || []).map(p => [p.id, p]));
       const noTrackIds = new Set((products || []).filter(p => p.track_inventory === false).map(p => p.id));
 
-      // 트랜잭션 기반 창고별 재고 계산 (recalculateAllInventory 로직과 동일)
+      // 트랜잭션 기반 창고별 재고 계산
       const expected = {};
       const sortedTxs = [...transactions].sort((a, b) => {
         const ta = a.createdAt || a.date || '';
@@ -3319,7 +3182,7 @@ function InventoryLayout() {
     handleDeleteSelectedTransactions, handleViewOriginal, handleDateFilterClick, handleTableCellClick,
     handleTableCellHover, handleTableCellHoverLeave, handlePageChange, handleBarcodeScan, startBarcodeScan,
     handleBarcodeScanError, handleDragOver, handleDragLeave, handleDrop,
-    totalPages, recalculateAllInventory, deleteTransaction, isMaster,
+    totalPages, deleteTransaction, isMaster,
     batchFromLocation, setBatchFromLocation, batchToLocation, setBatchToLocation, showOriginalHistory, setShowOriginalHistory, handleSubmitTransaction, downloadExcelTemplate, handleExcelDataSubmit, handleBatchApplyLocation, handleDirectInventoryEdit,
     editBatchFromLocation, setEditBatchFromLocation, editBatchToLocation, setEditBatchToLocation, handleEditBatchApplyLocation,
     verifyInventory, verifyResults, verifyOpen, setVerifyOpen, verifyLoading,
