@@ -1965,51 +1965,52 @@ function ServiceList() {
             placement="top"
             arrow
           >
-            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', maxWidth: '100%' }}>
-              {row.tags?.length > 0 ? (
-                row.tags.map((tag, index) => (
-            <Chip
-              key={index}
-              label={tag}
-              size="small"
-              sx={{
-                height: '22px',
-                fontSize: '0.85rem',
-                fontWeight: 500,
-                letterSpacing: '0.01em',
-                bgcolor: 'primary.50',
-                color: 'primary.700',
-                '&:hover': {
-                  bgcolor: 'primary.100'
-                }
-              }}
-            />
-                ))
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, maxWidth: '100%' }}>
+              {row.solution ? (
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{
+                    maxWidth: '100%',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 3,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    lineHeight: '1.4em',
+                    maxHeight: '4.2em',
+                    fontSize: '0.95rem',
+                    letterSpacing: '0.01em'
+                  }}
+                >
+                  {row.solution}
+                </Typography>
               ) : (
-                row.solution ? (
-                  <Typography 
-                    variant="body2" 
-                    color="text.secondary"
-                    sx={{ 
-                      maxWidth: '100%',
-                      whiteSpace: 'pre-wrap',
-                      wordBreak: 'break-word',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 4,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      lineHeight: '1.4em',
-                      maxHeight: '5.6em',
-                      fontSize: '0.95rem',
-                      letterSpacing: '0.01em'
-                    }}
-                  >
-                    {row.solution}
-                  </Typography>
-                ) : (
-                  <Typography variant="body2" color="text.secondary">-</Typography>
-                )
+                !row.tags?.length && <Typography variant="body2" color="text.secondary">-</Typography>
+              )}
+              {row.tags?.length > 0 && (
+                <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                  {row.tags.map((tag, index) => (
+                    <Chip
+                      key={index}
+                      label={tag}
+                      size="small"
+                      sx={{
+                        height: '22px',
+                        fontSize: '0.85rem',
+                        fontWeight: 500,
+                        letterSpacing: '0.01em',
+                        bgcolor: 'primary.50',
+                        color: 'primary.700',
+                        '&:hover': {
+                          bgcolor: 'primary.100'
+                        }
+                      }}
+                    />
+                  ))}
+                </Box>
               )}
             </Box>
           </Tooltip>
@@ -2246,55 +2247,22 @@ function ServiceList() {
               </Tooltip>
             )}
           </Box>
-          {row.tags?.length > 0 ? (
-            <Tooltip
-              title={
-                <Box sx={{ p: 1 }}>
-                  <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>
-                    처리내역:
-                  </Typography>
-                  <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-                    {row.solution || '처리내역이 없습니다.'}
-                  </Typography>
-                </Box>
-              }
-              placement="top"
-              arrow
-            >
-              <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', maxWidth: '200px' }}>
-                {row.tags.map((tag, index) => (
-            <Chip
-              key={index}
-              label={tag}
-              size="small"
-              sx={{
-                height: '22px',
-                fontSize: '0.85rem',
-                fontWeight: 500,
-                letterSpacing: '0.01em',
-                bgcolor: 'primary.50',
-                color: 'primary.700'
-              }}
-            />
-          ))}
-        </Box>
-            </Tooltip>
-          ) : (
-            row.solution ? (
-              <Typography 
-                variant="body2" 
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, maxWidth: '200px' }}>
+            {row.solution ? (
+              <Typography
+                variant="body2"
                 color="text.secondary"
-                sx={{ 
+                sx={{
                   maxWidth: '200px',
                   whiteSpace: 'pre-wrap',
                   wordBreak: 'break-word',
                   display: '-webkit-box',
-                  WebkitLineClamp: 4,
+                  WebkitLineClamp: 3,
                   WebkitBoxOrient: 'vertical',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   lineHeight: '1.4em',
-                  maxHeight: '5.6em',
+                  maxHeight: '4.2em',
                   fontSize: '0.95rem',
                   letterSpacing: '0.01em'
                 }}
@@ -2302,9 +2270,28 @@ function ServiceList() {
                 {row.solution}
               </Typography>
             ) : (
-              <Typography variant="body2" color="text.secondary">-</Typography>
-            )
-          )}
+              !row.tags?.length && <Typography variant="body2" color="text.secondary">-</Typography>
+            )}
+            {row.tags?.length > 0 && (
+              <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                {row.tags.map((tag, index) => (
+                  <Chip
+                    key={index}
+                    label={tag}
+                    size="small"
+                    sx={{
+                      height: '22px',
+                      fontSize: '0.85rem',
+                      fontWeight: 500,
+                      letterSpacing: '0.01em',
+                      bgcolor: 'primary.50',
+                      color: 'primary.700'
+                    }}
+                  />
+                ))}
+              </Box>
+            )}
+          </Box>
         </Box>
 
         <Box sx={{ 

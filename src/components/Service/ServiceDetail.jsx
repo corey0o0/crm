@@ -268,6 +268,7 @@ function ServiceDetail() {
 
   // 로딩 상태 추적을 위한 ref
   const isLoadingRef = React.useRef(false);
+  const submitActionRef = React.useRef('list');
 
   // 강제 리렌더링을 위한 key 상태
   const [componentKey, setComponentKey] = useState(0);
@@ -1081,8 +1082,12 @@ function ServiceDetail() {
 
       localStorage.setItem('highlightServiceId', id);
 
-      // 스낵바 표시 후 페이지 이동
-      setTimeout(() => navigate('/services'), 1500);
+      // 스낵바 표시 후 액션 분기
+      if (submitActionRef.current === 'list') {
+        setTimeout(() => navigate('/services'), 1500);
+      } else {
+        setTimeout(() => fetchServiceDetail(), 1500);
+      }
 
     } catch (error) {
       console.error('Error in handleSubmit:', error);
@@ -3515,23 +3520,46 @@ function ServiceDetail() {
                 프린트
               </Button>
               {isEditing ? (
-                <Button
-                  type="submit"
-                  variant="contained"
-                  disabled={submitting}
-                  sx={{
-                    bgcolor: '#3182f6',
-                    fontSize: '0.95rem',
-                    fontWeight: 600,
-                    textTransform: 'none',
-                    px: 4,
-                    '&:hover': {
-                      bgcolor: '#1b64da'
-                    }
-                  }}
-                >
-                  저장
-                </Button>
+                <>
+                  <Button
+                    type="submit"
+                    variant="outlined"
+                    disabled={submitting}
+                    onClick={() => { submitActionRef.current = 'list'; }}
+                    sx={{
+                      borderColor: '#3182f6',
+                      color: '#3182f6',
+                      fontSize: '0.95rem',
+                      fontWeight: 600,
+                      textTransform: 'none',
+                      px: 3,
+                      '&:hover': {
+                        borderColor: '#1b64da',
+                        bgcolor: 'rgba(49,130,246,0.04)'
+                      }
+                    }}
+                  >
+                    저장/목록
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    disabled={submitting}
+                    onClick={() => { submitActionRef.current = 'detail'; }}
+                    sx={{
+                      bgcolor: '#3182f6',
+                      fontSize: '0.95rem',
+                      fontWeight: 600,
+                      textTransform: 'none',
+                      px: 3,
+                      '&:hover': {
+                        bgcolor: '#1b64da'
+                      }
+                    }}
+                  >
+                    저장/계속
+                  </Button>
+                </>
               ) : (
                 <Button
                   onClick={handleStartEdit}
