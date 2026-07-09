@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box, Paper, Typography, Switch, FormControlLabel, TextField, Button,
-  Grid, Snackbar, Alert, CircularProgress, Divider, Chip, Stack
+  Grid, Snackbar, Alert, CircularProgress, Divider, Chip, Stack,
+  InputAdornment, IconButton
 } from '@mui/material';
-import { Save as SaveIcon } from '@mui/icons-material';
+import { Save as SaveIcon, Visibility, VisibilityOff, VpnKey } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
 
 const BRANDS = [
@@ -20,6 +21,9 @@ export default function ChatbotSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState('');
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [apiKey, setApiKey] = useState(''); // 공통 Anthropic API 키 (NB row 저장)
+  const [savingApi, setSavingApi] = useState(false);
+  const [showKeys, setShowKeys] = useState({}); // { NB: false, XRB: false, anthropic: false }
 
   useEffect(() => { load(); }, []);
 
@@ -36,9 +40,13 @@ export default function ChatbotSettings() {
         offhours_message: '지금은 상담 운영시간이 아닙니다. A/S 접수를 남겨주시면 영업시간에 순차적으로 연락드리겠습니다.',
         offhours_image_url: '',
         forbidden_phrases: [],
+        naver_auth_key: '',
+        system_prompt: '',
       };
     });
     setRows(map);
+    // 공통 Anthropic API 키는 NB row에서 로드
+    setApiKey(map['NB']?.anthropic_api_key || '');
     setLoading(false);
   };
 
@@ -63,12 +71,23 @@ export default function ChatbotSettings() {
       offhours_image_url: r.offhours_image_url || null,
       forbidden_phrases: (Array.isArray(r.forbidden_phrases) ? r.forbidden_phrases : String(r.forbidden_phrases || '').split('\n'))
         .map(s => s.trim()).filter(Boolean),
+      naver_auth_key: r.naver_auth_key || null,
+      system_prompt: r.system_prompt || null,
       updated_at: new Date().toISOString(),
     };
     const { error } = await supabase.from('chatbot_settings').upsert(payload, { onConflict: 'brand' });
     setSaving('');
     if (error) showSnack('저장 실패: ' + error.message, 'error');
     else showSnack(`${BRANDS.find(b => b.key === brand)?.name} 챗봇 설정이 저장되었습니다.`);
+  };
+
+  const saveApiKey = async () => {
+    setSavingApi(true);
+    const { error } = await supabase.from('chatbot_settings')
+      .upsert({ brand: 'NB', anthropic_api_key: apiKey || null, updated_at: new Date().toISOString() }, { onConflict: 'brand' });
+    setSavingApi(false);
+    if (error) showSnack('API 키 저장 실패: ' + error.message, 'error');
+    else showSnack('Anthropic API 키가 저장되었습니다.');
   };
 
   if (loading) return <Box sx={{ textAlign: 'center', py: 5 }}><CircularProgress /></Box>;
@@ -147,6 +166,42 @@ export default function ChatbotSettings() {
                   value={Array.isArray(r.forbidden_phrases) ? r.forbidden_phrases.join('\n') : (r.forbidden_phrases || '')}
                   onChange={e => patch(b.key, 'forbidden_phrases', e.target.value.split('\n'))} sx={{ mb: 2 }} />
 
+                <Divider sx={{ mb: 2 }} />
+
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                  네이버 톡톡 발신 인증키
+                  <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                    (빈칸이면 환경변수 NAVER_AUTH_{b.key} 사용)
+                  </Typography>
+                </Typography>
+                <TextField fullWidth size="small"
+                  type={showKeys[b.key] ? 'text' : 'password'}
+                  placeholder="ct_xxxxx... (비워두면 환경변수 유지)"
+                  value={r.naver_auth_key || ''}
+                  onChange={e => patch(b.key, 'naver_auth_key', e.target.value)}
+                  sx={{ mb: 2 }}
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton size="small" onClick={() => setShowKeys(p => ({ ...p, [b.key]: !p[b.key] }))}>
+                          {showKeys[b.key] ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                        </IconButton>
+                      </InputAdornment>
+                    )
+                  }}
+                />
+
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                  챗봇 시스템 프롬프트
+                  <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                    (비워두면 기본 내장 프롬프트 사용)
+                  </Typography>
+                </Typography>
+                <TextField multiline minRows={4} fullWidth size="small"
+                  placeholder="[역할] ..."
+                  value={r.system_prompt || ''}
+                  onChange={e => patch(b.key, 'system_prompt', e.target.value)} sx={{ mb: 2 }} />
+
                 <Button variant="contained" startIcon={<SaveIcon />} onClick={() => save(b.key)}
                   disabled={saving === b.key} fullWidth>
                   {saving === b.key ? '저장 중...' : `${b.name} 설정 저장`}
@@ -156,6 +211,42 @@ export default function ChatbotSettings() {
           );
         })}
       </Grid>
+
+      {/* 공통 API 키 */}
+      <Paper elevation={0} sx={{ border: '1px solid #e0e0e0', borderRadius: 2, p: 2.5, mt: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+          <VpnKey color="action" fontSize="small" />
+          <Typography variant="h6">공통 API 키</Typography>
+        </Box>
+        <Divider sx={{ mb: 2 }} />
+        <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+          Anthropic API Key
+          <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+            (챗봇 AI 응답용 — 빈칸이면 환경변수 ANTHROPIC_API_KEY 사용)
+          </Typography>
+        </Typography>
+        <Stack direction="row" spacing={1} alignItems="center">
+          <TextField fullWidth size="small"
+            type={showKeys.anthropic ? 'text' : 'password'}
+            placeholder="sk-ant-xxxxx... (비워두면 환경변수 유지)"
+            value={apiKey}
+            onChange={e => setApiKey(e.target.value)}
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton size="small" onClick={() => setShowKeys(p => ({ ...p, anthropic: !p.anthropic }))}>
+                    {showKeys.anthropic ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                  </IconButton>
+                </InputAdornment>
+              )
+            }}
+          />
+          <Button variant="contained" startIcon={<SaveIcon />} onClick={saveApiKey}
+            disabled={savingApi} sx={{ whiteSpace: 'nowrap', minWidth: 100 }}>
+            {savingApi ? '저장 중...' : '저장'}
+          </Button>
+        </Stack>
+      </Paper>
 
       <Snackbar open={snackbar.open} autoHideDuration={3000} onClose={() => setSnackbar(s => ({ ...s, open: false }))}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>

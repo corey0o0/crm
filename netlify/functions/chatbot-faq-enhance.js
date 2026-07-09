@@ -1,5 +1,6 @@
 'use strict';
 const { getSupabase, ok, err, preflight } = require('./_chatbot_utils');
+const { getSettings } = require('./_chatbot_settings');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return preflight();
@@ -27,6 +28,10 @@ exports.handler = async (event) => {
   if (!logs || logs.length === 0) return ok({ suggestions: [], message: '분석할 데이터가 없습니다.' });
 
   // 현재 FAQ 레이블 목록
+  // Anthropic API 키: DB(NB) 우선, env fallback
+  const nbSettings = await getSettings(supabase, 'nb').catch(() => ({}));
+  const anthropicKey = nbSettings.anthropic_api_key || process.env.ANTHROPIC_API_KEY;
+
   const { data: existingFaqs } = await supabase
     .from('faq_items')
     .select('label')
@@ -50,7 +55,7 @@ exports.handler = async (event) => {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
-      'x-api-key': process.env.ANTHROPIC_API_KEY,
+      'x-api-key': anthropicKey,
       'anthropic-version': '2023-06-01',
       'content-type': 'application/json',
     },

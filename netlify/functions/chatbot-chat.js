@@ -63,6 +63,10 @@ exports.handler = async (event) => {
 
   if (!message) return err(400, 'message 필수');
 
+  // 설정 선로드 (system_prompt, anthropic_api_key, forbidden_phrases)
+  const settings = await getSettings(supabase, brand).catch(() => ({}));
+  const anthropicKey = settings.anthropic_api_key || process.env.ANTHROPIC_API_KEY;
+
   let systemPrompt, maxTokens;
 
   if (mode === 'smart' && labels.length > 0) {
@@ -96,18 +100,15 @@ exports.handler = async (event) => {
       `[자료]\n${know || '(관련 자료 없음)'}`;
     maxTokens = 450;
   } else {
-    systemPrompt = SYSTEM_PROMPTS[brand] || SYSTEM_PROMPTS.nb;
+    systemPrompt = settings.system_prompt || SYSTEM_PROMPTS[brand] || SYSTEM_PROMPTS.nb;
     maxTokens = 300;
   }
 
-  // 관리자가 등록한 금지 표현 주입 (모든 모드 공통)
-  try {
-    const settings = await getSettings(supabase, brand);
-    const forbidden = Array.isArray(settings.forbidden_phrases) ? settings.forbidden_phrases.filter(Boolean) : [];
-    if (forbidden.length) {
-      systemPrompt += `\n\n[절대 금지] 다음 표현·문구는 어떤 경우에도 답변에 포함하지 마세요(유사 표현도 금지): ${forbidden.map((s) => `"${s}"`).join(', ')}.`;
-    }
-  } catch {}
+  // 금지 표현 주입 (모든 모드 공통)
+  const forbidden = Array.isArray(settings.forbidden_phrases) ? settings.forbidden_phrases.filter(Boolean) : [];
+  if (forbidden.length) {
+    systemPrompt += `\n\n[절대 금지] 다음 표현·문구는 어떤 경우에도 답변에 포함하지 마세요(유사 표현도 금지): ${forbidden.map((s) => `"${s}"`).join(', ')}.`;
+  }
 
   const model = MODEL_BY_MODE[mode] || 'claude-haiku-4-5-20251001';
   const messages = [
@@ -118,7 +119,7 @@ exports.handler = async (event) => {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
-      'x-api-key': process.env.ANTHROPIC_API_KEY,
+      'x-api-key': anthropicKey,
       'anthropic-version': '2023-06-01',
       'content-type': 'application/json',
     },

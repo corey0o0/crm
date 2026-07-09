@@ -13,6 +13,9 @@ const DEFAULTS = {
   offhours_message: '지금은 상담 운영시간이 아닙니다. A/S 접수를 남겨주시면 영업시간에 순차적으로 연락드리겠습니다.',
   offhours_image_url: null,
   forbidden_phrases: [], // 답변에서 절대 쓰면 안 되는 표현(관리자 추가)
+  naver_auth_key: null,  // 네이버 톡톡 발신 인증키 (브랜드별)
+  system_prompt: null,   // 챗봇 기본 시스템 프롬프트 (null이면 코드 하드코딩 사용)
+  anthropic_api_key: null, // Anthropic API 키 (공통, NB row에만 저장)
 };
 
 const dbBrandOf = (brand) => {

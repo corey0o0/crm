@@ -3,11 +3,7 @@
 // 네이버 톡톡 챗봇 API 공용 유틸 (send API 어댑터 + 대화상태 저장)
 // 공식 API: https://github.com/navertalk/chatbot-api
 //
-// [필수 환경변수]
-//   NAVER_AUTH_NB   : 니어바이크 스마트스토어 톡톡 발신 인증키
-//   NAVER_AUTH_NB2  : 니어바이크 공식홈페이지 톡톡 발신 인증키
-//   NAVER_AUTH_XRB  : X-RIDER 톡톡 계정 발신 인증키 (ct_...)
-//   URL             : Netlify가 자동 주입하는 사이트 URL (내부 함수 호출용)
+// [발신 인증키 우선순위] DB chatbot_settings.naver_auth_key → 환경변수 NAVER_AUTH_*
 //
 
 const SEND_API = 'https://gw.talk.naver.com/chatbot/v1/event';
@@ -15,8 +11,14 @@ const SEND_API = 'https://gw.talk.naver.com/chatbot/v1/event';
 // 네이버 톡톡이 webhook을 호출하는 출발 IP 대역 (파트너센터 ACL 안내값) — 검증용 참고
 const NAVER_ACL_CIDRS = ['211.249.40.0/27', '211.249.68.0/27', '220.230.168.0/27', '103.6.173.0/27'];
 
-// brand → 발신 인증키 (톡톡 계정마다 다름)
-function authKeyFor(brand) {
+// brand → 발신 인증키: DB 우선, env fallback
+async function authKeyFor(brand) {
+  try {
+    const { getSupabase } = require('./_chatbot_utils');
+    const { getSettings } = require('./_chatbot_settings');
+    const settings = await getSettings(getSupabase(), brand);
+    if (settings.naver_auth_key) return settings.naver_auth_key;
+  } catch {}
   const map = { nb: process.env.NAVER_AUTH_NB, nb2: process.env.NAVER_AUTH_NB2, xrb: process.env.NAVER_AUTH_XRB };
   return map[brand] || null;
 }
@@ -79,7 +81,7 @@ function takeThread(user) {
 
 // 네이버 톡톡 send API 호출
 async function naverSend(brand, payload) {
-  const key = authKeyFor(brand);
+  const key = await authKeyFor(brand);
   if (!key) {
     console.error('[naver] 발신 인증키 없음 brand=', brand);
     return { ok: false, error: 'no_auth_key' };
