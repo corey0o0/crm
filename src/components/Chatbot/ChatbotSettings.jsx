@@ -73,6 +73,7 @@ export default function ChatbotSettings() {
         .map(s => s.trim()).filter(Boolean),
       naver_auth_key: r.naver_auth_key || null,
       system_prompt: r.system_prompt || null,
+      webhook_url: r.webhook_url || null,
       updated_at: new Date().toISOString(),
     };
     const { error } = await supabase.from('chatbot_settings').upsert(payload, { onConflict: 'brand' });
@@ -201,6 +202,17 @@ export default function ChatbotSettings() {
                   placeholder="[역할] ..."
                   value={r.system_prompt || ''}
                   onChange={e => patch(b.key, 'system_prompt', e.target.value)} sx={{ mb: 2 }} />
+
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                  외부 웹훅 URL
+                  <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                    (이벤트 발생 시 POST 전송 — A/S 접수 등)
+                  </Typography>
+                </Typography>
+                <TextField fullWidth size="small"
+                  placeholder="https://..."
+                  value={r.webhook_url || ''}
+                  onChange={e => patch(b.key, 'webhook_url', e.target.value)} sx={{ mb: 2 }} />
 
                 <Button variant="contained" startIcon={<SaveIcon />} onClick={() => save(b.key)}
                   disabled={saving === b.key} fullWidth>

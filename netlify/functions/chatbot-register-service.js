@@ -1,5 +1,6 @@
 'use strict';
 const { getSupabase, getIp, checkRateLimit, logRequest, ok, err, preflight } = require('./_chatbot_utils');
+const { getSettings, fireWebhook } = require('./_chatbot_settings');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return preflight();
@@ -44,6 +45,21 @@ exports.handler = async (event) => {
   if (error) return err(500, error.message);
 
   await logRequest(supabase, ip, brand, 'register');
+
+  // 웹훅 전송 (설정된 경우)
+  const settings = await getSettings(supabase, brand).catch(() => ({}));
+  if (settings.webhook_url) {
+    fireWebhook(settings.webhook_url, {
+      event: 'as_registered',
+      brand: brand.toUpperCase(),
+      service_id: data.id,
+      name: name.trim(),
+      phone: phone.trim(),
+      product_name: product_name.trim(),
+      symptom: symptom.trim(),
+      registered_at: kstIso,
+    });
+  }
 
   return ok({ success: true, service_id: data.id });
 };
