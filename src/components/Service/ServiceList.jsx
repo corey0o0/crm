@@ -1232,6 +1232,7 @@ function ServiceList() {
       localStorage.setItem('highlightServiceId', String(serviceId));
       debugLog('Setting highlightServiceId before navigation:', serviceId);
     }
+    sessionStorage.removeItem('restorePageState');
     navigate(`/services/${serviceId}`);
   };
 
@@ -1662,7 +1663,8 @@ function ServiceList() {
       setCookie('highlightServiceId', String(service.id));
       localStorage.setItem('highlightServiceId', String(service.id));
       debugLog('Setting highlightServiceId before navigation:', service.id);
-      
+      sessionStorage.removeItem('restorePageState');
+
       // 네비게이션 전에 로딩 상태 표시
       setLoading(true);
       navigate(`/services/${service.id}`);
