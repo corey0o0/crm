@@ -1229,6 +1229,12 @@ function ShipmentForm({ isManualB2B = false }) {
   };
 
   // 가격 수정 함수 추가
+  const handlePartNameChange = (id, newName) => {
+    setSelectedParts(prev => prev.map(part =>
+      part.id === id ? { ...part, part_name: newName } : part
+    ));
+  };
+
   const handlePriceChange = (id, newPrice) => {
     setSelectedParts(prev => prev.map(part => {
       if (part.id === id) {
@@ -1943,7 +1949,15 @@ function ShipmentForm({ isManualB2B = false }) {
                 {sortedParts.map((part) => (
                   <TableRow key={part.id} sx={part.status === '반품완료' ? { opacity: 0.5, textDecoration: 'line-through' } : {}}>
                     <TableCell>
-                      {part.part_name}
+                      <TextField
+                        size="small"
+                        variant="standard"
+                        value={part.part_name ?? ''}
+                        onChange={(e) => handlePartNameChange(part.id, e.target.value)}
+                        disabled={part.status === '반품완료'}
+                        inputProps={{ style: { padding: '2px 0' } }}
+                        sx={{ minWidth: 140 }}
+                      />
                       {part.part_code && (
                         <Typography variant="caption" display="block" color="text.secondary">
                           {part.part_code}
