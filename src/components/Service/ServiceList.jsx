@@ -55,7 +55,6 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
   Add as AddIcon,
-  CloudUpload as CloudUploadIcon,
   Description as DescriptionIcon,
   Download as DownloadIcon,
   Close as CloseIcon,
@@ -64,7 +63,7 @@ import {
   Build as BuildIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
+import { downloadExcel } from '../../utils/excelUtils';
 import { serviceApi } from '../../api/services';
 import { supabase, ensureConnection } from '../../lib/supabaseClient';
 import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
@@ -254,8 +253,6 @@ function ServiceList() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(20);
   const [addServiceDialogOpen, setAddServiceDialogOpen] = useState(false);
-  const [excelUploadDialogOpen, setExcelUploadDialogOpen] = useState(false);
-  const [uploadLoading, setUploadLoading] = useState(false);
   const [dateFilter, setDateFilter] = useState({
     type: 'reception_date',
     startDate: '',
@@ -1511,141 +1508,6 @@ function ServiceList() {
       message: 'A/S가 성공적으로 등록되었습니다.',
       severity: 'success'
     });
-  };
-
-  // 날짜 변환 함수 추가
-  const parseDate = (dateStr) => {
-    if (!dateStr) return null;
-    
-    try {
-      // 날짜가 이미 Date 객체인 경우
-      if (dateStr instanceof Date) {
-        return dateStr.toISOString().split('T')[0];
-      }
-
-      // 문자열이 아닌 경우 문자열로 변환
-      const dateString = String(dateStr).trim();
-      
-      // 빈 문자열 처리
-      if (dateString === '') return null;
-
-      // 8/1 형식 처리
-      if (dateString.includes('/')) {
-        const [month, day] = dateString.split('/').map(num => String(num).trim());
-        const year = new Date().getFullYear();
-        const formattedMonth = month.padStart(2, '0');
-        const formattedDay = day.padStart(2, '0');
-        return `${year}-${formattedMonth}-${formattedDay}`;
-      }
-
-      // Excel의 날짜 형식(시리얼 넘버) 처리
-      const excelDate = parseInt(dateString);
-      if (!isNaN(excelDate)) {
-        const date = new Date((excelDate - 25569) * 86400 * 1000);
-        return date.toISOString().split('T')[0];
-      }
-
-      // 기타 형식의 날짜 문자열 처리
-      const date = new Date(dateString);
-      if (!isNaN(date.getTime())) {
-        return date.toISOString().split('T')[0];
-      }
-
-      return null;
-    } catch (error) {
-      console.error('날짜 변환 중 오류:', error);
-      return null;
-    }
-  };
-
-  // 엑셀 업로드 핸들러 수정
-  const handleExcelUpload = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.xlsx, .xls';
-    
-    input.onchange = async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-
-      setUploadLoading(true);
-      try {
-        const jsonData = await readExcelFile(file);
-
-        // 데이터 형식 변환
-        const formattedData = jsonData.map(row => {
-          const currentDate = new Date().toISOString().split('T')[0];
-          
-          return {
-            brand: selectedBrand,
-            reception_date: parseDate(row['접수일자']) || currentDate,
-            reception_type: row['접수방법'] || '',
-            repair_date: parseDate(row['입고일']) || null,
-            completion_date: parseDate(row['출고일']) || null,
-            delivery_method: row['배송방법'] || '',
-            customer_name: row['고객명'] || '',
-            customer_phone: row['연락처'] || '',
-            customer_address: row['주소'] || '',
-            product_name: row['제품'] || '',
-            symptom: row['증상'] || '',
-            solution: row['처리내역'] || '',
-            status: row['상태'] || '준비중',
-            note: row['메모'] || '',
-            receipt_link: row['JPG'] || '',
-            seller: row['구매처'] || '',
-            mileage: row['주행거리'] || '',
-            writer: row['작성자'] || '관리자',
-            service_parts: [],
-            service_tags: [],
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          };
-        });
-
-        // 데이터 일괄 등록
-        const { data: insertedData, error } = await supabase
-          .from('services')
-          .insert(formattedData)
-          .select();
-
-        if (error) throw error;
-
-        // 성공 메시지 표시
-        setSnackbar({
-          open: true,
-          message: `${insertedData.length}건의 A/S 데이터가 등록되었습니다.`,
-          severity: 'success'
-        });
-
-        // 목록 새로고침
-        fetchServices();
-
-        // 텔레그램 알림 전송 - 정지됨
-        // if (insertedData && insertedData.length > 0) {
-        //   for (const service of insertedData) {
-        //     try {
-        //       await sendTelegramNotification({
-        //         message: `A/S 등록 (접수번호: ${service.id}) - 고객: ${service.customer_name || '정보없음'}, 연락처: ${service.customer_phone || '정보없음'}`,
-        //         link: `/service/${service.id}`
-        //       });
-        //     } catch (telegramError) {
-        //       console.error('엑셀 업로드 A/S 텔레그램 알림 전송 중 오류:', telegramError);
-        //     }
-        //   }
-        // }
-      } catch (error) {
-        console.error('Error uploading excel:', error);
-        setSnackbar({
-          open: true,
-          message: '엑셀 업로드 중 오류가 발생했습니다.',
-          severity: 'error'
-        });
-      } finally {
-        setUploadLoading(false);
-      }
-    };
-
-    input.click();
   };
 
   const handleRowClick = (service) => {
@@ -3430,14 +3292,6 @@ function ServiceList() {
             >
               신규 등록
             </Button>
-            <Button
-              variant="outlined"
-              startIcon={<CloudUploadIcon />}
-              onClick={handleExcelUpload}
-              sx={{ display: 'none' }}
-            >
-              엑셀 등록
-            </Button>
             <Tooltip title="A/S 목록 다운로드">
               <Button
                 variant="outlined"
@@ -4134,19 +3988,6 @@ function ServiceList() {
           </Button>
         </DialogActions>
       </Dialog>
-
-      {/* 로딩 인디케이터 추가 */}
-      {uploadLoading && (
-        <Box sx={{ 
-          position: 'fixed', 
-          top: 0, 
-          left: 0, 
-          right: 0, 
-          zIndex: 9999 
-        }}>
-          <LinearProgress />
-        </Box>
-      )}
 
     </Box>
   );
