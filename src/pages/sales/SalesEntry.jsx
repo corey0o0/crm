@@ -70,9 +70,6 @@ function SalesEntry() {
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
                 <Typography variant="subtitle1" fontWeight="bold">진행된 수기 판매 목록</Typography>
                 <Stack direction="row" spacing={2}>
-                  <Button variant="outlined" startIcon={<CloudUploadIcon />} onClick={() => window.location.href='/settings/ecount-uploader'}>
-                    이카운트 엑셀 일괄등록
-                  </Button>
                   <Button variant="contained" startIcon={<AddIcon />} onClick={() => window.location.href='/sales/manual/new'}>
                     새 수기 판매 등록
                   </Button>

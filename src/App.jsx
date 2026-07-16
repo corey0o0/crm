@@ -65,7 +65,6 @@ import PendingOrderDetail from './pages/pendingOrders/PendingOrderDetail';
 import Cafe24Settings from './components/Settings/Cafe24Settings';
 import ProductComparisonDashboard from './components/Settings/ProductComparisonDashboard';
 import Cafe24OrderList from './pages/cafe24/Cafe24OrderList';
-import EcountDataUploader from './components/Settings/EcountDataUploader';
 import FaqManagement from './components/Chatbot/FaqManagement';
 
 function AppRouter() {
@@ -155,7 +154,6 @@ function AppRouter() {
           <Route path="chatbot/faq" element={<PermissionRoute masterOnly><FaqManagement /></PermissionRoute>} />
 
           {/* 카페24 연동 설정 */}
-          <Route path="settings/ecount-uploader" element={<PermissionRoute requiredPermission={MENU_KEYS.ADMIN_TOOLS}><EcountDataUploader /></PermissionRoute>} />
           <Route path="settings/cafe24" element={<PermissionRoute requiredPermission={MENU_KEYS.ADMIN_TOOLS}><Cafe24Settings /></PermissionRoute>} />
           <Route path="cafe24/orders" element={<PermissionRoute requiredPermission={MENU_KEYS.CAFE24_ORDERS}><Cafe24OrderList /></PermissionRoute>} />
           <Route path="settings/product-sync" element={<PermissionRoute requiredPermission={MENU_KEYS.ADMIN_TOOLS}><ProductComparisonDashboard /></PermissionRoute>} />
