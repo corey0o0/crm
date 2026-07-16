@@ -303,15 +303,17 @@ function LocationManagement({
       worksheet.eachRow((row, rowNumber) => {
         if (rowNumber === 1) return; // 헤더 행 건너뛰기
         
+        // ExcelJS row.values는 1-based이며 index 1이 A열(일련번호). 템플릿 컬럼: A=colA, B=창고ID, C=창고명, D=지역/위치, E=연락처, F=재고연동
         const rowData = row.values;
-        if (rowData.length >= 4 && rowData[1]) { // 최소 필수 데이터 확인
+        const isNoteRow = String(rowData[1] || '').trim().startsWith('※'); // 템플릿 하단 "※ 설명:" 안내 행 제외
+        if (!isNoteRow && rowData.length >= 5 && rowData[2]) { // 최소 필수 데이터 확인
           const item = {
-            id: rowData[1] || '', // B열: 창고ID
-            name: rowData[2] || '', // C열: 창고명
-            location: rowData[3] || '', // D열: 지역/위치
-            phone: rowData[4] || '', // E열: 연락처
-            syncWithProductStock: rowData[5] === 'Y' || rowData[5] === 'true' || rowData[5] === true, // F열: 재고연동 여부
-            stockSync: rowData[5] === 'Y' || rowData[5] === 'true' || rowData[5] === true
+            id: rowData[2] || '', // B열: 창고ID
+            name: rowData[3] || '', // C열: 창고명
+            location: rowData[4] || '', // D열: 지역/위치
+            phone: rowData[5] || '', // E열: 연락처
+            syncWithProductStock: rowData[6] === 'Y' || rowData[6] === 'true' || rowData[6] === true, // F열: 재고연동 여부
+            stockSync: rowData[6] === 'Y' || rowData[6] === 'true' || rowData[6] === true
           };
           data.push(item);
         }

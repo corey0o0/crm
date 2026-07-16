@@ -30,7 +30,8 @@ export default function InventoryHistory() {
   , batchFromLocation, setBatchFromLocation, batchToLocation, setBatchToLocation, showOriginalHistory, setShowOriginalHistory, handleSubmitTransaction, downloadExcelTemplate, handleDragOver, handleDragLeave, handleDrop, handleExcelDataSubmit, handleBatchApplyLocation, warehouseDetailTarget, warehouseDetailOpen, closeWarehouseDetail, barcodeScannerOpen, setBarcodeScannerOpen, setCurrentScanningRow, handleBarcodeScan, handleBarcodeScanError, excelData, isDragOver, snackbar, setSnackbar, isSubmittingTransaction,
     editBatchFromLocation, setEditBatchFromLocation, editBatchToLocation, setEditBatchToLocation, handleEditBatchApplyLocation,
     verifyInventory, verifyResults, verifyOpen, setVerifyOpen, verifyLoading,
-    reconcileInventory, reconcileResults, reconcileOpen, setReconcileOpen, reconcileLoading} = context;
+    reconcileInventory, reconcileResults, reconcileOpen, setReconcileOpen, reconcileLoading,
+    isExcelNearbikeFormat, nearbikeWarehouseId, setNearbikeWarehouseId} = context;
 
   const [detailProcessing, setDetailProcessing] = useState(false);
   const [reconcileDateFrom, setReconcileDateFrom] = useState(() => {
@@ -1678,10 +1679,10 @@ export default function InventoryHistory() {
                     ws.addRow([]);
                     ws.addRow(['', '', '', '합계', totalQty]);
 
-                    // 열 너비
+                    // 열 너비 (헤더 순서: 상품명, 브랜드, 바코드, 상품코드, 수량, 출발지, 목적지, 메모 — 8개)
                     ws.columns = [
                       { width: 30 }, { width: 15 }, { width: 15 }, { width: 10 },
-                      { width: 15 }, { width: 15 }, { width: 25 }
+                      { width: 15 }, { width: 15 }, { width: 25 }, { width: 30 }
                     ];
 
                     const buffer = await wb.xlsx.writeBuffer();
@@ -1839,6 +1840,25 @@ export default function InventoryHistory() {
                 )}
               </Box>
             </Box>
+
+            {/* 다중 파츠 형식은 엑셀에 창고 지정 컬럼이 없어 처리 창고를 직접 선택해야 함 */}
+            {isExcelNearbikeFormat && (
+              <Box sx={{ mb: 3, p: 2, bgcolor: 'warning.50', borderRadius: 1, border: '1px solid', borderColor: 'warning.light' }}>
+                <Typography variant="body2" color="warning.dark" sx={{ mb: 1 }}>
+                  다중 파츠 형식은 엑셀에 창고 정보가 없습니다. 이 파일의 입출고를 처리할 창고를 선택하세요.
+                </Typography>
+                <FormControl size="small" sx={{ minWidth: 200 }} required>
+                  <InputLabel>처리 창고</InputLabel>
+                  <Select
+                    value={nearbikeWarehouseId}
+                    label="처리 창고"
+                    onChange={(e) => setNearbikeWarehouseId(e.target.value)}
+                  >
+                    {visibleWarehouses.map(w => <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              </Box>
+            )}
 
             {/* 업로드된 데이터 미리보기 */}
             {excelData.length > 0 && (

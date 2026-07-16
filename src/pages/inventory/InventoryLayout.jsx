@@ -85,6 +85,9 @@ import { checkAndSendLowStockAlerts } from '../../utils/inventoryAlert';
 import { checkTransactionDuplicate } from '../../utils/duplicateCheck';
 import DuplicateWarningDialog from '../../components/common/DuplicateWarningDialog';
 
+// 다중 파츠(니어바이크) 엑셀 형식은 창고 컬럼이 없어 파싱 시 임시로 이 마커를 넣고, 제출 시 사용자가 선택한 창고로 치환함
+const NEARBIKE_WAREHOUSE_MARKER = '__NEARBIKE_SELECTED_WAREHOUSE__';
+
 // 창고 및 대리점 코드를 숨기고 이름만 표시하는 유틸리티
 const getSaleType = (note) => {
   if (!note) return 'direct';
@@ -238,6 +241,9 @@ function InventoryLayout() {
   const [hoverTransactions, setHoverTransactions] = useState([]);
   const [excelData, setExcelData] = useState([]);
   const [excelUploadType, setExcelUploadType] = useState(''); // 'in' | 'out'
+  // 다중 파츠(니어바이크) 형식 엑셀은 창고를 지정할 컬럼이 없어 업로드 시 사용자가 직접 선택해야 함
+  const [isExcelNearbikeFormat, setIsExcelNearbikeFormat] = useState(false);
+  const [nearbikeWarehouseId, setNearbikeWarehouseId] = useState('');
   
   // 거래내역 상세 Dialog 상태
   const [transactionDetailOpen, setTransactionDetailOpen] = useState(false);
@@ -1791,6 +1797,8 @@ function InventoryLayout() {
     setExcelFile(null);
     setExcelData([]);
     setExcelUploadType('');
+    setIsExcelNearbikeFormat(false);
+    setNearbikeWarehouseId('');
   };
 
   // 엑셀 파일 처리 (다중 상품 가로배열 데이터 형식 지원)
@@ -1851,10 +1859,11 @@ function InventoryLayout() {
               const item = {
                 productCode: product.code, // 추후 handleExcelDataSubmit 에서 products와 매칭
                 productName: product.name,
-                parsedColName: product.name, 
-                quantity: Math.abs(quantity), 
-                fromLocation: quantity < 0 ? '외부' : 'W001', // 음수면 입고, 양수면 출고
-                toLocation: quantity < 0 ? 'W001' : note || '외부',
+                parsedColName: product.name,
+                quantity: Math.abs(quantity),
+                // 이 형식은 엑셀에 창고를 지정할 컬럼이 없음 — 마커로 남겨두고 제출 시 사용자가 선택한 창고로 치환
+                fromLocation: quantity < 0 ? '외부' : NEARBIKE_WAREHOUSE_MARKER, // 음수면 입고, 양수면 출고
+                toLocation: quantity < 0 ? NEARBIKE_WAREHOUSE_MARKER : note || '외부',
                 note: `${orderSource} - ${orderNumber}`,
                 additionalNote: note || '',
                 orderNumber: orderNumber,
@@ -1979,6 +1988,7 @@ function InventoryLayout() {
       });
 
       setExcelData(data);
+      setIsExcelNearbikeFormat(isNearbikeFormat);
       const formatType = isNearbikeFormat ? '다중 파츠 형식' : '표준 형식';
       showSnackbar(`${data.length}개의 상품 데이터를 읽었습니다. (${formatType})`, 'success');
     } catch (error) {
@@ -1994,10 +2004,15 @@ function InventoryLayout() {
       showSnackbar('처리할 데이터가 없습니다.', 'error');
       return;
     }
+    if (isExcelNearbikeFormat && !nearbikeWarehouseId) {
+      showSnackbar('다중 파츠 형식은 처리할 창고를 선택해야 합니다.', 'error');
+      return;
+    }
 
     const groupId = crypto.randomUUID();
     const newTransactions = [];
     const inventoryUpdates = [];
+    const unresolvedLocations = new Set();
     let inboundCount = 0;
     let outboundCount = 0;
 
@@ -2019,8 +2034,19 @@ function InventoryLayout() {
           return locText; // 매칭 안 되면 원본 텍스트 유지
         };
 
-        const fromLoc = resolveLocationId(item.fromLocation);
-        const toLoc = resolveLocationId(item.toLocation);
+        // 다중 파츠 형식의 창고 마커를 사용자가 선택한 실제 창고 ID로 치환
+        const rawFromLocation = item.fromLocation === NEARBIKE_WAREHOUSE_MARKER ? nearbikeWarehouseId : item.fromLocation;
+        const rawToLocation = item.toLocation === NEARBIKE_WAREHOUSE_MARKER ? nearbikeWarehouseId : item.toLocation;
+        const fromLoc = resolveLocationId(rawFromLocation);
+        const toLoc = resolveLocationId(rawToLocation);
+
+        // 창고/대리점/외부/재고조정 어디에도 매칭 안 되는 위치는 거래 기록만 남고 재고 RPC는 조용히 스킵됨(공통 로직).
+        // 원인을 사용자가 알 수 있게 오타/미등록 위치명만 모아서 최종 결과 메시지에 안내
+        const isKnownLocation = (loc) =>
+          loc === '외부' || loc === 'adjustment' ||
+          warehouses.some(w => w.id === loc) || dealers.some(d => d.id === loc);
+        if (rawFromLocation && !isKnownLocation(fromLoc)) unresolvedLocations.add(rawFromLocation);
+        if (rawToLocation && !isKnownLocation(toLoc)) unresolvedLocations.add(rawToLocation);
 
         // 출발지/목적지로 입고/출고 판단
         const fromIsWarehouse = warehouses.find(w => w.id === fromLoc);
@@ -2070,14 +2096,17 @@ function InventoryLayout() {
       // 재고 업데이트 (배치 처리)
       await batchUpdateInventory(inventoryUpdates);
       
-      const resultMessage = `총 ${newTransactions.length}개 상품 처리 완료 (입고: ${inboundCount}개, 출고: ${outboundCount}개)`;
-      showSnackbar(resultMessage, 'success');
+      let resultMessage = `총 ${newTransactions.length}개 상품 처리 완료 (입고: ${inboundCount}개, 출고: ${outboundCount}개)`;
+      if (unresolvedLocations.size > 0) {
+        resultMessage += ` — ⚠️ "${Array.from(unresolvedLocations).join(', ')}" 위치를 창고/대리점 목록에서 찾지 못해 해당 항목은 거래 기록만 남고 재고에는 반영되지 않았습니다. 창고/대리점 이름을 확인해주세요.`;
+      }
+      showSnackbar(resultMessage, unresolvedLocations.size > 0 ? 'warning' : 'success');
       handleCloseExcelUpload();
     } catch (error) {
       console.error('엑셀 업로드 처리 실패:', error);
       showSnackbar('엑셀 업로드 처리에 실패했습니다.', 'error');
     }
-  }, [excelData, products, formData, transactions]);
+  }, [excelData, products, formData, transactions, isExcelNearbikeFormat, nearbikeWarehouseId]);
 
   // 엑셀 템플릿 다운로드 (통합)
   const downloadExcelTemplate = () => {
@@ -3165,6 +3194,7 @@ function InventoryLayout() {
     tableModalOpen, setTableModalOpen, selectedTableTransactions, setSelectedTableTransactions,
     selectedTransactions, setSelectedTransactions, hoverAnchorEl, setHoverAnchorEl, hoverTransactions, setHoverTransactions,
     excelData, setExcelData, excelUploadType, setExcelUploadType, transactionDetailOpen, setTransactionDetailOpen,
+    isExcelNearbikeFormat, nearbikeWarehouseId, setNearbikeWarehouseId,
     selectedTransaction, setSelectedTransaction, editMode, setEditMode, editFormData, setEditFormData,
     editProducts, setEditProducts, dialogType, setDialogType, transactions, setTransactions, inventory, setInventory,
     pendingInventory, setPendingInventory, loading, setLoading, snackbar, setSnackbar, warehouses, setWarehouses, visibleWarehouses, isSubmittingTransaction,

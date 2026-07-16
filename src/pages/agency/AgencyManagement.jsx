@@ -163,8 +163,18 @@ export default function AgencyManagement() {
             if (h) row[h] = rowArray[idx];
           });
 
+          // 다운로드 양식에 있는 은행명/계좌번호/예금주(transfer_info jsonb)를 업로드 파서가 안 읽던 문제 수정.
+          // 이 필드는 메인 upsert 배치에는 넣지 않고 별도 업데이트로 처리함 — 아래 executeUpload 쪽 설명 참고.
+          const bank = row['은행명']?.toString().trim() || '';
+          const account = row['계좌번호']?.toString().trim() || '';
+          const owner = row['예금주']?.toString().trim() || '';
+          const hasTransferInfo = bank || account || owner;
+
           return {
-            business_number: row['거래처코드']?.toString().trim() || '',
+            // 빈 문자열(''')이면 같은 배치 안에 코드 없는 행이 2개 이상일 때 upsert의 onConflict 매칭이 중복돼서
+            // "ON CONFLICT DO UPDATE command cannot affect row a second time" 에러로 배치 전체가 실패함.
+            // null은 UNIQUE 제약/ON CONFLICT에서 서로 다른 값으로 취급되므로 안전하게 매번 새 행으로 삽입됨.
+            business_number: row['거래처코드']?.toString().trim() || null,
             name: (row['거래처명'] || row['상호'])?.toString().trim() || '이름 없음',
             ceo_name: row['대표자명']?.toString().trim() || '',
             address: (row['주소1'] || row['주소'] || row['사업장주소'] || row['사업장 주소'] || '')?.toString().trim(),
@@ -174,7 +184,8 @@ export default function AgencyManagement() {
             phone: row['전화']?.toString().trim() || '',
             mobile: (row['모바일'] || row['휴대전화'])?.toString().trim() || '',
             keywords: (row['검색창내용'] || row['키워드'])?.toString().trim() || '',
-            memo: (row['적요'] || row['메모'])?.toString().trim() || ''
+            memo: (row['적요'] || row['메모'])?.toString().trim() || '',
+            _transferInfo: hasTransferInfo ? { bank, account, owner } : null
           };
         }).filter(item => item.business_number || item.name !== '이름 없음');
 
@@ -183,12 +194,26 @@ export default function AgencyManagement() {
           return;
         }
 
-        const { data: upsertData, error: upsertError } = await supabase
+        // transfer_info는 메인 upsert 배치에서 분리함: 배치 안 일부 행에만 transfer_info를 넣으면
+        // PostgREST가 컬럼 목록을 배치 전체 기준으로 잡아서, transfer_info 없는 다른 행들의 기존 은행정보가
+        // 전부 null로 덮어써짐(실제 재현 확인함). 그래서 기본 정보는 항상 동일한 컬럼 구성으로 upsert하고,
+        // 은행정보가 있는 행만 거래처코드로 매칭해서 별도 update로 반영한다.
+        const rowsWithTransferInfo = items.filter(item => item._transferInfo && item.business_number);
+        const baseItems = items.map(({ _transferInfo, ...rest }) => rest);
+
+        const { error: upsertError } = await supabase
           .from('agencies')
-          .upsert(items, { onConflict: 'business_number' })
-          .select();
-        
+          .upsert(baseItems, { onConflict: 'business_number' });
+
         if (upsertError) throw upsertError;
+
+        for (const item of rowsWithTransferInfo) {
+          const { error: transferError } = await supabase
+            .from('agencies')
+            .update({ transfer_info: item._transferInfo })
+            .eq('business_number', item.business_number);
+          if (transferError) console.error('은행정보 업데이트 실패:', item.business_number, transferError);
+        }
 
         alert(`거래처 정보가 성공적으로 업로드되었습니다.`);
         fetchAgencies();

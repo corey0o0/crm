@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   Box, Typography, Button, Paper, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, CircularProgress, Alert, Snackbar, Stack,
-  FormControl, InputLabel, Select, MenuItem
+  FormControl, InputLabel, Select, MenuItem, Chip
 } from '@mui/material';
 import { CloudUpload as CloudUploadIcon, PlayArrow as PlayArrowIcon } from '@mui/icons-material';
 import { readExcelFile } from '../../utils/excelUtils';
@@ -164,6 +164,7 @@ export default function EcountDataUploader() {
            part_name: finalPartName,
            part_code: finalCode,
            part_category: finalCategory,
+           brand: finalBrand,
            quantity: qty,
            price: price,
            total_price: total
@@ -171,7 +172,21 @@ export default function EcountDataUploader() {
         grouped[groupKey].total_price += total;
       });
 
-      const parsedPreview = Object.values(grouped);
+      // 그룹(전표)의 대표 브랜드를 첫 부품이 아니라 그룹 내 부품들의 금액 합계 기준 우세 브랜드로 재계산.
+      // 이카운트 전표 하나에 XRB/NB 부품이 섞여 있으면 첫 행 브랜드로만 고정 태깅되던 문제 방지.
+      const parsedPreview = Object.values(grouped).map(group => {
+        const brandTotals = {};
+        group.parts.forEach(p => {
+          brandTotals[p.brand] = (brandTotals[p.brand] || 0) + (p.total_price || 0);
+        });
+        const brandEntries = Object.entries(brandTotals).sort((a, b) => b[1] - a[1]);
+        const dominantBrand = brandEntries[0]?.[0] || group.brand;
+        return {
+          ...group,
+          brand: dominantBrand,
+          isMixedBrand: brandEntries.length > 1
+        };
+      });
 
       // 전체 기존 데이터 중복 검사를 위한 쿼리
       const { data: existingShipments, error: dbError } = await supabase
@@ -356,6 +371,11 @@ export default function EcountDataUploader() {
                      <TableCell>{row.order_date}</TableCell>
                      <TableCell>
                        {row.customer_name}
+                       {' '}
+                       <Chip size="small" label={row.brand} sx={{ height: 18, fontSize: '0.65rem' }} />
+                       {row.isMixedBrand && (
+                         <Chip size="small" color="warning" label={`혼합 브랜드 → ${row.brand}로 등록`} sx={{ height: 18, fontSize: '0.65rem', ml: 0.5 }} />
+                       )}
                        {row.project_channel && row.project_channel !== 'USE_CUSTOMER_NAME' && <Typography variant="caption" display="block" color="secondary" fontWeight="bold">{row.project_channel}</Typography>}
                        {row.project_channel === 'USE_CUSTOMER_NAME' && <Typography variant="caption" display="block" color="secondary" fontWeight="bold">{row.customer_name}</Typography>}
                      </TableCell>

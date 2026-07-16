@@ -169,6 +169,8 @@ function ProductShipment() {
   const [selectedPart, setSelectedPart] = useState(null);
   const [partsQuantity, setPartsQuantity] = useState(1);
   const [selectedParts, setSelectedParts] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
+  const [excelUploadWarehouseId, setExcelUploadWarehouseId] = useState('');
   const location = useLocation();
   
   // 추가: 페이지네이션 상태
@@ -296,6 +298,7 @@ function ProductShipment() {
         delivery_method: '방문수령',
         tracking_number: '',
         note: '',
+        warehouse_id: (warehouses.find(w => w.name.includes('청담')) || warehouses[0])?.id || '',
         products: []
       });
       
@@ -526,6 +529,23 @@ function ProductShipment() {
   useEffect(() => {
     fetchParts();
   }, [selectedBrand]);
+
+  useEffect(() => {
+    fetchWarehouses();
+  }, []);
+
+  const fetchWarehouses = async () => {
+    try {
+      const { data } = await supabase.from('warehouses').select('*').order('name');
+      setWarehouses(data || []);
+      if (data && data.length > 0) {
+        const defaultWh = data.find(w => w.name.includes('청담')) || data[0];
+        setExcelUploadWarehouseId(prev => prev || defaultWh.id);
+      }
+    } catch (e) {
+      console.error('창고 로딩 에러:', e);
+    }
+  };
 
   const fetchParts = async () => {
     try {
@@ -998,6 +1018,7 @@ function ProductShipment() {
         product_code: mainProduct.code,
         quantity: totalQuantity,
         price: totalPrice,
+        warehouse_id: selectedShipment.warehouse_id || null,
         updated_at: new Date().toISOString()
       };
 
@@ -1090,7 +1111,8 @@ function ProductShipment() {
             price: price,
             total_price: totalPrice,
             created_at: new Date().toISOString(),
-            note: part.note || ''
+            note: part.note || '',
+            warehouse_id: selectedShipment.warehouse_id || null
           };
         });
 
@@ -1301,6 +1323,7 @@ function ProductShipment() {
       delivery_method: '방문수령',
       tracking_number: '',
       note: '',
+      warehouse_id: (warehouses.find(w => w.name.includes('청담')) || warehouses[0])?.id || '',
       products: []
     });
     setOpenDialog(true);
@@ -1330,7 +1353,7 @@ function ProductShipment() {
         { label: '판매처', key: '판매처' },
         { label: '배송방법', key: '배송방법' },
         { label: '출고일', key: '출고일' },
-        { label: '메모', key: '멤모' },
+        { label: '메모', key: '메모' },
         { label: '상태', key: '상태' }
       ];
 
@@ -1932,7 +1955,7 @@ function ProductShipment() {
         { label: '배송방법', key: '배송방법' },
         { label: '주문일', key: '주문일' },
         { label: '출고일', key: '출고일' },
-        { label: '멤모', key: '멤모' }
+        { label: '메모', key: '메모' }
       ];
 
       // 파일 다운로드
@@ -2014,6 +2037,16 @@ function ProductShipment() {
       const file = event.target.files[0];
       if (!file) return;
 
+      if (!excelUploadWarehouseId) {
+        setSnackbar({
+          open: true,
+          message: '출고 창고를 먼저 선택하세요.',
+          severity: 'warning'
+        });
+        event.target.value = '';
+        return;
+      }
+
       // 로딩 표시 스낵바 추가
       setSnackbar({
         open: true,
@@ -2062,25 +2095,12 @@ function ProductShipment() {
             const currentDate = new Date().toISOString().split('T')[0];
             
             // 주문일 처리 - '주문일' 필드가 있으면 해당 값 사용, 없으면 현재 날짜
-            let orderDate = row['주문일'] || currentDate;
-            
-            // Excel에서 날짜가 숫자로 들어올 경우 변환
-            if (typeof orderDate === 'number') {
-              const excelDateValue = row['주문일'];
-              const jsDate = new Date((excelDateValue - 25569) * 86400 * 1000);
-              orderDate = jsDate.toISOString().split('T')[0];
-            }
+            // readExcelFile(excelUtils.js)이 모든 셀 값을 문자열로 변환해서 반환하므로 숫자 타입으로 들어올 일은 없음
+            const orderDate = row['주문일'] || currentDate;
 
             // 출고일 처리
-            let shipmentDate = row['출고일'] || currentDate;
-            
-            // Excel에서 날짜가 숫자로 들어올 경우 변환
-            if (typeof shipmentDate === 'number') {
-              const excelDateValue = row['출고일'];
-              const jsDate = new Date((excelDateValue - 25569) * 86400 * 1000);
-              shipmentDate = jsDate.toISOString().split('T')[0];
-            }
-            
+            const shipmentDate = row['출고일'] || currentDate;
+
             // 출고일자가 있는 경우 상태를 '출고완료'로 설정
             const hasCustomShipmentDate = row['출고일'] !== undefined && row['출고일'] !== null;
             const status = hasCustomShipmentDate ? '출고완료' : '준비중';
@@ -2184,7 +2204,7 @@ function ProductShipment() {
           const dataToInsert = validData.map(item => {
             // shipments 테이블에 존재하는 필드만 포함
             const { products, ...shipmentData } = item;
-            return shipmentData;
+            return { ...shipmentData, warehouse_id: excelUploadWarehouseId };
           });
 
           console.log('저장할 데이터:', dataToInsert);
@@ -2231,10 +2251,13 @@ function ProductShipment() {
             
             insertedShipments.forEach(shipment => {
               // 해당 출고에 대한 그룹데이터 찾기
-              const groupData = validData.find(g => 
-                g.customer_name === shipment.customer_name && 
-                g.customer_phone === shipment.customer_phone && 
-                g.order_date === shipment.order_date
+              // groupKey는 고객명_연락처_주문일_출고일 기준인데, 여기서 shipment_date를 빼고 매칭하면
+              // 동일 고객+동일 주문일이면서 출고일만 다른 두 그룹이 있을 때 첫 번째 그룹으로 잘못 매칭될 수 있음
+              const groupData = validData.find(g =>
+                g.customer_name === shipment.customer_name &&
+                g.customer_phone === shipment.customer_phone &&
+                g.order_date === shipment.order_date &&
+                g.shipment_date === shipment.shipment_date
               );
               
               if (groupData && groupData.products) {
@@ -2247,7 +2270,8 @@ function ProductShipment() {
                     quantity: product.quantity,
                     price: product.price,
                     total_price: product.price * product.quantity,
-                    created_at: new Date().toISOString()
+                    created_at: new Date().toISOString(),
+                    warehouse_id: excelUploadWarehouseId
                   });
                 });
               }
@@ -2269,7 +2293,17 @@ function ProductShipment() {
                 partsSuccessMessage = ' (부품 상세 정보도 저장되었습니다.)';
               }
             }
-          
+
+            // 출고일자가 있어 '출고완료'로 등록된 건은 재고 차감 처리
+            const completedShipments = insertedShipments.filter(s => s.status === '출고완료');
+            for (const shipment of completedShipments) {
+              try {
+                await processShipmentCompletion(shipment.id, selectedBrand);
+              } catch (inventoryError) {
+                console.error(`출고(${shipment.id}) 재고 반영 실패:`, inventoryError);
+              }
+            }
+
           setSnackbar({
             open: true,
               message: `${validData.length}건의 출고 정보가 성공적으로 등록되었습니다.${partsSuccessMessage}\n[고객: ${customerSummary}]\n${matchingInfo}`,
@@ -2634,14 +2668,26 @@ function ProductShipment() {
             >
               엑셀 템플릿
             </Button>
+            <FormControl size="small" sx={{ minWidth: 140 }}>
+              <InputLabel>엑셀등록 창고</InputLabel>
+              <Select
+                value={excelUploadWarehouseId}
+                label="엑셀등록 창고"
+                onChange={(e) => setExcelUploadWarehouseId(e.target.value)}
+              >
+                {warehouses.map(w => (
+                  <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
             <Button
               component="label"
               variant="outlined"
               startIcon={<CloudUploadIcon />}
-              sx={{ 
+              sx={{
                 color: '#3182f6',
                 borderColor: '#3182f6',
-                '&:hover': { 
+                '&:hover': {
                   bgcolor: 'rgba(49, 130, 246, 0.04)',
                   borderColor: '#1b64da'
                 }
@@ -3096,7 +3142,23 @@ function ProductShipment() {
                   </Select>
                 </FormControl>
               </Grid>
-              
+
+              <Grid item xs={12} md={4}>
+                <FormControl fullWidth required>
+                  <InputLabel>출고 창고</InputLabel>
+                  <Select
+                    name="warehouse_id"
+                    value={selectedShipment.warehouse_id || ''}
+                    onChange={handleChange}
+                    label="출고 창고"
+                  >
+                    {warehouses.map(w => (
+                      <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+
               <Grid item xs={12}>
                 <TextField
                   fullWidth

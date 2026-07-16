@@ -117,13 +117,7 @@ function ShipmentList() {
   const [timelineDate, setTimelineDate] = useState(() => new Date());
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'timeline'
 
-  // 엑셀 업로드 관련 상태 추가
-  const [excelUploadDialog, setExcelUploadDialog] = useState(false);
   const [warehouses, setWarehouses] = useState([]);
-  const [uploadedData, setUploadedData] = useState([]);
-  const [previewData, setPreviewData] = useState([]);
-  const [up0, setUp0] = useState(0);
-  const [isUploading, setIsUploading] = useState(false);
 
   // 마이그레이션 관련 상태 추가
   const [migrateDialogOpen, setMigrateDialogOpen] = useState(false);
@@ -648,6 +642,7 @@ function ShipmentList() {
         '주소': shipment.customer_address,
         '제품명': shipment.product_name,
         '수량': shipment.quantity,
+        '가격': shipment.price,
         '판매처': (() => {
           const salesChannelMatch = shipment.note?.match(/\[판매처: (.*?)\]/);
           return salesChannelMatch ? salesChannelMatch[1] : '공홈';
@@ -665,8 +660,7 @@ function ShipmentList() {
         { label: '제품명', key: '제품명' },
         { label: '수량', key: '수량' },
         { label: '가격', key: '가격' },
-        { label: '상태', key: '상태' },
-        { label: '판매채널', key: '판매채널' },
+        { label: '판매채널', key: '판매처' },
         { label: '배송방법', key: '배송방법' },
         { label: '출고일', key: '출고일' },
         { label: '메모', key: '메모' },
@@ -727,187 +721,6 @@ function ShipmentList() {
         return 'success';
       default:
         return 'default';
-    }
-  };
-
-  // 카테고리 결정 함수 (코드 패턴 기반)
-  const determineCategory = (code, name, price) => {
-    if (!code) return '기타';
-
-    const upperCode = code.toUpperCase();
-
-    // 코드 패턴 기반 카테고리 결정
-    if (upperCode.startsWith('XRBM-') || upperCode.startsWith('NBM-') || upperCode.includes('BIKE')) {
-      return '기체';
-    } else if (upperCode.startsWith('XRBP-') || upperCode.startsWith('NBP-') || upperCode.includes('PART')) {
-      return '파츠';
-    } else if (upperCode.startsWith('XRBS-') || upperCode.startsWith('NBS-') || upperCode.includes('SERVICE')) {
-      return '공임';
-    }
-
-    // 기본값
-    return '기타';
-  };
-
-
-  // 엑셀 데이터 저장 처리
-  const handleSaveExcelData = async () => {
-    if (uploadedData.length === 0) return;
-
-    setIsUploading(true);
-    setUp0(0);
-
-    try {
-      // 중복 확인을 위한 고객 정보별 그룹화
-      const customerGroups = {};
-      uploadedData.forEach((item, index) => {
-        const customer = `${item['고객명'] || ''}/${item['연락처'] || ''}/${item['주문일'] || ''}`;
-        if (!customerGroups[customer]) {
-          customerGroups[customer] = {
-            customer: {
-              name: item['고객명'],
-              phone: item['연락처'],
-              address: item['주소'] || ''
-            },
-            orderDate: item['주문일'] || format(new Date(), 'yyyy-MM-dd'),
-            shipmentDate: item['출고일'] || '',
-            note: item['메모'] || '',
-            salesChannel: item['판매처'] || '공홈',
-            deliveryMethod: item['배송방법'] || '택배',
-            status: item['출고일'] ? '출고완료' : '접수',
-            products: []
-          };
-        }
-
-        // 제품 정보 추가
-        customerGroups[customer].products.push({
-          name: item['제품명'],
-          code: item['제품코드'] || '',
-          quantity: parseInt(item['수량']) || 1,
-          price: parseFloat(item['가격']) || 0,
-          category: item['카테고리'] || determineCategory(item['제품코드'], item['제품명'], item['가격'])
-        });
-      });
-
-      const totalGroups = Object.keys(customerGroups).length;
-      let processedGroups = 0;
-
-      // 각 고객 그룹별로 출고 정보 저장
-      for (const customer of Object.keys(customerGroups)) {
-        const groupData = customerGroups[customer];
-
-        // 기본 출고 정보 데이터 준비
-        const mainProduct = groupData.products[0]; // 첫 번째 제품을 메인 제품으로 사용
-        const totalQuantity = groupData.products.reduce((sum, p) => sum + p.quantity, 0);
-        const totalPrice = groupData.products.reduce((sum, p) => sum + (p.price * p.quantity), 0);
-        const productNames = groupData.products.map(p => p.name).join(', ');
-
-        // 판매처 정보를 메모에 포함
-        const finalNote = `[판매처: ${groupData.salesChannel}] ${groupData.note || ''}`;
-
-        // 출고 데이터 생성
-        const shipmentData = {
-          brand: selectedBrand,
-          customer_name: groupData.customer.name,
-          customer_phone: groupData.customer.phone,
-          customer_address: groupData.customer.address,
-          order_date: groupData.orderDate,
-          shipment_date: groupData.shipmentDate || null,
-          status: groupData.status,
-          delivery_method: groupData.deliveryMethod,
-          tracking_number: '',
-          note: finalNote,
-          product_name: productNames,
-          product_code: mainProduct.code || '',
-          quantity: totalQuantity,
-          price: totalPrice,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          record_type: 'store_shipment'
-        };
-
-        // 출고 정보 저장
-        const { data: savedShipment, error: shipmentError } = await supabase
-          .from('shipments')
-          .insert([shipmentData])
-          .select();
-
-        if (shipmentError) {
-          console.error('출고 정보 저장 중 오류:', shipmentError);
-          continue; // 오류가 있어도 다음 데이터 처리
-        }
-
-        const shipmentId = savedShipment[0].id;
-
-        // 제품별 상세 정보 저장
-        const partsData = groupData.products.map(product => ({
-          shipment_id: shipmentId,
-          part_name: product.name,
-          part_code: product.code || '',
-          part_category: product.category || '기타',
-          quantity: product.quantity,
-          price: product.price,
-          total_price: product.price * product.quantity,
-          created_at: new Date().toISOString()
-        }));
-
-        try {
-          await supabase
-            .from('shipment_parts')
-            .insert(partsData);
-
-          // 추가: 입출고 관리(transactions)에 기록 (단, 현재 재고(inventory)에는 영향을 주지 않으므로 trigger 없음)
-          const transactionData = groupData.products.map(product => ({
-            group_id: shipmentId,
-            type: 'out',
-            product_id: null, // 과거 데이터라 정확한 part_id 매칭이 안될 수 있음, 이름/코드로 기록
-            product_name: product.name,
-            product_code: product.code || '',
-            product_supplier: selectedBrand || 'NEARBIKE',
-            quantity: product.quantity,
-            from_location: 'DEFAULT', // 이카운트 이전 데이터용 가상 창고
-            to_location: '외부(고객)',
-            date: groupData.orderDate || format(new Date(), 'yyyy-MM-dd'),
-            note: `[이카운트 이전] ${groupData.customer.name}`,
-            is_grouped: groupData.products.length > 1,
-            status: '완료' // 완료 처리하여 입출고 내역에 표시
-          }));
-
-          if (transactionData.length > 0) {
-            await supabase.from('transactions').insert(transactionData);
-          }
-        } catch (partsError) {
-          console.error('제품 상세 정보/기록장 저장 중 오류:', partsError);
-          // 오류가 있어도 진행
-        }
-
-        processedGroups++;
-        setUp0(Math.round((processedGroups / totalGroups) * 100));
-      }
-
-      // 모든 데이터 처리 완료
-      setSnackbar({
-        open: true,
-        message: `${Object.keys(customerGroups).length}건의 출고 정보가 성공적으로 등록되었습니다.`,
-        severity: 'success'
-      });
-
-      // 데이터 새로고침
-      fetchShipments();
-      fetchBrandCounts(); // 건수 갱신
-
-    } catch (error) {
-      console.error('엑셀 데이터 저장 중 오류:', error);
-      setSnackbar({
-        open: true,
-        message: '엑셀 데이터 저장 중 오류가 발생했습니다.',
-        severity: 'error'
-      });
-    } finally {
-      setIsUploading(false);
-      setExcelUploadDialog(false);
-      setUploadedData([]);
-      setPreviewData([]);
     }
   };
 
@@ -1994,112 +1807,6 @@ function ShipmentList() {
             autoFocus
           >
             삭제
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* 엑셀 업로드 다이얼로그 */}
-      <Dialog
-        open={excelUploadDialog}
-        onClose={() => !isUploading && setExcelUploadDialog(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>엑셀 데이터 업로드 확인</DialogTitle>
-        <DialogContent>
-          <Box sx={{ mb: 2 }}>
-            <Typography gutterBottom>
-              총 {uploadedData.length}개의 항목이 발견되었습니다. 다음 데이터를 업로드하시겠습니까?
-            </Typography>
-
-            {isUploading && (
-              <Box sx={{ width: '100%', mt: 2, mb: 2 }}>
-                <Typography variant="body2" align="center">
-                  데이터 처리 중... {up0}%
-                </Typography>
-                <Box
-                  sx={{
-                    width: '100%',
-                    height: 10,
-                    bgcolor: '#eee',
-                    borderRadius: 5,
-                    mt: 1,
-                    position: 'relative',
-                    overflow: 'hidden'
-                  }}
-                >
-                  <Box
-                    sx={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      height: '100%',
-                      bgcolor: '#3182f6',
-                      width: `${up0}%`,
-                      transition: 'width 0.3s ease-in-out'
-                    }}
-                  />
-                </Box>
-              </Box>
-            )}
-
-            <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>미리보기 (최대 5개 항목)</Typography>
-
-            <TableContainer component={Paper} sx={{ maxHeight: 300 }}>
-              <Table size="small" stickyHeader>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>고객명</TableCell>
-                    <TableCell>연락처</TableCell>
-                    <TableCell>제품명</TableCell>
-                    <TableCell>제품코드</TableCell>
-                    <TableCell>카테고리</TableCell>
-                    <TableCell>수량</TableCell>
-                    <TableCell>가격</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {previewData.map((row, index) => (
-                    <TableRow key={index}>
-                      <TableCell>{row['고객명']}</TableCell>
-                      <TableCell>{row['연락처']}</TableCell>
-                      <TableCell>{row['제품명']}</TableCell>
-                      <TableCell>{row['제품코드'] || '-'}</TableCell>
-                      <TableCell>
-                        {row['카테고리'] || determineCategory(row['제품코드'], row['제품명'], row['가격'])}
-                      </TableCell>
-                      <TableCell>{row['수량'] || '1'}</TableCell>
-                      <TableCell>{parseInt(row['가격']).toLocaleString() || '0'}원</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-
-            <Box sx={{ mt: 2 }}>
-              <Alert severity="info">
-                <Typography variant="body2">
-                  • 같은 고객/주문일/판매처의 항목은 하나의 출고 정보로 그룹화됩니다.<br />
-                  • 제품코드가 없는 제품도 등록이 가능하며, 카테고리가 지정되지 않은 경우 '기타'로 분류됩니다.<br />
-                  • 출고일이 지정된 항목은 '출고완료' 상태로, 그렇지 않은 항목은 '접수' 상태로 등록됩니다.
-                </Typography>
-              </Alert>
-            </Box>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={() => setExcelUploadDialog(false)}
-            disabled={isUploading}
-          >
-            취소
-          </Button>
-          <Button
-            variant="contained"
-            onClick={handleSaveExcelData}
-            disabled={isUploading || uploadedData.length === 0}
-          >
-            업로드
           </Button>
         </DialogActions>
       </Dialog>
