@@ -20,6 +20,7 @@ function SalesEntry() {
   const [tabIndex, setTabIndex] = useState(0);
   const [agencies, setAgencies] = useState([]);
   const [parts, setParts] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
@@ -30,12 +31,14 @@ function SalesEntry() {
   const fetchBaseData = async () => {
     setLoading(true);
     try {
-      const [{ data: agData }, { data: pData }] = await Promise.all([
+      const [{ data: agData }, { data: pData }, { data: whData }] = await Promise.all([
         supabase.from('agencies').select('*'),
-        supabase.from('parts').select('id, name, code, barcode, note, supplier, price')
+        supabase.from('parts').select('id, name, code, barcode, note, price'),
+        supabase.from('warehouses').select('*').order('name')
       ]);
       if (agData) setAgencies(agData);
       if (pData) setParts(pData);
+      if (whData) setWarehouses(whData);
     } catch (err) {
       console.error(err);
     } finally {
@@ -60,8 +63,8 @@ function SalesEntry() {
         <Box display="flex" justifyContent="center" m={5}><CircularProgress /></Box>
       ) : (
         <>
-          {tabIndex === 0 && <SingleEntryForm agencies={agencies} parts={parts} setSnackbar={setSnackbar} />}
-          {tabIndex === 1 && <ExcelBatchUpload agencies={agencies} parts={parts} setSnackbar={setSnackbar} />}
+          {tabIndex === 0 && <SingleEntryForm agencies={agencies} parts={parts} warehouses={warehouses} setSnackbar={setSnackbar} />}
+          {tabIndex === 1 && <ExcelBatchUpload agencies={agencies} parts={parts} warehouses={warehouses} setSnackbar={setSnackbar} />}
           {tabIndex === 2 && (
             <Box mt={2}>
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
@@ -88,17 +91,25 @@ function SalesEntry() {
   );
 }
 
-function SingleEntryForm({ agencies, parts, setSnackbar }) {
+function SingleEntryForm({ agencies, parts, warehouses, setSnackbar }) {
   // Simple form logic for fast single entry
   const [formData, setFormData] = useState({
     order_date: new Date(),
     buyer_name: '',
     agency_id: '',
+    warehouse_id: '',
     note: ''
   });
   const [selectedItems, setSelectedItems] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!formData.warehouse_id && warehouses.length > 0) {
+      const cheongdam = warehouses.find(w => w.name.includes('청담'));
+      setFormData(prev => (prev.warehouse_id ? prev : { ...prev, warehouse_id: (cheongdam || warehouses[0]).id }));
+    }
+  }, [warehouses]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredParts = parts.filter(p => p.name.includes(searchQuery) || p.code?.includes(searchQuery)).slice(0, 50);
 
@@ -121,6 +132,9 @@ function SingleEntryForm({ agencies, parts, setSnackbar }) {
     if (selectedItems.length === 0) {
       return setSnackbar({ open: true, message: '품목을 1개 이상 추가하세요.', severity: 'warning' });
     }
+    if (!formData.warehouse_id) {
+      return setSnackbar({ open: true, message: '출고 창고를 선택하세요.', severity: 'warning' });
+    }
     setIsSubmitting(true);
     try {
       // Create shipment + shipment_parts + transactions logic here
@@ -136,15 +150,17 @@ function SingleEntryForm({ agencies, parts, setSnackbar }) {
       const { data: newShipment, error: shpErr } = await supabase.from('shipments').insert([{
         brand: 'XRB', order_date: format(formData.order_date, 'yyyy-MM-dd'), shipment_date: format(formData.order_date, 'yyyy-MM-dd'),
         status: '완료', customer_name: formData.buyer_name || agencyName || '비회원', sales_channel: salesChannel,
-        product_name: combinedTitle, quantity: totalQty, price: totalAmt, note: modifiedNote, record_type: 'manual_sale'
+        product_name: combinedTitle, quantity: totalQty, price: totalAmt, note: modifiedNote, record_type: 'manual_sale',
+        warehouse_id: formData.warehouse_id
       }]).select();
       if (shpErr) throw shpErr;
 
       const sid = newShipment[0].id;
-      
+
       // 2. Insert Parts
       const pData = selectedItems.map(it => ({
-        shipment_id: sid, part_name: it.name, part_code: it.code, quantity: it.qty, price: it.price, total_price: it.price * it.qty, created_at: new Date().toISOString()
+        shipment_id: sid, part_name: it.name, part_code: it.code, quantity: it.qty, price: it.price, total_price: it.price * it.qty, created_at: new Date().toISOString(),
+        warehouse_id: formData.warehouse_id
       }));
       await supabase.from('shipment_parts').insert(pData);
 
@@ -152,7 +168,7 @@ function SingleEntryForm({ agencies, parts, setSnackbar }) {
       await processShipmentCompletion(sid, 'XRB');
 
       setSnackbar({ open: true, message: '판매가 등록되었습니다.', severity: 'success' });
-      setFormData({ order_date: new Date(), buyer_name: '', agency_id: '', note: '' });
+      setFormData(prev => ({ order_date: new Date(), buyer_name: '', agency_id: '', warehouse_id: prev.warehouse_id, note: '' }));
       setSelectedItems([]);
     } catch (e) {
       console.error(e);
@@ -177,6 +193,12 @@ function SingleEntryForm({ agencies, parts, setSnackbar }) {
               <Select value={formData.agency_id} label="대리점 (B2B)" onChange={e => setFormData({ ...formData, agency_id: e.target.value })}>
                 <MenuItem value="">선택 안함</MenuItem>
                 {agencies.map(a => <MenuItem key={a.id} value={a.id}>{a.name}</MenuItem>)}
+              </Select>
+            </FormControl>
+            <FormControl size="small" fullWidth required>
+              <InputLabel>출고 창고</InputLabel>
+              <Select value={formData.warehouse_id} label="출고 창고" onChange={e => setFormData({ ...formData, warehouse_id: e.target.value })}>
+                {warehouses.map(w => <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>)}
               </Select>
             </FormControl>
             <TextField label="메모" size="small" fullWidth value={formData.note} onChange={e => setFormData({ ...formData, note: e.target.value })} />
@@ -232,12 +254,20 @@ function SingleEntryForm({ agencies, parts, setSnackbar }) {
   );
 }
 
-function ExcelBatchUpload({ agencies, parts, setSnackbar }) {
+function ExcelBatchUpload({ agencies, parts, warehouses, setSnackbar }) {
   const [data, setData] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [mappingDialog, setMappingDialog] = useState(false);
   const [missingParts, setMissingParts] = useState([]);
   const [mappingChoices, setMappingChoices] = useState({});
+  const [warehouseId, setWarehouseId] = useState('');
+
+  useEffect(() => {
+    if (!warehouseId && warehouses.length > 0) {
+      const cheongdam = warehouses.find(w => w.name.includes('청담'));
+      setWarehouseId((cheongdam || warehouses[0]).id);
+    }
+  }, [warehouses]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
@@ -281,6 +311,10 @@ function ExcelBatchUpload({ agencies, parts, setSnackbar }) {
 
   const uploadBatch = async (maps = mappingChoices) => {
     if (data.length === 0) return;
+    if (!warehouseId) {
+      setSnackbar({ open: true, message: '출고 창고를 선택하세요.', severity: 'warning' });
+      return;
+    }
     setIsProcessing(true);
     setMappingDialog(false);
     let successCount = 0;
@@ -308,14 +342,15 @@ function ExcelBatchUpload({ agencies, parts, setSnackbar }) {
            shipment_date: orderDate,
            status: '완료', customer_name: customer,
            sales_channel: customer, product_name: matchedPart?.name || pName,
-           quantity: qty, price: total, note: row['메모'] || '[엑셀일괄등록]', record_type: 'excel_upload'
+           quantity: qty, price: total, note: row['메모'] || '[엑셀일괄등록]', record_type: 'excel_upload',
+           warehouse_id: warehouseId
          }]).select();
 
          if (!error && newShp && newShp[0] && matchedPart) {
            successCount++;
            const sid = newShp[0].id;
            await supabase.from('shipment_parts').insert([{
-              shipment_id: sid, part_name: matchedPart.name, part_code: matchedPart.code, quantity: qty, price, total_price: total
+              shipment_id: sid, part_name: matchedPart.name, part_code: matchedPart.code, quantity: qty, price, total_price: total, warehouse_id: warehouseId
            }]);
            // 트랜잭션 및 재고 차감 통합 처리
            await processShipmentCompletion(sid, 'XRB');
@@ -338,10 +373,18 @@ function ExcelBatchUpload({ agencies, parts, setSnackbar }) {
             <Typography variant="subtitle1" fontWeight="bold">과거 자료 엑셀 업로드</Typography>
             <Typography variant="caption" color="textSecondary">필요 컬럼: 주문일자, 주문자, 대리점명, 매칭부품코드(또는 상품명), 수량, 판매가</Typography>
            </Box>
-           <Button variant="outlined" component="label" startIcon={<CloudUploadIcon />}>
-              엑셀 파일 선택
-              <input type="file" hidden accept=".xlsx, .xls" onChange={handleFileUpload} />
-           </Button>
+           <Box display="flex" alignItems="center" gap={2}>
+             <FormControl size="small" sx={{ minWidth: 160 }} required>
+               <InputLabel>출고 창고</InputLabel>
+               <Select value={warehouseId} label="출고 창고" onChange={e => setWarehouseId(e.target.value)}>
+                 {warehouses.map(w => <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>)}
+               </Select>
+             </FormControl>
+             <Button variant="outlined" component="label" startIcon={<CloudUploadIcon />}>
+                엑셀 파일 선택
+                <input type="file" hidden accept=".xlsx, .xls" onChange={handleFileUpload} />
+             </Button>
+           </Box>
         </Box>
         <TableContainer sx={{ maxHeight: 400, border: '1px solid #eee' }}>
           <Table stickyHeader size="small">

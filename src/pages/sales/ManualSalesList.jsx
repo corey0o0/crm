@@ -245,13 +245,12 @@ export default function ManualSalesList({ isEmbedded = false }) {
 
   const handleDeleteConfirm = async () => {
     try {
-      // 1. Transaction(수불부) 연동 삭제
-      if (targetToDelete.status === '출고완료') {
-        await processShipmentRevert(targetToDelete.id, targetToDelete.brand);
-      } else {
-        await supabase.from('transactions').delete().eq('group_id', targetToDelete.id);
-      }
-      
+      // 1. 재고 복구 (실제 차감된 품목만 내부적으로 판별)
+      // status 문자열('완료'/'출고완료'/'작업완료' 등 생성 경로마다 다름)로 게이트하지 않음 —
+      // processShipmentRevert는 shipment_parts.inventory_deducted 플래그로 정확히 판별하므로 항상 호출해도 안전함
+      // transactions는 삭제하지 않음: 전표가 지워져도 차감/복구 수량 이력은 입출고 내역에 그대로 남아야 함
+      await processShipmentRevert(targetToDelete.id, targetToDelete.brand);
+
       // 2. 부품 내역 삭제
       await supabase.from('shipment_parts').delete().eq('shipment_id', targetToDelete.id);
       
@@ -477,14 +476,11 @@ export default function ManualSalesList({ isEmbedded = false }) {
   const handleBulkDelete = async () => {
     try {
       setLoading(true);
-      // 1. Transaction(수불부) 연동 삭제
+      // 1. 재고 복구 (실제 차감된 품목만 내부적으로 판별)
+      // transactions는 삭제하지 않음: 전표가 지워져도 차감/복구 수량 이력은 입출고 내역에 그대로 남아야 함
       const shipmentsToDelete = shipments.filter(s => selectedItems.includes(s.id));
       for (const shipment of shipmentsToDelete) {
-        if (shipment.status === '출고완료') {
-          await processShipmentRevert(shipment.id, shipment.brand);
-        } else {
-          await supabase.from('transactions').delete().eq('group_id', shipment.id);
-        }
+        await processShipmentRevert(shipment.id, shipment.brand);
       }
       // 2. 부품 내역 삭제
       await supabase.from('shipment_parts').delete().in('shipment_id', selectedItems);

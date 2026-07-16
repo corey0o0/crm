@@ -159,21 +159,19 @@ function StoreOnlineOutboundTab() {
         await pendingOutboundApi.updateStatus(order.id, '완료');
         
         if (order.source_id) {
-          const firstCode = order.items[0]?.code;
-          const guessedBrand = (firstCode && (firstCode.startsWith('NB') || firstCode.includes('NEARBIKE'))) ? 'NB' : 'XRB';
-
           if (order.type.includes('A/S')) {
             const { data: prevService } = await supabase.from('services').select('status').eq('id', order.source_id).single();
             await supabase.from('services').update({ status: '준비완료' }).eq('id', order.source_id);
             await supabase.from('service_parts').update({ status: '준비완료' }).eq('service_id', order.source_id).neq('status', '반품완료');
             if (prevService && prevService.status !== '완료' && prevService.status !== '출고완료' && prevService.status !== '준비완료') {
-              await processServiceCompletion(order.source_id, guessedBrand);
+              // 브랜드 미지정 시 processInventory가 품목별 코드/이름으로 개별 추론함 (혼합 주문 대응)
+              await processServiceCompletion(order.source_id);
             }
           } else if (order.type.includes('출고')) {
             const { data: prevShipment } = await supabase.from('shipments').select('status').eq('id', order.source_id).single();
             await supabase.from('shipments').update({ status: order.type.includes('수기판매') ? '출고완료' : '작업완료' }).eq('id', order.source_id);
             if (prevShipment && !(['출고완료', '작업완료'].includes(prevShipment.status))) {
-              await processShipmentCompletion(order.source_id, guessedBrand);
+              await processShipmentCompletion(order.source_id);
             }
           }
         }
@@ -205,21 +203,19 @@ function StoreOnlineOutboundTab() {
         await pendingOutboundApi.updateStatus(order.id, '완료');
         
         if (order.source_id) {
-          const firstCode = order.items[0]?.code;
-          const guessedBrand = (firstCode && (firstCode.startsWith('NB') || firstCode.includes('NEARBIKE'))) ? 'NB' : 'XRB';
-
           if (order.type.includes('A/S')) {
             const { data: prevService } = await supabase.from('services').select('status').eq('id', order.source_id).single();
             await supabase.from('services').update({ status: '준비완료' }).eq('id', order.source_id);
             await supabase.from('service_parts').update({ status: '준비완료' }).eq('service_id', order.source_id).neq('status', '반품완료');
             if (prevService && prevService.status !== '완료' && prevService.status !== '출고완료' && prevService.status !== '준비완료') {
-              await processServiceCompletion(order.source_id, guessedBrand);
+              // 브랜드 미지정 시 processInventory가 품목별 코드/이름으로 개별 추론함 (혼합 주문 대응)
+              await processServiceCompletion(order.source_id);
             }
           } else if (order.type.includes('출고')) {
             const { data: prevShipment } = await supabase.from('shipments').select('status').eq('id', order.source_id).single();
             await supabase.from('shipments').update({ status: order.type.includes('수기판매') ? '출고완료' : '작업완료' }).eq('id', order.source_id);
             if (prevShipment && !(['출고완료', '작업완료'].includes(prevShipment.status))) {
-              await processShipmentCompletion(order.source_id, guessedBrand);
+              await processShipmentCompletion(order.source_id);
             }
           }
         }
