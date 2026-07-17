@@ -52,6 +52,7 @@ const AVAILABLE_PERMISSIONS = [
   { key: 'inventory_stats', label: '입출고 통계' },
   { key: 'sales_stats', label: '매장 매출통계' },
   { key: 'online_stats', label: '온라인 매출통계' },
+  { key: 'agency_sales_stats', label: '대리점 매출통계' },
   { key: 'sales_history_stats', label: '판매현황 통계' },
   { key: 'service_stats', label: 'A/S 통계' },
   { key: 'service_analysis', label: 'A/S 분석' },
