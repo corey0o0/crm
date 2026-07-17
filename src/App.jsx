@@ -52,6 +52,7 @@ import ShipmentForm from './pages/shipment/ShipmentForm';
 import SalesEntry from './pages/sales/SalesEntry';
 import SalesHistory from './pages/sales/SalesHistory';
 import SalesHistoryStats from './components/Stats/SalesHistoryStats';
+import AgencySalesStats from './components/Stats/AgencySalesStats';
 import TaxInvoiceManagement from './pages/sales/TaxInvoiceManagement';
 import AgencyManagement from './pages/agency/AgencyManagement';
 import AdminTools from './pages/admin/AdminTools';
@@ -129,6 +130,7 @@ function AppRouter() {
           <Route path="service/:id" element={<PermissionRoute requiredPermission={MENU_KEYS.SERVICES}><ServiceDetail /></PermissionRoute>} />
           <Route path="sales/stats" element={<PermissionRoute requiredPermission={MENU_KEYS.SALES_STATS}><SalesStats /></PermissionRoute>} />
           <Route path="sales/history-stats" element={<PermissionRoute requiredPermission={MENU_KEYS.SALES_HISTORY_STATS}><SalesHistoryStats /></PermissionRoute>} />
+          <Route path="sales/agency-stats" element={<PermissionRoute requiredPermission={MENU_KEYS.AGENCY_SALES_STATS}><AgencySalesStats /></PermissionRoute>} />
           <Route path="online/stats" element={<PermissionRoute requiredPermission={MENU_KEYS.ONLINE_STATS}><OnlineStats /></PermissionRoute>} />
           <Route path="stocks" element={<PermissionRoute requiredPermission={MENU_KEYS.STOCKS}><StockList /></PermissionRoute>} />
           <Route path="stats/service" element={<PermissionRoute requiredPermission={MENU_KEYS.SERVICE_STATS}><ServiceStats /></PermissionRoute>} />

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
 import { getBrandFallback } from './SalesHistoryStats';
+import { computeOnlineAgencyStats } from '../../utils/onlineAgencyStats';
 import {
   Box,
   Paper,
@@ -211,7 +212,6 @@ function OnlineStats() {
 
       if (cafe24Orders) {
         let total = 0;
-        const agencyStats = {};
         const brandStats = { agency_xrb: {}, agency_nb: {}, general_xrb: {}, general_nb: {} };
         const generalProductStats = {};
         const agencyMap = {};
@@ -255,9 +255,6 @@ function OnlineStats() {
           // 창고 정보 없는 건(반영 예외 처리된 건) 제외 — SalesHistory/SalesHistoryStats와 동일 기준
           const orderItems = o.order_items || [];
           if (orderItems.length > 0 && !orderItems.some(item => item._warehouse_id)) return;
-
-          const agName = o.agency_id ? (agencyMap[o.agency_id] || `미등록 대리점`) : '일반 주문';
-          if (!agencyStats[agName]) agencyStats[agName] = { amount: 0, count: 0, airframe: 0, airframeAmount: 0, parts: 0, partsAmount: 0 };
 
           const CANCEL_STATUSES = ['C11', 'C34', 'C36', 'C40', 'C47', 'C48', 'C49', 'R34', 'R36', 'R40', 'E40'];
           // 교환/취소 상태여도 실결제(payment_amount>0)가 있으면 유효 거래로 인정 (예: 교환 차액 결제)
@@ -395,17 +392,7 @@ function OnlineStats() {
                if (!o._validOrderTotal) o._validOrderTotal = 0;
                o._validOrderTotal += amount;
                
-               if (!agencyStats[agName]) agencyStats[agName] = { amount: 0, count: 0, airframe: 0, airframeAmount: 0, parts: 0, partsAmount: 0 };
-               
-               if (isAirframe) {
-                  agencyStats[agName].airframe += statQty;
-                  agencyStats[agName].airframeAmount += amount;
-               } else {
-                   agencyStats[agName].parts += statQty;
-                   agencyStats[agName].partsAmount += amount;
-                }
-
-                const isGeneral = !o.agency_id;
+               const isGeneral = !o.agency_id;
                 const mallSuffix = o.mall_id === 'nearbike' ? '_nb' : '_xrb';
                 const customerType = (isGeneral ? 'general' : 'agency') + mallSuffix;
 
@@ -485,10 +472,6 @@ function OnlineStats() {
 
               if (qBrand === '전체') {
                  total += validOrderTotal;
-                 if (agencyStats[agName]) {
-                    agencyStats[agName].amount += validOrderTotal;
-                    agencyStats[agName].count += 1;
-                 }
                  // 배송비를 파츠 합계에 반영 (mall 기준 브랜드 결정)
                  if (shipFee > 0) {
                     const shipBrandSuffix = o.mall_id === 'nearbike' ? '_nb' : '_xrb';
@@ -507,15 +490,13 @@ function OnlineStats() {
                  const apportionedShipping = (o._validOrderTotal > 0) ? Math.floor(shipFee * (orderTotalForBrand / o._validOrderTotal)) : 0;
                  const adjustedTotalForBrand = orderTotalForBrand + apportionedShipping;
                  total += adjustedTotalForBrand;
-                 if (agencyStats[agName]) {
-                    agencyStats[agName].amount += adjustedTotalForBrand;
-                    agencyStats[agName].count += 1;
-                 }
               }
               filteredOrderCount += 1;
               filteredList.push(o);
            }
         });
+
+        const { agencyStats } = computeOnlineAgencyStats({ orders: cafe24Orders, agencies: agenciesData, parts: partsData, brand: qBrand });
 
         setStats({
           totalPayment: total,
