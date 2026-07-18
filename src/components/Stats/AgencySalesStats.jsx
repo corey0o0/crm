@@ -73,6 +73,7 @@ function AgencySalesStats() {
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [selectedMonth, setSelectedMonth] = useState(getMonth(new Date()));
+  const [selectedQuarter, setSelectedQuarter] = useState(null); // 1~4 | null
   const [agencyStats, setAgencyStats] = useState({});
   // 기종 x 대리점: offline/online 수량·매출 분리
   const [modelStats, setModelStats] = useState([]);
@@ -83,6 +84,9 @@ function AgencySalesStats() {
   const [modelSearch, setModelSearch] = useState('');
   // amount | qty | offlineAmount | onlineAmount
   const [modelSort, setModelSort] = useState('amount');
+  // SalesStats와 동일: 전체 / XRB / NB
+  const brandOptions = ['전체', 'XRB', 'NB'];
+  const [brand, setBrand] = useState('전체');
   // 기체/파츠 순위 클릭 상세
   const [detailModal, setDetailModal] = useState({
     open: false,
@@ -97,7 +101,7 @@ function AgencySalesStats() {
 
   const formatCurrency = (value) => new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(value || 0);
 
-  const fetchData = async (qStart, qEnd) => {
+  const fetchData = async (qStart, qEnd, qBrand = brand) => {
     setLoading(true);
     try {
       const startDateTime = formatDateToStartOfDay(qStart || startDate);
@@ -113,13 +117,17 @@ function AgencySalesStats() {
         return merged[name];
       };
 
-      // ---------- 오프라인(수기 출고) ----------
-      const { data: shipments, error: shipmentError } = await supabase
+      // ---------- 오프라인(수기 출고) — 브랜드 필터는 shipments.brand 기준 (SalesStats와 동일) ----------
+      let shipmentQuery = supabase
         .from('shipments')
-        .select('id, order_date, customer_name, sales_channel, note, status')
+        .select('id, order_date, customer_name, sales_channel, note, status, brand')
         .gte('order_date', startDateTime)
         .lte('order_date', endDateTime)
         .in('status', ['출고완료', '완료']);
+      if (qBrand !== '전체') {
+        shipmentQuery = shipmentQuery.eq('brand', qBrand);
+      }
+      const { data: shipments, error: shipmentError } = await shipmentQuery;
       if (shipmentError) throw shipmentError;
 
       const agencyShipments = (shipments || []).filter(s => {
@@ -218,7 +226,7 @@ function AgencySalesStats() {
         agencyStats: onlineAgencyStats,
         agencyModelStats: onlineModelStats,
         agencyPartsStats: onlinePartsStats = {},
-      } = computeOnlineAgencyStats({ orders: orders || [], agencies: agencies || [], parts: parts || [], brand: '전체' });
+      } = computeOnlineAgencyStats({ orders: orders || [], agencies: agencies || [], parts: parts || [], brand: qBrand });
 
       Object.entries(onlineAgencyStats).forEach(([agencyName, data]) => {
         if (ONLINE_EXCLUDED_KEYS.includes(agencyName)) return; // 미등록/일반 주문은 대리점 순위에서 제외
@@ -321,9 +329,11 @@ function AgencySalesStats() {
   };
 
   useEffect(() => {
-    fetchData(startDate, endDate);
+    fetchData(startDate, endDate, brand);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const activeYear = selectedYear ?? currentYear;
 
   const handleYearSelect = (year) => {
     setSelectedYear(year);
@@ -332,23 +342,48 @@ function AgencySalesStats() {
     setStartDate(newStartDate);
     setEndDate(newEndDate);
     setSelectedMonth(null);
-    fetchData(newStartDate, newEndDate);
+    setSelectedQuarter(null);
+    fetchData(newStartDate, newEndDate, brand);
+  };
+
+  const handleQuarterSelect = (quarter) => {
+    const year = activeYear;
+    const startMonth = (quarter - 1) * 3;
+    const endMonth = startMonth + 2;
+    const newStartDate = startOfMonth(new Date(year, startMonth, 1));
+    const newEndDate = endOfMonth(new Date(year, endMonth, 1));
+    setSelectedYear(year);
+    setSelectedQuarter(quarter);
+    setSelectedMonth(null);
+    setStartDate(newStartDate);
+    setEndDate(newEndDate);
+    fetchData(newStartDate, newEndDate, brand);
   };
 
   const handleMonthSelect = (monthIndex) => {
-    const newDate = new Date(selectedYear, monthIndex, 1);
+    const year = activeYear;
+    const newDate = new Date(year, monthIndex, 1);
     const newStartDate = startOfMonth(newDate);
     const newEndDate = endOfMonth(newDate);
+    setSelectedYear(year);
     setSelectedMonth(monthIndex);
+    setSelectedQuarter(null);
     setStartDate(newStartDate);
     setEndDate(newEndDate);
-    fetchData(newStartDate, newEndDate);
+    fetchData(newStartDate, newEndDate, brand);
   };
 
   const handleCustomDateSearch = () => {
     setSelectedYear(null);
     setSelectedMonth(null);
-    fetchData(startDate, endDate);
+    setSelectedQuarter(null);
+    fetchData(startDate, endDate, brand);
+  };
+
+  const handleBrandSelect = (option) => {
+    setBrand(option);
+    setDetailModal((prev) => ({ ...prev, open: false }));
+    fetchData(startDate, endDate, option);
   };
 
   const openAgencyDetail = (agencyName, kind) => {
@@ -498,11 +533,11 @@ function AgencySalesStats() {
 
         <Paper sx={{ p: 3, mb: 3, borderLeft: '4px solid #3182f6' }}>
           <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 500, color: '#3182f6' }}>검색 필터</Typography>
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={4} alignItems="center">
-            <Box>
-              <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>연도 선택</Typography>
+          <Stack spacing={1}>
+            {/* 날짜: 연도 → 분기 → 월 (위→아래, 라벨 없음) */}
+            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
               <ButtonGroup size="small" variant="outlined" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
-                {Array.from({ length: currentYear - 2021 }, (_, i) => currentYear - i).map(year => (
+                {Array.from({ length: currentYear - 2021 }, (_, i) => currentYear - i).map((year) => (
                   <Button
                     key={year}
                     onClick={() => handleYearSelect(year)}
@@ -512,40 +547,89 @@ function AgencySalesStats() {
                   </Button>
                 ))}
               </ButtonGroup>
-            </Box>
-            <Box>
-              <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>월 선택</Typography>
-              <ButtonGroup size="small" variant="outlined" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
-                {Array.from({ length: 12 }, (_, i) => i).map(idx => (
-                  <Button
-                    key={idx}
-                    onClick={() => handleMonthSelect(idx)}
-                    variant={selectedMonth === idx ? 'contained' : 'outlined'}
-                  >
-                    {idx + 1}월
-                  </Button>
-                ))}
-              </ButtonGroup>
-            </Box>
-            <Box>
-              <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>기간(일 단위) 직접 지정</Typography>
-              <Stack direction="row" spacing={1} alignItems="center">
-                <DatePicker
-                  label="시작일"
-                  value={startDate}
-                  onChange={setStartDate}
-                  slotProps={{ textField: { size: 'small' } }}
-                />
-                <Typography>~</Typography>
-                <DatePicker
-                  label="종료일"
-                  value={endDate}
-                  onChange={setEndDate}
-                  slotProps={{ textField: { size: 'small' } }}
-                />
-                <Button variant="contained" size="small" onClick={handleCustomDateSearch}>조회</Button>
-              </Stack>
-            </Box>
+              {selectedQuarter != null && selectedYear != null && (
+                <Box
+                  component="span"
+                  sx={{
+                    py: 0.25,
+                    px: 1,
+                    borderRadius: 1,
+                    bgcolor: '#e3f2fd',
+                    fontSize: '0.85rem',
+                    color: '#1976d2',
+                  }}
+                >
+                  {selectedYear}년 {selectedQuarter}분기
+                </Box>
+              )}
+            </Stack>
+
+            <ButtonGroup size="small" variant="outlined">
+              {[1, 2, 3, 4].map((q) => (
+                <Button
+                  key={q}
+                  onClick={() => handleQuarterSelect(q)}
+                  variant={selectedQuarter === q ? 'contained' : 'outlined'}
+                >
+                  {q}분기
+                </Button>
+              ))}
+            </ButtonGroup>
+
+            <ButtonGroup size="small" variant="outlined" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+              {Array.from({ length: 12 }, (_, i) => i).map((idx) => (
+                <Button
+                  key={idx}
+                  onClick={() => handleMonthSelect(idx)}
+                  variant={selectedMonth === idx ? 'contained' : 'outlined'}
+                >
+                  {idx + 1}월
+                </Button>
+              ))}
+            </ButtonGroup>
+
+            {/* 기간 직접 지정 + 브랜드 */}
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              spacing={3}
+              alignItems={{ xs: 'stretch', sm: 'flex-end' }}
+              flexWrap="wrap"
+              sx={{ pt: 0.5 }}
+            >
+              <Box>
+                <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>기간(일 단위) 직접 지정</Typography>
+                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                  <DatePicker
+                    label="시작일"
+                    value={startDate}
+                    onChange={setStartDate}
+                    slotProps={{ textField: { size: 'small' } }}
+                  />
+                  <Typography>~</Typography>
+                  <DatePicker
+                    label="종료일"
+                    value={endDate}
+                    onChange={setEndDate}
+                    slotProps={{ textField: { size: 'small' } }}
+                  />
+                  <Button variant="contained" size="small" onClick={handleCustomDateSearch}>조회</Button>
+                </Stack>
+              </Box>
+              <Box>
+                <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>브랜드</Typography>
+                <ButtonGroup size="small" variant="outlined">
+                  {brandOptions.map((option) => (
+                    <Button
+                      key={option}
+                      onClick={() => handleBrandSelect(option)}
+                      variant={brand === option ? 'contained' : 'outlined'}
+                    >
+                      {option}
+                    </Button>
+                  ))}
+                </ButtonGroup>
+              </Box>
+            </Stack>
           </Stack>
         </Paper>
 
