@@ -20,7 +20,11 @@ import {
   Tab,
   Stack,
   TextField,
-  InputAdornment
+  InputAdornment,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material';
 import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
@@ -72,11 +76,21 @@ function AgencySalesStats() {
   const [agencyStats, setAgencyStats] = useState({});
   // 기종 x 대리점: offline/online 수량·매출 분리
   const [modelStats, setModelStats] = useState([]);
+  // 파츠 상품 x 대리점: 상세 모달용
+  const [partsStats, setPartsStats] = useState([]);
   const [tabValue, setTabValue] = useState(0);
   const [topN, setTopN] = useState(10);
   const [modelSearch, setModelSearch] = useState('');
   // amount | qty | offlineAmount | onlineAmount
   const [modelSort, setModelSort] = useState('amount');
+  // 기체/파츠 순위 클릭 상세
+  const [detailModal, setDetailModal] = useState({
+    open: false,
+    title: '',
+    kind: 'airframe', // airframe | parts
+    agency: '',
+    rows: [],
+  });
 
   const formatDateToStartOfDay = (date) => format(date, 'yyyy-MM-dd') + 'T00:00:00+09:00';
   const formatDateToEndOfDay = (date) => format(date, 'yyyy-MM-dd') + 'T23:59:59+09:00';
@@ -119,6 +133,7 @@ function AgencySalesStats() {
       });
 
       const offlineModelStats = {}; // { [agencyName]: { [modelName]: { qty, amount } } } - 기체만
+      const offlinePartsStats = {}; // { [agencyName]: { [partName]: { qty, amount } } }
 
       const shipmentIds = agencyShipments.map(s => s.id);
       if (shipmentIds.length > 0) {
@@ -168,6 +183,12 @@ function AgencySalesStats() {
           } else {
             bucket.partsAmount += effectiveTotal;
             bucket.partsQty += effectiveQty;
+
+            const partName = (part.part_name || '기타 파츠').trim() || '기타 파츠';
+            if (!offlinePartsStats[agencyName]) offlinePartsStats[agencyName] = {};
+            if (!offlinePartsStats[agencyName][partName]) offlinePartsStats[agencyName][partName] = { qty: 0, amount: 0 };
+            offlinePartsStats[agencyName][partName].qty += effectiveQty;
+            offlinePartsStats[agencyName][partName].amount += effectiveTotal;
           }
           shipmentsWithRevenue.add(part.shipment_id);
         });
@@ -193,7 +214,11 @@ function AgencySalesStats() {
         .select('id, code, barcode, brand, note, price, name');
       if (partError) throw partError;
 
-      const { agencyStats: onlineAgencyStats, agencyModelStats: onlineModelStats } = computeOnlineAgencyStats({ orders: orders || [], agencies: agencies || [], parts: parts || [], brand: '전체' });
+      const {
+        agencyStats: onlineAgencyStats,
+        agencyModelStats: onlineModelStats,
+        agencyPartsStats: onlinePartsStats = {},
+      } = computeOnlineAgencyStats({ orders: orders || [], agencies: agencies || [], parts: parts || [], brand: '전체' });
 
       Object.entries(onlineAgencyStats).forEach(([agencyName, data]) => {
         if (ONLINE_EXCLUDED_KEYS.includes(agencyName)) return; // 미등록/일반 주문은 대리점 순위에서 제외
@@ -233,7 +258,7 @@ function AgencySalesStats() {
           row.offlineAmount += d.amount;
         });
       });
-      Object.entries(onlineModelStats).forEach(([agencyName, models]) => {
+      Object.entries(onlineModelStats || {}).forEach(([agencyName, models]) => {
         if (ONLINE_EXCLUDED_KEYS.includes(agencyName)) return;
         Object.entries(models).forEach(([modelName, d]) => {
           const row = ensureModelRow(agencyName, modelName);
@@ -243,6 +268,46 @@ function AgencySalesStats() {
       });
       setModelStats(
         Object.values(modelMerged).map((r) => ({
+          ...r,
+          qty: r.offlineQty + r.onlineQty,
+          amount: r.offlineAmount + r.onlineAmount,
+        }))
+      );
+
+      // ---------- 파츠 상품 x 대리점 집계 (상세 모달용) ----------
+      const partsMerged = {}; // key: agency__part
+      const ensurePartsRow = (agencyName, partName) => {
+        const key = `${agencyName}__${partName}`;
+        if (!partsMerged[key]) {
+          partsMerged[key] = {
+            partName,
+            agency: agencyName,
+            offlineQty: 0,
+            offlineAmount: 0,
+            onlineQty: 0,
+            onlineAmount: 0,
+          };
+        }
+        return partsMerged[key];
+      };
+      Object.entries(offlinePartsStats).forEach(([agencyName, items]) => {
+        if (ONLINE_EXCLUDED_KEYS.includes(agencyName)) return;
+        Object.entries(items).forEach(([partName, d]) => {
+          const row = ensurePartsRow(agencyName, partName);
+          row.offlineQty += d.qty;
+          row.offlineAmount += d.amount;
+        });
+      });
+      Object.entries(onlinePartsStats || {}).forEach(([agencyName, items]) => {
+        if (ONLINE_EXCLUDED_KEYS.includes(agencyName)) return;
+        Object.entries(items).forEach(([partName, d]) => {
+          const row = ensurePartsRow(agencyName, partName);
+          row.onlineQty += d.qty;
+          row.onlineAmount += d.amount;
+        });
+      });
+      setPartsStats(
+        Object.values(partsMerged).map((r) => ({
           ...r,
           qty: r.offlineQty + r.onlineQty,
           amount: r.offlineAmount + r.onlineAmount,
@@ -286,6 +351,58 @@ function AgencySalesStats() {
     fetchData(startDate, endDate);
   };
 
+  const openAgencyDetail = (agencyName, kind) => {
+    if (kind === 'airframe') {
+      const rows = modelStats
+        .filter((r) => r.agency === agencyName && ((r.qty || 0) > 0 || (r.amount || 0) > 0))
+        .map((r) => ({
+          name: r.model,
+          qty: r.qty || 0,
+          amount: r.amount || 0,
+          offlineQty: r.offlineQty || 0,
+          offlineAmount: r.offlineAmount || 0,
+          onlineQty: r.onlineQty || 0,
+          onlineAmount: r.onlineAmount || 0,
+        }))
+        .sort((a, b) => b.amount - a.amount || b.qty - a.qty || String(a.name).localeCompare(String(b.name), 'ko'));
+      setDetailModal({
+        open: true,
+        title: `${agencyName} — 기체 상세`,
+        kind: 'airframe',
+        agency: agencyName,
+        rows,
+      });
+      return;
+    }
+    const rows = partsStats
+      .filter((r) => r.agency === agencyName && ((r.qty || 0) > 0 || (r.amount || 0) > 0))
+      .map((r) => ({
+        name: r.partName,
+        qty: r.qty || 0,
+        amount: r.amount || 0,
+        offlineQty: r.offlineQty || 0,
+        offlineAmount: r.offlineAmount || 0,
+        onlineQty: r.onlineQty || 0,
+        onlineAmount: r.onlineAmount || 0,
+      }))
+      .sort((a, b) => b.amount - a.amount || b.qty - a.qty || String(a.name).localeCompare(String(b.name), 'ko'));
+    setDetailModal({
+      open: true,
+      title: `${agencyName} — 파츠 상세`,
+      kind: 'parts',
+      agency: agencyName,
+      rows,
+    });
+  };
+
+  const clickableCellSx = {
+    cursor: 'pointer',
+    color: 'primary.main',
+    textDecoration: 'underline',
+    textUnderlineOffset: 2,
+    '&:hover': { bgcolor: 'action.hover' },
+  };
+
   const rows = Object.entries(agencyStats).map(([name, d]) => ({
     name,
     totalAmount: d.offlineAmount + d.onlineAmount,
@@ -298,7 +415,11 @@ function AgencySalesStats() {
     .sort((a, b) => b[sortKeyByTab] - a[sortKeyByTab]);
   const displayRows = topN === 'all' ? sortedRows : sortedRows.slice(0, topN);
 
-  const displayModelRows = useMemo(() => {
+  // 기종 → 하위 대리점 목록 (기종 순위 + 기종 내 대리점 순위)
+  // 예) 블레이드
+  //       - 강남청담점 / 3대 / ₩…
+  //       - 코디바이크 / 1대 / ₩…
+  const displayModelGroups = useMemo(() => {
     const q = modelSearch.trim().toLowerCase();
     const filtered = modelStats.filter((r) => {
       if (r.amount <= 0 && r.qty <= 0) return false;
@@ -308,6 +429,7 @@ function AgencySalesStats() {
         (r.agency || '').toLowerCase().includes(q)
       );
     });
+
     const sortKey = modelSort === 'qty'
       ? 'qty'
       : modelSort === 'offlineAmount'
@@ -315,15 +437,52 @@ function AgencySalesStats() {
         : modelSort === 'onlineAmount'
           ? 'onlineAmount'
           : 'amount';
-    const sorted = [...filtered].sort((a, b) => {
+
+    const byModel = {};
+    filtered.forEach((r) => {
+      const m = r.model || '알 수 없는 기체';
+      if (!byModel[m]) {
+        byModel[m] = {
+          model: m,
+          qty: 0,
+          amount: 0,
+          offlineQty: 0,
+          offlineAmount: 0,
+          onlineQty: 0,
+          onlineAmount: 0,
+          dealers: [],
+        };
+      }
+      const g = byModel[m];
+      g.qty += r.qty || 0;
+      g.amount += r.amount || 0;
+      g.offlineQty += r.offlineQty || 0;
+      g.offlineAmount += r.offlineAmount || 0;
+      g.onlineQty += r.onlineQty || 0;
+      g.onlineAmount += r.onlineAmount || 0;
+      g.dealers.push(r);
+    });
+
+    const groups = Object.values(byModel).map((g) => {
+      const dealers = [...g.dealers].sort((a, b) => {
+        const diff = (b[sortKey] || 0) - (a[sortKey] || 0);
+        if (diff !== 0) return diff;
+        const amt = (b.amount || 0) - (a.amount || 0);
+        if (amt !== 0) return amt;
+        return String(a.agency).localeCompare(String(b.agency), 'ko');
+      });
+      return { ...g, dealers };
+    });
+
+    groups.sort((a, b) => {
       const diff = (b[sortKey] || 0) - (a[sortKey] || 0);
       if (diff !== 0) return diff;
-      // 동점 시 총매출 → 기종명
       const amt = (b.amount || 0) - (a.amount || 0);
       if (amt !== 0) return amt;
       return String(a.model).localeCompare(String(b.model), 'ko');
     });
-    return topN === 'all' ? sorted : sorted.slice(0, topN);
+
+    return topN === 'all' ? groups : groups.slice(0, topN);
   }, [modelStats, modelSearch, modelSort, topN]);
 
   const grandTotal = rows.reduce((acc, r) => ({
@@ -422,11 +581,20 @@ function AgencySalesStats() {
                 <Tab label="대리점별 매출 순위" />
                 <Tab label="기체기준 순위" />
                 <Tab label="파츠기준 순위" />
-                <Tab label="기종별 매출 순위" />
+                <Tab label="기종별 매출처 현황" />
               </Tabs>
+              {(tabValue === 1 || tabValue === 2) && (
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', px: 2, pt: 1 }}>
+                  {tabValue === 1
+                    ? '기체 수량·매출 숫자를 클릭하면 해당 대리점의 기종별 상세를 볼 수 있습니다.'
+                    : '파츠 수량·매출 숫자를 클릭하면 해당 대리점의 파츠 상품별 상세를 볼 수 있습니다.'}
+                </Typography>
+              )}
               {tabValue === 3 && (
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', px: 2, pt: 1 }}>
-                  기종명은 색상·표기 차이를 표준화해 합산합니다. (예: X200MAX 블랙 1대 → X200 MAX, 블레이드 FS Blade FS - 블랙 → 블레이드 FS)
+                  한 기종 기준으로 매출처(대리점)별 주문 수량·매출을 펼쳐 보여줍니다.
+                  예: 블레이드 → 강남청담점 / 3대 / 매출, 코디바이크 / 1대 / 매출 …
+                  기종명은 색상·표기 차이를 표준화해 합산합니다. (X200MAX 블랙 → X200 MAX 등)
                 </Typography>
               )}
               <Box
@@ -444,7 +612,7 @@ function AgencySalesStats() {
                   <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'center' }} sx={{ flex: 1, minWidth: 0 }}>
                     <TextField
                       size="small"
-                      placeholder="기종·대리점 검색"
+                      placeholder="기종·매출처 검색"
                       value={modelSearch}
                       onChange={(e) => setModelSearch(e.target.value)}
                       sx={{ minWidth: 200, maxWidth: 320 }}
@@ -491,8 +659,7 @@ function AgencySalesStats() {
                       <TableHead sx={{ bgcolor: 'grey.100' }}>
                         <TableRow>
                           <TableCell width={56} rowSpan={2}>순위</TableCell>
-                          <TableCell rowSpan={2}>기종</TableCell>
-                          <TableCell rowSpan={2}>대리점명</TableCell>
+                          <TableCell rowSpan={2}>기종 / 매출처</TableCell>
                           <TableCell align="center" colSpan={2} sx={{ fontWeight: 'bold', bgcolor: 'grey.50' }}>전체</TableCell>
                           <TableCell align="center" colSpan={2} sx={{ fontWeight: 'bold', bgcolor: '#eef6ff' }}>오프라인</TableCell>
                           <TableCell align="center" colSpan={2} sx={{ fontWeight: 'bold', bgcolor: '#f3eefc' }}>온라인</TableCell>
@@ -507,21 +674,62 @@ function AgencySalesStats() {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {displayModelRows.length > 0 ? displayModelRows.map((row, idx) => (
-                          <TableRow key={`${row.model}__${row.agency}`} hover>
-                            <TableCell>{idx + 1}</TableCell>
-                            <TableCell>{row.model}</TableCell>
-                            <TableCell>{row.agency}</TableCell>
-                            <TableCell align="right" sx={{ bgcolor: 'grey.50' }}>{(row.qty || 0).toLocaleString()}대</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: 'grey.50' }}>{formatCurrency(row.amount)}</TableCell>
-                            <TableCell align="right" sx={{ bgcolor: '#eef6ff' }}>{(row.offlineQty || 0).toLocaleString()}대</TableCell>
-                            <TableCell align="right" sx={{ bgcolor: '#eef6ff' }}>{formatCurrency(row.offlineAmount)}</TableCell>
-                            <TableCell align="right" sx={{ bgcolor: '#f3eefc' }}>{(row.onlineQty || 0).toLocaleString()}대</TableCell>
-                            <TableCell align="right" sx={{ bgcolor: '#f3eefc' }}>{formatCurrency(row.onlineAmount)}</TableCell>
-                          </TableRow>
+                        {displayModelGroups.length > 0 ? displayModelGroups.map((group, gIdx) => (
+                          <React.Fragment key={`model-${group.model}`}>
+                            {/* 기종 헤더: 합계 */}
+                            <TableRow sx={{ bgcolor: '#f0f4f8' }}>
+                              <TableCell sx={{ fontWeight: 'bold' }}>{gIdx + 1}</TableCell>
+                              <TableCell sx={{ fontWeight: 'bold' }}>{group.model}</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: 'grey.50' }}>
+                                {(group.qty || 0).toLocaleString()}대
+                              </TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: 'grey.50' }}>
+                                {formatCurrency(group.amount)}
+                              </TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: '#eef6ff' }}>
+                                {(group.offlineQty || 0).toLocaleString()}대
+                              </TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: '#eef6ff' }}>
+                                {formatCurrency(group.offlineAmount)}
+                              </TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: '#f3eefc' }}>
+                                {(group.onlineQty || 0).toLocaleString()}대
+                              </TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: '#f3eefc' }}>
+                                {formatCurrency(group.onlineAmount)}
+                              </TableCell>
+                            </TableRow>
+                            {/* 하위 대리점 */}
+                            {group.dealers.map((row) => (
+                              <TableRow key={`${group.model}__${row.agency}`} hover>
+                                <TableCell />
+                                <TableCell sx={{ pl: 4, color: 'text.secondary' }}>
+                                  ㄴ {row.agency}
+                                </TableCell>
+                                <TableCell align="right" sx={{ bgcolor: 'grey.50' }}>
+                                  {(row.qty || 0).toLocaleString()}대
+                                </TableCell>
+                                <TableCell align="right" sx={{ bgcolor: 'grey.50' }}>
+                                  {formatCurrency(row.amount)}
+                                </TableCell>
+                                <TableCell align="right" sx={{ bgcolor: '#eef6ff' }}>
+                                  {(row.offlineQty || 0).toLocaleString()}대
+                                </TableCell>
+                                <TableCell align="right" sx={{ bgcolor: '#eef6ff' }}>
+                                  {formatCurrency(row.offlineAmount)}
+                                </TableCell>
+                                <TableCell align="right" sx={{ bgcolor: '#f3eefc' }}>
+                                  {(row.onlineQty || 0).toLocaleString()}대
+                                </TableCell>
+                                <TableCell align="right" sx={{ bgcolor: '#f3eefc' }}>
+                                  {formatCurrency(row.onlineAmount)}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </React.Fragment>
                         )) : (
                           <TableRow>
-                            <TableCell colSpan={9} align="center">
+                            <TableCell colSpan={8} align="center">
                               {modelSearch.trim() ? '검색 결과가 없습니다.' : '데이터가 없습니다.'}
                             </TableCell>
                           </TableRow>
@@ -560,12 +768,40 @@ function AgencySalesStats() {
                               <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(row.totalAmount)}</TableCell>
                             </>}
                             {tabValue === 1 && <>
-                              <TableCell align="right">{row.airframeQty.toLocaleString()}대</TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(row.airframeAmount)}</TableCell>
+                              <TableCell
+                                align="right"
+                                sx={clickableCellSx}
+                                onClick={() => openAgencyDetail(row.name, 'airframe')}
+                                title="클릭 시 기종별 상세"
+                              >
+                                {row.airframeQty.toLocaleString()}대
+                              </TableCell>
+                              <TableCell
+                                align="right"
+                                sx={{ ...clickableCellSx, fontWeight: 'bold' }}
+                                onClick={() => openAgencyDetail(row.name, 'airframe')}
+                                title="클릭 시 기종별 상세"
+                              >
+                                {formatCurrency(row.airframeAmount)}
+                              </TableCell>
                             </>}
                             {tabValue === 2 && <>
-                              <TableCell align="right">{row.partsQty.toLocaleString()}개</TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(row.partsAmount)}</TableCell>
+                              <TableCell
+                                align="right"
+                                sx={clickableCellSx}
+                                onClick={() => openAgencyDetail(row.name, 'parts')}
+                                title="클릭 시 파츠별 상세"
+                              >
+                                {row.partsQty.toLocaleString()}개
+                              </TableCell>
+                              <TableCell
+                                align="right"
+                                sx={{ ...clickableCellSx, fontWeight: 'bold' }}
+                                onClick={() => openAgencyDetail(row.name, 'parts')}
+                                title="클릭 시 파츠별 상세"
+                              >
+                                {formatCurrency(row.partsAmount)}
+                              </TableCell>
                             </>}
                           </TableRow>
                         )) : (
@@ -577,6 +813,109 @@ function AgencySalesStats() {
                 </Table>
               </TableContainer>
             </Paper>
+
+            {/* 기체/파츠 순위 상세 모달 */}
+            <Dialog
+              open={detailModal.open}
+              onClose={() => setDetailModal((m) => ({ ...m, open: false }))}
+              maxWidth="md"
+              fullWidth
+            >
+              <DialogTitle sx={{ fontWeight: 'bold' }}>{detailModal.title}</DialogTitle>
+              <DialogContent dividers>
+                {detailModal.kind === 'airframe' && (
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+                    해당 대리점의 기체 기종별 주문 수량·매출입니다. (오프라인 수기 출고 + 온라인 합산)
+                  </Typography>
+                )}
+                {detailModal.kind === 'parts' && (
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+                    해당 대리점의 파츠 상품별 주문 수량·매출입니다. (오프라인 수기 출고 + 온라인 합산)
+                  </Typography>
+                )}
+                <TableContainer>
+                  <Table size="small" sx={{ border: '1px solid rgba(224,224,224,1)', '& th, & td': { border: '1px solid rgba(224,224,224,1)' } }}>
+                    <TableHead sx={{ bgcolor: 'grey.100' }}>
+                      <TableRow>
+                        <TableCell width={48}>#</TableCell>
+                        <TableCell>{detailModal.kind === 'airframe' ? '기종' : '파츠명'}</TableCell>
+                        <TableCell align="right" sx={{ bgcolor: 'grey.50' }}>총 수량</TableCell>
+                        <TableCell align="right" sx={{ bgcolor: 'grey.50' }}>총 매출</TableCell>
+                        <TableCell align="right" sx={{ bgcolor: '#eef6ff' }}>오프 수량</TableCell>
+                        <TableCell align="right" sx={{ bgcolor: '#eef6ff' }}>오프 매출</TableCell>
+                        <TableCell align="right" sx={{ bgcolor: '#f3eefc' }}>온 수량</TableCell>
+                        <TableCell align="right" sx={{ bgcolor: '#f3eefc' }}>온 매출</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {(detailModal.rows || []).length > 0 ? (
+                        <>
+                          {detailModal.rows.map((r, idx) => (
+                            <TableRow key={`${r.name}-${idx}`} hover>
+                              <TableCell>{idx + 1}</TableCell>
+                              <TableCell>{r.name}</TableCell>
+                              <TableCell align="right" sx={{ bgcolor: 'grey.50' }}>
+                                {(r.qty || 0).toLocaleString()}{detailModal.kind === 'airframe' ? '대' : '개'}
+                              </TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: 'grey.50' }}>
+                                {formatCurrency(r.amount)}
+                              </TableCell>
+                              <TableCell align="right" sx={{ bgcolor: '#eef6ff' }}>
+                                {(r.offlineQty || 0).toLocaleString()}
+                              </TableCell>
+                              <TableCell align="right" sx={{ bgcolor: '#eef6ff' }}>
+                                {formatCurrency(r.offlineAmount)}
+                              </TableCell>
+                              <TableCell align="right" sx={{ bgcolor: '#f3eefc' }}>
+                                {(r.onlineQty || 0).toLocaleString()}
+                              </TableCell>
+                              <TableCell align="right" sx={{ bgcolor: '#f3eefc' }}>
+                                {formatCurrency(r.onlineAmount)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                          <TableRow sx={{ bgcolor: '#f0f4f8' }}>
+                            <TableCell colSpan={2} sx={{ fontWeight: 'bold' }}>합계</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                              {detailModal.rows.reduce((s, r) => s + (r.qty || 0), 0).toLocaleString()}
+                              {detailModal.kind === 'airframe' ? '대' : '개'}
+                            </TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                              {formatCurrency(detailModal.rows.reduce((s, r) => s + (r.amount || 0), 0))}
+                            </TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: '#eef6ff' }}>
+                              {detailModal.rows.reduce((s, r) => s + (r.offlineQty || 0), 0).toLocaleString()}
+                            </TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: '#eef6ff' }}>
+                              {formatCurrency(detailModal.rows.reduce((s, r) => s + (r.offlineAmount || 0), 0))}
+                            </TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: '#f3eefc' }}>
+                              {detailModal.rows.reduce((s, r) => s + (r.onlineQty || 0), 0).toLocaleString()}
+                            </TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: '#f3eefc' }}>
+                              {formatCurrency(detailModal.rows.reduce((s, r) => s + (r.onlineAmount || 0), 0))}
+                            </TableCell>
+                          </TableRow>
+                        </>
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={8} align="center">상세 데이터가 없습니다.</TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </DialogContent>
+              <DialogActions>
+                <Button
+                  onClick={() => setDetailModal((m) => ({ ...m, open: false }))}
+                  variant="contained"
+                  sx={{ bgcolor: 'grey.800', '&:hover': { bgcolor: 'grey.900' } }}
+                >
+                  닫기
+                </Button>
+              </DialogActions>
+            </Dialog>
           </>
         )}
       </Box>

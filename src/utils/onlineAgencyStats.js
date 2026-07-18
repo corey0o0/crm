@@ -31,7 +31,9 @@ const resolveAirframeModelName = (p, item) => {
  * 배열을 동시에 쓰는 경우를 대비).
  *
  * 반환값의 agencyModelStats는 대리점별 x 기체 모델명별 판매 집계
- * ({ [agencyName]: { [modelName]: { qty, amount } } }) - 파츠는 포함하지 않는다.
+ * ({ [agencyName]: { [modelName]: { qty, amount } } })
+ * agencyPartsStats는 대리점별 x 파츠 상품명별 집계 (상세 모달용)
+ * ({ [agencyName]: { [partName]: { qty, amount } } })
  */
 export function computeOnlineAgencyStats({ orders = [], agencies = [], parts = [], brand = '전체' }) {
   const agencyMap = {};
@@ -60,6 +62,7 @@ export function computeOnlineAgencyStats({ orders = [], agencies = [], parts = [
 
   const agencyStats = {};
   const agencyModelStats = {};
+  const agencyPartsStats = {};
 
   orders.forEach(o => {
     const orderItems = o.order_items || [];
@@ -207,6 +210,12 @@ export function computeOnlineAgencyStats({ orders = [], agencies = [], parts = [
       } else {
         agencyStats[agName].parts += statQty;
         agencyStats[agName].partsAmount += amount;
+
+        const partKey = (p?.name || pName || '기타 파츠').trim() || '기타 파츠';
+        if (!agencyPartsStats[agName]) agencyPartsStats[agName] = {};
+        if (!agencyPartsStats[agName][partKey]) agencyPartsStats[agName][partKey] = { qty: 0, amount: 0 };
+        agencyPartsStats[agName][partKey].qty += statQty;
+        agencyPartsStats[agName][partKey].amount += amount;
       }
     });
 
@@ -227,5 +236,5 @@ export function computeOnlineAgencyStats({ orders = [], agencies = [], parts = [
     }
   });
 
-  return { agencyStats, agencyModelStats };
+  return { agencyStats, agencyModelStats, agencyPartsStats };
 }
