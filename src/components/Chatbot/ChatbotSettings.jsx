@@ -195,11 +195,11 @@ export default function ChatbotSettings() {
                 <Typography variant="subtitle2" sx={{ mb: 1 }}>
                   챗봇 시스템 프롬프트
                   <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-                    (비워두면 기본 내장 프롬프트 사용)
+                    (기본 내장 프롬프트를 대체하지 않고, 그 위에 추가 지침으로 덧붙습니다. FAQ 분류 단계에는 적용 안 됨)
                   </Typography>
                 </Typography>
                 <TextField multiline minRows={4} fullWidth size="small"
-                  placeholder="[역할] ..."
+                  placeholder="예: 배송 지연 안내 시 항상 사과 문구를 먼저..."
                   value={r.system_prompt || ''}
                   onChange={e => patch(b.key, 'system_prompt', e.target.value)} sx={{ mb: 2 }} />
 

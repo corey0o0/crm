@@ -100,8 +100,14 @@ exports.handler = async (event) => {
       `[자료]\n${know || '(관련 자료 없음)'}`;
     maxTokens = 450;
   } else {
-    systemPrompt = settings.system_prompt || SYSTEM_PROMPTS[brand] || SYSTEM_PROMPTS.nb;
+    systemPrompt = SYSTEM_PROMPTS[brand] || SYSTEM_PROMPTS.nb;
     maxTokens = 300;
+  }
+
+  // 운영자 커스텀 프롬프트(chatbot_settings.system_prompt)는 기존 웹 프롬프트를 대체하지 않고
+  // 그 위에 추가 지침으로 얹는다. smart 모드는 JSON 전용 출력 계약이라 제외.
+  if (mode !== 'smart' && settings.system_prompt && settings.system_prompt.trim()) {
+    systemPrompt += `\n\n[운영자 추가 지침]\n${settings.system_prompt.trim()}`;
   }
 
   // 금지 표현 주입 (모든 모드 공통)
