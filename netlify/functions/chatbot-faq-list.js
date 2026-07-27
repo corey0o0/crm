@@ -7,12 +7,16 @@ exports.handler = async (event) => {
 
   const brand = (event.queryStringParameters?.brand || 'nb').toUpperCase();
   const supabase = getSupabase();
+  const today = new Date().toISOString().slice(0, 10);
 
   const { data, error } = await supabase
     .from('faq_items')
-    .select('label, keywords, answer, category, sort_order')
+    .select('label, keywords, answer, category, sort_order, is_announcement')
     .in('brand', ['SHARED', brand])
     .eq('is_active', true)
+    .or(`start_date.is.null,start_date.lte.${today}`)
+    .or(`end_date.is.null,end_date.gte.${today}`)
+    .order('is_announcement', { ascending: false })
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true });
 

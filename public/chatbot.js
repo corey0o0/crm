@@ -681,7 +681,7 @@
       const r = await callLlm(msg, history);
       return r.reply || '잠시 후 다시 시도해주세요.';
     }
-    const knowledge = FAQS.filter(f => f.label && f.answer).map(f => `### ${f.label}\n${f.answer}`).join('\n\n');
+    const knowledge = FAQS.filter(f => f.label && f.answer).map(f => `### ${f.is_announcement ? '[공지] ' : ''}${f.label}\n${f.answer}`).join('\n\n');
     const res = await fetch(`${CONFIG.apiUrl}/.netlify/functions/chatbot-chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

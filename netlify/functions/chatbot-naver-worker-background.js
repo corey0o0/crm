@@ -63,10 +63,14 @@ async function callFn(path, { method = 'GET', query = {}, body, user } = {}) {
 }
 
 async function loadFaqs(supabase, brand) {
+  const today = new Date().toISOString().slice(0, 10);
   const { data } = await supabase.from('faq_items')
-    .select('label, keywords, answer')
+    .select('label, keywords, answer, is_announcement')
     .in('brand', ['SHARED', (brain.BRAND_META[brand] || {}).dbBrand || 'NB'])
-    .eq('is_active', true);
+    .eq('is_active', true)
+    .or(`start_date.is.null,start_date.lte.${today}`)
+    .or(`end_date.is.null,end_date.gte.${today}`)
+    .order('is_announcement', { ascending: false });
   return data || [];
 }
 
@@ -74,7 +78,7 @@ async function loadFaqs(supabase, brand) {
 async function ragLlm(brand, message, faqs, user, history) {
   const knowledge = faqs
     .filter((f) => f.label && f.answer)
-    .map((f) => `### ${f.label}\n${f.answer}`)
+    .map((f) => `### ${f.is_announcement ? '[공지] ' : ''}${f.label}\n${f.answer}`)
     .join('\n\n');
   const res = await callFn('chatbot-chat', {
     method: 'POST', user,

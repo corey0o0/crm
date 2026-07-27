@@ -16,6 +16,7 @@ import {
   Cancel as CancelIcon,
   Search as SearchIcon,
   Clear as ClearIcon,
+  Campaign as CampaignIcon,
 } from '@mui/icons-material';
 import InputAdornment from '@mui/material/InputAdornment';
 import { supabase } from '../../lib/supabaseClient';
@@ -33,6 +34,9 @@ const EMPTY_FORM = {
   category: '',
   is_active: true,
   sort_order: 0,
+  is_announcement: false,
+  start_date: '',
+  end_date: '',
 };
 
 export default function FaqManagement() {
@@ -60,7 +64,10 @@ export default function FaqManagement() {
   // ── FAQ 불러오기 ──
   const fetchFaqs = useCallback(async () => {
     setLoading(true);
-    const query = supabase.from('faq_items').select('*').order('sort_order').order('created_at');
+    const query = supabase.from('faq_items').select('*')
+      .order('is_announcement', { ascending: false })
+      .order('sort_order')
+      .order('created_at');
     if (brandFilter !== 'ALL') query.eq('brand', brandFilter);
     const { data, error } = await query;
     setLoading(false);
@@ -93,7 +100,13 @@ export default function FaqManagement() {
       showMsg('카테고리명과 답변은 필수입니다.', 'warning'); return;
     }
     const keywords = form.keywords.split(',').map(k => k.trim()).filter(Boolean);
-    const payload = { ...form, keywords, updated_at: new Date().toISOString() };
+    const payload = {
+      ...form,
+      keywords,
+      start_date: form.start_date || null,
+      end_date: form.end_date || null,
+      updated_at: new Date().toISOString(),
+    };
     delete payload.keywords_str;
 
     let error;
@@ -129,7 +142,7 @@ export default function FaqManagement() {
   // ── 편집 다이얼로그 열기 ──
   const openEdit = (item = null) => {
     setForm(item
-      ? { ...item, keywords: (item.keywords || []).join(', ') }
+      ? { ...item, keywords: (item.keywords || []).join(', '), start_date: item.start_date || '', end_date: item.end_date || '' }
       : EMPTY_FORM
     );
     setEditDialog({ open: true, item });
@@ -287,7 +300,14 @@ export default function FaqManagement() {
                   {filteredFaqs.map(faq => (
                     <TableRow key={faq.id} sx={{ opacity: faq.is_active ? 1 : 0.45 }}>
                       <TableCell><Chip label={faq.brand} size="small" color={brandColor[faq.brand] || 'default'} /></TableCell>
-                      <TableCell><Typography variant="body2" fontWeight="bold">{faq.label}</Typography></TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          {faq.is_announcement && (
+                            <Chip icon={<CampaignIcon fontSize="small" />} label="공지" size="small" color="warning" />
+                          )}
+                          <Typography variant="body2" fontWeight="bold">{faq.label}</Typography>
+                        </Box>
+                      </TableCell>
                       <TableCell>
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, maxWidth: 250 }}>
                           {(faq.keywords || []).slice(0, 4).map(kw => (
@@ -550,7 +570,35 @@ export default function FaqManagement() {
                 control={<Switch checked={form.is_active} onChange={e => setForm(p => ({ ...p, is_active: e.target.checked }))} />}
                 label="활성화"
               />
+              <FormControlLabel
+                control={<Switch checked={form.is_announcement} onChange={e => setForm(p => ({ ...p, is_announcement: e.target.checked }))} />}
+                label="공지사항"
+              />
             </Stack>
+            {form.is_announcement && (
+              <Stack direction="row" spacing={2}>
+                <TextField
+                  label="시작일"
+                  size="small"
+                  type="date"
+                  value={form.start_date}
+                  onChange={e => setForm(p => ({ ...p, start_date: e.target.value }))}
+                  InputLabelProps={{ shrink: true }}
+                  helperText="비워두면 즉시 시작"
+                  sx={{ flex: 1 }}
+                />
+                <TextField
+                  label="종료일"
+                  size="small"
+                  type="date"
+                  value={form.end_date}
+                  onChange={e => setForm(p => ({ ...p, end_date: e.target.value }))}
+                  InputLabelProps={{ shrink: true }}
+                  helperText="비워두면 무기한"
+                  sx={{ flex: 1 }}
+                />
+              </Stack>
+            )}
           </Stack>
         </DialogContent>
         <DialogActions>
