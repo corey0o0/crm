@@ -49,7 +49,7 @@ export const getBrandSettings = async (brandCode) => {
  * @param {string} changeType - 변경 타입 ('shipment_complete', 'service_complete', 'shipment_revert', 'service_revert')
  * @param {boolean} isRevert - 복구 여부 (true: 재고 증가, false: 재고 차감)
  */
-export const processInventory = async (defaultWarehouseId, parts, brandCode, referenceId, referenceType, changeType, isRevert = false, customerName = '', displayRefId = '') => {
+export const processInventory = async (defaultWarehouseId, parts, brandCode, referenceId, referenceType, changeType, isRevert = false, customerName = '', displayRefId = '', destinationOverride = null) => {
   const refStr = displayRefId || referenceId;
   const txLabel = referenceType === 'manual_sale' ? '수기판매' : referenceType === 'shipment' ? '매장출고' : 'A/S';
   if (!defaultWarehouseId) {
@@ -85,7 +85,7 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
           product_supplier: inferredBrandCode,
           quantity: Math.abs(quantityChange),
           from_location: isRevert ? '외부(취소/환불)' : (part.warehouse_id || defaultWarehouseId),
-          to_location: isRevert ? (part.warehouse_id || defaultWarehouseId) : '외부(고객)',
+          to_location: isRevert ? (part.warehouse_id || defaultWarehouseId) : (destinationOverride || '외부(고객)'),
           date: format(new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Seoul"})), 'yyyy-MM-dd'),
           note: isRevert
             ? `[${txLabel} 취소] 단순 기록 (Ref: ${refStr}${customerName ? `, ${customerName}` : ''})`
@@ -128,7 +128,7 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
             product_supplier: inferredBrandCode,
             quantity: Math.abs(quantityChange),
             from_location: isRevert ? '외부(취소/환불)' : (part.warehouse_id || defaultWarehouseId),
-            to_location: isRevert ? (part.warehouse_id || defaultWarehouseId) : '외부(고객)',
+            to_location: isRevert ? (part.warehouse_id || defaultWarehouseId) : (destinationOverride || '외부(고객)'),
             date: format(new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Seoul"})), 'yyyy-MM-dd'),
             note: `[재고비관리] [${txLabel} ${isRevert ? '취소' : '완료'}] (Ref: ${refStr}${customerName ? `, ${customerName}` : ''})`,
             is_grouped: true,
@@ -228,7 +228,7 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
             product_supplier: inferredBrandCode,
             quantity: Math.abs(quantityChange), // 항상 양수로 기록
             from_location: isRevert ? '외부(취소/환불)' : (part.warehouse_id || defaultWarehouseId),
-            to_location: isRevert ? (part.warehouse_id || defaultWarehouseId) : '외부(고객)',
+            to_location: isRevert ? (part.warehouse_id || defaultWarehouseId) : (destinationOverride || '외부(고객)'),
             date: format(new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Seoul"})), 'yyyy-MM-dd'),
             note: isRevert
               ? `[${txLabel} 취소] 재고 복구 (Ref: ${refStr}${customerName ? `, ${customerName}` : ''}) [${previousQuantity} -> ${newQuantity}]`
@@ -711,22 +711,24 @@ export const processPartialReturn = async (sourceType, orderId, recordId, quanti
  */
 export const updatePartStatus = async (sourceType, orderId, recordId, newStatus, brandCode) => {
   try {
-    const tableName = sourceType === 'shipment' ? 'shipment_parts' : 'service_parts';
-    const parentTableName = sourceType === 'shipment' ? 'shipments' : 'services';
-    const parentIdColumn = sourceType === 'shipment' ? 'shipment_id' : 'service_id';
+    // 'shipment'와 'manual_sale'(수기판매)은 둘 다 shipments/shipment_parts 테이블을 씀 — 'service'만 별도 테이블.
+    const isService = sourceType === 'service';
+    const tableName = isService ? 'service_parts' : 'shipment_parts';
+    const parentTableName = isService ? 'services' : 'shipments';
+    const parentIdColumn = isService ? 'service_id' : 'shipment_id';
 
     // 1. 현재 부품 정보 조회
     let partQuery = supabase.from(tableName).select('*').eq('id', recordId).single();
-    if (sourceType === 'service') {
+    if (isService) {
       partQuery = supabase.from(tableName).select('*, parts(name, code)').eq('id', recordId).single();
     }
     const { data: partInfo, error: partErr } = await partQuery;
     if (partErr || !partInfo) throw new Error('부품 정보를 찾을 수 없습니다.');
 
-    // 2. 부모 정보(창고, 고객명) 조회
+    // 2. 부모 정보(창고, 고객명, 거래처) 조회 — agency_id는 shipments에만 존재
     const { data: parentInfo, error: parentErr } = await supabase
       .from(parentTableName)
-      .select(`warehouse_id, customer_name`)
+      .select(isService ? 'warehouse_id, customer_name' : 'warehouse_id, customer_name, agency_id')
       .eq('id', orderId)
       .single();
     if (parentErr || !parentInfo) throw new Error('주문 정보를 찾을 수 없습니다.');
@@ -766,7 +768,7 @@ export const updatePartStatus = async (sourceType, orderId, recordId, newStatus,
     let finalCode = partInfo.part_code || (partInfo.parts && partInfo.parts.code) || 'Unknown';
     let finalName = partInfo.part_name || (partInfo.parts && partInfo.parts.name) || 'Unknown';
 
-    if (sourceType === 'shipment') {
+    if (!isService) {
        if (partInfo.part_code) {
          const { data: searchRes } = await supabase.from('parts').select('id').eq('code', partInfo.part_code).order('id').limit(1).maybeSingle();
          if (searchRes) finalPartId = searchRes.id;
@@ -788,11 +790,11 @@ export const updatePartStatus = async (sourceType, orderId, recordId, newStatus,
     // 3. 재고 처리
     if (inventoryAction) {
       const isRevertAction = inventoryAction === 'revert';
-      const changeTypeStr = sourceType === 'shipment' 
+      const changeTypeStr = !isService
         ? (isRevertAction ? 'shipment_cancel' : 'shipment_complete')
         : (isRevertAction ? 'service_cancel' : 'service_complete');
 
-      const displayId = sourceType === 'shipment'
+      const displayId = !isService
         ? `SHP-${String(orderId).split('-')[0].toUpperCase()}`
         : `SVC-${String(orderId).split('-')[0].toUpperCase()}`;
 
@@ -805,7 +807,8 @@ export const updatePartStatus = async (sourceType, orderId, recordId, newStatus,
         changeTypeStr,
         isRevertAction,
         parentInfo.customer_name || '',
-        displayId   // SHP-XXXXXXXX 형식으로 note에 포함되어 검색 가능
+        displayId,   // SHP-XXXXXXXX 형식으로 note에 포함되어 검색 가능
+        parentInfo.agency_id || null   // 거래처(대리점) 판매면 재고 트랜잭션 목적지를 해당 대리점으로 기록
       );
 
       if (!result.success) {

@@ -35,7 +35,8 @@ import {
   Delete as DeleteIcon,
   Search as SearchIcon,
   Refresh as RefreshIcon,
-  CloudUpload as CloudUploadIcon
+  CloudUpload as CloudUploadIcon,
+  Storefront as StorefrontIcon
 } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -118,7 +119,8 @@ function ShipmentForm({ isManualB2B = false }) {
     tracking_number: '',
     note: isManualB2B ? '[B2B수기판매] ' : '',
     sales_channel: isManualB2B ? '[B2B수기]' : '청담매장',
-    warehouse_id: ''
+    warehouse_id: '',
+    agency_id: null
   });
 
   const [selectedParts, setSelectedParts] = useState([]);
@@ -745,6 +747,7 @@ function ShipmentForm({ isManualB2B = false }) {
         price: totalPrice,
         warehouse_id: shipmentData.warehouse_id, // 이제 필수로 들어감
         sales_channel: shipmentData.sales_channel,
+        agency_id: shipmentData.agency_id || null,
         record_type: isManualB2B ? 'manual_sale' : 'store_shipment',
         updated_at: new Date().toISOString()
       };
@@ -1660,10 +1663,11 @@ function ShipmentForm({ isManualB2B = false }) {
               onInputChange={(e, newValue) => {
                 const typedValue = newValue || '';
                 const matchedAgency = agencies.find(a => a.name === typedValue);
-                
-                setShipmentData(prev => ({ 
-                  ...prev, 
+
+                setShipmentData(prev => ({
+                  ...prev,
                   customer_name: typedValue,
+                  agency_id: matchedAgency ? matchedAgency.id : null,
                   ...(matchedAgency && {
                     sales_channel: matchedAgency.name,
                     customer_phone: (matchedAgency.mobile || matchedAgency.phone) || prev.customer_phone
@@ -1674,12 +1678,13 @@ function ShipmentForm({ isManualB2B = false }) {
                 if (newValue) {
                   const name = typeof newValue === 'string' ? newValue : newValue.name;
                   const matchedAgency = agencies.find(a => a.name === name);
-                  setShipmentData(prev => ({ 
-                    ...prev, 
+                  setShipmentData(prev => ({
+                    ...prev,
                     customer_name: name,
+                    agency_id: matchedAgency ? matchedAgency.id : null,
                     sales_channel: matchedAgency ? matchedAgency.name : prev.sales_channel,
-                    customer_phone: matchedAgency && (matchedAgency.mobile || matchedAgency.phone) 
-                      ? (matchedAgency.mobile || matchedAgency.phone) 
+                    customer_phone: matchedAgency && (matchedAgency.mobile || matchedAgency.phone)
+                      ? (matchedAgency.mobile || matchedAgency.phone)
                       : prev.customer_phone
                   }));
                 }
@@ -1695,6 +1700,20 @@ function ShipmentForm({ isManualB2B = false }) {
                   variant="standard"
                   label="고객명 *"
                   placeholder="대리점 자동완성"
+                  InputProps={{
+                    ...params.InputProps,
+                    startAdornment: (shipmentData.agency_id || agencies.some(a => a.name === shipmentData.customer_name)) ? (
+                      <InputAdornment position="start">
+                        <Chip
+                          icon={<StorefrontIcon sx={{ fontSize: 16 }} />}
+                          label="대리점"
+                          size="small"
+                          color="primary"
+                          variant="outlined"
+                        />
+                      </InputAdornment>
+                    ) : null,
+                  }}
                 />
               )}
             />
