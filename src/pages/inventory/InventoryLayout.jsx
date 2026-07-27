@@ -186,14 +186,10 @@ function InventoryLayout() {
         }
       }
 
-      // 2. 재고 역방향 복구 (삭제 전에 수행)
+      // 2. 재고 역방향 복구 (삭제 전에 수행). 복구 실패 시 삭제를 진행하면
+      // 거래내역만 사라지고 실제 재고는 그대로 남는 유령재고가 생기므로 전체 중단한다.
       if (reverseTransactions.length > 0) {
-        try {
-          await batchUpdateInventory(reverseTransactions);
-        } catch (revertErr) {
-          console.warn('재고 복구 중 경고:', revertErr.message);
-          // 재고 복구 실패해도 삭제는 계속 진행 (로그만 남김)
-        }
+        await batchUpdateInventory(reverseTransactions);
       }
 
       // 3. 거래내역 삭제
@@ -858,11 +854,16 @@ function InventoryLayout() {
     }
     const entries = Object.values(rpcMap).filter(e => e.delta !== 0);
     if (entries.length === 0) return;
-    await Promise.all(entries.map(e =>
+    const results = await Promise.all(entries.map(e =>
       supabase.rpc('adjust_inventory', {
         p_warehouse_id: e.wid, p_product_id: e.pid, p_quantity_change: e.delta
       })
     ));
+    const errors = results.filter(r => r.error);
+    if (errors.length > 0) {
+      console.error('[applyTransactionInventory] RPC 오류:', errors.map(e => e.error.message));
+      throw new Error(`재고 반영 중 ${errors.length}건의 오류가 발생했습니다.`);
+    }
   };
 
   // 거래내역 수정 저장 (useCallback으로 메모이제이션)
