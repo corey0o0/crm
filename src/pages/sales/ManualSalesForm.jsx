@@ -706,7 +706,9 @@ function ShipmentForm() {
 
       // ==== 매장/일반 출고 재고 차감 (수불부 동기화) ====
       if (shipmentId && isNowCompleted) {
-        const deductResult = await processShipmentCompletion(shipmentId, shipmentSaveData.brand, '출고완료', true);
+        // 실제 판매일(shipment_date)로 트랜잭션 날짜를 고정 — 뒷날짜 입력이나 재저장 시점(오늘)이 아닌
+        // 사용자가 지정한 출고일 기준으로 기록해야 기간별 대사가 어긋나지 않음
+        const deductResult = await processShipmentCompletion(shipmentId, shipmentSaveData.brand, '출고완료', true, shipmentSaveData.shipment_date);
         if (!deductResult.success) {
           console.error('[Inventory Deduct Error]:', deductResult.message);
         }

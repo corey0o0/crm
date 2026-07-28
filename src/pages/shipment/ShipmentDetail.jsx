@@ -750,16 +750,28 @@ function ShipmentDetail() {
         }
       }
 
+      // 재고 처리 로직 — 실제 차감은 처음 이 상태들 중 하나로 진입하는 순간 1회 발생
+      // (검수 활성화 시 부품준비 단계에서부터 차감될 수 있음. 이후 준비완료/출고완료는 마감 처리일 뿐 재차감 없음)
+      const deductStatuses = isInspectionEnabled
+        ? ['출고완료', '작업완료', '준비완료', '부품준비']
+        : ['출고완료', '작업완료'];
+
+      const isNewDeduct = deductStatuses.includes(newStatus);
+      const isPrevDeduct = deductStatuses.includes(previousStatus);
+      const isFirstDeduction = isNewDeduct && !isPrevDeduct;
+
       // 상태 업데이트 데이터 준비
       const updateData = {
         status: newStatus,
         updated_at: new Date().toISOString()
       };
 
-      // 준비완료/출고완료로 변경 시 출고일도 현재 시점으로 업데이트
-      // (요청사항: 출고상태가 '준비완료' 또는 '출고완료'로 변경되면 출고일을 현재 날짜로 설정)
-      if (newStatus === '출고완료' || newStatus === '준비완료') {
-        updateData.shipment_date = new Date().toISOString().split('T')[0];
+      // 출고일은 실제 재고가 차감되는 시점(최초 차감 전환)에만 기록.
+      // 이미 차감된 건이 이후 출고완료로 마감되는 경우 출고일을 오늘로 덮어쓰지 않음
+      // (덮어쓰면 실제 차감 트랜잭션 날짜와 출고일이 어긋나 기간별 대사에서 오차가 발생함)
+      const todayStr = new Date().toISOString().split('T')[0];
+      if (isFirstDeduction) {
+        updateData.shipment_date = todayStr;
       }
 
       const { error: updateError } = await supabase
@@ -774,19 +786,11 @@ function ShipmentDetail() {
       let inventoryMessage = '';
       let pendingOrderMessage = '';
 
-      // 재고 처리 로직
-      const deductStatuses = isInspectionEnabled 
-        ? ['출고완료', '작업완료', '준비완료', '부품준비'] 
-        : ['출고완료', '작업완료'];
-
-      const isNewDeduct = deductStatuses.includes(newStatus);
-      const isPrevDeduct = deductStatuses.includes(previousStatus);
-
-      if (isNewDeduct && !isPrevDeduct) {
+      if (isFirstDeduction) {
         // 출고/작업 처리로 변경: 재고 선차감
         console.log(`출고 차감 처리 시작 - 출고ID: ${id}, 상태: ${newStatus}, 브랜드: ${brandCode}`);
 
-        const inventoryResult = await processShipmentCompletion(id, brandCode, newStatus);
+        const inventoryResult = await processShipmentCompletion(id, brandCode, newStatus, false, todayStr);
 
         if (inventoryResult.success) {
           if (!inventoryResult.skipped) {

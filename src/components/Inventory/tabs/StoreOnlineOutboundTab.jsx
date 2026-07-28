@@ -169,9 +169,14 @@ function StoreOnlineOutboundTab() {
             }
           } else if (order.type.includes('출고')) {
             const { data: prevShipment } = await supabase.from('shipments').select('status').eq('id', order.source_id).single();
-            await supabase.from('shipments').update({ status: order.type.includes('수기판매') ? '출고완료' : '작업완료' }).eq('id', order.source_id);
-            if (prevShipment && !(['출고완료', '작업완료'].includes(prevShipment.status))) {
-              await processShipmentCompletion(order.source_id);
+            const isFirstDeduction = prevShipment && !(['출고완료', '작업완료'].includes(prevShipment.status));
+            const todayStr = new Date().toISOString().split('T')[0];
+            const shipmentUpdate = { status: order.type.includes('수기판매') ? '출고완료' : '작업완료' };
+            // 검수 확정 시점에 실제 차감이 발생하므로 출고일도 이 시점(오늘)로 함께 고정
+            if (isFirstDeduction) shipmentUpdate.shipment_date = todayStr;
+            await supabase.from('shipments').update(shipmentUpdate).eq('id', order.source_id);
+            if (isFirstDeduction) {
+              await processShipmentCompletion(order.source_id, undefined, '출고완료', false, todayStr);
             }
           }
         }
@@ -213,9 +218,14 @@ function StoreOnlineOutboundTab() {
             }
           } else if (order.type.includes('출고')) {
             const { data: prevShipment } = await supabase.from('shipments').select('status').eq('id', order.source_id).single();
-            await supabase.from('shipments').update({ status: order.type.includes('수기판매') ? '출고완료' : '작업완료' }).eq('id', order.source_id);
-            if (prevShipment && !(['출고완료', '작업완료'].includes(prevShipment.status))) {
-              await processShipmentCompletion(order.source_id);
+            const isFirstDeduction = prevShipment && !(['출고완료', '작업완료'].includes(prevShipment.status));
+            const todayStr = new Date().toISOString().split('T')[0];
+            const shipmentUpdate = { status: order.type.includes('수기판매') ? '출고완료' : '작업완료' };
+            // 검수 확정 시점에 실제 차감이 발생하므로 출고일도 이 시점(오늘)로 함께 고정
+            if (isFirstDeduction) shipmentUpdate.shipment_date = todayStr;
+            await supabase.from('shipments').update(shipmentUpdate).eq('id', order.source_id);
+            if (isFirstDeduction) {
+              await processShipmentCompletion(order.source_id, undefined, '출고완료', false, todayStr);
             }
           }
         }

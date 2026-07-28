@@ -452,9 +452,9 @@ export default function ManualSalesList({ isEmbedded = false }) {
           updated_at: new Date().toISOString()
         }).eq('id', shipment.id);
 
-        // 출고 완료인 경우 수불부 재동기화
+        // 출고 완료인 경우 수불부 재동기화 — 트랜잭션 날짜는 재분석 시점이 아닌 실제 출고일로 고정
         if (shipment.status === '출고완료') {
-          await processShipmentCompletion(shipment.id, shipment.brand, '출고완료', true);
+          await processShipmentCompletion(shipment.id, shipment.brand, '출고완료', true, shipment.shipment_date);
         }
 
         currentIdx++;

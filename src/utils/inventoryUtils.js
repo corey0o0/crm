@@ -49,9 +49,10 @@ export const getBrandSettings = async (brandCode) => {
  * @param {string} changeType - 변경 타입 ('shipment_complete', 'service_complete', 'shipment_revert', 'service_revert')
  * @param {boolean} isRevert - 복구 여부 (true: 재고 증가, false: 재고 차감)
  */
-export const processInventory = async (defaultWarehouseId, parts, brandCode, referenceId, referenceType, changeType, isRevert = false, customerName = '', displayRefId = '', destinationOverride = null) => {
+export const processInventory = async (defaultWarehouseId, parts, brandCode, referenceId, referenceType, changeType, isRevert = false, customerName = '', displayRefId = '', destinationOverride = null, dateOverride = null) => {
   const refStr = displayRefId || referenceId;
   const txLabel = referenceType === 'manual_sale' ? '수기판매' : referenceType === 'shipment' ? '매장출고' : 'A/S';
+  const txDate = dateOverride || format(new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Seoul"})), 'yyyy-MM-dd');
   if (!defaultWarehouseId) {
     return {
       success: false,
@@ -86,7 +87,7 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
           quantity: Math.abs(quantityChange),
           from_location: isRevert ? '외부(취소/환불)' : (part.warehouse_id || defaultWarehouseId),
           to_location: isRevert ? (part.warehouse_id || defaultWarehouseId) : (destinationOverride || '외부(고객)'),
-          date: format(new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Seoul"})), 'yyyy-MM-dd'),
+          date: txDate,
           note: isRevert
             ? `[${txLabel} 취소] 단순 기록 (Ref: ${refStr}${customerName ? `, ${customerName}` : ''})`
             : `[${txLabel} 완료] 단순 기록 (Ref: ${refStr}${customerName ? `, ${customerName}` : ''})`,
@@ -129,7 +130,7 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
             quantity: Math.abs(quantityChange),
             from_location: isRevert ? '외부(취소/환불)' : (part.warehouse_id || defaultWarehouseId),
             to_location: isRevert ? (part.warehouse_id || defaultWarehouseId) : (destinationOverride || '외부(고객)'),
-            date: format(new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Seoul"})), 'yyyy-MM-dd'),
+            date: txDate,
             note: `[재고비관리] [${txLabel} ${isRevert ? '취소' : '완료'}] (Ref: ${refStr}${customerName ? `, ${customerName}` : ''})`,
             is_grouped: true,
             status: '완료'
@@ -229,7 +230,7 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
             quantity: Math.abs(quantityChange), // 항상 양수로 기록
             from_location: isRevert ? '외부(취소/환불)' : (part.warehouse_id || defaultWarehouseId),
             to_location: isRevert ? (part.warehouse_id || defaultWarehouseId) : (destinationOverride || '외부(고객)'),
-            date: format(new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Seoul"})), 'yyyy-MM-dd'),
+            date: txDate,
             note: isRevert
               ? `[${txLabel} 취소] 재고 복구 (Ref: ${refStr}${customerName ? `, ${customerName}` : ''}) [${previousQuantity} -> ${newQuantity}]`
               : `[${txLabel} 완료] 재고 차감 (Ref: ${refStr}${customerName ? `, ${customerName}` : ''}) [${previousQuantity} -> ${newQuantity}]`,
@@ -283,7 +284,7 @@ export const processInventory = async (defaultWarehouseId, parts, brandCode, ref
 /**
  * 출고 완료 시 창고 재고 차감 (청담 등)
  */
-export const processShipmentCompletion = async (shipmentId, brandCode, targetStatus = '출고완료', isManualSale = false) => {
+export const processShipmentCompletion = async (shipmentId, brandCode, targetStatus = '출고완료', isManualSale = false, dateOverride = null) => {
   try {
     // const brandSettings = await getBrandSettings(brandCode);
     // if (!brandSettings.auto_inventory_deduction) {
@@ -335,7 +336,7 @@ export const processShipmentCompletion = async (shipmentId, brandCode, targetSta
     for (const sp of shipmentParts) {
       if (!sp.inventory_deducted && sp.status !== '반품완료') {
         // 아직 차감되지 않았고, 반품된 것도 아니라면 목표 상태(targetStatus)로 만들면서 차감
-        const res = await updatePartStatus(isManualSale ? 'manual_sale' : 'shipment', shipmentId, sp.id, targetStatus, brandCode);
+        const res = await updatePartStatus(isManualSale ? 'manual_sale' : 'shipment', shipmentId, sp.id, targetStatus, brandCode, dateOverride);
         results.push(res);
         if (!res.success) hasError = true;
       }
@@ -420,7 +421,7 @@ export const processServiceCompletion = async (serviceId, brandCode) => {
     // const brandSettings = await getBrandSettings(brandCode);
     // if (!brandSettings.auto_inventory_deduction) return { success: true, skipped: true };
 
-    const { data: service, error: srvErr } = await supabase.from('services').select('id, warehouse_id, customer_name, status').eq('id', serviceId).single();
+    const { data: service, error: srvErr } = await supabase.from('services').select('id, warehouse_id, customer_name, status, completion_date').eq('id', serviceId).single();
     if (srvErr || !service) throw new Error('A/S를 찾을 수 없음: ' + (srvErr ? srvErr.message : 'no data'));
     let warehouseId = service.warehouse_id;
     if (!warehouseId) {
@@ -518,6 +519,12 @@ export const processServiceCompletion = async (serviceId, brandCode) => {
       console.log(`[A/S Inventory Sync] 상태가 '${service.status}'(정규화: '${normalizedSvcStatus}')이므로 재고 차감 생략 (기존 차감 건이 있다면 자동 복구)`);
     }
 
+    // 출고완료 건은 트랜잭션 날짜를 재저장 시점(오늘)이 아닌 실제 완료일로 고정
+    // → 완료 후 메모 수정 등으로 재저장돼도 기간별 대사가 원래 기간을 벗어나지 않음
+    const txDateOverride = (normalizedSvcStatus === '출고완료' && service.completion_date)
+      ? format(new Date(new Date(service.completion_date).toLocaleString("en-US", {timeZone: "Asia/Seoul"})), 'yyyy-MM-dd')
+      : null;
+
     // 3. 기존 트랜잭션 삭제 → 재고 직접 복원(트랜잭션 없음) → 현재 상태만 신규 차감
     const partsToDeduct = [];
     Object.keys(effectiveParts).forEach(key => {
@@ -553,7 +560,7 @@ export const processServiceCompletion = async (serviceId, brandCode) => {
 
     if (partsToDeduct.length > 0) {
       console.log(`[A/S Inventory Sync] 현재 필요 수량 차감 (${partsToDeduct.length}품목)`, partsToDeduct);
-      const deductResult = await processInventory(warehouseId, partsToDeduct, brandCode, serviceId, 'service', 'service_complete', false, service.customer_name || '', String(serviceId));
+      const deductResult = await processInventory(warehouseId, partsToDeduct, brandCode, serviceId, 'service', 'service_complete', false, service.customer_name || '', String(serviceId), null, txDateOverride);
       if (!deductResult.success) {
         console.error('재고 차감(Delta) 중 오류 발생:', deductResult);
         return deductResult;
@@ -709,7 +716,7 @@ export const processPartialReturn = async (sourceType, orderId, recordId, quanti
  * @param {string} newStatus - '준비중', '부품 준비', '준비 완료', '반품 완료'
  * @param {string} brandCode - 브랜드 코드
  */
-export const updatePartStatus = async (sourceType, orderId, recordId, newStatus, brandCode) => {
+export const updatePartStatus = async (sourceType, orderId, recordId, newStatus, brandCode, dateOverride = null) => {
   try {
     // 'shipment'와 'manual_sale'(수기판매)은 둘 다 shipments/shipment_parts 테이블을 씀 — 'service'만 별도 테이블.
     const isService = sourceType === 'service';
@@ -808,7 +815,8 @@ export const updatePartStatus = async (sourceType, orderId, recordId, newStatus,
         isRevertAction,
         parentInfo.customer_name || '',
         displayId,   // SHP-XXXXXXXX 형식으로 note에 포함되어 검색 가능
-        parentInfo.agency_id || null   // 거래처(대리점) 판매면 재고 트랜잭션 목적지를 해당 대리점으로 기록
+        parentInfo.agency_id || null,   // 거래처(대리점) 판매면 재고 트랜잭션 목적지를 해당 대리점으로 기록
+        isRevertAction ? null : dateOverride   // 복구는 실제 이벤트 발생일(오늘)로 기록, 차감만 지정일 사용
       );
 
       if (!result.success) {

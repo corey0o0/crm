@@ -1142,9 +1142,9 @@ function ProductShipment() {
         // 부품 정보 저장 실패는 전체 프로세스를 중단시키지 않음
       }
 
-      // 출고완료 상태인 경우 재고 차감 및 입출고 내역 생성
+      // 출고완료 상태인 경우 재고 차감 및 입출고 내역 생성 — 트랜잭션 날짜는 실제 출고일(shipment_date) 기준
       if (savedShipment.status === '출고완료') {
-        await processShipmentCompletion(savedShipment.id, selectedBrand);
+        await processShipmentCompletion(savedShipment.id, selectedBrand, '출고완료', false, savedShipment.shipment_date);
       }
 
       // 고객 정보 저장 로직 수정
@@ -2294,11 +2294,11 @@ function ProductShipment() {
               }
             }
 
-            // 출고일자가 있어 '출고완료'로 등록된 건은 재고 차감 처리
+            // 출고일자가 있어 '출고완료'로 등록된 건은 재고 차감 처리 — 트랜잭션 날짜는 실제 출고일 기준
             const completedShipments = insertedShipments.filter(s => s.status === '출고완료');
             for (const shipment of completedShipments) {
               try {
-                await processShipmentCompletion(shipment.id, selectedBrand);
+                await processShipmentCompletion(shipment.id, selectedBrand, '출고완료', false, shipment.shipment_date);
               } catch (inventoryError) {
                 console.error(`출고(${shipment.id}) 재고 반영 실패:`, inventoryError);
               }

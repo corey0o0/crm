@@ -144,8 +144,9 @@ function SingleEntryForm({ agencies, parts, warehouses, setSnackbar }) {
       const modifiedNote = `[수기판매] ${formData.note || ''}`.trim();
 
       // 1. Insert Shipment
+      const saleDate = format(formData.order_date, 'yyyy-MM-dd');
       const { data: newShipment, error: shpErr } = await supabase.from('shipments').insert([{
-        brand: 'XRB', order_date: format(formData.order_date, 'yyyy-MM-dd'), shipment_date: format(formData.order_date, 'yyyy-MM-dd'),
+        brand: 'XRB', order_date: saleDate, shipment_date: saleDate,
         status: '완료', customer_name: formData.buyer_name || agencyName || '비회원', sales_channel: salesChannel,
         product_name: combinedTitle, quantity: totalQty, price: totalAmt, note: modifiedNote, record_type: 'manual_sale',
         warehouse_id: formData.warehouse_id
@@ -161,8 +162,8 @@ function SingleEntryForm({ agencies, parts, warehouses, setSnackbar }) {
       }));
       await supabase.from('shipment_parts').insert(pData);
 
-      // 3. Transactions & Inventory via inventoryUtils
-      await processShipmentCompletion(sid, 'XRB');
+      // 3. Transactions & Inventory via inventoryUtils — 트랜잭션 날짜는 실제 판매일(saleDate) 기준
+      await processShipmentCompletion(sid, 'XRB', '출고완료', false, saleDate);
 
       setSnackbar({ open: true, message: '판매가 등록되었습니다.', severity: 'success' });
       setFormData(prev => ({ order_date: new Date(), buyer_name: '', agency_id: '', warehouse_id: prev.warehouse_id, note: '' }));
@@ -349,8 +350,8 @@ function ExcelBatchUpload({ agencies, parts, warehouses, setSnackbar }) {
            await supabase.from('shipment_parts').insert([{
               shipment_id: sid, part_name: matchedPart.name, part_code: matchedPart.code, quantity: qty, price, total_price: total, warehouse_id: warehouseId
            }]);
-           // 트랜잭션 및 재고 차감 통합 처리
-           await processShipmentCompletion(sid, 'XRB');
+           // 트랜잭션 및 재고 차감 통합 처리 — 트랜잭션 날짜는 실제 주문일(orderDate) 기준
+           await processShipmentCompletion(sid, 'XRB', '출고완료', false, orderDate);
          }
       }
       setSnackbar({ open: true, message: `${successCount}건 대량 등록 완료!`, severity: 'success' });

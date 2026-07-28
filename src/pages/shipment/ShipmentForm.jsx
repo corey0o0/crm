@@ -843,8 +843,9 @@ function ShipmentForm({ isManualB2B = false }) {
       }
 
       // ==== 매장/일반 출고 재고 차감 (수불부 동기화) ====
+      // 트랜잭션 날짜는 처리 시점(오늘)이 아닌 실제 출고일(shipment_date)로 고정
       if (shipmentId && isNowCompleted) {
-        const deductResult = await processShipmentCompletion(shipmentId, shipmentSaveData.brand);
+        const deductResult = await processShipmentCompletion(shipmentId, shipmentSaveData.brand, '출고완료', false, shipmentSaveData.shipment_date);
         if (!deductResult.success) {
           console.error('[Inventory Deduct Error]:', deductResult.message);
         }

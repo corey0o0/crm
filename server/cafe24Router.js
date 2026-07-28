@@ -30,6 +30,9 @@ function decrypt(text) {
   }
 }
 
+// 카페24 취소/반품/교환 상태 코드 (SalesHistory.jsx, InventoryLayout.jsx의 CANCEL_STATUSES와 동일하게 유지)
+const CAFE24_CANCEL_STATUSES = ['C11', 'C34', 'C36', 'C40', 'C47', 'C48', 'C49', 'R34', 'R36', 'R40', 'E40'];
+
 module.exports = function(supabaseAdmin) {
   const router = require('express').Router();
   const rateLimit = require('express-rate-limit');
@@ -497,9 +500,23 @@ module.exports = function(supabaseAdmin) {
         .eq('mall_id', mall_id)
         .in('status', ['N10', 'N20', 'N21', 'N22', 'N30', 'N40', 'M', 'T', 'W', 'unknown']);
 
-      if (incompleteDbOrders && incompleteDbOrders.length > 0) {
+      // N50(구매확정)은 확정 후에도 뒤늦게 취소/반품될 수 있어 상태 재확인이 필요하지만,
+      // 전체 이력을 대상으로 하면 확정 후 상태가 거의 안 바뀌어 재조회 대상이 무한정 쌓임 →
+      // 반품 가능 기간(45일) 내 최근 주문만 스코프
+      const n50Cutoff = new Date();
+      n50Cutoff.setDate(n50Cutoff.getDate() - 45);
+      const { data: recentN50Orders } = await supabaseAdmin
+        .from('cafe24_orders')
+        .select('order_id')
+        .eq('mall_id', mall_id)
+        .eq('status', 'N50')
+        .gte('order_date', n50Cutoff.toISOString().slice(0, 10));
+
+      const allIncompleteDbOrders = [...(incompleteDbOrders || []), ...(recentN50Orders || [])];
+
+      if (allIncompleteDbOrders.length > 0) {
         const alreadyFetchedOrderIds = new Set(allOrders.map(o => o.order_id));
-        const orderIdsToFetch = incompleteDbOrders
+        const orderIdsToFetch = allIncompleteDbOrders
           .map(o => o.order_id)
           .filter(id => !alreadyFetchedOrderIds.has(id));
 
@@ -682,7 +699,7 @@ module.exports = function(supabaseAdmin) {
         naver_point_used;
       const internal_points_total = deposit_used + mileage_used;
 
-      const isPartiallyCanceled = order.canceled === 'M' || (order.items && order.items.some(i => ['C11','C40','R40','E40'].includes(i.order_status)));
+      const isPartiallyCanceled = order.canceled === 'M' || (order.items && order.items.some(i => CAFE24_CANCEL_STATUSES.includes(i.order_status)));
 
       const shipping_fee =
         Number((order.actual_order_amount && order.actual_order_amount.shipping_fee) || 0) ||
@@ -691,7 +708,7 @@ module.exports = function(supabaseAdmin) {
       let items_payment_sum = 0;
       if (formattedItems && formattedItems.length > 0) {
         items_payment_sum = formattedItems.reduce((acc, item) => {
-          const isCancelled = ['C11', 'C40', 'R40', 'E40'].includes(item.order_status);
+          const isCancelled = CAFE24_CANCEL_STATUSES.includes(item.order_status);
           return acc + (isCancelled ? 0 : Number(item.payment_amount || 0));
         }, 0);
       }
@@ -1118,7 +1135,7 @@ module.exports = function(supabaseAdmin) {
 
         items.forEach((item, index) => {
           // 부분 취소/반품/교환 건은 재고 차감 및 매출 연동에서 제외
-          const isCancelled = ['C11', 'C40', 'R40', 'E40'].includes(item.order_status);
+          const isCancelled = CAFE24_CANCEL_STATUSES.includes(item.order_status);
           if (isCancelled) return;
 
           let wid = (warehouseConfig && warehouseConfig[order.id] && warehouseConfig[order.id][index]) || 'DEFAULT';
