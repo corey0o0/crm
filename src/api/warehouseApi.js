@@ -1,20 +1,29 @@
 import { supabase } from '../lib/supabaseClient';
 
+// 창고 숨김 여부 판정 — 숨김 처리는 별도 컬럼 없이 note에 '[HIDDEN]' 마커를 넣는 방식(LocationManagement.jsx)
+export const isWarehouseHidden = (warehouse) => (warehouse?.note || '').includes('[HIDDEN]');
+
 export const warehouseApi = {
-  // 모든 창고 조회
+  // 모든 창고 조회 (숨김 포함)
   async getAll() {
     try {
       const { data, error } = await supabase
         .from('warehouses')
         .select('*')
         .order('created_at', { ascending: true });
-      
+
       if (error) throw error;
       return data || [];
     } catch (error) {
       console.error('창고 조회 오류:', error);
       throw error;
     }
+  },
+
+  // 숨김 처리되지 않은 창고만 조회
+  async getVisible() {
+    const all = await this.getAll();
+    return all.filter((w) => !isWarehouseHidden(w));
   },
 
   // 창고 생성

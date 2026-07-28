@@ -77,6 +77,7 @@ import { format, parseISO, isValid } from 'date-fns';
 import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { getCookie, setCookie, removeCookie, getJSONCookie, setJSONCookie } from '../../utils/cookieUtils';
 import { processShipmentCompletion, processShipmentRevert } from '../../utils/inventoryUtils';
+import { isWarehouseHidden } from '../../api/warehouseApi';
 import { checkSaleDuplicate } from '../../utils/duplicateCheck';
 import DuplicateWarningDialog from '../common/DuplicateWarningDialog';
 import { alpha } from '@mui/material/styles';
@@ -537,9 +538,10 @@ function ProductShipment() {
   const fetchWarehouses = async () => {
     try {
       const { data } = await supabase.from('warehouses').select('*').order('name');
-      setWarehouses(data || []);
-      if (data && data.length > 0) {
-        const defaultWh = data.find(w => w.name.includes('청담')) || data[0];
+      const visibleData = (data || []).filter((w) => !isWarehouseHidden(w));
+      setWarehouses(visibleData);
+      if (visibleData.length > 0) {
+        const defaultWh = visibleData.find(w => w.name.includes('청담')) || visibleData[0];
         setExcelUploadWarehouseId(prev => prev || defaultWh.id);
       }
     } catch (e) {

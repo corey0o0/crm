@@ -50,6 +50,7 @@ import { format } from 'date-fns';
 import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { sendTelegramNotification } from '../../lib/telegram';
 import { processShipmentCompletion, processShipmentRevert } from '../../utils/inventoryUtils';
+import { isWarehouseHidden } from '../../api/warehouseApi';
 import { logAction } from '../../utils/auditLog';
 import { pendingOutboundApi } from '../../api/pendingOutboundApi';
 import { getAppSetting } from '../../api/settingsApi';
@@ -206,7 +207,7 @@ function ShipmentForm({ isManualB2B = false }) {
       const whData = whRes.data || [];
       const agData = agRes.data || [];
 
-      setWarehouses(whData);
+      setWarehouses(whData.filter((w) => !isWarehouseHidden(w)));
       setAgencies(agData);
       
       // 새 출고 등록 시 기본 창고(청담) 설정

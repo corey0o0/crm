@@ -49,6 +49,7 @@ import { format } from 'date-fns';
 import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { sendTelegramNotification } from '../../lib/telegram';
 import { processShipmentCompletion, processShipmentRevert } from '../../utils/inventoryUtils';
+import { isWarehouseHidden } from '../../api/warehouseApi';
 import { checkSaleDuplicate } from '../../utils/duplicateCheck';
 import DuplicateWarningDialog from '../../components/common/DuplicateWarningDialog';
 // 부품 카테고리 자동 결정 함수 (setSelectedCategory 호출 제거, 카테고리 반환)
@@ -153,7 +154,7 @@ function ShipmentForm() {
   const fetchWarehouses = async () => {
     try {
       const { data } = await supabase.from('warehouses').select('*').order('name');
-      setWarehouses(data || []);
+      setWarehouses((data || []).filter((w) => !isWarehouseHidden(w)));
       
       // 새 출고 등록 시 기본 창고(청담) 설정
       if (!isEditMode && data) {

@@ -6,6 +6,7 @@ import CustomerSearchModal from './CustomerSearchModal';
 import PartsSelectionDialog from './PartsSelectionDialog';
 import useAutoSave from '../../hooks/useAutoSave';
 import { processServiceCompletion } from '../../utils/inventoryUtils';
+import { isWarehouseHidden } from '../../api/warehouseApi';
 import { logAction } from '../../utils/auditLog';
 import {
   Box,
@@ -518,9 +519,10 @@ function AddService() {
   const fetchWarehouses = async () => {
     try {
       const { data } = await supabase.from('warehouses').select('*').order('name');
-      setWarehouses(data || []);
-      if (data && data.length > 0 && !formData.warehouse_id) {
-         const defaultWh = data.find(w => w.name.includes('청담')) || data[0];
+      const visibleData = (data || []).filter((w) => !isWarehouseHidden(w));
+      setWarehouses(visibleData);
+      if (visibleData.length > 0 && !formData.warehouse_id) {
+         const defaultWh = visibleData.find(w => w.name.includes('청담')) || visibleData[0];
          setFormData(prev => ({ ...prev, warehouse_id: defaultWh.id }));
       }
     } catch (e) {

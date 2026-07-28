@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { processShipmentCompletion } from '../../utils/inventoryUtils';
+import { isWarehouseHidden } from '../../api/warehouseApi';
 import { 
   Box, Typography, Button, Paper, Tabs, Tab, Container,
   Grid, TextField, CircularProgress, Snackbar, Alert,
@@ -38,7 +39,7 @@ function SalesEntry() {
       ]);
       if (agData) setAgencies(agData);
       if (pData) setParts(pData);
-      if (whData) setWarehouses(whData);
+      if (whData) setWarehouses(whData.filter((w) => !isWarehouseHidden(w)));
     } catch (err) {
       console.error(err);
     } finally {

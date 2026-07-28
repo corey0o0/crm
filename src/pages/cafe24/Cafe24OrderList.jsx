@@ -9,7 +9,7 @@ import Cafe24Settings from '../../components/Settings/Cafe24Settings';
 import { supabase } from '../../lib/supabaseClient';
 import { getCafe24Malls, syncCafe24Orders, addCafe24ProductMapping, getCafe24ProductMappings, deleteCafe24ProductMapping,  transferCafe24Orders, cancelSalesTransfer, returnCafe24Inventory } from '../../utils/cafe24Api';
 import { agencyApi } from '../../api/agencyApi';
-import { warehouseApi } from '../../api/warehouseApi';
+import { warehouseApi, isWarehouseHidden } from '../../api/warehouseApi';
 import { useAuth } from '../../contexts/AuthContext';
 
 const STATUS_KO = {
@@ -1464,7 +1464,7 @@ export default function Cafe24OrderList() {
             >
               <MenuItem value=""><em>미선택</em></MenuItem>
               <MenuItem value="EXCLUDE" sx={{ color: 'error.main' }}>🚫 전송 제외</MenuItem>
-              {warehouses.map(w => <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>)}
+              {warehouses.filter((w) => !isWarehouseHidden(w)).map(w => <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>)}
             </Select>
           </FormControl>
           <Button size="small" variant="contained" color="secondary" onClick={handleBatchApplyWarehouse} sx={{ height: 40, px: 2, whiteSpace: 'nowrap' }}>
@@ -2070,7 +2070,7 @@ export default function Cafe24OrderList() {
                              >
                                <MenuItem value="" disabled><em>선택안됨</em></MenuItem>
                                <MenuItem value="EXCLUDE" sx={{ color: 'error.main' }}>🚫 전송 제외</MenuItem>
-                               {warehouses.map(w => <MenuItem key={w.id} value={String(w.id)}>{w.name}</MenuItem>)}
+                               {warehouses.filter((w) => !isWarehouseHidden(w)).map(w => <MenuItem key={w.id} value={String(w.id)}>{w.name}</MenuItem>)}
                              </Select>
                           </FormControl>
                         )}

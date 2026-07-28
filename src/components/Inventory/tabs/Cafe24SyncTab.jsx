@@ -3,13 +3,13 @@ import { useOutletContext } from 'react-router-dom';
 import Cafe24InventoryReconciliation from '../Cafe24InventoryReconciliation';
 
 function Cafe24SyncTab() {
-  const { products, warehouses, inventory } = useOutletContext();
-  
+  const { products, visibleWarehouses, inventory } = useOutletContext();
+
   return (
-    <Cafe24InventoryReconciliation 
-      products={products || []} 
-      warehouses={warehouses || []} 
-      recalculatedInventory={inventory || {}} 
+    <Cafe24InventoryReconciliation
+      products={products || []}
+      warehouses={visibleWarehouses || []}
+      recalculatedInventory={inventory || {}}
     />
   );
 }

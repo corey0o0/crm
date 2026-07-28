@@ -67,6 +67,7 @@ import { extractTagsFromSymptom } from '../../utils/symptomTagUtils';
 import { format } from 'date-fns';
 import { sendTelegramNotification } from '../../lib/telegram';
 import { processServiceCompletion, processPartialReturn, processServiceRevert, normalizeServiceStatus } from '../../utils/inventoryUtils';
+import { isWarehouseHidden } from '../../api/warehouseApi';
 import { getAppSetting } from '../../api/settingsApi';
 import { useAuth } from '../../contexts/AuthContext';
 import { MASTER_ACCOUNTS } from '../../config/menuConfig';
@@ -235,7 +236,7 @@ function ServiceDetail() {
   const fetchWarehouses = async () => {
     try {
       const { data } = await supabase.from('warehouses').select('*').order('name');
-      setWarehouses(data || []);
+      setWarehouses((data || []).filter((w) => !isWarehouseHidden(w)));
     } catch (e) {
       console.error('창고 로딩 에러:', e);
     }
