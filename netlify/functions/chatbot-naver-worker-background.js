@@ -13,7 +13,7 @@ const base = () => process.env.URL || process.env.DEPLOY_PRIME_URL || '';
 // ── 빠른응답 메뉴 ──
 const CATEGORIES = [
   { title: '📦 주문·배송', code: 'CAT_ORDER' },
-  { title: '🔧 A/S·수리', code: 'CAT_SERVICE' },
+  { title: '🔧 A/S 접수', code: 'CAT_SERVICE' },
   { title: '📖 제품·매뉴얼', code: 'CAT_PRODUCT' },
   { title: '💬 기타 문의', code: 'CAT_OTHER' },
 ];
@@ -22,11 +22,6 @@ const SUB = {
     { title: '📦 주문 조회', code: 'FLOW_ORDER' },
     { title: '🚚 배송 문의', code: '배송' },
     { title: '↩️ 반품/교환', code: '반품 교환' },
-  ],
-  CAT_SERVICE: [
-    { title: '📝 A/S 접수', code: 'FLOW_AS_REGISTER' },
-    { title: '🛡 보증 안내', code: '보증기간 보증부품' },
-    { title: '❗ 오류코드', code: '오류코드 에러코드' },
   ],
   CAT_PRODUCT: [
     { title: '📐 모델 제원', code: '모델 제원 스펙 무게 속도' },
@@ -47,7 +42,7 @@ const isControl = (c) => CONTROL.has(c) || c.startsWith('CAT_') || c.startsWith(
 
 function welcomeText(brand) {
   const m = brain.BRAND_META[brand] || brain.BRAND_META.nb;
-  return `${m.name} 고객센터입니다 ${m.avatar}\n무엇을 도와드릴까요? 아래 메뉴를 선택하시거나 궁금한 점을 입력해 주세요.\n\n※ AI가 자동으로 답변드려요. 정확한 상담이 필요하면 [A/S·수리] 메뉴를 이용해주세요.`;
+  return `${m.name} 고객센터입니다 ${m.avatar}\n무엇을 도와드릴까요? 아래 메뉴를 선택하시거나 궁금한 점을 입력해 주세요.\n\n※ AI가 자동으로 답변드려요. 정확한 상담이 필요하면 [A/S 접수] 메뉴를 이용해주세요.`;
 }
 
 // 내부 함수 호출 (네이버 user를 ip 자리에 → 사용자별 rate limit)
@@ -147,7 +142,7 @@ exports.handler = async (event) => {
     if (SUB[code]) return done(brand, user, '아래에서 선택하시거나 직접 입력해 주세요.', SUB[code]);
     if (code === 'FLOW_ORDER') { await setState(supabase, user, { step: 'ORDER_NO', data: {} }); return done(brand, user, '주문번호를 입력해 주세요. (예: 20260522-0000023)'); }
     if (code === 'FLOW_AS_LOOKUP') { await setState(supabase, user, { step: 'AS_INPUT', data: {} }); return done(brand, user, 'A/S 접수번호 또는 연락처를 입력해 주세요.'); }
-    if (code === 'FLOW_AS_REGISTER') { await setState(supabase, user, { step: 'REG_NAME', data: {} }); return done(brand, user, 'A/S 접수를 시작합니다 📝\n성함을 입력해 주세요.'); }
+    if (code === 'FLOW_AS_REGISTER' || code === 'CAT_SERVICE') { await setState(supabase, user, { step: 'REG_NAME', data: {} }); return done(brand, user, 'A/S 접수를 시작합니다 📝\n성함을 입력해 주세요.'); }
     if (code.startsWith('REGION::')) {
       const region = code.slice(8);
       return done(brand, user, brain.buildDealerList(region), [{ title: '↩️ 다른 지역', code: 'CAT_OTHER' }, { title: '🏠 처음으로', code: 'RESTART' }]);
