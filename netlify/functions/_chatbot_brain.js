@@ -75,7 +75,9 @@ const TIRE_INFO = {
 };
 
 function lookupTire(brand, model) {
-  const info = TIRE_INFO[brand];
+  // nb2(공식홈) 도 NB 타이어 맵 공유
+  const tireBrand = String(brand || '').toLowerCase() === 'xrb' ? 'xrb' : 'nb';
+  const info = TIRE_INFO[tireBrand];
   if (!info) return null;
   const n = squash(model);
   for (const e of (info.models || [])) {

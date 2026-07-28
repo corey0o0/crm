@@ -8,8 +8,9 @@ import { Save as SaveIcon, Visibility, VisibilityOff, VpnKey } from '@mui/icons-
 import { supabase } from '../../lib/supabaseClient';
 
 const BRANDS = [
-  { key: 'NB', name: '니어바이크' },
-  { key: 'XRB', name: 'X-RIDER' },
+  { key: 'NB2', name: '니어바이크 공식홈', note: '톡톡 웹훅 ?brand=nb2 (주 사용)' },
+  { key: 'NB', name: '니어바이크 스마트스토어', note: '톡톡 웹훅 ?brand=nb (미사용 예정)' },
+  { key: 'XRB', name: 'X-RIDER', note: '톡톡 웹훅 ?brand=xrb' },
 ];
 const DAYS = [
   { v: 0, label: '일' }, { v: 1, label: '월' }, { v: 2, label: '화' }, { v: 3, label: '수' },
@@ -96,18 +97,26 @@ export default function ChatbotSettings() {
   return (
     <Box>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        네이버 톡톡·웹 위젯 챗봇의 운영 ON/OFF와 상담 운영시간을 브랜드별로 설정합니다.<br />
-        운영시간 외에도 봇은 FAQ·AI 답변을 계속하되, 아래 안내 메시지를 함께 전달합니다. (OFF 시에는 안내 메시지만 전송)
+        네이버 톡톡·웹 위젯 챗봇의 운영 ON/OFF와 상담 운영시간을 채널별로 설정합니다.<br />
+        <strong>니어바이크 톡톡은 NB2(공식홈)</strong> 기준. 파트너센터 웹훅 URL 끝에 <code>?brand=nb2</code> 필수.<br />
+        운영시간 외에도 봇은 FAQ·AI 답변을 계속하되, 아래 안내 메시지를 함께 전달합니다. (마스터 OFF 시 톡톡 완전 무응답)
       </Typography>
 
       <Grid container spacing={2}>
         {BRANDS.map(b => {
           const r = rows[b.key] || {};
           return (
-            <Grid item xs={12} md={6} key={b.key}>
-              <Paper elevation={0} sx={{ border: '1px solid #e0e0e0', borderRadius: 2, p: 2.5 }}>
+            <Grid item xs={12} md={6} lg={4} key={b.key}>
+              <Paper elevation={0} sx={{ border: '1px solid #e0e0e0', borderRadius: 2, p: 2.5, opacity: b.key === 'NB' ? 0.85 : 1 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-                  <Typography variant="h6">{b.name} <Typography component="span" variant="caption" color="text.secondary">({b.key})</Typography></Typography>
+                  <Box>
+                    <Typography variant="h6">{b.name}{' '}
+                      <Typography component="span" variant="caption" color="text.secondary">({b.key})</Typography>
+                    </Typography>
+                    {b.note && (
+                      <Typography variant="caption" color="text.secondary" display="block">{b.note}</Typography>
+                    )}
+                  </Box>
                   <FormControlLabel
                     control={<Switch checked={!!r.enabled} onChange={e => patch(b.key, 'enabled', e.target.checked)} color="primary" />}
                     label={<Typography fontWeight="bold" color={r.enabled ? 'primary.main' : 'text.disabled'}>{r.enabled ? 'ON' : 'OFF'}</Typography>}
@@ -172,14 +181,14 @@ export default function ChatbotSettings() {
                 <Typography variant="subtitle2" sx={{ mb: 1 }}>
                   네이버 톡톡 발신 인증키
                   <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-                    (빈칸이면 환경변수 NAVER_AUTH_{b.key} 사용)
+                    (빈칸이면 환경변수 NAVER_AUTH_{b.key === 'NB2' ? 'NB2' : b.key} 사용)
                   </Typography>
                 </Typography>
                 <TextField fullWidth size="small"
                   type={showKeys[b.key] ? 'text' : 'password'}
-                  placeholder="ct_xxxxx... (비워두면 환경변수 유지)"
+                  placeholder="파트너센터 > 보내기 API 인증키 (비워두면 환경변수 유지)"
                   value={r.naver_auth_key || ''}
-                  onChange={e => patch(b.key, 'naver_auth_key', e.target.value)}
+                  onChange={e => patch(b.key, 'naver_auth_key', e.target.value.trim())}
                   sx={{ mb: 2 }}
                   InputProps={{
                     endAdornment: (

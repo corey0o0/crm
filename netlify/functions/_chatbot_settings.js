@@ -19,11 +19,18 @@ const DEFAULTS = {
   webhook_url: null,     // 이벤트 외부 전송 웹훅 URL (브랜드별)
 };
 
+// chatbot_settings PK (채널 단위)
 const dbBrandOf = (brand) => {
   const b = String(brand || '').toLowerCase();
   if (b === 'xrb') return 'XRB';
   if (b === 'nb2') return 'NB2';
   return 'NB';
+};
+
+// services / FAQ 등 CRM 데이터 brand (NB | XRB 만 — nb2 는 NB 로 정규화)
+const serviceBrandOf = (brand) => {
+  const b = String(brand || '').toLowerCase();
+  return b === 'xrb' ? 'XRB' : 'NB';
 };
 
 async function getSettings(supabase, brand) {
@@ -75,4 +82,4 @@ async function fireWebhook(url, payload) {
   }
 }
 
-module.exports = { DEFAULTS, dbBrandOf, getSettings, nowKST, isWithinHours, isNaverEnabled, fireWebhook };
+module.exports = { DEFAULTS, dbBrandOf, serviceBrandOf, getSettings, nowKST, isWithinHours, isNaverEnabled, fireWebhook };

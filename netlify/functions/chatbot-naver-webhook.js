@@ -31,13 +31,27 @@ const CATEGORIES = [
 
 function welcomeText(brand) {
   const name = brand === 'xrb' ? 'X-RIDER' : '니어바이크';
-  return `${name} 고객센터입니다. 무엇을 도와드릴까요?\n아래 메뉴를 선택하시거나 궁금한 점을 입력해 주세요.`;
+  return `${name} 고객센터입니다. 무엇을 도와드릴까요?\n아래 메뉴를 선택하시거나 궁금한 점을 입력해 주세요.\n\n※ AI가 자동으로 답변드려요. 정확한 상담이 필요하면 [A/S·수리] 메뉴를 이용해주세요.`;
 }
 
 exports.handler = async (event) => {
-  // 등록/헬스체크용 GET → 200 (env 설정 여부만 불리언으로 노출, 값은 비노출)
+  // 등록/헬스체크용 GET → 200 (키 값 비노출, DB/env 유무만)
   if (event.httpMethod === 'GET') {
-    return ok({ ok: true, auth: { nb: !!process.env.NAVER_AUTH_NB, nb2: !!process.env.NAVER_AUTH_NB2, xrb: !!process.env.NAVER_AUTH_XRB } });
+    const supabase = getSupabase();
+    const brands = ['nb', 'nb2', 'xrb'];
+    const auth = {};
+    for (const b of brands) {
+      const s = await getSettings(supabase, b).catch(() => ({}));
+      const envMap = { nb: process.env.NAVER_AUTH_NB, nb2: process.env.NAVER_AUTH_NB2, xrb: process.env.NAVER_AUTH_XRB };
+      auth[b] = {
+        key: !!(s.naver_auth_key || envMap[b]),
+        from: s.naver_auth_key ? 'db' : (envMap[b] ? 'env' : 'none'),
+        enabled: !!s.enabled,
+        naver_enabled: s.naver_enabled !== false,
+        active: !!(s.enabled && s.naver_enabled !== false && (s.naver_auth_key || envMap[b])),
+      };
+    }
+    return ok({ ok: true, primary: 'nb2', auth });
   }
   if (event.httpMethod !== 'POST') return err(405, 'POST only');
 

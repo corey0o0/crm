@@ -47,7 +47,7 @@ const isControl = (c) => CONTROL.has(c) || c.startsWith('CAT_') || c.startsWith(
 
 function welcomeText(brand) {
   const m = brain.BRAND_META[brand] || brain.BRAND_META.nb;
-  return `${m.name} 고객센터입니다 ${m.avatar}\n무엇을 도와드릴까요? 아래 메뉴를 선택하시거나 궁금한 점을 입력해 주세요.`;
+  return `${m.name} 고객센터입니다 ${m.avatar}\n무엇을 도와드릴까요? 아래 메뉴를 선택하시거나 궁금한 점을 입력해 주세요.\n\n※ AI가 자동으로 답변드려요. 정확한 상담이 필요하면 [A/S·수리] 메뉴를 이용해주세요.`;
 }
 
 // 내부 함수 호출 (네이버 user를 ip 자리에 → 사용자별 rate limit)

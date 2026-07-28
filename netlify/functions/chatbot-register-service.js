@@ -1,6 +1,6 @@
 'use strict';
 const { getSupabase, getIp, checkRateLimit, logRequest, ok, err, preflight } = require('./_chatbot_utils');
-const { getSettings, fireWebhook } = require('./_chatbot_settings');
+const { getSettings, fireWebhook, serviceBrandOf } = require('./_chatbot_settings');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return preflight();
@@ -22,13 +22,16 @@ exports.handler = async (event) => {
     return err(429, `일일 A/S 접수 한도(${limit}회)를 초과했습니다. 내일 다시 시도해주세요.`);
   }
 
+  // nb2 → NB (services 테이블은 NB/XRB 만 사용)
+  const serviceBrand = serviceBrandOf(brand);
+
   const now = new Date();
   const kstIso = new Date(now.getTime() + 9 * 3600 * 1000).toISOString().replace('Z', '+09:00');
 
   const { data, error } = await supabase
     .from('services')
     .insert({
-      brand: brand.toUpperCase(),
+      brand: serviceBrand,
       customer_name: name.trim(),
       customer_phone: phone.trim(),
       product_name: product_name.trim(),
@@ -46,12 +49,13 @@ exports.handler = async (event) => {
 
   await logRequest(supabase, ip, brand, 'register');
 
-  // 웹훅 전송 (설정된 경우)
+  // 웹훅 전송 (설정된 경우) — 채널 설정은 brand(nb2) 기준
   const settings = await getSettings(supabase, brand).catch(() => ({}));
   if (settings.webhook_url) {
     fireWebhook(settings.webhook_url, {
       event: 'as_registered',
-      brand: brand.toUpperCase(),
+      brand: serviceBrand,
+      channel: String(brand).toLowerCase(),
       service_id: data.id,
       name: name.trim(),
       phone: phone.trim(),

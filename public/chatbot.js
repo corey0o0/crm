@@ -1371,7 +1371,7 @@
         applyWindowPos(parseFloat(toggleBtn.style.left), parseFloat(toggleBtn.style.top));
       }
       if (messagesEl.children.length === 0) {
-        addTextMsg(`안녕하세요! ${BRAND.name}입니다. ${BRAND.avatar}\n무엇을 도와드릴까요?`, 'bot');
+        addTextMsg(`안녕하세요! ${BRAND.name}입니다. ${BRAND.avatar}\n무엇을 도와드릴까요?\n\n※ AI가 자동으로 답변드리며, 정확한 상담이 필요하면 [A/S·수리] 메뉴를 이용해주세요.`, 'bot');
         addQuickReplies(CATEGORY_CHIPS);
         // 운영시간 외 안내
         if (!CHAT_SETTINGS.withinHours && CHAT_SETTINGS.offhoursMessage) {

@@ -64,8 +64,13 @@ exports.handler = async (event) => {
   if (!message) return err(400, 'message 필수');
 
   // 설정 선로드 (system_prompt, anthropic_api_key, forbidden_phrases)
+  // anthropic 키는 NB row 공용 저장 → nb2 채널도 NB 키 fallback
   const settings = await getSettings(supabase, brand).catch(() => ({}));
-  const anthropicKey = settings.anthropic_api_key || process.env.ANTHROPIC_API_KEY;
+  let anthropicKey = settings.anthropic_api_key || process.env.ANTHROPIC_API_KEY;
+  if (!anthropicKey && String(brand).toLowerCase() !== 'xrb') {
+    const nbSettings = await getSettings(supabase, 'nb').catch(() => ({}));
+    anthropicKey = nbSettings.anthropic_api_key || process.env.ANTHROPIC_API_KEY;
+  }
 
   let systemPrompt, maxTokens;
 

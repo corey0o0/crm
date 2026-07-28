@@ -1,5 +1,6 @@
 'use strict';
 const { getSupabase, getIp, checkRateLimit, logRequest, ok, err, preflight } = require('./_chatbot_utils');
+const { serviceBrandOf } = require('./_chatbot_settings');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return preflight();
@@ -15,6 +16,9 @@ exports.handler = async (event) => {
     return err(429, `일일 A/S 조회 한도(${limit}회)를 초과했습니다. 내일 다시 시도해주세요.`);
   }
 
+  // nb2 → NB (services 테이블 brand 정규화)
+  const serviceBrand = serviceBrandOf(brand);
+
   const clean = input.trim().replace(/-/g, '');
   let row = null;
 
@@ -23,7 +27,7 @@ exports.handler = async (event) => {
       .from('services')
       .select('id, customer_name, customer_phone, product_name, symptom, status, reception_date, completion_date')
       .eq('id', parseInt(clean, 10))
-      .eq('brand', brand.toUpperCase())
+      .eq('brand', serviceBrand)
       .maybeSingle();
     row = data;
   }
@@ -32,7 +36,7 @@ exports.handler = async (event) => {
     const { data: rows } = await supabase
       .from('services')
       .select('id, customer_name, customer_phone, product_name, symptom, status, reception_date, completion_date')
-      .eq('brand', brand.toUpperCase())
+      .eq('brand', serviceBrand)
       .ilike('customer_phone', `%${clean}%`)
       .order('id', { ascending: false })
       .limit(1);
