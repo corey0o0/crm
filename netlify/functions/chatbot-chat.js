@@ -48,7 +48,7 @@ exports.handler = async (event) => {
   if (mode === 'log') {
     if (message) {
       try {
-        await supabase.from('chat_logs').insert({
+        const { error } = await supabase.from('chat_logs').insert({
           session_id: session_id || null,
           brand,
           user_message: message,
@@ -56,7 +56,8 @@ exports.handler = async (event) => {
           matched_faq_label: matched_label || null,
           reply_type: 'faq',
         });
-      } catch {}
+        if (error) console.error('[chat_logs insert 실패/log]', JSON.stringify(error));
+      } catch (e) { console.error('[chat_logs insert 예외/log]', e.message); }
     }
     return ok({ ok: true });
   }
@@ -161,7 +162,7 @@ exports.handler = async (event) => {
     const finalReplyType = (parsed?.type === 'faq') ? 'faq_llm' : replyType;
     const matchedLabel = parsed?.label || null;
     const botReply = parsed?.reply || (mode !== 'smart' ? rawText : null);
-    await supabase.from('chat_logs').insert({
+    const { error: logErr } = await supabase.from('chat_logs').insert({
       session_id: session_id || null,
       brand,
       user_message: message,
@@ -169,7 +170,8 @@ exports.handler = async (event) => {
       matched_faq_label: matchedLabel,
       reply_type: finalReplyType,
     });
-  } catch {}
+    if (logErr) console.error('[chat_logs insert 실패]', JSON.stringify(logErr));
+  } catch (e) { console.error('[chat_logs insert 예외]', e.message); }
 
   if (mode === 'smart') {
     // JSON 추출 (LLM이 마크다운 코드블록 등을 붙일 경우 대비)
