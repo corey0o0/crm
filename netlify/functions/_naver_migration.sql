@@ -6,6 +6,13 @@ create table if not exists chatbot_naver_sessions (
   updated_at timestamptz not null default now()
 );
 
+-- 맥락유지(RAG history) + 핸드오버(상담원 인계) 기능용 컬럼
+-- _naver_utils.js의 getHistory/appendHistory/setHandover/isHandover 가 참조함.
+-- (이 ALTER를 실제 Supabase에 적용하지 않으면 history/handover select가 조용히 실패해
+--  매 턴 대화 맥락이 비어있는 것처럼 동작함 — 컬럼 없음 → data:null → [] 로 폴백되기 때문)
+alter table chatbot_naver_sessions add column if not exists history  jsonb not null default '[]'::jsonb;
+alter table chatbot_naver_sessions add column if not exists handover boolean not null default false;
+
 -- 오래된 세션 정리용 인덱스 (선택)
 create index if not exists idx_naver_sessions_updated on chatbot_naver_sessions (updated_at);
 
