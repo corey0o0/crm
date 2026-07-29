@@ -1,11 +1,14 @@
 'use strict';
 const { getSupabase, ok, err, preflight } = require('./_chatbot_utils');
+const { serviceBrandOf } = require('./_chatbot_settings');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return preflight();
   if (event.httpMethod !== 'GET') return err(405, 'GET only');
 
-  const brand = (event.queryStringParameters?.brand || 'nb').toUpperCase();
+  // faq_items.brand 는 SHARED/NB/XRB 만 사용 → nb2 는 NB 로 정규화
+  // (toUpperCase 로 'NB2' 를 만들면 매칭되는 행이 없어 SHARED 조차 못 받음)
+  const brand = serviceBrandOf(event.queryStringParameters?.brand || 'nb');
   const supabase = getSupabase();
   const today = new Date().toISOString().slice(0, 10);
 
