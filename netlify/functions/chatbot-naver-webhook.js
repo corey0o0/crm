@@ -12,8 +12,11 @@
 // → 여기서는 즉시 200 ACK만 하고, 무거운 처리(FAQ/LLM/조회)는 백그라운드 함수로 위임한다.
 //
 const { getSupabase, ok, err } = require('./_chatbot_utils');
-const { textMessage, imageMessage, naverSend, setHandover, isHandover } = require('./_naver_utils');
+const { textMessage, imageMessage, naverSend, setHandover, isHandover, getLastActivityAt } = require('./_naver_utils');
 const { getSettings, isWithinHours, isNaverEnabled } = require('./_chatbot_settings');
+
+// 이 시간 안에 대화 이력이 있으면 open 이벤트에 인사말을 다시 보내지 않는다.
+const RECENT_ACTIVITY_MS = 30 * 60 * 1000; // 30분
 
 // OFF/운영시간 외 안내 전송 (텍스트 + 선택 이미지)
 async function sendOffNotice(brand, user, s) {
@@ -71,8 +74,13 @@ exports.handler = async (event) => {
   const within = isWithinHours(settings);
 
   // open: 입장 인사 (OFF면 완전 무응답, 운영시간 외면 인사+안내)
+  // 톡톡은 채팅창을 닫았다 열 때마다 open 을 보내므로, 방금까지 대화 중이었다면
+  // 인사말·메뉴를 다시 보내지 않고 조용히 이어간다. (leave 시 세션이 삭제되므로
+  // 나갔다 다시 들어온 경우에는 정상적으로 인사한다)
   if (evType === 'open') {
     if (!naverOn) return ok({}); // 톡톡 OFF → 아무것도 보내지 않음(완전 무음)
+    const lastAt = await getLastActivityAt(supabase, user).catch(() => null);
+    if (lastAt && Date.now() - lastAt < RECENT_ACTIVITY_MS) return ok({});
     await naverSend(brand, textMessage(user, welcomeText(brand), CATEGORIES));
     if (!within) await sendOffNotice(brand, user, settings);
     return ok({});

@@ -147,6 +147,26 @@ async function clearHistory(supabase, user) {
     .upsert({ naver_user: user, history: [], updated_at: new Date().toISOString() }, { onConflict: 'naver_user' });
 }
 
+// ── 마지막 활동 시각 ──
+// 톡톡은 채팅창을 닫았다 열 때마다 open 이벤트를 보내므로, 직전까지 대화 중이었다면
+// 인사말·메뉴를 다시 보내지 않기 위해 사용한다.
+async function getLastActivityAt(supabase, user) {
+  const { data } = await supabase
+    .from('chatbot_naver_sessions')
+    .select('updated_at')
+    .eq('naver_user', user)
+    .maybeSingle();
+  const t = data?.updated_at ? new Date(data.updated_at).getTime() : NaN;
+  return Number.isNaN(t) ? null : t;
+}
+
+// 메시지를 처리할 때마다 활동 시각만 갱신 (FAQ 버튼처럼 state 를 안 건드리는 경로 대비)
+async function touchSession(supabase, user) {
+  await supabase
+    .from('chatbot_naver_sessions')
+    .upsert({ naver_user: user, updated_at: new Date().toISOString() }, { onConflict: 'naver_user' });
+}
+
 // ── 핸드오버 상태 플래그 (상담원 응대 중이면 봇 침묵) ──
 async function setHandover(supabase, user, on) {
   await supabase
@@ -168,5 +188,6 @@ module.exports = {
   passThread, takeThread,
   getState, setState, clearState,
   getHistory, appendHistory, clearHistory,
+  getLastActivityAt, touchSession,
   setHandover, isHandover,
 };
