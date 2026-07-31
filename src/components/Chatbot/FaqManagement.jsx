@@ -42,6 +42,7 @@ const EMPTY_FORM = {
 export default function FaqManagement() {
   const [tabValue, setTabValue] = useState(0);
   const [faqs, setFaqs] = useState([]);
+  const [usageByLabel, setUsageByLabel] = useState({});
   const [chatLogs, setChatLogs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [brandFilter, setBrandFilter] = useState('ALL');
@@ -91,7 +92,26 @@ export default function FaqManagement() {
     setChatLogs(data || []);
   }, [logBrandFilter, logTypeFilter]);
 
+  // FAQ 사용 횟수 — faq_items.usage_count 는 증가시키는 코드가 없어 항상 0이다.
+  // 실제로 어떤 FAQ 가 답에 쓰였는지는 chat_logs.matched_faq_label 에 남으므로 그걸 집계한다.
+  const fetchUsage = useCallback(async () => {
+    const since = new Date(Date.now() - 90 * 24 * 3600 * 1000).toISOString();
+    const { data, error } = await supabase
+      .from('chat_logs')
+      .select('matched_faq_label')
+      .not('matched_faq_label', 'is', null)
+      .gte('created_at', since)
+      .limit(5000);
+    if (error) return;
+    const counts = {};
+    for (const row of data || []) {
+      counts[row.matched_faq_label] = (counts[row.matched_faq_label] || 0) + 1;
+    }
+    setUsageByLabel(counts);
+  }, []);
+
   useEffect(() => { fetchFaqs(); }, [fetchFaqs]);
+  useEffect(() => { fetchUsage(); }, [fetchUsage]);
   useEffect(() => { if (tabValue === 1) fetchChatLogs(); }, [tabValue, fetchChatLogs]);
 
   // ── 저장 ──
@@ -286,7 +306,11 @@ export default function FaqManagement() {
                     <TableCell width={120}>카테고리</TableCell>
                     <TableCell>키워드</TableCell>
                     <TableCell>답변 미리보기</TableCell>
-                    <TableCell width={60} align="center">사용</TableCell>
+                    <TableCell width={60} align="center">
+                      <Tooltip title="최근 90일 동안 이 FAQ가 답변에 사용된 횟수">
+                        <span>사용</span>
+                      </Tooltip>
+                    </TableCell>
                     <TableCell width={70} align="center">활성</TableCell>
                     <TableCell width={90} align="center">작업</TableCell>
                   </TableRow>
@@ -324,7 +348,9 @@ export default function FaqManagement() {
                         </Typography>
                       </TableCell>
                       <TableCell align="center">
-                        <Typography variant="body2" color="text.secondary">{faq.usage_count}</Typography>
+                        <Typography variant="body2" color={usageByLabel[faq.label] ? 'text.primary' : 'text.disabled'}>
+                          {usageByLabel[faq.label] || 0}
+                        </Typography>
                       </TableCell>
                       <TableCell align="center">
                         <Switch size="small" checked={faq.is_active} onChange={() => toggleActive(faq)} />

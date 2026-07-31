@@ -1,6 +1,14 @@
 'use strict';
 const { getSupabase, ok, err, preflight } = require('./_chatbot_utils');
-const { getSettings } = require('./_chatbot_settings');
+const { getSettings, serviceBrandOf } = require('./_chatbot_settings');
+
+// chat_logs.brand 에는 채널 코드(nb/nb2/xrb)가 그대로 들어간다.
+// 니어바이크는 공식홈(nb2)과 스마트스토어(nb)가 같은 브랜드이므로 함께 분석한다.
+const CHANNELS_OF = { nb: ['nb', 'nb2'], nb2: ['nb', 'nb2'], xrb: ['xrb'] };
+
+// FAQ 로 직답하지 못해 LLM 이 답한 건들 = FAQ 보강 후보.
+// 톡톡은 rag, 웹 위젯 일반 대화는 llm 으로 기록된다(faq/faq_llm 은 이미 FAQ 가 답한 것).
+const UNANSWERED_TYPES = ['rag', 'llm'];
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return preflight();
@@ -10,7 +18,8 @@ exports.handler = async (event) => {
   try { body = JSON.parse(event.body || '{}'); } catch { return err(400, '잘못된 요청'); }
 
   const { brand = 'nb', limit = 80 } = body;
-  const brandUpper = brand.toUpperCase();
+  const channels = CHANNELS_OF[String(brand).toLowerCase()] || ['nb', 'nb2'];
+  const dbBrand = serviceBrandOf(brand); // faq_items 는 NB/XRB 만 사용
   const supabase = getSupabase();
 
   // 최근 미매칭(LLM 처리) 채팅 로그 수집
@@ -18,8 +27,8 @@ exports.handler = async (event) => {
   const { data: logs, error: logsError } = await supabase
     .from('chat_logs')
     .select('user_message, reply_type, created_at')
-    .eq('brand', brand)
-    .eq('reply_type', 'llm')
+    .in('brand', channels)
+    .in('reply_type', UNANSWERED_TYPES)
     .gte('created_at', since)
     .order('created_at', { ascending: false })
     .limit(limit);
@@ -35,7 +44,7 @@ exports.handler = async (event) => {
   const { data: existingFaqs } = await supabase
     .from('faq_items')
     .select('label')
-    .in('brand', ['SHARED', brandUpper])
+    .in('brand', ['SHARED', dbBrand])
     .eq('is_active', true);
 
   const existingLabels = (existingFaqs || []).map(f => f.label).join(', ');

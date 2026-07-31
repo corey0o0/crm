@@ -88,6 +88,23 @@ async function callFn(path, { method = 'GET', query = {}, body, user } = {}) {
   return res.json().catch(() => ({}));
 }
 
+// FAQ 버튼으로 답한 건을 chat_logs 에 남긴다. 실패해도 대화는 계속되어야 하므로 삼킨다.
+async function logFaqUse(supabase, brand, user, label, answer) {
+  try {
+    const { error } = await supabase.from('chat_logs').insert({
+      session_id: `naver:${user}`,
+      brand,
+      user_message: `[FAQ 선택] ${label}`,
+      bot_reply: String(answer || '').slice(0, 1000),
+      matched_faq_label: label,
+      reply_type: 'faq',
+    });
+    if (error) console.error('[faq-log] 실패:', JSON.stringify(error));
+  } catch (e) {
+    console.error('[faq-log] 예외:', e.message);
+  }
+}
+
 async function loadFaqs(supabase, brand) {
   const today = new Date().toISOString().slice(0, 10);
   const { data } = await supabase.from('faq_items')
@@ -205,7 +222,11 @@ exports.handler = async (event) => {
       const label = code.slice(5);
       const faqs = await loadFaqs(supabase, brand);
       const hit = faqs.find((f) => f.label === label);
-      if (hit) return done(brand, user, hit.answer, POST_MENU);
+      if (hit) {
+        // 어떤 FAQ 가 실제로 쓰였는지 남긴다 (관리자 화면 사용 횟수 집계용)
+        await logFaqUse(supabase, brand, user, label, hit.answer);
+        return done(brand, user, hit.answer, POST_MENU);
+      }
     }
 
     if (!input) return done(brand, user, welcomeText(brand), CATEGORIES);
