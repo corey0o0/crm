@@ -138,7 +138,10 @@ exports.handler = async (event) => {
     body: JSON.stringify({
       model,
       max_tokens: maxTokens,
-      system: systemPrompt,
+      // 프롬프트 캐싱: system 은 브랜드별로 항상 동일(FAQ 지식·운영자 지침·금지어)하고
+      // 질문과 대화이력만 messages 로 바뀌므로, system 전체를 캐시 구간으로 잡는다.
+      // 캐시 읽기는 입력가의 10%. 최소 길이 미만이면 조용히 캐시되지 않을 뿐 손해는 없다.
+      system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
       messages,
     }),
   });
@@ -151,6 +154,10 @@ exports.handler = async (event) => {
 
   const data = await res.json();
   const rawText = data.content?.[0]?.text || '';
+
+  // 캐시 적중 확인용 — read 가 계속 0 이면 캐시가 안 걸리는 것(프롬프트가 매번 달라짐)
+  const u = data.usage || {};
+  console.log(`[cache] mode=${mode} brand=${brand} read=${u.cache_read_input_tokens || 0} write=${u.cache_creation_input_tokens || 0} uncached=${u.input_tokens || 0} out=${u.output_tokens || 0}`);
 
   await logRequest(supabase, ip, brand, 'chat');
 

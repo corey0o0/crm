@@ -96,7 +96,9 @@ async function loadFaqs(supabase, brand) {
     .eq('is_active', true)
     .or(`start_date.is.null,start_date.lte.${today}`)
     .or(`end_date.is.null,end_date.gte.${today}`)
-    .order('is_announcement', { ascending: false });
+    // id 까지 정렬해 순서를 고정한다 — 지식 문자열이 매번 같아야 프롬프트 캐시가 적중한다
+    .order('is_announcement', { ascending: false })
+    .order('id', { ascending: true });
   return data || [];
 }
 
