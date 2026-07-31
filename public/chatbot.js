@@ -533,7 +533,14 @@
     '취소':     '#ef4444',
   };
 
-  const GREETING_TRIGGERS = ['안녕', '반갑', '처음', '잘부탁', 'hi', 'hello', '헬로', '하이'];
+  // EXACT 는 문장 전체가 그것일 때만 인사로 본다. 부분 일치로 검사하면
+  // "하이브리드 자전거 있나요?"의 '하이', "처음부터 다시"의 '처음'까지 인사로 오인식된다.
+  const GREETING_EXACT = ['hi', 'hello', '헬로', '하이', '안녕', 'ㅎㅇ', '처음'];
+  const GREETING_PREFIXES = ['안녕하', '반갑', '잘부탁', '처음이에', '처음입', '처음왔', '처음방문'];
+  function isGreeting(text) {
+    const n = String(text || '').toLowerCase().replace(/\s/g, '').replace(/[!?.,~]+$/g, '');
+    return GREETING_EXACT.includes(n) || GREETING_PREFIXES.some(p => n.startsWith(p));
+  }
   const CANCEL_SIGNALS = ['취소', '그만', '중단', '돌아가', '처음으로', '메인으로', '안할게', '그만할게', '그냥둬', '됐어'];
 
   function isCancel(text) {
@@ -1328,7 +1335,7 @@
           addHint(BRAND_KEY === 'xrb' ? '예: X200 MAX SL / X50 FS' : '예: 블레이드FS / 카고');
 
         // 8. 인사 감지 → 환영 + 메뉴
-        } else if (GREETING_TRIGGERS.some(kw => text.toLowerCase().replace(/\s/g,'').includes(kw))) {
+        } else if (isGreeting(text)) {
           hideTyping();
           addTextMsg(`안녕하세요! ${BRAND.name}입니다. ${BRAND.avatar}\n무엇을 도와드릴까요? 😊`, 'bot');
           addQuickReplies(CATEGORY_CHIPS);
