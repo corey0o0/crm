@@ -228,6 +228,96 @@ function buildDealerList(region) {
   return `🗺️ ${region} 대리점 (총 ${list.length}곳)\n\n${items}`;
 }
 
+// ── 지명으로 대리점 찾기 ────────────────────────────────────────────
+// 고객이 "수원", "동탄" 처럼 동네 이름을 말해도 바로 안내하기 위한 색인.
+// 주소에서 시/군/구 토큰을 뽑아 자동 생성하므로 대리점을 추가해도 따로 손댈 필요가 없다.
+// 접미사를 뗀 형태("수원시"→"수원")도 넣어 고객이 어느 쪽으로 말해도 찾힌다.
+const METRO = /^(서울|인천|부산|대구|광주|대전|울산|세종|강원|경기|충남|충북|전남|전북|경남|경북|제주)$/;
+
+function buildPlaceIndex() {
+  const idx = new Map();
+  const add = (key, entry) => {
+    if (!key || key.length < 2) return;
+    if (!idx.has(key)) idx.set(key, []);
+    const arr = idx.get(key);
+    if (!arr.some((x) => x.name === entry.name)) arr.push(entry);
+  };
+  for (const region of Object.keys(NB_DEALERS)) {
+    for (const d of NB_DEALERS[region]) {
+      const entry = { ...d, region };
+      for (const tok of String(d.address).split(/\s+/)) {
+        if (/[시군구]$/.test(tok)) { add(tok, entry); add(tok.slice(0, -1), entry); }
+        else if (METRO.test(tok)) add(tok, entry);
+      }
+    }
+  }
+  return idx;
+}
+const PLACE_INDEX = buildPlaceIndex();
+
+// 대리점이 없는 지역 → 가까운 지역으로 안내하기 위한 표.
+// near 값은 위 색인에 실제로 존재하는 지명이어야 하고, 같은 이름이 여러 광역에
+// 있을 때(서구·강서구 등)는 region 으로 좁힌다. 새 지명은 여기 한 줄만 추가하면 된다.
+const PLACE_ALIASES = {
+  '동탄': { near: ['화성시'] },
+  '판교': { near: ['분당구'] },
+  '광교': { near: ['수원시'] },
+  '용인': { near: ['수원시', '분당구'] },
+  '과천': { near: ['안양시', '광명시'] },
+  '오산': { near: ['화성시', '수원시'] },
+  '이천': { near: ['광주시'], region: '경기남부' },
+  '여주': { near: ['광주시'], region: '경기남부' },
+  '포천': { near: ['의정부시', '양주시'] },
+  '송도': { near: ['연수구'], region: '인천' },
+  '청라': { near: ['서구'], region: '인천' },
+  '강릉': { near: ['원주시', '춘천시'] },
+  '제천': { near: ['청주시'] },
+  '군산': { near: ['익산시', '전주시'] },
+  '목포': { near: ['영암군'] },
+  '순천': { near: ['광주'], region: '전라' },
+  '여수': { near: ['광주'], region: '전라' },
+  '김해': { near: ['강서구', '사상구'], region: '경상' },
+  '양산': { near: ['금정구', '동래구'], region: '경상' },
+  '통영': { near: ['거제시'] },
+};
+
+const MAX_DEALER_RESULTS = 5;
+
+// 입력에서 지명을 찾아 대리점을 반환. none=true 면 그 지역엔 대리점이 없어 근처를 대신 안내하는 경우.
+function findDealersByPlace(text) {
+  const t = String(text || '');
+  // 긴 이름부터 확인해 "수원시"가 "수원"보다 우선하도록 한다
+  for (const key of [...PLACE_INDEX.keys()].sort((a, b) => b.length - a.length)) {
+    if (t.includes(key)) return { place: key, dealers: PLACE_INDEX.get(key), none: false };
+  }
+  for (const [place, cfg] of Object.entries(PLACE_ALIASES)) {
+    if (!t.includes(place)) continue;
+    const dealers = [];
+    for (const n of cfg.near) {
+      for (const d of (PLACE_INDEX.get(n) || [])) {
+        if (cfg.region && d.region !== cfg.region) continue;
+        if (!dealers.some((x) => x.name === d.name)) dealers.push(d);
+      }
+    }
+    if (dealers.length) return { place, dealers, none: true };
+  }
+  return null;
+}
+
+// 지명이 안 잡히면 null — 호출부에서 기존 지역 선택 화면으로 넘긴다.
+function buildNearbyDealerAnswer(text) {
+  const found = findDealersByPlace(text);
+  if (!found) return null;
+  const shown = found.dealers.slice(0, MAX_DEALER_RESULTS);
+  const items = shown.map((d, i) => `${i + 1}. ${d.name}\n   📞 ${d.phone}\n   📌 ${d.address}`).join('\n\n');
+  const more = found.dealers.length > shown.length
+    ? `\n\n그 외 ${found.dealers.length - shown.length}곳이 더 있어요. 지역을 알려주시면 안내해 드릴게요.` : '';
+  const head = found.none
+    ? `${found.place}에는 대리점이 없습니다. 가까운 지역 대리점을 안내드릴게요 🗺️`
+    : `${found.place} 지역 대리점입니다 🗺️`;
+  return `${head}\n\n${items}${more}`;
+}
+
 // ── FAQ 스코어링 (DB faq_items 행: {label, keywords, answer}) ──
 // keywords가 배열/JSON문자열/콤마문자열 어느 형태로 와도 안전하게 처리(배포 환경 차이 방어)
 function kwList(raw) {
@@ -255,5 +345,6 @@ module.exports = {
   detectEscalation, detectOrder, detectService, detectTire, detectDealer, isCancel, isGreeting,
   TIRE_INFO, lookupTire, buildTireAnswer,
   DEALER_INFO, NB_DEALERS, dealerRegions, buildDealerList,
+  PLACE_ALIASES, findDealersByPlace, buildNearbyDealerAnswer,
   matchFaqs,
 };

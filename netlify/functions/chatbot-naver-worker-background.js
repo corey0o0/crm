@@ -232,6 +232,9 @@ exports.handler = async (event) => {
     if (brain.detectService(input)) return askStep(supabase, brand, user, 'AS_INPUT', {}, 'A/S 접수 현황을 확인해드리겠습니다 🔧');
     if (brain.detectDealer(input)) {
       if (brand === 'nb' || brand === 'nb2') {
+        // "동탄에 대리점 있나요?" 처럼 지명을 함께 말하면 지역 선택을 건너뛰고 바로 안내
+        const byPlace = brain.buildNearbyDealerAnswer(input);
+        if (byPlace) return done(brand, user, byPlace, POST_MENU);
         const chips = brain.dealerRegions().map((r) => ({ title: `🗺️ ${r}`, code: `REGION::${r}` }));
         return done(brand, user, '가까운 대리점을 찾아드릴게요 🗺️\n지역을 선택해 주세요.', chips.slice(0, 13));
       }
