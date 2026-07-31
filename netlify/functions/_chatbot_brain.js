@@ -17,7 +17,8 @@ const ORDER_INTENT   = ['주문조회', '주문 조회', '주문번호', '배송
 const SERVICE_INTENT = ['as현황', 'a/s현황', 'as 현황', 'a/s 현황', '접수현황', '접수 현황', '수리현황', '접수번호', 'as접수', 'a/s접수'];
 const TIRE_INTENT    = ['펑크', '타이어교체', '타이어 교체', '타이어구매', '튜브교체', '튜브 교체', '이너튜브', '타이어규격'];
 const DEALER_INTENT  = ['대리점', '판매점', '판매처', '구매처', '가맹점', '어디서살', '어디서구매', '근처매장', '가까운매장', '오프라인'];
-const GREETING_TRIGGERS = ['안녕', '반갑', '처음', '잘부탁', 'hi', 'hello', '헬로', '하이'];
+const GREETING_EXACT = new Set(['hi', 'hello', '헬로', '하이', '처음']);
+const GREETING_PREFIXES = ['안녕하', '반갑', '잘부탁', '처음이에', '처음입', '처음왔', '처음방문'];
 const CANCEL_SIGNALS = ['취소', '그만', '중단', '돌아가', '처음으로', '메인으로', '안할게', '그만할게', '그냥둬', '됐어'];
 
 const squash = (s) => String(s || '').toLowerCase().replace(/\s/g, '');
@@ -47,7 +48,11 @@ const detectService = (msg) => SERVICE_INTENT.some((kw) => squash(msg).includes(
 const detectTire    = (msg) => TIRE_INTENT.some((kw) => squash(msg).includes(squash(kw)));
 const detectDealer  = (msg) => DEALER_INTENT.some((kw) => squash(msg).includes(squash(kw)));
 const isCancel      = (msg) => CANCEL_SIGNALS.some((kw) => squash(msg).includes(kw));
-const isGreeting    = (msg) => GREETING_TRIGGERS.some((kw) => squash(msg).includes(kw));
+const isGreeting    = (msg) => {
+  const normalized = squash(msg).replace(/[!?.,~]+$/g, '');
+  return GREETING_EXACT.has(normalized)
+    || GREETING_PREFIXES.some((prefix) => normalized.startsWith(prefix));
+};
 
 // ── 타이어/튜브 ──
 const TIRE_INFO = {
