@@ -15,8 +15,11 @@ const { getSupabase, ok, err } = require('./_chatbot_utils');
 const { textMessage, imageMessage, naverSend, setHandover, isHandover, getLastActivityAt } = require('./_naver_utils');
 const { getSettings, isWithinHours, isNaverEnabled } = require('./_chatbot_settings');
 
-// 이 시간 안에 대화 이력이 있으면 open 이벤트에 인사말을 다시 보내지 않는다.
-const RECENT_ACTIVITY_MS = 30 * 60 * 1000; // 30분
+// 톡톡은 채팅창에 들어올 때마다 open 을 보내므로, 마지막 대화로부터 얼마나 지났는지에 따라
+// 세 단계로 나눈다. 창을 잠깐 닫았다 연 경우까지 매번 인사하면 대화가 끊겨 보인다.
+const QUIET_MS  = 30 * 60 * 1000;      // 30분 — 방금까지 대화 중. 아무것도 보내지 않음
+const RESUME_MS = 24 * 60 * 60 * 1000; // 24시간 — 인사말은 생략하고 메뉴만 다시 안내
+const RESUME_TEXT = '이어서 도와드릴게요. 아래 메뉴를 선택하시거나 궁금한 점을 입력해 주세요.';
 
 // OFF/운영시간 외 안내 전송 (텍스트 + 선택 이미지)
 async function sendOffNotice(brand, user, s) {
@@ -73,15 +76,16 @@ exports.handler = async (event) => {
   const naverOn = isNaverEnabled(settings); // 마스터 ON && 톡톡 토글 ON
   const within = isWithinHours(settings);
 
-  // open: 입장 인사 (OFF면 완전 무응답, 운영시간 외면 인사+안내)
-  // 톡톡은 채팅창을 닫았다 열 때마다 open 을 보내므로, 방금까지 대화 중이었다면
-  // 인사말·메뉴를 다시 보내지 않고 조용히 이어간다. (leave 시 세션이 삭제되므로
-  // 나갔다 다시 들어온 경우에는 정상적으로 인사한다)
+  // open: 입장 인사 (OFF면 완전 무응답, 운영시간 외면 안내 추가)
+  // 마지막 대화로부터 경과 시간에 따라 세 단계로 응대한다.
+  // leave 시 세션이 삭제되므로, 나갔다 다시 들어온 경우에는 신규로 보고 인사한다.
   if (evType === 'open') {
     if (!naverOn) return ok({}); // 톡톡 OFF → 아무것도 보내지 않음(완전 무음)
     const lastAt = await getLastActivityAt(supabase, user).catch(() => null);
-    if (lastAt && Date.now() - lastAt < RECENT_ACTIVITY_MS) return ok({});
-    await naverSend(brand, textMessage(user, welcomeText(brand), CATEGORIES));
+    const gap = lastAt ? Date.now() - lastAt : Infinity;
+    if (gap < QUIET_MS) return ok({}); // 방금까지 대화 중 — 창만 다시 연 것이므로 침묵
+    const text = gap < RESUME_MS ? RESUME_TEXT : welcomeText(brand);
+    await naverSend(brand, textMessage(user, text, CATEGORIES));
     if (!within) await sendOffNotice(brand, user, settings);
     return ok({});
   }
