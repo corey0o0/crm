@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { isGreeting } = require('./_chatbot_brain');
+const { isGreeting } = require('../functions/_chatbot_brain');
 
 test('실제 인사말을 인식한다', () => {
   for (const message of ['안녕하세요', '반갑습니다', '잘 부탁드립니다', '하이', 'hello!', '처음이에요']) {
