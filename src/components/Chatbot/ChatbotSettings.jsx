@@ -38,7 +38,7 @@ export default function ChatbotSettings() {
       if (!map[b.key]) map[b.key] = {
         brand: b.key, enabled: true, naver_enabled: true, hours_start: '09:00', hours_end: '18:00',
         days: [1, 2, 3, 4, 5],
-        offhours_message: '지금은 상담 운영시간이 아닙니다. A/S 접수를 남겨주시면 영업시간에 순차적으로 연락드리겠습니다.',
+        offhours_message: '지금은 AI 상담 시간입니다 🤖\n궁금한 점을 입력해 주시면 바로 답변해 드릴게요.\n보다 자세한 확인이 필요하시면 [A/S 접수]를 이용해 주세요.\n접수 내용은 평일(월~금) 09:00~18:00에 확인 후 순차적으로 연락드리고 있습니다.',
         offhours_image_url: '',
         forbidden_phrases: [],
         naver_auth_key: '',

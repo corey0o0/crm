@@ -1382,7 +1382,7 @@
         addQuickReplies(CATEGORY_CHIPS);
         // 운영시간 외 안내
         if (!CHAT_SETTINGS.withinHours && CHAT_SETTINGS.offhoursMessage) {
-          addTextMsg(CHAT_SETTINGS.offhoursMessage, 'bot', 'badge-escalate', '상담시간 외');
+          addTextMsg(CHAT_SETTINGS.offhoursMessage, 'bot', 'badge-ai', 'AI 상담');
           if (CHAT_SETTINGS.offhoursImageUrl) {
             addTextMsg(`<img src="${CHAT_SETTINGS.offhoursImageUrl}" alt="안내" style="max-width:100%;border-radius:8px">`, 'bot');
           }
