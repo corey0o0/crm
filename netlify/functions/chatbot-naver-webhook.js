@@ -12,7 +12,7 @@
 // → 여기서는 즉시 200 ACK만 하고, 무거운 처리(FAQ/LLM/조회)는 백그라운드 함수로 위임한다.
 //
 const { getSupabase, ok, err } = require('./_chatbot_utils');
-const { textMessage, imageMessage, naverSend, setHandover, isHandover, getLastActivityAt } = require('./_naver_utils');
+const { textMessage, imageMessage, naverSend, setHandover, isHandover, getLastActivityAt, clearState } = require('./_naver_utils');
 const { getSettings, isWithinHours, isNaverEnabled } = require('./_chatbot_settings');
 
 // 톡톡은 채팅창에 들어올 때마다 open 을 보내므로, 마지막 대화로부터 얼마나 지났는지에 따라
@@ -83,6 +83,8 @@ exports.handler = async (event) => {
     if (!naverOn) return ok({}); // 톡톡 OFF → 아무것도 보내지 않음(완전 무음)
     const lastAt = await getLastActivityAt(supabase, user).catch(() => null);
     const gap = lastAt ? Date.now() - lastAt : Infinity;
+    // 인사말이 반복될 때 원인을 바로 알 수 있도록 판단 근거를 남긴다
+    console.log(`[open] brand=${brand} 마지막활동=${lastAt ? Math.round(gap / 1000) + '초전' : '기록없음'} → ${gap < QUIET_MS ? '침묵' : gap < RESUME_MS ? '이어서안내' : '전체인사말'}`);
     if (gap < QUIET_MS) return ok({}); // 방금까지 대화 중 — 창만 다시 연 것이므로 침묵
     const text = gap < RESUME_MS ? RESUME_TEXT : welcomeText(brand);
     await naverSend(brand, textMessage(user, text, CATEGORIES));
@@ -91,8 +93,12 @@ exports.handler = async (event) => {
   }
 
   // leave: 세션 정리
+  // leave: 진행 중이던 입력 단계만 정리한다.
+  // 예전에는 세션 행을 통째로 삭제했는데, 그러면 마지막 활동 시각까지 사라져
+  // 고객이 자리를 비웠다 돌아올 때마다 신규 방문으로 취급돼 인사말이 반복됐다.
+  // 대화 이력과 상담원 인계 상태는 유지해 돌아왔을 때 맥락이 이어지게 한다.
   if (evType === 'leave') {
-    try { await supabase.from('chatbot_naver_sessions').delete().eq('naver_user', user); } catch {}
+    try { await clearState(supabase, user); } catch {}
     return ok({});
   }
 
