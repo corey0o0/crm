@@ -71,6 +71,14 @@ exports.handler = async (event) => {
   const user = body.user;
   if (!user) return ok({});
 
+  // 어떤 이벤트가 실제로 수신되는지 확인용(echo 전달 여부 진단).
+  // sourceId 1 = 상담원, 그 외 = 챗봇. standby 는 주도권이 파트너에게 있을 때만 붙는다.
+  console.log(`[naver] event=${evType}${body.echoedEvent ? '/' + body.echoedEvent : ''}`
+    + ` sourceId=${body.options?.sourceId ?? '-'}`
+    + ` threadOwner=${body.options?.threadOwnerId ?? '-'}`
+    + ` standby=${body.standby ?? body.options?.standby ?? '-'}`
+    + ` user=${String(user).slice(0, 10)}`);
+
   const supabase = getSupabase();
   const settings = await getSettings(supabase, brand);
   const naverOn = isNaverEnabled(settings); // 마스터 ON && 톡톡 토글 ON
