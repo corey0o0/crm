@@ -120,6 +120,33 @@ exports.handler = async (event) => {
     return ok({});
   }
 
+  // echo: 파트너센터에서 상담원이 보낸 메시지가 이 이벤트로 들어온다.
+  // 봇이 보낸 메시지도 똑같이 되돌아오므로 options.sourceId 로 구분한다(1 = 상담원).
+  // 이 구분이 없으면 봇이 자기 메시지에 반응해 무한 루프가 된다.
+  // 상담원이 주도권을 정식으로 넘겨받지 않고 그냥 입력한 경우에도 echo 는 전달되므로,
+  // 봇이 상담원 답변 위에 끼어드는 것을 여기서 막는다.
+  if (evType === 'echo') {
+    const sourceId = body.options?.sourceId;
+    if (String(sourceId) !== '1') return ok({}); // 봇 자신이 보낸 메시지 — 무시
+    const agentText = body.textContent?.text || '';
+    const nickname = body.options?.managerNickname || '';
+    console.log(`[echo] 상담원 응대 감지 user=${user} nick=${nickname}`);
+    // 상담원이 응대를 시작했으므로 봇은 침묵한다.
+    // 상담원이 "상담 완료하기"를 누르면 handover 이벤트로 해제된다.
+    try { await setHandover(supabase, user, true); } catch (e) { console.error('[echo] 인계 표시 실패:', e.message); }
+    try {
+      await supabase.from('chat_logs').insert({
+        session_id: `naver:${user}`,
+        brand,
+        user_message: `[상담원 응대]${nickname ? ' ' + nickname : ''}`,
+        bot_reply: agentText.slice(0, 1000),
+        matched_faq_label: null,
+        reply_type: 'agent',
+      });
+    } catch (e) { console.error('[echo] 로그 저장 실패:', e.message); }
+    return ok({});
+  }
+
   // send: 사용자 입력(또는 빠른응답 code) → 무거운 처리는 백그라운드로 위임
   if (evType === 'send') {
     // 상담원(운영자)이 수동 응대 중이면(handover standby) 봇은 끼어들지 않음
