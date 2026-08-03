@@ -86,6 +86,14 @@ async function naverSend(brand, payload) {
     console.error('[naver] 발신 인증키 없음 brand=', brand);
     return { ok: false, error: 'no_auth_key' };
   }
+  // 보낸 뒤 echo 로 되돌아왔을 때 봇 자신의 메시지임을 알아볼 수 있도록 먼저 기록해 둔다.
+  // (전송 후에 기록하면 그 사이 도착한 echo 를 상담원 메시지로 오인할 수 있다)
+  if (payload?.user && payload?.textContent?.text) {
+    try {
+      const { getSupabase } = require('./_chatbot_utils');
+      await rememberBotText(getSupabase(), payload.user, payload.textContent.text);
+    } catch (e) { console.error('[naver] echo 기록 실패:', e.message); }
+  }
   try {
     const res = await fetch(SEND_API, {
       method: 'POST',
@@ -112,12 +120,52 @@ async function getState(supabase, user) {
   return data?.state || { step: 'IDLE', data: {} };
 }
 async function setState(supabase, user, state) {
+  // botEcho 는 대화 단계와 무관한 부가 정보이므로 단계 전환/초기화 때 지워지지 않게 보존한다.
+  let next = state;
+  if (state && state.botEcho === undefined) {
+    const cur = await getState(supabase, user);
+    if (cur && cur.botEcho) next = { ...state, botEcho: cur.botEcho };
+  }
   await supabase
     .from('chatbot_naver_sessions')
-    .upsert({ naver_user: user, state, updated_at: new Date().toISOString() }, { onConflict: 'naver_user' });
+    .upsert({ naver_user: user, state: next, updated_at: new Date().toISOString() }, { onConflict: 'naver_user' });
 }
 async function clearState(supabase, user) {
   await setState(supabase, user, { step: 'IDLE', data: {} });
+}
+
+// ── 봇이 보낸 문구 기억 (echo 판별용) ──
+// 톡톡은 봇이 보낸 메시지도 echo 이벤트로 되돌려주기 때문에, 되돌아온 메시지가
+// 상담원이 친 것인지 봇 자신의 것인지 가려내야 한다. 예전에는 options.sourceId 로만
+// 판별했는데 실제 운영에서 상담원 응대가 한 번도 잡히지 않아(handover 기록 0건),
+// 봇이 보낸 문구를 기억해 두고 대조하는 방식으로 바꿨다.
+const ECHO_TTL_MS = 30 * 60 * 1000; // 이보다 오래된 기록은 대조하지 않는다
+const ECHO_KEEP = 12;               // 최근 몇 건까지 기억할지
+const echoKey = (t) => String(t || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+
+async function rememberBotText(supabase, user, text) {
+  const k = echoKey(text);
+  if (!k) return;
+  const st = await getState(supabase, user);
+  const now = Date.now();
+  const kept = (Array.isArray(st.botEcho) ? st.botEcho : [])
+    .filter((e) => e && e.k !== k && now - (e.t || 0) < ECHO_TTL_MS);
+  await setState(supabase, user, { ...st, botEcho: [{ k, t: now }, ...kept].slice(0, ECHO_KEEP) });
+}
+
+async function isOwnBotText(supabase, user, text) {
+  const k = echoKey(text);
+  if (!k) return false;
+  const st = await getState(supabase, user);
+  const now = Date.now();
+  return (Array.isArray(st.botEcho) ? st.botEcho : []).some((e) => {
+    if (!e || !e.k || now - (e.t || 0) >= ECHO_TTL_MS) return false;
+    if (e.k === k) return true;
+    // 톡톡이 되돌려줄 때 뒷부분(버튼 안내 등)이 달라질 수 있으므로,
+    // 충분히 긴 문구는 앞부분만 같아도 같은 메시지로 본다.
+    // 못 알아보면 봇이 자기 메시지에 침묵해 버리므로 판정을 느슨하게 둔다.
+    return k.length >= 20 && e.k.length >= 20 && e.k.slice(0, 40) === k.slice(0, 40);
+  });
 }
 
 // ── 대화 히스토리 (사람처럼 맥락 유지) — state 와 분리된 history 컬럼 ──
@@ -190,4 +238,5 @@ module.exports = {
   getHistory, appendHistory, clearHistory,
   getLastActivityAt, touchSession,
   setHandover, isHandover,
+  rememberBotText, isOwnBotText,
 };

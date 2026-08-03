@@ -6,13 +6,15 @@
 //   이벤트 받을 URL : https://<사이트>/.netlify/functions/chatbot-naver-webhook?brand=nb   (스마트스토어)
 //                     https://<사이트>/.netlify/functions/chatbot-naver-webhook?brand=nb2  (공식홈페이지)
 //                     https://<사이트>/.netlify/functions/chatbot-naver-webhook?brand=xrb  (X-RIDER)
-//   사용 event      : open, send, leave  (echo/friend 미사용)
+//   사용 event      : open, send, leave, handover, echo  (friend 미사용)
+//                     ※ echo 는 상담원 개입 감지용. 파트너센터에서 echo 수신을 켜야
+//                        상담원이 직접 입력했을 때 봇이 멈춘다.
 //
 // 네이버 톡톡 webhook은 읽기 타임아웃이 5초라 LLM 응답을 동기로 못 돌린다.
 // → 여기서는 즉시 200 ACK만 하고, 무거운 처리(FAQ/LLM/조회)는 백그라운드 함수로 위임한다.
 //
 const { getSupabase, ok, err } = require('./_chatbot_utils');
-const { textMessage, imageMessage, naverSend, setHandover, isHandover, getLastActivityAt, clearState } = require('./_naver_utils');
+const { textMessage, imageMessage, naverSend, setHandover, isHandover, getLastActivityAt, clearState, isOwnBotText } = require('./_naver_utils');
 const { getSettings, isWithinHours, isNaverEnabled } = require('./_chatbot_settings');
 
 // 톡톡은 채팅창에 들어올 때마다 open 을 보내므로, 마지막 대화로부터 얼마나 지났는지에 따라
@@ -129,16 +131,29 @@ exports.handler = async (event) => {
   }
 
   // echo: 파트너센터에서 상담원이 보낸 메시지가 이 이벤트로 들어온다.
-  // 봇이 보낸 메시지도 똑같이 되돌아오므로 options.sourceId 로 구분한다(1 = 상담원).
-  // 이 구분이 없으면 봇이 자기 메시지에 반응해 무한 루프가 된다.
+  // 봇이 보낸 메시지도 똑같이 되돌아오므로 둘을 가려야 한다(안 가리면 봇이 자기 메시지에 반응).
   // 상담원이 주도권을 정식으로 넘겨받지 않고 그냥 입력한 경우에도 echo 는 전달되므로,
   // 봇이 상담원 답변 위에 끼어드는 것을 여기서 막는다.
   if (evType === 'echo') {
     const sourceId = body.options?.sourceId;
-    if (String(sourceId) !== '1') return ok({}); // 봇 자신이 보낸 메시지 — 무시
     const agentText = body.textContent?.text || '';
     const nickname = body.options?.managerNickname || '';
-    console.log(`[echo] 상담원 응대 감지 user=${user} nick=${nickname}`);
+
+    // 텍스트가 없는 echo(이미지·카드 등)는 봇 것인지 상담원 것인지 가릴 근거가 없다.
+    // 잘못 판단해 봇을 침묵시키는 쪽이 더 위험하므로 그냥 넘긴다.
+    if (!agentText.trim()) return ok({});
+
+    // 상담원이 보낸 것인지 판별.
+    // sourceId 만 믿었더니 상담원 응대가 한 번도 잡히지 않았고(handover 기록 0건),
+    // managerNickname 도 봇 메시지에 붙는지 확신할 수 없다. 둘 다 값의 의미가 불확실하므로
+    // 판정에는 쓰지 않고 로그로만 남기고, 봇이 방금 보낸 문구와 대조해서만 가린다.
+    // 30분 내 봇이 보낸 문구가 아니면 사람이 친 것으로 본다.
+    const mine = await isOwnBotText(supabase, user, agentText).catch(() => false);
+    if (mine) {
+      console.log(`[echo] 봇 자신의 메시지 — 무시 user=${String(user).slice(0, 10)}`);
+      return ok({});
+    }
+    console.log(`[echo] 상담원 응대 감지 user=${String(user).slice(0, 10)} nick=${nickname || '-'} sourceId=${sourceId ?? '-'}`);
     // 상담원이 응대를 시작했으므로 봇은 침묵한다.
     // 상담원이 "상담 완료하기"를 누르면 handover 이벤트로 해제된다.
     try { await setHandover(supabase, user, true); } catch (e) { console.error('[echo] 인계 표시 실패:', e.message); }
