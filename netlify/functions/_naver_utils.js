@@ -79,6 +79,13 @@ function takeThread(user) {
   return { event: 'handover', user, options: { control: 'takeThread', metadata: '' } };
 }
 
+// ── 프로필(닉네임) 조회 요청 — Profile API V1 ──
+// 이 요청의 HTTP 응답 본문에는 {"success":true} 만 오고, 실제 닉네임은 잠시 뒤
+// webhook 으로 event:'profile' 이 다시 들어오는 비동기 방식이다.
+function profileRequest(user, field = 'nickname') {
+  return { event: 'profile', options: { field }, user };
+}
+
 // 네이버 톡톡 send API 호출
 async function naverSend(brand, payload) {
   const key = await authKeyFor(brand);
@@ -119,12 +126,17 @@ async function getState(supabase, user) {
     .maybeSingle();
   return data?.state || { step: 'IDLE', data: {} };
 }
+// 대화 단계(step/data)와 무관한 부가 정보. 단계 전환·초기화 때 지워지지 않게 보존한다.
+const STICKY_STATE_KEYS = ['botEcho', 'nickname'];
+
 async function setState(supabase, user, state) {
-  // botEcho 는 대화 단계와 무관한 부가 정보이므로 단계 전환/초기화 때 지워지지 않게 보존한다.
   let next = state;
-  if (state && state.botEcho === undefined) {
+  const missing = STICKY_STATE_KEYS.filter((k) => state && state[k] === undefined);
+  if (missing.length) {
     const cur = await getState(supabase, user);
-    if (cur && cur.botEcho) next = { ...state, botEcho: cur.botEcho };
+    const carry = {};
+    missing.forEach((k) => { if (cur && cur[k] !== undefined) carry[k] = cur[k]; });
+    if (Object.keys(carry).length) next = { ...state, ...carry };
   }
   await supabase
     .from('chatbot_naver_sessions')
@@ -166,6 +178,18 @@ async function isOwnBotText(supabase, user, text) {
     // 못 알아보면 봇이 자기 메시지에 침묵해 버리므로 판정을 느슨하게 둔다.
     return k.length >= 20 && e.k.length >= 20 && e.k.slice(0, 40) === k.slice(0, 40);
   });
+}
+
+// ── 톡톡 닉네임 (A/S 접수 시 이름 옆에 함께 남기기 위해 보관) ──
+async function setNickname(supabase, user, nickname) {
+  const nick = String(nickname || '').trim().slice(0, 40);
+  if (!nick) return;
+  const st = await getState(supabase, user);
+  await setState(supabase, user, { ...st, nickname: nick });
+}
+async function getNickname(supabase, user) {
+  const st = await getState(supabase, user);
+  return (st && st.nickname) || '';
 }
 
 // ── 대화 히스토리 (사람처럼 맥락 유지) — state 와 분리된 history 컬럼 ──
@@ -233,8 +257,9 @@ async function isHandover(supabase, user) {
 module.exports = {
   SEND_API, NAVER_ACL_CIDRS,
   authKeyFor, textMessage, compositeMessage, imageMessage, typing, naverSend,
-  passThread, takeThread,
+  passThread, takeThread, profileRequest,
   getState, setState, clearState,
+  setNickname, getNickname,
   getHistory, appendHistory, clearHistory,
   getLastActivityAt, touchSession,
   setHandover, isHandover,

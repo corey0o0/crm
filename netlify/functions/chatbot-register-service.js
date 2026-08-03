@@ -12,10 +12,18 @@ exports.handler = async (event) => {
   let body;
   try { body = JSON.parse(event.body || '{}'); } catch { return err(400, 'Invalid JSON'); }
 
-  const { name, phone, product_name, symptom, brand } = body;
+  const { name, phone, product_name, symptom, brand, nickname } = body;
   if (!name || !phone || !product_name || !symptom || !brand) {
     return err(400, 'name, phone, product_name, symptom, brand 필수');
   }
+
+  // 톡톡 닉네임을 알면 이름 옆에 함께 남긴다 — CRM 에서 어느 톡톡 대화인지 대조하기 쉽도록.
+  // 웹 위젯 접수처럼 닉네임이 없거나 이름과 같으면 이름만 쓴다.
+  const customerName = (() => {
+    const n = name.trim();
+    const nick = String(nickname || '').trim().slice(0, 40);
+    return nick && nick !== n ? `${n} ${nick}` : n;
+  })();
 
   const { allowed, count, limit } = await checkRateLimit(supabase, ip, 'register');
   if (!allowed) {
@@ -32,7 +40,7 @@ exports.handler = async (event) => {
     .from('services')
     .insert({
       brand: serviceBrand,
-      customer_name: name.trim(),
+      customer_name: customerName,
       customer_phone: phone.trim(),
       product_name: product_name.trim(),
       symptom: `[챗봇 접수] ${symptom.trim()}`,
@@ -58,6 +66,7 @@ exports.handler = async (event) => {
       channel: String(brand).toLowerCase(),
       service_id: data.id,
       name: name.trim(),
+      nickname: String(nickname || '').trim(),
       phone: phone.trim(),
       product_name: product_name.trim(),
       symptom: symptom.trim(),

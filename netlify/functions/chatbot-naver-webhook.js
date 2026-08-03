@@ -14,7 +14,7 @@
 // → 여기서는 즉시 200 ACK만 하고, 무거운 처리(FAQ/LLM/조회)는 백그라운드 함수로 위임한다.
 //
 const { getSupabase, ok, err } = require('./_chatbot_utils');
-const { textMessage, imageMessage, naverSend, setHandover, isHandover, getLastActivityAt, clearState, isOwnBotText } = require('./_naver_utils');
+const { textMessage, imageMessage, naverSend, setHandover, isHandover, getLastActivityAt, clearState, isOwnBotText, setNickname } = require('./_naver_utils');
 const { getSettings, isWithinHours, isNaverEnabled } = require('./_chatbot_settings');
 
 // 톡톡은 채팅창에 들어올 때마다 open 을 보내므로, 마지막 대화로부터 얼마나 지났는지에 따라
@@ -126,6 +126,19 @@ exports.handler = async (event) => {
       if (naverOn && was) {
         await naverSend(brand, textMessage(user, '상담원 상담이 마무리되었어요. 더 궁금한 점이 있으면 편하게 입력해 주세요 🙂'));
       }
+    }
+    return ok({});
+  }
+
+  // profile: 봇이 보낸 프로필 조회 요청(event:'profile')에 대한 비동기 응답.
+  // A/S 접수 시 이름 옆에 톡톡 닉네임을 함께 남기려고 세션에 보관해 둔다.
+  // result: SUCCESS | DISAGREE | CANCEL | WITHDRAW — 성공일 때만 저장한다.
+  if (evType === 'profile') {
+    const result = body.options?.result;
+    const nickname = body.options?.nickname || '';
+    console.log(`[profile] user=${String(user).slice(0, 10)} result=${result || '-'} nick=${nickname || '-'}`);
+    if (result === 'SUCCESS' && nickname) {
+      try { await setNickname(supabase, user, nickname); } catch (e) { console.error('[profile] 닉네임 저장 실패:', e.message); }
     }
     return ok({});
   }
