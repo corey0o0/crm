@@ -35,3 +35,8 @@ yarn-error.log*
 
 public/env.js
 split_inventory_v2.js
+
+# AI 코딩 도구 작업 디렉터리 (하위 경로 어디에 생기든 무시)
+.omc/
+.serena/
+.claude/
