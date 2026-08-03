@@ -8,8 +8,8 @@ const CORS = {
   'Content-Type': 'application/json',
 };
 
-// 타입별 일일 허용 횟수
-const DAILY_LIMITS = { order: 30, service: 30, chat: 15, register: 5 };
+// 타입별 허용 횟수 (최근 24시간 기준 슬라이딩 윈도우)
+const DAILY_LIMITS = { order: 30, service: 30, chat: 30, register: 5 };
 
 function getSupabase() {
   return createClient(

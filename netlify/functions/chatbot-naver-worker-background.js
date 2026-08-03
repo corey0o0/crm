@@ -272,7 +272,7 @@ exports.handler = async (event) => {
 
     // ── 6) RAG 자연어 답변 (FAQ 지식 기반 + 대화 맥락 유지) ──
     const { allowed, limit } = await checkRateLimit(supabase, `naver:${user}`, 'chat');
-    if (!allowed) return done(brand, user, `오늘 AI 응답 한도(${limit}회)를 초과했어요. 아래 [A/S 접수]를 남겨주시면 담당자가 확인 후 안내해 드릴게요.`, POST_MENU);
+    if (!allowed) return done(brand, user, `24시간 이내 AI 응답 한도(${limit}회)를 초과했어요. 아래 [A/S 접수]를 남겨주시면 담당자가 확인 후 안내해 드릴게요.`, POST_MENU);
     const faqs = await loadFaqs(supabase, brand);
     const history = await getHistory(supabase, user);
     const answer = await ragLlm(brand, input, faqs, user, history);

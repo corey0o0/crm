@@ -19,7 +19,7 @@ exports.handler = async (event) => {
 
   const { allowed, count, limit } = await checkRateLimit(supabase, ip, 'register');
   if (!allowed) {
-    return err(429, `일일 A/S 접수 한도(${limit}회)를 초과했습니다. 내일 다시 시도해주세요.`);
+    return err(429, `24시간 이내 A/S 접수 한도(${limit}회)를 초과했습니다. 잠시 후 다시 시도해주세요.`);
   }
 
   // nb2 → NB (services 테이블은 NB/XRB 만 사용)

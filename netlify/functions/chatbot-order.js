@@ -29,7 +29,7 @@ exports.handler = async (event) => {
 
   const { allowed, count, limit } = await checkRateLimit(supabase, ip, 'order');
   if (!allowed) {
-    return err(429, `일일 주문 조회 한도(${limit}회)를 초과했습니다. 내일 다시 시도해주세요.`);
+    return err(429, `24시간 이내 주문 조회 한도(${limit}회)를 초과했습니다. 잠시 후 다시 시도해주세요.`);
   }
 
   const selectCols = 'order_id, buyer_name, buyer_phone, order_date, status, total_amount, shipping_fee, order_items';

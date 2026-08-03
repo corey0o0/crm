@@ -35,7 +35,7 @@ exports.handler = async (event) => {
   const { allowed, count, limit } = await checkRateLimit(supabase, ip, 'chat');
   if (!allowed) {
     return ok({
-      reply: `죄송합니다. 오늘 AI 응답 한도(${limit}회)를 초과했습니다.\n자세한 문의는 [A/S 접수]를 남겨주시면 담당자가 확인 후 안내해 드립니다.`,
+      reply: `죄송합니다. 24시간 이내 AI 응답 한도(${limit}회)를 초과했습니다.\n자세한 문의는 [A/S 접수]를 남겨주시면 담당자가 확인 후 안내해 드립니다.`,
       limited: true,
     });
   }
