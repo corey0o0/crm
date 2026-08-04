@@ -54,6 +54,39 @@ const STEP_PROMPT = {
   TIRE_MODEL:  (brand) => `타이어(튜브) 교체를 도와드릴게요 🔧\n사용 중인 모델명을 알려주세요.\n${brand === 'xrb' ? '(예: X200 MAX SL / X50 FS)' : '(예: 블레이드FS / 카고)'}`,
 };
 
+// ── 접수 단계별 입력 검증 ──
+// 안내를 못 보고 대화를 이어가면 답이 한 칸씩 밀려 들어간다.
+// (실제 사고: 성함에 잡담, 연락처에 "넵", 제품명에 전화번호가 저장됨)
+// 형식이 명백히 안 맞으면 같은 단계에 머물며 다시 묻는다.
+const digitsOf = (s) => String(s || '').replace(/\D/g, '');
+const looksLikePhone = (s) => {
+  const n = digitsOf(s).length;
+  return n >= 9 && n <= 11;
+};
+
+const STEP_VALIDATE = {
+  REG_NAME: (v) => {
+    const t = String(v).trim();
+    if (looksLikePhone(t)) return '연락처 말고 성함을 입력해 주세요. (예: 홍길동)';
+    if (t.length < 2 || t.length > 20) return '성함을 2~20자로 입력해 주세요. (예: 홍길동)';
+    // 문장부호·자음만 쓴 표현이 들어가면 이름이 아니라 대화로 본다
+    if (/[?!.,~]|[ㄱ-ㅎㅏ-ㅣ]/.test(t)) return '성함만 입력해 주세요. (예: 홍길동)';
+    if ((t.match(/\s/g) || []).length > 1) return '성함만 입력해 주세요. (예: 홍길동)';
+    return null;
+  },
+  REG_PHONE: (v) => (looksLikePhone(v) ? null : '연락처를 숫자로 입력해 주세요. (예: 010-1234-5678)'),
+  REG_PRODUCT: (v) => {
+    const t = String(v).trim();
+    if (looksLikePhone(t)) return '제품명(모델명)을 입력해 주세요. (예: 블레이드FS / 카고)';
+    if (t.length < 2 || t.length > 60) return '제품명(모델명)을 입력해 주세요. (예: 블레이드FS / 카고)';
+    return null;
+  },
+  REG_SYMPTOM: (v) => (String(v).trim().length >= 2 ? null : '증상을 조금 더 자세히 입력해 주세요.'),
+};
+
+// 몇 번 어긋나면 혼자 붙잡고 있지 말고 상담원 연결을 안내한다
+const STEP_RETRY_LIMIT = 3;
+
 // 뒤로가기 시 되돌아갈 이전 단계 (입력했던 값은 유지)
 const PREV_STEP = {
   ORDER_NAME:  'ORDER_NO',
@@ -372,6 +405,20 @@ exports.handler = async (event) => {
 async function handleFlow(supabase, brand, user, input, state) {
   const d = state.data || {};
   const mallId = (brain.BRAND_META[brand] || {}).mallId;
+
+  // 형식이 명백히 어긋나면 다음 단계로 넘기지 않고 같은 단계에서 다시 묻는다.
+  // 이게 없으면 고객이 안내를 못 보고 대화를 이어갈 때 값이 한 칸씩 밀려 저장된다.
+  const problem = STEP_VALIDATE[state.step] && STEP_VALIDATE[state.step](input);
+  if (problem) {
+    d._tries = (d._tries || 0) + 1;
+    await setState(supabase, user, { step: state.step, data: d });
+    if (d._tries >= STEP_RETRY_LIMIT) {
+      return done(brand, user, `${problem}\n\n입력이 어려우시면 아래 [상담원 연결]을 눌러주세요.`,
+        [{ title: '💬 상담원 연결', code: 'AGENT' }, ...NAV]);
+    }
+    return done(brand, user, problem, NAV);
+  }
+  delete d._tries; // 통과했으면 재시도 카운터는 접수 내용에 남기지 않는다
 
   switch (state.step) {
     // 주문 조회
