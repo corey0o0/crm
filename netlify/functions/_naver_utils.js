@@ -79,12 +79,10 @@ function takeThread(user) {
   return { event: 'handover', user, options: { control: 'takeThread', metadata: '' } };
 }
 
-// ── 프로필(닉네임) 조회 요청 — Profile API V1 ──
-// 이 요청의 HTTP 응답 본문에는 {"success":true} 만 오고, 실제 닉네임은 잠시 뒤
-// webhook 으로 event:'profile' 이 다시 들어오는 비동기 방식이다.
-function profileRequest(user, field = 'nickname') {
-  return { event: 'profile', options: { field }, user };
-}
+// 참고: 고객 닉네임은 톡톡 이벤트(open/send/echo) payload 에 들어오지 않는다.
+// 받으려면 Profile API 로 따로 조회해야 하는데 개인정보 제3자 제공동의가 필요하고,
+// 동의하지 않은 고객은 받을 수 없다. A/S 접수 성함은 고객이 직접 입력하므로
+// 닉네임 조회는 쓰지 않기로 했다.
 
 // 네이버 톡톡 send API 호출
 async function naverSend(brand, payload) {
@@ -127,7 +125,7 @@ async function getState(supabase, user) {
   return data?.state || { step: 'IDLE', data: {} };
 }
 // 대화 단계(step/data)와 무관한 부가 정보. 단계 전환·초기화 때 지워지지 않게 보존한다.
-const STICKY_STATE_KEYS = ['botEcho', 'nickname', 'offNoticeAt'];
+const STICKY_STATE_KEYS = ['botEcho', 'offNoticeAt'];
 
 async function setState(supabase, user, state) {
   let next = state;
@@ -178,18 +176,6 @@ async function isOwnBotText(supabase, user, text) {
     // 못 알아보면 봇이 자기 메시지에 침묵해 버리므로 판정을 느슨하게 둔다.
     return k.length >= 20 && e.k.length >= 20 && e.k.slice(0, 40) === k.slice(0, 40);
   });
-}
-
-// ── 톡톡 닉네임 (A/S 접수 시 이름 옆에 함께 남기기 위해 보관) ──
-async function setNickname(supabase, user, nickname) {
-  const nick = String(nickname || '').trim().slice(0, 40);
-  if (!nick) return;
-  const st = await getState(supabase, user);
-  await setState(supabase, user, { ...st, nickname: nick });
-}
-async function getNickname(supabase, user) {
-  const st = await getState(supabase, user);
-  return (st && st.nickname) || '';
 }
 
 // ── 운영시간 외 안내를 마지막으로 보낸 시각 ──
@@ -269,9 +255,8 @@ async function isHandover(supabase, user) {
 module.exports = {
   SEND_API, NAVER_ACL_CIDRS,
   authKeyFor, textMessage, compositeMessage, imageMessage, typing, naverSend,
-  passThread, takeThread, profileRequest,
+  passThread, takeThread,
   getState, setState, clearState,
-  setNickname, getNickname,
   markOffNotice, getOffNoticeAt,
   getHistory, appendHistory, clearHistory,
   getLastActivityAt, touchSession,

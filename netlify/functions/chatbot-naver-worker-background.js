@@ -5,7 +5,7 @@
 // 비즈니스 로직(주문/AS/등록)은 기존 함수 내부 HTTP 재사용, 대화 두뇌는 _chatbot_brain.
 //
 const { getSupabase, checkRateLimit, logRequest } = require('./_chatbot_utils');
-const { textMessage, imageMessage, naverSend, typing, getState, setState, clearState, getHistory, appendHistory, clearHistory, passThread, takeThread, setHandover, isHandover, touchSession, profileRequest, getNickname, markOffNotice, getOffNoticeAt } = require('./_naver_utils');
+const { textMessage, imageMessage, naverSend, typing, getState, setState, clearState, getHistory, appendHistory, clearHistory, passThread, takeThread, setHandover, isHandover, touchSession, markOffNotice, getOffNoticeAt } = require('./_naver_utils');
 const { getSettings, isWithinHours, offhoursText } = require('./_chatbot_settings');
 const brain = require('./_chatbot_brain');
 
@@ -316,13 +316,7 @@ exports.handler = async (event) => {
     if (SUB[code]) return done(brand, user, '아래에서 선택하시거나 직접 입력해 주세요.', SUB[code]);
     if (code === 'FLOW_ORDER') return askStep(supabase, brand, user, 'ORDER_NO');
     if (code === 'FLOW_AS_LOOKUP') return askStep(supabase, brand, user, 'AS_INPUT');
-    if (code === 'FLOW_AS_REGISTER' || code === 'CAT_SERVICE') {
-      // 접수가 끝날 때 이름 옆에 붙일 톡톡 닉네임을 미리 조회해 둔다.
-      // 응답은 webhook 으로 따로 들어오므로, 고객이 이름·연락처를 입력하는 사이에 도착한다.
-      // 백그라운드 함수가 먼저 끝나면 요청이 유실될 수 있어 await 로 확실히 내보낸다
-      await naverSend(brand, profileRequest(user)).catch(() => {});
-      return askStep(supabase, brand, user, 'REG_NAME');
-    }
+    if (code === 'FLOW_AS_REGISTER' || code === 'CAT_SERVICE') return askStep(supabase, brand, user, 'REG_NAME');
     if (code.startsWith('REGION::')) {
       const region = code.slice(8);
       return done(brand, user, brain.buildDealerList(region), [{ title: '↩️ 다른 지역', code: 'CAT_OTHER' }, { title: '🏠 처음으로', code: 'RESTART' }]);
@@ -456,11 +450,8 @@ async function handleFlow(supabase, brand, user, input, state) {
       d.product_name = input;
       return askStep(supabase, brand, user, 'REG_SYMPTOM', d);
     case 'REG_SYMPTOM': {
-      d.symptom = input;
-      // 닉네임은 clearState 를 거쳐도 남지만, 순서를 헷갈리지 않게 지우기 전에 읽는다
-      const nickname = await getNickname(supabase, user).catch(() => '');
-      await clearState(supabase, user);
-      const res = await callFn('chatbot-register-service', { method: 'POST', user, body: { name: d.name, phone: d.phone, product_name: d.product_name, symptom: d.symptom, brand, nickname } });
+      d.symptom = input; await clearState(supabase, user);
+      const res = await callFn('chatbot-register-service', { method: 'POST', user, body: { name: d.name, phone: d.phone, product_name: d.product_name, symptom: d.symptom, brand } });
       if (!res.success) return done(brand, user, `접수 중 오류가 발생했습니다: ${res.error || '잠시 후 다시 시도'}`, POST_MENU);
       return done(brand, user, `✅ A/S 접수 완료\n접수번호: ${res.service_id}\n담당자 확인 후 연락드리겠습니다.`, POST_MENU);
     }
