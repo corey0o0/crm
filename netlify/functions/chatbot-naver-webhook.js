@@ -106,11 +106,14 @@ exports.handler = async (event) => {
     console.log(`[open] brand=${brand} 마지막활동=${lastAt ? Math.round(gap / 1000) + '초전' : '기록없음'} → ${gap < QUIET_MS ? '침묵' : gap < RESUME_MS ? '이어서안내' : '전체인사말'}`);
     if (gap < QUIET_MS) return ok({}); // 최근까지 대화 중 — 창만 다시 연 것이므로 침묵
 
-    const base = gap >= RESUME_MS ? welcomeText(brand) : RESUME_TEXT;
-    // 운영시간 외 안내는 별도 메시지로 보내면 말풍선이 두 개가 되므로 같은 말풍선에 붙인다.
-    // (이 안내는 open 경로에서만 나가므로, 생략해 버리면 재방문 고객은 아예 못 본다)
-    await naverSend(brand, textMessage(user, within ? base : `${base}\n\n${offhoursText(settings)}`, CATEGORIES));
-    if (!within && settings.offhours_image_url) await naverSend(brand, imageMessage(user, settings.offhours_image_url));
+    // 운영시간 외 안내는 전체 인사말일 때만 붙인다. 재방문(짧은 안내)에는 넣지 않는다
+    // — 자주 오는 고객에게 매번 노출돼 인사가 길어 보이기 때문.
+    // 붙일 때도 별도 메시지가 아니라 같은 말풍선에 이어붙여 말풍선 수를 늘리지 않는다.
+    const isWelcome = gap >= RESUME_MS;
+    const showOffhours = isWelcome && !within;
+    const base = isWelcome ? welcomeText(brand) : RESUME_TEXT;
+    await naverSend(brand, textMessage(user, showOffhours ? `${base}\n\n${offhoursText(settings)}` : base, CATEGORIES));
+    if (showOffhours && settings.offhours_image_url) await naverSend(brand, imageMessage(user, settings.offhours_image_url));
     return ok({});
   }
 
