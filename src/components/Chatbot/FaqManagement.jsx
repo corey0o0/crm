@@ -17,6 +17,7 @@ import {
   Search as SearchIcon,
   Clear as ClearIcon,
   Campaign as CampaignIcon,
+  Image as ImageIcon,
 } from '@mui/icons-material';
 import InputAdornment from '@mui/material/InputAdornment';
 import { supabase } from '../../lib/supabaseClient';
@@ -56,6 +57,7 @@ export default function FaqManagement() {
   const [deleteDialog, setDeleteDialog] = useState({ open: false, id: null });
   const [form, setForm] = useState(EMPTY_FORM);
   const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [activeFilter, setActiveFilter] = useState('all');
@@ -176,9 +178,9 @@ export default function FaqManagement() {
   // ── 첨부 이미지 업로드 (Supabase Storage: chatbot 공개 버킷) ──
   // 고객이 눈으로 확인해야 하는 안내(커넥터 위치·설치 방법 등)에만 쓴다.
   // 네이버 톡톡이 이 URL을 직접 받아가므로 반드시 공개 버킷이어야 한다.
-  const handleImageUpload = async (e) => {
-    const files = Array.from(e.target.files || []);
-    e.target.value = ''; // 같은 파일을 다시 골라도 onChange 가 뜨도록 초기화
+  // 파일 고르기 / 붙여넣기(Ctrl+V) / 드래그&드롭 이 모두 이 함수를 거친다
+  const uploadImages = async (fileList) => {
+    const files = Array.from(fileList || []).filter(f => f && f.type.startsWith('image/'));
     if (!files.length) return;
     const room = FAQ_IMAGE_MAX - (form.images || []).length;
     if (room <= 0) { showMsg(`이미지는 최대 ${FAQ_IMAGE_MAX}장까지 첨부할 수 있습니다.`, 'warning'); return; }
@@ -186,17 +188,44 @@ export default function FaqManagement() {
     setUploading(true);
     const added = [];
     for (const file of files.slice(0, room)) {
-      if (!file.type.startsWith('image/')) { showMsg(`${file.name}: 이미지 파일이 아닙니다.`, 'warning'); continue; }
-      // 한글·공백 파일명이 URL에서 깨지지 않도록 확장자만 남기고 새 이름을 만든다
-      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+      // 한글·공백 파일명이 URL에서 깨지지 않도록 확장자만 남기고 새 이름을 만든다.
+      // 붙여넣기로 들어온 파일은 이름이 없을 수 있어 MIME 타입에서 확장자를 얻는다.
+      const fromName = (file.name || '').split('.').pop();
+      const fromMime = (file.type || '').split('/').pop();
+      const ext = String(fromName && fromName !== file.name ? fromName : fromMime || 'png')
+        .toLowerCase().replace(/[^a-z0-9]/g, '') || 'png';
       const path = `faq/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
       const { error } = await supabase.storage.from('chatbot').upload(path, file, { cacheControl: '31536000', upsert: false });
-      if (error) { showMsg(`${file.name} 업로드 실패: ${error.message}`, 'error'); continue; }
+      if (error) { showMsg(`${file.name || '이미지'} 업로드 실패: ${error.message}`, 'error'); continue; }
       added.push(supabase.storage.from('chatbot').getPublicUrl(path).data.publicUrl);
     }
     if (added.length) setForm(p => ({ ...p, images: [...(p.images || []), ...added] }));
     setUploading(false);
     if (files.length > room) showMsg(`최대 ${FAQ_IMAGE_MAX}장까지만 첨부됩니다.`, 'info');
+  };
+
+  const handleImageUpload = (e) => {
+    const files = e.target.files;
+    uploadImages(files);
+    e.target.value = ''; // 같은 파일을 다시 골라도 onChange 가 뜨도록 초기화
+  };
+
+  // 캡처한 화면을 바로 Ctrl+V 로 붙여넣을 수 있게 한다.
+  // 답변 입력칸에서 텍스트를 붙여넣는 경우까지 가로채지 않도록 이미지일 때만 처리한다.
+  const handleImagePaste = (e) => {
+    const files = Array.from(e.clipboardData?.items || [])
+      .filter(it => it.kind === 'file' && it.type.startsWith('image/'))
+      .map(it => it.getAsFile())
+      .filter(Boolean);
+    if (!files.length) return;
+    e.preventDefault();
+    uploadImages(files);
+  };
+
+  const handleImageDrop = (e) => {
+    e.preventDefault();
+    setDragOver(false);
+    uploadImages(e.dataTransfer?.files);
   };
 
   // 목록에서만 빼고 스토리지 파일은 지우지 않는다 — 저장을 취소할 수도 있고,
@@ -365,6 +394,11 @@ export default function FaqManagement() {
                             <Chip icon={<CampaignIcon fontSize="small" />} label="공지" size="small" color="warning" />
                           )}
                           <Typography variant="body2" fontWeight="bold">{faq.label}</Typography>
+                          {(faq.images || []).length > 0 && (
+                            <Tooltip title={`첨부 사진 ${faq.images.length}장`}>
+                              <Chip icon={<ImageIcon fontSize="small" />} label={faq.images.length} size="small" variant="outlined" />
+                            </Tooltip>
+                          )}
                         </Box>
                       </TableCell>
                       <TableCell>
@@ -636,7 +670,18 @@ export default function FaqManagement() {
                 label="공지사항"
               />
             </Stack>
-            <Box>
+            <Box
+              onPaste={handleImagePaste}
+              onDrop={handleImageDrop}
+              onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              sx={{
+                p: 1.5, borderRadius: 1, border: '1px dashed',
+                borderColor: dragOver ? 'primary.main' : 'divider',
+                bgcolor: dragOver ? 'action.hover' : 'transparent',
+                transition: 'background-color .15s, border-color .15s',
+              }}
+            >
               <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
                 <Typography variant="subtitle2">첨부 이미지</Typography>
                 <Typography variant="caption" color="text.secondary">
@@ -646,6 +691,7 @@ export default function FaqManagement() {
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
                 커넥터 위치·설치 방법처럼 고객이 직접 눈으로 확인해야 하는 안내에만 넣어주세요.
                 톡톡에서는 사진 1장이 말풍선 1개로 나갑니다.
+                <b> 이 영역에 Ctrl+V 로 붙여넣거나 파일을 끌어다 놓아도 됩니다.</b>
               </Typography>
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 1 }}>
                 {(form.images || []).map(url => (
