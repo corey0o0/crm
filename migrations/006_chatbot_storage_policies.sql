@@ -1,4 +1,9 @@
--- chatbot 스토리지 버킷 접근 정책 (FAQ 첨부 이미지용)
+-- [사용 안 함] chatbot 스토리지 버킷 접근 정책 (FAQ 첨부 이미지용)
+--
+-- FAQ 첨부 이미지 저장소를 Supabase Storage 대신 Cloudflare R2 로 바꾸면서
+-- (CRM 의 다른 첨부와 동일한 경로) 이 정책은 더 이상 쓰이지 않는다.
+-- 이미 실행했다면 그대로 두어도 무해하다. 기록용으로 남긴다.
+--
 -- 실행: Supabase Dashboard → SQL Editor
 --
 -- 버킷은 API(service_role)로 생성했는데, service_role 은 RLS 를 우회하므로

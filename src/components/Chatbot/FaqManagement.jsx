@@ -21,6 +21,7 @@ import {
 } from '@mui/icons-material';
 import InputAdornment from '@mui/material/InputAdornment';
 import { supabase } from '../../lib/supabaseClient';
+import { uploadFileToR2 } from '../../utils/cloudflareR2Utils';
 import { format } from 'date-fns';
 import ChatbotSettings from './ChatbotSettings';
 
@@ -178,7 +179,8 @@ export default function FaqManagement() {
   // ── 첨부 이미지 업로드 (Supabase Storage: chatbot 공개 버킷) ──
   // 고객이 눈으로 확인해야 하는 안내(커넥터 위치·설치 방법 등)에만 쓴다.
   // 네이버 톡톡이 이 URL을 직접 받아가므로 반드시 공개 버킷이어야 한다.
-  // 파일 고르기 / 붙여넣기(Ctrl+V) / 드래그&드롭 이 모두 이 함수를 거친다
+  // 파일 고르기 / 붙여넣기(Ctrl+V) / 드래그&드롭 이 모두 이 함수를 거친다.
+  // 저장소는 CRM 나머지 첨부(A/S·부품·게시판)와 같은 Cloudflare R2 를 쓴다.
   const uploadImages = async (fileList) => {
     const files = Array.from(fileList || []).filter(f => f && f.type.startsWith('image/'));
     if (!files.length) return;
@@ -188,16 +190,19 @@ export default function FaqManagement() {
     setUploading(true);
     const added = [];
     for (const file of files.slice(0, room)) {
-      // 한글·공백 파일명이 URL에서 깨지지 않도록 확장자만 남기고 새 이름을 만든다.
-      // 붙여넣기로 들어온 파일은 이름이 없을 수 있어 MIME 타입에서 확장자를 얻는다.
-      const fromName = (file.name || '').split('.').pop();
-      const fromMime = (file.type || '').split('/').pop();
-      const ext = String(fromName && fromName !== file.name ? fromName : fromMime || 'png')
-        .toLowerCase().replace(/[^a-z0-9]/g, '') || 'png';
-      const path = `faq/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-      const { error } = await supabase.storage.from('chatbot').upload(path, file, { cacheControl: '31536000', upsert: false });
-      if (error) { showMsg(`${file.name || '이미지'} 업로드 실패: ${error.message}`, 'error'); continue; }
-      added.push(supabase.storage.from('chatbot').getPublicUrl(path).data.publicUrl);
+      try {
+        // 네이버 톡톡이 이 URL 을 직접 받아가므로 한글·공백 파일명이 퍼센트 인코딩돼
+        // 문제가 되지 않도록, 올리기 전에 영숫자 이름으로 바꾼다.
+        // 붙여넣은 이미지는 이름이 없을 수 있어 MIME 타입에서 확장자를 얻는다.
+        const dotted = (file.name || '').includes('.');
+        const ext = String(dotted ? file.name.split('.').pop() : (file.type || '').split('/').pop() || 'png')
+          .toLowerCase().replace(/[^a-z0-9]/g, '') || 'png';
+        const safe = new File([file], `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`, { type: file.type });
+        const res = await uploadFileToR2(safe, 'chatbot/faq');
+        if (res?.url) added.push(res.url);
+      } catch (err) {
+        showMsg(`${file.name || '이미지'} 업로드 실패: ${err.message}`, 'error');
+      }
     }
     if (added.length) setForm(p => ({ ...p, images: [...(p.images || []), ...added] }));
     setUploading(false);
