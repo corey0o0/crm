@@ -332,7 +332,7 @@ function kwList(raw) {
   if (s.startsWith('[')) { try { const a = JSON.parse(s); if (Array.isArray(a)) return a; } catch {} }
   return s.split(',');
 }
-function matchFaqs(faqRows, msg, threshold = 1, maxResults = 4) {
+function matchFaqsScored(faqRows, msg, threshold = 1, maxResults = 4) {
   const n = normalizeInput(msg);
   const scored = [];
   for (const f of (faqRows || [])) {
@@ -342,7 +342,11 @@ function matchFaqs(faqRows, msg, threshold = 1, maxResults = 4) {
     if (score >= threshold) scored.push({ f, score });
   }
   scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, maxResults).map((r) => r.f);
+  return scored.slice(0, maxResults);
+}
+
+function matchFaqs(faqRows, msg, threshold = 1, maxResults = 4) {
+  return matchFaqsScored(faqRows, msg, threshold, maxResults).map((r) => r.f);
 }
 
 module.exports = {
@@ -352,5 +356,5 @@ module.exports = {
   TIRE_INFO, lookupTire, buildTireAnswer,
   DEALER_INFO, NB_DEALERS, dealerRegions, buildDealerList,
   PLACE_ALIASES, findDealersByPlace, buildNearbyDealerAnswer,
-  matchFaqs,
+  matchFaqs, matchFaqsScored,
 };

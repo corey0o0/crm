@@ -5,7 +5,7 @@
 // 비즈니스 로직(주문/AS/등록)은 기존 함수 내부 HTTP 재사용, 대화 두뇌는 _chatbot_brain.
 //
 const { getSupabase, checkRateLimit, logRequest } = require('./_chatbot_utils');
-const { textMessage, naverSend, typing, getState, setState, clearState, getHistory, appendHistory, clearHistory, passThread, takeThread, setHandover, isHandover, touchSession, profileRequest, getNickname, markOffNotice, getOffNoticeAt } = require('./_naver_utils');
+const { textMessage, imageMessage, naverSend, typing, getState, setState, clearState, getHistory, appendHistory, clearHistory, passThread, takeThread, setHandover, isHandover, touchSession, profileRequest, getNickname, markOffNotice, getOffNoticeAt } = require('./_naver_utils');
 const { getSettings, isWithinHours, offhoursText } = require('./_chatbot_settings');
 const brain = require('./_chatbot_brain');
 
@@ -108,8 +108,8 @@ async function logFaqUse(supabase, brand, user, label, answer) {
 
 async function loadFaqs(supabase, brand) {
   const today = new Date().toISOString().slice(0, 10);
-  const { data } = await supabase.from('faq_items')
-    .select('label, keywords, answer, is_announcement')
+  const query = (cols) => supabase.from('faq_items')
+    .select(cols)
     .in('brand', ['SHARED', (brain.BRAND_META[brand] || {}).dbBrand || 'NB'])
     .eq('is_active', true)
     .or(`start_date.is.null,start_date.lte.${today}`)
@@ -117,7 +117,16 @@ async function loadFaqs(supabase, brand) {
     // id 까지 정렬해 순서를 고정한다 — 지식 문자열이 매번 같아야 프롬프트 캐시가 적중한다
     .order('is_announcement', { ascending: false })
     .order('id', { ascending: true });
-  return data || [];
+
+  const { data, error } = await query('label, keywords, answer, is_announcement, images');
+  if (!error) return data || [];
+
+  // images 는 migrations/005 로 추가되는 컬럼이다. 마이그레이션 전에 이 코드가 먼저 배포되면
+  // 컬럼이 없어 조회 전체가 실패하고, 그러면 챗봇이 FAQ 지식을 통째로 잃는다.
+  // 첨부 이미지 없이라도 답변은 나가야 하므로 컬럼 없이 한 번 더 조회한다.
+  console.error('[faq] images 컬럼 조회 실패 — 컬럼 없이 재시도:', error.message);
+  const { data: fallback } = await query('label, keywords, answer, is_announcement');
+  return fallback || [];
 }
 
 // RAG LLM — FAQ 전체를 지식으로 주고, 사람 상담원처럼 맥락(history) 이어 자연스럽게 답변
@@ -154,9 +163,44 @@ async function withOffhoursNotice(supabase, brand, user, text) {
 }
 
 const send = (brand, user, text, quick) => naverSend(brand, textMessage(user, text, quick));
-async function done(brand, user, text, quick) {
+
+// ── FAQ 첨부 이미지 ──
+// 고객이 직접 눈으로 확인해야 하는 안내(커넥터 위치, 설치 방법 등)에만 채워 쓴다.
+// 톡톡은 이미지 1장이 말풍선 1개라 답변당 최대 3장까지만 보낸다.
+const FAQ_IMAGE_MAX = 3;
+// AI 답변에 이미지를 붙일지 정하는 기준.
+// 실제 고객 문장은 "전원이 안들어와요"처럼 키워드가 하나만 걸리는 경우가 많아
+// 2점을 요구하면 정작 사진이 필요한 질문에 안 붙는다. 그렇다고 1점을 무조건 허용하면
+// 애매하게 걸친 FAQ의 사진이 나갈 수 있어, 2점 이상이거나 2위보다 확실히 앞설 때만 붙인다.
+const FAQ_IMAGE_MIN_SCORE = 2;
+
+// 첨부 이미지를 붙여도 될 만큼 이 FAQ가 질문에 확실히 맞는가
+function pickImageFaq(faqs, msg) {
+  const scored = brain.matchFaqsScored(faqs, msg, 1, 2);
+  const top = scored[0];
+  if (!top) return null;
+  const clear = top.score >= FAQ_IMAGE_MIN_SCORE || !scored[1] || top.score > scored[1].score;
+  return clear ? top : null;
+}
+
+const faqImages = (faq) =>
+  (Array.isArray(faq && faq.images) ? faq.images : [])
+    .map((s) => String(s || '').trim())
+    .filter((s) => /^https:\/\//.test(s))
+    .slice(0, FAQ_IMAGE_MAX);
+
+// 텍스트를 보낸 뒤 이미지를 이어서 보낸다. 이미지 전송이 실패해도 답변은 이미 나간 상태.
+async function sendImages(brand, user, images) {
+  for (const url of images) {
+    const r = await naverSend(brand, imageMessage(user, url));
+    if (!r.ok) console.error('[faq-image] 전송 실패:', url, r.error || '');
+  }
+}
+
+async function done(brand, user, text, quick, images) {
   await naverSend(brand, typing(user, false));
   await send(brand, user, text, quick);
+  if (images && images.length) await sendImages(brand, user, images);
   return { statusCode: 200, body: '' };
 }
 
@@ -257,7 +301,7 @@ exports.handler = async (event) => {
       if (hit) {
         // 어떤 FAQ 가 실제로 쓰였는지 남긴다 (관리자 화면 사용 횟수 집계용)
         await logFaqUse(supabase, brand, user, label, hit.answer);
-        return done(brand, user, hit.answer, POST_MENU);
+        return done(brand, user, hit.answer, POST_MENU, faqImages(hit));
       }
     }
 
@@ -310,8 +354,14 @@ exports.handler = async (event) => {
     const answer = await ragLlm(brand, input, faqs, user, history);
     await appendHistory(supabase, user, [{ role: 'user', content: input }, { role: 'assistant', content: answer }]);
     await logRequest(supabase, `naver:${user}`, brand, 'chat');
+    // 고객이 직접 확인해야 하는 안내는 사진이 있어야 이해되므로, 질문과 충분히 맞는
+    // FAQ에 첨부 이미지가 있으면 답변 뒤에 같이 보낸다.
+    // LLM 답변은 어느 FAQ를 썼는지 알려주지 않으므로 키워드 점수로 따로 판정한다.
+    const top = pickImageFaq(faqs, input);
+    const images = top ? faqImages(top.f) : [];
+    if (images.length) console.log(`[faq-image] label=${top.f.label} score=${top.score} 장수=${images.length}`);
     // 대화 이력에는 안내 문구를 빼고 순수 답변만 남긴다(맥락 오염 방지)
-    return done(brand, user, await withOffhoursNotice(supabase, brand, user, answer), POST_MENU);
+    return done(brand, user, await withOffhoursNotice(supabase, brand, user, answer), POST_MENU, images);
   } catch (e) {
     console.error('[naver-worker] 예외:', e.message);
     return done(brand, user, '죄송합니다, 잠시 후 다시 시도해 주세요.\n계속 문제가 있으면 [A/S 접수]를 남겨주시면 담당자가 확인해 드립니다.', POST_MENU);

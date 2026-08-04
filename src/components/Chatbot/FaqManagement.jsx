@@ -37,7 +37,11 @@ const EMPTY_FORM = {
   is_announcement: false,
   start_date: '',
   end_date: '',
+  images: [],
 };
+
+// 톡톡은 이미지 1장이 말풍선 1개라, 답변당 전송 장수를 제한한다 (worker 의 FAQ_IMAGE_MAX 와 동일)
+const FAQ_IMAGE_MAX = 3;
 
 export default function FaqManagement() {
   const [tabValue, setTabValue] = useState(0);
@@ -51,6 +55,7 @@ export default function FaqManagement() {
   const [editDialog, setEditDialog] = useState({ open: false, item: null });
   const [deleteDialog, setDeleteDialog] = useState({ open: false, id: null });
   const [form, setForm] = useState(EMPTY_FORM);
+  const [uploading, setUploading] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [activeFilter, setActiveFilter] = useState('all');
@@ -162,11 +167,41 @@ export default function FaqManagement() {
   // ── 편집 다이얼로그 열기 ──
   const openEdit = (item = null) => {
     setForm(item
-      ? { ...item, keywords: (item.keywords || []).join(', '), start_date: item.start_date || '', end_date: item.end_date || '' }
+      ? { ...item, keywords: (item.keywords || []).join(', '), start_date: item.start_date || '', end_date: item.end_date || '', images: Array.isArray(item.images) ? item.images : [] }
       : EMPTY_FORM
     );
     setEditDialog({ open: true, item });
   };
+
+  // ── 첨부 이미지 업로드 (Supabase Storage: chatbot 공개 버킷) ──
+  // 고객이 눈으로 확인해야 하는 안내(커넥터 위치·설치 방법 등)에만 쓴다.
+  // 네이버 톡톡이 이 URL을 직접 받아가므로 반드시 공개 버킷이어야 한다.
+  const handleImageUpload = async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = ''; // 같은 파일을 다시 골라도 onChange 가 뜨도록 초기화
+    if (!files.length) return;
+    const room = FAQ_IMAGE_MAX - (form.images || []).length;
+    if (room <= 0) { showMsg(`이미지는 최대 ${FAQ_IMAGE_MAX}장까지 첨부할 수 있습니다.`, 'warning'); return; }
+
+    setUploading(true);
+    const added = [];
+    for (const file of files.slice(0, room)) {
+      if (!file.type.startsWith('image/')) { showMsg(`${file.name}: 이미지 파일이 아닙니다.`, 'warning'); continue; }
+      // 한글·공백 파일명이 URL에서 깨지지 않도록 확장자만 남기고 새 이름을 만든다
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+      const path = `faq/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error } = await supabase.storage.from('chatbot').upload(path, file, { cacheControl: '31536000', upsert: false });
+      if (error) { showMsg(`${file.name} 업로드 실패: ${error.message}`, 'error'); continue; }
+      added.push(supabase.storage.from('chatbot').getPublicUrl(path).data.publicUrl);
+    }
+    if (added.length) setForm(p => ({ ...p, images: [...(p.images || []), ...added] }));
+    setUploading(false);
+    if (files.length > room) showMsg(`최대 ${FAQ_IMAGE_MAX}장까지만 첨부됩니다.`, 'info');
+  };
+
+  // 목록에서만 빼고 스토리지 파일은 지우지 않는다 — 저장을 취소할 수도 있고,
+  // 같은 파일을 다른 FAQ가 쓰고 있을 수도 있어서.
+  const removeImage = (url) => setForm(p => ({ ...p, images: (p.images || []).filter(u => u !== url) }));
 
   // ── AI 제안 실행 ──
   const runEnhance = async () => {
@@ -601,6 +636,40 @@ export default function FaqManagement() {
                 label="공지사항"
               />
             </Stack>
+            <Box>
+              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+                <Typography variant="subtitle2">첨부 이미지</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  (선택, 최대 {FAQ_IMAGE_MAX}장 · 답변 뒤에 사진으로 전송됩니다)
+                </Typography>
+              </Stack>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                커넥터 위치·설치 방법처럼 고객이 직접 눈으로 확인해야 하는 안내에만 넣어주세요.
+                톡톡에서는 사진 1장이 말풍선 1개로 나갑니다.
+              </Typography>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 1 }}>
+                {(form.images || []).map(url => (
+                  <Box key={url} sx={{ position: 'relative', width: 96, height: 96 }}>
+                    <Box component="img" src={url} alt=""
+                      sx={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 1, border: '1px solid', borderColor: 'divider' }} />
+                    <IconButton size="small" onClick={() => removeImage(url)}
+                      sx={{ position: 'absolute', top: -8, right: -8, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', '&:hover': { bgcolor: 'error.light' } }}>
+                      <ClearIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                ))}
+              </Stack>
+              <Button
+                component="label"
+                size="small"
+                variant="outlined"
+                startIcon={uploading ? <CircularProgress size={16} /> : <AddIcon />}
+                disabled={uploading || (form.images || []).length >= FAQ_IMAGE_MAX}
+              >
+                {uploading ? '업로드 중…' : '이미지 추가'}
+                <input hidden type="file" accept="image/*" multiple onChange={handleImageUpload} />
+              </Button>
+            </Box>
             {form.is_announcement && (
               <Stack direction="row" spacing={2}>
                 <TextField
