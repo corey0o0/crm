@@ -166,7 +166,7 @@ const NB_DEALERS = {
     { name: '가나스포츠 덕정점', phone: '010-6644-1965', address: '양주시 독바위로 5' },
     { name: '109모빌리티(일산점)', phone: '010-8113-1091', address: '고양시 일산서구 대화동 2030-1' },
     { name: '자탄풍라운지', phone: '010-2614-3134', address: '의정부시 송현로82번길 69' },
-    { name: '바이시클 스토리지(파주)', phone: '010-4277-3732', address: '파주시 운정로 78-30' },
+    { name: '바이시클 스토리지(파주)', phone: '010-4277-3732', address: '파주시 운정로 78-30, 3동' },
     { name: '에이벡 남양주오남점', phone: '010-2324-2199', address: '남양주시 오남읍 경복대로17번안길 7-1' },
   ],
   '경기남부': [
@@ -355,7 +355,9 @@ function matchFaqsScored(faqRows, msg, threshold = 1, maxResults = 4) {
   const n = normalizeInput(msg);
   const scored = [];
   for (const f of (faqRows || [])) {
-    const kws = kwList(f.keywords).map((k) => squash(k)).filter(Boolean);
+    // 정규화하면 같아지는 키워드("카고LT"·"카고lt")를 중복으로 세면 점수가 부풀려져
+    // 엉뚱한 FAQ 가 1위가 된다. 중복은 한 번만 센다.
+    const kws = [...new Set(kwList(f.keywords).map((k) => squash(k)).filter(Boolean))];
     let score = 0;
     for (const kw of kws) if (n.includes(kw)) score++;
     if (score >= threshold) scored.push({ f, score });
