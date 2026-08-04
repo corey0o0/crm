@@ -14,20 +14,14 @@
 // → 여기서는 즉시 200 ACK만 하고, 무거운 처리(FAQ/LLM/조회)는 백그라운드 함수로 위임한다.
 //
 const { getSupabase, ok, err } = require('./_chatbot_utils');
-const { textMessage, imageMessage, naverSend, setHandover, isHandover, getLastActivityAt, clearState, isOwnBotText, setNickname } = require('./_naver_utils');
-const { getSettings, isWithinHours, isNaverEnabled } = require('./_chatbot_settings');
+const { textMessage, imageMessage, naverSend, setHandover, isHandover, getLastActivityAt, clearState, isOwnBotText, setNickname, markOffNotice } = require('./_naver_utils');
+const { getSettings, isWithinHours, isNaverEnabled, offhoursText } = require('./_chatbot_settings');
 
 // 톡톡은 채팅창에 들어올 때마다 open 을 보내므로, 마지막 대화로부터 얼마나 지났는지에 따라
 // 세 단계로 나눈다. 창을 잠깐 닫았다 연 경우까지 매번 인사하면 대화가 끊겨 보인다.
 const QUIET_MS  = 12 * 60 * 60 * 1000;      // 12시간 — 같은 날 들락거리는 정도는 아무것도 보내지 않음
 const RESUME_MS = 30 * 24 * 60 * 60 * 1000; // 30일 — 인사말은 생략하고 메뉴만 다시 안내
 const RESUME_TEXT = '이어서 도와드릴게요. 아래 메뉴를 선택하시거나 궁금한 점을 입력해 주세요.';
-
-// 운영시간 외 안내 문구. 예전에는 인사말과 별개 메시지로 보냈는데 입장할 때마다
-// 말풍선이 두 개씩 떠서, 지금은 인사말 뒤에 이어 붙여 한 번에 내보낸다.
-function offhoursText(s) {
-  return s.offhours_message || '지금은 AI 상담 시간입니다 🤖\n궁금한 점을 입력해 주시면 바로 답변해 드릴게요.\n보다 자세한 확인이 필요하시면 [A/S 접수]를 이용해 주세요.\n접수 내용은 평일(월~금) 09:00~18:00에 확인 후 순차적으로 연락드리고 있습니다.';
-}
 
 // 빠른응답 버튼 — worker(chatbot-naver-worker-background)의 CATEGORIES 코드와 반드시 일치해야 함
 const CATEGORIES = [
@@ -113,7 +107,11 @@ exports.handler = async (event) => {
     const showOffhours = isWelcome && !within;
     const base = isWelcome ? welcomeText(brand) : RESUME_TEXT;
     await naverSend(brand, textMessage(user, showOffhours ? `${base}\n\n${offhoursText(settings)}` : base, CATEGORIES));
-    if (showOffhours && settings.offhours_image_url) await naverSend(brand, imageMessage(user, settings.offhours_image_url));
+    if (showOffhours) {
+      // 문의 응답(send) 경로에서도 같은 안내를 붙이므로, 바로 뒤에 중복으로 나가지 않게 기록한다
+      await markOffNotice(supabase, user).catch(() => {});
+      if (settings.offhours_image_url) await naverSend(brand, imageMessage(user, settings.offhours_image_url));
+    }
     return ok({});
   }
 

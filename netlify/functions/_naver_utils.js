@@ -127,7 +127,7 @@ async function getState(supabase, user) {
   return data?.state || { step: 'IDLE', data: {} };
 }
 // 대화 단계(step/data)와 무관한 부가 정보. 단계 전환·초기화 때 지워지지 않게 보존한다.
-const STICKY_STATE_KEYS = ['botEcho', 'nickname'];
+const STICKY_STATE_KEYS = ['botEcho', 'nickname', 'offNoticeAt'];
 
 async function setState(supabase, user, state) {
   let next = state;
@@ -190,6 +190,18 @@ async function setNickname(supabase, user, nickname) {
 async function getNickname(supabase, user) {
   const st = await getState(supabase, user);
   return (st && st.nickname) || '';
+}
+
+// ── 운영시간 외 안내를 마지막으로 보낸 시각 ──
+// 입장(open)과 문의 응답(send) 두 경로에서 모두 붙일 수 있어, 같은 시간대에
+// 중복으로 나가지 않도록 마지막 발송 시각을 공유한다.
+async function markOffNotice(supabase, user) {
+  const st = await getState(supabase, user);
+  await setState(supabase, user, { ...st, offNoticeAt: Date.now() });
+}
+async function getOffNoticeAt(supabase, user) {
+  const st = await getState(supabase, user);
+  return Number(st && st.offNoticeAt) || 0;
 }
 
 // ── 대화 히스토리 (사람처럼 맥락 유지) — state 와 분리된 history 컬럼 ──
@@ -260,6 +272,7 @@ module.exports = {
   passThread, takeThread, profileRequest,
   getState, setState, clearState,
   setNickname, getNickname,
+  markOffNotice, getOffNoticeAt,
   getHistory, appendHistory, clearHistory,
   getLastActivityAt, touchSession,
   setHandover, isHandover,

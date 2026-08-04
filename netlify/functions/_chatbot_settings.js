@@ -62,6 +62,10 @@ function isWithinHours(s) {
   return hm >= start || hm < end; // 자정 넘김
 }
 
+// 운영시간 외 안내 문구 (설정값 우선, 없으면 기본값)
+// 별도 메시지로 보내면 말풍선이 늘어나므로 호출부에서 본문 뒤에 이어붙여 쓴다.
+const offhoursText = (s) => (s && s.offhours_message) || DEFAULTS.offhours_message;
+
 // 네이버 톡톡이 활성인지 — 마스터 ON 이면서 톡톡 토글도 ON 일 때만
 function isNaverEnabled(s) {
   const set = { ...DEFAULTS, ...(s || {}) };
@@ -82,4 +86,4 @@ async function fireWebhook(url, payload) {
   }
 }
 
-module.exports = { DEFAULTS, dbBrandOf, serviceBrandOf, getSettings, nowKST, isWithinHours, isNaverEnabled, fireWebhook };
+module.exports = { DEFAULTS, dbBrandOf, serviceBrandOf, getSettings, nowKST, isWithinHours, isNaverEnabled, offhoursText, fireWebhook };

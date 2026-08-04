@@ -5,7 +5,8 @@
 // 비즈니스 로직(주문/AS/등록)은 기존 함수 내부 HTTP 재사용, 대화 두뇌는 _chatbot_brain.
 //
 const { getSupabase, checkRateLimit, logRequest } = require('./_chatbot_utils');
-const { textMessage, naverSend, typing, getState, setState, clearState, getHistory, appendHistory, clearHistory, passThread, takeThread, setHandover, isHandover, touchSession, profileRequest, getNickname } = require('./_naver_utils');
+const { textMessage, naverSend, typing, getState, setState, clearState, getHistory, appendHistory, clearHistory, passThread, takeThread, setHandover, isHandover, touchSession, profileRequest, getNickname, markOffNotice, getOffNoticeAt } = require('./_naver_utils');
+const { getSettings, isWithinHours, offhoursText } = require('./_chatbot_settings');
 const brain = require('./_chatbot_brain');
 
 const base = () => process.env.URL || process.env.DEPLOY_PRIME_URL || '';
@@ -132,6 +133,26 @@ async function ragLlm(brand, message, faqs, user, history) {
   return (res && res.reply) || '죄송해요, 잠시 후 다시 시도해 주세요. 계속 안 되면 아래 [A/S 접수]를 남겨주시면 담당자가 확인해 드릴게요.';
 }
 
+// 운영시간 외 안내를 답변 뒤에 덧붙인다.
+// 입장 인사(open)에서는 신규·오랜만 방문에만 붙이므로, 자주 오는 고객은 그 안내를
+// 볼 일이 없다. 그래서 실제로 문의를 보냈을 때 한 번 알려준다.
+// 매 답변마다 붙으면 지저분하므로 마지막 발송 후 OFF_NOTICE_TTL_MS 안에는 생략한다.
+const OFF_NOTICE_TTL_MS = 12 * 60 * 60 * 1000; // 12시간 — 같은 밤에 여러 번 물어도 한 번만
+async function withOffhoursNotice(supabase, brand, user, text) {
+  try {
+    const settings = await getSettings(supabase, brand);
+    if (isWithinHours(settings)) return text;
+    const last = await getOffNoticeAt(supabase, user);
+    if (last && Date.now() - last < OFF_NOTICE_TTL_MS) return text;
+    await markOffNotice(supabase, user);
+    return `${text}\n\n${offhoursText(settings)}`;
+  } catch (e) {
+    // 안내를 못 붙여도 답변 자체는 나가야 한다
+    console.error('[offhours] 안내 덧붙이기 실패:', e.message);
+    return text;
+  }
+}
+
 const send = (brand, user, text, quick) => naverSend(brand, textMessage(user, text, quick));
 async function done(brand, user, text, quick) {
   await naverSend(brand, typing(user, false));
@@ -154,7 +175,12 @@ const wantsAgent = (s) => /(상담원|상담사|상담직원|채팅상담)/.test
 async function goAgent(supabase, brand, user) {
   await clearState(supabase, user);
   await naverSend(brand, typing(user, false));
-  await send(brand, user, '상담원에게 연결해 드릴게요 🙂\n잠시만 기다려 주시면 순차적으로 답변드립니다. (연결 중에는 챗봇이 응답하지 않아요)');
+  // 운영시간 외에 "잠시만 기다려 주세요"라고만 하면 곧 답이 올 것처럼 읽히므로 문구를 나눈다
+  const settings = await getSettings(supabase, brand).catch(() => ({}));
+  const wait = isWithinHours(settings)
+    ? '접수된 순서대로 순차적으로 처리하고 있어요.\n잠시만 기다려 주시면 담당자가 확인 후 답변드리겠습니다 🙏'
+    : '지금은 상담 운영시간이 아니라 바로 확인이 어려워요.\n남겨주신 내용은 다음 영업일에 순서대로 확인 후 답변드리겠습니다 🙏';
+  await send(brand, user, `상담원에게 연결해 드릴게요 🙂\n${wait}\n\n※ 연결 중에는 챗봇이 응답하지 않습니다. 궁금하신 내용을 미리 남겨두시면 함께 확인해 드릴게요.`);
   await setHandover(supabase, user, true);
   await naverSend(brand, passThread(user, 1));
   return { statusCode: 200, body: '' };
@@ -284,7 +310,8 @@ exports.handler = async (event) => {
     const answer = await ragLlm(brand, input, faqs, user, history);
     await appendHistory(supabase, user, [{ role: 'user', content: input }, { role: 'assistant', content: answer }]);
     await logRequest(supabase, `naver:${user}`, brand, 'chat');
-    return done(brand, user, answer, POST_MENU);
+    // 대화 이력에는 안내 문구를 빼고 순수 답변만 남긴다(맥락 오염 방지)
+    return done(brand, user, await withOffhoursNotice(supabase, brand, user, answer), POST_MENU);
   } catch (e) {
     console.error('[naver-worker] 예외:', e.message);
     return done(brand, user, '죄송합니다, 잠시 후 다시 시도해 주세요.\n계속 문제가 있으면 [A/S 접수]를 남겨주시면 담당자가 확인해 드립니다.', POST_MENU);
