@@ -19,7 +19,7 @@ const TIRE_INTENT    = ['펑크', '타이어교체', '타이어 교체', '타이
 const DEALER_INTENT  = ['대리점', '판매점', '판매처', '구매처', '가맹점', '어디서살', '어디서구매', '근처매장', '가까운매장', '오프라인'];
 // EXACT 는 문장 전체가 그것일 때만 인사로 본다("하이브리드", "안녕히계세요" 오인식 방지)
 const GREETING_EXACT = new Set(['hi', 'hello', '헬로', '하이', '안녕', 'ㅎㅇ', '처음']);
-const GREETING_PREFIXES = ['안녕하', '반갑', '잘부탁', '처음이에', '처음입', '처음왔', '처음방문'];
+const GREETING_PREFIXES = ['안녕하', '반갑', '반가워', '잘부탁', '처음이에', '처음입', '처음왔', '처음방문'];
 const CANCEL_SIGNALS = ['취소', '그만', '중단', '돌아가', '처음으로', '메인으로', '안할게', '그만할게', '그냥둬', '됐어'];
 
 const squash = (s) => String(s || '').toLowerCase().replace(/\s/g, '');
@@ -49,10 +49,29 @@ const detectService = (msg) => SERVICE_INTENT.some((kw) => squash(msg).includes(
 const detectTire    = (msg) => TIRE_INTENT.some((kw) => squash(msg).includes(squash(kw)));
 const detectDealer  = (msg) => DEALER_INTENT.some((kw) => squash(msg).includes(squash(kw)));
 const isCancel      = (msg) => CANCEL_SIGNALS.some((kw) => squash(msg).includes(kw));
-const isGreeting    = (msg) => {
-  const normalized = squash(msg).replace(/[!?.,~]+$/g, '');
-  return GREETING_EXACT.has(normalized)
-    || GREETING_PREFIXES.some((prefix) => normalized.startsWith(prefix));
+// 인사말 뒤에 붙은 어미. 인사만 하고 끝났는지 판단할 때 떼어낸다.
+const GREETING_ENDINGS = [
+  '드립니다', '드려요', '습니다', '읍니다', '입니다', '십니까', '이에요', '이예요', '있어요',
+  '했어요', '왔어요', '합니다', '세요', '셔요', '예요', '에요', '어요', '니다', '해요', '이요',
+  '요', '용', '염', '넹', '네', '임', '함',
+];
+
+// "안녕하세요" 처럼 인사만 한 경우에만 true.
+// 예전에는 인사말로 "시작"하기만 하면 true 라서, "안녕하세요 ○○ 문의드립니다" 같은
+// 실제 문의가 인사로 처리돼 환영 메뉴만 반복되고 답변을 못 받았다.
+const isGreeting = (msg) => {
+  const normalized = squash(msg).replace(/[!?.,~^ㅎㅋ]+$/g, '');
+  if (!normalized) return false;
+  if (GREETING_EXACT.has(normalized)) return true;
+  return GREETING_PREFIXES.some((prefix) => {
+    if (!normalized.startsWith(prefix)) return false;
+    let rest = normalized.slice(prefix.length);
+    const ending = GREETING_ENDINGS.find((e) => rest.startsWith(e));
+    if (ending) rest = rest.slice(ending.length);
+    // 어미를 뗀 뒤 아무것도 안 남으면 순수 인사.
+    // "안녕하세요 반갑습니다" 처럼 인사가 이어지는 경우도 있어 남은 부분을 다시 본다.
+    return rest === '' || isGreeting(rest);
+  });
 };
 
 // ── 타이어/튜브 ──

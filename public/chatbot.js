@@ -536,10 +536,27 @@
   // EXACT 는 문장 전체가 그것일 때만 인사로 본다. 부분 일치로 검사하면
   // "하이브리드 자전거 있나요?"의 '하이', "처음부터 다시"의 '처음'까지 인사로 오인식된다.
   const GREETING_EXACT = ['hi', 'hello', '헬로', '하이', '안녕', 'ㅎㅇ', '처음'];
-  const GREETING_PREFIXES = ['안녕하', '반갑', '잘부탁', '처음이에', '처음입', '처음왔', '처음방문'];
+  const GREETING_PREFIXES = ['안녕하', '반갑', '반가워', '잘부탁', '처음이에', '처음입', '처음왔', '처음방문'];
+  // 인사말 뒤에 붙는 어미. 인사만 하고 끝났는지 판단할 때 떼어낸다.
+  const GREETING_ENDINGS = [
+    '드립니다', '드려요', '습니다', '읍니다', '입니다', '십니까', '이에요', '이예요', '있어요',
+    '했어요', '왔어요', '합니다', '세요', '셔요', '예요', '에요', '어요', '니다', '해요', '이요',
+    '요', '용', '염', '넹', '네', '임', '함',
+  ];
+  // PREFIX 는 인사만 한 경우에만 인사로 본다. "시작하기만 하면" 인사로 처리하면
+  // "안녕하세요 ○○ 문의드립니다" 같은 실제 문의가 환영 메뉴만 받고 답변을 못 받는다.
   function isGreeting(text) {
-    const n = String(text || '').toLowerCase().replace(/\s/g, '').replace(/[!?.,~]+$/g, '');
-    return GREETING_EXACT.includes(n) || GREETING_PREFIXES.some(p => n.startsWith(p));
+    const n = String(text || '').toLowerCase().replace(/\s/g, '').replace(/[!?.,~^ㅎㅋ]+$/g, '');
+    if (!n) return false;
+    if (GREETING_EXACT.includes(n)) return true;
+    return GREETING_PREFIXES.some(p => {
+      if (!n.startsWith(p)) return false;
+      let rest = n.slice(p.length);
+      const ending = GREETING_ENDINGS.find(e => rest.startsWith(e));
+      if (ending) rest = rest.slice(ending.length);
+      // "안녕하세요 반갑습니다" 처럼 인사가 이어지는 경우도 있어 남은 부분을 다시 본다
+      return rest === '' || isGreeting(rest);
+    });
   }
   const CANCEL_SIGNALS = ['취소', '그만', '중단', '돌아가', '처음으로', '메인으로', '안할게', '그만할게', '그냥둬', '됐어'];
 
