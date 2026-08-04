@@ -19,14 +19,14 @@ const { getSettings, isWithinHours, isNaverEnabled } = require('./_chatbot_setti
 
 // 톡톡은 채팅창에 들어올 때마다 open 을 보내므로, 마지막 대화로부터 얼마나 지났는지에 따라
 // 세 단계로 나눈다. 창을 잠깐 닫았다 연 경우까지 매번 인사하면 대화가 끊겨 보인다.
-const QUIET_MS  = 30 * 60 * 1000;      // 30분 — 방금까지 대화 중. 아무것도 보내지 않음
-const RESUME_MS = 24 * 60 * 60 * 1000; // 24시간 — 인사말은 생략하고 메뉴만 다시 안내
+const QUIET_MS  = 12 * 60 * 60 * 1000;      // 12시간 — 같은 날 들락거리는 정도는 아무것도 보내지 않음
+const RESUME_MS = 30 * 24 * 60 * 60 * 1000; // 30일 — 인사말은 생략하고 메뉴만 다시 안내
 const RESUME_TEXT = '이어서 도와드릴게요. 아래 메뉴를 선택하시거나 궁금한 점을 입력해 주세요.';
 
-// OFF/운영시간 외 안내 전송 (텍스트 + 선택 이미지)
-async function sendOffNotice(brand, user, s) {
-  await naverSend(brand, textMessage(user, s.offhours_message || '지금은 AI 상담 시간입니다 🤖\n궁금한 점을 입력해 주시면 바로 답변해 드릴게요.\n보다 자세한 확인이 필요하시면 [A/S 접수]를 이용해 주세요.\n접수 내용은 평일(월~금) 09:00~18:00에 확인 후 순차적으로 연락드리고 있습니다.'));
-  if (s.offhours_image_url) await naverSend(brand, imageMessage(user, s.offhours_image_url));
+// 운영시간 외 안내 문구. 예전에는 인사말과 별개 메시지로 보냈는데 입장할 때마다
+// 말풍선이 두 개씩 떠서, 지금은 인사말 뒤에 이어 붙여 한 번에 내보낸다.
+function offhoursText(s) {
+  return s.offhours_message || '지금은 AI 상담 시간입니다 🤖\n궁금한 점을 입력해 주시면 바로 답변해 드릴게요.\n보다 자세한 확인이 필요하시면 [A/S 접수]를 이용해 주세요.\n접수 내용은 평일(월~금) 09:00~18:00에 확인 후 순차적으로 연락드리고 있습니다.';
 }
 
 // 빠른응답 버튼 — worker(chatbot-naver-worker-background)의 CATEGORIES 코드와 반드시 일치해야 함
@@ -86,19 +86,31 @@ exports.handler = async (event) => {
   const naverOn = isNaverEnabled(settings); // 마스터 ON && 톡톡 토글 ON
   const within = isWithinHours(settings);
 
-  // open: 입장 인사 (OFF면 완전 무응답, 운영시간 외면 안내 추가)
-  // 마지막 대화로부터 경과 시간에 따라 세 단계로 응대한다.
-  // leave 시 세션이 삭제되므로, 나갔다 다시 들어온 경우에는 신규로 보고 인사한다.
+  // open: 입장 인사 (OFF면 완전 무응답)
+  // 톡톡은 채팅창을 열 때마다 open 을 보내므로, 마지막 활동으로부터 경과 시간에 따라
+  // 침묵 / 짧은 안내 / 전체 인사말 세 단계로 나눈다. 인사가 잦아 보인다는 요청으로
+  // 침묵 구간을 넉넉히(12시간) 잡았고, 운영시간 외 안내도 전체 인사말일 때만 덧붙인다.
   if (evType === 'open') {
     if (!naverOn) return ok({}); // 톡톡 OFF → 아무것도 보내지 않음(완전 무음)
+
+    // 상담원이 응대 중이면 봇이 인사로 끼어들지 않는다.
+    // (send 경로는 worker 에서 막지만 open 은 별도 경로라 여기서 따로 막아야 한다)
+    if (await isHandover(supabase, user).catch(() => false)) {
+      console.log(`[open] 상담원 응대 중 — 침묵 user=${String(user).slice(0, 10)}`);
+      return ok({});
+    }
+
     const lastAt = await getLastActivityAt(supabase, user).catch(() => null);
     const gap = lastAt ? Date.now() - lastAt : Infinity;
     // 인사말이 반복될 때 원인을 바로 알 수 있도록 판단 근거를 남긴다
     console.log(`[open] brand=${brand} 마지막활동=${lastAt ? Math.round(gap / 1000) + '초전' : '기록없음'} → ${gap < QUIET_MS ? '침묵' : gap < RESUME_MS ? '이어서안내' : '전체인사말'}`);
-    if (gap < QUIET_MS) return ok({}); // 방금까지 대화 중 — 창만 다시 연 것이므로 침묵
-    const text = gap < RESUME_MS ? RESUME_TEXT : welcomeText(brand);
-    await naverSend(brand, textMessage(user, text, CATEGORIES));
-    if (!within) await sendOffNotice(brand, user, settings);
+    if (gap < QUIET_MS) return ok({}); // 최근까지 대화 중 — 창만 다시 연 것이므로 침묵
+
+    const base = gap >= RESUME_MS ? welcomeText(brand) : RESUME_TEXT;
+    // 운영시간 외 안내는 별도 메시지로 보내면 말풍선이 두 개가 되므로 같은 말풍선에 붙인다.
+    // (이 안내는 open 경로에서만 나가므로, 생략해 버리면 재방문 고객은 아예 못 본다)
+    await naverSend(brand, textMessage(user, within ? base : `${base}\n\n${offhoursText(settings)}`, CATEGORIES));
+    if (!within && settings.offhours_image_url) await naverSend(brand, imageMessage(user, settings.offhours_image_url));
     return ok({});
   }
 
