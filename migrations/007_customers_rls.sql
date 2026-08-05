@@ -47,3 +47,21 @@ COMMENT ON TABLE public.customers IS
 -- 확인용: 아래를 실행하면 authenticated 4줄만 나와야 한다
 --   SELECT policyname, cmd, roles::text FROM pg_policies
 --   WHERE tablename = 'customers' ORDER BY cmd;
+--
+-- ---------------------------------------------------------------------------
+-- 롤백 (문제가 생기면 이것만 실행하면 즉시 원복된다)
+--
+-- 로그인/세션에는 영향이 없다. Supabase 는 인증(GoTrue)과 DB(PostgREST)가 분리돼
+-- 있어 테이블 정책으로 토큰이 무효화되지 않는다. 코드에도 쿼리 에러 시 자동
+-- 로그아웃시키는 경로가 없다 (signOut() 은 Layout.jsx 의 로그아웃 버튼 1곳뿐).
+-- 최악의 경우 증상은 "고객 목록이 빈 화면" 이고, 아래로 되돌린다.
+--
+--   DROP POLICY IF EXISTS customers_select_authenticated ON public.customers;
+--   DROP POLICY IF EXISTS customers_insert_authenticated ON public.customers;
+--   DROP POLICY IF EXISTS customers_update_authenticated ON public.customers;
+--   DROP POLICY IF EXISTS customers_delete_authenticated ON public.customers;
+--   CREATE POLICY customers_temp_open ON public.customers
+--     FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+--
+-- 주의: 위 롤백은 유출 상태로 되돌리는 것이다. 임시 조치로만 쓰고 원인을 찾을 것.
+-- ---------------------------------------------------------------------------
