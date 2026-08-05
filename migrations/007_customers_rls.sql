@@ -4,6 +4,17 @@
 -- 문제: anon 키만으로 로그인 없이 customers 전체(31건, 이름·연락처·주소)가 읽혔다.
 --       anon 키는 프론트 번들과 공개 GitHub 리포에 노출돼 있으므로 사실상 전면 공개 상태였다.
 --
+--       변경 전 정책 3개는 전부 roles={public} 이었다. 이름에 "authenticated" 가
+--       들어 있지만 TO 절이 빠져 anon 까지 포함됐다 — 읽기뿐 아니라
+--       INSERT/UPDATE 도 외부에서 가능한 상태였다.
+--         "Enable read access for all users"            SELECT public USING true
+--         "Enable insert access for authenticated users" INSERT public
+--         "Enable update access for authenticated users" UPDATE public USING true
+--
+--       DELETE 정책은 없었다. RLS 가 켜져 있었다면 앱의 고객 삭제
+--       (CustomerList.jsx:623,630)가 조용히 실패하고 있었다는 뜻이며,
+--       이 마이그레이션이 그 동작을 정상화한다.
+--
 -- 조치: 기존 정책을 전부 걷어내고 authenticated 에게만 허용한다.
 --       - 앱의 customers 접근은 전부 로그인 뒤(App.jsx: session 없으면 /login)에 있어 영향 없음
 --       - netlify 함수는 service_role 을 쓰고 service_role 은 RLS 를 우회하므로 영향 없음
@@ -56,12 +67,22 @@ COMMENT ON TABLE public.customers IS
 -- 로그아웃시키는 경로가 없다 (signOut() 은 Layout.jsx 의 로그아웃 버튼 1곳뿐).
 -- 최악의 경우 증상은 "고객 목록이 빈 화면" 이고, 아래로 되돌린다.
 --
+-- 아래는 변경 전 정책 3개를 그대로 복원한다 (2026-08-05 스냅샷 기준).
+-- 원본은 전부 roles={public} 이었다 — TO 절이 빠져 anon 까지 포함된 상태였다.
+--
 --   DROP POLICY IF EXISTS customers_select_authenticated ON public.customers;
 --   DROP POLICY IF EXISTS customers_insert_authenticated ON public.customers;
 --   DROP POLICY IF EXISTS customers_update_authenticated ON public.customers;
 --   DROP POLICY IF EXISTS customers_delete_authenticated ON public.customers;
---   CREATE POLICY customers_temp_open ON public.customers
---     FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+--
+--   CREATE POLICY "Enable read access for all users"
+--     ON public.customers FOR SELECT USING (true);
+--   CREATE POLICY "Enable insert access for authenticated users"
+--     ON public.customers FOR INSERT WITH CHECK (true);
+--   CREATE POLICY "Enable update access for authenticated users"
+--     ON public.customers FOR UPDATE USING (true);
+--   -- DELETE 정책은 원래 없었다
 --
 -- 주의: 위 롤백은 유출 상태로 되돌리는 것이다. 임시 조치로만 쓰고 원인을 찾을 것.
+--       (INSERT/UPDATE 의 with_check 는 스냅샷에서 조회하지 않아 true 로 가정했다)
 -- ---------------------------------------------------------------------------
