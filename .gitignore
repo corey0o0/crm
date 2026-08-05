@@ -40,3 +40,6 @@ split_inventory_v2.js
 .omc/
 .serena/
 .claude/
+
+# 일회성 디버그/조사 스크립트 (하드코딩된 키 포함 이력 있음 — 커밋 금지)
+scratch/
