@@ -11,8 +11,6 @@ import {
 const BRAND_CONFIG = {
   XRB: {
     url: 'https://www.xrider.co.kr',
-    loginId: process.env.REACT_APP_ORDER_LOGIN_ID || '',
-    password: process.env.REACT_APP_ORDER_PASSWORD || '',
     selectors: {
       loginButton: 'button[type="submit"]',
       searchInput: 'input[type="search"], input[name="search"]',
@@ -26,8 +24,6 @@ const BRAND_CONFIG = {
   },
   NB: {
     url: 'https://www.nearbike.co.kr',
-    loginId: process.env.REACT_APP_ORDER_LOGIN_ID || '',
-    password: process.env.REACT_APP_ORDER_PASSWORD || '',
     selectors: {
       loginButton: 'button[type="submit"]',
       searchInput: 'input[type="search"], input[name="search"]',
@@ -197,11 +193,9 @@ export const executeOrderSteps = async (brand, orderItems, playwrightTools) => {
     // 1. 웹사이트 접속
     await navigate({ url: config.url });
 
-    // 2. 로그인 처리
+    // 2. 로그인 처리 (미구현 — 로그인 자격증명은 서버 전용으로 별도 관리해야 함)
     // 로그인 페이지로 이동 (필요한 경우)
     // 로그인 폼 입력 및 제출
-    // await fill({ selector: 'input[name="id"]', value: config.loginId });
-    // await fill({ selector: 'input[name="password"]', value: config.password });
     // await click({ selector: config.selectors.loginButton });
 
     // 3. 각 상품 검색 및 장바구니 추가
