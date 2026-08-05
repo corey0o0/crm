@@ -271,8 +271,50 @@ function ServiceDetail() {
   const isLoadingRef = React.useRef(false);
   const submitActionRef = React.useRef('list');
 
+  // 접수일시 자동 삽입용 ref
+  const dateTimePrefixRef = React.useRef(''); // 문의내용에 자동 삽입한 날짜/시간 prefix 추적
+  const receptionBaseRef = React.useRef(null); // 저장된 원래 접수일시 (변경 여부 판단 기준)
+
   // 강제 리렌더링을 위한 key 상태
   const [componentKey, setComponentKey] = useState(0);
+
+  // 접수일시를 저장된 값과 다르게 바꾸면 문의내용 앞에 날짜·시간 자동 삽입
+  // (AddService와 동일한 동작. 기준만 '현재 시각'이 아니라 '저장된 접수일시')
+  useEffect(() => {
+    if (!isEditing) return;
+    const base = receptionBaseRef.current;
+    if (!base) return;
+    if (!formData.reception_date || !formData.reception_time) return;
+
+    const isDifferent =
+      formData.reception_date !== base.date || formData.reception_time !== base.time;
+
+    let newPrefix = '';
+    if (isDifferent) {
+      const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
+      const d = new Date(`${formData.reception_date}T${formData.reception_time}:00`);
+      if (isNaN(d.getTime())) return;
+      const m = d.getMonth() + 1;
+      const day = d.getDate();
+      const dow = DAY_NAMES[d.getDay()];
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      newPrefix = `[${m}월 ${day}일 (${dow}) ${hh}:${mm}]`;
+    }
+
+    if (newPrefix === dateTimePrefixRef.current) return;
+    setFormData(prev => {
+      let symptom = prev.symptom || '';
+      // 이전에 자동 삽입한 prefix 제거
+      if (dateTimePrefixRef.current && symptom.startsWith(dateTimePrefixRef.current)) {
+        symptom = symptom.slice(dateTimePrefixRef.current.length).replace(/^\n/, '');
+      }
+      dateTimePrefixRef.current = newPrefix;
+      // 새 prefix 삽입
+      if (newPrefix) symptom = newPrefix + (symptom ? '\n' + symptom : '');
+      return { ...prev, symptom };
+    });
+  }, [formData.reception_date, formData.reception_time, isEditing]);
 
   // 자동저장 Hook (수정 모드일 때만 활성화)
   const autoSave = useAutoSave(
@@ -618,6 +660,10 @@ function ServiceDetail() {
         mileage: mileage,
         warehouse_id: defaultWarehouseId
       });
+
+      // 접수일시 변경 감지 기준을 저장된 값으로 맞춘다 (불러온 직후엔 prefix 없음)
+      receptionBaseRef.current = { date: receptionDate, time: receptionTime };
+      dateTimePrefixRef.current = '';
 
       console.log('Loaded reception data:', {
         original: serviceData.reception_date,
@@ -1076,6 +1122,13 @@ function ServiceDetail() {
       // 변경사항 초기화
       setHasUnsavedChanges(false);
       setIsEditing(false);
+
+      // 저장된 접수일시가 새 기준이 된다. 삽입된 prefix는 본문의 일부로 확정.
+      receptionBaseRef.current = {
+        date: formData.reception_date,
+        time: formData.reception_time
+      };
+      dateTimePrefixRef.current = '';
 
       // 자동저장 데이터 삭제
       autoSave.clear();
