@@ -11,6 +11,9 @@
   REACT_APP_OPENAI_MODEL = "gpt-4o-mini"
   NODE_ENV = "production"
   REACT_APP_BACKEND_URL = "https://crm-production-067b.up.railway.app"
+  # SUPABASE_URL 은 시크릿이 아니라 공개 프로젝트 주소라 스캔 예외 처리한다
+  # (SUPABASE_SERVICE_KEY 는 포함하지 않음 — 그건 진짜 시크릿이라 계속 스캔 대상이어야 함)
+  SECRETS_SCAN_OMIT_KEYS = "SUPABASE_URL"
 
 [[redirects]]
   from = "/*"
