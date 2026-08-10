@@ -1313,6 +1313,57 @@ function SalesHistoryStats() {
   const totalB2CPartsAmt = Object.values(brandStatsB2C).reduce((sum, b) => sum + b.partsAmount, 0);
   const totalB2CPartsQty = Object.values(brandStatsB2C).reduce((sum, b) => sum + b.parts, 0);
 
+  // ── [4] 대리점/브랜드 출고 통계 탭 표별 엑셀 다운로드 ──────────────
+  const dateRangeSuffix = `${format(startDate, 'yyyyMMdd')}_${format(endDate, 'yyyyMMdd')}`;
+
+  const buildBrandStatsExportRows = (brandStats) => {
+    const rows = [];
+    Object.entries(brandStats).forEach(([brandName, data]) => {
+      Object.entries(data.airframes || {}).forEach(([model, info]) => {
+        rows.push({ brand: brandName, category: model, qty: info.qty, amount: info.amount });
+      });
+      rows.push({ brand: brandName, category: '부품/용품', qty: data.parts, amount: data.partsAmount });
+      rows.push({ brand: brandName, category: '브랜드 합계', qty: '', amount: data.airframeAmount + data.partsAmount });
+    });
+    return rows;
+  };
+
+  const brandStatsExportHeaders = [
+    { key: 'brand', label: '브랜드명' },
+    { key: 'category', label: '구분' },
+    { key: 'qty', label: '수량' },
+    { key: 'amount', label: '금액' }
+  ];
+
+  const handleBrandStatsB2BExcelDownload = () => {
+    downloadExcel(buildBrandStatsExportRows(brandStatsB2B), brandStatsExportHeaders, `대리점B2B_브랜드별출고현황_${dateRangeSuffix}`);
+  };
+
+  const handleBrandStatsB2CExcelDownload = () => {
+    downloadExcel(buildBrandStatsExportRows(brandStatsB2C), brandStatsExportHeaders, `일반고객B2C_브랜드별출고현황_${dateRangeSuffix}`);
+  };
+
+  const handleAgencyStatsExcelDownload = () => {
+    const rows = Object.entries(agencyStats).map(([agencyName, data]) => ({
+      agencyName,
+      airframe: data.airframe,
+      airframeAmount: data.airframeAmount,
+      parts: data.parts,
+      partsAmount: data.partsAmount,
+      count: data.count,
+      amount: data.amount
+    }));
+    downloadExcel(rows, [
+      { key: 'agencyName', label: '대리점명' },
+      { key: 'airframe', label: '기체 판매대수' },
+      { key: 'airframeAmount', label: '기체 판매금액' },
+      { key: 'parts', label: '파츠 판매수량' },
+      { key: 'partsAmount', label: '파츠 판매금액' },
+      { key: 'count', label: '주문 건수' },
+      { key: 'amount', label: '총 주문금액' }
+    ], `대리점별매출_${dateRangeSuffix}`);
+  };
+
   // 차트 데이터 가공
   const dailyMap = {};
   const channelMap = {};
@@ -2391,7 +2442,12 @@ function SalesHistoryStats() {
               <Box>
                 <Grid container spacing={3} sx={{ mt: 1, mb: 4 }}>
                   <Grid item xs={12} md={6}>
-                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>브랜드별 제품 출고 현황 (대리점 B2B)</Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 'bold' }}>브랜드별 제품 출고 현황 (대리점 B2B)</Typography>
+                      <Button variant="outlined" size="small" startIcon={<DownloadIcon />} onClick={handleBrandStatsB2BExcelDownload} sx={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
+                        엑셀 다운로드
+                      </Button>
+                    </Box>
                     <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
                       <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                         <TableHead sx={{ bgcolor: 'grey.100' }}>
@@ -2469,7 +2525,12 @@ function SalesHistoryStats() {
                   </Grid>
 
                   <Grid item xs={12} md={6}>
-                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>브랜드별 제품 출고 현황 (일반고객 B2C)</Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 'bold' }}>브랜드별 제품 출고 현황 (일반고객 B2C)</Typography>
+                      <Button variant="outlined" size="small" startIcon={<DownloadIcon />} onClick={handleBrandStatsB2CExcelDownload} sx={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
+                        엑셀 다운로드
+                      </Button>
+                    </Box>
                     <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
                       <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                         <TableHead sx={{ bgcolor: 'grey.100' }}>
@@ -2539,7 +2600,12 @@ function SalesHistoryStats() {
                   </Grid>
 
                   <Grid item xs={12}>
-                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>대리점별 매출 (검색 조건 연동)</Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 'bold' }}>대리점별 매출 (검색 조건 연동)</Typography>
+                      <Button variant="outlined" size="small" startIcon={<DownloadIcon />} onClick={handleAgencyStatsExcelDownload} sx={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
+                        엑셀 다운로드
+                      </Button>
+                    </Box>
                     <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
                       <Table size="small" sx={{ border: '1px solid rgba(224, 224, 224, 1)', '& th, & td': { border: '1px solid rgba(224, 224, 224, 1)' } }}>
                         <TableHead sx={{ bgcolor: 'grey.100' }}>
