@@ -1285,18 +1285,20 @@ function SalesHistoryStats() {
       }
     } else {
       if (!brandStatsB2C[brandName]) {
-        brandStatsB2C[brandName] = { airframes: {}, airframeAmount: 0, parts: 0, partsAmount: 0 };
+        brandStatsB2C[brandName] = { airframes: {}, airframeAmount: 0, parts: 0, partsAmount: 0, partsRows: [] };
       }
       if (isAirframe) {
         if (!brandStatsB2C[brandName].airframes[modelName]) {
-          brandStatsB2C[brandName].airframes[modelName] = { qty: 0, amount: 0 };
+          brandStatsB2C[brandName].airframes[modelName] = { qty: 0, amount: 0, rows: [] };
         }
         brandStatsB2C[brandName].airframes[modelName].qty += qty;
         brandStatsB2C[brandName].airframes[modelName].amount += price;
+        brandStatsB2C[brandName].airframes[modelName].rows.push(r);
         brandStatsB2C[brandName].airframeAmount += price;
       } else {
         brandStatsB2C[brandName].parts += qty;
         brandStatsB2C[brandName].partsAmount += price;
+        brandStatsB2C[brandName].partsRows.push(r);
       }
     }
   });
@@ -1455,6 +1457,58 @@ function SalesHistoryStats() {
       .trim();
     const today = format(new Date(), 'yyyy-MM-dd');
     downloadExcel(exportData, headers, `${safeTitle}_${today}`);
+  };
+
+  // 브랜드별 출고 상세 모달 엑셀 다운로드
+  const handleExportBrandDetail = () => {
+    const rows = [...(brandDetailModal.rows || [])].sort((a, b) => (a.date_val || '').localeCompare(b.date_val || ''));
+    if (rows.length === 0) return;
+    const exportData = rows.map((r) => ({
+      날짜: r.date_val ? String(r.date_val).slice(0, 10) : '',
+      주문번호: r.order_id || '',
+      고객명: r.customer_name || '',
+      상품명: r.part_name || '',
+      수량: r.quantity ?? 0,
+      판매금액: r.total_price || 0,
+    }));
+    const headers = [
+      { label: '날짜', key: '날짜' },
+      { label: '주문번호', key: '주문번호' },
+      { label: '고객명(대리점)', key: '고객명' },
+      { label: '상품명', key: '상품명' },
+      { label: '수량', key: '수량' },
+      { label: '판매금액', key: '판매금액' },
+    ];
+    const safeTitle = (brandDetailModal.title || '브랜드별_출고상세').replace(/[\\/:*?"<>|[\]]/g, '').trim();
+    downloadExcel(exportData, headers, `${safeTitle}_${format(new Date(), 'yyyy-MM-dd')}`);
+  };
+
+  // 대리점 상세 내역 모달 엑셀 다운로드
+  const handleExportAgencyDetail = () => {
+    const rows = [...(selectedAgencyDetail?.rows || [])].sort(
+      (a, b) => new Date(b.created_at || b.date_val) - new Date(a.created_at || a.date_val)
+    );
+    if (rows.length === 0) return;
+    const exportData = rows.map((r) => ({
+      주문일시: r.created_at ? format(new Date(r.created_at), 'yyyy-MM-dd HH:mm') : (r.date_val ? String(r.date_val).slice(0, 10) : ''),
+      주문번호: r.order_id || '',
+      카테고리: r.part_category || '',
+      브랜드: r.part_brand || '',
+      품목명: r.part_name || '',
+      수량: r.quantity ?? 0,
+      판매금액: r.total_price || 0,
+    }));
+    const headers = [
+      { label: '주문일시', key: '주문일시' },
+      { label: '주문번호', key: '주문번호' },
+      { label: '카테고리', key: '카테고리' },
+      { label: '브랜드', key: '브랜드' },
+      { label: '품목명', key: '품목명' },
+      { label: '수량', key: '수량' },
+      { label: '판매금액', key: '판매금액' },
+    ];
+    const safeTitle = `${selectedAgencyDetail?.agencyName || '대리점'}_출고상세`.replace(/[\\/:*?"<>|[\]]/g, '').trim();
+    downloadExcel(exportData, headers, `${safeTitle}_${format(new Date(), 'yyyy-MM-dd')}`);
   };
 
   // 보고서용 다차원 그룹화 로직 (브랜드별, 대리점별, 종합, 시계열)
@@ -2564,7 +2618,11 @@ function SalesHistoryStats() {
                                           }}>
                                             <Typography variant="body2" color="textSecondary" sx={{ pr: 2, flex: 1, wordBreak: 'keep-all' }}>{model}</Typography>
                                             <Box sx={{ textAlign: 'right', minWidth: '80px' }}>
-                                              <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{info.qty}</Typography>
+                                              <Typography
+                                                variant="body2"
+                                                sx={{ fontWeight: 'bold', color: 'primary.main', cursor: 'pointer', textDecoration: 'underline' }}
+                                                onClick={() => setBrandDetailModal({ open: true, title: `${brandName} - ${model} 출고 상세`, rows: info.rows || [] })}
+                                              >{info.qty}</Typography>
                                               <Typography variant="caption" color="textSecondary">{formatCurrency(info.amount)}</Typography>
                                             </Box>
                                           </Box>
@@ -2575,7 +2633,11 @@ function SalesHistoryStats() {
                                   </TableCell>
                                   <TableCell align="right" sx={{ verticalAlign: 'top', pt: 2 }}>{formatCurrency(data.airframeAmount)}</TableCell>
                                   <TableCell align="right" sx={{ verticalAlign: 'top', pt: 2 }}>
-                                     <Typography variant="body2" sx={{ fontWeight: data.parts > 0 ? 'bold' : 'normal', color: data.parts > 0 ? 'primary.main' : 'inherit' }}>{data.parts}</Typography>
+                                     <Typography
+                                       variant="body2"
+                                       sx={{ fontWeight: data.parts > 0 ? 'bold' : 'normal', color: data.parts > 0 ? 'primary.main' : 'inherit', cursor: data.parts > 0 ? 'pointer' : 'default', textDecoration: data.parts > 0 ? 'underline' : 'none' }}
+                                       onClick={() => data.parts > 0 && setBrandDetailModal({ open: true, title: `${brandName} - 파츠/용품 출고 상세`, rows: data.partsRows || [] })}
+                                     >{data.parts}</Typography>
                                      <Typography variant="caption" color="textSecondary">{formatCurrency(data.partsAmount)}</Typography>
                                   </TableCell>
                                   <TableCell align="right" sx={{ fontWeight: 'bold', verticalAlign: 'top', pt: 2 }}>{formatCurrency(data.airframeAmount + data.partsAmount)}</TableCell>
@@ -2662,8 +2724,18 @@ function SalesHistoryStats() {
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle sx={{ fontWeight: 'bold', borderBottom: '1px solid #eee' }}>
-          {selectedAgencyDetail?.agencyName} 출고 상세 내역
+        <DialogTitle sx={{ fontWeight: 'bold', borderBottom: '1px solid #eee', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+          <span>{selectedAgencyDetail?.agencyName} 출고 상세 내역</span>
+          <Button
+            startIcon={<DownloadIcon />}
+            variant="contained"
+            size="small"
+            disabled={!selectedAgencyDetail?.rows?.length}
+            onClick={handleExportAgencyDetail}
+            sx={{ flexShrink: 0 }}
+          >
+            엑셀 다운로드
+          </Button>
         </DialogTitle>
         <DialogContent sx={{ p: 0 }}>
           <TableContainer>
@@ -2728,8 +2800,18 @@ function SalesHistoryStats() {
       </Dialog>
       {/* 브랜드별 출고 상세 모달 */}
       <Dialog open={brandDetailModal.open} onClose={() => setBrandDetailModal({ open: false, title: '', rows: [] })} maxWidth="md" fullWidth>
-        <DialogTitle sx={{ fontWeight: 'bold', borderBottom: '1px solid #e0e0e0' }}>
-          {brandDetailModal.title} (총 {brandDetailModal.rows.length}건)
+        <DialogTitle sx={{ fontWeight: 'bold', borderBottom: '1px solid #e0e0e0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+          <span>{brandDetailModal.title} (총 {brandDetailModal.rows.length}건)</span>
+          <Button
+            startIcon={<DownloadIcon />}
+            variant="contained"
+            size="small"
+            disabled={brandDetailModal.rows.length === 0}
+            onClick={handleExportBrandDetail}
+            sx={{ flexShrink: 0 }}
+          >
+            엑셀 다운로드
+          </Button>
         </DialogTitle>
         <DialogContent sx={{ p: 0 }}>
           <TableContainer>
