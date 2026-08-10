@@ -240,7 +240,7 @@ export const countServices = async (options = {}) => {
 const fetchShipmentIdsByPartName = async (term, signal) => {
   const rows = await fetchFromSupabase('shipment_parts', {
     select: 'shipment_id',
-    filter: `part_name=ilike."*${encodeURIComponent(term)}*"`,
+    filter: `part_name=ilike.*${encodeURIComponent(term)}*`,
     signal
   });
   return [...new Set((rows || []).map(r => r.shipment_id).filter(Boolean))];
@@ -294,9 +294,11 @@ const buildShipmentFilters = async (options) => {
   }
 
   if (searchTerm) {
-    const safeTerm = searchTerm.replace(/"/g, '');
+    // PostgREST는 큰따옴표로 감싼(quoted) 값 안에서는 ilike의 * 와일드카드를 문자 그대로
+    // 취급해 절대 매칭되지 않는다 — 따옴표 없이 보내야 실제로 검색됨(콤마만 제거해 or= 절 깨짐 방지)
+    const safeTerm = searchTerm.replace(/["]/g, '').replace(/,/g, ' ').trim();
     const cleanTerm = safeTerm.replace(/^(shp-|SHP-)/i, '').trim();
-    
+
     let idSearch = '';
     if (/^[a-fA-F0-9]{8}$/.test(cleanTerm)) {
       idSearch = `,and(id.gte.${cleanTerm}-0000-0000-0000-000000000000,id.lte.${cleanTerm}-ffff-ffff-ffff-ffffffffffff)`;
@@ -308,7 +310,7 @@ const buildShipmentFilters = async (options) => {
       partIdSearch = `,id.in.(${matchingIds.join(',')})`;
     }
 
-    filters.push(`or=(customer_name.ilike."*${encodeURIComponent(safeTerm)}*",customer_phone.ilike."*${encodeURIComponent(safeTerm)}*",tracking_number.ilike."*${encodeURIComponent(safeTerm)}*",sales_channel.ilike."*${encodeURIComponent(safeTerm)}*",note.ilike."*${encodeURIComponent(safeTerm)}*"${idSearch}${partIdSearch})`);
+    filters.push(`or=(customer_name.ilike.*${encodeURIComponent(safeTerm)}*,customer_phone.ilike.*${encodeURIComponent(safeTerm)}*,tracking_number.ilike.*${encodeURIComponent(safeTerm)}*,sales_channel.ilike.*${encodeURIComponent(safeTerm)}*,note.ilike.*${encodeURIComponent(safeTerm)}*${idSearch}${partIdSearch})`);
   }
 
   return filters.length > 0 ? filters.join('&') : '';
