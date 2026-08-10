@@ -236,15 +236,26 @@ export const countServices = async (options = {}) => {
 /**
  * 출고 데이터 조회 (브랜드 및 날짜 필터링 포함)
  */
+// 파츠명으로 매칭되는 출고 ID 조회 (shipment_parts는 별도 테이블이라 or= 절에 직접 넣을 수 없음)
+const fetchShipmentIdsByPartName = async (term, signal) => {
+  const rows = await fetchFromSupabase('shipment_parts', {
+    select: 'shipment_id',
+    filter: `part_name=ilike."*${encodeURIComponent(term)}*"`,
+    signal
+  });
+  return [...new Set((rows || []).map(r => r.shipment_id).filter(Boolean))];
+};
+
 // 공통 필터 생성 유틸리티
-const buildShipmentFilters = (options) => {
+const buildShipmentFilters = async (options) => {
   const {
     selectedBrand = '',
     searchTerm = '',
     dateFilter = {},
     statusFilter = 'all',
     sellerFilter = 'all',
-    recordType = 'store_shipment' // 기본값은 매장출고
+    recordType = 'store_shipment', // 기본값은 매장출고
+    signal = null
   } = options;
 
   const filters = [];
@@ -291,7 +302,13 @@ const buildShipmentFilters = (options) => {
       idSearch = `,and(id.gte.${cleanTerm}-0000-0000-0000-000000000000,id.lte.${cleanTerm}-ffff-ffff-ffff-ffffffffffff)`;
     }
 
-    filters.push(`or=(customer_name.ilike."*${encodeURIComponent(safeTerm)}*",customer_phone.ilike."*${encodeURIComponent(safeTerm)}*",tracking_number.ilike."*${encodeURIComponent(safeTerm)}*",sales_channel.ilike."*${encodeURIComponent(safeTerm)}*",note.ilike."*${encodeURIComponent(safeTerm)}*"${idSearch})`);
+    let partIdSearch = '';
+    const matchingIds = await fetchShipmentIdsByPartName(safeTerm, signal);
+    if (matchingIds.length > 0) {
+      partIdSearch = `,id.in.(${matchingIds.join(',')})`;
+    }
+
+    filters.push(`or=(customer_name.ilike."*${encodeURIComponent(safeTerm)}*",customer_phone.ilike."*${encodeURIComponent(safeTerm)}*",tracking_number.ilike."*${encodeURIComponent(safeTerm)}*",sales_channel.ilike."*${encodeURIComponent(safeTerm)}*",note.ilike."*${encodeURIComponent(safeTerm)}*"${idSearch}${partIdSearch})`);
   }
 
   return filters.length > 0 ? filters.join('&') : '';
@@ -305,7 +322,7 @@ export const fetchShipments = async (options = {}) => {
     signal = null
   } = options;
 
-  const filter = buildShipmentFilters(options);
+  const filter = await buildShipmentFilters(options);
 
   // 기준일자에 따른 DB 정렬 기준 동적 설정 (신규 항목 상단 보장)
   let orderString = 'created_at.desc,order_date.desc.nullslast';
@@ -330,7 +347,7 @@ export const fetchShipments = async (options = {}) => {
  */
 export const countShipments = async (options = {}) => {
   const { signal = null } = options;
-  const filter = buildShipmentFilters(options);
+  const filter = await buildShipmentFilters(options);
   return countFromSupabase('shipments', filter, signal);
 };
 
