@@ -92,8 +92,8 @@ export const productApi = {
   // 상품 검색 (parts: name/code/note 검색)
   search: async (searchTerm) => {
     try {
-      const safeTerm = searchTerm.replace(/"/g, '');
-      let filterExpr = `name.ilike."%${safeTerm}%",code.ilike."%${safeTerm}%",note.ilike."%${safeTerm}%"`;
+      const safeTerm = searchTerm.replace(/[",]/g, ' ').trim();
+      let filterExpr = `name.ilike.%${safeTerm}%,code.ilike.%${safeTerm}%,note.ilike.%${safeTerm}%`;
       let query = supabase
         .from(PARTS_TABLE)
         .select('*') // 컬럼명 하드코딩 제거

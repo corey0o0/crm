@@ -27,7 +27,7 @@ export async function checkSaleDuplicate({ note, trackingNumber, customerName, o
     let q = supabase
       .from('shipments')
       .select('id, customer_name, order_date, status, note')
-      .or(`note.ilike."%${orderNo}%",tracking_number.ilike."%${orderNo}%"`)
+      .or(`note.ilike.%${orderNo}%,tracking_number.ilike.%${orderNo}%`)
       .limit(20);
     if (excludeId) q = q.neq('id', excludeId);
     const { data } = await q;

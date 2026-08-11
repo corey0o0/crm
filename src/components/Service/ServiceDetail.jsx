@@ -1773,20 +1773,20 @@ function ServiceDetail() {
       }
       const cleanSearchTerm = searchTerm.replace(/-/g, '');
       const originalSearchTerm = searchTerm.trim();
-      const safeOriginal = originalSearchTerm.replace(/"/g, '');
-      const safeClean = cleanSearchTerm.replace(/"/g, '');
+      const safeOriginal = originalSearchTerm.replace(/[",]/g, ' ').trim();
+      const safeClean = cleanSearchTerm.replace(/[",]/g, ' ').trim();
       const { data: serviceResults, error: serviceError } = await supabase
         .from('services')
         .select('customer_name, customer_phone, customer_address, brand, product_name, seller')
         .eq('brand', formData.brand)
-        .or(`customer_phone.ilike."%${safeOriginal}%",customer_phone.ilike."%${safeClean}%",customer_name.ilike."%${safeOriginal}%"`)
+        .or(`customer_phone.ilike.%${safeOriginal}%,customer_phone.ilike.%${safeClean}%,customer_name.ilike.%${safeOriginal}%`)
         .order('created_at', { ascending: false });
       if (serviceError) throw serviceError;
       const { data: shipmentResults, error: shipmentError } = await supabase
         .from('shipments')
         .select('customer_name, customer_phone, customer_address, brand, product_name')
         .eq('brand', formData.brand)
-        .or(`customer_phone.ilike."%${safeOriginal}%",customer_phone.ilike."%${safeClean}%",customer_name.ilike."%${safeOriginal}%"`)
+        .or(`customer_phone.ilike.%${safeOriginal}%,customer_phone.ilike.%${safeClean}%,customer_name.ilike.%${safeOriginal}%`)
         .order('created_at', { ascending: false });
       if (shipmentError) throw shipmentError;
       const allResults = [...(serviceResults || []), ...(shipmentResults || [])];

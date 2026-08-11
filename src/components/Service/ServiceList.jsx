@@ -702,15 +702,15 @@ function ServiceList() {
         if (isNumeric) {
           // 숫자인 경우: A/S ID 정확 검색 또는 전화번호 부분 검색 (하이픈 포함/제거 모두 검색)
           // 전화번호는 원본 검색어와 하이픈 제거한 버전 모두 검색
-          const safeOriginal = originalSearchTerm.replace(/"/g, '');
-          const safeClean = cleanSearchTerm.replace(/"/g, '');
-          query = query.or(`id.eq.${cleanSearchTerm},customer_phone.ilike."%${safeOriginal}%",customer_phone.ilike."%${safeClean}%"`);
+          const safeOriginal = originalSearchTerm.replace(/[",]/g, ' ').trim();
+          const safeClean = cleanSearchTerm.replace(/[",]/g, ' ').trim();
+          query = query.or(`id.eq.${cleanSearchTerm},customer_phone.ilike.%${safeOriginal}%,customer_phone.ilike.%${safeClean}%`);
         } else {
           // 문자열인 경우: 고객명과 전화번호 검색 (하이픈 포함/제거 모두 검색)
           // 전화번호는 원본 검색어와 하이픈 제거한 버전 모두 검색
-          const safeOriginal = originalSearchTerm.replace(/"/g, '');
-          const safeClean = cleanSearchTerm.replace(/"/g, '');
-          query = query.or(`customer_name.ilike."%${safeOriginal}%",customer_phone.ilike."%${safeOriginal}%",customer_phone.ilike."%${safeClean}%"`);
+          const safeOriginal = originalSearchTerm.replace(/[",]/g, ' ').trim();
+          const safeClean = cleanSearchTerm.replace(/[",]/g, ' ').trim();
+          query = query.or(`customer_name.ilike.%${safeOriginal}%,customer_phone.ilike.%${safeOriginal}%,customer_phone.ilike.%${safeClean}%`);
         }
       } else if (searchParams.searchTerm && searchParams.searchTerm.length < 2) {
         console.log('Search term too short, ignoring:', searchParams.searchTerm);
@@ -731,13 +731,13 @@ function ServiceList() {
       // 처리내역 및 문의내용 검색 필터링
       if (searchParams.solutionSearchTerm && searchParams.solutionSearchTerm.length >= 2) {
         console.log('Applying solution & symptom search filter for term:', searchParams.solutionSearchTerm);
-        const safeTerm = searchParams.solutionSearchTerm.replace(/"/g, '');
-        query = query.or(`solution.ilike."%${safeTerm}%",symptom.ilike."%${safeTerm}%"`);
+        const safeTerm = searchParams.solutionSearchTerm.replace(/[",]/g, ' ').trim();
+        query = query.or(`solution.ilike.%${safeTerm}%,symptom.ilike.%${safeTerm}%`);
       }
 
       // 사용부품 검색 필터링 (service_parts → parts.name 서브쿼리)
       if (searchParams.partsSearchTerm && searchParams.partsSearchTerm.length >= 2) {
-        const safeParts = searchParams.partsSearchTerm.replace(/"/g, '');
+        const safeParts = searchParams.partsSearchTerm.replace(/[",]/g, ' ').trim();
         const { data: partsRows } = await supabase
           .from('service_parts')
           .select('service_id, parts!inner(name, code)')
@@ -802,8 +802,8 @@ function ServiceList() {
         
         // 각 태그 단어에 대해 OR 조건으로 검색
         const tagConditions = searchParams.selectedTags.map(tag => {
-          const safeTag = tag.replace(/"/g, '');
-          return `tag_name.ilike."%${safeTag}%"`;
+          const safeTag = tag.replace(/[",]/g, ' ').trim();
+          return `tag_name.ilike.%${safeTag}%`;
         }).join(',');
         
         const { data: tagRows, error: tagQueryError } = await supabase
@@ -890,14 +890,14 @@ function ServiceList() {
         // 처리내역 및 문의내용 검색 필터링
         if (searchParams.solutionSearchTerm && searchParams.solutionSearchTerm.length >= 2) {
           console.log('[ServiceList] 처리내역/문의내용 필터 적용 중:', searchParams.solutionSearchTerm);
-          const safeTerm = searchParams.solutionSearchTerm.replace(/"/g, '');
-          simpleQuery = simpleQuery.or(`solution.ilike."%${safeTerm}%",symptom.ilike."%${safeTerm}%"`);
+          const safeTerm = searchParams.solutionSearchTerm.replace(/[",]/g, ' ').trim();
+          simpleQuery = simpleQuery.or(`solution.ilike.%${safeTerm}%,symptom.ilike.%${safeTerm}%`);
           console.log('[ServiceList] 처리내역/문의내용 필터 적용 완료');
         }
 
         // 사용부품 검색 필터링
         if (searchParams.partsSearchTerm && searchParams.partsSearchTerm.length >= 2) {
-          const safeParts = searchParams.partsSearchTerm.replace(/"/g, '');
+          const safeParts = searchParams.partsSearchTerm.replace(/[",]/g, ' ').trim();
           const { data: partsRows } = await supabase
             .from('service_parts')
             .select('service_id, parts!inner(name, code)')
@@ -954,14 +954,14 @@ function ServiceList() {
           
           if (isNumeric) {
             // 숫자인 경우: A/S ID 정확 검색 또는 전화번호 부분 검색 (하이픈 포함/제거 모두 검색)
-            const safeOriginal = originalSearchTerm.replace(/"/g, '');
-            const safeClean = cleanSearchTerm.replace(/"/g, '');
-            simpleQuery = simpleQuery.or(`id.eq.${cleanSearchTerm},customer_phone.ilike."%${safeOriginal}%",customer_phone.ilike."%${safeClean}%"`);
+            const safeOriginal = originalSearchTerm.replace(/[",]/g, ' ').trim();
+            const safeClean = cleanSearchTerm.replace(/[",]/g, ' ').trim();
+            simpleQuery = simpleQuery.or(`id.eq.${cleanSearchTerm},customer_phone.ilike.%${safeOriginal}%,customer_phone.ilike.%${safeClean}%`);
           } else {
             // 문자열인 경우: 고객명과 전화번호 검색 (하이픈 포함/제거 모두 검색)
-            const safeOriginal = originalSearchTerm.replace(/"/g, '');
-            const safeClean = cleanSearchTerm.replace(/"/g, '');
-            simpleQuery = simpleQuery.or(`customer_name.ilike."%${safeOriginal}%",customer_phone.ilike."%${safeOriginal}%",customer_phone.ilike."%${safeClean}%"`);
+            const safeOriginal = originalSearchTerm.replace(/[",]/g, ' ').trim();
+            const safeClean = cleanSearchTerm.replace(/[",]/g, ' ').trim();
+            simpleQuery = simpleQuery.or(`customer_name.ilike.%${safeOriginal}%,customer_phone.ilike.%${safeOriginal}%,customer_phone.ilike.%${safeClean}%`);
           }
           console.log('[ServiceList] 검색어 필터 적용 완료');
         }
