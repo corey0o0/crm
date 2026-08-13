@@ -21,6 +21,7 @@ const RULES = [
   // NB 레트로 계열을 미니/레트로 단독보다 먼저 매칭 (「레트로 미니」가 「미니」로 먹히지 않게)
   { re: /레트로\s*미니|retro\s*mini/, name: '레트로 미니' },
   { re: /레트로\s*fs|retro\s*fs/, name: '레트로 FS' },
+  { re: /레트로\s*투어|retro\s*tour/, name: '레트로 투어' },
   { re: /레트로|retro/, name: '레트로' },
   { re: /mini\s*pro|미니\s*pro|미니프로/, name: '미니 Pro' },
   { re: /(?:^|[\s\-])mini(?:[\s\-]|$)|미니/, name: '미니' },
