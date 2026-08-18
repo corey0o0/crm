@@ -649,6 +649,7 @@ module.exports = function(supabaseAdmin) {
           const bundleDiscount = Number(item.coupon_discount_price || 0) + Number(item.shipping_fee_discount_amount || 0);
 
           return {
+            order_item_code: String(item.order_item_code || '').trim(),
             product_code: code,
             variant_code: String(item.variant_code || '').trim(),
             custom_product_code: customCode,
@@ -857,17 +858,24 @@ module.exports = function(supabaseAdmin) {
             // 전송 완료 건이거나, CRM에서 수동으로 품목을 교체/수정한 건은 DB의 아이템 배열 구조를 100% 기준으로 보존
             p.order_items = existingData.items.map(eItem => {
               const mergedItem = { ...eItem };
-              
-              // 최신 배송 상태만 카페24에서 가져와 업데이트 시도 (상품코드 또는 고유값 기준 매칭)
-              const matchedNewItem = p.order_items.find(ni => 
-                (ni.custom_product_code && ni.custom_product_code === eItem.custom_product_code) || 
-                (ni.product_code && ni.product_code === eItem.product_code)
-              );
-              
+
+              // 최신 배송 상태만 카페24에서 가져와 업데이트 시도.
+              // order_item_code(품목별 고유값, 예: 20260426-0000048-01)가 있으면 그걸로 1:1 매칭 —
+              // 같은 상품이 부분취소로 여러 줄로 쪼개지면 product_code만으론 어느 줄이 취소됐는지 구분 불가.
+              const matchedNewItem = eItem.order_item_code
+                ? p.order_items.find(ni => ni.order_item_code && ni.order_item_code === eItem.order_item_code)
+                : p.order_items.find(ni =>
+                    (ni.custom_product_code && ni.custom_product_code === eItem.custom_product_code) ||
+                    (ni.product_code && ni.product_code === eItem.product_code)
+                  );
+
               if (matchedNewItem && matchedNewItem.order_status) {
                  mergedItem.order_status = matchedNewItem.order_status;
               }
-              
+              if (matchedNewItem && matchedNewItem.order_item_code && !mergedItem.order_item_code) {
+                 mergedItem.order_item_code = matchedNewItem.order_item_code; // 구버전 저장분 백필
+              }
+
               return mergedItem;
             });
           } else {
