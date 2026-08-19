@@ -125,7 +125,7 @@ async function getState(supabase, user) {
   return data?.state || { step: 'IDLE', data: {} };
 }
 // 대화 단계(step/data)와 무관한 부가 정보. 단계 전환·초기화 때 지워지지 않게 보존한다.
-const STICKY_STATE_KEYS = ['botEcho', 'offNoticeAt'];
+const STICKY_STATE_KEYS = ['botEcho', 'offNoticeAt', 'lastService'];
 
 async function setState(supabase, user, state) {
   let next = state;

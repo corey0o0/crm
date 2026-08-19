@@ -35,6 +35,9 @@ const POST_MENU = [
   { title: '🏠 처음으로', code: 'RESTART' },
 ];
 
+// 접수 직후 사진이 오면 "방금 그 접수 건"으로 안내해 주는 유효 시간
+const LAST_SERVICE_TTL_MS = 30 * 60 * 1000;
+
 // 입력을 받는 단계에서 항상 함께 보내는 이동 버튼
 const NAV = [
   { title: '◀️ 뒤로가기', code: 'BACK' },
@@ -284,8 +287,15 @@ exports.handler = async (event) => {
 
   await naverSend(brand, typing(user, true));
 
-  // 사진 수신 — 봇은 이미지를 볼 수 없으므로 추측 답변 대신 A/S 접수로 유도
+  // 사진 수신 — 봇은 이미지를 볼 수 없으므로 추측 답변 대신 A/S 접수로 유도.
+  // 단, 방금 접수를 막 완료한 직후라면 "또 접수하라"는 안내는 앞뒤가 안 맞으므로
+  // 그 접수번호를 언급해 준다 (사진 자체가 저장/전달되진 않음 — 담당자가 유선/현장에서 별도 확인).
   if (hasImage) {
+    const st = await getState(supabase, user);
+    const ls = st.lastService;
+    if (ls && ls.id && Date.now() - (ls.at || 0) < LAST_SERVICE_TTL_MS) {
+      return done(brand, user, `사진 잘 받았습니다 📷\n방금 접수하신 A/S #${ls.id} 건과 함께 담당자가 확인해 드릴게요.`, POST_MENU);
+    }
     return done(brand, user, '사진 잘 받았습니다 📷\n사진만으로는 정확한 진단이 어려워, 아래 [A/S 접수]를 남겨주시면 담당자가 사진과 함께 확인해 정확히 안내해 드릴게요.', POST_MENU);
   }
 
@@ -453,6 +463,7 @@ async function handleFlow(supabase, brand, user, input, state) {
       d.symptom = input; await clearState(supabase, user);
       const res = await callFn('chatbot-register-service', { method: 'POST', user, body: { name: d.name, phone: d.phone, product_name: d.product_name, symptom: d.symptom, brand } });
       if (!res.success) return done(brand, user, `접수 중 오류가 발생했습니다: ${res.error || '잠시 후 다시 시도'}`, POST_MENU);
+      await setState(supabase, user, { step: 'IDLE', data: {}, lastService: { id: res.service_id, at: Date.now() } });
       return done(brand, user, `✅ A/S 접수 완료\n접수번호: ${res.service_id}\n담당자 확인 후 연락드리겠습니다.`, POST_MENU);
     }
     // 타이어 모델
