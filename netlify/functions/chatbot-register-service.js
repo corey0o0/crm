@@ -84,9 +84,10 @@ exports.handler = async (event) => {
 
   if (error) return err(500, error.message);
 
+  let photoError = null;
   if (photo_url) {
     try { await attachChatbotPhoto(supabase, data.id, photo_url); }
-    catch (e) { console.error('[chatbot-register-service] 사진 첨부 실패:', e.message); }
+    catch (e) { photoError = e.message; console.error('[chatbot-register-service] 사진 첨부 실패:', e.message); }
   }
 
   await logRequest(supabase, ip, brand, 'register');
@@ -107,5 +108,5 @@ exports.handler = async (event) => {
     });
   }
 
-  return ok({ success: true, service_id: data.id });
+  return ok({ success: true, service_id: data.id, photo_error: photoError });
 };
