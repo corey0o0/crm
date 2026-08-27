@@ -1680,12 +1680,10 @@ function PartsManagement() {
       // 검색어가 없으면 필터링만 적용
       if (!searchTerm) return true;
 
-      // 검색어 필터링 (대소문자 구분 없이)
-      return part.name?.toLowerCase().includes(searchTermLower) ||
-        part.code?.toLowerCase().includes(searchTermLower) ||
-        part.barcode?.toLowerCase().includes(searchTermLower) ||
-        part.note?.toLowerCase().includes(searchTermLower) ||
-        part.memo?.toLowerCase().includes(searchTermLower);
+      // 검색어 필터링 — 공백으로 쪼갠 단어가 모두 포함되면 매치(순서 무관, 대소문자 구분 없이)
+      const haystack = `${part.name || ''} ${part.code || ''} ${part.barcode || ''} ${part.note || ''} ${part.memo || ''}`.toLowerCase();
+      const tokens = searchTermLower.trim().split(/\s+/).filter(Boolean);
+      return tokens.every(tok => haystack.includes(tok));
     });
   }, [parts, searchTerm, selectedBrand, selectedCategory, selectedDiscountGroup, showHiddenParts]);
 
