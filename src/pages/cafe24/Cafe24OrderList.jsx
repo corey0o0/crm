@@ -390,14 +390,13 @@ export default function Cafe24OrderList() {
     if (badgeFilter === 'normal' && (order.member_authentication === 'B' || groupNo === '15')) return false;
 
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const matchOrderId = String(order.order_id || '').toLowerCase().includes(q);
-      const matchBuyerName = String(order.buyer_name || '').toLowerCase().includes(q);
-      const matchBuyerId = String(order.buyer_id || '').toLowerCase().includes(q);
       const items = order.order_items || [];
-      const matchProduct = items.some(item => String(item.name || '').toLowerCase().includes(q) || String(item.product_code || '').toLowerCase().includes(q));
-      
-      if (!matchOrderId && !matchBuyerName && !matchBuyerId && !matchProduct) return false;
+      const haystack = [
+        order.order_id, order.buyer_name, order.buyer_id,
+        ...items.map(item => item.name), ...items.map(item => item.product_code),
+      ].join(' ').toLowerCase();
+      const tokens = searchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean);
+      if (!tokens.every(tok => haystack.includes(tok))) return false;
     }
     return true;
   });

@@ -147,10 +147,9 @@ function ProductList() {
   // 정렬된/필터링된 제품 목록
   const filteredProducts = products
     .filter(product => {
-      const matchesSearch = 
-        product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.description.toLowerCase().includes(searchTerm.toLowerCase());
+      const haystack = `${product.name} ${product.code} ${product.description}`.toLowerCase();
+      const matchesSearch = searchTerm.trim().toLowerCase().split(/\s+/).filter(Boolean)
+        .every(tok => haystack.includes(tok));
       
       const matchesCategory = categoryFilter === 'all' || product.category === categoryFilter;
       
