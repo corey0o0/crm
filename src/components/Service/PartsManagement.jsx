@@ -1809,6 +1809,9 @@ function PartsManagement() {
         image_url: part.image_url || null,
         memo: part.memo || null,
         note: part.note || null,
+        discount_group: part.discount_group || null,
+        agency_price: part.agency_price || 0,
+        track_inventory: part.track_inventory !== false,
         stock: 0 // 초기 재고는 0으로 설정
       }));
 
@@ -1838,7 +1841,10 @@ function PartsManagement() {
               barcode: newPart.barcode,
               image_url: newPart.image_url,
               memo: newPart.memo,
-              note: newPart.note
+              note: newPart.note,
+              discount_group: newPart.discount_group,
+              agency_price: newPart.agency_price,
+              track_inventory: newPart.track_inventory
             })
             .eq('id', existingPart[0].id);
 
