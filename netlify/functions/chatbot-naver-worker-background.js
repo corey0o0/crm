@@ -54,6 +54,7 @@ const STEP_PROMPT = {
   REG_PHONE:   () => '연락처를 입력해 주세요. (예: 010-1234-5678)',
   REG_PRODUCT: () => '제품명(모델명)을 입력해 주세요.',
   REG_SYMPTOM: () => '증상을 간단히 입력해 주세요.',
+  REG_PHOTO:   () => '증상이 보이는 사진이 있다면 보내주세요 📷\n없으면 [건너뛰기]를 눌러주세요.',
   TIRE_MODEL:  (brand) => `타이어(튜브) 교체를 도와드릴게요 🔧\n사용 중인 모델명을 알려주세요.\n${brand === 'xrb' ? '(예: X200 MAX SL / X50 FS)' : '(예: 블레이드FS / 카고)'}`,
 };
 
@@ -97,7 +98,10 @@ const PREV_STEP = {
   REG_PHONE:   'REG_NAME',
   REG_PRODUCT: 'REG_PHONE',
   REG_SYMPTOM: 'REG_PRODUCT',
+  REG_PHOTO:   'REG_SYMPTOM',
 };
+
+const SKIP_PHOTO = new Set(['건너뛰기', '없음', '없어요', 'skip', 'SKIP_PHOTO']);
 
 // 플로우 첫 단계에서 뒤로가기 → 진입 전 화면으로 (없으면 메인 메뉴)
 const FIRST_STEP_PARENT = { ORDER_NO: 'CAT_ORDER' };
@@ -269,7 +273,7 @@ async function goAgent(supabase, brand, user) {
 exports.handler = async (event) => {
   let body;
   try { body = JSON.parse(event.body || '{}'); } catch { return { statusCode: 200, body: '' }; }
-  const { brand = 'nb', user, text = '', hasImage = false } = body;
+  const { brand = 'nb', user, text = '', hasImage = false, imageUrl = '' } = body;
   let code = body.code || '';
   if (!user) return { statusCode: 200, body: '' };
 
@@ -287,11 +291,13 @@ exports.handler = async (event) => {
 
   await naverSend(brand, typing(user, true));
 
-  // 사진 수신 — 봇은 이미지를 볼 수 없으므로 추측 답변 대신 A/S 접수로 유도.
+  // 사진 수신 — A/S 접수 중 사진 첨부 단계(REG_PHOTO)에서 온 사진은 handleFlow가 처리하므로 여기서 가로채지 않는다.
+  // 그 외 시점의 사진은 봇이 맥락 없이 볼 수 없으므로 추측 답변 대신 A/S 접수로 유도.
   // 단, 방금 접수를 막 완료한 직후라면 "또 접수하라"는 안내는 앞뒤가 안 맞으므로
-  // 그 접수번호를 언급해 준다 (사진 자체가 저장/전달되진 않음 — 담당자가 유선/현장에서 별도 확인).
-  if (hasImage) {
-    const st = await getState(supabase, user);
+  // 그 접수번호를 언급해 준다.
+  const preState = await getState(supabase, user);
+  if (hasImage && preState.step !== 'REG_PHOTO') {
+    const st = preState;
     const ls = st.lastService;
     if (ls && ls.id && Date.now() - (ls.at || 0) < LAST_SERVICE_TTL_MS) {
       return done(brand, user, `사진 잘 받았습니다 📷\n방금 접수하신 A/S #${ls.id} 건과 함께 담당자가 확인해 드릴게요.`, POST_MENU);
@@ -306,7 +312,7 @@ exports.handler = async (event) => {
 
   // 빠른응답 코드가 control이면 그대로, 아니면 사용자 텍스트로 취급
   const input = (code && !isControl(code)) ? code : String(text || '').trim();
-  const state = await getState(supabase, user);
+  const state = preState;
 
   try {
     // ── 1) 컨트롤 코드 라우팅 ──
@@ -342,7 +348,8 @@ exports.handler = async (event) => {
       }
     }
 
-    if (!input) return done(brand, user, welcomeText(brand), CATEGORIES);
+    // REG_PHOTO 단계에서 사진만(텍스트 없이) 온 경우는 input이 비어도 handleFlow로 보내야 한다
+    if (!input && !(hasImage && state.step === 'REG_PHOTO')) return done(brand, user, welcomeText(brand), CATEGORIES);
 
     // ── 2) 감정 신호 → 상담원 이관 ──
     if (brain.detectEscalation(input)) {
@@ -357,7 +364,7 @@ exports.handler = async (event) => {
 
     // ── 3) 진행 중 대화상태 ──
     if (state.step !== 'IDLE') {
-      const r = await handleFlow(supabase, brand, user, input, state);
+      const r = await handleFlow(supabase, brand, user, input, state, hasImage, imageUrl);
       if (r) return r;
     }
 
@@ -406,7 +413,7 @@ exports.handler = async (event) => {
 };
 
 // 다단계 대화 처리
-async function handleFlow(supabase, brand, user, input, state) {
+async function handleFlow(supabase, brand, user, input, state, hasImage, imageUrl) {
   const d = state.data || {};
   const mallId = (brain.BRAND_META[brand] || {}).mallId;
 
@@ -460,8 +467,18 @@ async function handleFlow(supabase, brand, user, input, state) {
       d.product_name = input;
       return askStep(supabase, brand, user, 'REG_SYMPTOM', d);
     case 'REG_SYMPTOM': {
-      d.symptom = input; await clearState(supabase, user);
-      const res = await callFn('chatbot-register-service', { method: 'POST', user, body: { name: d.name, phone: d.phone, product_name: d.product_name, symptom: d.symptom, brand } });
+      d.symptom = input;
+      await setState(supabase, user, { step: 'REG_PHOTO', data: d });
+      return done(brand, user, STEP_PROMPT.REG_PHOTO(brand), [{ title: '건너뛰기', code: 'SKIP_PHOTO' }, ...NAV]);
+    }
+    case 'REG_PHOTO': {
+      if (hasImage && imageUrl) d.photo_url = imageUrl;
+      else if (!SKIP_PHOTO.has(input.trim())) {
+        // 사진도, 건너뛰기도 아닌 다른 입력 — 다시 안내
+        return done(brand, user, STEP_PROMPT.REG_PHOTO(brand), [{ title: '건너뛰기', code: 'SKIP_PHOTO' }, ...NAV]);
+      }
+      await clearState(supabase, user);
+      const res = await callFn('chatbot-register-service', { method: 'POST', user, body: { name: d.name, phone: d.phone, product_name: d.product_name, symptom: d.symptom, photo_url: d.photo_url, brand } });
       if (!res.success) return done(brand, user, `접수 중 오류가 발생했습니다: ${res.error || '잠시 후 다시 시도'}`, POST_MENU);
       await setState(supabase, user, { step: 'IDLE', data: {}, lastService: { id: res.service_id, at: Date.now() } });
       return done(brand, user, `✅ A/S 접수 완료\n접수번호: ${res.service_id}\n담당자 확인 후 연락드리겠습니다.`, POST_MENU);

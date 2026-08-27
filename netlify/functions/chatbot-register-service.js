@@ -1,6 +1,43 @@
 'use strict';
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { getSupabase, getIp, checkRateLimit, logRequest, ok, err, preflight } = require('./_chatbot_utils');
 const { getSettings, fireWebhook, serviceBrandOf } = require('./_chatbot_settings');
+
+const R2_BUCKET = 'crm-img';
+const getR2PublicUrl = () => process.env.R2_PUBLIC_URL || 'https://pub-27aaa3bc54074d938a076a095676c921.r2.dev';
+
+// 챗봇으로 받은 사진(네이버 CDN, 임시 URL)을 내려받아 R2에 영구 저장하고 service_files에 기록한다.
+// 실패해도 A/S 접수 자체는 이미 끝난 상태이므로 접수를 막지 않는다.
+async function attachChatbotPhoto(supabase, serviceId, photoUrl) {
+  const res = await fetch(photoUrl);
+  if (!res.ok) throw new Error(`이미지 다운로드 실패: ${res.status}`);
+  const contentType = res.headers.get('content-type') || 'image/jpeg';
+  const buf = Buffer.from(await res.arrayBuffer());
+
+  const key = `chatbot/${serviceId}_${Date.now()}.jpg`;
+  const client = new S3Client({
+    region: 'auto',
+    endpoint: process.env.R2_ENDPOINT,
+    forcePathStyle: true,
+    credentials: {
+      accessKeyId: process.env.R2_ACCESS_KEY_ID,
+      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+    },
+  });
+  await client.send(new PutObjectCommand({ Bucket: R2_BUCKET, Key: key, Body: buf, ContentType: contentType }));
+  const publicUrl = `${getR2PublicUrl()}/${key}`;
+
+  await supabase.from('service_files').insert({
+    service_id: serviceId,
+    file_id: key,
+    file_name: `챗봇_사진_${serviceId}.jpg`,
+    file_size: buf.length,
+    file_type: contentType,
+    web_view_link: publicUrl,
+    web_content_link: publicUrl,
+    upload_date: new Date().toISOString(),
+  });
+}
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return preflight();
@@ -12,7 +49,7 @@ exports.handler = async (event) => {
   let body;
   try { body = JSON.parse(event.body || '{}'); } catch { return err(400, 'Invalid JSON'); }
 
-  const { name, phone, product_name, symptom, brand } = body;
+  const { name, phone, product_name, symptom, brand, photo_url } = body;
   if (!name || !phone || !product_name || !symptom || !brand) {
     return err(400, 'name, phone, product_name, symptom, brand 필수');
   }
@@ -46,6 +83,11 @@ exports.handler = async (event) => {
     .single();
 
   if (error) return err(500, error.message);
+
+  if (photo_url) {
+    try { await attachChatbotPhoto(supabase, data.id, photo_url); }
+    catch (e) { console.error('[chatbot-register-service] 사진 첨부 실패:', e.message); }
+  }
 
   await logRequest(supabase, ip, brand, 'register');
 

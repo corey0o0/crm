@@ -190,7 +190,8 @@ exports.handler = async (event) => {
 
     const text = body.textContent?.text || '';
     const code = body.textContent?.code || ''; // 빠른응답/버튼 클릭 시 code 전달
-    const hasImage = !!(body.imageContent && (body.imageContent.imageUrl || body.imageContent.url));
+    const imageUrl = body.imageContent && (body.imageContent.imageUrl || body.imageContent.url) || '';
+    const hasImage = !!imageUrl;
     if (!text.trim() && !code && !hasImage) return ok({});
 
     // 톡톡 OFF면 완전 무응답(아무것도 보내지 않음)
@@ -202,7 +203,7 @@ exports.handler = async (event) => {
       await fetch(`${base}/.netlify/functions/chatbot-naver-worker-background`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brand, user, text, code, hasImage }),
+        body: JSON.stringify({ brand, user, text, code, hasImage, imageUrl }),
       });
     } catch (e) {
       console.error('[naver-webhook] worker 트리거 실패:', e.message);
