@@ -59,13 +59,16 @@ export default function InventoryStatus() {
     }
   };
 
-        const term = overallSearch.trim().toLowerCase();
+        const searchTokens = overallSearch.trim().toLowerCase().split(/\s+/).filter(Boolean);
         let rows = (products || []).filter(p => {
           if (p.is_deleted) return false;
           // 재고 비관리 상품 제외 (track_inventory가 false이거나 공임)
           if (!p.track_inventory) return false;
-          // 검색 필터
-          if (term && !p.name?.toLowerCase().includes(term) && !p.code?.toLowerCase().includes(term) && !p.barcode?.toLowerCase().includes(term)) return false;
+          // 검색 필터 — 공백으로 쪼갠 단어가 모두 포함되면 매치(순서 무관)
+          if (searchTokens.length) {
+            const haystack = `${p.name || ''} ${p.code || ''} ${p.barcode || ''}`.toLowerCase();
+            if (!searchTokens.every(tok => haystack.includes(tok))) return false;
+          }
           // 기체/파츠 필터
           if (categoryFilter !== 'all' && getPartCategory(p.code) !== categoryFilter) return false;
           return true;

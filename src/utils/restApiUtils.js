@@ -297,20 +297,29 @@ const buildShipmentFilters = async (options) => {
     // PostgREST는 큰따옴표로 감싼(quoted) 값 안에서는 ilike의 * 와일드카드를 문자 그대로
     // 취급해 절대 매칭되지 않는다 — 따옴표 없이 보내야 실제로 검색됨(콤마만 제거해 or= 절 깨짐 방지)
     const safeTerm = searchTerm.replace(/["]/g, '').replace(/,/g, ' ').trim();
-    const cleanTerm = safeTerm.replace(/^(shp-|SHP-)/i, '').trim();
+    // 공백으로 쪼갠 단어마다 or(...) 그룹을 만들고 and(...)로 묶어 — 순서 무관, 모든 단어 포함 매치
+    const tokens = safeTerm.split(/\s+/).filter(Boolean);
 
-    let idSearch = '';
-    if (/^[a-fA-F0-9]{8}$/.test(cleanTerm)) {
-      idSearch = `,and(id.gte.${cleanTerm}-0000-0000-0000-000000000000,id.lte.${cleanTerm}-ffff-ffff-ffff-ffffffffffff)`;
+    const buildTokenOrInner = async (token) => {
+      const cleanTerm = token.replace(/^(shp-|SHP-)/i, '').trim();
+      let idSearch = '';
+      if (/^[a-fA-F0-9]{8}$/.test(cleanTerm)) {
+        idSearch = `,and(id.gte.${cleanTerm}-0000-0000-0000-000000000000,id.lte.${cleanTerm}-ffff-ffff-ffff-ffffffffffff)`;
+      }
+      let partIdSearch = '';
+      const matchingIds = await fetchShipmentIdsByPartName(token, signal);
+      if (matchingIds.length > 0) {
+        partIdSearch = `,id.in.(${matchingIds.join(',')})`;
+      }
+      return `customer_name.ilike.*${encodeURIComponent(token)}*,customer_phone.ilike.*${encodeURIComponent(token)}*,tracking_number.ilike.*${encodeURIComponent(token)}*,sales_channel.ilike.*${encodeURIComponent(token)}*,note.ilike.*${encodeURIComponent(token)}*${idSearch}${partIdSearch}`;
+    };
+
+    if (tokens.length === 1) {
+      filters.push(`or=(${await buildTokenOrInner(tokens[0])})`);
+    } else if (tokens.length > 1) {
+      const groups = await Promise.all(tokens.map(async (t) => `or(${await buildTokenOrInner(t)})`));
+      filters.push(`and=(${groups.join(',')})`);
     }
-
-    let partIdSearch = '';
-    const matchingIds = await fetchShipmentIdsByPartName(safeTerm, signal);
-    if (matchingIds.length > 0) {
-      partIdSearch = `,id.in.(${matchingIds.join(',')})`;
-    }
-
-    filters.push(`or=(customer_name.ilike.*${encodeURIComponent(safeTerm)}*,customer_phone.ilike.*${encodeURIComponent(safeTerm)}*,tracking_number.ilike.*${encodeURIComponent(safeTerm)}*,sales_channel.ilike.*${encodeURIComponent(safeTerm)}*,note.ilike.*${encodeURIComponent(safeTerm)}*${idSearch}${partIdSearch})`);
   }
 
   return filters.length > 0 ? filters.join('&') : '';
