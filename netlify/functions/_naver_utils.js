@@ -125,7 +125,7 @@ async function getState(supabase, user) {
   return data?.state || { step: 'IDLE', data: {} };
 }
 // 대화 단계(step/data)와 무관한 부가 정보. 단계 전환·초기화 때 지워지지 않게 보존한다.
-const STICKY_STATE_KEYS = ['botEcho', 'offNoticeAt', 'lastService'];
+const STICKY_STATE_KEYS = ['botEcho', 'offNoticeAt', 'lastService', 'handoverAt'];
 
 async function setState(supabase, user, state) {
   let next = state;
@@ -238,18 +238,37 @@ async function touchSession(supabase, user) {
 }
 
 // ── 핸드오버 상태 플래그 (상담원 응대 중이면 봇 침묵) ──
+// 실제 운영에서는 상담원이 "상담 완료" 같은 정식 종료 버튼을 거의 안 쓰고 그냥 입력만 하고
+// 끝내는 경우가 대부분이라(handover 이벤트 자체가 거의 안 잡힘), 정식 종료에만 의존하면
+// 한 번 상담원에게 넘어간 대화는 영영 봇이 응답하지 않게 된다. 그래서 일정 시간이 지나면
+// 자동으로 봇에게 제어권을 돌려준다.
+const HANDOVER_TTL_MS = 24 * 60 * 60 * 1000; // 24시간
+
 async function setHandover(supabase, user, on) {
   await supabase
     .from('chatbot_naver_sessions')
     .upsert({ naver_user: user, handover: !!on, updated_at: new Date().toISOString() }, { onConflict: 'naver_user' });
+  if (on) {
+    const st = await getState(supabase, user);
+    await setState(supabase, user, { ...st, handoverAt: Date.now() });
+  }
 }
 async function isHandover(supabase, user) {
   const { data } = await supabase
     .from('chatbot_naver_sessions')
-    .select('handover')
+    .select('handover, updated_at')
     .eq('naver_user', user)
     .maybeSingle();
-  return !!data?.handover;
+  if (!data?.handover) return false;
+
+  const st = await getState(supabase, user);
+  // handoverAt이 없는(이 기능 배포 전에 이미 인계된) 세션은 updated_at을 기준으로 삼는다.
+  const since = st.handoverAt || (data.updated_at ? new Date(data.updated_at).getTime() : 0);
+  if (since && Date.now() - since > HANDOVER_TTL_MS) {
+    await setHandover(supabase, user, false); // 자동 만료 — 다음부터 봇이 다시 응답
+    return false;
+  }
+  return true;
 }
 
 module.exports = {
