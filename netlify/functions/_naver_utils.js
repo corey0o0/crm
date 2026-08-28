@@ -242,7 +242,7 @@ async function touchSession(supabase, user) {
 // 끝내는 경우가 대부분이라(handover 이벤트 자체가 거의 안 잡힘), 정식 종료에만 의존하면
 // 한 번 상담원에게 넘어간 대화는 영영 봇이 응답하지 않게 된다. 그래서 일정 시간이 지나면
 // 자동으로 봇에게 제어권을 돌려준다.
-const HANDOVER_TTL_MS = 24 * 60 * 60 * 1000; // 24시간
+const HANDOVER_TTL_MS = 12 * 60 * 60 * 1000; // 12시간
 
 async function setHandover(supabase, user, on) {
   await supabase
