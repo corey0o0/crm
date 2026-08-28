@@ -1026,9 +1026,9 @@ function PartsManagement() {
         track_inventory: formData.track_inventory !== false
       };
 
-      if (formData.barcode) partData.barcode = formData.barcode;
-      if (formData.memo) partData.memo = formData.memo;
-      if (formData.note) partData.note = formData.note;
+      partData.barcode = formData.barcode || null;
+      partData.memo = formData.memo || null;
+      partData.note = formData.note || null;
       partData.discount_group = formData.discount_group || null;
 
       if (selectedPart) {
