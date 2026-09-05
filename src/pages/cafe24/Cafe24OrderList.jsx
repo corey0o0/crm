@@ -841,9 +841,12 @@ export default function Cafe24OrderList() {
         onConfirm: async () => {
           setLoading(true);
           try {
-            // 1. Get previous warehouse configuration
+            // 1. Get previous warehouse configuration — UI에서 직접 지정한 창고(warehouseConfig)를 최우선으로 사용
             let prevWarehouse = (warehouses.find(w => w.name.includes('청담')) || warehouses[0])?.id || '';
-            if (order.order_items) {
+            const wcSelected = Object.values(warehouseConfig[order.id] || {}).find(v => v && v !== 'EXCLUDE');
+            if (wcSelected) {
+              prevWarehouse = wcSelected;
+            } else if (order.order_items) {
               const prevItem = order.order_items.find(i => i._warehouse_id && i._warehouse_id !== 'EXCLUDE');
               if (prevItem) prevWarehouse = prevItem._warehouse_id;
             }
@@ -929,8 +932,12 @@ export default function Cafe24OrderList() {
             setLoading(true);
             try {
               const tempConfig = { [order.id]: {} };
+              // UI에서 직접 지정한 창고(warehouseConfig)를 최우선으로 사용
               _validIdx.forEach(({ it, idx }) => {
-                tempConfig[order.id][idx] = (it._warehouse_id && it._warehouse_id !== 'EXCLUDE') ? it._warehouse_id : defWarehouse;
+                const picked = warehouseConfig[order.id] && warehouseConfig[order.id][idx];
+                tempConfig[order.id][idx] = (picked && picked !== 'EXCLUDE')
+                  ? picked
+                  : ((it._warehouse_id && it._warehouse_id !== 'EXCLUDE') ? it._warehouse_id : defWarehouse);
               });
               const transferRes = await transferCafe24Orders([order.id], tempConfig);
               const skipped = transferRes?.skippedOrders || [];
@@ -1041,7 +1048,10 @@ export default function Cafe24OrderList() {
 
         if (isExchange) {
           let prevWarehouse = (warehouses.find(w => w.name.includes('청담')) || warehouses[0])?.id || '';
-          if (order.order_items) {
+          const wcSelected = Object.values(warehouseConfig[order.id] || {}).find(v => v && v !== 'EXCLUDE');
+          if (wcSelected) {
+            prevWarehouse = wcSelected;
+          } else if (order.order_items) {
             const prevItem = order.order_items.find(i => i._warehouse_id && i._warehouse_id !== 'EXCLUDE');
             if (prevItem) prevWarehouse = prevItem._warehouse_id;
           }
@@ -1083,11 +1093,14 @@ export default function Cafe24OrderList() {
             .map((it, idx) => ({ it, idx }))
             .filter(x => !CANCEL_STATUSES.includes(String(x.it.order_status).trim()));
           if (_validIdx.length > 0) {
-            // 부분취소: 취소품목 제외하고 유효품목만 판매반영
+            // 부분취소: 취소품목 제외하고 유효품목만 판매반영 (UI 지정 창고 최우선)
             const defWarehouse = (warehouses.find(w => w.name.includes('청담')) || warehouses[0])?.id || '';
             const tempConfig = { [order.id]: {} };
             _validIdx.forEach(({ it, idx }) => {
-              tempConfig[order.id][idx] = (it._warehouse_id && it._warehouse_id !== 'EXCLUDE') ? it._warehouse_id : defWarehouse;
+              const picked = warehouseConfig[order.id] && warehouseConfig[order.id][idx];
+              tempConfig[order.id][idx] = (picked && picked !== 'EXCLUDE')
+                ? picked
+                : ((it._warehouse_id && it._warehouse_id !== 'EXCLUDE') ? it._warehouse_id : defWarehouse);
             });
             const transferRes = await transferCafe24Orders([order.id], tempConfig);
             const skipped = transferRes?.skippedOrders || [];
