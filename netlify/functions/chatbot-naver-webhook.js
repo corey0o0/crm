@@ -13,7 +13,7 @@
 // 네이버 톡톡 webhook은 읽기 타임아웃이 5초라 LLM 응답을 동기로 못 돌린다.
 // → 여기서는 즉시 200 ACK만 하고, 무거운 처리(FAQ/LLM/조회)는 백그라운드 함수로 위임한다.
 //
-const { getSupabase, ok, err } = require('./_chatbot_utils');
+const { getSupabase, insertChatLog, ok, err } = require('./_chatbot_utils');
 const { textMessage, imageMessage, naverSend, setHandover, isHandover, getLastActivityAt, clearState, isOwnBotText, markOffNotice } = require('./_naver_utils');
 const { getSettings, isWithinHours, isNaverEnabled, offhoursText } = require('./_chatbot_settings');
 
@@ -171,7 +171,7 @@ exports.handler = async (event) => {
     // 상담원이 "상담 완료하기"를 누르면 handover 이벤트로 해제된다.
     try { await setHandover(supabase, user, true); } catch (e) { console.error('[echo] 인계 표시 실패:', e.message); }
     try {
-      await supabase.from('chat_logs').insert({
+      await insertChatLog(supabase, {
         session_id: `naver:${user}`,
         brand,
         user_message: `[상담원 응대]${nickname ? ' ' + nickname : ''}`,

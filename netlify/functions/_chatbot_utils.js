@@ -42,6 +42,21 @@ async function logRequest(supabase, ip, brand, type) {
   await supabase.from('chatbot_logs').insert({ ip, brand, type });
 }
 
+async function insertChatLog(supabase, payload) {
+  const { error } = await supabase.from('chat_logs').insert(payload);
+  if (!error) return { error: null };
+
+  // 통계 컬럼 마이그레이션 전 배포도 대화는 계속 기록되어야 한다.
+  const msg = `${error.code || ''} ${error.message || ''}`;
+  if (!/response_ms|handoff_requested|handoff_executed|PGRST204/i.test(msg)) return { error };
+
+  const fallback = { ...payload };
+  delete fallback.response_ms;
+  delete fallback.handoff_requested;
+  delete fallback.handoff_executed;
+  return supabase.from('chat_logs').insert(fallback);
+}
+
 function ok(body) {
   return { statusCode: 200, headers: CORS, body: JSON.stringify(body) };
 }
@@ -52,4 +67,4 @@ function preflight() {
   return { statusCode: 200, headers: CORS, body: '' };
 }
 
-module.exports = { CORS, getSupabase, getIp, checkRateLimit, logRequest, ok, err, preflight };
+module.exports = { CORS, getSupabase, getIp, checkRateLimit, logRequest, insertChatLog, ok, err, preflight };

@@ -4,7 +4,7 @@ import {
   TableHead, TableRow, Paper, Button, IconButton, Chip, Dialog, DialogTitle,
   DialogContent, DialogActions, TextField, Select, MenuItem, FormControl,
   InputLabel, Switch, FormControlLabel, Snackbar, Alert, CircularProgress,
-  Tooltip, Divider, Card, CardContent, Stack
+  Tooltip, Card, CardContent, Stack
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -24,9 +24,10 @@ import { supabase } from '../../lib/supabaseClient';
 import { uploadFileToR2 } from '../../utils/cloudflareR2Utils';
 import { format } from 'date-fns';
 import ChatbotSettings from './ChatbotSettings';
+import { calculateChatbotStats, filterLogsByDays } from './chatbotStats';
 
 const BRANDS = ['ALL', 'SHARED', 'NB', 'XRB'];
-const REPLY_TYPES = ['all', 'faq', 'faq_llm', 'llm'];
+const REPLY_TYPES = ['all', 'faq', 'faq_llm', 'llm', 'rag', 'handoff', 'agent', 'error'];
 
 const EMPTY_FORM = {
   brand: 'SHARED',
@@ -63,7 +64,11 @@ export default function FaqManagement() {
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [activeFilter, setActiveFilter] = useState('all');
   const [logSearch, setLogSearch] = useState('');
+  const [statsLogs, setStatsLogs] = useState([]);
+  const [statsDays, setStatsDays] = useState(30);
+  const [statsBrand, setStatsBrand] = useState('all');
   const [suggestions, setSuggestions] = useState([]);
+  const [enhanceSummary, setEnhanceSummary] = useState(null);
   const [enhanceBrand, setEnhanceBrand] = useState('nb');
   const [enhanceLoading, setEnhanceLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
@@ -118,9 +123,27 @@ export default function FaqManagement() {
     setUsageByLabel(counts);
   }, []);
 
+  // ── 통계용 로그 불러오기 (최근 90일, 기간 필터는 클라이언트에서 필터링) ──
+  const fetchStatsLogs = useCallback(async () => {
+    setLoading(true);
+    const since = new Date(Date.now() - 90 * 24 * 3600 * 1000).toISOString();
+    const query = supabase
+      .from('chat_logs')
+      .select('*')
+      .gte('created_at', since)
+      .order('created_at', { ascending: false })
+      .limit(5000);
+    if (statsBrand !== 'all') query.eq('brand', statsBrand);
+    const { data, error } = await query;
+    setLoading(false);
+    if (error) { showMsg('통계 불러오기 실패', 'error'); return; }
+    setStatsLogs(data || []);
+  }, [statsBrand]);
+
   useEffect(() => { fetchFaqs(); }, [fetchFaqs]);
   useEffect(() => { fetchUsage(); }, [fetchUsage]);
   useEffect(() => { if (tabValue === 1) fetchChatLogs(); }, [tabValue, fetchChatLogs]);
+  useEffect(() => { if (tabValue === 2) fetchStatsLogs(); }, [tabValue, fetchStatsLogs]);
 
   // ── 저장 ──
   const handleSave = async () => {
@@ -241,6 +264,7 @@ export default function FaqManagement() {
   const runEnhance = async () => {
     setEnhanceLoading(true);
     setSuggestions([]);
+    setEnhanceSummary(null);
     try {
       const res = await fetch('/.netlify/functions/chatbot-faq-enhance', {
         method: 'POST',
@@ -249,7 +273,11 @@ export default function FaqManagement() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'AI 오류');
-      setSuggestions(data.suggestions || []);
+      setEnhanceSummary(data.summary || null);
+      setSuggestions((data.suggestions || []).map(s => ({
+        ...s,
+        keywordsText: (s.keywords || []).join(', '),
+      })));
       if (data.suggestions?.length === 0) showMsg(data.message || '새로운 제안이 없습니다.', 'info');
       else showMsg(`${data.suggestions.length}개 제안이 생성되었습니다.`, 'info');
     } catch (e) {
@@ -259,20 +287,35 @@ export default function FaqManagement() {
     }
   };
 
+  const updateSuggestion = (index, patch) => {
+    setSuggestions(prev => prev.map((s, i) => i === index ? { ...s, ...patch } : s));
+  };
+
   // ── AI 제안 승인 ──
-  const approveSuggestion = async (s) => {
+  const approveSuggestion = async (s, index) => {
+    const label = (s.label || '').trim();
+    const answer = (s.answer || '').trim();
+    if (!label || !answer) {
+      showMsg('카테고리명과 답변은 필수입니다.', 'warning');
+      return;
+    }
+
+    const keywords = String(s.keywordsText ?? (s.keywords || []).join(', '))
+      .split(',')
+      .map(k => k.trim())
+      .filter(Boolean);
     const brandVal = enhanceBrand === 'nb' ? 'NB' : 'XRB';
     const { error } = await supabase.from('faq_items').insert({
       brand: brandVal,
-      label: s.label,
-      keywords: s.keywords,
-      answer: s.answer,
+      label,
+      keywords,
+      answer,
       source: 'ai_suggested',
       is_active: true,
     });
     if (error) { showMsg('추가 실패', 'error'); return; }
-    showMsg(`'${s.label}' FAQ가 추가되었습니다.`);
-    setSuggestions(prev => prev.filter(x => x.label !== s.label));
+    showMsg(`'${label}' FAQ가 추가되었습니다.`);
+    setSuggestions(prev => prev.filter((_, i) => i !== index));
     if (tabValue === 0) fetchFaqs();
   };
 
@@ -310,12 +353,13 @@ export default function FaqManagement() {
       <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)} sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}>
         <Tab label="FAQ 목록" />
         <Tab label="채팅 로그" />
+        <Tab label="통계" />
         <Tab label="AI 제안" />
         <Tab label="운영 설정" />
       </Tabs>
 
-      {/* ── Tab 3: 운영 설정 (ON/OFF·시간) ── */}
-      {tabValue === 3 && <ChatbotSettings />}
+      {/* ── Tab 4: 운영 설정 (ON/OFF·시간) ── */}
+      {tabValue === 4 && <ChatbotSettings />}
 
       {/* ── Tab 0: FAQ 목록 ── */}
       {tabValue === 0 && (
@@ -470,6 +514,7 @@ export default function FaqManagement() {
               <Select value={logBrandFilter} onChange={e => setLogBrandFilter(e.target.value)} label="브랜드">
                 <MenuItem value="all">전체</MenuItem>
                 <MenuItem value="nb">NB</MenuItem>
+                <MenuItem value="nb2">NB2</MenuItem>
                 <MenuItem value="xrb">XRB</MenuItem>
               </Select>
             </FormControl>
@@ -536,16 +581,70 @@ export default function FaqManagement() {
         </Box>
       )}
 
-      {/* ── Tab 2: AI 제안 ── */}
+      {/* ── Tab 2: 통계 ── */}
       {tabValue === 2 && (
+        <Box>
+          <Box sx={{ display: 'flex', gap: 1.5, mb: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+            <FormControl size="small" sx={{ minWidth: 100 }}>
+              <InputLabel>브랜드</InputLabel>
+              <Select value={statsBrand} onChange={e => setStatsBrand(e.target.value)} label="브랜드">
+                <MenuItem value="all">전체</MenuItem>
+                <MenuItem value="nb">NB</MenuItem>
+                <MenuItem value="nb2">NB2</MenuItem>
+                <MenuItem value="xrb">XRB</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ minWidth: 100 }}>
+              <InputLabel>기간</InputLabel>
+              <Select value={statsDays} onChange={e => setStatsDays(e.target.value)} label="기간">
+                <MenuItem value={7}>7일</MenuItem>
+                <MenuItem value={30}>30일</MenuItem>
+                <MenuItem value={90}>90일</MenuItem>
+              </Select>
+            </FormControl>
+            <Box sx={{ flex: 1 }} />
+            <Button startIcon={<RefreshIcon />} onClick={fetchStatsLogs} disabled={loading}>새로고침</Button>
+          </Box>
+
+          {loading ? (
+            <Box sx={{ textAlign: 'center', py: 5 }}><CircularProgress /></Box>
+          ) : (() => {
+            const stats = calculateChatbotStats(filterLogsByDays(statsLogs, statsDays));
+            const cards = [
+              { label: '총 대화(로그)', value: stats.total },
+              { label: 'AI 응답률', value: `${stats.aiRate}%`, sub: `${stats.aiReplies}건` },
+              { label: '평균 응답 속도', value: stats.avgResponseMs ? `${(stats.avgResponseMs / 1000).toFixed(1)}초` : '-' },
+              { label: '상담원 연결 요청률', value: `${stats.handoffRequestRate}%`, sub: `${stats.handoffRequests}건` },
+              { label: '핸드오프 실행률', value: `${stats.handoffExecutionRate}%`, sub: `${stats.handoffExecuted}건` },
+              { label: '실제 상담원 개입률', value: `${stats.agentInterventionRate}%`, sub: `${stats.agentInterventions}건` },
+            ];
+            return (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                {cards.map(c => (
+                  <Card key={c.label} sx={{ minWidth: 180, flex: '1 1 180px' }}>
+                    <CardContent>
+                      <Typography variant="body2" color="text.secondary">{c.label}</Typography>
+                      <Typography variant="h5" fontWeight="bold" sx={{ mt: 0.5 }}>{c.value}</Typography>
+                      {c.sub && <Typography variant="caption" color="text.secondary">{c.sub}</Typography>}
+                    </CardContent>
+                  </Card>
+                ))}
+              </Box>
+            );
+          })()}
+        </Box>
+      )}
+
+      {/* ── Tab 3: AI 제안 ── */}
+      {tabValue === 3 && (
         <Box>
           <Card sx={{ mb: 3 }}>
             <CardContent>
               <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 2 }}>AI FAQ 자동 제안</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                최근 30일 동안 FAQ로 답변되지 않고 LLM으로 처리된 질문들을 분석하여 새로운 FAQ 항목을 제안합니다.
+                최근 30일 동안 FAQ로 답변되지 않고 LLM/RAG로 처리된 질문들을 분석하여 새로운 FAQ 항목을 제안합니다.
               </Typography>
-              <Stack direction="row" spacing={2} alignItems="center">
+              <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" useFlexGap>
                 <FormControl size="small" sx={{ minWidth: 120 }}>
                   <InputLabel>브랜드</InputLabel>
                   <Select value={enhanceBrand} onChange={e => setEnhanceBrand(e.target.value)} label="브랜드">
@@ -566,40 +665,99 @@ export default function FaqManagement() {
             </CardContent>
           </Card>
 
+          {enhanceSummary && (
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
+              {[
+                { label: '분석 로그', value: `${enhanceSummary.analyzed || 0}건` },
+                { label: '반복 질문', value: `${enhanceSummary.unique_questions || 0}개`, sub: `총 ${enhanceSummary.total_question_count || 0}건` },
+                { label: '제안 FAQ', value: `${suggestions.length}개` },
+                { label: '예상 절감', value: `${suggestions.reduce((sum, s) => sum + (Number(s.estimated_saves) || 0), 0)}건` },
+              ].map(c => (
+                <Card key={c.label} sx={{ minWidth: 150, flex: '1 1 150px' }}>
+                  <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                    <Typography variant="body2" color="text.secondary">{c.label}</Typography>
+                    <Typography variant="h6" fontWeight="bold">{c.value}</Typography>
+                    {c.sub && <Typography variant="caption" color="text.secondary">{c.sub}</Typography>}
+                  </CardContent>
+                </Card>
+              ))}
+            </Box>
+          )}
+
+          {suggestions.length === 0 && !enhanceLoading && (
+            <Paper sx={{ p: 3, textAlign: 'center', color: 'text.secondary' }}>
+              <Typography variant="body2">AI 분석을 실행하면 FAQ 후보와 예상 절감 건수가 여기에 표시됩니다.</Typography>
+            </Paper>
+          )}
+
           {suggestions.length > 0 && (
             <Box>
               <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 2 }}>
-                제안된 FAQ ({suggestions.length}개) — 승인하면 즉시 FAQ 목록에 추가됩니다
+                제안된 FAQ ({suggestions.length}개) — 검토·수정 후 승인하세요
               </Typography>
               <Stack spacing={2}>
                 {suggestions.map((s, i) => (
                   <Paper key={i} sx={{ p: 2, border: '1px solid', borderColor: 'divider' }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-                      <Typography variant="subtitle2" fontWeight="bold">{s.label}</Typography>
-                      <Stack direction="row" spacing={1}>
-                        <Button
-                          size="small"
-                          variant="contained"
-                          color="success"
-                          startIcon={<CheckCircleIcon />}
-                          onClick={() => approveSuggestion(s)}
-                        >승인</Button>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          color="error"
-                          startIcon={<CancelIcon />}
-                          onClick={() => setSuggestions(prev => prev.filter((_, j) => j !== i))}
-                        >거절</Button>
-                      </Stack>
-                    </Box>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
-                      {(s.keywords || []).map(kw => <Chip key={kw} label={kw} size="small" variant="outlined" />)}
-                    </Box>
-                    <Typography variant="body2" sx={{ mb: 1, whiteSpace: 'pre-line' }}>{s.answer}</Typography>
-                    {s.reason && (
-                      <Typography variant="caption" color="text.secondary">💡 {s.reason}</Typography>
-                    )}
+                    <Stack spacing={1.5}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
+                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                          <Chip label={`질문 ${s.question_count || 1}건`} size="small" color="primary" variant="outlined" />
+                          <Chip label={`예상 절감 ${s.estimated_saves || s.question_count || 1}건`} size="small" color="success" variant="outlined" />
+                          {s.confidence && <Chip label={`신뢰도 ${s.confidence}`} size="small" variant="outlined" />}
+                        </Stack>
+                        <Stack direction="row" spacing={1}>
+                          <Button
+                            size="small"
+                            variant="contained"
+                            color="success"
+                            startIcon={<CheckCircleIcon />}
+                            onClick={() => approveSuggestion(s, i)}
+                          >승인</Button>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="error"
+                            startIcon={<CancelIcon />}
+                            onClick={() => setSuggestions(prev => prev.filter((_, j) => j !== i))}
+                          >거절</Button>
+                        </Stack>
+                      </Box>
+
+                      <TextField
+                        label="카테고리명"
+                        size="small"
+                        fullWidth
+                        value={s.label || ''}
+                        onChange={e => updateSuggestion(i, { label: e.target.value })}
+                      />
+                      <TextField
+                        label="키워드 (쉼표로 구분)"
+                        size="small"
+                        fullWidth
+                        value={s.keywordsText ?? (s.keywords || []).join(', ')}
+                        onChange={e => updateSuggestion(i, { keywordsText: e.target.value })}
+                      />
+                      <TextField
+                        label="답변 내용"
+                        multiline
+                        minRows={4}
+                        fullWidth
+                        value={s.answer || ''}
+                        onChange={e => updateSuggestion(i, { answer: e.target.value })}
+                      />
+
+                      {(s.sample_questions || []).length > 0 && (
+                        <Box>
+                          <Typography variant="caption" color="text.secondary">대표 질문</Typography>
+                          <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 0.5 }}>
+                            {s.sample_questions.map(q => <Chip key={q} label={q} size="small" />)}
+                          </Stack>
+                        </Box>
+                      )}
+                      {s.reason && (
+                        <Typography variant="caption" color="text.secondary">💡 {s.reason}</Typography>
+                      )}
+                    </Stack>
                   </Paper>
                 ))}
               </Stack>

@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS chat_logs (
   user_message       TEXT NOT NULL,
   bot_reply          TEXT,
   matched_faq_label  TEXT,
-  reply_type         TEXT DEFAULT 'llm',  -- 'faq' | 'faq_llm' | 'llm' | 'error'
+  reply_type         TEXT DEFAULT 'llm',  -- 'faq' | 'faq_llm' | 'llm' | 'rag' | 'handoff' | 'agent' | 'error'
   created_at         TIMESTAMPTZ DEFAULT NOW()
 );
 

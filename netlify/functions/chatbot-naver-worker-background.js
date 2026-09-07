@@ -4,7 +4,7 @@
 // 위젯(public/chatbot.js) processInput() 흐름을 그대로 미러링 + send API로 push.
 // 비즈니스 로직(주문/AS/등록)은 기존 함수 내부 HTTP 재사용, 대화 두뇌는 _chatbot_brain.
 //
-const { getSupabase, checkRateLimit, logRequest } = require('./_chatbot_utils');
+const { getSupabase, checkRateLimit, logRequest, insertChatLog } = require('./_chatbot_utils');
 const { textMessage, imageMessage, naverSend, typing, getState, setState, clearState, getHistory, appendHistory, clearHistory, passThread, takeThread, setHandover, isHandover, touchSession, markOffNotice, getOffNoticeAt } = require('./_naver_utils');
 const { getSettings, isWithinHours, offhoursText } = require('./_chatbot_settings');
 const brain = require('./_chatbot_brain');
@@ -132,7 +132,7 @@ async function callFn(path, { method = 'GET', query = {}, body, user } = {}) {
 // FAQ 버튼으로 답한 건을 chat_logs 에 남긴다. 실패해도 대화는 계속되어야 하므로 삼킨다.
 async function logFaqUse(supabase, brand, user, label, answer) {
   try {
-    const { error } = await supabase.from('chat_logs').insert({
+    const { error } = await insertChatLog(supabase, {
       session_id: `naver:${user}`,
       brand,
       user_message: `[FAQ 선택] ${label}`,
@@ -257,6 +257,7 @@ const wantsAgent = (s) => /(상담원|상담사|상담직원|채팅상담)/.test
 
 // 상담원에게 인계(passThread) — 안내 후 제어권을 파트너센터 상담원(targetId=1)에게 넘김
 async function goAgent(supabase, brand, user) {
+  const startedAt = Date.now();
   await clearState(supabase, user);
   await naverSend(brand, typing(user, false));
   // 운영시간 외에 "잠시만 기다려 주세요"라고만 하면 곧 답이 올 것처럼 읽히므로 문구를 나눈다
@@ -264,9 +265,24 @@ async function goAgent(supabase, brand, user) {
   const wait = isWithinHours(settings)
     ? '접수된 순서대로 순차적으로 처리하고 있어요.\n잠시만 기다려 주시면 담당자가 확인 후 답변드리겠습니다 🙏'
     : '지금은 상담 운영시간이 아니라 바로 확인이 어려워요.\n남겨주신 내용은 다음 영업일에 순서대로 확인 후 답변드리겠습니다 🙏';
-  await send(brand, user, `상담원에게 연결해 드릴게요 🙂\n${wait}\n\n※ 연결 중에는 챗봇이 응답하지 않습니다. 궁금하신 내용을 미리 남겨두시면 함께 확인해 드릴게요.`);
+  const reply = `상담원에게 연결해 드릴게요 🙂\n${wait}\n\n※ 연결 중에는 챗봇이 응답하지 않습니다. 궁금하신 내용을 미리 남겨두시면 함께 확인해 드릴게요.`;
+  await send(brand, user, reply);
   await setHandover(supabase, user, true);
-  await naverSend(brand, passThread(user, 1));
+  const handoff = await naverSend(brand, passThread(user, 1));
+  try {
+    const { error } = await insertChatLog(supabase, {
+      session_id: `naver:${user}`,
+      brand,
+      user_message: '[상담원 연결 요청]',
+      bot_reply: reply.slice(0, 1000),
+      matched_faq_label: null,
+      reply_type: 'handoff',
+      response_ms: Date.now() - startedAt,
+      handoff_requested: true,
+      handoff_executed: !!handoff.ok,
+    });
+    if (error) console.error('[handoff-log] 실패:', JSON.stringify(error));
+  } catch (e) { console.error('[handoff-log] 예외:', e.message); }
   return { statusCode: 200, body: '' };
 }
 

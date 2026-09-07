@@ -1,5 +1,5 @@
 'use strict';
-const { getSupabase, getIp, checkRateLimit, logRequest, ok, err, preflight } = require('./_chatbot_utils');
+const { getSupabase, getIp, checkRateLimit, logRequest, insertChatLog, ok, err, preflight } = require('./_chatbot_utils');
 const { getSettings } = require('./_chatbot_settings');
 
 // 모드별 모델 — 자연스러운 대화(rag/chat)는 Sonnet, 분류(smart)는 빠른 Haiku
@@ -48,7 +48,7 @@ exports.handler = async (event) => {
   if (mode === 'log') {
     if (message) {
       try {
-        const { error } = await supabase.from('chat_logs').insert({
+        const { error } = await insertChatLog(supabase, {
           session_id: session_id || null,
           brand,
           user_message: message,
@@ -128,6 +128,7 @@ exports.handler = async (event) => {
     { role: 'user', content: message },
   ];
 
+  const startedAt = Date.now();
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -152,6 +153,7 @@ exports.handler = async (event) => {
     return err(502, 'AI 응답 오류');
   }
 
+  const responseMs = Date.now() - startedAt;
   const data = await res.json();
   const rawText = data.content?.[0]?.text || '';
 
@@ -169,13 +171,14 @@ exports.handler = async (event) => {
     const finalReplyType = (parsed?.type === 'faq') ? 'faq_llm' : replyType;
     const matchedLabel = parsed?.label || null;
     const botReply = parsed?.reply || (mode !== 'smart' ? rawText : null);
-    const { error: logErr } = await supabase.from('chat_logs').insert({
+    const { error: logErr } = await insertChatLog(supabase, {
       session_id: session_id || null,
       brand,
       user_message: message,
       bot_reply: botReply?.slice(0, 1000) || null,
       matched_faq_label: matchedLabel,
       reply_type: finalReplyType,
+      response_ms: responseMs,
     });
     if (logErr) console.error('[chat_logs insert 실패]', JSON.stringify(logErr));
   } catch (e) { console.error('[chat_logs insert 예외]', e.message); }
