@@ -1,4 +1,4 @@
-import { calculateChatbotStats, filterLogsByDays } from './chatbotStats';
+import { calculateChatbotStats, filterLogsByDays, getNaverUserId, groupLogsByNaverUser } from './chatbotStats';
 
 const NOW = new Date('2026-09-06T12:00:00.000Z');
 
@@ -33,4 +33,44 @@ test('filters logs by recent days', () => {
 
   expect(filterLogsByDays(logs, 7, NOW)).toHaveLength(1);
   expect(filterLogsByDays(logs, 30, NOW)).toHaveLength(2);
+});
+
+test('extracts Naver user id from explicit field or legacy session id', () => {
+  expect(getNaverUserId({ naver_user_id: 'talk-user-1', session_id: 'naver:old' })).toBe('talk-user-1');
+  expect(getNaverUserId({ session_id: 'naver:talk-user-2' })).toBe('talk-user-2');
+  expect(getNaverUserId({ session_id: 'web:abc' })).toBeNull();
+  expect(getNaverUserId({})).toBeNull();
+});
+
+test('groups chat logs by Naver user id with latest question first', () => {
+  const groups = groupLogsByNaverUser([
+    { id: 1, session_id: 'naver:user-a', user_message: '첫 질문', created_at: '2026-09-06T11:00:00.000Z', reply_type: 'faq' },
+    { id: 2, naver_user_id: 'user-b', user_message: '다른 질문', created_at: '2026-09-06T11:05:00.000Z', reply_type: 'llm' },
+    { id: 3, session_id: 'naver:user-a', user_message: '최근 질문', created_at: '2026-09-06T11:10:00.000Z', reply_type: 'handoff' },
+    { id: 4, session_id: 'web:skip', user_message: '웹 질문', created_at: '2026-09-06T11:20:00.000Z', reply_type: 'faq' },
+  ]);
+
+  expect(groups).toEqual([
+    {
+      naverUserId: 'user-a',
+      count: 2,
+      lastMessage: '최근 질문',
+      lastAt: '2026-09-06T11:10:00.000Z',
+      replyTypes: ['faq', 'handoff'],
+      logs: [
+        { id: 3, session_id: 'naver:user-a', user_message: '최근 질문', created_at: '2026-09-06T11:10:00.000Z', reply_type: 'handoff' },
+        { id: 1, session_id: 'naver:user-a', user_message: '첫 질문', created_at: '2026-09-06T11:00:00.000Z', reply_type: 'faq' },
+      ],
+    },
+    {
+      naverUserId: 'user-b',
+      count: 1,
+      lastMessage: '다른 질문',
+      lastAt: '2026-09-06T11:05:00.000Z',
+      replyTypes: ['llm'],
+      logs: [
+        { id: 2, naver_user_id: 'user-b', user_message: '다른 질문', created_at: '2026-09-06T11:05:00.000Z', reply_type: 'llm' },
+      ],
+    },
+  ]);
 });

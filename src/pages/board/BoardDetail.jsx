@@ -50,13 +50,16 @@ function BoardDetail() {
     setReplying(true);
     setReplyMsg(null);
     try {
-      await postCafe24Comment({
+      const result = await postCafe24Comment({
         mall_id: post.cafe24_mall_id,
         board_no: post.cafe24_board_no,
         article_no: post.cafe24_article_no,
         content: replyContent.trim()
       });
-      setReplyMsg({ type: 'success', text: '카페24에 답글이 등록되었습니다.' });
+      if (Array.isArray(result.answers)) {
+        setPost(prev => ({ ...prev, answers: result.answers, answer_count: result.answer_count ?? result.answers.length }));
+      }
+      setReplyMsg({ type: result.warning ? 'warning' : 'success', text: result.warning || '카페24에 답글이 등록되었습니다.' });
       setReplyContent('');
       setShowReplyBox(false);
     } catch (e) {
@@ -185,7 +188,7 @@ function BoardDetail() {
         <Box
           sx={{
             '& p': { my: 0.5 },
-            '& img': { maxWidth: '100%', borderRadius: 1 },
+            '& img, & video, & iframe': { maxWidth: '100%', borderRadius: 1 },
             // 에디터에서 작성한 표 렌더링(신규 표는 인라인 스타일이 없으므로 여기서 테두리 적용)
             '& table': { borderCollapse: 'collapse', width: '100%', margin: '8px 0' },
             '& th, & td': { border: '1px solid #ccc', padding: '8px' },
@@ -198,10 +201,11 @@ function BoardDetail() {
               // FORCE_BODY: <style>을 body 컨텍스트로 파싱해 살림 (없으면 <head>로 빠져 제거됨)
               // 주의: <style> 규칙은 페이지 전역 적용 — 작성 시 body{}/*{} 같은 광범위 선택자 금지
               FORCE_BODY: true,
-              ADD_TAGS: ['style', 'iframe'],
+              ADD_TAGS: ['style', 'iframe', 'video', 'source'],
               ADD_ATTR: [
                 'style', 'class',
                 'target', 'rel',
+                'src', 'controls', 'poster', 'preload', 'muted', 'type',
                 'allow', 'allowfullscreen', 'frameborder', 'scrolling',
                 'colspan', 'rowspan', 'width', 'height',
                 'align', 'valign', 'border', 'cellpadding', 'cellspacing', 'bgcolor'
@@ -276,6 +280,10 @@ function BoardDetail() {
             </Button>
           </Stack>
 
+          {replyMsg && (
+            <Alert severity={replyMsg.type} sx={{ mb: showReplyBox ? 1 : 0 }}>{replyMsg.text}</Alert>
+          )}
+
           {showReplyBox && (
             <>
               <TextField
@@ -288,9 +296,6 @@ function BoardDetail() {
                 size="small"
                 sx={{ mb: 1 }}
               />
-              {replyMsg && (
-                <Alert severity={replyMsg.type} sx={{ mb: 1 }}>{replyMsg.text}</Alert>
-              )}
               <Button
                 variant="contained"
                 size="small"

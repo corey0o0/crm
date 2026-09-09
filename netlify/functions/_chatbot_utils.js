@@ -42,18 +42,31 @@ async function logRequest(supabase, ip, brand, type) {
   await supabase.from('chatbot_logs').insert({ ip, brand, type });
 }
 
+function getNaverUserIdFromLog(payload) {
+  const explicit = String(payload?.naver_user_id || '').trim();
+  if (explicit) return explicit;
+
+  const sessionId = String(payload?.session_id || '');
+  return sessionId.startsWith('naver:') ? sessionId.slice('naver:'.length) : null;
+}
+
 async function insertChatLog(supabase, payload) {
-  const { error } = await supabase.from('chat_logs').insert(payload);
+  const nextPayload = { ...payload };
+  const naverUserId = getNaverUserIdFromLog(nextPayload);
+  if (naverUserId) nextPayload.naver_user_id = naverUserId;
+
+  const { error } = await supabase.from('chat_logs').insert(nextPayload);
   if (!error) return { error: null };
 
-  // 통계 컬럼 마이그레이션 전 배포도 대화는 계속 기록되어야 한다.
+  // 통계/네이버ID 컬럼 마이그레이션 전 배포도 대화는 계속 기록되어야 한다.
   const msg = `${error.code || ''} ${error.message || ''}`;
-  if (!/response_ms|handoff_requested|handoff_executed|PGRST204/i.test(msg)) return { error };
+  if (!/response_ms|handoff_requested|handoff_executed|naver_user_id|PGRST204/i.test(msg)) return { error };
 
-  const fallback = { ...payload };
+  const fallback = { ...nextPayload };
   delete fallback.response_ms;
   delete fallback.handoff_requested;
   delete fallback.handoff_executed;
+  delete fallback.naver_user_id;
   return supabase.from('chat_logs').insert(fallback);
 }
 
@@ -67,4 +80,4 @@ function preflight() {
   return { statusCode: 200, headers: CORS, body: '' };
 }
 
-module.exports = { CORS, getSupabase, getIp, checkRateLimit, logRequest, insertChatLog, ok, err, preflight };
+module.exports = { CORS, getSupabase, getIp, checkRateLimit, logRequest, insertChatLog, getNaverUserIdFromLog, ok, err, preflight };

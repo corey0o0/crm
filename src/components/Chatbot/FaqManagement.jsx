@@ -24,7 +24,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { uploadFileToR2 } from '../../utils/cloudflareR2Utils';
 import { format } from 'date-fns';
 import ChatbotSettings from './ChatbotSettings';
-import { calculateChatbotStats, filterLogsByDays } from './chatbotStats';
+import { calculateChatbotStats, filterLogsByDays, getNaverUserId, groupLogsByNaverUser } from './chatbotStats';
 
 const BRANDS = ['ALL', 'SHARED', 'NB', 'XRB'];
 const REPLY_TYPES = ['all', 'faq', 'faq_llm', 'llm', 'rag', 'handoff', 'agent', 'error'];
@@ -55,6 +55,7 @@ export default function FaqManagement() {
   const [brandFilter, setBrandFilter] = useState('ALL');
   const [logBrandFilter, setLogBrandFilter] = useState('all');
   const [logTypeFilter, setLogTypeFilter] = useState('all');
+  const [selectedNaverUserId, setSelectedNaverUserId] = useState('all');
   const [editDialog, setEditDialog] = useState({ open: false, item: null });
   const [deleteDialog, setDeleteDialog] = useState({ open: false, id: null });
   const [form, setForm] = useState(EMPTY_FORM);
@@ -335,12 +336,15 @@ export default function FaqManagement() {
     return true;
   });
 
+  const logGroups = groupLogsByNaverUser(chatLogs);
   const filteredLogs = chatLogs.filter(log => {
+    if (selectedNaverUserId !== 'all' && getNaverUserId(log) !== selectedNaverUserId) return false;
     if (!logSearch.trim()) return true;
     const q = logSearch.trim().toLowerCase();
     return log.user_message?.toLowerCase().includes(q) ||
       log.matched_faq_label?.toLowerCase().includes(q) ||
-      log.bot_reply?.toLowerCase().includes(q);
+      log.bot_reply?.toLowerCase().includes(q) ||
+      getNaverUserId(log)?.toLowerCase().includes(q);
   });
 
   const brandColor = { SHARED: 'default', NB: 'primary', XRB: 'error' };
@@ -511,7 +515,7 @@ export default function FaqManagement() {
             />
             <FormControl size="small" sx={{ minWidth: 100 }}>
               <InputLabel>브랜드</InputLabel>
-              <Select value={logBrandFilter} onChange={e => setLogBrandFilter(e.target.value)} label="브랜드">
+              <Select value={logBrandFilter} onChange={e => { setLogBrandFilter(e.target.value); setSelectedNaverUserId('all'); }} label="브랜드">
                 <MenuItem value="all">전체</MenuItem>
                 <MenuItem value="nb">NB</MenuItem>
                 <MenuItem value="nb2">NB2</MenuItem>
@@ -520,12 +524,19 @@ export default function FaqManagement() {
             </FormControl>
             <FormControl size="small" sx={{ minWidth: 120 }}>
               <InputLabel>응답 유형</InputLabel>
-              <Select value={logTypeFilter} onChange={e => setLogTypeFilter(e.target.value)} label="응답 유형">
+              <Select value={logTypeFilter} onChange={e => { setLogTypeFilter(e.target.value); setSelectedNaverUserId('all'); }} label="응답 유형">
                 {REPLY_TYPES.map(t => <MenuItem key={t} value={t}>{t === 'all' ? '전체' : t}</MenuItem>)}
               </Select>
             </FormControl>
+            <FormControl size="small" sx={{ minWidth: 160 }}>
+              <InputLabel>네이버 ID</InputLabel>
+              <Select value={selectedNaverUserId} onChange={e => setSelectedNaverUserId(e.target.value)} label="네이버 ID">
+                <MenuItem value="all">전체</MenuItem>
+                {logGroups.map(g => <MenuItem key={g.naverUserId} value={g.naverUserId}>{g.naverUserId} ({g.count})</MenuItem>)}
+              </Select>
+            </FormControl>
             <Typography variant="body2" color="text.secondary" sx={{ ml: 0.5 }}>
-              {filteredLogs.length}/{chatLogs.length}건
+              {filteredLogs.length}/{chatLogs.length}건 · ID {logGroups.length}명
             </Typography>
             <Box sx={{ flex: 1 }} />
             <Button startIcon={<RefreshIcon />} onClick={fetchChatLogs} disabled={loading}>새로고침</Button>
@@ -534,49 +545,95 @@ export default function FaqManagement() {
           {loading ? (
             <Box sx={{ textAlign: 'center', py: 5 }}><CircularProgress /></Box>
           ) : (
-            <TableContainer component={Paper}>
-              <Table size="small">
-                <TableHead sx={{ bgcolor: 'grey.50' }}>
-                  <TableRow>
-                    <TableCell width={140}>시간</TableCell>
-                    <TableCell width={60}>브랜드</TableCell>
-                    <TableCell>고객 메시지</TableCell>
-                    <TableCell>봇 응답 미리보기</TableCell>
-                    <TableCell width={100}>유형</TableCell>
-                    <TableCell width={100}>매칭 FAQ</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {filteredLogs.length === 0 && (
-                    <TableRow><TableCell colSpan={6} align="center" sx={{ py: 4, color: 'text.secondary' }}>
-                      {chatLogs.length === 0 ? '채팅 로그가 없습니다.' : '검색 결과가 없습니다.'}
-                    </TableCell></TableRow>
-                  )}
-                  {filteredLogs.map(log => (
-                    <TableRow key={log.id}>
-                      <TableCell sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
-                        {format(new Date(log.created_at), 'MM/dd HH:mm')}
-                      </TableCell>
-                      <TableCell><Chip label={log.brand?.toUpperCase()} size="small" /></TableCell>
-                      <TableCell>
-                        <Typography variant="body2">{log.user_message}</Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" sx={{ maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'text.secondary' }}>
-                          {log.bot_reply || '-'}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Chip label={log.reply_type} size="small" color={replyTypeColor[log.reply_type] || 'default'} />
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" color="text.secondary">{log.matched_faq_label || '-'}</Typography>
-                      </TableCell>
+            <>
+              <TableContainer component={Paper} sx={{ mb: 2 }}>
+                <Table size="small">
+                  <TableHead sx={{ bgcolor: 'grey.50' }}>
+                    <TableRow>
+                      <TableCell width={180}>네이버 ID</TableCell>
+                      <TableCell width={80}>로그</TableCell>
+                      <TableCell>최근 질문</TableCell>
+                      <TableCell width={140}>최근 시간</TableCell>
+                      <TableCell width={180}>응답 유형</TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                  </TableHead>
+                  <TableBody>
+                    {logGroups.length === 0 && (
+                      <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3, color: 'text.secondary' }}>
+                        네이버 ID로 묶을 수 있는 로그가 없습니다. 기존 로그는 session_id가 naver: 로 시작하면 정리됩니다.
+                      </TableCell></TableRow>
+                    )}
+                    {logGroups.map(g => (
+                      <TableRow
+                        key={g.naverUserId}
+                        hover
+                        selected={selectedNaverUserId === g.naverUserId}
+                        onClick={() => setSelectedNaverUserId(g.naverUserId)}
+                        sx={{ cursor: 'pointer' }}
+                      >
+                        <TableCell><Typography variant="body2" fontWeight={600}>{g.naverUserId}</Typography></TableCell>
+                        <TableCell>{g.count}건</TableCell>
+                        <TableCell><Typography variant="body2" noWrap>{g.lastMessage}</Typography></TableCell>
+                        <TableCell sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>{format(new Date(g.lastAt), 'MM/dd HH:mm')}</TableCell>
+                        <TableCell>
+                          <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                            {g.replyTypes.map(t => <Chip key={t} label={t} size="small" variant="outlined" />)}
+                          </Stack>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+
+              <TableContainer component={Paper}>
+                <Table size="small">
+                  <TableHead sx={{ bgcolor: 'grey.50' }}>
+                    <TableRow>
+                      <TableCell width={140}>시간</TableCell>
+                      <TableCell width={60}>브랜드</TableCell>
+                      <TableCell width={160}>네이버 ID</TableCell>
+                      <TableCell>고객 메시지</TableCell>
+                      <TableCell>봇 응답 미리보기</TableCell>
+                      <TableCell width={100}>유형</TableCell>
+                      <TableCell width={100}>매칭 FAQ</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {filteredLogs.length === 0 && (
+                      <TableRow><TableCell colSpan={7} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                        {chatLogs.length === 0 ? '채팅 로그가 없습니다.' : '검색 결과가 없습니다.'}
+                      </TableCell></TableRow>
+                    )}
+                    {filteredLogs.map(log => (
+                      <TableRow key={log.id}>
+                        <TableCell sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
+                          {format(new Date(log.created_at), 'MM/dd HH:mm')}
+                        </TableCell>
+                        <TableCell><Chip label={log.brand?.toUpperCase()} size="small" /></TableCell>
+                        <TableCell>
+                          <Typography variant="body2" color="text.secondary">{getNaverUserId(log) || '-'}</Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2">{log.user_message}</Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" sx={{ maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'text.secondary' }}>
+                            {log.bot_reply || '-'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Chip label={log.reply_type} size="small" color={replyTypeColor[log.reply_type] || 'default'} />
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" color="text.secondary">{log.matched_faq_label || '-'}</Typography>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </>
           )}
         </Box>
       )}

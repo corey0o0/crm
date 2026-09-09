@@ -1,4 +1,5 @@
 'use strict';
+const crypto = require('crypto');
 const { getSupabase, getIp, checkRateLimit, logRequest, insertChatLog, ok, err, preflight } = require('./_chatbot_utils');
 const { getSettings } = require('./_chatbot_settings');
 
@@ -8,6 +9,20 @@ const MODEL_BY_MODE = {
   rag: 'claude-sonnet-4-6',
   chat: 'claude-sonnet-4-6',
 };
+
+function signSessionId(sessionId) {
+  const secret = process.env.SUPABASE_SERVICE_KEY || '';
+  if (!secret) return '';
+  return crypto.createHmac('sha256', secret).update(sessionId).digest('hex');
+}
+
+function normalizeChatSessionId(sessionId, signature) {
+  const value = String(sessionId || '').trim();
+  if (!value) return null;
+  const expected = signSessionId(value);
+  if (value.startsWith('naver:') && (!expected || signature !== expected)) return null;
+  return value;
+}
 
 const SYSTEM_PROMPTS = {
   nb: `[역할] 니어바이크(www.nearbike.co.kr) 전기자전거(e-bike) 전문 쇼핑몰 AI 고객센터입니다.
@@ -43,13 +58,13 @@ exports.handler = async (event) => {
   let body;
   try { body = JSON.parse(event.body || '{}'); } catch { return err(400, '잘못된 요청'); }
 
-  const { message, history = [], brand = 'nb', mode = 'chat', labels = [], knowledge = '', session_id, matched_label } = body;
+  const { message, history = [], brand = 'nb', mode = 'chat', labels = [], knowledge = '', session_id, session_sig, matched_label } = body;
 
   if (mode === 'log') {
     if (message) {
       try {
         const { error } = await insertChatLog(supabase, {
-          session_id: session_id || null,
+          session_id: normalizeChatSessionId(session_id, session_sig),
           brand,
           user_message: message,
           bot_reply: null,
@@ -172,7 +187,7 @@ exports.handler = async (event) => {
     const matchedLabel = parsed?.label || null;
     const botReply = parsed?.reply || (mode !== 'smart' ? rawText : null);
     const { error: logErr } = await insertChatLog(supabase, {
-      session_id: session_id || null,
+      session_id: normalizeChatSessionId(session_id, session_sig),
       brand,
       user_message: message,
       bot_reply: botReply?.slice(0, 1000) || null,
@@ -198,3 +213,5 @@ exports.handler = async (event) => {
 
   return ok({ reply: rawText || '잠시 후 다시 시도해주세요.', usage: { today: count + 1, limit } });
 };
+
+module.exports.normalizeChatSessionId = normalizeChatSessionId;

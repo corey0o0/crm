@@ -17,6 +17,7 @@ function Cafe24Board() {
   const [syncMsg, setSyncMsg] = useState(null);
   const [cafe24Malls, setCafe24Malls] = useState([]);
   const [selectedMall, setSelectedMall] = useState('all');
+  const [selectedStatus, setSelectedStatus] = useState('all');
   const navigate = useNavigate();
 
   const fetchPosts = useCallback(async () => {
@@ -75,9 +76,17 @@ function Cafe24Board() {
     }
   };
 
-  // 사이트별 필터
+  // 사이트/답변 상태별 필터
   const mallIds = ['all', ...new Set(posts.map(p => p.cafe24_mall_id).filter(Boolean))];
-  const filtered = selectedMall === 'all' ? posts : posts.filter(p => p.cafe24_mall_id === selectedMall);
+  const unansweredCount = posts.filter(p => !(p.answer_count > 0)).length;
+  const answeredCount = posts.length - unansweredCount;
+  const filtered = posts
+    .filter(p => selectedMall === 'all' || p.cafe24_mall_id === selectedMall)
+    .filter(p => {
+      if (selectedStatus === 'unanswered') return !(p.answer_count > 0);
+      if (selectedStatus === 'answered') return p.answer_count > 0;
+      return true;
+    });
 
   const boardLabel = (boardNo) => {
     const n = parseInt(boardNo);
@@ -100,6 +109,7 @@ function Cafe24Board() {
           <QAIcon sx={{ color: '#FF6B35' }} />
           <Typography variant="h5" fontWeight={700}>카페24 Q&A</Typography>
           <Chip label={`${filtered.length}건`} size="small" sx={{ bgcolor: '#fff3ee', color: '#FF6B35', fontWeight: 600 }} />
+          <Chip label={`미답변 ${unansweredCount}건`} size="small" sx={{ bgcolor: '#fff3e0', color: '#e65100', fontWeight: 600 }} />
         </Stack>
         <Button
           variant="outlined"
@@ -113,36 +123,47 @@ function Cafe24Board() {
         </Button>
       </Stack>
 
-      {/* 사이트 필터 */}
-      {mallIds.length > 1 && (
+      {/* 사이트/답변 상태 필터 */}
+      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 2 }}>
+        {mallIds.length > 1 && (
+          <ToggleButtonGroup
+            value={selectedMall}
+            exclusive
+            onChange={(_, v) => v && setSelectedMall(v)}
+            size="small"
+          >
+            {mallIds.map(id => (
+              <ToggleButton
+                key={id}
+                value={id}
+                sx={{
+                  px: 2, fontSize: '0.8rem', fontWeight: 600,
+                  '&.Mui-selected': { bgcolor: '#FF6B35', color: 'white', '&:hover': { bgcolor: '#e55a2b' } }
+                }}
+              >
+                {mallLabel(id)}
+                {id !== 'all' && (
+                  <Chip
+                    label={posts.filter(p => p.cafe24_mall_id === id).length}
+                    size="small"
+                    sx={{ ml: 0.5, height: 18, fontSize: '0.7rem', bgcolor: 'rgba(0,0,0,0.1)', color: 'inherit' }}
+                  />
+                )}
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+        )}
         <ToggleButtonGroup
-          value={selectedMall}
+          value={selectedStatus}
           exclusive
-          onChange={(_, v) => v && setSelectedMall(v)}
+          onChange={(_, v) => v && setSelectedStatus(v)}
           size="small"
-          sx={{ mb: 2 }}
         >
-          {mallIds.map(id => (
-            <ToggleButton
-              key={id}
-              value={id}
-              sx={{
-                px: 2, fontSize: '0.8rem', fontWeight: 600,
-                '&.Mui-selected': { bgcolor: '#FF6B35', color: 'white', '&:hover': { bgcolor: '#e55a2b' } }
-              }}
-            >
-              {mallLabel(id)}
-              {id !== 'all' && (
-                <Chip
-                  label={posts.filter(p => p.cafe24_mall_id === id).length}
-                  size="small"
-                  sx={{ ml: 0.5, height: 18, fontSize: '0.7rem', bgcolor: 'rgba(0,0,0,0.1)', color: 'inherit' }}
-                />
-              )}
-            </ToggleButton>
-          ))}
+          <ToggleButton value="all" sx={{ px: 2, fontSize: '0.8rem', fontWeight: 600 }}>전체</ToggleButton>
+          <ToggleButton value="unanswered" sx={{ px: 2, fontSize: '0.8rem', fontWeight: 600 }}>미답변 {unansweredCount}</ToggleButton>
+          <ToggleButton value="answered" sx={{ px: 2, fontSize: '0.8rem', fontWeight: 600 }}>답변완료 {answeredCount}</ToggleButton>
         </ToggleButtonGroup>
-      )}
+      </Stack>
 
       {syncMsg && (
         <Alert severity={syncMsg.type} onClose={() => setSyncMsg(null)} sx={{ mb: 2 }}>
@@ -218,7 +239,13 @@ function Cafe24Board() {
                 {filtered.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={7} align="center" sx={{ py: 4, color: 'text.secondary' }}>
-                      {posts.length === 0 ? '동기화 버튼을 눌러 데이터를 가져오세요.' : '해당 사이트의 게시글이 없습니다.'}
+                      {posts.length === 0
+                        ? '동기화 버튼을 눌러 데이터를 가져오세요.'
+                        : selectedStatus === 'unanswered'
+                          ? '미답변 게시글이 없습니다.'
+                          : selectedStatus === 'answered'
+                            ? '답변완료 게시글이 없습니다.'
+                            : '해당 조건의 게시글이 없습니다.'}
                     </TableCell>
                   </TableRow>
                 )}

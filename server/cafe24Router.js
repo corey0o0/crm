@@ -1,5 +1,6 @@
 const axios = require('axios');
 const crypto = require('crypto');
+const { rewriteCafe24Media } = require('./cafe24Media');
 const ENCRYPTION_SECRET = process.env.CAFE24_ENCRYPTION_SECRET || process.env.SUPABASE_SERVICE_KEY || 'default_secret';
 const ENCRYPTION_SALT = process.env.CAFE24_ENCRYPTION_SALT || 'salt';
 const ENCRYPTION_KEY = crypto.scryptSync(ENCRYPTION_SECRET, ENCRYPTION_SALT, 32);
@@ -32,6 +33,16 @@ function decrypt(text) {
 
 // 카페24 취소/반품/교환 상태 코드 (SalesHistory.jsx, InventoryLayout.jsx의 CANCEL_STATUSES와 동일하게 유지)
 const CAFE24_CANCEL_STATUSES = ['C11', 'C34', 'C36', 'C40', 'C47', 'C48', 'C49', 'R34', 'R36', 'R40', 'E40'];
+
+function mapCafe24Comments(comments = []) {
+  return (comments || []).map(c => ({
+    comment_no: c.comment_no,
+    content: c.content || '',
+    writer_name: c.writer?.name || null,
+    writer_email: c.writer?.email || null,
+    created_date: c.created_date || null,
+  }));
+}
 
 module.exports = function(supabaseAdmin) {
   const router = require('express').Router();
@@ -350,13 +361,7 @@ module.exports = function(supabaseAdmin) {
               `https://${mall_id}.cafe24api.com/api/v2/admin/boards/${bNo}/articles/${article.article_no}/comments?limit=50`,
               { headers: hdrs, timeout: 5000 }
             );
-            return (cResp.data.comments || []).map(c => ({
-              comment_no: c.comment_no,
-              content: c.content || '',
-              writer_name: c.writer?.name || null,
-              writer_email: c.writer?.email || null,
-              created_date: c.created_date || null,
-            }));
+            return mapCafe24Comments(cResp.data.comments || []);
           } catch (_) { return []; }
         }));
 
@@ -373,9 +378,15 @@ module.exports = function(supabaseAdmin) {
         for (let i = 0; i < articles.length; i++) {
           const article = articles[i];
           const answers = answersArr[i];
+          const content = await rewriteCafe24Media(article.content || article.content_text || '', {
+            mallId: mall_id,
+            boardNo: bNo,
+            articleNo: article.article_no,
+          });
+
           const payload = {
             title: article.title,
-            content: article.content || article.content_text || '',
+            content,
             author_email: article.writer?.email || null,
             source: 'cafe24',
             cafe24_article_no: article.article_no,
@@ -950,16 +961,48 @@ module.exports = function(supabaseAdmin) {
   router.post('/boards/:mall_id/:board_no/articles/:article_no/comments', async (req, res) => {
     try {
       const { mall_id, board_no, article_no } = req.params;
-      const { content } = req.body;
+      const content = String(req.body?.content || '').trim();
+      if (!content) return res.status(400).json({ error: '답글 내용을 입력해주세요.' });
+
       const token = await getValidToken(mall_id);
+      const hdrs = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Cafe24-Api-Version': '2026-03-01' };
+
       await axios.post(`https://${mall_id}.cafe24api.com/api/v2/admin/boards/${board_no}/articles/${article_no}/comments`, {
         shop_no: 1, content
-      }, {
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Cafe24-Api-Version': '2026-03-01' }
-      });
-      res.json({ success: true });
+      }, { headers: hdrs });
+
+      let answers = [];
+      try {
+        const commentsResp = await axios.get(
+          `https://${mall_id}.cafe24api.com/api/v2/admin/boards/${board_no}/articles/${article_no}/comments?limit=50`,
+          { headers: hdrs, timeout: 5000 }
+        );
+        answers = mapCafe24Comments(commentsResp.data.comments || []);
+      } catch (syncError) {
+        return res.json({
+          success: true,
+          warning: `카페24 답글은 등록됐지만 댓글 재조회는 실패했습니다. 동기화 버튼을 눌러주세요. (${syncError.message})`,
+        });
+      }
+
+      const { error: updateError } = await supabaseAdmin
+        .from('board_posts')
+        .update({ answers, answer_count: answers.length, synced_at: new Date().toISOString() })
+        .eq('cafe24_mall_id', mall_id)
+        .eq('cafe24_board_no', board_no)
+        .eq('cafe24_article_no', article_no);
+
+      if (updateError) {
+        return res.json({
+          success: true,
+          warning: `카페24 답글은 등록됐지만 CRM 갱신은 실패했습니다. 동기화 버튼을 눌러주세요. (${updateError.message})`,
+        });
+      }
+
+      res.json({ success: true, answers, answer_count: answers.length });
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      const message = e.response?.data?.error?.message || e.message;
+      res.status(500).json({ error: message });
     }
   });
   // 3.5. 수동 매핑 목록 조회 API
@@ -1577,3 +1620,5 @@ module.exports = function(supabaseAdmin) {
 
   return router;
 };
+
+module.exports.mapCafe24Comments = mapCafe24Comments;

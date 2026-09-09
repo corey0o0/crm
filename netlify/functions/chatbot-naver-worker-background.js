@@ -1,4 +1,5 @@
 'use strict';
+const crypto = require('crypto');
 //
 // 네이버 톡톡 백그라운드 워커 (*-background.js → Netlify 비동기, 최대 15분)
 // 위젯(public/chatbot.js) processInput() 흐름을 그대로 미러링 + send API로 push.
@@ -10,6 +11,7 @@ const { getSettings, isWithinHours, offhoursText } = require('./_chatbot_setting
 const brain = require('./_chatbot_brain');
 
 const base = () => process.env.URL || process.env.DEPLOY_PRIME_URL || '';
+const signSessionId = (sessionId) => crypto.createHmac('sha256', process.env.SUPABASE_SERVICE_KEY || '').update(sessionId).digest('hex');
 
 // ── 빠른응답 메뉴 ──
 const CATEGORIES = [
@@ -175,9 +177,10 @@ async function ragLlm(brand, message, faqs, user, history) {
     .filter((f) => f.label && f.answer)
     .map((f) => `### ${f.is_announcement ? '[공지] ' : ''}${f.label}\n${f.answer}`)
     .join('\n\n');
+  const sessionId = `naver:${user}`;
   const res = await callFn('chatbot-chat', {
     method: 'POST', user,
-    body: { mode: 'rag', message, brand, knowledge, history, session_id: `naver:${user}` },
+    body: { mode: 'rag', message, brand, knowledge, history, session_id: sessionId, session_sig: signSessionId(sessionId) },
   });
   return (res && res.reply) || '죄송해요, 잠시 후 다시 시도해 주세요. 계속 안 되면 아래 [A/S 접수]를 남겨주시면 담당자가 확인해 드릴게요.';
 }
