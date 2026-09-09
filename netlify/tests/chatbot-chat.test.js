@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeChatSessionId } = require('./chatbot-chat');
+const { normalizeChatSessionId } = require('../functions/chatbot-chat');
 
 function sign(sessionId) {
   return crypto.createHmac('sha256', process.env.SUPABASE_SERVICE_KEY).update(sessionId).digest('hex');
