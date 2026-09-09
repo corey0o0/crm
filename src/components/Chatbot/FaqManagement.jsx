@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box, Typography, Tabs, Tab, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Paper, Button, IconButton, Chip, Dialog, DialogTitle,
@@ -24,10 +24,11 @@ import { supabase } from '../../lib/supabaseClient';
 import { uploadFileToR2 } from '../../utils/cloudflareR2Utils';
 import { format } from 'date-fns';
 import ChatbotSettings from './ChatbotSettings';
-import { calculateChatbotStats, filterLogsByDays, getNaverUserId, groupLogsByNaverUser } from './chatbotStats';
+import { calculateChatbotStats, filterLogsByDays, getChatLogRange, getNaverUserId, groupLogsByNaverUser, shouldApplyChatLogResponse } from './chatbotStats';
 
 const BRANDS = ['ALL', 'SHARED', 'NB', 'XRB'];
 const REPLY_TYPES = ['all', 'faq', 'faq_llm', 'llm', 'rag', 'handoff', 'agent', 'error'];
+const CHAT_LOG_PAGE_SIZE = 300;
 
 const EMPTY_FORM = {
   brand: 'SHARED',
@@ -65,6 +66,9 @@ export default function FaqManagement() {
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [activeFilter, setActiveFilter] = useState('all');
   const [logSearch, setLogSearch] = useState('');
+  const [chatLogPage, setChatLogPage] = useState(0);
+  const [chatLogsHasMore, setChatLogsHasMore] = useState(false);
+  const [chatLogsLoadingMore, setChatLogsLoadingMore] = useState(false);
   const [statsLogs, setStatsLogs] = useState([]);
   const [statsDays, setStatsDays] = useState(30);
   const [statsBrand, setStatsBrand] = useState('all');
@@ -73,6 +77,7 @@ export default function FaqManagement() {
   const [enhanceBrand, setEnhanceBrand] = useState('nb');
   const [enhanceLoading, setEnhanceLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const chatLogRequestId = useRef(0);
 
   const showMsg = (message, severity = 'success') => setSnackbar({ open: true, message, severity });
 
@@ -91,19 +96,30 @@ export default function FaqManagement() {
   }, [brandFilter]);
 
   // ── 채팅 로그 불러오기 ──
-  const fetchChatLogs = useCallback(async () => {
-    setLoading(true);
+  const fetchChatLogs = useCallback(async ({ page = 0, append = false } = {}) => {
+    const requestId = chatLogRequestId.current + 1;
+    chatLogRequestId.current = requestId;
+    if (append) {
+      setChatLogsLoadingMore(true);
+    } else {
+      setChatLogsLoadingMore(false);
+      setLoading(true);
+    }
+    const { from, to } = getChatLogRange(page, CHAT_LOG_PAGE_SIZE);
     const query = supabase
       .from('chat_logs')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(300);
+      .range(from, to);
     if (logBrandFilter !== 'all') query.eq('brand', logBrandFilter);
     if (logTypeFilter !== 'all') query.eq('reply_type', logTypeFilter);
     const { data, error } = await query;
-    setLoading(false);
+    if (!shouldApplyChatLogResponse(requestId, chatLogRequestId.current)) return;
+    append ? setChatLogsLoadingMore(false) : setLoading(false);
     if (error) { showMsg('채팅 로그 불러오기 실패', 'error'); return; }
-    setChatLogs(data || []);
+    setChatLogPage(page);
+    setChatLogs(prev => append ? [...prev, ...(data || [])] : (data || []));
+    setChatLogsHasMore((data || []).length === CHAT_LOG_PAGE_SIZE);
   }, [logBrandFilter, logTypeFilter]);
 
   // FAQ 사용 횟수 — faq_items.usage_count 는 증가시키는 코드가 없어 항상 0이다.
@@ -143,7 +159,7 @@ export default function FaqManagement() {
 
   useEffect(() => { fetchFaqs(); }, [fetchFaqs]);
   useEffect(() => { fetchUsage(); }, [fetchUsage]);
-  useEffect(() => { if (tabValue === 1) fetchChatLogs(); }, [tabValue, fetchChatLogs]);
+  useEffect(() => { if (tabValue === 1) fetchChatLogs({ page: 0 }); }, [tabValue, fetchChatLogs]);
   useEffect(() => { if (tabValue === 2) fetchStatsLogs(); }, [tabValue, fetchStatsLogs]);
 
   // ── 저장 ──
@@ -539,7 +555,7 @@ export default function FaqManagement() {
               {filteredLogs.length}/{chatLogs.length}건 · ID {logGroups.length}명
             </Typography>
             <Box sx={{ flex: 1 }} />
-            <Button startIcon={<RefreshIcon />} onClick={fetchChatLogs} disabled={loading}>새로고침</Button>
+            <Button startIcon={<RefreshIcon />} onClick={() => fetchChatLogs({ page: 0 })} disabled={loading}>새로고침</Button>
           </Box>
 
           {loading ? (
@@ -633,6 +649,18 @@ export default function FaqManagement() {
                   </TableBody>
                 </Table>
               </TableContainer>
+
+              {chatLogsHasMore && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                  <Button
+                    variant="outlined"
+                    onClick={() => fetchChatLogs({ page: chatLogPage + 1, append: true })}
+                    disabled={chatLogsLoadingMore}
+                  >
+                    {chatLogsLoadingMore ? '불러오는 중...' : `더 보기 (${CHAT_LOG_PAGE_SIZE}건씩)`}
+                  </Button>
+                </Box>
+              )}
             </>
           )}
         </Box>

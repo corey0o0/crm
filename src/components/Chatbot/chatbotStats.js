@@ -2,6 +2,15 @@ const AI_REPLY_TYPES = new Set(['faq', 'faq_llm', 'llm', 'rag', 'handoff']);
 
 const percent = (part, total) => (total ? Math.round((part / total) * 100) : 0);
 
+export function getChatLogRange(page, pageSize) {
+  const from = page * pageSize;
+  return { from, to: from + pageSize - 1 };
+}
+
+export function shouldApplyChatLogResponse(requestId, latestRequestId) {
+  return requestId === latestRequestId;
+}
+
 export function filterLogsByDays(logs, days, now = new Date()) {
   const since = now.getTime() - days * 24 * 3600 * 1000;
   return (logs || []).filter((log) => new Date(log.created_at).getTime() >= since);

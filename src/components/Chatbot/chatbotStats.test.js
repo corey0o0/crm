@@ -1,4 +1,4 @@
-import { calculateChatbotStats, filterLogsByDays, getNaverUserId, groupLogsByNaverUser } from './chatbotStats';
+import { calculateChatbotStats, filterLogsByDays, getChatLogRange, getNaverUserId, groupLogsByNaverUser, shouldApplyChatLogResponse } from './chatbotStats';
 
 const NOW = new Date('2026-09-06T12:00:00.000Z');
 
@@ -33,6 +33,16 @@ test('filters logs by recent days', () => {
 
   expect(filterLogsByDays(logs, 7, NOW)).toHaveLength(1);
   expect(filterLogsByDays(logs, 30, NOW)).toHaveLength(2);
+});
+
+test('calculates Supabase range for chat log pages', () => {
+  expect(getChatLogRange(0, 300)).toEqual({ from: 0, to: 299 });
+  expect(getChatLogRange(2, 300)).toEqual({ from: 600, to: 899 });
+});
+
+test('ignores stale chat log page responses', () => {
+  expect(shouldApplyChatLogResponse(3, 3)).toBe(true);
+  expect(shouldApplyChatLogResponse(2, 3)).toBe(false);
 });
 
 test('extracts Naver user id from explicit field or legacy session id', () => {
