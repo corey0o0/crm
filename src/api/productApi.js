@@ -1,10 +1,10 @@
 import { supabase } from '../lib/supabaseClient';
-import { fetchFromSupabase } from '../utils/restApiUtils';
 
 // 옵션 C: 실제 운영 테이블/뷰(`parts`)을 읽기 전용 소스로 사용합니다.
 // 브랜드 필터가 필요한 경우 .env 또는 public/env.js에 REACT_APP_PARTS_BRAND 를 설정하세요.
 const PARTS_TABLE = 'parts';
 const PARTS_BRAND = (typeof window !== 'undefined' && window._env_?.REACT_APP_PARTS_BRAND) || process.env.REACT_APP_PARTS_BRAND || '';
+const PARTS_PAGE_SIZE = 1000;
 
 // parts 레코드를 인벤토리에서 사용하는 product 형태로 매핑
 function mapPartToProduct(part) {
@@ -58,25 +58,35 @@ export const productApi = {
   getAll: async () => {
     try {
       console.log('[ProductAPI] Fetching products from parts table...');
-      
-      let query = supabase
-        .from(PARTS_TABLE)
-        .select('*')
-        .order('name', { ascending: true });
 
-      if (PARTS_BRAND) {
-        query = query.eq('brand', PARTS_BRAND);
+      const allParts = [];
+      let from = 0;
+
+      while (true) {
+        let query = supabase
+          .from(PARTS_TABLE)
+          .select('*');
+
+        if (PARTS_BRAND) {
+          query = query.eq('brand', PARTS_BRAND);
+        }
+
+        const { data, error } = await query
+          .order('name', { ascending: true })
+          .range(from, from + PARTS_PAGE_SIZE - 1);
+
+        if (error) {
+          console.error('[ProductAPI] Supabase error:', error);
+          return [];
+        }
+
+        allParts.push(...(data || []));
+        if (!data || data.length < PARTS_PAGE_SIZE) break;
+        from += PARTS_PAGE_SIZE;
       }
 
-      const { data, error } = await query;
-      
-      if (error) {
-        console.error('[ProductAPI] Supabase error:', error);
-        return [];
-      }
-      
-      console.log(`[ProductAPI] ${data?.length || 0}개 상품 로드 완료${PARTS_BRAND ? ` (brand=${PARTS_BRAND})` : ''}`);
-      return (data || []).map(mapPartToProduct);
+      console.log(`[ProductAPI] ${allParts.length}개 상품 로드 완료${PARTS_BRAND ? ` (brand=${PARTS_BRAND})` : ''}`);
+      return allParts.map(mapPartToProduct);
     } catch (error) {
       console.error('[ProductAPI] Error fetching products:', error);
       return [];
