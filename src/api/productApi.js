@@ -25,6 +25,7 @@ function mapPartToProduct(part) {
     track_inventory: part.track_inventory !== false && part.track_inventory !== 'false',
     status: 'active',
     is_deleted: part.is_deleted || false,
+    created_at: part.created_at || null,
     _source: 'parts'
   };
 }

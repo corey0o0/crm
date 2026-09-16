@@ -28,15 +28,14 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
   Add as AddIcon,
-  Search as SearchIcon,
-  ArrowUpward as ArrowUpIcon,
-  ArrowDownward as ArrowDownIcon
+  Search as SearchIcon
 } from '@mui/icons-material';
-import { getCookie, setCookie, removeCookie, getJSONCookie, setJSONCookie } from '../../utils/cookieUtils';
+import { getCookie, setCookie, removeCookie } from '../../utils/cookieUtils';
 import { productApi } from '../../api/productApi';
 import { supabase } from '../../lib/supabaseClient';
 import { fetchFromSupabase } from '../../utils/restApiUtils';
 import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
+import { sortProducts, SORT_OPTIONS } from './productSortUtils';
 
 function ProductList() {
   const [products, setProducts] = useState([]);
@@ -56,12 +55,9 @@ function ProductList() {
     const savedRowsPerPage = getCookie('product_rowsPerPage');
     return savedRowsPerPage ? parseInt(savedRowsPerPage, 10) : 10;
   });
-  const [sortConfig, setSortConfig] = useState(() => {
-    const savedSortConfig = getJSONCookie('product_sortConfig');
-    return savedSortConfig || {
-    key: null,
-    direction: 'asc'
-    };
+  const [sortOption, setSortOption] = useState(() => {
+    const savedSortOption = getCookie('product_sortOption');
+    return savedSortOption || 'default';
   });
   const [snackbar, setSnackbar] = useState({
     open: false,
@@ -92,8 +88,8 @@ function ProductList() {
   }, [rowsPerPage]);
   
   useEffect(() => {
-    setJSONCookie('product_sortConfig', sortConfig);
-  }, [sortConfig]);
+    setCookie('product_sortOption', sortOption);
+  }, [sortOption]);
 
   // 컴포넌트 언마운트 시 쿠키 정리
   useEffect(() => {
@@ -102,7 +98,7 @@ function ProductList() {
         removeCookie('product_searchTerm');
         removeCookie('product_categoryFilter');
         removeCookie('product_rowsPerPage');
-        removeCookie('product_sortConfig');
+        removeCookie('product_sortOption');
       }
     };
   }, []);
@@ -154,15 +150,11 @@ function ProductList() {
       const matchesCategory = categoryFilter === 'all' || product.category === categoryFilter;
       
       return matchesSearch && matchesCategory;
-    })
-    .sort((a, b) => {
-      if (!sortConfig.key) return 0;
-      const direction = sortConfig.direction === 'asc' ? 1 : -1;
-      return a[sortConfig.key] > b[sortConfig.key] ? direction : -direction;
     });
+  const sortedProducts = sortProducts(filteredProducts, sortOption);
 
   // 페이지네이션된 제품 목록
-  const paginatedProducts = filteredProducts.slice(
+  const paginatedProducts = sortedProducts.slice(
     page * rowsPerPage,
     page * rowsPerPage + rowsPerPage
   );
@@ -170,13 +162,11 @@ function ProductList() {
   // 고유 카테고리 목록
   const categories = ['all', ...new Set(products.map(p => p.category))];
 
-  const handleSort = (key) => {
-    const newSortConfig = {
-      key,
-      direction: sortConfig.key === key && sortConfig.direction === 'asc' ? 'desc' : 'asc'
-    };
-    setSortConfig(newSortConfig);
-    setJSONCookie('product_sortConfig', newSortConfig);
+  const handleSortOptionChange = (e) => {
+    const value = e.target.value;
+    setSortOption(value);
+    setPage(0);
+    setCookie('product_sortOption', value);
   };
 
   const handleChangePage = (event, newPage) => {
@@ -320,6 +310,19 @@ function ProductList() {
               </MenuItem>
             ))}
           </TextField>
+          <TextField
+            select
+            size="small"
+            value={sortOption}
+            onChange={handleSortOptionChange}
+            sx={{ minWidth: 120 }}
+          >
+            {SORT_OPTIONS.map((option) => (
+              <MenuItem key={option.value} value={option.value}>
+                {option.label}
+              </MenuItem>
+            ))}
+          </TextField>
           <Button
             variant="contained"
             startIcon={<AddIcon />}
@@ -334,45 +337,11 @@ function ProductList() {
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell 
-                onClick={() => handleSort('code')}
-                sx={{ cursor: 'pointer' }}
-              >
-                코드
-                {sortConfig.key === 'code' && (
-                  sortConfig.direction === 'asc' ? <ArrowUpIcon fontSize="small" /> : <ArrowDownIcon fontSize="small" />
-                )}
-              </TableCell>
-              <TableCell 
-                onClick={() => handleSort('name')}
-                sx={{ cursor: 'pointer' }}
-              >
-                상품명
-                {sortConfig.key === 'name' && (
-                  sortConfig.direction === 'asc' ? <ArrowUpIcon fontSize="small" /> : <ArrowDownIcon fontSize="small" />
-                )}
-              </TableCell>
+              <TableCell>코드</TableCell>
+              <TableCell>상품명</TableCell>
               <TableCell>카테고리</TableCell>
-              <TableCell 
-                align="right"
-                onClick={() => handleSort('price')}
-                sx={{ cursor: 'pointer' }}
-              >
-                가격
-                {sortConfig.key === 'price' && (
-                  sortConfig.direction === 'asc' ? <ArrowUpIcon fontSize="small" /> : <ArrowDownIcon fontSize="small" />
-                )}
-              </TableCell>
-              <TableCell 
-                align="right"
-                onClick={() => handleSort('stock')}
-                sx={{ cursor: 'pointer' }}
-              >
-                재고
-                {sortConfig.key === 'stock' && (
-                  sortConfig.direction === 'asc' ? <ArrowUpIcon fontSize="small" /> : <ArrowDownIcon fontSize="small" />
-                )}
-              </TableCell>
+              <TableCell align="right">가격</TableCell>
+              <TableCell align="right">재고</TableCell>
               <TableCell>설명</TableCell>
               <TableCell align="center">관리</TableCell>
             </TableRow>
@@ -415,7 +384,7 @@ function ProductList() {
         <TablePagination
           rowsPerPageOptions={[5, 10, 25]}
           component="div"
-          count={filteredProducts.length}
+          count={sortedProducts.length}
           rowsPerPage={rowsPerPage}
           page={page}
           onPageChange={handleChangePage}
