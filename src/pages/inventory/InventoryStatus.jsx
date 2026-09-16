@@ -5,6 +5,7 @@ import {
 } from '@mui/material';
 import { Refresh as RefreshIcon, Store as StoreIcon, Sync as SyncIcon, SyncDisabled as SyncDisabledIcon, Search as SearchIcon, FilterList as FilterIcon, ArrowDownward as ArrowDownwardIcon, Download as DownloadIcon } from '@mui/icons-material';
 import * as XLSX from 'xlsx';
+import { sortProducts, SORT_OPTIONS } from '../../components/Product/productSortUtils';
 
 export default function InventoryStatus() {
   const context = useOutletContext();
@@ -27,6 +28,7 @@ export default function InventoryStatus() {
 
   // 기체/파츠 분류 필터 ('all' | 'machine' | 'parts')
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [sortOption, setSortOption] = useState('default');
   // 제품코드 패턴으로 기체/파츠 구분: 브랜드(XRB/NB/COM) 뒤 첫 글자 M=기체, P=파츠, S=공임
   const getPartCategory = (code) => {
     const m = String(code || '').trim().match(/^(?:XRB|NB|COM)([A-Z])/i);
@@ -91,7 +93,13 @@ export default function InventoryStatus() {
             return qtyFilterMode === 'lte' ? totalStock <= threshold : totalStock >= threshold;
           });
         }
-        
+
+        // 정렬: 재고 옵션은 전체 창고 합산 기준(표시값과 일치)이라 stock 필드를 덮어써서 정렬
+        rows = sortProducts(
+          rows.map(p => ({ ...p, stock: warehouses.reduce((sum, w) => sum + (inventory[w.id]?.[p.id] || 0), 0) })),
+          sortOption
+        );
+
         // 창고별 총합 계산
         const warehouseTotals = warehouses.map(w => 
           rows.reduce((sum, p) => sum + (inventory[w.id]?.[p.id] || 0), 0)
@@ -244,6 +252,20 @@ export default function InventoryStatus() {
                     </Select>
                   </Box>
 
+                  <TextField
+                    select
+                    size="small"
+                    label="정렬"
+                    value={sortOption}
+                    onChange={(e) => { setSortOption(e.target.value); setStatusPage(0); }}
+                    sx={{ minWidth: 110, ml: 1 }}
+                  >
+                    {SORT_OPTIONS.map((option) => (
+                      <MenuItem key={option.value} value={option.value}>
+                        {option.label}
+                      </MenuItem>
+                    ))}
+                  </TextField>
                   <Button
                     size="small"
                     variant="contained"

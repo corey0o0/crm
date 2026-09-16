@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Button, CircularProgress, Alert, Chip, TextField, InputAdornment
+  Button, CircularProgress, Alert, Chip, TextField, InputAdornment, MenuItem
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import CachedIcon from '@mui/icons-material/Cached';
@@ -10,6 +10,32 @@ import { getCafe24Malls, compareCafe24Inventory } from '../../utils/cafe24Api';
 import { calculateSharedMallStock, isComparableProduct } from './cafe24InventoryReconciliationUtils';
 
 const CACHE_KEY = 'cafe24_inventory_comparison_cache';
+
+// ponytail: 비교행은 price/created_at이 없어 productSortUtils(SORT_OPTIONS) 그대로 재사용 불가.
+// 이 화면 컬럼(CRM재고/합산재고)에 맞춘 최소 정렬셋만 로컬로 둔다.
+const RECON_SORT_OPTIONS = [
+  { value: 'default', label: '기본정렬' },
+  { value: 'crm_stock_desc', label: 'CRM재고많은순' },
+  { value: 'crm_stock_asc', label: 'CRM재고적은순' },
+  { value: 'shared_stock_desc', label: '합산재고많은순' },
+  { value: 'shared_stock_asc', label: '합산재고적은순' }
+];
+
+function sortReconciliationRows(rows, sortOption) {
+  const arr = [...rows];
+  switch (sortOption) {
+    case 'crm_stock_desc':
+      return arr.sort((a, b) => b.totalCrmStock - a.totalCrmStock);
+    case 'crm_stock_asc':
+      return arr.sort((a, b) => a.totalCrmStock - b.totalCrmStock);
+    case 'shared_stock_desc':
+      return arr.sort((a, b) => (b.sharedStock?.stock ?? -Infinity) - (a.sharedStock?.stock ?? -Infinity));
+    case 'shared_stock_asc':
+      return arr.sort((a, b) => (a.sharedStock?.stock ?? Infinity) - (b.sharedStock?.stock ?? Infinity));
+    default:
+      return arr.sort((a, b) => a.crm_name.localeCompare(b.crm_name, 'ko-KR', { numeric: true, sensitivity: 'base' }));
+  }
+}
 
 const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalculatedInventory = {} }) => {
   // 항상 최신 recalculatedInventory를 참조 (async 함수의 stale closure 방지)
@@ -26,6 +52,7 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
   
   const [filter, setFilter] = useState('ALL'); // 'ALL', 'ERROR', 'MATCH', 'UNLINKED'
   const [searchText, setSearchText] = useState('');
+  const [sortOption, setSortOption] = useState('default');
 
   useEffect(() => {
     fetchMalls();
@@ -211,6 +238,8 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
     return true;
   });
 
+  const sortedData = sortReconciliationRows(filteredData, sortOption);
+
   if (loadingConfig) {
     return <Box p={4} display="flex" justifyContent="center"><CircularProgress /></Box>;
   }
@@ -264,11 +293,23 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
               미연동/바코드없음 ({comparisonData.filter(d => d.matchStatus.includes('미연동') || d.matchStatus === '바코드 없음').length})
             </Button>
             <TextField
+              select
+              size="small"
+              label="정렬"
+              value={sortOption}
+              onChange={e => setSortOption(e.target.value)}
+              sx={{ ml: 'auto', minWidth: 130 }}
+            >
+              {RECON_SORT_OPTIONS.map(option => (
+                <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
+              ))}
+            </TextField>
+            <TextField
               size="small"
               placeholder="상품명 / 바코드 / 품목코드 검색"
               value={searchText}
               onChange={e => setSearchText(e.target.value)}
-              sx={{ ml: 'auto', minWidth: 250 }}
+              sx={{ minWidth: 250 }}
               InputProps={{
                 startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>
               }}
@@ -307,7 +348,7 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredData.map((row, idx) => {
+                {sortedData.map((row, idx) => {
                   const rowBg = row.matchStatus === '불일치' ? '#fff3f3'
                     : row.matchStatus.includes('미연동') ? '#fff8e1'
                     : row.is_match ? '#f1f8e9' : 'inherit';
