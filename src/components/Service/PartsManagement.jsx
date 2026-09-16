@@ -66,6 +66,7 @@ import { MASTER_ACCOUNTS } from '../../config/menuConfig';
 import { sendTelegramNotification } from '../../lib/telegram';
 import { getErrorMessage, isOffline, safeRetry } from '../../utils/networkUtils';
 import { getSyncedParts, createSyncRelation, deleteSyncRelationById } from '../../utils/partSyncUtils';
+import { sortProducts, SORT_OPTIONS } from '../Product/productSortUtils';
 import Barcode from 'react-barcode';
 import { uploadFileToR2 as uploadToR2 } from '../../utils/cloudflareR2Utils';
 import { CloudUpload as CloudUploadIcon } from '@mui/icons-material';
@@ -723,6 +724,7 @@ function PartsManagement() {
 
   const [order, setOrder] = useState('asc');
   const [orderBy, setOrderBy] = useState('code');
+  const [sortOption, setSortOption] = useState('default'); // 'legacy'면 컬럼헤더 클릭 정렬 사용
   const [showSupplyPrice, setShowSupplyPrice] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('전체');
 
@@ -971,6 +973,11 @@ function PartsManagement() {
     const isAsc = orderBy === property && order === 'asc';
     setOrder(isAsc ? 'desc' : 'asc');
     setOrderBy(property);
+    setSortOption('legacy');
+  };
+
+  const handleSortOptionChange = (e) => {
+    setSortOption(e.target.value);
   };
 
   const sortData = (data, order, orderBy) => {
@@ -1689,8 +1696,11 @@ function PartsManagement() {
 
   // 정렬된 파츠 목록
   const sortedParts = useMemo(() => {
+    if (sortOption !== 'legacy') {
+      return sortProducts(filteredParts, sortOption);
+    }
     return sortData([...filteredParts], order, orderBy);
-  }, [filteredParts, order, orderBy]);
+  }, [filteredParts, order, orderBy, sortOption]);
 
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(20);
@@ -2340,6 +2350,22 @@ function PartsManagement() {
               >
                 {['전체', '파츠', '기체', '공임', '기타'].map(opt => (
                   <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+            <Grid item xs={12} sm={4} md={2}>
+              <TextField
+                select
+                fullWidth
+                size="small"
+                label="정렬"
+                value={sortOption === 'legacy' ? 'default' : sortOption}
+                onChange={handleSortOptionChange}
+              >
+                {SORT_OPTIONS.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
                 ))}
               </TextField>
             </Grid>
