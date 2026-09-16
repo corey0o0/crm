@@ -724,7 +724,7 @@ function PartsManagement() {
 
   const [order, setOrder] = useState('asc');
   const [orderBy, setOrderBy] = useState('code');
-  const [sortOption, setSortOption] = useState('default'); // 'legacy'면 컬럼헤더 클릭 정렬 사용
+  const [sortOption, setSortOption] = useState('newest'); // 'legacy'면 컬럼헤더 클릭 정렬 사용
   const [showSupplyPrice, setShowSupplyPrice] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('전체');
 
