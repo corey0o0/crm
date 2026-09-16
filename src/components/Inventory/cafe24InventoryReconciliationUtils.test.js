@@ -14,7 +14,7 @@ test('matches CRM stock when slimpack79 and nearbike stock sum equals CRM stock'
   });
 });
 
-test('marks shared stock missing when one shared mall is not linked', () => {
+test('matches when only one shared mall carries the product and its stock matches', () => {
   const result = calculateSharedMallStock({
     slimpack79: { stock: 10, use_inventory: true },
     nearbike: { stock: null, use_inventory: false, status: '미연동' },
@@ -23,6 +23,32 @@ test('marks shared stock missing when one shared mall is not linked', () => {
   expect(result).toMatchObject({
     stock: 10,
     diff: 0,
+    isMatch: true,
+    status: '합산 일치',
+  });
+});
+
+test('marks mismatch when the only linked shared mall stock differs from CRM stock', () => {
+  const result = calculateSharedMallStock({
+    slimpack79: { stock: 5, use_inventory: true },
+    nearbike: { stock: null, use_inventory: false, status: '미연동' },
+  }, 10);
+
+  expect(result).toMatchObject({
+    stock: 5,
+    diff: -5,
+    isMatch: false,
+    status: '합산 불일치',
+  });
+});
+
+test('marks shared stock missing when neither shared mall is linked', () => {
+  const result = calculateSharedMallStock({
+    slimpack79: { stock: null, use_inventory: false, status: '미연동' },
+    nearbike: { stock: null, use_inventory: false, status: '미연동' },
+  }, 10);
+
+  expect(result).toMatchObject({
     isMatch: false,
     status: '미연동 (합산)',
   });

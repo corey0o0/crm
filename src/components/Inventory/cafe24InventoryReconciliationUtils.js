@@ -20,29 +20,38 @@ export function findMatchedVariant(variants, barcode) {
   return (variants || []).find(v => v.custom_variant_code && normalizeDigits(v.custom_variant_code) === barcodeDigits) || null;
 }
 
+// 두 몰 중 하나에만 있는 상품도 많음 - 미연동/바코드없음인 몰은 "원래 없는 몰"로 보고
+// 합산에서 제외한다. 실제로 매칭된 몰이 하나도 없을 때만 미연동으로 처리.
 export function calculateSharedMallStock(cafe24Data, totalCrmStock) {
   let stock = 0;
-  let hasMissing = false;
+  let matchedCount = 0;
   let hasDisabled = false;
 
   SHARED_STOCK_MALL_IDS.forEach((mallId) => {
     const mallData = cafe24Data?.[mallId];
     if (!mallData || mallData.status === '미연동' || mallData.status === '바코드 없음') {
-      hasMissing = true;
       return;
     }
     if (!mallData.use_inventory) {
       hasDisabled = true;
       return;
     }
+    matchedCount += 1;
     stock += Number(mallData.stock) || 0;
   });
 
+  if (matchedCount === 0) {
+    return {
+      stock: 0,
+      diff: 0 - totalCrmStock,
+      isMatch: false,
+      status: hasDisabled ? '재고 미사용 (합산)' : '미연동 (합산)',
+    };
+  }
+
   const diff = stock - totalCrmStock;
-  const isMatch = diff === 0 && !hasMissing && !hasDisabled;
-  let status = isMatch ? '합산 일치' : '합산 불일치';
-  if (hasMissing) status = '미연동 (합산)';
-  else if (hasDisabled) status = '재고 미사용 (합산)';
+  const isMatch = diff === 0;
+  const status = isMatch ? '합산 일치' : '합산 불일치';
 
   return { stock, diff, isMatch, status };
 }
