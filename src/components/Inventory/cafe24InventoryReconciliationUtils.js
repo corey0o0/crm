@@ -1,5 +1,11 @@
 export const SHARED_STOCK_MALL_IDS = ['slimpack79', 'nearbike'];
 
+export function isComparableProduct(product) {
+  if (product.note === '공임') return false;
+  if (product.track_inventory === false) return false;
+  return true;
+}
+
 export function calculateSharedMallStock(cafe24Data, totalCrmStock) {
   let stock = 0;
   let hasMissing = false;

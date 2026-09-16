@@ -7,7 +7,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import CachedIcon from '@mui/icons-material/Cached';
 import SaveAltIcon from '@mui/icons-material/SaveAlt';
 import { getCafe24Malls, compareCafe24Inventory } from '../../utils/cafe24Api';
-import { calculateSharedMallStock } from './cafe24InventoryReconciliationUtils';
+import { calculateSharedMallStock, isComparableProduct } from './cafe24InventoryReconciliationUtils';
 
 const CACHE_KEY = 'cafe24_inventory_comparison_cache';
 
@@ -73,9 +73,9 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
    * 캐시된 카페24 원본 데이터를 현재 CRM 재고와 다시 비교
    */
   const rebuildComparison = (cachedItems, mallIds) => {
-    const nonLaborProducts = products.filter(p => p.note !== '공임');
+    const comparableProducts = products.filter(isComparableProduct);
 
-    return nonLaborProducts.map(product => {
+    return comparableProducts.map(product => {
       const barcode = (product.barcode || '').trim();
 
       let totalCrmStock = 0;

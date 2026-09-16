@@ -1,4 +1,4 @@
-import { calculateSharedMallStock } from './cafe24InventoryReconciliationUtils';
+import { calculateSharedMallStock, isComparableProduct } from './cafe24InventoryReconciliationUtils';
 
 test('matches CRM stock when slimpack79 and nearbike stock sum equals CRM stock', () => {
   const result = calculateSharedMallStock({
@@ -40,4 +40,16 @@ test('marks shared stock mismatch when the sum differs from CRM stock', () => {
     isMatch: false,
     status: '합산 불일치',
   });
+});
+
+test('excludes products with track_inventory false', () => {
+  expect(isComparableProduct({ note: '', track_inventory: false })).toBe(false);
+});
+
+test('excludes labor (공임) products', () => {
+  expect(isComparableProduct({ note: '공임', track_inventory: true })).toBe(false);
+});
+
+test('includes normal tracked products', () => {
+  expect(isComparableProduct({ note: '', track_inventory: true })).toBe(true);
 });
