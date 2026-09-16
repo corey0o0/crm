@@ -24,6 +24,10 @@ import { transactionApi } from '../../api/transactionApi';
 import { supabase } from '../../lib/supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
 import { MASTER_ACCOUNTS } from '../../config/menuConfig';
+import { sortProducts, SORT_OPTIONS } from '../../components/Product/productSortUtils';
+
+// ponytail: 이 화면은 기본/최신순만 요청받음 — 가격/재고 옵션 없는 부분집합만 노출
+const AGENCY_SORT_OPTIONS = SORT_OPTIONS.filter(o => o.value === 'default' || o.value === 'newest');
 
 const api = axios.create({
   baseURL: process.env.REACT_APP_BACKEND_URL || ''
@@ -32,6 +36,7 @@ const api = axios.create({
 export default function AgencyManagement() {
   const [agencies, setAgencies] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortOption, setSortOption] = useState('default');
   const [selectedItems, setSelectedItems] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const { user, hasActionPermission } = useAuth();
@@ -275,7 +280,8 @@ export default function AgencyManagement() {
     (v.mobile && v.mobile.includes(searchTerm))
   );
 
-  const paginatedData = filteredData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  const sortedData = sortProducts(filteredData, sortOption);
+  const paginatedData = sortedData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
   return (
     <Box sx={{ p: 3, maxWidth: 1400, margin: '0 auto' }}>
@@ -352,6 +358,20 @@ export default function AgencyManagement() {
             }}
             sx={{ width: 300 }}
           />
+          <TextField
+            select
+            size="small"
+            label="정렬"
+            value={sortOption}
+            onChange={(e) => { setSortOption(e.target.value); setPage(0); }}
+            sx={{ minWidth: 110 }}
+          >
+            {AGENCY_SORT_OPTIONS.map((option) => (
+              <MenuItem key={option.value} value={option.value}>
+                {option.label}
+              </MenuItem>
+            ))}
+          </TextField>
           {canEditBasic && selectedItems.length > 0 && (
             <Button
               variant="outlined"
