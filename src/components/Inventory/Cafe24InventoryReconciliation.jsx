@@ -7,6 +7,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import CachedIcon from '@mui/icons-material/Cached';
 import SaveAltIcon from '@mui/icons-material/SaveAlt';
 import { getCafe24Malls, compareCafe24Inventory } from '../../utils/cafe24Api';
+import { calculateSharedMallStock } from './cafe24InventoryReconciliationUtils';
 
 const CACHE_KEY = 'cafe24_inventory_comparison_cache';
 
@@ -87,9 +88,6 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
       });
 
       const cafe24Data = {};
-      let allMatch = true;
-      let anyMissing = false;
-      let anyDisabled = false;
 
       (mallIds || []).forEach(mallId => {
         const cachedMall = cachedItems.find(c => c.mall_id === mallId);
@@ -102,26 +100,19 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
         if (matchedVariant) {
           if (!matchedVariant.use_inventory) {
             mallMatchStatus = '재고 설정 미사용';
-            anyDisabled = true;
-            allMatch = false;
           } else {
             mallStock = parseInt(matchedVariant.quantity, 10) || 0;
             if (mallStock === totalCrmStock) {
               mallMatchStatus = '일치';
             } else {
               mallMatchStatus = '불일치';
-              allMatch = false;
             }
           }
         } else {
           if (barcode) {
             mallMatchStatus = '미연동';
-            anyMissing = true;
-            allMatch = false;
           } else {
             mallMatchStatus = '바코드 없음';
-            anyMissing = true;
-            allMatch = false;
           }
         }
 
@@ -134,13 +125,9 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
         };
       });
 
-      let finalStatus = '바코드 없음';
-      if (barcode) {
-        if (allMatch) finalStatus = '일치';
-        else if (anyMissing) finalStatus = '미연동 (일부/전체)';
-        else if (anyDisabled) finalStatus = '재고 미사용 (일부/전체)';
-        else finalStatus = '불일치';
-      }
+      const sharedStock = calculateSharedMallStock(cafe24Data, totalCrmStock);
+
+      const finalStatus = barcode ? sharedStock.status : '바코드 없음';
 
       return {
         part_id: product.id,
@@ -149,7 +136,8 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
         totalCrmStock,
         warehouseStocks,
         cafe24Data,
-        is_match: allMatch && !!barcode,
+        sharedStock,
+        is_match: sharedStock.isMatch && !!barcode,
         matchStatus: finalStatus
       };
     });
@@ -206,7 +194,7 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
     // 필터
     if (filter === 'MATCH' && !item.is_match) return false;
     if (filter === 'UNLINKED' && item.matchStatus !== '미연동' && !item.matchStatus.includes('미연동') && item.matchStatus !== '바코드 없음') return false;
-    if (filter === 'ERROR' && item.matchStatus !== '불일치') return false;
+    if (filter === 'ERROR' && !item.matchStatus.includes('불일치')) return false;
 
     // 검색
     if (searchText) {
@@ -270,7 +258,7 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
               일치 ({comparisonData.filter(d => d.is_match).length})
             </Button>
             <Button variant={filter === 'ERROR' ? 'contained' : 'outlined'} size="small" color="error" onClick={() => setFilter('ERROR')}>
-              불일치 ({comparisonData.filter(d => d.matchStatus === '불일치').length})
+              불일치 ({comparisonData.filter(d => d.matchStatus.includes('불일치')).length})
             </Button>
             <Button variant={filter === 'UNLINKED' ? 'contained' : 'outlined'} size="small" color="warning" onClick={() => setFilter('UNLINKED')}>
               미연동/바코드없음 ({comparisonData.filter(d => d.matchStatus.includes('미연동') || d.matchStatus === '바코드 없음').length})
@@ -295,6 +283,12 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
                   <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>CRM 상품명</TableCell>
                   <TableCell align="center" sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>매칭 상태</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>CRM 총 재고</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: 'secondary.50', color: 'secondary.main' }}>
+                    slimpack79+nearbike<br />합산 재고
+                  </TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: 'secondary.50', color: 'secondary.main' }}>
+                    합산<br />차이
+                  </TableCell>
                   {displayMallIds.map(mallId => (
                     <React.Fragment key={mallId}>
                       <TableCell align="center" sx={{ fontWeight: 'bold', bgcolor: 'primary.50', color: 'primary.main', fontSize: '0.8rem' }}>
@@ -335,6 +329,12 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
                         />
                       </TableCell>
                       <TableCell align="right" sx={{ fontWeight: 'bold' }}>{row.totalCrmStock}</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 'bold', color: row.sharedStock?.isMatch ? 'success.main' : 'error.main' }}>
+                        {row.sharedStock?.stock ?? '-'}
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 'bold', color: row.sharedStock?.diff === 0 ? 'success.main' : row.sharedStock?.diff > 0 ? 'info.main' : 'error.main' }}>
+                        {row.sharedStock?.diff != null ? `${row.sharedStock.diff > 0 ? '+' : ''}${row.sharedStock.diff}` : '-'}
+                      </TableCell>
                       {displayMallIds.map(mallId => {
                         const mallData = row.cafe24Data[mallId];
                         const stockDiff = mallData?.stock != null ? mallData.stock - row.totalCrmStock : null;
@@ -376,7 +376,7 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
                 })}
                 {filteredData.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={4 + displayMallIds.length * 2 + warehouses.length} align="center" sx={{ py: 4 }}>
+                    <TableCell colSpan={6 + displayMallIds.length * 2 + warehouses.length} align="center" sx={{ py: 4 }}>
                       {comparisonData.length > 0 ? '필터/검색 조건에 맞는 데이터가 없습니다.' : '비교 실행 버튼을 눌러주세요.'}
                     </TableCell>
                   </TableRow>
