@@ -1,4 +1,4 @@
-import { calculateSharedMallStock, isComparableProduct } from './cafe24InventoryReconciliationUtils';
+import { calculateSharedMallStock, isComparableProduct, findMatchedVariant } from './cafe24InventoryReconciliationUtils';
 
 test('matches CRM stock when slimpack79 and nearbike stock sum equals CRM stock', () => {
   const result = calculateSharedMallStock({
@@ -52,4 +52,30 @@ test('excludes labor (공임) products', () => {
 
 test('includes normal tracked products', () => {
   expect(isComparableProduct({ note: '', track_inventory: true })).toBe(true);
+});
+
+test('findMatchedVariant matches on exact trimmed code', () => {
+  const variants = [{ custom_variant_code: '8809012345678 ', quantity: 5 }];
+  expect(findMatchedVariant(variants, '8809012345678')).toBe(variants[0]);
+});
+
+test('findMatchedVariant falls back to digit-only match when formatting differs', () => {
+  const variants = [{ custom_variant_code: '8809-0123-45678', quantity: 5 }];
+  expect(findMatchedVariant(variants, '8809012345678')).toBe(variants[0]);
+});
+
+test('findMatchedVariant prefers exact match over a digit-only match', () => {
+  const digitOnly = { custom_variant_code: '8809-0123-45678', quantity: 1 };
+  const exact = { custom_variant_code: '8809012345678', quantity: 2 };
+  expect(findMatchedVariant([digitOnly, exact], '8809012345678')).toBe(exact);
+});
+
+test('findMatchedVariant returns null when no barcode given', () => {
+  const variants = [{ custom_variant_code: '8809012345678', quantity: 5 }];
+  expect(findMatchedVariant(variants, '')).toBe(null);
+});
+
+test('findMatchedVariant returns null when nothing matches', () => {
+  const variants = [{ custom_variant_code: '1234567890123', quantity: 5 }];
+  expect(findMatchedVariant(variants, '8809012345678')).toBe(null);
 });

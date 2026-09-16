@@ -7,7 +7,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import CachedIcon from '@mui/icons-material/Cached';
 import SaveAltIcon from '@mui/icons-material/SaveAlt';
 import { getCafe24Malls, compareCafe24Inventory } from '../../utils/cafe24Api';
-import { calculateSharedMallStock, isComparableProduct } from './cafe24InventoryReconciliationUtils';
+import { calculateSharedMallStock, isComparableProduct, findMatchedVariant } from './cafe24InventoryReconciliationUtils';
 
 const CACHE_KEY = 'cafe24_inventory_comparison_cache';
 
@@ -118,9 +118,7 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
 
       (mallIds || []).forEach(mallId => {
         const cachedMall = cachedItems.find(c => c.mall_id === mallId);
-        const matchedVariant = (barcode && cachedMall)
-          ? cachedMall.variants.find(v => v.custom_variant_code && v.custom_variant_code.trim() === barcode)
-          : null;
+        const matchedVariant = cachedMall ? findMatchedVariant(cachedMall.variants, barcode) : null;
 
         let mallMatchStatus = '';
         let mallStock = null;

@@ -6,6 +6,20 @@ export function isComparableProduct(product) {
   return true;
 }
 
+const normalizeDigits = (str) => String(str || '').replace(/[^0-9]/g, '');
+
+// 정확 일치 우선, 없으면 숫자만 남긴 값으로 재비교 (카페24 자체코드에 하이픈 등
+// 포맷 문자가 섞여 CRM 바코드와 완전일치하지 않는 경우 대비)
+export function findMatchedVariant(variants, barcode) {
+  if (!barcode) return null;
+  const exact = (variants || []).find(v => v.custom_variant_code && v.custom_variant_code.trim() === barcode);
+  if (exact) return exact;
+
+  const barcodeDigits = normalizeDigits(barcode);
+  if (!barcodeDigits) return null;
+  return (variants || []).find(v => v.custom_variant_code && normalizeDigits(v.custom_variant_code) === barcodeDigits) || null;
+}
+
 export function calculateSharedMallStock(cafe24Data, totalCrmStock) {
   let stock = 0;
   let hasMissing = false;

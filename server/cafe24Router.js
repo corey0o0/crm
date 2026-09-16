@@ -34,6 +34,31 @@ function decrypt(text) {
 // 카페24 취소/반품/교환 상태 코드 (SalesHistory.jsx, InventoryLayout.jsx의 CANCEL_STATUSES와 동일하게 유지)
 const CAFE24_CANCEL_STATUSES = ['C11', 'C34', 'C36', 'C40', 'C47', 'C48', 'C49', 'R34', 'R36', 'R40', 'E40'];
 
+// 옵션 없는 단품(variants.length===1)은 자체품목코드가 비어있고 자체상품코드(product-level)만
+// 있는 경우가 많음 - 그 경우에만 상품 레벨 코드로 폴백한다. 옵션 있는 상품(variants 2개 이상)은
+// 각 variant가 자기 코드를 가져야 하므로 폴백하지 않는다.
+function buildCafe24Variants(products = []) {
+  const allVariants = [];
+  (products || []).forEach(p => {
+    if (!p.variants) return;
+    const isSingleVariant = p.variants.length === 1;
+    p.variants.forEach(v => {
+      const customCode = v.custom_variant_code || (isSingleVariant ? p.custom_product_code : null);
+      if (!customCode) return;
+      allVariants.push({
+        product_no: p.product_no,
+        product_name: p.product_name,
+        variant_code: v.variant_code,
+        custom_variant_code: customCode,
+        quantity: v.use_inventory === 'T' ? parseInt(v.quantity || v.stock_quantity || 0) : null,
+        use_inventory: v.use_inventory === 'T',
+        display: v.display === 'T'
+      });
+    });
+  });
+  return allVariants;
+}
+
 function mapCafe24Comments(comments = []) {
   return (comments || []).map(c => ({
     comment_no: c.comment_no,
@@ -177,24 +202,8 @@ module.exports = function(supabaseAdmin) {
         
         const products = resp.data.products || [];
         if (products.length === 0) break;
-        
-        products.forEach(p => {
-           if (p.variants) {
-             p.variants.forEach(v => {
-                if (v.custom_variant_code) {
-                  allVariants.push({
-                     product_no: p.product_no,
-                     product_name: p.product_name,
-                     variant_code: v.variant_code,
-                     custom_variant_code: v.custom_variant_code,
-                     quantity: v.use_inventory === 'T' ? parseInt(v.quantity || v.stock_quantity || 0) : null,
-                     use_inventory: v.use_inventory === 'T',
-                     display: v.display === 'T'
-                  });
-                }
-             });
-           }
-        });
+
+        allVariants = allVariants.concat(buildCafe24Variants(products));
         offset += limit;
       }
 
@@ -1622,3 +1631,4 @@ module.exports = function(supabaseAdmin) {
 };
 
 module.exports.mapCafe24Comments = mapCafe24Comments;
+module.exports.buildCafe24Variants = buildCafe24Variants;
