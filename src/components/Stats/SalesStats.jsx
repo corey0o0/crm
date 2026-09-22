@@ -27,7 +27,9 @@ import {
   DialogContent,
   DialogActions,
   Chip,
-  Stack
+  Stack,
+  Switch,
+  FormControlLabel
 } from '@mui/material';
 
 
@@ -54,6 +56,8 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import { downloadExcel } from '../../utils/excelUtils';
 import DownloadIcon from '@mui/icons-material/Download';
 import { safeRetry, shouldRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
+import { getAppSetting } from '../../api/settingsApi';
+import { applyCommission, applyVat } from '../../utils/commissionUtils';
 import { getBrandFallback } from './SalesHistoryStats';
 
 const B2C_CHANNELS = ['공홈', '청담매장', '라이클', '라이클-우리', '스마트할부', '스마트스토어', '기타', '온라인주문', '고객', '-', '본사/기본', '과거 이카운트 이관', '일반출고(공홈)', '매장출고', '본점', '매장'];
@@ -126,6 +130,8 @@ function SalesStats() {
   });
   const [channelModalOpen, setChannelModalOpen] = useState(false);
   const [selectedChannelStats, setSelectedChannelStats] = useState(null);
+  const [offlineCommissionRate, setOfflineCommissionRate] = useState(0);
+  const [vatIncluded, setVatIncluded] = useState(true);
   const [totalLaborSales, setTotalLaborSales] = useState(0);
   const brandOptions = ['전체', 'XRB', 'NB'];
   const currentMonth = getMonth(new Date());
@@ -1267,6 +1273,12 @@ function SalesStats() {
 
     // 데이터 초기 로드
     fetchSalesData(initialPeriod);
+
+    const fetchCommissionRates = async () => {
+      const { data } = await getAppSetting('payment_commission_rates');
+      if (data) setOfflineCommissionRate(Number(data.offline) || 0);
+    };
+    fetchCommissionRates();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // 의존성 배열을 비워서 컴포넌트 마운트 시 한 번만 실행
 
@@ -1796,9 +1808,21 @@ function SalesStats() {
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
       <Box sx={{ p: 3, maxWidth: 1400, mx: 'auto' }}>
-        <Typography variant="h5" sx={{ mb: 3, fontWeight: 600 }}>
-          매장 매출통계
-        </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Typography variant="h5" sx={{ fontWeight: 600 }}>
+            매장 매출통계
+          </Typography>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={vatIncluded}
+                onChange={() => setVatIncluded(v => !v)}
+                color="primary"
+              />
+            }
+            label={vatIncluded ? '부가세 포함' : '부가세 미포함'}
+          />
+        </Box>
 
         {/* 안내 문구 추가 */}
         <Paper sx={{ p: 2, mb: 2, bgcolor: '#fffde7', borderLeft: '4px solid #ffc107' }}>
@@ -2140,6 +2164,45 @@ function SalesStats() {
             </Box>
           )}
         </Paper>
+
+        {/* 매장 판매 수수료 반영 순매출 */}
+        {(() => {
+          const gross = applyVat(totalStats.totalShipmentSales || 0, vatIncluded);
+          const { fee, net } = applyCommission(gross, offlineCommissionRate);
+          return (
+            <Paper sx={{ p: 3, mb: 3, borderRadius: 2 }}>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
+                매장 판매 수수료 반영 순매출 {vatIncluded ? '(부가세 포함)' : '(부가세 미포함)'}
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={4}>
+                  <Card sx={{ height: '100%', borderRadius: 2 }}>
+                    <CardContent>
+                      <Typography color="textSecondary" gutterBottom variant="subtitle2">출고 매출</Typography>
+                      <Typography variant="h6">{formatCurrency(gross)}</Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <Card sx={{ height: '100%', borderRadius: 2 }}>
+                    <CardContent>
+                      <Typography color="textSecondary" gutterBottom variant="subtitle2">수수료 ({offlineCommissionRate}%)</Typography>
+                      <Typography variant="h6">{formatCurrency(fee)}</Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <Card sx={{ height: '100%', borderRadius: 2, borderLeft: 4, borderColor: 'success.main' }}>
+                    <CardContent>
+                      <Typography color="textSecondary" gutterBottom variant="subtitle2" sx={{ fontWeight: 'bold' }}>순매출</Typography>
+                      <Typography variant="h6" color="success.main" sx={{ fontWeight: 'bold' }}>{formatCurrency(net)}</Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              </Grid>
+            </Paper>
+          );
+        })()}
 
         {/* 베스트 상품/부품 Top 5 - 출고 vs A/S 분리 */}
         <Grid container spacing={3} sx={{ mb: 3 }}>

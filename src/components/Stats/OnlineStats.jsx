@@ -31,9 +31,13 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
-  Chip
+  Chip,
+  Switch,
+  FormControlLabel
 } from '@mui/material';
 import { getCafe24Malls } from '../../utils/cafe24Api';
+import { getAppSetting } from '../../api/settingsApi';
+import { classifyPaymentChannel, applyCommission, applyVat } from '../../utils/commissionUtils';
 
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
@@ -58,7 +62,9 @@ function OnlineStats() {
   const [loading, setLoading] = useState(true);
   const [startDate, setStartDate] = useState(startOfMonth(new Date()));
   const [endDate, setEndDate] = useState(endOfMonth(new Date()));
-  const [stats, setStats] = useState({ totalPayment: 0, orderCount: 0, list: [], agencyStats: {}, brandStats: {}, totals: {} });
+  const [stats, setStats] = useState({ totalPayment: 0, orderCount: 0, list: [], agencyStats: {}, brandStats: {}, totals: {}, channelStats: { toss: 0, naver: 0, other: 0 } });
+  const [commissionRates, setCommissionRates] = useState({ toss: 0, naver: 0, other: 0 });
+  const [vatIncluded, setVatIncluded] = useState(true);
   const [monthlyStats, setMonthlyStats] = useState([]);
   const [brands, setBrands] = useState(['전체']);
   const [selectedBrand, setSelectedBrand] = useState('전체');
@@ -81,6 +87,12 @@ function OnlineStats() {
       } catch (err) { console.error(err); }
     };
     fetchMalls();
+
+    const fetchCommissionRates = async () => {
+      const { data } = await getAppSetting('payment_commission_rates');
+      if (data) setCommissionRates(prev => ({ ...prev, ...data }));
+    };
+    fetchCommissionRates();
   }, []);
   
   const currentMonth = getMonth(new Date());
@@ -272,6 +284,7 @@ function OnlineStats() {
            const _itemPaySum = validItems.reduce((acc, i) => acc + Number(i.payment_amount || 0), 0);
            const isNearbikeMemberDiscount = String(o.order_id || '').startsWith('nearbike_') && Number(o.total_amount || 0) === 0;
            const _itemPayMethod = (validItems[0]?.payment_method || '').toLowerCase();
+           o._itemPayMethod = validItems[0]?.payment_method || '';
            const isChunbulgeum = _itemPayMethod.includes('선불금');
            const _effTotal = !isNearbikeMemberDiscount && Number(o.total_amount || 0) === 0
              ? _itemPaySum > 0 ? _itemPaySum
@@ -472,6 +485,7 @@ function OnlineStats() {
 
               if (qBrand === '전체') {
                  total += validOrderTotal;
+                 o._orderRevenueForStats = validOrderTotal;
                  // 배송비를 파츠 합계에 반영 (mall 기준 브랜드 결정)
                  if (shipFee > 0) {
                     const shipBrandSuffix = o.mall_id === 'nearbike' ? '_nb' : '_xrb';
@@ -490,6 +504,7 @@ function OnlineStats() {
                  const apportionedShipping = (o._validOrderTotal > 0) ? Math.floor(shipFee * (orderTotalForBrand / o._validOrderTotal)) : 0;
                  const adjustedTotalForBrand = orderTotalForBrand + apportionedShipping;
                  total += adjustedTotalForBrand;
+                 o._orderRevenueForStats = adjustedTotalForBrand;
               }
               filteredOrderCount += 1;
               filteredList.push(o);
@@ -498,6 +513,12 @@ function OnlineStats() {
 
         const { agencyStats } = computeOnlineAgencyStats({ orders: cafe24Orders, agencies: agenciesData, parts: partsData, brand: qBrand });
 
+        const channelStats = { toss: 0, naver: 0, other: 0 };
+        filteredList.forEach(o => {
+          const channel = classifyPaymentChannel(o._itemPayMethod);
+          channelStats[channel] += Number(o._orderRevenueForStats || 0);
+        });
+
         setStats({
           totalPayment: total,
           orderCount: filteredOrderCount,
@@ -505,6 +526,7 @@ function OnlineStats() {
           agencyStats,
           brandStats,
           generalProductStats,
+          channelStats,
           totals: {
             b2b: { airframe: totalB2BAirframeQty, airframeAmt: totalB2BAirframeAmt, parts: totalB2BPartsQty, partsAmt: totalB2BPartsAmt },
             b2c: { airframe: totalB2CAirframeQty, airframeAmt: totalB2CAirframeAmt, parts: totalB2CPartsQty, partsAmt: totalB2CPartsAmt }
@@ -759,6 +781,16 @@ function OnlineStats() {
         <Typography variant="h5" component="h2" sx={{ fontWeight: 'bold' }}>
           온라인 매출통계
         </Typography>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={vatIncluded}
+              onChange={() => setVatIncluded(v => !v)}
+              color="primary"
+            />
+          }
+          label={vatIncluded ? '부가세 포함' : '부가세 미포함'}
+        />
       </Box>
 
       <Paper sx={{ p: 3, mb: 3, borderLeft: '4px solid #3182f6' }}>
@@ -917,6 +949,49 @@ function OnlineStats() {
               </Card>
             </Grid>
           </Grid>
+
+          {(() => {
+            const channels = [
+              { key: 'toss', label: '토스페이' },
+              { key: 'naver', label: '네이버페이' },
+              { key: 'other', label: '기타' }
+            ];
+            let totalNet = 0;
+            const rows = channels.map(({ key, label }) => {
+              const gross = applyVat(stats.channelStats?.[key] || 0, vatIncluded);
+              const { fee, net } = applyCommission(gross, commissionRates[key] || 0);
+              totalNet += net;
+              return { key, label, gross, fee, net };
+            });
+            return (
+              <Paper sx={{ p: 3, mb: 4, borderRadius: 2 }}>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
+                  결제수단별 수수료 반영 순매출 {vatIncluded ? '(부가세 포함)' : '(부가세 미포함)'}
+                </Typography>
+                <Grid container spacing={2}>
+                  {rows.map(r => (
+                    <Grid item xs={12} md={3} key={r.key}>
+                      <Card sx={{ height: '100%', borderRadius: 2 }}>
+                        <CardContent>
+                          <Typography color="textSecondary" gutterBottom variant="subtitle2">{r.label}</Typography>
+                          <Typography variant="h6">{formatCurrency(r.net)}</Typography>
+                          <Typography variant="caption" color="textSecondary">수수료 {formatCurrency(r.fee)}</Typography>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                  <Grid item xs={12} md={3}>
+                    <Card sx={{ height: '100%', borderRadius: 2, borderLeft: 4, borderColor: 'success.main' }}>
+                      <CardContent>
+                        <Typography color="textSecondary" gutterBottom variant="subtitle2" sx={{ fontWeight: 'bold' }}>순매출 합계</Typography>
+                        <Typography variant="h6" color="success.main" sx={{ fontWeight: 'bold' }}>{formatCurrency(totalNet)}</Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                </Grid>
+              </Paper>
+            );
+          })()}
 
           <Paper sx={{ p: 3, mb: 4, borderRadius: 2 }}>
             <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>

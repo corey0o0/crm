@@ -7,6 +7,7 @@ import TelegramSettings from '../../components/Settings/TelegramSettings';
 import InspectionSettings from '../../components/Settings/InspectionSettings';
 import UserManagement from '../../components/Settings/UserManagement';
 import AuditLogViewer from '../../components/Admin/AuditLogViewer';
+import CommissionSettings from '../../components/Settings/CommissionSettings';
 import { useAuth } from '../../contexts/AuthContext';
 import { hasMenuAccess, MENU_KEYS } from '../../config/menuConfig';
 
@@ -70,6 +71,7 @@ export default function AdminTools() {
         tabs.push({ label: "검수 과정 관리", component: <InspectionSettings /> });
         tabs.push({ label: "계정 관리", component: <UserManagement /> });
         tabs.push({ label: "감사 로그", component: <AuditLogViewer /> });
+        tabs.push({ label: "수수료 설정", component: <CommissionSettings /> });
     }
 
     // fallback if no specific permissions were granted but they still accessed admin tools
