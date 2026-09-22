@@ -24,6 +24,7 @@ import ExcelJS from 'exceljs';
 import { useAuth } from '../../contexts/AuthContext';
 import { MASTER_ACCOUNTS } from '../../config/menuConfig';
 import { downloadExcel } from '../../utils/excelUtils';
+import { applyVat } from '../../utils/commissionUtils';
 
 const COLORS = ['#1976d2', '#2e7d32', '#ed6c02', '#9c27b0', '#d32f2f', '#0288d1', '#7b1fa2'];
 
@@ -87,6 +88,7 @@ function SalesHistoryStats() {
   const [showChannelPieDetail, setShowChannelPieDetail] = useState(false);
   const [compareStats, setCompareStats] = useState({ context: null, mom: null, yoy: null, wow: null, yoyWeek: null });
   const [selectedAgencyDetail, setSelectedAgencyDetail] = useState(null);
+  const [vatIncluded, setVatIncluded] = useState(true);
 
 
 
@@ -1426,7 +1428,7 @@ function SalesHistoryStats() {
   const chartCat = Object.values(catMap).sort((a,b) => b.value - a.value);
   const chartChannelPie = Object.values(channelPieMap).sort((a,b) => b.value - a.value);
 
-  const formatCurrency = (val) => new Intl.NumberFormat('ko-KR').format(val) + '원';
+  const formatCurrency = (val) => new Intl.NumberFormat('ko-KR').format(applyVat(val, vatIncluded)) + '원';
 
   // 수량 상세 모달 내역 엑셀 다운로드
   const handleExportQtyDetail = () => {
@@ -1722,6 +1724,16 @@ function SalesHistoryStats() {
     <Box sx={{ p: 3, bgcolor: '#f4f6f8', minHeight: '100vh' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h5" sx={{ fontWeight: 'bold' }}>판매현황 통합 통계</Typography>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={vatIncluded}
+              onChange={() => setVatIncluded(v => !v)}
+              color="primary"
+            />
+          }
+          label={vatIncluded ? '부가세 포함' : '부가세 별도'}
+        />
       </Box>
 
       {/* 필터 영역 */}
