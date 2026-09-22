@@ -17,10 +17,13 @@ const RATE_FIELDS = [
   { key: 'toss', label: '토스페이 수수료 (온라인)' },
   { key: 'naver', label: '네이버페이 수수료 (온라인)' },
   { key: 'other', label: '기타 결제수단 수수료 (온라인)' },
-  { key: 'offline', label: '매장 판매 수수료 (오프라인, 단일 요율)' }
+  { key: 'offline', label: '매장 판매 수수료 (오프라인, 단일 요율)' },
+  { key: 'ricycle', label: '라이클 일반 수수료' },
+  { key: 'ricycle_rental', label: '라이클 렌탈 수수료' },
+  { key: 'toss_installment', label: '토스페이 수수료 (스마트 할부)' }
 ];
 
-const DEFAULT_RATES = { toss: 0, naver: 0, other: 0, offline: 0 };
+const DEFAULT_RATES = { toss: 0, naver: 0, other: 0, offline: 0, ricycle: 0, ricycle_rental: 0, toss_installment: 0 };
 
 export default function CommissionSettings() {
   const [rates, setRates] = useState(DEFAULT_RATES);

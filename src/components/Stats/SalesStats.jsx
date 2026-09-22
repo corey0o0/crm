@@ -131,7 +131,10 @@ function SalesStats() {
   const [channelModalOpen, setChannelModalOpen] = useState(false);
   const [selectedChannelStats, setSelectedChannelStats] = useState(null);
   const [offlineCommissionRate, setOfflineCommissionRate] = useState(0);
+  const [ricycleCommissionRate, setRicycleCommissionRate] = useState(0);
+  const [smartInstallmentCommissionRate, setSmartInstallmentCommissionRate] = useState(0);
   const [vatIncluded, setVatIncluded] = useState(true);
+  const [commissionApplied, setCommissionApplied] = useState(true);
   const [totalLaborSales, setTotalLaborSales] = useState(0);
   const brandOptions = ['전체', 'XRB', 'NB'];
   const currentMonth = getMonth(new Date());
@@ -825,6 +828,9 @@ function SalesStats() {
 
       // 일별 출고 매출 및 건수 집계 (원본 shipmentsData 기준)
       const dailyShipmentAggregates = {};
+      let ricycleShipmentSales = 0;
+      let smartInstallmentShipmentSales = 0;
+      let plainOfflineShipmentSales = 0;
       shipmentsData.forEach(shipment => {
         const dateStr = format(parseISO(shipment.order_date), 'yyyy-MM-dd');
         const salesChannel = extractSalesChannel(shipment.note, shipment.sales_channel);
@@ -838,6 +844,15 @@ function SalesStats() {
 
         // shipment.price가 0이거나 undefined인 경우 0을 사용
         const shipmentPrice = shipment.price || 0;
+
+        // 매장 판매 수수료 버킷 분리: 라이클(일반) / 스마트할부 / 나머지(매장)
+        if (salesChannel.includes('라이클')) {
+          ricycleShipmentSales += shipmentPrice;
+        } else if (salesChannel === '스마트할부') {
+          smartInstallmentShipmentSales += shipmentPrice;
+        } else {
+          plainOfflineShipmentSales += shipmentPrice;
+        }
 
         // 청담매장 관련 디버깅 로그
         if (salesChannel === '청담매장' || salesChannel.includes('청담')) {
@@ -903,6 +918,9 @@ function SalesStats() {
         totalServiceCount: newTotalServiceCount,            // A/S 건수
         totalShipmentCount: newTotalShipmentCount,
         totalCustomerSales: newTotalCustomerSales,
+        ricycleShipmentSales,           // 라이클(일반) 출고 매출
+        smartInstallmentShipmentSales,  // 스마트할부 출고 매출
+        plainOfflineShipmentSales,      // 나머지 매장 출고 매출
       });
       
       // 디버깅을 위한 상세 로그
@@ -1276,7 +1294,11 @@ function SalesStats() {
 
     const fetchCommissionRates = async () => {
       const { data } = await getAppSetting('payment_commission_rates');
-      if (data) setOfflineCommissionRate(Number(data.offline) || 0);
+      if (data) {
+        setOfflineCommissionRate(Number(data.offline) || 0);
+        setRicycleCommissionRate(Number(data.ricycle) || 0);
+        setSmartInstallmentCommissionRate(Number(data.toss_installment) || 0);
+      }
     };
     fetchCommissionRates();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2167,35 +2189,52 @@ function SalesStats() {
 
         {/* 매장 판매 수수료 반영 순매출 */}
         {(() => {
-          const gross = applyVat(totalStats.totalShipmentSales || 0, vatIncluded);
-          const { fee, net } = applyCommission(gross, offlineCommissionRate);
+          const buckets = [
+            { label: '매장 판매', gross: totalStats.plainOfflineShipmentSales || 0, rate: offlineCommissionRate },
+            { label: '라이클(일반)', gross: totalStats.ricycleShipmentSales || 0, rate: ricycleCommissionRate },
+            { label: '토스페이(스마트할부)', gross: totalStats.smartInstallmentShipmentSales || 0, rate: smartInstallmentCommissionRate }
+          ].map(b => {
+            const gross = applyVat(b.gross, vatIncluded);
+            const rate = commissionApplied ? b.rate : 0;
+            const { fee, net } = applyCommission(gross, rate);
+            return { ...b, gross, rate, fee, net };
+          });
+          const totalNet = buckets.reduce((sum, b) => sum + b.net, 0);
           return (
             <Paper sx={{ p: 3, mb: 3, borderRadius: 2 }}>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
-                매장 판매 수수료 반영 순매출 {vatIncluded ? '(부가세 포함)' : '(부가세 미포함)'}
-              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                  매장 판매 수수료 반영 순매출 {vatIncluded ? '(부가세 포함)' : '(부가세 미포함)'}
+                </Typography>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={commissionApplied}
+                      onChange={() => setCommissionApplied(v => !v)}
+                      color="primary"
+                    />
+                  }
+                  label={commissionApplied ? '수수료 반영' : '수수료 미반영'}
+                />
+              </Box>
               <Grid container spacing={2}>
-                <Grid item xs={12} md={4}>
-                  <Card sx={{ height: '100%', borderRadius: 2 }}>
+                {buckets.map(b => (
+                  <Grid item xs={12} md={4} key={b.label}>
+                    <Card sx={{ height: '100%', borderRadius: 2 }}>
+                      <CardContent>
+                        <Typography color="textSecondary" gutterBottom variant="subtitle2">{b.label} 매출</Typography>
+                        <Typography variant="h6">{formatCurrency(b.gross)}</Typography>
+                        <Typography color="textSecondary" variant="body2" sx={{ mt: 1 }}>수수료 ({b.rate}%): {formatCurrency(b.fee)}</Typography>
+                        <Typography variant="body1" sx={{ fontWeight: 'bold' }}>순매출: {formatCurrency(b.net)}</Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                ))}
+                <Grid item xs={12}>
+                  <Card sx={{ borderRadius: 2, borderLeft: 4, borderColor: 'success.main' }}>
                     <CardContent>
-                      <Typography color="textSecondary" gutterBottom variant="subtitle2">출고 매출</Typography>
-                      <Typography variant="h6">{formatCurrency(gross)}</Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <Card sx={{ height: '100%', borderRadius: 2 }}>
-                    <CardContent>
-                      <Typography color="textSecondary" gutterBottom variant="subtitle2">수수료 ({offlineCommissionRate}%)</Typography>
-                      <Typography variant="h6">{formatCurrency(fee)}</Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <Card sx={{ height: '100%', borderRadius: 2, borderLeft: 4, borderColor: 'success.main' }}>
-                    <CardContent>
-                      <Typography color="textSecondary" gutterBottom variant="subtitle2" sx={{ fontWeight: 'bold' }}>순매출</Typography>
-                      <Typography variant="h6" color="success.main" sx={{ fontWeight: 'bold' }}>{formatCurrency(net)}</Typography>
+                      <Typography color="textSecondary" gutterBottom variant="subtitle2" sx={{ fontWeight: 'bold' }}>합계 순매출</Typography>
+                      <Typography variant="h6" color="success.main" sx={{ fontWeight: 'bold' }}>{formatCurrency(totalNet)}</Typography>
                     </CardContent>
                   </Card>
                 </Grid>
