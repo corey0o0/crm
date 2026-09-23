@@ -189,7 +189,7 @@ function SalesHistoryStats() {
       fetchSales({ overrideStart: yearStart, overrideEnd: yearEnd });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedYear]);
+  }, [selectedYear, commissionApplied, commissionRates]);
 
   useEffect(() => {
     fetchCompareStats();
