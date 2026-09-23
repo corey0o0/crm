@@ -2,7 +2,9 @@ export function classifyPaymentChannel(paymentMethod) {
   const method = paymentMethod || '';
   if (method.includes('토스')) return 'toss';
   if (method.includes('네이버')) return 'naver';
-  if (method.includes('PG')) return 'toss'; // 카드/가상계좌 등 실제 PG 결제만 토스 수수료율
+  if (method.includes('가상계좌')) return 'vaccount'; // 건별 고정 수수료(부가세 별도)
+  if (method.includes('계좌이체')) return 'bank_transfer';
+  if (method.includes('PG')) return 'toss'; // 신용카드 등 실제 PG 결제
   return 'other'; // 무통장입금 등 PG 미개입 결제는 수수료 없음
 }
 

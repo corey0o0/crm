@@ -108,7 +108,7 @@ function SalesHistoryStats() {
   const [selectedAgencyDetail, setSelectedAgencyDetail] = useState(null);
   const [vatIncluded, setVatIncluded] = useState(true);
   const [commissionApplied, setCommissionApplied] = useState(false);
-  const [commissionRates, setCommissionRates] = useState({ toss: 0, naver: 0, other: 0, offline: 0, ricycle: 0, ricycle_rental: 0, toss_installment: 0 });
+  const [commissionRates, setCommissionRates] = useState({ toss: 0, naver: 0, bank_transfer: 0, other: 0, offline: 0, ricycle: 0, ricycle_rental: 0, toss_installment: 0, vaccount_flat: 0 });
 
 
 
@@ -947,7 +947,17 @@ function SalesHistoryStats() {
     });
 
     if (commissionApplied) {
+      const vaccountFeeApplied = new Set(); // 가상계좌 수수료는 건(주문)당 1회만 차감
       rows.forEach(r => {
+        if (r._type === 'cafe24' && classifyPaymentChannel(r.payment_method) === 'vaccount') {
+          const isAgency = r.sales_channel && !B2C_CHANNELS.includes(r.sales_channel);
+          if (isAgency) return; // 대리점 매출 제외
+          if (vaccountFeeApplied.has(r.order_id)) return;
+          vaccountFeeApplied.add(r.order_id);
+          const fee = Math.round((commissionRates.vaccount_flat || 0) * 1.1); // 부가세 별도 표기 → 실제 차감액은 VAT 포함
+          r.total_price -= fee;
+          return;
+        }
         const rate = getRowCommissionRate(r, commissionRates);
         if (rate === null || rate === undefined) return;
         r.total_price = applyCommission(r.total_price, rate).net;
