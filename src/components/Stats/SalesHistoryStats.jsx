@@ -499,10 +499,10 @@ function SalesHistoryStats() {
 
     const [shipRes, asRes, cafeRes, whRes, partsRes, agenciesRes, invRes] = await Promise.all([
       shipQuery, asQuery, cafeQuery,
-      supabase.from('warehouses').select('id, name'),
-      supabase.from('parts').select('id, code, barcode, name, note, brand, supply_price, price'),
+      supabase.from('warehouses').select('id, name, note'),
+      supabase.from('parts').select('id, code, barcode, name, note, brand, supply_price, price, is_deleted, track_inventory'),
       supabase.from('agencies').select('name'),
-      supabase.from('inventory').select('product_id, quantity')
+      supabase.from('inventory').select('product_id, quantity, warehouse_id')
     ]);
 
     setAgenciesList((agenciesRes.data || []).map(a => a.name));
@@ -956,11 +956,14 @@ function SalesHistoryStats() {
           vaccountFeeApplied.add(r.order_id);
           const fee = Math.round((commissionRates.vaccount_flat || 0) * 1.1); // 부가세 별도 표기 → 실제 차감액은 VAT 포함
           r.total_price -= fee;
+          r._commissionFee = fee;
           return;
         }
         const rate = getRowCommissionRate(r, commissionRates);
         if (rate === null || rate === undefined) return;
-        r.total_price = applyCommission(r.total_price, rate).net;
+        const { fee, net } = applyCommission(r.total_price, rate);
+        r.total_price = net;
+        r._commissionFee = fee;
       });
     }
 
@@ -975,15 +978,23 @@ function SalesHistoryStats() {
 
     if (isYearFetch) return;
 
-    // 재고(Inventory) 데이터 가공
+    // 재고(Inventory) 데이터 가공 — 재고관리 화면(재고 현황)과 동일 기준으로 집계
+    // 1) [HIDDEN] 창고 제외, 2) 삭제/재고 비관리 파츠 제외 (기준 불일치 방지)
+    const hiddenWarehouseIds = new Set(
+      (whRes.data || []).filter(w => (w.note || '').includes('[HIDDEN]')).map(w => w.id)
+    );
+
     const invQtyMap = {};
     (invRes.data || []).forEach(inv => {
+      if (hiddenWarehouseIds.has(inv.warehouse_id)) return;
       if (!invQtyMap[inv.product_id]) invQtyMap[inv.product_id] = 0;
       invQtyMap[inv.product_id] += Number(inv.quantity || 0);
     });
 
     const invRows = [];
     (partsRes.data || []).forEach(p => {
+      if (p.is_deleted) return;
+      if (p.track_inventory === false || p.track_inventory === 'false') return;
       const qty = invQtyMap[p.id] || 0;
       const supplyPrice = Number(p.supply_price || 0);
       const cat = resolveCategory(p.name, p.code);
@@ -1221,6 +1232,7 @@ function SalesHistoryStats() {
 
   // 요약
   const totalAmt = currentFiltered.reduce((a, r) => a + Number(r.total_price || 0), 0);
+  const totalCommissionFee = currentFiltered.reduce((a, r) => a + Number(r._commissionFee || 0), 0);
   const displayAmt = salesBrandFilter === '전체' ? totalAmt
     : currentFiltered.filter(r => r.part_brand === salesBrandFilter).reduce((a, r) => a + Number(r.total_price || 0), 0);
   const totalQty = currentFiltered.reduce((a, r) => a + Number(r.quantity || 0), 0);
@@ -2033,6 +2045,18 @@ function SalesHistoryStats() {
                       )}
                       <Typography variant="caption" sx={{ display: 'block', mt: 1.5, color: 'rgba(255,255,255,0.7)', textAlign: 'right', fontStyle: 'italic' }}>
                         * 위 증감률은 필터와 무관하게 전체 매출 기준입니다.
+                      </Typography>
+                    </Box>
+                  )}
+                  {commissionApplied && (
+                    <Box sx={{ mt: 1.5, pt: 1.5, borderTop: '1px solid rgba(255,255,255,0.3)' }}>
+                      <Typography variant="body2" sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                        <span>차감된 수수료:</span>
+                        <span style={{ fontWeight: 'bold', color: '#ffab91' }}>-{formatCurrency(totalCommissionFee)}</span>
+                      </Typography>
+                      <Typography variant="body2" sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>수수료 반영 전 매출:</span>
+                        <span style={{ fontWeight: 'bold' }}>{formatCurrency(totalAmt + totalCommissionFee)}</span>
                       </Typography>
                     </Box>
                   )}
