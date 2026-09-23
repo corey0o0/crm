@@ -611,6 +611,10 @@ module.exports = function(supabaseAdmin) {
     const payloads = [];
 
     for (const order of validOrders) {
+      // 네이버페이 결제 여부: payment_method_name엔 "네이버"가 안 찍히므로 별도 필드로 식별해 마킹
+      const rowPaymentMethod = (order.payment_method_name ? order.payment_method_name.join(',') : (order.payment_method ? order.payment_method.join(',') : ''))
+        + (order.naverpay_payment_information ? ',네이버페이' : '');
+
       // 주문한 상품들 배열 만들기
       let formattedItems = [];
       if (order.items && order.items.length > 0) {
@@ -687,7 +691,7 @@ module.exports = function(supabaseAdmin) {
             options: item.option_value || '',
             part_id: matchedPartId,
             order_status: item.order_status,
-            payment_method: order.payment_method_name ? order.payment_method_name.join(',') : (order.payment_method ? order.payment_method.join(',') : '')
+            payment_method: rowPaymentMethod
           };
         });
       }
