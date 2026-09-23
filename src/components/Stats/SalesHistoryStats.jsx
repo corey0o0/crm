@@ -1761,28 +1761,16 @@ function SalesHistoryStats() {
     <Box sx={{ p: 3, bgcolor: '#f4f6f8', minHeight: '100vh' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h5" sx={{ fontWeight: 'bold' }}>판매현황 통합 통계</Typography>
-        <Stack direction="row" spacing={1}>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={commissionApplied}
-                onChange={() => setCommissionApplied(v => !v)}
-                color="primary"
-              />
-            }
-            label={commissionApplied ? '수수료 반영' : '수수료 미반영'}
-          />
-          <FormControlLabel
-            control={
-              <Switch
-                checked={vatIncluded}
-                onChange={() => setVatIncluded(v => !v)}
-                color="primary"
-              />
-            }
-            label={vatIncluded ? '부가세 포함' : '부가세 별도'}
-          />
-        </Stack>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={vatIncluded}
+              onChange={() => setVatIncluded(v => !v)}
+              color="primary"
+            />
+          }
+          label={vatIncluded ? '부가세 포함' : '부가세 별도'}
+        />
       </Box>
 
       {/* 필터 영역 */}
@@ -1954,6 +1942,17 @@ function SalesHistoryStats() {
             sx={{ ml: 'auto' }}
           />
           )}
+          <FormControlLabel
+            control={
+              <Switch
+                checked={commissionApplied}
+                onChange={() => setCommissionApplied(v => !v)}
+                color="primary"
+              />
+            }
+            label={commissionApplied ? '수수료 반영' : '수수료 미반영'}
+            sx={isMaster ? {} : { ml: 'auto' }}
+          />
         </Box>
         </Box>
       </Paper>
