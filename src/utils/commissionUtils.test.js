@@ -8,13 +8,17 @@ test('classifyPaymentChannel returns naver for method containing 네이버', () 
   expect(classifyPaymentChannel('네이버페이')).toBe('naver');
 });
 
-test('classifyPaymentChannel returns toss for unmatched method (online 잔여 = 토스로 취급)', () => {
-  expect(classifyPaymentChannel('신용카드')).toBe('toss');
+test('classifyPaymentChannel returns toss for PG(카드/가상계좌) 결제', () => {
+  expect(classifyPaymentChannel('신용카드,PG')).toBe('toss');
 });
 
-test('classifyPaymentChannel returns toss for empty/missing method', () => {
-  expect(classifyPaymentChannel('')).toBe('toss');
-  expect(classifyPaymentChannel(undefined)).toBe('toss');
+test('classifyPaymentChannel returns other for PG 안 타는 결제(무통장입금 등)', () => {
+  expect(classifyPaymentChannel('무통장입금')).toBe('other');
+});
+
+test('classifyPaymentChannel returns other for empty/missing method', () => {
+  expect(classifyPaymentChannel('')).toBe('other');
+  expect(classifyPaymentChannel(undefined)).toBe('other');
 });
 
 test('applyCommission computes fee and net from rate percent', () => {

@@ -612,8 +612,10 @@ module.exports = function(supabaseAdmin) {
 
     for (const order of validOrders) {
       // 네이버페이 결제 여부: payment_method_name엔 "네이버"가 안 찍히므로 별도 필드로 식별해 마킹
+      // PG 여부: payment_gateway_names 있으면 실제 카드/PG 결제(수수료 발생), 없으면 무통장입금 등 PG 미개입(수수료 없음)
       const rowPaymentMethod = (order.payment_method_name ? order.payment_method_name.join(',') : (order.payment_method ? order.payment_method.join(',') : ''))
-        + (order.naverpay_payment_information ? ',네이버페이' : '');
+        + (order.naverpay_payment_information ? ',네이버페이' : '')
+        + (order.payment_gateway_names && order.payment_gateway_names.length > 0 ? ',PG' : '');
 
       // 주문한 상품들 배열 만들기
       let formattedItems = [];
