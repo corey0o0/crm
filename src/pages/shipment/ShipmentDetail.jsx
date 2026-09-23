@@ -1221,6 +1221,7 @@ function ShipmentDetail() {
       '청담매장': { bg: '#f3e5f5', color: '#6a1b9a', border: '#ce93d8' },
       '인스타': { bg: '#fce4ec', color: '#c2185b', border: '#f48fb1' },
       '라이클-우리': { bg: '#fff8e1', color: '#f57f17', border: '#ffe082' },
+      '라이클-렌탈': { bg: '#f1f8e9', color: '#558b2f', border: '#c5e1a5' },
       '스마트할부': { bg: '#ebf8fa', color: '#00838f', border: '#80deea' },
       '블로그': { bg: '#e8eaf6', color: '#283593', border: '#9fa8da' }
     };

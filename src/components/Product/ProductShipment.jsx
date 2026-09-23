@@ -324,7 +324,7 @@ function ProductShipment() {
       setShipments(data);
       
       // 판매처 목록 추출 및 설정 (기본 판매처만 포함)
-      const uniqueSellers = new Set(['공홈', '청담매장', '라이클-우리', '기타']);
+      const uniqueSellers = new Set(['공홈', '청담매장', '라이클-우리', '라이클-렌탈', '기타']);
       data.forEach(shipment => {
         const salesChannelMatch = shipment.note?.match(/\[판매처: (.*?)\]/);
         if (salesChannelMatch && salesChannelMatch[1]) {
@@ -2998,6 +2998,7 @@ function ProductShipment() {
                     <MenuItem value="공홈">공홈</MenuItem>
                     <MenuItem value="청담매장">청담매장</MenuItem>
                     <MenuItem value="라이클-우리">라이클-우리</MenuItem>
+                    <MenuItem value="라이클-렌탈">라이클-렌탈</MenuItem>
                     <MenuItem value="기타">기타</MenuItem>
                   </Select>
                 </FormControl>

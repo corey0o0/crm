@@ -40,7 +40,7 @@ import { normalizeAirframeModelName } from '../../utils/airframeModelNormalize';
 
 // SalesStats.jsx의 판매처 판정 로직과 동일 - 매장(B2C) 채널 목록. 이 목록에 없는 채널명은
 // 대리점명 텍스트로 간주하고, 실제 등록된 agencies.name과 정확히 일치할 때만 집계한다.
-const B2C_CHANNELS = ['공홈', '청담매장', '라이클', '라이클-우리', '스마트할부', '스마트스토어', '기타', '온라인주문', '고객', '-', '본사/기본', '과거 이카운트 이관', '일반출고(공홈)', '매장출고', '본점', '매장'];
+const B2C_CHANNELS = ['공홈', '청담매장', '라이클', '라이클-우리', '라이클-렌탈', '스마트할부', '스마트스토어', '기타', '온라인주문', '고객', '-', '본사/기본', '과거 이카운트 이관', '일반출고(공홈)', '매장출고', '본점', '매장'];
 
 const extractSalesChannel = (note, salesChannelField) => {
   if (salesChannelField && salesChannelField.trim() !== '') {

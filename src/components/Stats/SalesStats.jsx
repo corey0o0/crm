@@ -60,7 +60,7 @@ import { getAppSetting } from '../../api/settingsApi';
 import { applyCommission, applyVat } from '../../utils/commissionUtils';
 import { getBrandFallback } from './SalesHistoryStats';
 
-const B2C_CHANNELS = ['공홈', '청담매장', '라이클', '라이클-우리', '스마트할부', '스마트스토어', '기타', '온라인주문', '고객', '-', '본사/기본', '과거 이카운트 이관', '일반출고(공홈)', '매장출고', '본점', '매장'];
+const B2C_CHANNELS = ['공홈', '청담매장', '라이클', '라이클-우리', '라이클-렌탈', '스마트할부', '스마트스토어', '기타', '온라인주문', '고객', '-', '본사/기본', '과거 이카운트 이관', '일반출고(공홈)', '매장출고', '본점', '매장'];
 
 const resolvePartCategory = (category, name) => {
   if (category) return category;
@@ -132,6 +132,7 @@ function SalesStats() {
   const [selectedChannelStats, setSelectedChannelStats] = useState(null);
   const [offlineCommissionRate, setOfflineCommissionRate] = useState(0);
   const [ricycleCommissionRate, setRicycleCommissionRate] = useState(0);
+  const [ricycleRentalCommissionRate, setRicycleRentalCommissionRate] = useState(0);
   const [smartInstallmentCommissionRate, setSmartInstallmentCommissionRate] = useState(0);
   const [vatIncluded, setVatIncluded] = useState(true);
   const [commissionApplied, setCommissionApplied] = useState(true);
@@ -215,7 +216,7 @@ function SalesStats() {
         return '청담매장';
       }
 
-      const keywords = ['공홈', '블로그', '네이버', '인스타', '쿠팡', '매장', '스마트할부', '라이클-우리', '스마트스토어'];
+      const keywords = ['공홈', '블로그', '네이버', '인스타', '쿠팡', '매장', '스마트할부', '라이클-렌탈', '라이클-우리', '스마트스토어'];
       for (const keyword of keywords) {
         if (note.includes(keyword)) {
           return keyword;
@@ -829,6 +830,7 @@ function SalesStats() {
       // 일별 출고 매출 및 건수 집계 (원본 shipmentsData 기준)
       const dailyShipmentAggregates = {};
       let ricycleShipmentSales = 0;
+      let ricycleRentalShipmentSales = 0;
       let smartInstallmentShipmentSales = 0;
       let plainOfflineShipmentSales = 0;
       shipmentsData.forEach(shipment => {
@@ -845,8 +847,10 @@ function SalesStats() {
         // shipment.price가 0이거나 undefined인 경우 0을 사용
         const shipmentPrice = shipment.price || 0;
 
-        // 매장 판매 수수료 버킷 분리: 라이클(일반) / 스마트할부 / 나머지(매장)
-        if (salesChannel.includes('라이클')) {
+        // 매장 판매 수수료 버킷 분리: 라이클(렌탈) / 라이클(일반) / 스마트할부 / 나머지(매장)
+        if (salesChannel === '라이클-렌탈') {
+          ricycleRentalShipmentSales += shipmentPrice;
+        } else if (salesChannel.includes('라이클')) {
           ricycleShipmentSales += shipmentPrice;
         } else if (salesChannel === '스마트할부') {
           smartInstallmentShipmentSales += shipmentPrice;
@@ -919,6 +923,7 @@ function SalesStats() {
         totalShipmentCount: newTotalShipmentCount,
         totalCustomerSales: newTotalCustomerSales,
         ricycleShipmentSales,           // 라이클(일반) 출고 매출
+        ricycleRentalShipmentSales,     // 라이클(렌탈) 출고 매출
         smartInstallmentShipmentSales,  // 스마트할부 출고 매출
         plainOfflineShipmentSales,      // 나머지 매장 출고 매출
       });
@@ -993,7 +998,7 @@ function SalesStats() {
     if (shipmentErr) throw shipmentErr;
     const filteredShipments = (shipmentRows || []).filter(r => {
       const channel = extractSalesChannel(r.note, r.sales_channel);
-      const isAgency = channel && !['고객', '-', '일반출고(공홈)', '공홈', '온라인주문', '매장출고', '매장', '청담매장', '기타', '본점', '스마트할부', '라이클', '라이클-우리', '스마트스토어'].includes(channel);
+      const isAgency = channel && !['고객', '-', '일반출고(공홈)', '공홈', '온라인주문', '매장출고', '매장', '청담매장', '기타', '본점', '스마트할부', '라이클', '라이클-우리', '라이클-렌탈', '스마트스토어'].includes(channel);
       return !isAgency;
     });
     const shipmentTotal = filteredShipments.reduce((sum, r) => sum + (r.price || 0), 0);
@@ -1297,6 +1302,7 @@ function SalesStats() {
       if (data) {
         setOfflineCommissionRate(Number(data.offline) || 0);
         setRicycleCommissionRate(Number(data.ricycle) || 0);
+        setRicycleRentalCommissionRate(Number(data.ricycle_rental) || 0);
         setSmartInstallmentCommissionRate(Number(data.toss_installment) || 0);
       }
     };
@@ -2192,6 +2198,7 @@ function SalesStats() {
           const buckets = [
             { label: '매장 판매', gross: totalStats.plainOfflineShipmentSales || 0, rate: offlineCommissionRate },
             { label: '라이클(일반)', gross: totalStats.ricycleShipmentSales || 0, rate: ricycleCommissionRate },
+            { label: '라이클(렌탈)', gross: totalStats.ricycleRentalShipmentSales || 0, rate: ricycleRentalCommissionRate },
             { label: '토스페이(스마트할부)', gross: totalStats.smartInstallmentShipmentSales || 0, rate: smartInstallmentCommissionRate }
           ].map(b => {
             const gross = applyVat(b.gross, vatIncluded);

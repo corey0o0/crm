@@ -1819,6 +1819,7 @@ function ShipmentForm({ isManualB2B = false }) {
                 <MenuItem value="공홈">공홈</MenuItem>
                 <MenuItem value="청담매장">청담매장</MenuItem>
                 <MenuItem value="라이클-우리">라이클-우리</MenuItem>
+                <MenuItem value="라이클-렌탈">라이클-렌탈</MenuItem>
                 <MenuItem value="스마트할부">스마트할부</MenuItem>
                 <MenuItem value="스마트스토어">스마트스토어</MenuItem>
                 <MenuItem value="기타">기타</MenuItem>
