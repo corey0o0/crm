@@ -500,7 +500,7 @@ function SalesHistoryStats() {
     const [shipRes, asRes, cafeRes, whRes, partsRes, agenciesRes, invRes] = await Promise.all([
       shipQuery, asQuery, cafeQuery,
       supabase.from('warehouses').select('id, name, note'),
-      supabase.from('parts').select('id, code, barcode, name, note, brand, supply_price, price, is_deleted, track_inventory'),
+      supabase.from('parts').select('id, code, barcode, name, note, brand, supply_price, price, track_inventory'),
       supabase.from('agencies').select('name'),
       supabase.from('inventory').select('product_id, quantity, warehouse_id')
     ]);
@@ -993,7 +993,6 @@ function SalesHistoryStats() {
 
     const invRows = [];
     (partsRes.data || []).forEach(p => {
-      if (p.is_deleted) return;
       if (p.track_inventory === false || p.track_inventory === 'false') return;
       const qty = invQtyMap[p.id] || 0;
       const supplyPrice = Number(p.supply_price || 0);
