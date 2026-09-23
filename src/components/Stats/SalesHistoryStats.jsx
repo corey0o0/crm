@@ -24,7 +24,8 @@ import ExcelJS from 'exceljs';
 import { useAuth } from '../../contexts/AuthContext';
 import { MASTER_ACCOUNTS } from '../../config/menuConfig';
 import { downloadExcel } from '../../utils/excelUtils';
-import { applyVat } from '../../utils/commissionUtils';
+import { applyVat, applyCommission, classifyPaymentChannel } from '../../utils/commissionUtils';
+import { getAppSetting } from '../../api/settingsApi';
 
 const COLORS = ['#1976d2', '#2e7d32', '#ed6c02', '#9c27b0', '#d32f2f', '#0288d1', '#7b1fa2'];
 
@@ -49,6 +50,23 @@ export const getBrandFallback = (brand, name, code = '', mallId = '') => {
 };
 
 const B2C_CHANNELS = ['공홈', '청담매장', '라이클', '라이클-우리', '라이클-렌탈', '스마트할부', '스마트스토어', '기타', '온라인주문', '고객', '-', '본사/기본', '과거 이카운트 이관', '일반출고(공홈)', '매장출고', '본점', '매장'];
+
+// 수수료 반영 시 row 하나당 적용할 수수료율(%) 반환. null이면 수수료 미적용(그대로).
+export const getRowCommissionRate = (row, rates) => {
+  if (row._type === 'service') return rates.offline; // A/S 매출은 매장 매출로 분류
+  if (row._type === 'cafe24') {
+    const isAgency = row.sales_channel && !B2C_CHANNELS.includes(row.sales_channel);
+    if (isAgency) return null; // 대리점 매출 제외
+    return rates[classifyPaymentChannel(row.payment_method)];
+  }
+  // shipment
+  const isAgency = row.sales_channel && !B2C_CHANNELS.includes(row.sales_channel);
+  if (isAgency) return null; // 대리점 매출 제외
+  if (row.sales_channel === '라이클-렌탈') return rates.ricycle_rental;
+  if (row.sales_channel && row.sales_channel.includes('라이클')) return rates.ricycle;
+  if (row.sales_channel === '스마트할부') return rates.toss_installment;
+  return rates.offline;
+};
 
 export const getSalesChannelName = (r) => {
   if (r._type === 'cafe24') {
@@ -89,6 +107,8 @@ function SalesHistoryStats() {
   const [compareStats, setCompareStats] = useState({ context: null, mom: null, yoy: null, wow: null, yoyWeek: null });
   const [selectedAgencyDetail, setSelectedAgencyDetail] = useState(null);
   const [vatIncluded, setVatIncluded] = useState(true);
+  const [commissionApplied, setCommissionApplied] = useState(false);
+  const [commissionRates, setCommissionRates] = useState({ toss: 0, naver: 0, other: 0, offline: 0, ricycle: 0, ricycle_rental: 0, toss_installment: 0 });
 
 
 
@@ -149,9 +169,17 @@ function SalesHistoryStats() {
   };
 
   useEffect(() => {
+    const fetchCommissionRates = async () => {
+      const { data } = await getAppSetting('payment_commission_rates');
+      if (data) setCommissionRates(prev => ({ ...prev, ...data }));
+    };
+    fetchCommissionRates();
+  }, []);
+
+  useEffect(() => {
     fetchSales();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startDate, endDate]);
+  }, [startDate, endDate, commissionApplied, commissionRates]);
 
   useEffect(() => {
     // month view일 때만 별도로 연간 데이터 fetch (year view는 fetchSales가 이미 전체 연도 로드)
@@ -748,6 +776,7 @@ function SalesHistoryStats() {
         if (validItems.length === 0) {
           return;
         }
+        baseFields.payment_method = validItems[0]?.payment_method || '';
 
         const orderRows = [];
 
@@ -916,6 +945,14 @@ function SalesHistoryStats() {
 
       }
     });
+
+    if (commissionApplied) {
+      rows.forEach(r => {
+        const rate = getRowCommissionRate(r, commissionRates);
+        if (rate === null || rate === undefined) return;
+        r.total_price = applyCommission(r.total_price, rate).net;
+      });
+    }
 
     if (isYearFetch) {
       setYearFlatRows(rows);
@@ -1724,16 +1761,28 @@ function SalesHistoryStats() {
     <Box sx={{ p: 3, bgcolor: '#f4f6f8', minHeight: '100vh' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h5" sx={{ fontWeight: 'bold' }}>판매현황 통합 통계</Typography>
-        <FormControlLabel
-          control={
-            <Switch
-              checked={vatIncluded}
-              onChange={() => setVatIncluded(v => !v)}
-              color="primary"
-            />
-          }
-          label={vatIncluded ? '부가세 포함' : '부가세 별도'}
-        />
+        <Stack direction="row" spacing={1}>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={commissionApplied}
+                onChange={() => setCommissionApplied(v => !v)}
+                color="primary"
+              />
+            }
+            label={commissionApplied ? '수수료 반영' : '수수료 미반영'}
+          />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={vatIncluded}
+                onChange={() => setVatIncluded(v => !v)}
+                color="primary"
+              />
+            }
+            label={vatIncluded ? '부가세 포함' : '부가세 별도'}
+          />
+        </Stack>
       </Box>
 
       {/* 필터 영역 */}
