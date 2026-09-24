@@ -266,7 +266,14 @@ function PurchaseOrderManagement() {
                   <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.brand, zIndex: 2, bgcolor: 'background.paper' }}>{p.brand}</TableCell>
                   <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.code, zIndex: 2, bgcolor: 'background.paper' }}>{p.code}</TableCell>
                   <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.barcode, zIndex: 2, bgcolor: 'background.paper' }}>{p.barcode || '-'}</TableCell>
-                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.name, zIndex: 2, bgcolor: 'background.paper' }}>{p.name}</TableCell>
+                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.name, zIndex: 2, bgcolor: 'background.paper' }}>
+                    {p.name}
+                    {p.name_en && (
+                      <Typography variant="caption" display="block" color="text.secondary">
+                        {p.name_en}
+                      </Typography>
+                    )}
+                  </TableCell>
                   {visibleCols.supply_price && <TableCell align="right">{p.supply_price?.toLocaleString() || '-'}</TableCell>}
                   {visibleCols.price && <TableCell align="right">{p.price?.toLocaleString() || '-'}</TableCell>}
                   {visibleCols.note && <TableCell>{p.note || '-'}</TableCell>}
