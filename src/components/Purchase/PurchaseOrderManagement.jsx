@@ -90,7 +90,7 @@ function PurchaseOrderManagement() {
         queryWithTimeout(
           supabase
             .from('purchase_orders')
-            .select('part_id, quantity, received, received_at')
+            .select('part_id, quantity, received_quantity, received, received_at')
             .eq('order_date', dateStr),
           8000
         )
@@ -101,6 +101,7 @@ function PurchaseOrderManagement() {
         (data || []).forEach((row) => {
           next.set(`${row.part_id}_${dateStr}`, {
             quantity: row.quantity,
+            received_quantity: row.received_quantity || 0,
             received: row.received,
             received_at: row.received_at,
           });
@@ -121,7 +122,7 @@ function PurchaseOrderManagement() {
       showSnackbar('이미 추가된 날짜입니다.', 'warning');
       return;
     }
-    setDateColumns((prev) => [...prev, dateStr].sort());
+    setDateColumns((prev) => [dateStr, ...prev]);
     setNewDate(null);
     fetchOrdersForDate(dateStr);
   };
@@ -130,50 +131,36 @@ function PurchaseOrderManagement() {
     setDateColumns((prev) => prev.filter((d) => d !== dateStr));
   };
 
-  const upsertOrder = async (partId, dateStr, patch) => {
-    const key = `${partId}_${dateStr}`;
-    const prev = ordersMap.get(key) || { quantity: 0, received: false, received_at: null };
-    const next = { ...prev, ...patch };
-
-    setOrdersMap((m) => new Map(m).set(key, next));
-
-    try {
-      const { error } = await supabase
-        .from('purchase_orders')
-        .upsert(
-          { part_id: partId, order_date: dateStr, quantity: next.quantity, received: next.received, received_at: next.received_at },
-          { onConflict: 'part_id,order_date' }
-        );
-      if (error) throw error;
-      showSnackbar('저장되었습니다.', 'success');
-    } catch (err) {
-      setOrdersMap((m) => new Map(m).set(key, prev));
-      showSnackbar(getErrorMessage(err), 'error');
-    }
+  const parseQty = (raw) => {
+    const parsed = parseInt(raw, 10);
+    return Number.isNaN(parsed) || parsed < 0 ? 0 : parsed;
   };
 
-  const handleQuantityChange = (partId, dateStr, rawValue) => {
+  const handleOrderQtyChange = (partId, dateStr, rawValue) => {
     const key = `${partId}_${dateStr}`;
-    setPendingQuantities((prev) => ({ ...prev, [key]: { partId, dateStr, rawValue } }));
+    setPendingQuantities((prev) => ({ ...prev, [key]: { ...prev[key], partId, dateStr, orderRaw: rawValue } }));
+  };
+
+  const handleReceivedQtyChange = (partId, dateStr, rawValue) => {
+    const key = `${partId}_${dateStr}`;
+    setPendingQuantities((prev) => ({ ...prev, [key]: { ...prev[key], partId, dateStr, receivedRaw: rawValue } }));
   };
 
   const handleSaveAll = async () => {
     const entries = Object.entries(pendingQuantities);
     const rows = [];
     const commits = [];
-    entries.forEach(([key, { partId, dateStr, rawValue }]) => {
-      const prevCell = ordersMap.get(key) || { quantity: 0, received: false, received_at: null };
-      const parsed = parseInt(rawValue, 10);
-      const quantity = Number.isNaN(parsed) || parsed < 0 ? 0 : parsed;
-      if (quantity === prevCell.quantity) return;
-      rows.push({
-        part_id: partId,
-        order_date: dateStr,
-        quantity,
-        received: prevCell.received,
-        received_at: prevCell.received_at,
-      });
-      commits.push({ key, quantity });
+    entries.forEach(([key, { partId, dateStr, orderRaw, receivedRaw }]) => {
+      const prevCell = ordersMap.get(key) || { quantity: 0, received_quantity: 0, received: false, received_at: null };
+      const quantity = orderRaw !== undefined ? parseQty(orderRaw) : prevCell.quantity;
+      const received_quantity = receivedRaw !== undefined ? parseQty(receivedRaw) : prevCell.received_quantity;
+      if (quantity === prevCell.quantity && received_quantity === prevCell.received_quantity) return;
+
+      const received = quantity > 0 && received_quantity >= quantity;
+      const received_at = received ? (prevCell.received_at || new Date().toISOString()) : null;
+
+      rows.push({ part_id: partId, order_date: dateStr, quantity, received_quantity, received, received_at });
+      commits.push({ key, quantity, received_quantity, received, received_at });
     });
 
     if (rows.length === 0) {
@@ -188,9 +175,9 @@ function PurchaseOrderManagement() {
       if (error) throw error;
       setOrdersMap((m) => {
         const next = new Map(m);
-        commits.forEach(({ key, quantity }) => {
-          const prevCell = next.get(key) || { quantity: 0, received: false, received_at: null };
-          next.set(key, { ...prevCell, quantity });
+        commits.forEach(({ key, ...patch }) => {
+          const prevCell = next.get(key) || { quantity: 0, received_quantity: 0, received: false, received_at: null };
+          next.set(key, { ...prevCell, ...patch });
         });
         return next;
       });
@@ -201,14 +188,7 @@ function PurchaseOrderManagement() {
     }
   };
 
-  const handleReceivedChange = (partId, dateStr, checked) => {
-    upsertOrder(partId, dateStr, {
-      received: checked,
-      received_at: checked ? new Date().toISOString() : null,
-    });
-  };
-
-  // 표시중인 날짜 열 기준 입고 상태: 미입고 주문 하나라도 있으면 미입고, 주문 있고 전부 입고면 입고완료
+  // 표시중인 날짜 열 기준 입고 상태: 입고수량 < 발주수량 있으면 미입고, 주문 있고 전부 입고면 입고완료
   const getReceivedStatus = (partId) => {
     let hasOrder = false;
     let hasUnreceived = false;
@@ -216,7 +196,7 @@ function PurchaseOrderManagement() {
       const cell = ordersMap.get(`${partId}_${dateStr}`);
       if (cell && cell.quantity > 0) {
         hasOrder = true;
-        if (!cell.received) hasUnreceived = true;
+        if ((cell.received_quantity || 0) < cell.quantity) hasUnreceived = true;
       }
     });
     if (!hasOrder) return 'none';
@@ -243,7 +223,7 @@ function PurchaseOrderManagement() {
   });
 
   const pagedParts = sortedParts.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-  const tableMinWidth = STICKY_TOTAL + 360 + dateColumns.length * 90;
+  const tableMinWidth = STICKY_TOTAL + 360 + dateColumns.length * 130;
 
   return (
     <Box sx={{ p: 3, width: '100%' }}>
@@ -344,7 +324,7 @@ function PurchaseOrderManagement() {
                 {visibleCols.note && <TableCell>구분</TableCell>}
                 <TableCell>적요</TableCell>
                 {dateColumns.map((dateStr) => (
-                  <TableCell key={dateStr} align="center" sx={{ minWidth: 100 }}>
+                  <TableCell key={dateStr} align="center" sx={{ minWidth: 130 }}>
                     {format(parseISO(dateStr), 'MM/dd')}
                     <IconButton size="small" onClick={() => handleRemoveDateColumn(dateStr)} sx={{ p: 0, ml: 0.5 }}>
                       <CloseIcon fontSize="inherit" />
@@ -382,31 +362,49 @@ function PurchaseOrderManagement() {
                   <TableCell>{p.memo || '-'}</TableCell>
                   {dateColumns.map((dateStr) => {
                     const key = `${p.id}_${dateStr}`;
-                    const cell = ordersMap.get(key) || { quantity: 0, received: false };
-                    const displayValue = pendingQuantities[key]
-                      ? pendingQuantities[key].rawValue
-                      : (cell.quantity || '');
+                    const cell = ordersMap.get(key) || { quantity: 0, received_quantity: 0 };
+                    const pending = pendingQuantities[key];
+                    const orderValue = pending?.orderRaw !== undefined ? pending.orderRaw : (cell.quantity || '');
+                    const receivedValue = pending?.receivedRaw !== undefined ? pending.receivedRaw : (cell.received_quantity || '');
+                    const effOrder = parseQty(orderValue);
+                    const effReceived = parseQty(receivedValue);
+                    let statusLabel = '';
+                    let statusColor = 'text.secondary';
+                    if (effOrder > 0 && effReceived > 0) {
+                      if (effReceived >= effOrder) {
+                        statusLabel = '입고완료';
+                        statusColor = 'success.main';
+                      } else {
+                        statusLabel = `부분입고 (잔여 ${effOrder - effReceived})`;
+                        statusColor = 'warning.main';
+                      }
+                    }
                     return (
                       <TableCell key={dateStr} align="center" sx={{ p: 0.5 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.25 }}>
                           <TextField
                             type="number"
                             size="small"
-                            value={displayValue}
-                            onChange={(e) => handleQuantityChange(p.id, dateStr, e.target.value)}
-                            inputProps={{ min: 0, style: { width: 44, textAlign: 'center' } }}
-                            sx={pendingQuantities[key] ? { '& .MuiOutlinedInput-root': { bgcolor: 'warning.light' } } : undefined}
+                            value={orderValue}
+                            onChange={(e) => handleOrderQtyChange(p.id, dateStr, e.target.value)}
+                            inputProps={{ min: 0, style: { width: 36, textAlign: 'center', padding: '2px 4px' } }}
+                            sx={pending?.orderRaw !== undefined ? { '& .MuiOutlinedInput-root': { bgcolor: 'warning.light' } } : undefined}
+                          />
+                          <Typography variant="caption">/</Typography>
+                          <TextField
+                            type="number"
+                            size="small"
+                            value={receivedValue}
+                            onChange={(e) => handleReceivedQtyChange(p.id, dateStr, e.target.value)}
+                            inputProps={{ min: 0, style: { width: 36, textAlign: 'center', padding: '2px 4px' } }}
+                            sx={pending?.receivedRaw !== undefined ? { '& .MuiOutlinedInput-root': { bgcolor: 'warning.light' } } : undefined}
                           />
                         </Box>
-                        <Button
-                          size="small"
-                          variant={cell.received ? 'contained' : 'outlined'}
-                          color={cell.received ? 'success' : 'inherit'}
-                          onClick={() => handleReceivedChange(p.id, dateStr, !cell.received)}
-                          sx={{ minWidth: 0, height: 20, fontSize: 10, px: cell.received ? 0.75 : 1.5, lineHeight: 1, mt: 0.25 }}
-                        >
-                          {cell.received ? '입고완료' : ''}
-                        </Button>
+                        {statusLabel && (
+                          <Typography variant="caption" sx={{ color: statusColor, display: 'block', fontWeight: 600, mt: 0.25 }}>
+                            {statusLabel}
+                          </Typography>
+                        )}
                       </TableCell>
                     );
                   })}
