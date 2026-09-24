@@ -495,7 +495,7 @@ function PurchaseOrderManagement() {
                   <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.name, zIndex: 2, bgcolor: 'background.paper' }}>
                     {p.name}
                     {p.name_en && (
-                      <Typography variant="caption" display="block" color="text.secondary">
+                      <Typography variant="body2" display="block" color="text.secondary">
                         {p.name_en}
                       </Typography>
                     )}
@@ -559,7 +559,7 @@ function PurchaseOrderManagement() {
                         </Box>
                         {statusLabel && (
                           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Typography variant="caption" sx={{ color: statusColor, fontWeight: 600 }}>
+                            <Typography variant="body2" sx={{ color: statusColor, fontWeight: 600 }}>
                               {statusLabel}
                             </Typography>
                           </Box>
