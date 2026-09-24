@@ -311,7 +311,14 @@ function PurchaseOrderManagement() {
       ) : (
         <Paper>
         <TableContainer sx={{ maxHeight: '75vh', overflow: 'auto' }}>
-          <Table size="small" stickyHeader sx={{ minWidth: tableMinWidth }}>
+          <Table
+            size="small"
+            stickyHeader
+            sx={{
+              minWidth: tableMinWidth,
+              '& td, & th': { borderRight: '1px solid', borderColor: 'divider' },
+            }}
+          >
             <TableHead>
               <TableRow>
                 <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.image, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.image, minWidth: STICKY_WIDTHS.image }}>이미지</TableCell>
