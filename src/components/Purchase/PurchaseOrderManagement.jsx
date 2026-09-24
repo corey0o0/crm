@@ -1,16 +1,28 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box, Typography, TextField, Paper, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Snackbar, Alert, CircularProgress, Checkbox,
-  TablePagination, Avatar, IconButton, Button,
+  TablePagination, Avatar, IconButton, Button, Dialog, DialogContent, FormControlLabel,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import SaveIcon from '@mui/icons-material/Save';
 import { supabase, queryWithTimeout } from '../../lib/supabaseClient';
 import { safeRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ko } from 'date-fns/locale';
 import { format, parseISO } from 'date-fns';
+
+// 왼쪽 고정(스티키) 컬럼 폭. 헤더/바디 offset 계산에 재사용.
+const STICKY_WIDTHS = { image: 48, brand: 70, code: 70, barcode: 90, name: 160 };
+const STICKY_LEFT = {
+  image: 0,
+  brand: STICKY_WIDTHS.image,
+  code: STICKY_WIDTHS.image + STICKY_WIDTHS.brand,
+  barcode: STICKY_WIDTHS.image + STICKY_WIDTHS.brand + STICKY_WIDTHS.code,
+  name: STICKY_WIDTHS.image + STICKY_WIDTHS.brand + STICKY_WIDTHS.code + STICKY_WIDTHS.barcode,
+};
+const STICKY_TOTAL = STICKY_LEFT.name + STICKY_WIDTHS.name;
 
 function PurchaseOrderManagement() {
   const [parts, setParts] = useState([]);
@@ -19,11 +31,14 @@ function PurchaseOrderManagement() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [enlargedImage, setEnlargedImage] = useState(null);
+  const [visibleCols, setVisibleCols] = useState({ supply_price: true, price: true, note: true });
 
   const [dateColumns, setDateColumns] = useState([]);
   const [newDate, setNewDate] = useState(null);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [ordersMap, setOrdersMap] = useState(new Map());
+  const quantityRefs = useRef({});
 
   const showSnackbar = (message, severity = 'success') => {
     setSnackbar({ open: true, message, severity });
@@ -125,18 +140,25 @@ function PurchaseOrderManagement() {
           { onConflict: 'part_id,order_date' }
         );
       if (error) throw error;
+      showSnackbar('저장되었습니다.', 'success');
     } catch (err) {
       setOrdersMap((m) => new Map(m).set(key, prev));
       showSnackbar(getErrorMessage(err), 'error');
     }
   };
 
-  const handleQuantityBlur = (partId, dateStr, rawValue) => {
+  const saveQuantity = (partId, dateStr, rawValue) => {
     const parsed = parseInt(rawValue, 10);
     const quantity = Number.isNaN(parsed) || parsed < 0 ? 0 : parsed;
     const prev = ordersMap.get(`${partId}_${dateStr}`) || { quantity: 0, received: false };
     if (prev.quantity === quantity) return;
     upsertOrder(partId, dateStr, { quantity });
+  };
+
+  const handleSaveClick = (partId, dateStr) => {
+    const key = `${partId}_${dateStr}`;
+    const rawValue = quantityRefs.current[key]?.value ?? '';
+    saveQuantity(partId, dateStr, rawValue);
   };
 
   const handleReceivedChange = (partId, dateStr, checked) => {
@@ -157,12 +179,13 @@ function PurchaseOrderManagement() {
   });
 
   const pagedParts = filteredParts.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  const tableMinWidth = STICKY_TOTAL + 360 + dateColumns.length * 90;
 
   return (
     <Box sx={{ p: 3, width: '100%' }}>
       <Typography variant="h5" gutterBottom>발주 관리</Typography>
 
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, flexWrap: 'wrap' }}>
         <TextField
           size="small"
           placeholder="브랜드/코드/이름 검색"
@@ -185,25 +208,41 @@ function PurchaseOrderManagement() {
         {loadingOrders && <CircularProgress size={20} />}
       </Box>
 
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+        <Typography variant="body2" color="text.secondary">컬럼 표시:</Typography>
+        <FormControlLabel
+          control={<Checkbox size="small" checked={visibleCols.supply_price} onChange={(e) => setVisibleCols((c) => ({ ...c, supply_price: e.target.checked }))} />}
+          label="공급가"
+        />
+        <FormControlLabel
+          control={<Checkbox size="small" checked={visibleCols.price} onChange={(e) => setVisibleCols((c) => ({ ...c, price: e.target.checked }))} />}
+          label="판매가"
+        />
+        <FormControlLabel
+          control={<Checkbox size="small" checked={visibleCols.note} onChange={(e) => setVisibleCols((c) => ({ ...c, note: e.target.checked }))} />}
+          label="구분"
+        />
+      </Box>
+
       {loadingParts ? (
         <CircularProgress size={24} />
       ) : (
         <Paper>
         <TableContainer sx={{ maxHeight: '75vh', overflow: 'auto' }}>
-          <Table size="small" stickyHeader>
+          <Table size="small" stickyHeader sx={{ minWidth: tableMinWidth }}>
             <TableHead>
               <TableRow>
-                <TableCell>이미지</TableCell>
-                <TableCell>브랜드</TableCell>
-                <TableCell>코드</TableCell>
-                <TableCell>바코드</TableCell>
-                <TableCell>제품명</TableCell>
-                <TableCell align="right">공급가</TableCell>
-                <TableCell align="right">판매가</TableCell>
-                <TableCell>구분</TableCell>
+                <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.image, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.image, minWidth: STICKY_WIDTHS.image }}>이미지</TableCell>
+                <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.brand, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.brand, minWidth: STICKY_WIDTHS.brand }}>브랜드</TableCell>
+                <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.code, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.code, minWidth: STICKY_WIDTHS.code }}>코드</TableCell>
+                <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.barcode, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.barcode, minWidth: STICKY_WIDTHS.barcode }}>바코드</TableCell>
+                <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.name, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.name, minWidth: STICKY_WIDTHS.name }}>제품명</TableCell>
+                {visibleCols.supply_price && <TableCell align="right">공급가</TableCell>}
+                {visibleCols.price && <TableCell align="right">판매가</TableCell>}
+                {visibleCols.note && <TableCell>구분</TableCell>}
                 <TableCell>적요</TableCell>
                 {dateColumns.map((dateStr) => (
-                  <TableCell key={dateStr} align="center" sx={{ minWidth: 90 }}>
+                  <TableCell key={dateStr} align="center" sx={{ minWidth: 100 }}>
                     {format(parseISO(dateStr), 'MM/dd')}
                     <IconButton size="small" onClick={() => handleRemoveDateColumn(dateStr)} sx={{ p: 0, ml: 0.5 }}>
                       <CloseIcon fontSize="inherit" />
@@ -215,29 +254,42 @@ function PurchaseOrderManagement() {
             <TableBody>
               {pagedParts.map((p) => (
                 <TableRow key={p.id}>
-                  <TableCell>
-                    <Avatar src={p.image_url} alt={p.name} variant="rounded" sx={{ width: 32, height: 32 }} />
+                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.image, zIndex: 2, bgcolor: 'background.paper' }}>
+                    <Avatar
+                      src={p.image_url}
+                      alt={p.name}
+                      variant="rounded"
+                      sx={{ width: 32, height: 32, cursor: p.image_url ? 'pointer' : 'default' }}
+                      onClick={() => p.image_url && setEnlargedImage(p.image_url)}
+                    />
                   </TableCell>
-                  <TableCell>{p.brand}</TableCell>
-                  <TableCell>{p.code}</TableCell>
-                  <TableCell>{p.barcode || '-'}</TableCell>
-                  <TableCell>{p.name}</TableCell>
-                  <TableCell align="right">{p.supply_price?.toLocaleString() || '-'}</TableCell>
-                  <TableCell align="right">{p.price?.toLocaleString() || '-'}</TableCell>
-                  <TableCell>{p.note || '-'}</TableCell>
+                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.brand, zIndex: 2, bgcolor: 'background.paper' }}>{p.brand}</TableCell>
+                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.code, zIndex: 2, bgcolor: 'background.paper' }}>{p.code}</TableCell>
+                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.barcode, zIndex: 2, bgcolor: 'background.paper' }}>{p.barcode || '-'}</TableCell>
+                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.name, zIndex: 2, bgcolor: 'background.paper' }}>{p.name}</TableCell>
+                  {visibleCols.supply_price && <TableCell align="right">{p.supply_price?.toLocaleString() || '-'}</TableCell>}
+                  {visibleCols.price && <TableCell align="right">{p.price?.toLocaleString() || '-'}</TableCell>}
+                  {visibleCols.note && <TableCell>{p.note || '-'}</TableCell>}
                   <TableCell>{p.memo || '-'}</TableCell>
                   {dateColumns.map((dateStr) => {
-                    const cell = ordersMap.get(`${p.id}_${dateStr}`) || { quantity: 0, received: false };
+                    const key = `${p.id}_${dateStr}`;
+                    const cell = ordersMap.get(key) || { quantity: 0, received: false };
                     return (
                       <TableCell key={dateStr} align="center" sx={{ p: 0.5 }}>
-                        <TextField
-                          type="number"
-                          size="small"
-                          defaultValue={cell.quantity || ''}
-                          key={`${p.id}_${dateStr}_${cell.quantity}`}
-                          onBlur={(e) => handleQuantityBlur(p.id, dateStr, e.target.value)}
-                          inputProps={{ min: 0, style: { width: 50, textAlign: 'center' } }}
-                        />
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <TextField
+                            type="number"
+                            size="small"
+                            defaultValue={cell.quantity || ''}
+                            key={`${key}_${cell.quantity}`}
+                            inputRef={(el) => { quantityRefs.current[key] = el; }}
+                            onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
+                            inputProps={{ min: 0, style: { width: 44, textAlign: 'center' } }}
+                          />
+                          <IconButton size="small" onClick={() => handleSaveClick(p.id, dateStr)} sx={{ p: 0.25 }}>
+                            <SaveIcon fontSize="inherit" />
+                          </IconButton>
+                        </Box>
                         <Checkbox
                           size="small"
                           checked={!!cell.received}
@@ -263,6 +315,18 @@ function PurchaseOrderManagement() {
         />
         </Paper>
       )}
+
+      <Dialog open={!!enlargedImage} onClose={() => setEnlargedImage(null)} maxWidth="md">
+        <DialogContent sx={{ p: 1, position: 'relative', bgcolor: 'transparent', textAlign: 'center' }}>
+          <IconButton
+            onClick={() => setEnlargedImage(null)}
+            sx={{ position: 'absolute', top: 8, right: 8, bgcolor: 'rgba(0,0,0,0.5)', color: 'white', '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' } }}
+          >
+            <CloseIcon />
+          </IconButton>
+          <img src={enlargedImage} alt="Enlarged" style={{ maxWidth: '100%', height: 'auto', display: 'block', maxHeight: '80vh', objectFit: 'contain', margin: '0 auto' }} />
+        </DialogContent>
+      </Dialog>
 
       <Snackbar
         open={snackbar.open}
