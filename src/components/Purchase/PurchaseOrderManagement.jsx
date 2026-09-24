@@ -3,7 +3,7 @@ import {
   Box, Typography, TextField, Paper, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Snackbar, Alert, CircularProgress, Checkbox,
 } from '@mui/material';
-import { supabase } from '../../lib/supabaseClient';
+import { supabase, queryWithTimeout } from '../../lib/supabaseClient';
 import { safeRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -39,11 +39,14 @@ function PurchaseOrderManagement() {
       const rangeStart = format(monthStart, 'yyyy-MM-dd');
       const rangeEnd = format(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0), 'yyyy-MM-dd');
       const { data, error } = await safeRetry(() =>
-        supabase
-          .from('purchase_orders')
-          .select('part_id, order_date, quantity, received, received_at')
-          .gte('order_date', rangeStart)
-          .lte('order_date', rangeEnd)
+        queryWithTimeout(
+          supabase
+            .from('purchase_orders')
+            .select('part_id, order_date, quantity, received, received_at')
+            .gte('order_date', rangeStart)
+            .lte('order_date', rangeEnd),
+          8000
+        )
       );
       if (error) throw error;
       const map = new Map();
@@ -116,7 +119,10 @@ function PurchaseOrderManagement() {
         return;
       }
       const { data, error } = await safeRetry(() =>
-        supabase.from('parts').select('id, name, brand, code, track_inventory').order('brand').order('name')
+        queryWithTimeout(
+          supabase.from('parts').select('id, name, brand, code, track_inventory').order('brand').order('name'),
+          8000
+        )
       );
       if (error) throw error;
       setParts(data || []);
