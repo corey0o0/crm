@@ -55,8 +55,7 @@ const B2C_CHANNELS = ['공홈', '청담매장', '라이클', '라이클-우리',
 export const getRowCommissionRate = (row, rates) => {
   if (row._type === 'service') return rates.offline; // A/S 매출은 매장 매출로 분류
   if (row._type === 'cafe24') {
-    const isAgency = row.sales_channel && !B2C_CHANNELS.includes(row.sales_channel);
-    if (isAgency) return null; // 대리점 매출 제외
+    // 카페24 주문은 대리점 연결 여부와 무관하게 실제 결제수단(PG)에 따라 수수료 발생
     return rates[classifyPaymentChannel(row.payment_method)];
   }
   // shipment
@@ -950,8 +949,6 @@ function SalesHistoryStats() {
       const vaccountFeeApplied = new Set(); // 가상계좌 수수료는 건(주문)당 1회만 차감
       rows.forEach(r => {
         if (r._type === 'cafe24' && classifyPaymentChannel(r.payment_method) === 'vaccount') {
-          const isAgency = r.sales_channel && !B2C_CHANNELS.includes(r.sales_channel);
-          if (isAgency) return; // 대리점 매출 제외
           if (vaccountFeeApplied.has(r.order_id)) return;
           vaccountFeeApplied.add(r.order_id);
           const fee = Math.round((commissionRates.vaccount_flat || 0) * 1.1); // 부가세 별도 표기 → 실제 차감액은 VAT 포함
