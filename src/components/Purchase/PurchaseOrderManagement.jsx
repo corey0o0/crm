@@ -3,9 +3,12 @@ import {
   Box, Typography, TextField, Paper, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Snackbar, Alert, CircularProgress, Checkbox,
   TablePagination, Avatar, IconButton, Button, Dialog, DialogContent, FormControlLabel,
+  Select, MenuItem, FormControl, InputLabel,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import SaveIcon from '@mui/icons-material/Save';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import { supabase, queryWithTimeout } from '../../lib/supabaseClient';
 import { safeRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
@@ -33,6 +36,9 @@ function PurchaseOrderManagement() {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [enlargedImage, setEnlargedImage] = useState(null);
   const [visibleCols, setVisibleCols] = useState({ supply_price: true, price: true, note: true });
+  const [receivedFilter, setReceivedFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('brand');
+  const [sortDir, setSortDir] = useState('asc');
 
   const [dateColumns, setDateColumns] = useState([]);
   const [newDate, setNewDate] = useState(null);
@@ -168,17 +174,41 @@ function PurchaseOrderManagement() {
     });
   };
 
+  // 표시중인 날짜 열 기준 입고 상태: 미입고 주문 하나라도 있으면 미입고, 주문 있고 전부 입고면 입고완료
+  const getReceivedStatus = (partId) => {
+    let hasOrder = false;
+    let hasUnreceived = false;
+    dateColumns.forEach((dateStr) => {
+      const cell = ordersMap.get(`${partId}_${dateStr}`);
+      if (cell && cell.quantity > 0) {
+        hasOrder = true;
+        if (!cell.received) hasUnreceived = true;
+      }
+    });
+    if (!hasOrder) return 'none';
+    return hasUnreceived ? 'unreceived' : 'received';
+  };
+
   const filteredParts = parts.filter((p) => {
     const term = searchTerm.trim().toLowerCase();
-    if (!term) return true;
-    return (
+    const matchesTerm = !term || (
       (p.name || '').toLowerCase().includes(term) ||
       (p.brand || '').toLowerCase().includes(term) ||
       (p.code || '').toLowerCase().includes(term)
     );
+    if (!matchesTerm) return false;
+    if (receivedFilter === 'all') return true;
+    return getReceivedStatus(p.id) === receivedFilter;
   });
 
-  const pagedParts = filteredParts.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  const sortedParts = [...filteredParts].sort((a, b) => {
+    const av = (a[sortBy] || '').toString();
+    const bv = (b[sortBy] || '').toString();
+    const cmp = av.localeCompare(bv, 'ko');
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
+
+  const pagedParts = sortedParts.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   const tableMinWidth = STICKY_TOTAL + 360 + dateColumns.length * 90;
 
   return (
@@ -206,6 +236,35 @@ function PurchaseOrderManagement() {
           열 추가
         </Button>
         {loadingOrders && <CircularProgress size={20} />}
+
+        <FormControl size="small" sx={{ minWidth: 120 }}>
+          <InputLabel>입고여부</InputLabel>
+          <Select
+            label="입고여부"
+            value={receivedFilter}
+            onChange={(e) => { setReceivedFilter(e.target.value); setPage(0); }}
+          >
+            <MenuItem value="all">전체</MenuItem>
+            <MenuItem value="unreceived">미입고</MenuItem>
+            <MenuItem value="received">입고완료</MenuItem>
+          </Select>
+        </FormControl>
+
+        <FormControl size="small" sx={{ minWidth: 120 }}>
+          <InputLabel>정렬</InputLabel>
+          <Select
+            label="정렬"
+            value={sortBy}
+            onChange={(e) => { setSortBy(e.target.value); setPage(0); }}
+          >
+            <MenuItem value="brand">브랜드순</MenuItem>
+            <MenuItem value="code">코드순</MenuItem>
+            <MenuItem value="name">제품명순</MenuItem>
+          </Select>
+        </FormControl>
+        <IconButton size="small" onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}>
+          {sortDir === 'asc' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />}
+        </IconButton>
       </Box>
 
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, flexWrap: 'wrap' }}>
@@ -313,7 +372,7 @@ function PurchaseOrderManagement() {
         </TableContainer>
         <TablePagination
           component="div"
-          count={filteredParts.length}
+          count={sortedParts.length}
           page={page}
           onPageChange={(e, newPage) => setPage(newPage)}
           rowsPerPage={rowsPerPage}
