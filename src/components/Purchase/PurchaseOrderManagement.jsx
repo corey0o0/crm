@@ -370,7 +370,7 @@ function PurchaseOrderManagement() {
                 <TableCell sx={{ width: 120 }}>적요</TableCell>
                 {dateColumns.map((dateStr) => (
                   <TableCell key={dateStr} align="center" sx={{ width: 160, minWidth: 160 }}>
-                    {format(parseISO(dateStr), 'MM/dd')}
+                    {format(parseISO(dateStr), 'yy/MM/dd')}
                     <IconButton size="small" onClick={() => handleRemoveDateColumn(dateStr)} sx={{ p: 0, ml: 0.5 }}>
                       <CloseIcon fontSize="inherit" />
                     </IconButton>
