@@ -38,6 +38,7 @@ function PurchaseOrderManagement() {
   const [enlargedImage, setEnlargedImage] = useState(null);
   const [visibleCols, setVisibleCols] = useState({ supply_price: true, price: true, note: true });
   const [receivedFilter, setReceivedFilter] = useState('all');
+  const [noteFilter, setNoteFilter] = useState('all');
   const [sortBy, setSortBy] = useState('brand');
   const [sortDir, setSortDir] = useState('asc');
 
@@ -319,9 +320,12 @@ function PurchaseOrderManagement() {
       (p.code || '').toLowerCase().includes(term)
     );
     if (!matchesTerm) return false;
+    if (noteFilter !== 'all' && (p.note || '') !== noteFilter) return false;
     if (receivedFilter === 'all') return true;
     return getReceivedStatus(p.id) === receivedFilter;
   });
+
+  const noteOptions = [...new Set(parts.map((p) => p.note).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
 
   const sortedParts = [...filteredParts].sort((a, b) => {
     const av = (a[sortBy] || '').toString();
@@ -387,6 +391,20 @@ function PurchaseOrderManagement() {
             <MenuItem value="all">전체</MenuItem>
             <MenuItem value="unreceived">미입고</MenuItem>
             <MenuItem value="received">입고완료</MenuItem>
+          </Select>
+        </FormControl>
+
+        <FormControl size="small" sx={{ minWidth: 120 }}>
+          <InputLabel>구분</InputLabel>
+          <Select
+            label="구분"
+            value={noteFilter}
+            onChange={(e) => { setNoteFilter(e.target.value); setPage(0); }}
+          >
+            <MenuItem value="all">전체</MenuItem>
+            {noteOptions.map((n) => (
+              <MenuItem key={n} value={n}>{n}</MenuItem>
+            ))}
           </Select>
         </FormControl>
 
