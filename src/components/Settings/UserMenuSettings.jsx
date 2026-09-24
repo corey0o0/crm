@@ -41,6 +41,7 @@ const AVAILABLE_PERMISSIONS = [
   { key: 'tax_invoice', label: '세금계산서 발행' },
   { key: 'agencies', label: '거래처 관리' },
   { key: 'parts', label: '상품 관리' },
+  { key: 'purchase_orders', label: '발주 관리' },
   { key: 'stocks', label: '매장 재고 관리' },
   { key: 'inventory_group', label: '재고관리 메뉴 전체' },
   { key: 'inventory_management', label: '입출고 관리 (상위 레이아웃)' },

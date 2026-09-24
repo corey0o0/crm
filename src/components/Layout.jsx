@@ -348,6 +348,7 @@ function Layout() {
       key: 'basic_registrations',
       children: [
         { text: '상품 관리', icon: <InventoryIcon />, path: '/parts', key: 'parts' },
+        { text: '발주 관리', icon: <CalendarTodayIcon />, path: '/purchase-orders', key: 'purchase_orders' },
         { text: '거래처 관리', icon: <InventoryIcon />, path: '/agencies', key: 'agencies' },
         { text: '고객 관리', icon: <PeopleIcon />, path: '/customers', key: 'customers' },
       ]
