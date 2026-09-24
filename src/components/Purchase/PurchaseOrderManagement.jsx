@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Typography, TextField, Paper, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Snackbar, Alert, CircularProgress, Checkbox,
+  TablePagination,
 } from '@mui/material';
 import { supabase, queryWithTimeout } from '../../lib/supabaseClient';
 import { safeRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
@@ -14,6 +15,8 @@ function PurchaseOrderManagement() {
   const [parts, setParts] = useState([]);
   const [loadingParts, setLoadingParts] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [selectedMonth, setSelectedMonth] = useState(startOfMonth(new Date()));
 
@@ -147,6 +150,8 @@ function PurchaseOrderManagement() {
     );
   });
 
+  const pagedParts = filteredParts.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+
   return (
     <Box sx={{ p: 3, width: '100%' }}>
       <Typography variant="h5" gutterBottom>발주 관리</Typography>
@@ -165,14 +170,15 @@ function PurchaseOrderManagement() {
         size="small"
         placeholder="브랜드/코드/이름 검색"
         value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
+        onChange={(e) => { setSearchTerm(e.target.value); setPage(0); }}
         sx={{ mb: 2, ml: 2, width: 300 }}
       />
 
       {(loadingParts || loadingOrders) ? (
         <CircularProgress size={24} />
       ) : (
-        <TableContainer component={Paper} sx={{ maxHeight: '75vh', overflow: 'auto' }}>
+        <Paper>
+        <TableContainer sx={{ maxHeight: '75vh', overflow: 'auto' }}>
           <Table size="small" stickyHeader>
             <TableHead>
               <TableRow>
@@ -187,7 +193,7 @@ function PurchaseOrderManagement() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredParts.map((p) => (
+              {pagedParts.map((p) => (
                 <TableRow key={p.id}>
                   <TableCell sx={{ position: 'sticky', left: 0, zIndex: 2, bgcolor: 'background.paper' }}>
                     {p.brand} / {p.name}
@@ -218,6 +224,16 @@ function PurchaseOrderManagement() {
             </TableBody>
           </Table>
         </TableContainer>
+        <TablePagination
+          component="div"
+          count={filteredParts.length}
+          page={page}
+          onPageChange={(e, newPage) => setPage(newPage)}
+          rowsPerPage={rowsPerPage}
+          onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
+          rowsPerPageOptions={[25, 50, 100]}
+        />
+        </Paper>
       )}
 
       <Snackbar
