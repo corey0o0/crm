@@ -66,6 +66,37 @@ function PurchaseOrderManagement() {
     fetchOrders(selectedMonth);
   }, [selectedMonth, fetchOrders]);
 
+  const upsertOrder = async (partId, dateObj, patch) => {
+    const dateStr = format(dateObj, 'yyyy-MM-dd');
+    const key = `${partId}_${dateStr}`;
+    const prev = ordersMap.get(key) || { quantity: 0, received: false, received_at: null };
+    const next = { ...prev, ...patch };
+
+    setOrdersMap((m) => new Map(m).set(key, next));
+
+    try {
+      const { error } = await supabase
+        .from('purchase_orders')
+        .upsert(
+          { part_id: partId, order_date: dateStr, quantity: next.quantity, received: next.received, received_at: next.received_at },
+          { onConflict: 'part_id,order_date' }
+        );
+      if (error) throw error;
+    } catch (err) {
+      setOrdersMap((m) => new Map(m).set(key, prev));
+      showSnackbar(getErrorMessage(err), 'error');
+    }
+  };
+
+  const handleQuantityBlur = (partId, dateObj, rawValue) => {
+    const parsed = parseInt(rawValue, 10);
+    const quantity = Number.isNaN(parsed) || parsed < 0 ? 0 : parsed;
+    const key = orderKey(partId, dateObj);
+    const prev = ordersMap.get(key) || { quantity: 0, received: false };
+    if (prev.quantity === quantity) return;
+    upsertOrder(partId, dateObj, { quantity });
+  };
+
   const showSnackbar = (message, severity = 'success') => {
     setSnackbar({ open: true, message, severity });
   };
@@ -151,8 +182,15 @@ function PurchaseOrderManagement() {
                   {days.map((d) => {
                     const cell = ordersMap.get(orderKey(p.id, d)) || { quantity: 0, received: false };
                     return (
-                      <TableCell key={d.toISOString()} align="center">
-                        {cell.quantity || ''}
+                      <TableCell key={d.toISOString()} align="center" sx={{ p: 0.5 }}>
+                        <TextField
+                          type="number"
+                          size="small"
+                          defaultValue={cell.quantity || ''}
+                          key={`${p.id}_${d.toISOString()}_${cell.quantity}`}
+                          onBlur={(e) => handleQuantityBlur(p.id, d, e.target.value)}
+                          inputProps={{ min: 0, style: { width: 50, textAlign: 'center' } }}
+                        />
                       </TableCell>
                     );
                   })}
