@@ -3,11 +3,12 @@ import {
   Box, Typography, TextField, Paper, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Snackbar, Alert, CircularProgress, Checkbox,
   TablePagination, Avatar, IconButton, Button, Dialog, DialogContent, FormControlLabel,
-  Select, MenuItem, FormControl, InputLabel,
+  Select, MenuItem, FormControl, InputLabel, Badge, Tooltip, Popover,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import AddIcon from '@mui/icons-material/Add';
 import { supabase, queryWithTimeout } from '../../lib/supabaseClient';
 import { safeRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
@@ -44,6 +45,8 @@ function PurchaseOrderManagement() {
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [ordersMap, setOrdersMap] = useState(new Map());
   const [pendingQuantities, setPendingQuantities] = useState({});
+  const [memoAnchor, setMemoAnchor] = useState(null);
+  const [memoDraft, setMemoDraft] = useState({ key: null, partId: null, dateStr: null, text: '' });
 
   const showSnackbar = (message, severity = 'success') => {
     setSnackbar({ open: true, message, severity });
@@ -90,7 +93,7 @@ function PurchaseOrderManagement() {
         queryWithTimeout(
           supabase
             .from('purchase_orders')
-            .select('part_id, quantity, received_quantity, received, received_at')
+            .select('part_id, quantity, received_quantity, received, received_at, memo')
             .eq('order_date', dateStr),
           8000
         )
@@ -104,6 +107,7 @@ function PurchaseOrderManagement() {
             received_quantity: row.received_quantity || 0,
             received: row.received,
             received_at: row.received_at,
+            memo: row.memo || '',
           });
         });
         return next;
@@ -184,6 +188,41 @@ function PurchaseOrderManagement() {
       setPendingQuantities({});
       showSnackbar(`${rows.length}건 저장되었습니다.`, 'success');
     } catch (err) {
+      showSnackbar(getErrorMessage(err), 'error');
+    }
+  };
+
+  const openMemoEditor = (e, partId, dateStr, currentMemo) => {
+    setMemoAnchor(e.currentTarget);
+    setMemoDraft({ key: `${partId}_${dateStr}`, partId, dateStr, text: currentMemo || '' });
+  };
+
+  const saveMemo = async () => {
+    const { key, partId, dateStr, text } = memoDraft;
+    const prevCell = ordersMap.get(key) || { quantity: 0, received_quantity: 0, received: false, received_at: null, memo: '' };
+    const memo = text.trim();
+
+    setOrdersMap((m) => new Map(m).set(key, { ...prevCell, memo }));
+    setMemoAnchor(null);
+
+    try {
+      const { error } = await supabase
+        .from('purchase_orders')
+        .upsert(
+          {
+            part_id: partId,
+            order_date: dateStr,
+            quantity: prevCell.quantity,
+            received_quantity: prevCell.received_quantity,
+            received: prevCell.received,
+            received_at: prevCell.received_at,
+            memo: memo || null,
+          },
+          { onConflict: 'part_id,order_date' }
+        );
+      if (error) throw error;
+    } catch (err) {
+      setOrdersMap((m) => new Map(m).set(key, prevCell));
       showSnackbar(getErrorMessage(err), 'error');
     }
   };
@@ -407,11 +446,20 @@ function PurchaseOrderManagement() {
                             sx={pending?.receivedRaw !== undefined ? { '& .MuiOutlinedInput-root': { bgcolor: 'warning.light' } } : undefined}
                           />
                         </Box>
-                        {statusLabel && (
-                          <Typography variant="caption" sx={{ color: statusColor, display: 'block', fontWeight: 600, mt: 0.25 }}>
-                            {statusLabel}
-                          </Typography>
-                        )}
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                          {statusLabel && (
+                            <Typography variant="caption" sx={{ color: statusColor, fontWeight: 600 }}>
+                              {statusLabel}
+                            </Typography>
+                          )}
+                          <Tooltip title={cell.memo || ''} arrow placement="top" disableHoverListener={!cell.memo}>
+                            <Badge color="primary" variant="dot" overlap="circular" invisible={!cell.memo}>
+                              <IconButton size="small" onClick={(e) => openMemoEditor(e, p.id, dateStr, cell.memo)} sx={{ p: 0.25 }}>
+                                <AddIcon fontSize="inherit" />
+                              </IconButton>
+                            </Badge>
+                          </Tooltip>
+                        </Box>
                       </TableCell>
                     );
                   })}
@@ -431,6 +479,31 @@ function PurchaseOrderManagement() {
         />
         </Paper>
       )}
+
+      <Popover
+        open={Boolean(memoAnchor)}
+        anchorEl={memoAnchor}
+        onClose={() => setMemoAnchor(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Box sx={{ p: 1.5, width: 220 }}>
+          <TextField
+            autoFocus
+            multiline
+            minRows={2}
+            fullWidth
+            size="small"
+            placeholder="메모 입력"
+            value={memoDraft.text}
+            onChange={(e) => setMemoDraft((d) => ({ ...d, text: e.target.value }))}
+          />
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5, mt: 1 }}>
+            <Button size="small" onClick={() => setMemoAnchor(null)}>취소</Button>
+            <Button size="small" variant="contained" onClick={saveMemo}>저장</Button>
+          </Box>
+        </Box>
+      </Popover>
 
       <Dialog open={!!enlargedImage} onClose={() => setEnlargedImage(null)} maxWidth="md">
         <DialogContent sx={{ p: 1, position: 'relative', bgcolor: 'transparent', textAlign: 'center' }}>
