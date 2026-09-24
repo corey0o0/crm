@@ -17,13 +17,12 @@ import { ko } from 'date-fns/locale';
 import { format, parseISO } from 'date-fns';
 
 // 왼쪽 고정(스티키) 컬럼 폭. 헤더/바디 offset 계산에 재사용.
-const STICKY_WIDTHS = { image: 48, brand: 70, code: 70, barcode: 90, name: 160 };
+const STICKY_WIDTHS = { image: 48, brand: 70, barcode: 90, name: 160 };
 const STICKY_LEFT = {
   image: 0,
   brand: STICKY_WIDTHS.image,
-  code: STICKY_WIDTHS.image + STICKY_WIDTHS.brand,
-  barcode: STICKY_WIDTHS.image + STICKY_WIDTHS.brand + STICKY_WIDTHS.code,
-  name: STICKY_WIDTHS.image + STICKY_WIDTHS.brand + STICKY_WIDTHS.code + STICKY_WIDTHS.barcode,
+  barcode: STICKY_WIDTHS.image + STICKY_WIDTHS.brand,
+  name: STICKY_WIDTHS.image + STICKY_WIDTHS.brand + STICKY_WIDTHS.barcode,
 };
 const STICKY_TOTAL = STICKY_LEFT.name + STICKY_WIDTHS.name;
 
@@ -262,7 +261,7 @@ function PurchaseOrderManagement() {
   });
 
   const pagedParts = sortedParts.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-  const tableMinWidth = STICKY_TOTAL + 360 + dateColumns.length * 160;
+  const tableMinWidth = STICKY_TOTAL + 370 + dateColumns.length * 160;
 
   return (
     <Box sx={{ p: 3, width: '100%' }}>
@@ -355,6 +354,7 @@ function PurchaseOrderManagement() {
             stickyHeader
             sx={{
               minWidth: tableMinWidth,
+              tableLayout: 'fixed',
               '& td, & th': { borderRight: '1px solid', borderColor: 'divider' },
             }}
           >
@@ -362,15 +362,14 @@ function PurchaseOrderManagement() {
               <TableRow>
                 <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.image, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.image, minWidth: STICKY_WIDTHS.image }}>이미지</TableCell>
                 <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.brand, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.brand, minWidth: STICKY_WIDTHS.brand }}>브랜드</TableCell>
-                <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.code, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.code, minWidth: STICKY_WIDTHS.code }}>코드</TableCell>
                 <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.barcode, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.barcode, minWidth: STICKY_WIDTHS.barcode }}>바코드</TableCell>
                 <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.name, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.name, minWidth: STICKY_WIDTHS.name }}>제품명</TableCell>
-                {visibleCols.supply_price && <TableCell align="right">공급가</TableCell>}
-                {visibleCols.price && <TableCell align="right">판매가</TableCell>}
-                {visibleCols.note && <TableCell>구분</TableCell>}
-                <TableCell>적요</TableCell>
+                {visibleCols.supply_price && <TableCell align="right" sx={{ width: 90 }}>공급가</TableCell>}
+                {visibleCols.price && <TableCell align="right" sx={{ width: 90 }}>판매가</TableCell>}
+                {visibleCols.note && <TableCell sx={{ width: 70 }}>구분</TableCell>}
+                <TableCell sx={{ width: 120 }}>적요</TableCell>
                 {dateColumns.map((dateStr) => (
-                  <TableCell key={dateStr} align="center" sx={{ minWidth: 160 }}>
+                  <TableCell key={dateStr} align="center" sx={{ width: 160, minWidth: 160 }}>
                     {format(parseISO(dateStr), 'MM/dd')}
                     <IconButton size="small" onClick={() => handleRemoveDateColumn(dateStr)} sx={{ p: 0, ml: 0.5 }}>
                       <CloseIcon fontSize="inherit" />
@@ -392,8 +391,10 @@ function PurchaseOrderManagement() {
                     />
                   </TableCell>
                   <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.brand, zIndex: 2, bgcolor: 'background.paper' }}>{p.brand}</TableCell>
-                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.code, zIndex: 2, bgcolor: 'background.paper' }}>{p.code}</TableCell>
-                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.barcode, zIndex: 2, bgcolor: 'background.paper' }}>{p.barcode || '-'}</TableCell>
+                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.barcode, zIndex: 2, bgcolor: 'background.paper' }}>
+                    {p.barcode || '-'}
+                    <Typography variant="caption" display="block" color="text.secondary">{p.code}</Typography>
+                  </TableCell>
                   <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.name, zIndex: 2, bgcolor: 'background.paper' }}>
                     {p.name}
                     {p.name_en && (
