@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Typography, TextField, Paper, Table, TableBody, TableCell,
-  TableContainer, TableHead, TableRow, Snackbar, Alert, CircularProgress,
+  TableContainer, TableHead, TableRow, Snackbar, Alert, CircularProgress, Checkbox,
 } from '@mui/material';
 import { supabase } from '../../lib/supabaseClient';
 import { safeRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
@@ -97,6 +97,13 @@ function PurchaseOrderManagement() {
     upsertOrder(partId, dateObj, { quantity });
   };
 
+  const handleReceivedChange = (partId, dateObj, checked) => {
+    upsertOrder(partId, dateObj, {
+      received: checked,
+      received_at: checked ? new Date().toISOString() : null,
+    });
+  };
+
   const showSnackbar = (message, severity = 'success') => {
     setSnackbar({ open: true, message, severity });
   };
@@ -190,6 +197,12 @@ function PurchaseOrderManagement() {
                           key={`${p.id}_${d.toISOString()}_${cell.quantity}`}
                           onBlur={(e) => handleQuantityBlur(p.id, d, e.target.value)}
                           inputProps={{ min: 0, style: { width: 50, textAlign: 'center' } }}
+                        />
+                        <Checkbox
+                          size="small"
+                          checked={!!cell.received}
+                          onChange={(e) => handleReceivedChange(p.id, d, e.target.checked)}
+                          sx={{ p: 0 }}
                         />
                       </TableCell>
                     );
