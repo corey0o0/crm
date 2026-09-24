@@ -9,6 +9,8 @@ import CloseIcon from '@mui/icons-material/Close';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import AddIcon from '@mui/icons-material/Add';
+import DownloadIcon from '@mui/icons-material/Download';
+import ExcelJS from 'exceljs';
 import { supabase, queryWithTimeout } from '../../lib/supabaseClient';
 import { safeRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
@@ -46,6 +48,7 @@ function PurchaseOrderManagement() {
   const [pendingQuantities, setPendingQuantities] = useState({});
   const [memoAnchor, setMemoAnchor] = useState(null);
   const [memoDraft, setMemoDraft] = useState({ key: null, partId: null, dateStr: null, text: '' });
+  const [excelDownloading, setExcelDownloading] = useState(false);
 
   const showSnackbar = (message, severity = 'success') => {
     setSnackbar({ open: true, message, severity });
@@ -191,6 +194,73 @@ function PurchaseOrderManagement() {
     }
   };
 
+  const handleExcelDownload = async () => {
+    setExcelDownloading(true);
+    try {
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('발주현황');
+
+      const headers = ['이미지', '브랜드', '코드', '바코드', '제품명'];
+      if (visibleCols.supply_price) headers.push('공급가');
+      if (visibleCols.price) headers.push('판매가');
+      if (visibleCols.note) headers.push('구분');
+      headers.push('적요');
+      dateColumns.forEach((d) => headers.push(`${d} 발주`, `${d} 입고`, `${d} 상태`, `${d} 메모`));
+      worksheet.addRow(headers);
+      worksheet.getRow(1).font = { bold: true };
+      worksheet.getColumn(1).width = 10;
+      worksheet.getColumn(5).width = 24;
+
+      for (const p of sortedParts) {
+        const row = [null, p.brand, p.code, p.barcode || '-', p.name];
+        if (visibleCols.supply_price) row.push(p.supply_price || 0);
+        if (visibleCols.price) row.push(p.price || 0);
+        if (visibleCols.note) row.push(p.note || '');
+        row.push(p.memo || '');
+        dateColumns.forEach((d) => {
+          const cell = ordersMap.get(`${p.id}_${d}`) || { quantity: 0, received_quantity: 0, memo: '' };
+          const order = cell.quantity || 0;
+          const received = cell.received_quantity || 0;
+          let status = '';
+          if (order > 0 && received > 0) {
+            status = received >= order ? '입고완료' : `부분입고(잔여 ${order - received})`;
+          }
+          row.push(order, received, status, cell.memo || '');
+        });
+        const excelRow = worksheet.addRow(row);
+        excelRow.height = 40;
+
+        if (p.image_url) {
+          try {
+            const res = await fetch(p.image_url);
+            const blob = await res.blob();
+            const buffer = await blob.arrayBuffer();
+            const ext = blob.type.includes('png') ? 'png' : 'jpeg';
+            const imageId = workbook.addImage({ buffer, extension: ext });
+            worksheet.addImage(imageId, { tl: { col: 0, row: excelRow.number - 1 }, ext: { width: 40, height: 40 } });
+          } catch (e) {
+            // 이미지 로드 실패시 건너뜀
+          }
+        }
+      }
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `발주현황_${format(new Date(), 'yyyyMMdd')}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      showSnackbar(getErrorMessage(err), 'error');
+    } finally {
+      setExcelDownloading(false);
+    }
+  };
+
   const openMemoEditor = (e, partId, dateStr, currentMemo) => {
     setMemoAnchor(e.currentTarget);
     setMemoDraft({ key: `${partId}_${dateStr}`, partId, dateStr, text: currentMemo || '' });
@@ -295,6 +365,15 @@ function PurchaseOrderManagement() {
           disabled={Object.keys(pendingQuantities).length === 0}
         >
           전체 저장{Object.keys(pendingQuantities).length > 0 && ` (${Object.keys(pendingQuantities).length})`}
+        </Button>
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={excelDownloading ? <CircularProgress size={14} /> : <DownloadIcon />}
+          onClick={handleExcelDownload}
+          disabled={excelDownloading}
+        >
+          엑셀 다운로드
         </Button>
         {loadingOrders && <CircularProgress size={20} />}
 
