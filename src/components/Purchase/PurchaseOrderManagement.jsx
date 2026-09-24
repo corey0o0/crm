@@ -262,7 +262,7 @@ function PurchaseOrderManagement() {
   });
 
   const pagedParts = sortedParts.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-  const tableMinWidth = STICKY_TOTAL + 360 + dateColumns.length * 130;
+  const tableMinWidth = STICKY_TOTAL + 360 + dateColumns.length * 160;
 
   return (
     <Box sx={{ p: 3, width: '100%' }}>
@@ -370,7 +370,7 @@ function PurchaseOrderManagement() {
                 {visibleCols.note && <TableCell>구분</TableCell>}
                 <TableCell>적요</TableCell>
                 {dateColumns.map((dateStr) => (
-                  <TableCell key={dateStr} align="center" sx={{ minWidth: 130 }}>
+                  <TableCell key={dateStr} align="center" sx={{ minWidth: 160 }}>
                     {format(parseISO(dateStr), 'MM/dd')}
                     <IconButton size="small" onClick={() => handleRemoveDateColumn(dateStr)} sx={{ p: 0, ml: 0.5 }}>
                       <CloseIcon fontSize="inherit" />
@@ -433,8 +433,11 @@ function PurchaseOrderManagement() {
                             size="small"
                             value={orderValue}
                             onChange={(e) => handleOrderQtyChange(p.id, dateStr, e.target.value)}
-                            inputProps={{ min: 0, style: { width: 36, textAlign: 'center', padding: '2px 4px' } }}
-                            sx={pending?.orderRaw !== undefined ? { '& .MuiOutlinedInput-root': { bgcolor: 'warning.light' } } : undefined}
+                            inputProps={{ min: 0, style: { width: 52, textAlign: 'center', padding: '2px 4px' } }}
+                            sx={{
+                              '& .MuiOutlinedInput-root': { borderRadius: 0 },
+                              ...(pending?.orderRaw !== undefined ? { '& .MuiOutlinedInput-root': { borderRadius: 0, bgcolor: 'warning.light' } } : {}),
+                            }}
                           />
                           <Typography variant="caption">/</Typography>
                           <TextField
@@ -442,16 +445,12 @@ function PurchaseOrderManagement() {
                             size="small"
                             value={receivedValue}
                             onChange={(e) => handleReceivedQtyChange(p.id, dateStr, e.target.value)}
-                            inputProps={{ min: 0, style: { width: 36, textAlign: 'center', padding: '2px 4px' } }}
-                            sx={pending?.receivedRaw !== undefined ? { '& .MuiOutlinedInput-root': { bgcolor: 'warning.light' } } : undefined}
+                            inputProps={{ min: 0, style: { width: 52, textAlign: 'center', padding: '2px 4px' } }}
+                            sx={{
+                              '& .MuiOutlinedInput-root': { borderRadius: 0 },
+                              ...(pending?.receivedRaw !== undefined ? { '& .MuiOutlinedInput-root': { borderRadius: 0, bgcolor: 'warning.light' } } : {}),
+                            }}
                           />
-                        </Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                          {statusLabel && (
-                            <Typography variant="caption" sx={{ color: statusColor, fontWeight: 600 }}>
-                              {statusLabel}
-                            </Typography>
-                          )}
                           <Tooltip title={cell.memo || ''} arrow placement="top" disableHoverListener={!cell.memo}>
                             <Badge color="primary" variant="dot" overlap="circular" invisible={!cell.memo}>
                               <IconButton size="small" onClick={(e) => openMemoEditor(e, p.id, dateStr, cell.memo)} sx={{ p: 0.25 }}>
@@ -460,6 +459,13 @@ function PurchaseOrderManagement() {
                             </Badge>
                           </Tooltip>
                         </Box>
+                        {statusLabel && (
+                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Typography variant="caption" sx={{ color: statusColor, fontWeight: 600 }}>
+                              {statusLabel}
+                            </Typography>
+                          </Box>
+                        )}
                       </TableCell>
                     );
                   })}
