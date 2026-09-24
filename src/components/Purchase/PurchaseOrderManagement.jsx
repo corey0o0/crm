@@ -5,12 +5,24 @@ import {
 } from '@mui/material';
 import { supabase } from '../../lib/supabaseClient';
 import { safeRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
+import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { ko } from 'date-fns/locale';
+import { startOfMonth, getDaysInMonth, format } from 'date-fns';
 
 function PurchaseOrderManagement() {
   const [parts, setParts] = useState([]);
   const [loadingParts, setLoadingParts] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [selectedMonth, setSelectedMonth] = useState(startOfMonth(new Date()));
+
+  const getDaysArray = (monthStart) => {
+    const total = getDaysInMonth(monthStart);
+    return Array.from({ length: total }, (_, i) => new Date(monthStart.getFullYear(), monthStart.getMonth(), i + 1));
+  };
+
+  const days = getDaysArray(selectedMonth);
 
   const showSnackbar = (message, severity = 'success') => {
     setSnackbar({ open: true, message, severity });
@@ -53,32 +65,52 @@ function PurchaseOrderManagement() {
     <Box sx={{ p: 3, width: '100%' }}>
       <Typography variant="h5" gutterBottom>발주 관리</Typography>
 
+      <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
+        <DatePicker
+          views={['year', 'month']}
+          label="년/월"
+          value={selectedMonth}
+          onChange={(newValue) => newValue && setSelectedMonth(startOfMonth(newValue))}
+          slotProps={{ textField: { size: 'small', sx: { width: 160, mb: 2 } } }}
+        />
+      </LocalizationProvider>
+
       <TextField
         size="small"
         placeholder="브랜드/코드/이름 검색"
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
-        sx={{ mb: 2, width: 300 }}
+        sx={{ mb: 2, ml: 2, width: 300 }}
       />
 
       {loadingParts ? (
         <CircularProgress size={24} />
       ) : (
-        <TableContainer component={Paper} sx={{ maxWidth: 500 }}>
-          <Table size="small">
+        <TableContainer component={Paper} sx={{ maxHeight: '75vh', overflow: 'auto' }}>
+          <Table size="small" stickyHeader>
             <TableHead>
               <TableRow>
-                <TableCell>브랜드</TableCell>
-                <TableCell>코드</TableCell>
-                <TableCell>이름</TableCell>
+                <TableCell sx={{ position: 'sticky', left: 0, zIndex: 3, bgcolor: 'background.paper', minWidth: 200 }}>
+                  상품명
+                </TableCell>
+                {days.map((d) => (
+                  <TableCell key={d.toISOString()} align="center" sx={{ minWidth: 90 }}>
+                    {format(d, 'd')}일
+                  </TableCell>
+                ))}
               </TableRow>
             </TableHead>
             <TableBody>
               {filteredParts.map((p) => (
                 <TableRow key={p.id}>
-                  <TableCell>{p.brand}</TableCell>
-                  <TableCell>{p.code}</TableCell>
-                  <TableCell>{p.name}</TableCell>
+                  <TableCell sx={{ position: 'sticky', left: 0, zIndex: 2, bgcolor: 'background.paper' }}>
+                    {p.brand} / {p.name}
+                  </TableCell>
+                  {days.map((d) => (
+                    <TableCell key={d.toISOString()} align="center">
+                      -
+                    </TableCell>
+                  ))}
                 </TableRow>
               ))}
             </TableBody>
