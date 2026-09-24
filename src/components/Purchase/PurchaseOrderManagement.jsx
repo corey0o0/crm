@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Typography, TextField, Paper, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Snackbar, Alert, CircularProgress, Checkbox,
@@ -6,7 +6,6 @@ import {
   Select, MenuItem, FormControl, InputLabel,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
-import SaveIcon from '@mui/icons-material/Save';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import { supabase, queryWithTimeout } from '../../lib/supabaseClient';
@@ -44,7 +43,7 @@ function PurchaseOrderManagement() {
   const [newDate, setNewDate] = useState(null);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [ordersMap, setOrdersMap] = useState(new Map());
-  const quantityRefs = useRef({});
+  const [pendingQuantities, setPendingQuantities] = useState({});
 
   const showSnackbar = (message, severity = 'success') => {
     setSnackbar({ open: true, message, severity });
@@ -153,18 +152,53 @@ function PurchaseOrderManagement() {
     }
   };
 
-  const saveQuantity = (partId, dateStr, rawValue) => {
-    const parsed = parseInt(rawValue, 10);
-    const quantity = Number.isNaN(parsed) || parsed < 0 ? 0 : parsed;
-    const prev = ordersMap.get(`${partId}_${dateStr}`) || { quantity: 0, received: false };
-    if (prev.quantity === quantity) return;
-    upsertOrder(partId, dateStr, { quantity });
+  const handleQuantityChange = (partId, dateStr, rawValue) => {
+    const key = `${partId}_${dateStr}`;
+    setPendingQuantities((prev) => ({ ...prev, [key]: { partId, dateStr, rawValue } }));
   };
 
-  const handleSaveClick = (partId, dateStr) => {
-    const key = `${partId}_${dateStr}`;
-    const rawValue = quantityRefs.current[key]?.value ?? '';
-    saveQuantity(partId, dateStr, rawValue);
+  const handleSaveAll = async () => {
+    const entries = Object.entries(pendingQuantities);
+    const rows = [];
+    const commits = [];
+    entries.forEach(([key, { partId, dateStr, rawValue }]) => {
+      const prevCell = ordersMap.get(key) || { quantity: 0, received: false, received_at: null };
+      const parsed = parseInt(rawValue, 10);
+      const quantity = Number.isNaN(parsed) || parsed < 0 ? 0 : parsed;
+      if (quantity === prevCell.quantity) return;
+      rows.push({
+        part_id: partId,
+        order_date: dateStr,
+        quantity,
+        received: prevCell.received,
+        received_at: prevCell.received_at,
+      });
+      commits.push({ key, quantity });
+    });
+
+    if (rows.length === 0) {
+      setPendingQuantities({});
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('purchase_orders')
+        .upsert(rows, { onConflict: 'part_id,order_date' });
+      if (error) throw error;
+      setOrdersMap((m) => {
+        const next = new Map(m);
+        commits.forEach(({ key, quantity }) => {
+          const prevCell = next.get(key) || { quantity: 0, received: false, received_at: null };
+          next.set(key, { ...prevCell, quantity });
+        });
+        return next;
+      });
+      setPendingQuantities({});
+      showSnackbar(`${rows.length}건 저장되었습니다.`, 'success');
+    } catch (err) {
+      showSnackbar(getErrorMessage(err), 'error');
+    }
   };
 
   const handleReceivedChange = (partId, dateStr, checked) => {
@@ -234,6 +268,15 @@ function PurchaseOrderManagement() {
         </LocalizationProvider>
         <Button variant="contained" size="small" onClick={handleAddDateColumn} disabled={!newDate}>
           열 추가
+        </Button>
+        <Button
+          variant="contained"
+          color="primary"
+          size="small"
+          onClick={handleSaveAll}
+          disabled={Object.keys(pendingQuantities).length === 0}
+        >
+          전체 저장{Object.keys(pendingQuantities).length > 0 && ` (${Object.keys(pendingQuantities).length})`}
         </Button>
         {loadingOrders && <CircularProgress size={20} />}
 
@@ -340,28 +383,30 @@ function PurchaseOrderManagement() {
                   {dateColumns.map((dateStr) => {
                     const key = `${p.id}_${dateStr}`;
                     const cell = ordersMap.get(key) || { quantity: 0, received: false };
+                    const displayValue = pendingQuantities[key]
+                      ? pendingQuantities[key].rawValue
+                      : (cell.quantity || '');
                     return (
                       <TableCell key={dateStr} align="center" sx={{ p: 0.5 }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           <TextField
                             type="number"
                             size="small"
-                            defaultValue={cell.quantity || ''}
-                            key={`${key}_${cell.quantity}`}
-                            inputRef={(el) => { quantityRefs.current[key] = el; }}
-                            onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
+                            value={displayValue}
+                            onChange={(e) => handleQuantityChange(p.id, dateStr, e.target.value)}
                             inputProps={{ min: 0, style: { width: 44, textAlign: 'center' } }}
+                            sx={pendingQuantities[key] ? { '& .MuiOutlinedInput-root': { bgcolor: 'warning.light' } } : undefined}
                           />
-                          <IconButton size="small" onClick={() => handleSaveClick(p.id, dateStr)} sx={{ p: 0.25 }}>
-                            <SaveIcon fontSize="inherit" />
-                          </IconButton>
                         </Box>
-                        <Checkbox
+                        <Button
                           size="small"
-                          checked={!!cell.received}
-                          onChange={(e) => handleReceivedChange(p.id, dateStr, e.target.checked)}
-                          sx={{ p: 0 }}
-                        />
+                          variant={cell.received ? 'contained' : 'outlined'}
+                          color={cell.received ? 'success' : 'inherit'}
+                          onClick={() => handleReceivedChange(p.id, dateStr, !cell.received)}
+                          sx={{ minWidth: 0, height: 20, fontSize: 10, px: cell.received ? 0.75 : 1.5, lineHeight: 1, mt: 0.25 }}
+                        >
+                          {cell.received ? '입고완료' : ''}
+                        </Button>
                       </TableCell>
                     );
                   })}
