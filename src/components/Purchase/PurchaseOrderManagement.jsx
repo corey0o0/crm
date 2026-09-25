@@ -503,7 +503,7 @@ function PurchaseOrderManagement() {
                   {visibleCols.supply_price && <TableCell align="right">{p.supply_price?.toLocaleString() || '-'}</TableCell>}
                   {visibleCols.price && <TableCell align="right">{p.price?.toLocaleString() || '-'}</TableCell>}
                   {visibleCols.note && <TableCell>{p.note || '-'}</TableCell>}
-                  <TableCell>{p.memo || '-'}</TableCell>
+                  <TableCell sx={{ fontSize: '18px' }}>{p.memo || '-'}</TableCell>
                   {dateColumns.map((dateStr) => {
                     const key = `${p.id}_${dateStr}`;
                     const cell = ordersMap.get(key) || { quantity: 0, received_quantity: 0 };
@@ -549,7 +549,13 @@ function PurchaseOrderManagement() {
                               ...(pending?.receivedRaw !== undefined ? { '& .MuiOutlinedInput-root': { borderRadius: 0, bgcolor: 'warning.light' } } : {}),
                             }}
                           />
-                          <Tooltip title={cell.memo || ''} arrow placement="top" disableHoverListener={!cell.memo}>
+                          <Tooltip
+                            title={cell.memo || ''}
+                            arrow
+                            placement="top"
+                            disableHoverListener={!cell.memo}
+                            componentsProps={{ tooltip: { sx: { fontSize: '18px' } } }}
+                          >
                             <Badge color="primary" variant="dot" overlap="circular" invisible={!cell.memo}>
                               <IconButton size="small" onClick={(e) => openMemoEditor(e, p.id, dateStr, cell.memo)} sx={{ p: 0.25 }}>
                                 <AddIcon fontSize="inherit" />
@@ -601,6 +607,7 @@ function PurchaseOrderManagement() {
             placeholder="메모 입력"
             value={memoDraft.text}
             onChange={(e) => setMemoDraft((d) => ({ ...d, text: e.target.value }))}
+            sx={{ '& .MuiInputBase-input': { fontSize: '18px' } }}
           />
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5, mt: 1 }}>
             <Button size="small" onClick={() => setMemoAnchor(null)}>취소</Button>
