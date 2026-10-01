@@ -503,7 +503,13 @@ function PurchaseOrderManagement() {
                   {visibleCols.supply_price && <TableCell align="right">{p.supply_price?.toLocaleString() || '-'}</TableCell>}
                   {visibleCols.price && <TableCell align="right">{p.price?.toLocaleString() || '-'}</TableCell>}
                   {visibleCols.note && <TableCell>{p.note || '-'}</TableCell>}
-                  <TableCell sx={{ fontSize: '18px' }}>{p.memo || '-'}</TableCell>
+                  <TableCell>
+                    {p.memo ? (
+                      <Tooltip title={p.memo}>
+                        <span>메모</span>
+                      </Tooltip>
+                    ) : '-'}
+                  </TableCell>
                   {dateColumns.map((dateStr) => {
                     const key = `${p.id}_${dateStr}`;
                     const cell = ordersMap.get(key) || { quantity: 0, received_quantity: 0 };
