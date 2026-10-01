@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Paper, Button, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Chip, CircularProgress, Alert, Stack, Dialog, DialogTitle,
-  DialogContent, DialogActions, Autocomplete, TextField, Tabs, Tab, Select, MenuItem, FormControl, FormControlLabel, InputLabel, Checkbox, IconButton, Tooltip, InputAdornment, TablePagination, ToggleButton, ToggleButtonGroup, TableFooter, Grid, ButtonGroup, Backdrop
+  DialogContent, DialogActions, Autocomplete, TextField, Tabs, Tab, Select, MenuItem, FormControl, FormControlLabel, InputLabel, Checkbox, IconButton, Tooltip, InputAdornment, TablePagination, ToggleButton, ToggleButtonGroup, TableFooter, Grid, ButtonGroup, Backdrop, Badge, Popover
 } from '@mui/material';
-import { Sync as SyncIcon, PersonAdd as PersonAddIcon, Search as SearchIcon, Edit as EditIcon, PlaylistAdd as PlaylistAddIcon, Close as CloseIcon, FileDownload as FileDownloadIcon, CallSplit as CallSplitIcon } from '@mui/icons-material';
+import { Sync as SyncIcon, PersonAdd as PersonAddIcon, Search as SearchIcon, Edit as EditIcon, PlaylistAdd as PlaylistAddIcon, Close as CloseIcon, FileDownload as FileDownloadIcon, CallSplit as CallSplitIcon, Add as AddIcon } from '@mui/icons-material';
 import Cafe24Settings from '../../components/Settings/Cafe24Settings';
 import { supabase } from '../../lib/supabaseClient';
 import { getCafe24Malls, syncCafe24Orders, addCafe24ProductMapping, getCafe24ProductMappings, deleteCafe24ProductMapping,  transferCafe24Orders, cancelSalesTransfer, returnCafe24Inventory } from '../../utils/cafe24Api';
@@ -81,6 +81,9 @@ export default function Cafe24OrderList() {
   const [editingItems, setEditingItems] = useState([]);
   const [addingPart, setAddingPart] = useState(null);
   const [editItemsSaving, setEditItemsSaving] = useState(false);
+
+  const [memoAnchor, setMemoAnchor] = useState(null);
+  const [memoDraft, setMemoDraft] = useState({ orderId: null, idx: null, text: '' });
 
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(20);
@@ -1459,6 +1462,32 @@ export default function Cafe24OrderList() {
     }
   };
 
+  const openItemMemoEditor = (e, orderId, idx, currentMemo) => {
+    setMemoAnchor(e.currentTarget);
+    setMemoDraft({ orderId, idx, text: currentMemo || '' });
+  };
+
+  const saveItemMemo = async () => {
+    const { orderId, idx, text } = memoDraft;
+    const memo = text.trim();
+    const targetOrder = orders.find(o => o.id === orderId);
+    if (!targetOrder) { setMemoAnchor(null); return; }
+
+    const prevItems = targetOrder.order_items || [];
+    const updatedItems = prevItems.map((it, i) => i === idx ? { ...it, memo: memo || null } : it);
+
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, order_items: updatedItems } : o));
+    setMemoAnchor(null);
+
+    try {
+      const { error } = await supabase.from('cafe24_orders').update({ order_items: updatedItems }).eq('id', orderId);
+      if (error) throw error;
+    } catch (err) {
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, order_items: prevItems } : o));
+      alert('메모 저장 중 오류가 발생했습니다: ' + err.message);
+    }
+  };
+
   const renderActionBar = () => (
     <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, p: 1.5, bgcolor: '#e3f2fd', borderRadius: 1 }}>
       <Typography variant="body2" sx={{ mr: 2, fontWeight: 'bold', color: '#1565c0' }}>
@@ -1936,15 +1965,22 @@ export default function Cafe24OrderList() {
                           {item.order_status && item.order_status.match(/^[CRE]/) && (
                             <Chip size="small" label={getKoStatus(item.order_status)} color={getBadgeColor(item.order_status)} variant="filled" sx={{ mr: 1, height: 20, fontSize: '0.65rem' }} />
                           )}
-                          <Typography 
-                            variant="body2" 
-                            sx={{ 
+                          <Typography
+                            variant="body2"
+                            sx={{
                               textDecoration: isCancelledDisplay ? 'line-through' : 'none',
                               color: isCancelledDisplay ? 'text.disabled' : 'inherit'
                             }}
                           >
                             {item.name}
                           </Typography>
+                          <Tooltip title={item.memo || ''} arrow placement="top" disableHoverListener={!item.memo}>
+                            <Badge color="primary" variant="dot" overlap="circular" invisible={!item.memo} sx={{ ml: 0.5 }}>
+                              <IconButton size="small" sx={{ p: 0.25 }} onClick={(e) => openItemMemoEditor(e, order.id, idx, item.memo)}>
+                                <AddIcon fontSize="inherit" />
+                              </IconButton>
+                            </Badge>
+                          </Tooltip>
                         </Box>
                         {item.options && <Typography variant="caption" color="text.secondary" display="block">{item.options}</Typography>}
                         {(item.raw_custom_variant_code || item.raw_custom_product_code || item.custom_product_code) && (
@@ -2533,7 +2569,32 @@ export default function Cafe24OrderList() {
           </Button>
         </DialogActions>
       </Dialog>
-      
+
+      <Popover
+        open={Boolean(memoAnchor)}
+        anchorEl={memoAnchor}
+        onClose={() => setMemoAnchor(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Box sx={{ p: 1.5, width: 220 }}>
+          <TextField
+            autoFocus
+            multiline
+            minRows={2}
+            fullWidth
+            size="small"
+            placeholder="메모 입력"
+            value={memoDraft.text}
+            onChange={(e) => setMemoDraft(prev => ({ ...prev, text: e.target.value }))}
+          />
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 1 }}>
+            <Button size="small" onClick={() => setMemoAnchor(null)}>취소</Button>
+            <Button size="small" variant="contained" onClick={saveItemMemo}>저장</Button>
+          </Box>
+        </Box>
+      </Popover>
+
       <Backdrop
         sx={{ color: '#fff', zIndex: (theme) => Math.max(theme.zIndex.drawer, theme.zIndex.modal) + 1, display: 'flex', flexDirection: 'column', gap: 2 }}
         open={isTransferring}
