@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Paper, Button, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Chip, CircularProgress, Alert, Stack, Dialog, DialogTitle,
-  DialogContent, DialogActions, Autocomplete, TextField, Tabs, Tab, Select, MenuItem, FormControl, FormControlLabel, InputLabel, Checkbox, IconButton, Tooltip, InputAdornment, TablePagination, ToggleButton, ToggleButtonGroup, TableFooter, Grid, ButtonGroup, Backdrop, Badge, Popover
+  DialogContent, DialogActions, Autocomplete, TextField, Tabs, Tab, Select, MenuItem, FormControl, FormControlLabel, InputLabel, Checkbox, IconButton, Tooltip, InputAdornment, TablePagination, ToggleButton, ToggleButtonGroup, TableFooter, Grid, ButtonGroup, Backdrop, Popover
 } from '@mui/material';
 import { Sync as SyncIcon, PersonAdd as PersonAddIcon, Search as SearchIcon, Edit as EditIcon, PlaylistAdd as PlaylistAddIcon, Close as CloseIcon, FileDownload as FileDownloadIcon, CallSplit as CallSplitIcon, Add as AddIcon } from '@mui/icons-material';
 import Cafe24Settings from '../../components/Settings/Cafe24Settings';
@@ -1974,13 +1974,22 @@ export default function Cafe24OrderList() {
                           >
                             {item.name}
                           </Typography>
-                          <Tooltip title={item.memo || ''} arrow placement="top" disableHoverListener={!item.memo}>
-                            <Badge color="primary" variant="dot" overlap="circular" invisible={!item.memo} sx={{ ml: 0.5 }}>
-                              <IconButton size="small" sx={{ p: 0.25 }} onClick={(e) => openItemMemoEditor(e, order.id, idx, item.memo)}>
-                                <AddIcon fontSize="inherit" />
-                              </IconButton>
-                            </Badge>
-                          </Tooltip>
+                          {item.memo ? (
+                            <Tooltip title={item.memo} arrow placement="top">
+                              <Chip
+                                size="small"
+                                label="메모"
+                                color="warning"
+                                variant="filled"
+                                onClick={(e) => openItemMemoEditor(e, order.id, idx, item.memo)}
+                                sx={{ ml: 0.5, height: 20, fontSize: '0.65rem', cursor: 'pointer' }}
+                              />
+                            </Tooltip>
+                          ) : (
+                            <IconButton size="small" sx={{ p: 0.25, ml: 0.5 }} onClick={(e) => openItemMemoEditor(e, order.id, idx, item.memo)}>
+                              <AddIcon fontSize="inherit" />
+                            </IconButton>
+                          )}
                         </Box>
                         {item.options && <Typography variant="caption" color="text.secondary" display="block">{item.options}</Typography>}
                         {(item.raw_custom_variant_code || item.raw_custom_product_code || item.custom_product_code) && (
