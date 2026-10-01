@@ -55,3 +55,24 @@ export function calculateSharedMallStock(cafe24Data, totalCrmStock) {
 
   return { stock, diff, isMatch, status };
 }
+
+// slimpack79+nearbike 안전재고 합산을 기준 창고(형동창고) CRM 재고와 비교
+export function calculateSharedSafetyInventory(cafe24Data, refStock) {
+  let stock = 0;
+  let matchedCount = 0;
+
+  SHARED_STOCK_MALL_IDS.forEach((mallId) => {
+    const mallData = cafe24Data?.[mallId];
+    if (!mallData || mallData.status === '미연동' || mallData.status === '바코드 없음') return;
+    if (mallData.safety_inventory == null) return;
+    matchedCount += 1;
+    stock += Number(mallData.safety_inventory) || 0;
+  });
+
+  if (matchedCount === 0 || refStock == null) {
+    return { stock: null, diff: null, isMatch: null };
+  }
+
+  const diff = stock - refStock;
+  return { stock, diff, isMatch: diff === 0 };
+}

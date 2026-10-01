@@ -7,7 +7,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import CachedIcon from '@mui/icons-material/Cached';
 import SaveAltIcon from '@mui/icons-material/SaveAlt';
 import { getCafe24Malls, compareCafe24Inventory } from '../../utils/cafe24Api';
-import { calculateSharedMallStock, isComparableProduct, findMatchedVariant } from './cafe24InventoryReconciliationUtils';
+import { calculateSharedMallStock, calculateSharedSafetyInventory, isComparableProduct, findMatchedVariant } from './cafe24InventoryReconciliationUtils';
 
 const CACHE_KEY = 'cafe24_inventory_comparison_cache';
 
@@ -156,6 +156,7 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
       });
 
       const sharedStock = calculateSharedMallStock(cafe24Data, totalCrmStock);
+      const sharedSafety = calculateSharedSafetyInventory(cafe24Data, safetyRefStock);
 
       const finalStatus = barcode ? sharedStock.status : '바코드 없음';
 
@@ -167,6 +168,7 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
         warehouseStocks,
         cafe24Data,
         sharedStock,
+        sharedSafety,
         is_match: sharedStock.isMatch && !!barcode,
         matchStatus: finalStatus,
         safetyRefStock
@@ -334,6 +336,12 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
                   <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: 'secondary.50', color: 'secondary.main' }}>
                     합산<br />차이
                   </TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: 'warning.50', color: 'warning.dark' }}>
+                    안전재고<br />합산(슬림+니어)
+                  </TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: 'warning.50', color: 'warning.dark' }}>
+                    안전재고<br />차이(형동 대비)
+                  </TableCell>
                   {displayMallIds.map(mallId => (
                     <React.Fragment key={mallId}>
                       <TableCell align="center" sx={{ fontWeight: 'bold', bgcolor: 'primary.50', color: 'primary.main', fontSize: '0.8rem' }}>
@@ -343,7 +351,7 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
                         {mallId}<br />재고
                       </TableCell>
                       <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: 'primary.50', color: 'primary.main', fontSize: '0.8rem' }}>
-                        {mallId}<br />안전재고
+                        {mallId}<br />안전재고(개별)
                       </TableCell>
                     </React.Fragment>
                   ))}
@@ -383,6 +391,15 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
                       <TableCell align="right" sx={{ fontWeight: 'bold', color: row.sharedStock?.diff === 0 ? 'success.main' : row.sharedStock?.diff > 0 ? 'info.main' : 'error.main' }}>
                         {row.sharedStock?.diff != null ? `${row.sharedStock.diff > 0 ? '+' : ''}${row.sharedStock.diff}` : '-'}
                       </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                        {row.sharedSafety?.stock ?? '-'}
+                      </TableCell>
+                      <TableCell align="right" sx={{
+                        fontWeight: 'bold',
+                        color: row.sharedSafety?.diff == null ? 'text.secondary' : row.sharedSafety.diff === 0 ? 'success.main' : 'error.main'
+                      }}>
+                        {row.sharedSafety?.diff != null ? `${row.sharedSafety.diff > 0 ? '+' : ''}${row.sharedSafety.diff}` : '-'}
+                      </TableCell>
                       {displayMallIds.map(mallId => {
                         const mallData = row.cafe24Data[mallId];
                         const stockDiff = mallData?.stock != null ? mallData.stock - row.totalCrmStock : null;
@@ -411,17 +428,8 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
                                 </>
                               ) : '재고미사용') : '-'}
                             </TableCell>
-                            <TableCell align="right" sx={{
-                              fontSize: '0.85rem',
-                              color: (row.safetyRefStock != null && mallData?.safety_inventory != null && mallData.safety_inventory !== row.safetyRefStock)
-                                ? 'error.main' : 'text.secondary'
-                            }}>
+                            <TableCell align="right" sx={{ fontSize: '0.85rem', color: 'text.secondary' }}>
                               {mallData?.safety_inventory ?? '-'}
-                              {row.safetyRefStock != null && mallData?.safety_inventory != null && mallData.safety_inventory !== row.safetyRefStock && (
-                                <Typography component="span" variant="caption" sx={{ ml: 0.5, fontWeight: 'bold' }}>
-                                  (형동 {row.safetyRefStock})
-                                </Typography>
-                              )}
                             </TableCell>
                           </React.Fragment>
                         );
@@ -436,7 +444,7 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
                 })}
                 {filteredData.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6 + displayMallIds.length * 3 + warehouses.length} align="center" sx={{ py: 4 }}>
+                    <TableCell colSpan={8 + displayMallIds.length * 3 + warehouses.length} align="center" sx={{ py: 4 }}>
                       {comparisonData.length > 0 ? '필터/검색 조건에 맞는 데이터가 없습니다.' : '비교 실행 버튼을 눌러주세요.'}
                     </TableCell>
                   </TableRow>
