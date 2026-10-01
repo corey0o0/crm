@@ -51,6 +51,7 @@ function buildCafe24Variants(products = []) {
         variant_code: v.variant_code,
         custom_variant_code: customCode,
         quantity: v.use_inventory === 'T' ? parseInt(v.quantity || v.stock_quantity || 0) : null,
+        safety_inventory: parseInt(v.safety_inventory || 0),
         use_inventory: v.use_inventory === 'T',
         display: v.display === 'T'
       });

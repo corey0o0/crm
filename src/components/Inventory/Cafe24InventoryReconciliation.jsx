@@ -101,6 +101,9 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
    */
   const rebuildComparison = (cachedItems, mallIds) => {
     const comparableProducts = products.filter(isComparableProduct);
+    // ponytail: 창고명 하드코딩 매칭 - 형동창고가 "카페24 안전재고"와 비교할 기준 창고라는
+    // 사용자 확인 사항. 창고 ID가 아닌 이름 기준인 이유는 warehouses가 DB에서 동적으로 오기 때문.
+    const safetyRefWarehouse = warehouses.find(w => w.name === '형동창고');
 
     return comparableProducts.map(product => {
       const barcode = (product.barcode || '').trim();
@@ -113,6 +116,7 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
         warehouseStocks[w.id] = stock;
         totalCrmStock += stock;
       });
+      const safetyRefStock = safetyRefWarehouse ? (warehouseStocks[safetyRefWarehouse.id] || 0) : null;
 
       const cafe24Data = {};
 
@@ -145,6 +149,7 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
           product_name: matchedVariant ? matchedVariant.product_name : '-',
           custom_variant_code: matchedVariant ? matchedVariant.custom_variant_code : '-',
           stock: mallStock,
+          safety_inventory: matchedVariant ? matchedVariant.safety_inventory : null,
           use_inventory: matchedVariant ? matchedVariant.use_inventory : false,
           status: mallMatchStatus
         };
@@ -163,7 +168,8 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
         cafe24Data,
         sharedStock,
         is_match: sharedStock.isMatch && !!barcode,
-        matchStatus: finalStatus
+        matchStatus: finalStatus,
+        safetyRefStock
       };
     });
   };
@@ -336,6 +342,9 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
                       <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: 'primary.50', color: 'primary.main' }}>
                         {mallId}<br />재고
                       </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: 'primary.50', color: 'primary.main', fontSize: '0.8rem' }}>
+                        {mallId}<br />안전재고
+                      </TableCell>
                     </React.Fragment>
                   ))}
                   {warehouses.map(w => (
@@ -402,6 +411,18 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
                                 </>
                               ) : '재고미사용') : '-'}
                             </TableCell>
+                            <TableCell align="right" sx={{
+                              fontSize: '0.85rem',
+                              color: (row.safetyRefStock != null && mallData?.safety_inventory != null && mallData.safety_inventory !== row.safetyRefStock)
+                                ? 'error.main' : 'text.secondary'
+                            }}>
+                              {mallData?.safety_inventory ?? '-'}
+                              {row.safetyRefStock != null && mallData?.safety_inventory != null && mallData.safety_inventory !== row.safetyRefStock && (
+                                <Typography component="span" variant="caption" sx={{ ml: 0.5, fontWeight: 'bold' }}>
+                                  (형동 {row.safetyRefStock})
+                                </Typography>
+                              )}
+                            </TableCell>
                           </React.Fragment>
                         );
                       })}
@@ -415,7 +436,7 @@ const Cafe24InventoryReconciliation = ({ products = [], warehouses = [], recalcu
                 })}
                 {filteredData.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6 + displayMallIds.length * 2 + warehouses.length} align="center" sx={{ py: 4 }}>
+                    <TableCell colSpan={6 + displayMallIds.length * 3 + warehouses.length} align="center" sx={{ py: 4 }}>
                       {comparisonData.length > 0 ? '필터/검색 조건에 맞는 데이터가 없습니다.' : '비교 실행 버튼을 눌러주세요.'}
                     </TableCell>
                   </TableRow>
