@@ -3,7 +3,7 @@ import {
   Box, Typography, TextField, Paper, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Snackbar, Alert, CircularProgress, Checkbox,
   TablePagination, Avatar, IconButton, Button, Dialog, DialogContent, FormControlLabel,
-  Select, MenuItem, FormControl, InputLabel, Badge, Tooltip, Popover,
+  Select, MenuItem, FormControl, InputLabel, Tooltip, Popover, Chip,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
@@ -555,19 +555,27 @@ function PurchaseOrderManagement() {
                               ...(pending?.receivedRaw !== undefined ? { '& .MuiOutlinedInput-root': { borderRadius: 0, bgcolor: 'warning.light' } } : {}),
                             }}
                           />
-                          <Tooltip
-                            title={cell.memo || ''}
-                            arrow
-                            placement="top"
-                            disableHoverListener={!cell.memo}
-                            componentsProps={{ tooltip: { sx: { fontSize: '18px' } } }}
-                          >
-                            <Badge color="primary" variant="dot" overlap="circular" invisible={!cell.memo}>
-                              <IconButton size="small" onClick={(e) => openMemoEditor(e, p.id, dateStr, cell.memo)} sx={{ p: 0.25 }}>
-                                <AddIcon fontSize="inherit" />
-                              </IconButton>
-                            </Badge>
-                          </Tooltip>
+                          {cell.memo ? (
+                            <Tooltip
+                              title={cell.memo}
+                              arrow
+                              placement="top"
+                              componentsProps={{ tooltip: { sx: { fontSize: '18px' } } }}
+                            >
+                              <Chip
+                                size="small"
+                                label="메모"
+                                color="warning"
+                                variant="filled"
+                                onClick={(e) => openMemoEditor(e, p.id, dateStr, cell.memo)}
+                                sx={{ height: 20, fontSize: '0.65rem', cursor: 'pointer' }}
+                              />
+                            </Tooltip>
+                          ) : (
+                            <IconButton size="small" onClick={(e) => openMemoEditor(e, p.id, dateStr, cell.memo)} sx={{ p: 0.25 }}>
+                              <AddIcon fontSize="inherit" />
+                            </IconButton>
+                          )}
                         </Box>
                         {statusLabel && (
                           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
