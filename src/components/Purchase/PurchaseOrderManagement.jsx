@@ -66,7 +66,7 @@ function PurchaseOrderManagement() {
         queryWithTimeout(
           supabase
             .from('parts')
-            .select('id, name, name_en, brand, code, barcode, image_url, supply_price, price, note, memo')
+            .select('id, name, name_en, brand, code, barcode, image_url, supply_price, price, note, memo, stock')
             .order('brand')
             .order('name'),
           8000
@@ -205,7 +205,7 @@ function PurchaseOrderManagement() {
       if (visibleCols.supply_price) headers.push('공급가');
       if (visibleCols.price) headers.push('판매가');
       if (visibleCols.note) headers.push('구분');
-      headers.push('적요');
+      headers.push('적요', '현재고');
       dateColumns.forEach((d) => headers.push(`${d} 발주`, `${d} 입고`, `${d} 상태`, `${d} 메모`));
       worksheet.addRow(headers);
       worksheet.getRow(1).font = { bold: true };
@@ -217,7 +217,7 @@ function PurchaseOrderManagement() {
         if (visibleCols.supply_price) row.push(p.supply_price || 0);
         if (visibleCols.price) row.push(p.price || 0);
         if (visibleCols.note) row.push(p.note || '');
-        row.push(p.memo || '');
+        row.push(p.memo || '', p.stock ?? 0);
         dateColumns.forEach((d) => {
           const cell = ordersMap.get(`${p.id}_${d}`) || { quantity: 0, received_quantity: 0, memo: '' };
           const order = cell.quantity || 0;
@@ -335,7 +335,7 @@ function PurchaseOrderManagement() {
   });
 
   const pagedParts = sortedParts.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-  const tableMinWidth = STICKY_TOTAL + 370 + dateColumns.length * 160;
+  const tableMinWidth = STICKY_TOTAL + 440 + dateColumns.length * 160;
 
   return (
     <Box sx={{ p: 3, width: '100%' }}>
@@ -465,6 +465,7 @@ function PurchaseOrderManagement() {
                 {visibleCols.price && <TableCell align="right" sx={{ width: 90 }}>판매가</TableCell>}
                 {visibleCols.note && <TableCell sx={{ width: 70 }}>구분</TableCell>}
                 <TableCell sx={{ width: 120 }}>적요</TableCell>
+                <TableCell align="right" sx={{ width: 70 }}>현재고</TableCell>
                 {dateColumns.map((dateStr) => (
                   <TableCell key={dateStr} align="center" sx={{ width: 160, minWidth: 160 }}>
                     {format(parseISO(dateStr), 'yy/MM/dd')}
@@ -510,6 +511,7 @@ function PurchaseOrderManagement() {
                       </Tooltip>
                     ) : '-'}
                   </TableCell>
+                  <TableCell align="right">{p.stock ?? 0}</TableCell>
                   {dateColumns.map((dateStr) => {
                     const key = `${p.id}_${dateStr}`;
                     const cell = ordersMap.get(key) || { quantity: 0, received_quantity: 0 };
