@@ -1,6 +1,6 @@
 const axios = require('axios');
 const crypto = require('crypto');
-const { rewriteCafe24Media } = require('./cafe24Media');
+const { rewriteCafe24Media, defaultFetchImage, defaultUploadImage, isSafeRemoteUrl, extensionFor } = require('./cafe24Media');
 const ENCRYPTION_SECRET = process.env.CAFE24_ENCRYPTION_SECRET || process.env.SUPABASE_SERVICE_KEY || 'default_secret';
 const ENCRYPTION_SALT = process.env.CAFE24_ENCRYPTION_SALT || 'salt';
 const ENCRYPTION_KEY = crypto.scryptSync(ENCRYPTION_SECRET, ENCRYPTION_SALT, 32);
@@ -58,6 +58,22 @@ function buildCafe24Variants(products = []) {
     });
   });
   return allVariants;
+}
+
+// 상품 대표이미지 + 바코드(자체품목코드/자체상품코드) 추출 - buildCafe24Variants와 동일한 폴백 규칙
+function buildCafe24ProductImages(products = []) {
+  const items = [];
+  (products || []).forEach(p => {
+    const image = p.list_image || p.detail_image || p.tiny_image || p.small_image;
+    if (!image || !p.variants) return;
+    const isSingleVariant = p.variants.length === 1;
+    p.variants.forEach(v => {
+      const customCode = v.custom_variant_code || (isSingleVariant ? p.custom_product_code : null);
+      if (!customCode) return;
+      items.push({ custom_variant_code: customCode, image_url: image });
+    });
+  });
+  return items;
 }
 
 function mapCafe24Comments(comments = []) {
@@ -344,6 +360,112 @@ module.exports = function(supabaseAdmin) {
       res.json({ success: true, products: allProducts, warnings: fetchWarnings.length > 0 ? fetchWarnings : undefined });
     } catch (e) {
       res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // 2-1. 카페24 상품 이미지 → 바코드 매칭 파츠 이미지 일괄 동기화 (연동된 전체 몰 대상)
+  router.post('/products/images/sync', async (req, res) => {
+    try {
+      const { data: malls } = await supabaseAdmin.from('cafe24_settings').select('mall_id').not('access_token', 'is', null);
+      if (!malls || malls.length === 0) return res.json({ success: true, updated: 0, notFoundCount: 0, failedCount: 0 });
+
+      const { data: parts, error: partsError } = await supabaseAdmin.from('parts').select('id, barcode');
+      if (partsError) throw partsError;
+
+      const barcodeToPartId = new Map();
+      (parts || []).forEach(p => {
+        const code = (p.barcode || '').replace(/[^0-9]/g, '');
+        if (code) barcodeToPartId.set(code, p.id);
+      });
+
+      let allItems = [];
+      const fetchWarnings = [];
+
+      for (const m of malls) {
+        const mallId = m.mall_id;
+        try {
+          let token = await getValidToken(mallId);
+          let offset = 0;
+          const limit = 100;
+
+          const fetchProducts = async (accessToken, currentOffset) => {
+            return await axios.get(`https://${mallId}.cafe24api.com/api/v2/admin/products?embed=variants&limit=${limit}&offset=${currentOffset}`, {
+              headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json', 'X-Cafe24-Api-Version': '2026-03-01' }
+            });
+          };
+
+          while (true) {
+            let resp;
+            try {
+              resp = await fetchProducts(token, offset);
+            } catch (e) {
+              if (e.response && e.response.status === 401) {
+                const { data: mall } = await supabaseAdmin.from('cafe24_settings').select('*').eq('mall_id', mallId).single();
+                token = await refreshCafe24Token(mall);
+                resp = await fetchProducts(token, offset);
+              } else {
+                throw e;
+              }
+            }
+
+            const products = resp.data.products || [];
+            if (products.length === 0) break;
+
+            allItems = allItems.concat(buildCafe24ProductImages(products));
+            offset += limit;
+          }
+        } catch (e) {
+          console.error(`[Cafe24 Image Sync] ${mallId} 상품 조회 실패`, e.message);
+          fetchWarnings.push(`[${mallId}] ${e.message}`);
+        }
+      }
+
+      const uploadedUrlCache = new Map(); // 카페24 원본 이미지 URL -> R2 URL (동일 상품 이미지 중복 업로드 방지)
+      const notFound = [];
+      const failed = [];
+      let updated = 0;
+
+      for (const item of allItems) {
+        const code = String(item.custom_variant_code || '').replace(/[^0-9]/g, '');
+        if (!code) continue;
+
+        const partId = barcodeToPartId.get(code);
+        if (!partId) {
+          notFound.push(code);
+          continue;
+        }
+
+        try {
+          let r2Url = uploadedUrlCache.get(item.image_url);
+          if (!r2Url) {
+            if (!isSafeRemoteUrl(item.image_url)) throw new Error('허용되지 않는 이미지 URL');
+            const { body, contentType } = await defaultFetchImage(item.image_url);
+            const ext = extensionFor(contentType, item.image_url);
+            const hash = crypto.createHash('sha256').update(item.image_url).digest('hex').slice(0, 16);
+            r2Url = await defaultUploadImage({ key: `parts/cafe24-${hash}.${ext}`, body, contentType });
+            uploadedUrlCache.set(item.image_url, r2Url);
+          }
+
+          const { error: updateError } = await supabaseAdmin.from('parts').update({ image_url: r2Url }).eq('id', partId);
+          if (updateError) throw updateError;
+          updated++;
+        } catch (e) {
+          failed.push(code);
+        }
+      }
+
+      res.json({
+        success: true,
+        updated,
+        notFoundCount: notFound.length,
+        failedCount: failed.length,
+        notFoundSample: notFound.slice(0, 5),
+        failedSample: failed.slice(0, 5),
+        warnings: fetchWarnings.length > 0 ? fetchWarnings : undefined
+      });
+    } catch (e) {
+      console.error('Cafe24 Product Image Sync Error:', e.response ? e.response.data : e.message);
+      res.status(500).json({ error: '카페24 이미지 동기화 실패: ' + (e.response?.data?.error?.message || e.message) });
     }
   });
 

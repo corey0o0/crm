@@ -275,6 +275,15 @@ export async function returnCafe24Inventory(orderIds) {
   return resp.json();
 }
 
+export async function syncCafe24ProductImages() {
+  const resp = await fetchWithAuth(`${BACKEND_URL}/api/cafe24/products/images/sync`, { method: 'POST' });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error || '카페24 이미지 동기화 실패');
+  }
+  return resp.json();
+}
+
 export async function getCafe24ProductMappings() {
   const resp = await fetchWithAuth(`${BACKEND_URL}/api/cafe24/mappings`);
   if (!resp.ok) {

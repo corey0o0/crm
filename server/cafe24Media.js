@@ -174,4 +174,6 @@ module.exports = {
   isSafeIframeSrc,
   isSafeRemoteUrl,
   defaultFetchImage,
+  defaultUploadImage,
+  extensionFor,
 };

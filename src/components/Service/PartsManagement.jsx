@@ -69,6 +69,8 @@ import { getSyncedParts, createSyncRelation, deleteSyncRelationById } from '../.
 import { sortProducts, SORT_OPTIONS } from '../Product/productSortUtils';
 import Barcode from 'react-barcode';
 import { uploadFileToR2 as uploadToR2 } from '../../utils/cloudflareR2Utils';
+import ExcelJS from 'exceljs';
+import { syncCafe24ProductImages } from '../../utils/cafe24Api';
 import { CloudUpload as CloudUploadIcon } from '@mui/icons-material';
 import { logAction } from '../../utils/auditLog';
 
@@ -719,6 +721,12 @@ function PartsManagement() {
     step: 0,
     total: 0,
     current: 0,
+    message: ''
+  });
+  const [imageUploadStatus, setImageUploadStatus] = useState({
+    open: false,
+    current: 0,
+    total: 0,
     message: ''
   });
 
@@ -1425,6 +1433,129 @@ function PartsManagement() {
     };
 
     reader.readAsBinaryString(file);
+  };
+
+  // 엑셀 셀에 삽입된 이미지를 추출해 바코드 기준으로 매칭 후 일괄 업로드
+  const handleImageExcelUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const fileExt = file.name.split('.').pop().toLowerCase();
+    if (!['xlsx', 'xls'].includes(fileExt)) {
+      showSnackbar('엑셀 파일(.xlsx, .xls)만 업로드 가능합니다.', 'error');
+      event.target.value = '';
+      return;
+    }
+
+    setImageUploadStatus({ open: true, current: 0, total: 0, message: '엑셀 파일 읽는 중...' });
+
+    try {
+      const workbook = new ExcelJS.Workbook();
+      const arrayBuffer = await file.arrayBuffer();
+      await workbook.xlsx.load(arrayBuffer);
+      const worksheet = workbook.getWorksheet(1);
+      if (!worksheet) throw new Error('워크시트를 찾을 수 없습니다.');
+
+      // 1~5행을 스캔해 "바코드" 헤더가 있는 컬럼/행 탐색
+      let barcodeCol = null;
+      let headerRowNumber = 1;
+      for (let r = 1; r <= Math.min(5, worksheet.rowCount); r++) {
+        let found = null;
+        worksheet.getRow(r).eachCell((cell, colNumber) => {
+          if (!found && cell.value && String(cell.value).includes('바코드')) found = colNumber;
+        });
+        if (found) {
+          barcodeCol = found;
+          headerRowNumber = r;
+          break;
+        }
+      }
+      if (!barcodeCol) {
+        throw new Error('엑셀에서 "바코드" 헤더를 찾을 수 없습니다.');
+      }
+
+      const images = worksheet.getImages();
+      if (images.length === 0) {
+        throw new Error('엑셀 파일에서 이미지를 찾을 수 없습니다.');
+      }
+
+      const notFound = [];
+      const failed = [];
+      let successCount = 0;
+
+      for (let i = 0; i < images.length; i++) {
+        const img = images[i];
+        setImageUploadStatus(prev => ({ ...prev, total: images.length, current: i + 1, message: `이미지 ${i + 1}/${images.length} 처리 중...` }));
+
+        const rowNumber = img.range.tl.nativeRow + 1;
+        if (rowNumber <= headerRowNumber) continue;
+
+        const barcodeCellValue = worksheet.getRow(rowNumber).getCell(barcodeCol).value;
+        const barcode = barcodeCellValue ? String(barcodeCellValue).replace(/[^0-9]/g, '') : '';
+        if (!barcode) continue;
+
+        const matchedPart = parts.find((p) => (p.barcode || '').replace(/[^0-9]/g, '') === barcode);
+        if (!matchedPart) {
+          notFound.push(barcode);
+          continue;
+        }
+
+        try {
+          const media = workbook.getImage(img.imageId);
+          const mimeExt = media.extension === 'jpg' ? 'jpeg' : media.extension;
+          const blob = new Blob([media.buffer], { type: `image/${mimeExt}` });
+          const imageFile = new File([blob], `barcode_${barcode}.${media.extension}`, { type: `image/${mimeExt}` });
+
+          const uploadResult = await uploadToR2(imageFile, 'parts');
+          const { error: updateError } = await supabase
+            .from('parts')
+            .update({ image_url: uploadResult.url })
+            .eq('id', matchedPart.id);
+          if (updateError) throw updateError;
+
+          successCount++;
+        } catch (err) {
+          failed.push(barcode);
+        }
+      }
+
+      setImageUploadStatus({ open: false, current: 0, total: 0, message: '' });
+      await fetchParts();
+
+      const summary = [
+        `성공 ${successCount}개`,
+        notFound.length > 0 ? `매칭 안됨 ${notFound.length}개 (${notFound.slice(0, 5).join(', ')}${notFound.length > 5 ? ' 등' : ''})` : null,
+        failed.length > 0 ? `업로드 실패 ${failed.length}개` : null
+      ].filter(Boolean).join(' / ');
+      showSnackbar(`이미지 일괄 업로드 완료: ${summary}`, notFound.length > 0 || failed.length > 0 ? 'warning' : 'success');
+    } catch (error) {
+      console.error('이미지 엑셀 업로드 중 오류:', error);
+      showSnackbar('이미지 업로드 중 오류가 발생했습니다: ' + error.message, 'error');
+      setImageUploadStatus({ open: false, current: 0, total: 0, message: '' });
+    } finally {
+      event.target.value = '';
+    }
+  };
+
+  // 카페24 연동 상품 이미지를 바코드 매칭으로 파츠에 일괄 반영 (서버에서 다운로드+R2 업로드까지 처리)
+  const handleCafe24ImageSync = async () => {
+    setImageUploadStatus({ open: true, current: 0, total: 0, message: '카페24 상품 이미지 동기화 중... (시간이 걸릴 수 있습니다)' });
+    try {
+      const result = await syncCafe24ProductImages();
+      setImageUploadStatus({ open: false, current: 0, total: 0, message: '' });
+      await fetchParts();
+
+      const summary = [
+        `성공 ${result.updated}개`,
+        result.notFoundCount > 0 ? `매칭 안됨 ${result.notFoundCount}개` : null,
+        result.failedCount > 0 ? `업로드 실패 ${result.failedCount}개` : null
+      ].filter(Boolean).join(' / ');
+      showSnackbar(`카페24 이미지 동기화 완료: ${summary}`, result.notFoundCount > 0 || result.failedCount > 0 ? 'warning' : 'success');
+    } catch (error) {
+      console.error('카페24 이미지 동기화 중 오류:', error);
+      showSnackbar('카페24 이미지 동기화 중 오류가 발생했습니다: ' + error.message, 'error');
+      setImageUploadStatus({ open: false, current: 0, total: 0, message: '' });
+    }
   };
 
   // 엑셀 업로드 실제 저장 처리 (신규 + 선택된 중복 업데이트)
@@ -2269,6 +2400,37 @@ function PartsManagement() {
             </Grid>
             )}
 
+            {canEditBasic && (
+            <Grid item>
+              <Button
+                variant="outlined"
+                startIcon={<CloudUploadIcon />}
+                onClick={() => document.getElementById('image-excel-upload').click()}
+              >
+                이미지 일괄 업로드
+              </Button>
+              <input
+                id="image-excel-upload"
+                type="file"
+                accept=".xlsx, .xls"
+                onChange={handleImageExcelUpload}
+                style={{ display: 'none' }}
+              />
+            </Grid>
+            )}
+
+            {canEditBasic && (
+            <Grid item>
+              <Button
+                variant="outlined"
+                startIcon={<CloudUploadIcon />}
+                onClick={handleCafe24ImageSync}
+              >
+                카페24 이미지 동기화
+              </Button>
+            </Grid>
+            )}
+
             <Grid item>
               <Button
                 variant="outlined"
@@ -2677,6 +2839,30 @@ function PartsManagement() {
             </Typography>
             <Typography variant="caption" color="text.secondary">
               {uploadStatus.step}/5 단계
+            </Typography>
+          </Box>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={imageUploadStatus.open}
+        maxWidth="sm"
+        fullWidth
+        transitionDuration={0}
+        PaperProps={{ sx: { p: 2 } }}
+      >
+        <DialogTitle sx={{ pb: 1 }}>
+          이미지 일괄 업로드 중...
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ width: '100%', mt: 1 }}>
+            <LinearProgress
+              variant={imageUploadStatus.total > 0 ? 'determinate' : 'indeterminate'}
+              value={imageUploadStatus.total > 0 ? (imageUploadStatus.current / imageUploadStatus.total) * 100 : 0}
+              sx={{ height: 10, borderRadius: 5 }}
+            />
+            <Typography sx={{ mt: 2, mb: 1 }} variant="body1">
+              {imageUploadStatus.message}
             </Typography>
           </Box>
         </DialogContent>
