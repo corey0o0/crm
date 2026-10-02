@@ -327,6 +327,7 @@ function PurchaseOrderManagement() {
   };
 
   const filteredParts = parts.filter((p) => {
+    if ((p.memo || '').includes('[HIDDEN]')) return false;
     const term = searchTerm.trim().toLowerCase();
     const matchesTerm = !term || (
       (p.name || '').toLowerCase().includes(term) ||
@@ -509,9 +510,6 @@ function PurchaseOrderManagement() {
                   </TableCell>
                   <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.name, zIndex: 2, bgcolor: 'background.paper' }}>
                     {p.name}
-                    {(p.memo || '').includes('[HIDDEN]') && (
-                      <Chip size="small" label="숨김상품" sx={{ height: 18, fontSize: '0.6rem', ml: 0.5 }} />
-                    )}
                     {p.name_en && (
                       <Typography variant="body2" display="block" color="text.secondary">
                         {p.name_en}

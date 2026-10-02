@@ -2495,7 +2495,7 @@ function PartsManagement() {
                   />
                 </TableCell>
                 <TableCell>
-                  <Avatar src={part.image_url} alt={part.name} variant="rounded" sx={{ width: 40, height: 40, bgcolor: 'transparent', border: '1px solid #ddd', cursor: part.image_url ? 'pointer' : 'default' }} onClick={() => part.image_url && setEnlargedImage(part.image_url)}>
+                  <Avatar src={part.image_url} alt={part.name} variant="rounded" sx={{ width: 40, height: 40, bgcolor: 'transparent', border: '1px solid #ddd', cursor: part.image_url ? 'pointer' : 'default', '& .MuiAvatar-img': { objectFit: 'contain' } }} onClick={() => part.image_url && setEnlargedImage(part.image_url)}>
                     <Box sx={{ fontSize: '0.4rem', color: '#999' }}>No img</Box>
                   </Avatar>
                 </TableCell>
