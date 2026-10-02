@@ -423,6 +423,7 @@ module.exports = function(supabaseAdmin) {
       const uploadedUrlCache = new Map(); // 카페24 원본 이미지 URL -> R2 URL (동일 상품 이미지 중복 업로드 방지)
       const notFound = [];
       const failed = [];
+      const failedDetails = [];
       let updated = 0;
 
       for (const item of allItems) {
@@ -450,7 +451,10 @@ module.exports = function(supabaseAdmin) {
           if (updateError) throw updateError;
           updated++;
         } catch (e) {
+          const reason = e.response?.data?.message || e.message || String(e);
+          console.error(`[Cafe24 Image Sync] 업로드 실패 code=${code} url=${item.image_url}`, reason);
           failed.push(code);
+          if (failedDetails.length < 10) failedDetails.push({ code, reason });
         }
       }
 
@@ -461,6 +465,7 @@ module.exports = function(supabaseAdmin) {
         failedCount: failed.length,
         notFoundSample: notFound.slice(0, 5),
         failedSample: failed.slice(0, 5),
+        failedDetails,
         warnings: fetchWarnings.length > 0 ? fetchWarnings : undefined
       });
     } catch (e) {

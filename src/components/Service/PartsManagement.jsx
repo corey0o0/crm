@@ -1542,6 +1542,7 @@ function PartsManagement() {
     setImageUploadStatus({ open: true, current: 0, total: 0, message: '카페24 상품 이미지 동기화 중... (시간이 걸릴 수 있습니다)' });
     try {
       const result = await syncCafe24ProductImages();
+      console.log('카페24 이미지 동기화 결과:', result);
       setImageUploadStatus({ open: false, current: 0, total: 0, message: '' });
       await fetchParts();
 
