@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import {
   Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Button, MenuItem, CircularProgress, Snackbar, Alert, IconButton, Dialog, DialogTitle, DialogContent,
-  Checkbox, FormControlLabel, Stack, InputAdornment
+  Checkbox, FormControlLabel, Stack, InputAdornment, Chip
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import AddIcon from '@mui/icons-material/Add';
@@ -1361,11 +1361,14 @@ function StockList() {
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Typography sx={{ 
-                        fontSize: '0.95rem', 
-                        letterSpacing: '0.01em' 
+                      <Typography sx={{
+                        fontSize: '0.95rem',
+                        letterSpacing: '0.01em'
                       }}>
                         {part.name}
+                        {(part.memo || '').includes('[HIDDEN]') && (
+                          <Chip size="small" label="숨김상품" sx={{ height: 18, fontSize: '0.6rem', ml: 0.5 }} />
+                        )}
                       </Typography>
                     </TableCell>
                     {showSupplyPrice && (

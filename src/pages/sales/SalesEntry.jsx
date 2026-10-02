@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { processShipmentCompletion } from '../../utils/inventoryUtils';
 import { isWarehouseHidden } from '../../api/warehouseApi';
@@ -34,7 +34,7 @@ function SalesEntry() {
     try {
       const [{ data: agData }, { data: pData }, { data: whData }] = await Promise.all([
         supabase.from('agencies').select('*'),
-        supabase.from('parts').select('id, name, code, barcode, note, price'),
+        supabase.from('parts').select('id, name, code, barcode, note, price, memo'),
         supabase.from('warehouses').select('*').order('name')
       ]);
       if (agData) setAgencies(agData);
@@ -48,6 +48,10 @@ function SalesEntry() {
   };
 
   const handleTabChange = (e, newIndex) => setTabIndex(newIndex);
+
+  // 숨김 처리(parts.memo에 [HIDDEN] 마커)된 상품은 선택 목록에서 제외
+  // parts 자체는 건드리지 않음 — 엑셀 매칭은 과거 이력의 숨김 상품도 찾아야 함
+  const visibleParts = useMemo(() => parts.filter(p => !(p.memo || '').includes('[HIDDEN]')), [parts]);
 
   return (
     <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
@@ -64,8 +68,8 @@ function SalesEntry() {
         <Box display="flex" justifyContent="center" m={5}><CircularProgress /></Box>
       ) : (
         <>
-          {tabIndex === 0 && <SingleEntryForm agencies={agencies} parts={parts} warehouses={warehouses} setSnackbar={setSnackbar} />}
-          {tabIndex === 1 && <ExcelBatchUpload agencies={agencies} parts={parts} warehouses={warehouses} setSnackbar={setSnackbar} />}
+          {tabIndex === 0 && <SingleEntryForm agencies={agencies} parts={visibleParts} warehouses={warehouses} setSnackbar={setSnackbar} />}
+          {tabIndex === 1 && <ExcelBatchUpload agencies={agencies} parts={parts} visibleParts={visibleParts} warehouses={warehouses} setSnackbar={setSnackbar} />}
           {tabIndex === 2 && (
             <Box mt={2}>
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
@@ -253,7 +257,7 @@ function SingleEntryForm({ agencies, parts, warehouses, setSnackbar }) {
   );
 }
 
-function ExcelBatchUpload({ agencies, parts, warehouses, setSnackbar }) {
+function ExcelBatchUpload({ agencies, parts, visibleParts, warehouses, setSnackbar }) {
   const [data, setData] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [mappingDialog, setMappingDialog] = useState(false);
@@ -449,7 +453,7 @@ function ExcelBatchUpload({ agencies, parts, warehouses, setSnackbar }) {
                 <Typography sx={{ width: '40%', fontWeight: 'bold' }}>{rawName}</Typography>
                 <Autocomplete
                   sx={{ width: '60%' }}
-                  options={parts}
+                  options={visibleParts}
                   getOptionLabel={o => `${o.name} (${o.code})`}
                   value={mappingChoices[rawName] || null}
                   onChange={(e, val) => setMappingChoices(prev => ({ ...prev, [rawName]: val }))}
