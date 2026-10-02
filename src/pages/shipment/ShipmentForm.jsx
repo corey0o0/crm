@@ -336,12 +336,16 @@ function ShipmentForm({ isManualB2B = false }) {
 
   // 메모이제이션된 필터링 함수
   const filteredParts = useMemo(() => {
+    // 숨김 처리(parts.memo에 [HIDDEN] 마커)된 상품은 선택 목록에서 제외
+    // allParts 자체는 건드리지 않음 — 다른 곳(가격/코드 조회 등)에서 숨김 상품도 찾아야 함
+    const visibleParts = allParts.filter(part => !(part.memo || '').includes('[HIDDEN]'));
+
     if (!searchTerm) {
-      return allParts.slice(0, 50); // 검색어 없을 때는 처음 50개만 표시
+      return visibleParts.slice(0, 50); // 검색어 없을 때는 처음 50개만 표시
     }
 
     const searchLower = searchTerm.toLowerCase();
-    const filtered = allParts.filter(part =>
+    const filtered = visibleParts.filter(part =>
       (part.name && part.name.toLowerCase().includes(searchLower)) ||
       (part.code && part.code.toLowerCase().includes(searchLower))
     ).slice(0, 100); // 최대 100개 결과로 제한
