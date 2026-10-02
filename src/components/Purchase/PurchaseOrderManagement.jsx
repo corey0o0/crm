@@ -459,7 +459,7 @@ function PurchaseOrderManagement() {
         <CircularProgress size={24} />
       ) : (
         <Paper>
-        <TableContainer sx={{ maxHeight: '75vh', overflow: 'auto' }}>
+        <TableContainer sx={{ overflowX: 'auto', overflowY: 'visible' }}>
           <Table
             size="small"
             stickyHeader
