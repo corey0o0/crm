@@ -12,6 +12,7 @@ import AddIcon from '@mui/icons-material/Add';
 import DownloadIcon from '@mui/icons-material/Download';
 import ExcelJS from 'exceljs';
 import { supabase, queryWithTimeout } from '../../lib/supabaseClient';
+import { inventoryApi } from '../../api/inventoryApi';
 import { safeRetry, getErrorMessage, isOffline } from '../../utils/networkUtils';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -50,6 +51,7 @@ function PurchaseOrderManagement() {
   const [memoAnchor, setMemoAnchor] = useState(null);
   const [memoDraft, setMemoDraft] = useState({ key: null, partId: null, dateStr: null, text: '' });
   const [excelDownloading, setExcelDownloading] = useState(false);
+  const [stockTotals, setStockTotals] = useState({});
 
   const showSnackbar = (message, severity = 'success') => {
     setSnackbar({ open: true, message, severity });
@@ -66,7 +68,7 @@ function PurchaseOrderManagement() {
         queryWithTimeout(
           supabase
             .from('parts')
-            .select('id, name, name_en, brand, code, barcode, image_url, supply_price, price, note, memo, stock')
+            .select('id, name, name_en, brand, code, barcode, image_url, supply_price, price, note, memo')
             .order('brand')
             .order('name'),
           8000
@@ -84,6 +86,18 @@ function PurchaseOrderManagement() {
   useEffect(() => {
     fetchParts();
   }, [fetchParts]);
+
+  useEffect(() => {
+    // 전체 창고(숨김 포함) 재고 합계 — 발주관리 "현재고"는 parts.stock(기준창고 1곳)이 아니라
+    // inventory 테이블의 창고별 수량 전체 합산이어야 함
+    inventoryApi.getAll().then((rows) => {
+      const totals = {};
+      rows.forEach((r) => {
+        totals[r.product_id] = (totals[r.product_id] || 0) + (Number(r.quantity) || 0);
+      });
+      setStockTotals(totals);
+    });
+  }, []);
 
   const fetchOrdersForDate = async (dateStr) => {
     setLoadingOrders(true);
@@ -217,7 +231,7 @@ function PurchaseOrderManagement() {
         if (visibleCols.supply_price) row.push(p.supply_price || 0);
         if (visibleCols.price) row.push(p.price || 0);
         if (visibleCols.note) row.push(p.note || '');
-        row.push(p.memo || '', p.stock ?? 0);
+        row.push(p.memo || '', stockTotals[p.id] ?? 0);
         dateColumns.forEach((d) => {
           const cell = ordersMap.get(`${p.id}_${d}`) || { quantity: 0, received_quantity: 0, memo: '' };
           const order = cell.quantity || 0;
@@ -511,7 +525,7 @@ function PurchaseOrderManagement() {
                       </Tooltip>
                     ) : '-'}
                   </TableCell>
-                  <TableCell align="right">{p.stock ?? 0}</TableCell>
+                  <TableCell align="right">{stockTotals[p.id] ?? 0}</TableCell>
                   {dateColumns.map((dateStr) => {
                     const key = `${p.id}_${dateStr}`;
                     const cell = ordersMap.get(key) || { quantity: 0, received_quantity: 0 };
