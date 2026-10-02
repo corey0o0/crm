@@ -3,7 +3,7 @@ import {
   Box, Typography, TextField, Paper, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Snackbar, Alert, CircularProgress, Checkbox,
   TablePagination, Avatar, IconButton, Button, Dialog, DialogContent, FormControlLabel,
-  Select, MenuItem, FormControl, InputLabel, Tooltip, Popover, Chip,
+  Select, MenuItem, FormControl, InputLabel, Tooltip, Popover, Chip, Switch,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
@@ -37,7 +37,8 @@ function PurchaseOrderManagement() {
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [enlargedImage, setEnlargedImage] = useState(null);
-  const [visibleCols, setVisibleCols] = useState({ supply_price: true, price: true, note: true });
+  const [visibleCols, setVisibleCols] = useState({ supply_price: true, price: true, note: true, memo: true });
+  const [showHiddenParts, setShowHiddenParts] = useState(false);
   const [receivedFilter, setReceivedFilter] = useState('all');
   const [noteFilter, setNoteFilter] = useState('all');
   const [sortBy, setSortBy] = useState('brand');
@@ -68,7 +69,7 @@ function PurchaseOrderManagement() {
         queryWithTimeout(
           supabase
             .from('parts')
-            .select('id, name, name_en, brand, code, barcode, image_url, supply_price, price, note, memo')
+            .select('id, name, name_en, brand, code, barcode, image_url, supply_price, price, note, memo, created_at')
             .order('brand')
             .order('name'),
           8000
@@ -219,7 +220,8 @@ function PurchaseOrderManagement() {
       if (visibleCols.supply_price) headers.push('공급가');
       if (visibleCols.price) headers.push('판매가');
       if (visibleCols.note) headers.push('구분');
-      headers.push('적요', '현재고');
+      if (visibleCols.memo) headers.push('적요');
+      headers.push('현재고');
       dateColumns.forEach((d) => headers.push(`${d} 발주`, `${d} 입고`, `${d} 상태`, `${d} 메모`));
       worksheet.addRow(headers);
       worksheet.getRow(1).font = { bold: true };
@@ -231,7 +233,8 @@ function PurchaseOrderManagement() {
         if (visibleCols.supply_price) row.push(p.supply_price || 0);
         if (visibleCols.price) row.push(p.price || 0);
         if (visibleCols.note) row.push(p.note || '');
-        row.push(p.memo || '', stockTotals[p.id] ?? 0);
+        if (visibleCols.memo) row.push((p.memo || '').replace('[HIDDEN]', '').trim());
+        row.push(stockTotals[p.id] ?? 0);
         dateColumns.forEach((d) => {
           const cell = ordersMap.get(`${p.id}_${d}`) || { quantity: 0, received_quantity: 0, memo: '' };
           const order = cell.quantity || 0;
@@ -326,8 +329,10 @@ function PurchaseOrderManagement() {
     return hasUnreceived ? 'unreceived' : 'received';
   };
 
+  const hiddenPartsCount = parts.filter((p) => (p.memo || '').includes('[HIDDEN]')).length;
+
   const filteredParts = parts.filter((p) => {
-    if ((p.memo || '').includes('[HIDDEN]')) return false;
+    if (!showHiddenParts && (p.memo || '').includes('[HIDDEN]')) return false;
     const term = searchTerm.trim().toLowerCase();
     const matchesTerm = !term || (
       (p.name || '').toLowerCase().includes(term) ||
@@ -428,11 +433,16 @@ function PurchaseOrderManagement() {
           <Select
             label="정렬"
             value={sortBy}
-            onChange={(e) => { setSortBy(e.target.value); setPage(0); }}
+            onChange={(e) => {
+              setSortBy(e.target.value);
+              if (e.target.value === 'created_at') setSortDir('desc');
+              setPage(0);
+            }}
           >
             <MenuItem value="brand">브랜드순</MenuItem>
             <MenuItem value="code">코드순</MenuItem>
             <MenuItem value="name">제품명순</MenuItem>
+            <MenuItem value="created_at">최신순</MenuItem>
           </Select>
         </FormControl>
         <IconButton size="small" onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}>
@@ -453,6 +463,14 @@ function PurchaseOrderManagement() {
         <FormControlLabel
           control={<Checkbox size="small" checked={visibleCols.note} onChange={(e) => setVisibleCols((c) => ({ ...c, note: e.target.checked }))} />}
           label="구분"
+        />
+        <FormControlLabel
+          control={<Checkbox size="small" checked={visibleCols.memo} onChange={(e) => setVisibleCols((c) => ({ ...c, memo: e.target.checked }))} />}
+          label="적요"
+        />
+        <FormControlLabel
+          control={<Switch size="small" checked={showHiddenParts} onChange={(e) => { setShowHiddenParts(e.target.checked); setPage(0); }} color="warning" />}
+          label={`숨김상품 표시${hiddenPartsCount > 0 ? ` (${hiddenPartsCount})` : ''}`}
         />
       </Box>
 
@@ -479,7 +497,7 @@ function PurchaseOrderManagement() {
                 {visibleCols.supply_price && <TableCell align="right" sx={{ width: 90 }}>공급가</TableCell>}
                 {visibleCols.price && <TableCell align="right" sx={{ width: 90 }}>판매가</TableCell>}
                 {visibleCols.note && <TableCell sx={{ width: 70 }}>구분</TableCell>}
-                <TableCell sx={{ width: 120 }}>적요</TableCell>
+                {visibleCols.memo && <TableCell sx={{ width: 120 }}>적요</TableCell>}
                 <TableCell align="right" sx={{ width: 70 }}>현재고</TableCell>
                 {dateColumns.map((dateStr) => (
                   <TableCell key={dateStr} align="center" sx={{ width: 160, minWidth: 160 }}>
@@ -510,6 +528,9 @@ function PurchaseOrderManagement() {
                   </TableCell>
                   <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.name, zIndex: 2, bgcolor: 'background.paper' }}>
                     {p.name}
+                    {(p.memo || '').includes('[HIDDEN]') && (
+                      <Chip size="small" label="숨김상품" sx={{ height: 18, fontSize: '0.6rem', ml: 0.5 }} />
+                    )}
                     {p.name_en && (
                       <Typography variant="body2" display="block" color="text.secondary">
                         {p.name_en}
@@ -519,13 +540,18 @@ function PurchaseOrderManagement() {
                   {visibleCols.supply_price && <TableCell align="right">{p.supply_price?.toLocaleString() || '-'}</TableCell>}
                   {visibleCols.price && <TableCell align="right">{p.price?.toLocaleString() || '-'}</TableCell>}
                   {visibleCols.note && <TableCell>{p.note || '-'}</TableCell>}
-                  <TableCell>
-                    {p.memo ? (
-                      <Tooltip title={p.memo}>
-                        <span>메모</span>
-                      </Tooltip>
-                    ) : '-'}
-                  </TableCell>
+                  {visibleCols.memo && (() => {
+                    const memoText = (p.memo || '').replace('[HIDDEN]', '').trim();
+                    return (
+                      <TableCell>
+                        {memoText ? (
+                          <Tooltip title={memoText}>
+                            <span style={{ display: 'block', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{memoText}</span>
+                          </Tooltip>
+                        ) : '-'}
+                      </TableCell>
+                    );
+                  })()}
                   <TableCell align="right">{stockTotals[p.id] ?? 0}</TableCell>
                   {dateColumns.map((dateStr) => {
                     const key = `${p.id}_${dateStr}`;
