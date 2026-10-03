@@ -29,6 +29,20 @@ const STICKY_LEFT = {
 };
 const STICKY_TOTAL = STICKY_LEFT.name + STICKY_WIDTHS.name;
 
+// 기종은 DB 컬럼이 없어 상품명에서 추출. nearbike(NB)는 "[기종] 상품명", slimpack79(XRB)는 "상품명 - 기종" 형식.
+function extractModel(p) {
+  const name = p.name || '';
+  if (p.brand === 'NB') {
+    const m = name.match(/\[([^\]]+)\]/);
+    return m ? m[1].trim() : '';
+  }
+  if (p.brand === 'XRB') {
+    const idx = name.lastIndexOf(' - ');
+    return idx === -1 ? '' : name.slice(idx + 3).trim();
+  }
+  return '';
+}
+
 function PurchaseOrderManagement() {
   const [parts, setParts] = useState([]);
   const [loadingParts, setLoadingParts] = useState(true);
@@ -37,7 +51,7 @@ function PurchaseOrderManagement() {
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [enlargedImage, setEnlargedImage] = useState(null);
-  const [visibleCols, setVisibleCols] = useState({ supply_price: true, price: true, note: true, memo: true });
+  const [visibleCols, setVisibleCols] = useState({ model: true, supply_price: true, price: true, note: true, memo: true });
   const [showHiddenParts, setShowHiddenParts] = useState(false);
   const [receivedFilter, setReceivedFilter] = useState('all');
   const [noteFilter, setNoteFilter] = useState('all');
@@ -217,6 +231,7 @@ function PurchaseOrderManagement() {
       const worksheet = workbook.addWorksheet('발주현황');
 
       const headers = ['이미지', '브랜드', '코드', '바코드', '제품명'];
+      if (visibleCols.model) headers.push('기종');
       if (visibleCols.supply_price) headers.push('공급가');
       if (visibleCols.price) headers.push('판매가');
       if (visibleCols.note) headers.push('구분');
@@ -230,6 +245,7 @@ function PurchaseOrderManagement() {
 
       for (const p of sortedParts) {
         const row = [null, p.brand, p.code, p.barcode || '-', p.name];
+        if (visibleCols.model) row.push(extractModel(p));
         if (visibleCols.supply_price) row.push(p.supply_price || 0);
         if (visibleCols.price) row.push(p.price || 0);
         if (visibleCols.note) row.push(p.note || '');
@@ -454,6 +470,10 @@ function PurchaseOrderManagement() {
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, flexWrap: 'wrap' }}>
         <Typography variant="body2" color="text.secondary">컬럼 표시:</Typography>
         <FormControlLabel
+          control={<Checkbox size="small" checked={visibleCols.model} onChange={(e) => setVisibleCols((c) => ({ ...c, model: e.target.checked }))} />}
+          label="기종"
+        />
+        <FormControlLabel
           control={<Checkbox size="small" checked={visibleCols.supply_price} onChange={(e) => setVisibleCols((c) => ({ ...c, supply_price: e.target.checked }))} />}
           label="공급가"
         />
@@ -495,6 +515,7 @@ function PurchaseOrderManagement() {
                 <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.brand, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.brand, minWidth: STICKY_WIDTHS.brand }}>브랜드</TableCell>
                 <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.barcode, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.barcode, minWidth: STICKY_WIDTHS.barcode }}>바코드</TableCell>
                 <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.name, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.name, minWidth: STICKY_WIDTHS.name }}>제품명</TableCell>
+                {visibleCols.model && <TableCell sx={{ width: 90 }}>기종</TableCell>}
                 {visibleCols.supply_price && <TableCell align="right" sx={{ width: 90 }}>공급가</TableCell>}
                 {visibleCols.price && <TableCell align="right" sx={{ width: 90 }}>판매가</TableCell>}
                 {visibleCols.note && <TableCell sx={{ width: 70 }}>구분</TableCell>}
@@ -538,6 +559,7 @@ function PurchaseOrderManagement() {
                       </Typography>
                     )}
                   </TableCell>
+                  {visibleCols.model && <TableCell>{extractModel(p) || '-'}</TableCell>}
                   {visibleCols.supply_price && <TableCell align="right">{p.supply_price?.toLocaleString() || '-'}</TableCell>}
                   {visibleCols.price && <TableCell align="right">{p.price?.toLocaleString() || '-'}</TableCell>}
                   {visibleCols.note && <TableCell>{p.note || '-'}</TableCell>}
