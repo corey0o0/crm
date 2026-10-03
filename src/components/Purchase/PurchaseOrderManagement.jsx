@@ -332,6 +332,7 @@ function PurchaseOrderManagement() {
   const hiddenPartsCount = parts.filter((p) => (p.memo || '').includes('[HIDDEN]')).length;
 
   const filteredParts = parts.filter((p) => {
+    if (p.note === '공임') return false; // 발주관리: 공임은 발주 대상 아님
     if (!showHiddenParts && (p.memo || '').includes('[HIDDEN]')) return false;
     const term = searchTerm.trim().toLowerCase();
     const matchesTerm = !term || (
@@ -345,7 +346,7 @@ function PurchaseOrderManagement() {
     return getReceivedStatus(p.id) === receivedFilter;
   });
 
-  const noteOptions = [...new Set(parts.map((p) => p.note).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
+  const noteOptions = [...new Set(parts.map((p) => p.note).filter((n) => n && n !== '공임'))].sort((a, b) => a.localeCompare(b, 'ko'));
 
   const sortedParts = [...filteredParts].sort((a, b) => {
     const av = (a[sortBy] || '').toString();
