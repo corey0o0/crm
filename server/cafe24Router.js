@@ -426,36 +426,41 @@ module.exports = function(supabaseAdmin) {
       const failedDetails = [];
       let updated = 0;
 
-      for (const item of allItems) {
-        const code = String(item.custom_variant_code || '').replace(/[^0-9]/g, '');
-        if (!code) continue;
+      // ponytail: 순차 처리하면 수백개 기준 프록시 타임아웃에 걸려 끊김 → 배치 병렬 처리
+      const CONCURRENCY = 20;
+      for (let i = 0; i < allItems.length; i += CONCURRENCY) {
+        const batch = allItems.slice(i, i + CONCURRENCY);
+        await Promise.all(batch.map(async (item) => {
+          const code = String(item.custom_variant_code || '').replace(/[^0-9]/g, '');
+          if (!code) return;
 
-        const partId = barcodeToPartId.get(code);
-        if (!partId) {
-          notFound.push(code);
-          continue;
-        }
-
-        try {
-          let r2Url = uploadedUrlCache.get(item.image_url);
-          if (!r2Url) {
-            if (!isSafeRemoteUrl(item.image_url)) throw new Error('허용되지 않는 이미지 URL');
-            const { body, contentType } = await defaultFetchImage(item.image_url);
-            const ext = extensionFor(contentType, item.image_url);
-            const hash = crypto.createHash('sha256').update(item.image_url).digest('hex').slice(0, 16);
-            r2Url = await defaultUploadImage({ key: `parts/cafe24-${hash}.${ext}`, body, contentType });
-            uploadedUrlCache.set(item.image_url, r2Url);
+          const partId = barcodeToPartId.get(code);
+          if (!partId) {
+            notFound.push(code);
+            return;
           }
 
-          const { error: updateError } = await supabaseAdmin.from('parts').update({ image_url: r2Url }).eq('id', partId);
-          if (updateError) throw updateError;
-          updated++;
-        } catch (e) {
-          const reason = e.response?.data?.message || e.message || String(e);
-          console.error(`[Cafe24 Image Sync] 업로드 실패 code=${code} url=${item.image_url}`, reason);
-          failed.push(code);
-          if (failedDetails.length < 10) failedDetails.push({ code, reason });
-        }
+          try {
+            let r2Url = uploadedUrlCache.get(item.image_url);
+            if (!r2Url) {
+              if (!isSafeRemoteUrl(item.image_url)) throw new Error('허용되지 않는 이미지 URL');
+              const { body, contentType } = await defaultFetchImage(item.image_url);
+              const ext = extensionFor(contentType, item.image_url);
+              const hash = crypto.createHash('sha256').update(item.image_url).digest('hex').slice(0, 16);
+              r2Url = await defaultUploadImage({ key: `parts/cafe24-${hash}.${ext}`, body, contentType });
+              uploadedUrlCache.set(item.image_url, r2Url);
+            }
+
+            const { error: updateError } = await supabaseAdmin.from('parts').update({ image_url: r2Url }).eq('id', partId);
+            if (updateError) throw updateError;
+            updated++;
+          } catch (e) {
+            const reason = e.response?.data?.message || e.message || String(e);
+            console.error(`[Cafe24 Image Sync] 업로드 실패 code=${code} url=${item.image_url}`, reason);
+            failed.push(code);
+            if (failedDetails.length < 10) failedDetails.push({ code, reason });
+          }
+        }));
       }
 
       res.json({
