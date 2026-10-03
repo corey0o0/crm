@@ -18,6 +18,7 @@ import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ko } from 'date-fns/locale';
 import { format, parseISO } from 'date-fns';
+import { matchKnownAirframeModel } from '../../utils/airframeModelNormalize';
 
 // 왼쪽 고정(스티키) 컬럼 폭. 헤더/바디 offset 계산에 재사용.
 const STICKY_WIDTHS = { image: 48, brand: 70, barcode: 90, name: 160 };
@@ -29,18 +30,10 @@ const STICKY_LEFT = {
 };
 const STICKY_TOTAL = STICKY_LEFT.name + STICKY_WIDTHS.name;
 
-// 기종은 DB 컬럼이 없어 상품명에서 추출. nearbike(NB)는 "[기종] 상품명", slimpack79(XRB)는 "상품명 - 기종" 형식.
+// 기종은 DB 컬럼이 없어 상품명에서 추출. 브랜드별 위치(괄호/대시)가 제각각이라
+// 판매통계에서 쓰는 기종 키워드 매칭(브랜드 무관, 텍스트 전체 스캔)을 재사용.
 function extractModel(p) {
-  const name = p.name || '';
-  if (p.brand === 'NB') {
-    const m = name.match(/\[([^\]]+)\]/);
-    return m ? m[1].trim() : '';
-  }
-  if (p.brand === 'XRB') {
-    const idx = name.lastIndexOf(' - ');
-    return idx === -1 ? '' : name.slice(idx + 3).trim();
-  }
-  return '';
+  return matchKnownAirframeModel(p.name) || '';
 }
 
 function PurchaseOrderManagement() {

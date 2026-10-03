@@ -6,6 +6,10 @@
  */
 
 const RULES = [
+  { re: /x200\s*gt|x200gt/, name: 'X200 GT' },
+  { re: /x100\s*gt|x100gt/, name: 'X100 GT' },
+  { re: /x50\s*gt|x50gt/, name: 'X50 GT' },
+  { re: /터보\s*gt|turbo\s*gt|터보gt/, name: '터보 GT' },
   { re: /x200\s*듀오|x200\s*duo/, name: 'X200 듀오' },
   { re: /x200\s*맥스\s*sl|x200\s*max\s*sl|x200맥스\s*sl|x200max\s*sl/, name: 'X200 맥스 SL' },
   { re: /x200\s*프로\s*sl|x200\s*pro\s*sl|x200프로\s*sl|x200pro\s*sl/, name: 'X200 프로 SL' },
@@ -35,6 +39,24 @@ const RULES = [
 
 const COLOR_TAIL =
   /\s*(?:-|–|—)?\s*(블랙|화이트|베이지|그레이|핑크|틸블루|미러크롬|메탈\s*그레이|어반\s*그레이|샌드\s*베이지|매트\s*블랙|유광\s*블랙|로얄\s*네이비|어반\s*그린|아미\s*그린|메탈그레이|샌드베이지|그레이|네이비|그린).*$/i;
+
+/**
+ * 알려진 기종 키워드로만 매칭 (fallback 없음). 매칭 안되면 null.
+ * @param {string} raw
+ * @returns {string|null}
+ */
+export function matchKnownAirframeModel(raw) {
+  if (!raw) return null;
+  const n = String(raw)
+    .toLowerCase()
+    .replace(/[()[\]{}]/g, ' ')
+    .replace(/[_\s]+/g, ' ')
+    .trim();
+  for (const rule of RULES) {
+    if (rule.re.test(n)) return rule.name;
+  }
+  return null;
+}
 
 /**
  * @param {string} raw - 원본 상품/부품명 (오프라인 part_name 또는 온라인 resolve 결과)
