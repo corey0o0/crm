@@ -21,12 +21,13 @@ import { format, parseISO } from 'date-fns';
 import { matchAllKnownAirframeModels } from '../../utils/airframeModelNormalize';
 
 // 왼쪽 고정(스티키) 컬럼 폭. 헤더/바디 offset 계산에 재사용.
-const STICKY_WIDTHS = { image: 48, brand: 70, barcode: 90, name: 160 };
+const STICKY_WIDTHS = { checkbox: 42, image: 48, brand: 70, barcode: 90, name: 160 };
 const STICKY_LEFT = {
-  image: 0,
-  brand: STICKY_WIDTHS.image,
-  barcode: STICKY_WIDTHS.image + STICKY_WIDTHS.brand,
-  name: STICKY_WIDTHS.image + STICKY_WIDTHS.brand + STICKY_WIDTHS.barcode,
+  checkbox: 0,
+  image: STICKY_WIDTHS.checkbox,
+  brand: STICKY_WIDTHS.checkbox + STICKY_WIDTHS.image,
+  barcode: STICKY_WIDTHS.checkbox + STICKY_WIDTHS.image + STICKY_WIDTHS.brand,
+  name: STICKY_WIDTHS.checkbox + STICKY_WIDTHS.image + STICKY_WIDTHS.brand + STICKY_WIDTHS.barcode,
 };
 const STICKY_TOTAL = STICKY_LEFT.name + STICKY_WIDTHS.name;
 
@@ -48,8 +49,10 @@ function PurchaseOrderManagement() {
   const [showHiddenParts, setShowHiddenParts] = useState(false);
   const [receivedFilter, setReceivedFilter] = useState('all');
   const [noteFilter, setNoteFilter] = useState('all');
+  const [purchaseSourceFilter, setPurchaseSourceFilter] = useState('all');
   const [sortBy, setSortBy] = useState('brand');
   const [sortDir, setSortDir] = useState('asc');
+  const [selectedIds, setSelectedIds] = useState(new Set());
 
   const [dateColumns, setDateColumns] = useState([]);
   const [newDate, setNewDate] = useState(null);
@@ -217,9 +220,30 @@ function PurchaseOrderManagement() {
     }
   };
 
+  const handleSelectRow = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleSelectAllPage = (checked) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      pagedParts.forEach((p) => {
+        if (checked) next.add(p.id);
+        else next.delete(p.id);
+      });
+      return next;
+    });
+  };
+
   const handleExcelDownload = async () => {
     setExcelDownloading(true);
     try {
+      const exportParts = selectedIds.size > 0 ? sortedParts.filter((p) => selectedIds.has(p.id)) : sortedParts;
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('발주현황');
 
@@ -236,22 +260,26 @@ function PurchaseOrderManagement() {
       worksheet.getRow(1).font = { bold: true };
       worksheet.getColumn(1).width = 10;
       worksheet.getColumn(6).width = 24;
+      // 이미지 셀 크기(픽셀 환산): 열너비(문자단위) ≈ chars*7+5, 행높이(pt) ≈ pt*96/72
+      const IMAGE_CELL_PX = { width: Math.round(10 * 7 + 5), height: Math.round(40 * 96 / 72) };
 
       const imageBuffers = new Map();
-      await Promise.all(sortedParts.map(async (p) => {
+      await Promise.all(exportParts.map(async (p) => {
         if (!p.image_url) return;
         try {
           const res = await fetch(p.image_url);
           const blob = await res.blob();
           const buffer = await blob.arrayBuffer();
           const ext = blob.type.includes('png') ? 'png' : 'jpeg';
-          imageBuffers.set(p.id, { buffer, ext });
+          const bitmap = await createImageBitmap(blob);
+          imageBuffers.set(p.id, { buffer, ext, width: bitmap.width, height: bitmap.height });
+          bitmap.close();
         } catch (e) {
           // 이미지 로드 실패시 건너뜀
         }
       }));
 
-      for (const p of sortedParts) {
+      for (const p of exportParts) {
         const row = [null, p.brand, p.code, p.barcode || '-', p.name_en || '', p.name];
         if (visibleCols.model) row.push(extractModel(p));
         if (visibleCols.supply_price) row.push(p.supply_price || 0);
@@ -275,10 +303,25 @@ function PurchaseOrderManagement() {
 
         const img = imageBuffers.get(p.id);
         if (img) {
+          const scale = Math.min(IMAGE_CELL_PX.width / img.width, IMAGE_CELL_PX.height / img.height);
           const imageId = workbook.addImage({ buffer: img.buffer, extension: img.ext });
-          worksheet.addImage(imageId, { tl: { col: 0, row: excelRow.number - 1 }, ext: { width: 40, height: 40 } });
+          worksheet.addImage(imageId, {
+            tl: { col: 0, row: excelRow.number - 1 },
+            ext: { width: img.width * scale, height: img.height * scale },
+          });
         }
       }
+
+      worksheet.eachRow((row) => {
+        row.eachCell({ includeEmpty: true }, (cell) => {
+          cell.border = {
+            top: { style: 'thin' },
+            left: { style: 'thin' },
+            bottom: { style: 'thin' },
+            right: { style: 'thin' },
+          };
+        });
+      });
 
       const buffer = await workbook.xlsx.writeBuffer();
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -360,11 +403,13 @@ function PurchaseOrderManagement() {
     );
     if (!matchesTerm) return false;
     if (noteFilter !== 'all' && (p.note || '') !== noteFilter) return false;
+    if (purchaseSourceFilter !== 'all' && (p.purchase_source || '') !== purchaseSourceFilter) return false;
     if (receivedFilter === 'all') return true;
     return getReceivedStatus(p.id) === receivedFilter;
   });
 
   const noteOptions = [...new Set(parts.map((p) => p.note).filter((n) => n && n !== '공임' && n !== '기타'))].sort((a, b) => a.localeCompare(b, 'ko'));
+  const purchaseSourceOptions = [...new Set(parts.map((p) => p.purchase_source).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
 
   const sortedParts = [...filteredParts].sort((a, b) => {
     const av = (a[sortBy] || '').toString();
@@ -418,8 +463,13 @@ function PurchaseOrderManagement() {
           onClick={handleExcelDownload}
           disabled={excelDownloading}
         >
-          엑셀 다운로드
+          엑셀 다운로드{selectedIds.size > 0 && ` (선택 ${selectedIds.size})`}
         </Button>
+        {selectedIds.size > 0 && (
+          <Button size="small" onClick={() => setSelectedIds(new Set())}>
+            선택 해제
+          </Button>
+        )}
         {loadingOrders && <CircularProgress size={20} />}
 
         <FormControl size="small" sx={{ minWidth: 120 }}>
@@ -445,6 +495,20 @@ function PurchaseOrderManagement() {
             <MenuItem value="all">전체</MenuItem>
             {noteOptions.map((n) => (
               <MenuItem key={n} value={n}>{n}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        <FormControl size="small" sx={{ minWidth: 120 }}>
+          <InputLabel>매입처</InputLabel>
+          <Select
+            label="매입처"
+            value={purchaseSourceFilter}
+            onChange={(e) => { setPurchaseSourceFilter(e.target.value); setPage(0); }}
+          >
+            <MenuItem value="all">전체</MenuItem>
+            {purchaseSourceOptions.map((s) => (
+              <MenuItem key={s} value={s}>{s}</MenuItem>
             ))}
           </Select>
         </FormControl>
@@ -519,6 +583,14 @@ function PurchaseOrderManagement() {
           >
             <TableHead>
               <TableRow>
+                <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.checkbox, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.checkbox, minWidth: STICKY_WIDTHS.checkbox, p: 0.5 }}>
+                  <Checkbox
+                    size="small"
+                    checked={pagedParts.length > 0 && pagedParts.every((p) => selectedIds.has(p.id))}
+                    indeterminate={pagedParts.some((p) => selectedIds.has(p.id)) && !pagedParts.every((p) => selectedIds.has(p.id))}
+                    onChange={(e) => handleSelectAllPage(e.target.checked)}
+                  />
+                </TableCell>
                 <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.image, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.image, minWidth: STICKY_WIDTHS.image }}>이미지</TableCell>
                 <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.brand, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.brand, minWidth: STICKY_WIDTHS.brand }}>브랜드</TableCell>
                 <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.barcode, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.barcode, minWidth: STICKY_WIDTHS.barcode }}>바코드</TableCell>
@@ -546,6 +618,9 @@ function PurchaseOrderManagement() {
             <TableBody>
               {pagedParts.map((p) => (
                 <TableRow key={p.id}>
+                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.checkbox, zIndex: 2, bgcolor: 'background.paper', p: 0.5 }}>
+                    <Checkbox size="small" checked={selectedIds.has(p.id)} onChange={() => handleSelectRow(p.id)} />
+                  </TableCell>
                   <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.image, zIndex: 2, bgcolor: 'background.paper' }}>
                     <Avatar
                       src={p.image_url}
