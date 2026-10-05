@@ -21,7 +21,6 @@ function mapPartToProduct(part) {
     description: part.note || part.description || null,
     note: part.note || null,
     supplier: part.brand || part.supplier || null,
-    discount_group: part.discount_group || null,
     track_inventory: part.track_inventory !== false && part.track_inventory !== 'false',
     status: 'active',
     is_deleted: part.is_deleted || false,
