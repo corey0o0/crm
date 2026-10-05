@@ -341,7 +341,7 @@ function PurchaseOrderManagement() {
   const hiddenPartsCount = parts.filter((p) => (p.memo || '').includes('[HIDDEN]')).length;
 
   const filteredParts = parts.filter((p) => {
-    if (p.note === '공임') return false; // 발주관리: 공임은 발주 대상 아님
+    if (p.note === '공임' || p.note === '기타') return false; // 발주관리: 공임/기타는 발주 대상 아님
     if (!showHiddenParts && (p.memo || '').includes('[HIDDEN]')) return false;
     const term = searchTerm.trim().toLowerCase();
     const matchesTerm = !term || (
@@ -355,7 +355,7 @@ function PurchaseOrderManagement() {
     return getReceivedStatus(p.id) === receivedFilter;
   });
 
-  const noteOptions = [...new Set(parts.map((p) => p.note).filter((n) => n && n !== '공임'))].sort((a, b) => a.localeCompare(b, 'ko'));
+  const noteOptions = [...new Set(parts.map((p) => p.note).filter((n) => n && n !== '공임' && n !== '기타'))].sort((a, b) => a.localeCompare(b, 'ko'));
 
   const sortedParts = [...filteredParts].sort((a, b) => {
     const av = (a[sortBy] || '').toString();
@@ -365,7 +365,9 @@ function PurchaseOrderManagement() {
   });
 
   const pagedParts = sortedParts.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-  const tableMinWidth = STICKY_TOTAL + 440 + dateColumns.length * 160;
+  const MIN_DATE_COLUMNS = 5;
+  const placeholderColumnCount = Math.max(0, MIN_DATE_COLUMNS - dateColumns.length);
+  const tableMinWidth = STICKY_TOTAL + 440 + (dateColumns.length + placeholderColumnCount) * 160;
 
   return (
     <Box sx={{ p: 3, width: '100%' }}>
@@ -522,6 +524,9 @@ function PurchaseOrderManagement() {
                     </IconButton>
                   </TableCell>
                 ))}
+                {Array.from({ length: placeholderColumnCount }).map((_, i) => (
+                  <TableCell key={`ph-${i}`} align="center" sx={{ width: 160, minWidth: 160, bgcolor: 'action.hover' }} />
+                ))}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -646,6 +651,9 @@ function PurchaseOrderManagement() {
                       </TableCell>
                     );
                   })}
+                  {Array.from({ length: placeholderColumnCount }).map((_, i) => (
+                    <TableCell key={`ph-${i}`} sx={{ bgcolor: 'action.hover' }} />
+                  ))}
                 </TableRow>
               ))}
             </TableBody>
