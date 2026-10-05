@@ -18,7 +18,7 @@ import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ko } from 'date-fns/locale';
 import { format, parseISO } from 'date-fns';
-import { matchKnownAirframeModel } from '../../utils/airframeModelNormalize';
+import { matchAllKnownAirframeModels } from '../../utils/airframeModelNormalize';
 
 // 왼쪽 고정(스티키) 컬럼 폭. 헤더/바디 offset 계산에 재사용.
 const STICKY_WIDTHS = { image: 48, brand: 70, barcode: 90, name: 160 };
@@ -33,7 +33,7 @@ const STICKY_TOTAL = STICKY_LEFT.name + STICKY_WIDTHS.name;
 // 기종은 DB 컬럼이 없어 상품명에서 추출. 브랜드별 위치(괄호/대시)가 제각각이라
 // 판매통계에서 쓰는 기종 키워드 매칭(브랜드 무관, 텍스트 전체 스캔)을 재사용.
 function extractModel(p) {
-  return matchKnownAirframeModel(p.name) || '';
+  return matchAllKnownAirframeModels(p.name).join('/');
 }
 
 function PurchaseOrderManagement() {
@@ -44,7 +44,7 @@ function PurchaseOrderManagement() {
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [enlargedImage, setEnlargedImage] = useState(null);
-  const [visibleCols, setVisibleCols] = useState({ model: true, supply_price: true, price: true, note: true, memo: true });
+  const [visibleCols, setVisibleCols] = useState({ model: true, supply_price: true, price: true, note: true, memo: true, purchase_source: true });
   const [showHiddenParts, setShowHiddenParts] = useState(false);
   const [receivedFilter, setReceivedFilter] = useState('all');
   const [noteFilter, setNoteFilter] = useState('all');
@@ -76,7 +76,7 @@ function PurchaseOrderManagement() {
         queryWithTimeout(
           supabase
             .from('parts')
-            .select('id, name, name_en, brand, code, barcode, image_url, supply_price, price, note, memo, created_at')
+            .select('id, name, name_en, brand, code, barcode, image_url, supply_price, price, note, memo, purchase_source, created_at')
             .order('brand')
             .order('name'),
           8000
@@ -223,26 +223,42 @@ function PurchaseOrderManagement() {
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('발주현황');
 
-      const headers = ['이미지', '브랜드', '코드', '바코드', '제품명'];
+      const headers = ['이미지', '브랜드', '코드', '바코드', '영문명', '제품명'];
       if (visibleCols.model) headers.push('기종');
       if (visibleCols.supply_price) headers.push('공급가');
       if (visibleCols.price) headers.push('판매가');
       if (visibleCols.note) headers.push('구분');
       if (visibleCols.memo) headers.push('적요');
+      if (visibleCols.purchase_source) headers.push('매입처');
       headers.push('현재고');
       dateColumns.forEach((d) => headers.push(`${d} 발주`, `${d} 입고`, `${d} 상태`, `${d} 메모`));
       worksheet.addRow(headers);
       worksheet.getRow(1).font = { bold: true };
       worksheet.getColumn(1).width = 10;
-      worksheet.getColumn(5).width = 24;
+      worksheet.getColumn(6).width = 24;
+
+      const imageBuffers = new Map();
+      await Promise.all(sortedParts.map(async (p) => {
+        if (!p.image_url) return;
+        try {
+          const res = await fetch(p.image_url);
+          const blob = await res.blob();
+          const buffer = await blob.arrayBuffer();
+          const ext = blob.type.includes('png') ? 'png' : 'jpeg';
+          imageBuffers.set(p.id, { buffer, ext });
+        } catch (e) {
+          // 이미지 로드 실패시 건너뜀
+        }
+      }));
 
       for (const p of sortedParts) {
-        const row = [null, p.brand, p.code, p.barcode || '-', p.name];
+        const row = [null, p.brand, p.code, p.barcode || '-', p.name_en || '', p.name];
         if (visibleCols.model) row.push(extractModel(p));
         if (visibleCols.supply_price) row.push(p.supply_price || 0);
         if (visibleCols.price) row.push(p.price || 0);
         if (visibleCols.note) row.push(p.note || '');
         if (visibleCols.memo) row.push((p.memo || '').replace('[HIDDEN]', '').trim());
+        if (visibleCols.purchase_source) row.push(p.purchase_source || '');
         row.push(stockTotals[p.id] ?? 0);
         dateColumns.forEach((d) => {
           const cell = ordersMap.get(`${p.id}_${d}`) || { quantity: 0, received_quantity: 0, memo: '' };
@@ -257,17 +273,10 @@ function PurchaseOrderManagement() {
         const excelRow = worksheet.addRow(row);
         excelRow.height = 40;
 
-        if (p.image_url) {
-          try {
-            const res = await fetch(p.image_url);
-            const blob = await res.blob();
-            const buffer = await blob.arrayBuffer();
-            const ext = blob.type.includes('png') ? 'png' : 'jpeg';
-            const imageId = workbook.addImage({ buffer, extension: ext });
-            worksheet.addImage(imageId, { tl: { col: 0, row: excelRow.number - 1 }, ext: { width: 40, height: 40 } });
-          } catch (e) {
-            // 이미지 로드 실패시 건너뜀
-          }
+        const img = imageBuffers.get(p.id);
+        if (img) {
+          const imageId = workbook.addImage({ buffer: img.buffer, extension: img.ext });
+          worksheet.addImage(imageId, { tl: { col: 0, row: excelRow.number - 1 }, ext: { width: 40, height: 40 } });
         }
       }
 
@@ -485,6 +494,10 @@ function PurchaseOrderManagement() {
           label="적요"
         />
         <FormControlLabel
+          control={<Checkbox size="small" checked={visibleCols.purchase_source} onChange={(e) => setVisibleCols((c) => ({ ...c, purchase_source: e.target.checked }))} />}
+          label="매입처"
+        />
+        <FormControlLabel
           control={<Switch size="small" checked={showHiddenParts} onChange={(e) => { setShowHiddenParts(e.target.checked); setPage(0); }} color="warning" />}
           label={`숨김상품 표시${hiddenPartsCount > 0 ? ` (${hiddenPartsCount})` : ''}`}
         />
@@ -515,6 +528,7 @@ function PurchaseOrderManagement() {
                 {visibleCols.price && <TableCell align="right" sx={{ width: 90 }}>판매가</TableCell>}
                 {visibleCols.note && <TableCell sx={{ width: 70 }}>구분</TableCell>}
                 {visibleCols.memo && <TableCell sx={{ width: 120 }}>적요</TableCell>}
+                {visibleCols.purchase_source && <TableCell sx={{ width: 100 }}>매입처</TableCell>}
                 <TableCell align="right" sx={{ width: 70 }}>현재고</TableCell>
                 {dateColumns.map((dateStr) => (
                   <TableCell key={dateStr} align="center" sx={{ width: 160, minWidth: 160 }}>
@@ -573,6 +587,7 @@ function PurchaseOrderManagement() {
                       </TableCell>
                     );
                   })()}
+                  {visibleCols.purchase_source && <TableCell>{p.purchase_source || '-'}</TableCell>}
                   <TableCell align="right">{stockTotals[p.id] ?? 0}</TableCell>
                   {dateColumns.map((dateStr) => {
                     const key = `${p.id}_${dateStr}`;

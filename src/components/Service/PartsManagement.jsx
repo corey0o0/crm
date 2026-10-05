@@ -101,6 +101,7 @@ const PartsFormDialog = memo(({
     memo: '',
     note: '파츠',
     discount_group: '',
+    purchaseSource: '',
     image_url: '',
     track_inventory: true
   });
@@ -137,6 +138,7 @@ const PartsFormDialog = memo(({
           memo: initialData.memo || '',
           note: initialData.note || '파츠',
           discount_group: initialData.discount_group || '',
+          purchaseSource: initialData.purchase_source || '',
           image_url: initialData.image_url || '',
           track_inventory: initialData.track_inventory !== false
         });
@@ -159,6 +161,7 @@ const PartsFormDialog = memo(({
           memo: '',
           note: defaultCategory,
           discount_group: '',
+          purchaseSource: '',
           image_url: '',
           track_inventory: defaultCategory !== '공임'
         });
@@ -502,6 +505,16 @@ const PartsFormDialog = memo(({
               value={formData.discount_group}
               onChange={handleChange}
               placeholder="그룹 단위 할인/가격을 관리할 때 입력"
+            />
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <TextField
+              fullWidth
+              label="매입처"
+              name="purchaseSource"
+              value={formData.purchaseSource}
+              onChange={handleChange}
+              placeholder="어디서 매입하는 상품인지 입력"
             />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
@@ -1045,6 +1058,7 @@ function PartsManagement() {
       partData.memo = formData.memo || null;
       partData.note = formData.note || null;
       partData.discount_group = formData.discount_group || null;
+      partData.purchase_source = formData.purchaseSource || null;
 
       if (selectedPart) {
         let { error } = await supabase
@@ -1820,7 +1834,7 @@ function PartsManagement() {
       if (!searchTerm) return true;
 
       // 검색어 필터링 — 공백으로 쪼갠 단어가 모두 포함되면 매치(순서 무관, 대소문자 구분 없이)
-      const haystack = `${part.name || ''} ${part.code || ''} ${part.barcode || ''} ${part.note || ''} ${part.memo || ''}`.toLowerCase();
+      const haystack = `${part.name || ''} ${part.code || ''} ${part.barcode || ''} ${part.note || ''} ${part.memo || ''} ${part.purchase_source || ''}`.toLowerCase();
       const tokens = searchTermLower.trim().split(/\s+/).filter(Boolean);
       return tokens.every(tok => haystack.includes(tok));
     });
@@ -1952,6 +1966,7 @@ function PartsManagement() {
         memo: part.memo || null,
         note: part.note || null,
         discount_group: part.discount_group || null,
+        purchase_source: part.purchase_source || null,
         agency_price: part.agency_price || 0,
         track_inventory: part.track_inventory !== false,
         stock: 0 // 초기 재고는 0으로 설정
@@ -1985,6 +2000,7 @@ function PartsManagement() {
               memo: newPart.memo,
               note: newPart.note,
               discount_group: newPart.discount_group,
+              purchase_source: newPart.purchase_source,
               agency_price: newPart.agency_price,
               track_inventory: newPart.track_inventory
             })
@@ -2643,6 +2659,7 @@ function PartsManagement() {
               {renderSortableHeader('price', '판매가', 'right')}
               {renderSortableHeader('note', '구분')}
               {renderSortableHeader('memo', '적요')}
+              {renderSortableHeader('purchase_source', '매입처')}
               <TableCell sx={{ display: 'none' }} />
               {/* <TableCell>연동</TableCell> */}
               <TableCell align="right">액션</TableCell>
@@ -2705,6 +2722,11 @@ function PartsManagement() {
                 <TableCell>
                   <Typography sx={{ fontSize: '0.875rem', color: part.memo ? 'text.primary' : 'text.secondary', fontStyle: part.memo ? 'normal' : 'italic' }}>
                     {part.memo || '-'}
+                  </Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography sx={{ fontSize: '0.875rem', color: part.purchase_source ? 'text.primary' : 'text.secondary', fontStyle: part.purchase_source ? 'normal' : 'italic' }}>
+                    {part.purchase_source || '-'}
                   </Typography>
                 </TableCell>
                 <TableCell sx={{ display: 'none' }} />

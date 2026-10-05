@@ -59,6 +59,22 @@ export function matchKnownAirframeModel(raw) {
 }
 
 /**
+ * 호환 기종이 여러 개인 공용 부속("... - 터보GT/X200GT/X100GT/레트로FS")은
+ * '/'로 구분된 조각별로 매칭해 전부 반환. 매칭 안되면 빈 배열.
+ * @param {string} raw
+ * @returns {string[]}
+ */
+export function matchAllKnownAirframeModels(raw) {
+  if (!raw) return [];
+  const names = [];
+  for (const seg of String(raw).split('/')) {
+    const name = matchKnownAirframeModel(seg);
+    if (name && !names.includes(name)) names.push(name);
+  }
+  return names;
+}
+
+/**
  * @param {string} raw - 원본 상품/부품명 (오프라인 part_name 또는 온라인 resolve 결과)
  * @returns {string} 표준 기종명
  */
