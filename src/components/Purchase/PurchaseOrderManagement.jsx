@@ -365,7 +365,7 @@ function PurchaseOrderManagement() {
   });
 
   const pagedParts = sortedParts.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-  const MIN_DATE_COLUMNS = 5;
+  const MIN_DATE_COLUMNS = 2;
   const placeholderColumnCount = Math.max(0, MIN_DATE_COLUMNS - dateColumns.length);
   const tableMinWidth = STICKY_TOTAL + 440 + (dateColumns.length + placeholderColumnCount) * 160;
 
