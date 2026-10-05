@@ -2062,6 +2062,31 @@ function PartsManagement() {
   };
 
   const handleBatchUpdatePrices = async () => {
+    if (batchEditTarget === 'purchase_source') {
+      try {
+        setIsBatchUpdating(true);
+        const selectedPartsData = parts.filter(part => selectedItems.includes(part.id));
+        const updatePromises = selectedPartsData.map(part =>
+          supabase
+            .from('parts')
+            .update({ purchase_source: batchEditValue.trim() || null })
+            .eq('id', part.id)
+        );
+
+        await Promise.all(updatePromises);
+        showSnackbar(`${selectedItems.length}개 항목의 매입처가 일괄 수정되었습니다.`, 'success');
+        handleCloseBatchEditDialog();
+        setSelectedItems([]);
+        fetchParts();
+      } catch (error) {
+        console.error('일괄 매입처 수정 오류:', error);
+        showSnackbar('매입처 수정 중 오류가 발생했습니다.', 'error');
+      } finally {
+        setIsBatchUpdating(false);
+      }
+      return;
+    }
+
     if (!batchEditValue || isNaN(Number(batchEditValue))) {
       showSnackbar('유효한 숫자를 입력해주세요.', 'warning');
       return;
@@ -2085,7 +2110,7 @@ function PartsManagement() {
       const updatePromises = selectedPartsData.map(part => {
         const salesPrice = Number(part.price || 0);
         let newValue = 0;
-        
+
         if (batchEditMode === 'percent') {
           newValue = Math.round(salesPrice * (value / 100));
         } else if (batchEditMode === 'amount') {
@@ -2339,7 +2364,7 @@ function PartsManagement() {
                 disabled={selectedItems.length === 0}
                 sx={{ bgcolor: '#ff9800', '&:hover': { bgcolor: '#f57c00' }, color: 'white' }}
               >
-                일괄 가격 수정
+                일괄 수정
               </Button>
             </Grid>
 
@@ -3045,10 +3070,12 @@ function PartsManagement() {
       </Dialog>
 
       <Dialog open={openBatchEditDialog} onClose={handleCloseBatchEditDialog} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 'bold' }}>선택 항목 일괄 가격 수정 ({selectedItems.length}개)</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 'bold' }}>선택 항목 일괄 수정 ({selectedItems.length}개)</DialogTitle>
         <DialogContent dividers>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            선택한 {selectedItems.length}개 항목의 대상을 지정한 후, 해당 항목의 <strong>판매가</strong>를 기준으로 일괄 계산하여 적용합니다.
+            {batchEditTarget === 'purchase_source'
+              ? `선택한 ${selectedItems.length}개 항목의 매입처를 일괄 적용합니다.`
+              : <>선택한 {selectedItems.length}개 항목의 대상을 지정한 후, 해당 항목의 <strong>판매가</strong>를 기준으로 일괄 계산하여 적용합니다.</>}
           </Typography>
 
           <FormControl component="fieldset" sx={{ width: '100%', mb: 3 }}>
@@ -3057,35 +3084,54 @@ function PartsManagement() {
               {isMaster && <FormControlLabel value="cost_price" control={<Radio />} label="매입가" />}
               <FormControlLabel value="supply_price" control={<Radio />} label="공급가" />
               <FormControlLabel value="special_price" control={<Radio />} label="특별 공급가" />
+              <FormControlLabel value="purchase_source" control={<Radio />} label="매입처" />
             </RadioGroup>
           </FormControl>
 
-          <FormControl component="fieldset" sx={{ width: '100%', mb: 3 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>계산 방식 (판매가 기준)</Typography>
-            <RadioGroup row value={batchEditMode} onChange={(e) => setBatchEditMode(e.target.value)}>
-              <FormControlLabel value="percent" control={<Radio />} label="판매가의 % 적용" />
-              <FormControlLabel value="amount" control={<Radio />} label="판매가에서 정액 차감" />
-            </RadioGroup>
-          </FormControl>
+          {batchEditTarget === 'purchase_source' ? (
+            <TextField
+              fullWidth
+              label="매입처"
+              value={batchEditValue}
+              onChange={(e) => setBatchEditValue(e.target.value)}
+              placeholder="어디서 매입하는 상품인지 입력"
+              helperText="빈칸으로 두고 적용하면 매입처가 비워집니다."
+            />
+          ) : (
+            <>
+              <FormControl component="fieldset" sx={{ width: '100%', mb: 3 }}>
+                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>계산 방식 (판매가 기준)</Typography>
+                <RadioGroup row value={batchEditMode} onChange={(e) => setBatchEditMode(e.target.value)}>
+                  <FormControlLabel value="percent" control={<Radio />} label="판매가의 % 적용" />
+                  <FormControlLabel value="amount" control={<Radio />} label="판매가에서 정액 차감" />
+                </RadioGroup>
+              </FormControl>
 
-          <TextField
-            fullWidth
-            label={batchEditMode === 'percent' ? "비율 (%)" : "차감 금액 (원)"}
-            type="number"
-            value={batchEditValue}
-            onChange={(e) => setBatchEditValue(e.target.value)}
-            placeholder={batchEditMode === 'percent' ? "예: 70" : "예: 10000"}
-            helperText={batchEditMode === 'percent' 
-              ? "예: 70 입력 시 '판매가 × 0.7'로 일괄 적용됩니다." 
-              : "예: 10000 입력 시 '판매가 - 10,000원'으로 일괄 적용됩니다."}
-            InputProps={{
-              endAdornment: <InputAdornment position="end">{batchEditMode === 'percent' ? '%' : '원'}</InputAdornment>,
-            }}
-          />
+              <TextField
+                fullWidth
+                label={batchEditMode === 'percent' ? "비율 (%)" : "차감 금액 (원)"}
+                type="number"
+                value={batchEditValue}
+                onChange={(e) => setBatchEditValue(e.target.value)}
+                placeholder={batchEditMode === 'percent' ? "예: 70" : "예: 10000"}
+                helperText={batchEditMode === 'percent'
+                  ? "예: 70 입력 시 '판매가 × 0.7'로 일괄 적용됩니다."
+                  : "예: 10000 입력 시 '판매가 - 10,000원'으로 일괄 적용됩니다."}
+                InputProps={{
+                  endAdornment: <InputAdornment position="end">{batchEditMode === 'percent' ? '%' : '원'}</InputAdornment>,
+                }}
+              />
+            </>
+          )}
         </DialogContent>
         <DialogActions sx={{ p: 2, px: 3 }}>
           <Button onClick={handleCloseBatchEditDialog} color="inherit">취소</Button>
-          <Button onClick={handleBatchUpdatePrices} variant="contained" color="primary" disabled={isBatchUpdating || !batchEditValue}>
+          <Button
+            onClick={handleBatchUpdatePrices}
+            variant="contained"
+            color="primary"
+            disabled={isBatchUpdating || (batchEditTarget !== 'purchase_source' && !batchEditValue)}
+          >
             {isBatchUpdating ? <CircularProgress size={24} /> : '일괄 적용'}
           </Button>
         </DialogActions>
