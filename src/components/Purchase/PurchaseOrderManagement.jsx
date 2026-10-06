@@ -314,6 +314,7 @@ function PurchaseOrderManagement() {
         if (visibleCols.memo) row.push((p.memo || '').replace('[HIDDEN]', '').trim());
         if (visibleCols.purchase_source) row.push(p.purchase_source || '');
         row.push(stockTotals[p.id] ?? 0);
+        const cellBgColors = [];
         dateColumns.forEach((d) => {
           const cell = ordersMap.get(`${p.id}_${d}`) || { quantity: 0, received_quantity: 0, memo: '' };
           const order = cell.quantity || 0;
@@ -323,9 +324,24 @@ function PurchaseOrderManagement() {
             status = received >= order ? '입고완료' : `부분입고(잔여 ${order - received})`;
           }
           row.push(order, received, status, cell.memo || '');
+          cellBgColors.push(getCellBg(order, received));
         });
         const excelRow = worksheet.addRow(row);
         excelRow.height = 40;
+
+        // 발주/입고 셀 배경색: 화면과 동일하게 셀 단위로 적용
+        const dateColStart = headers.length - dateColumns.length * 4 + 1;
+        cellBgColors.forEach((bg, idx) => {
+          if (!bg) return;
+          const argb = 'FF' + bg.replace('#', '').toUpperCase();
+          [0, 1].forEach((offset) => {
+            excelRow.getCell(dateColStart + idx * 4 + offset).fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb },
+            };
+          });
+        });
 
         const img = imageBuffers.get(p.id);
         if (img) {
