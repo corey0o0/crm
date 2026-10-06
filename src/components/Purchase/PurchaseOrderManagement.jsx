@@ -416,19 +416,19 @@ function PurchaseOrderManagement() {
     return hasUnreceived ? 'unreceived' : 'received';
   };
 
-  // 행 배경색: 입고수량 0=회색, 전부 입고=그린, 일부만 입고=노랑
-  const getRowBg = (partId) => {
-    let ordered = 0;
-    let received = 0;
-    dateColumns.forEach((dateStr) => {
+  // 날짜 열 중 하나라도 입고수량이 있는지 (부분입고 포함)
+  const hasAnyReceived = (partId) => {
+    return dateColumns.some((dateStr) => {
       const cell = ordersMap.get(`${partId}_${dateStr}`);
-      if (cell) {
-        ordered += cell.quantity || 0;
-        received += cell.received_quantity || 0;
-      }
+      return cell && (cell.received_quantity || 0) > 0;
     });
+  };
+
+  // 셀 배경색: 입고수량 0=회색, 전부 입고=그린, 일부만 입고=노랑 (날짜 셀 단위)
+  const getCellBg = (order, received) => {
+    if (order <= 0) return undefined;
     if (received === 0) return '#f5f5f5';
-    if (received >= ordered) return '#e8f5e9';
+    if (received >= order) return '#e8f5e9';
     return '#fff9c4';
   };
 
@@ -448,6 +448,7 @@ function PurchaseOrderManagement() {
     if (noteFilter !== 'all' && (p.note || '') !== noteFilter) return false;
     if (purchaseSourceFilter.length > 0 && !purchaseSourceFilter.includes(p.purchase_source || '')) return false;
     if (receivedFilter === 'all') return true;
+    if (receivedFilter === 'has_received') return hasAnyReceived(p.id);
     return getReceivedStatus(p.id) === receivedFilter;
   });
 
@@ -525,6 +526,7 @@ function PurchaseOrderManagement() {
             <MenuItem value="all">전체</MenuItem>
             <MenuItem value="unreceived">미입고</MenuItem>
             <MenuItem value="received">입고완료</MenuItem>
+            <MenuItem value="has_received">입고있음</MenuItem>
           </Select>
         </FormControl>
 
@@ -664,13 +666,12 @@ function PurchaseOrderManagement() {
             </TableHead>
             <TableBody>
               {pagedParts.map((p) => {
-                const rowBg = getRowBg(p.id);
                 return (
-                <TableRow key={p.id} sx={{ bgcolor: rowBg }}>
-                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.checkbox, zIndex: 2, bgcolor: rowBg, p: 0.5 }}>
+                <TableRow key={p.id}>
+                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.checkbox, zIndex: 2, bgcolor: 'background.paper', p: 0.5 }}>
                     <Checkbox size="small" checked={selectedIds.has(p.id)} onChange={() => handleSelectRow(p.id)} />
                   </TableCell>
-                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.image, zIndex: 2, bgcolor: rowBg }}>
+                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.image, zIndex: 2, bgcolor: 'background.paper' }}>
                     <Avatar
                       src={p.image_url}
                       alt={p.name}
@@ -679,12 +680,12 @@ function PurchaseOrderManagement() {
                       onClick={() => p.image_url && setEnlargedImage(p.image_url)}
                     />
                   </TableCell>
-                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.brand, zIndex: 2, bgcolor: rowBg }}>{p.brand}</TableCell>
-                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.barcode, zIndex: 2, bgcolor: rowBg }}>
+                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.brand, zIndex: 2, bgcolor: 'background.paper' }}>{p.brand}</TableCell>
+                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.barcode, zIndex: 2, bgcolor: 'background.paper' }}>
                     {p.barcode || '-'}
                     <Typography variant="caption" display="block" color="text.secondary">{p.code}</Typography>
                   </TableCell>
-                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.name, zIndex: 2, bgcolor: rowBg }}>
+                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.name, zIndex: 2, bgcolor: 'background.paper' }}>
                     {p.name}
                     {(p.memo || '').includes('[HIDDEN]') && (
                       <Chip size="small" label="숨김상품" sx={{ height: 18, fontSize: '0.6rem', ml: 0.5 }} />
@@ -733,7 +734,7 @@ function PurchaseOrderManagement() {
                       }
                     }
                     return (
-                      <TableCell key={dateStr} align="center" sx={{ p: 0.5 }}>
+                      <TableCell key={dateStr} align="center" sx={{ p: 0.5, bgcolor: getCellBg(effOrder, effReceived) }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.25 }}>
                           <TextField
                             type="number"
