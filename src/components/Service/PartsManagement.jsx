@@ -2577,6 +2577,9 @@ function PartsManagement() {
                 </TableCell>
                 <TableCell>
                   <Box component="span" sx={{ fontWeight: 'bold' }}>{part.name}</Box>
+                  {part.track_inventory === false && (
+                    <Chip size="small" label="재고미관리" variant="outlined" sx={{ ml: 0.5, height: 18, fontSize: '0.65rem' }} />
+                  )}
                   {part.name_en && (
                     <Typography variant="caption" display="block" color="text.secondary">
                       {part.name_en}
