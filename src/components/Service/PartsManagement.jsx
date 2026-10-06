@@ -72,6 +72,7 @@ import ExcelJS from 'exceljs';
 import { syncCafe24ProductImages } from '../../utils/cafe24Api';
 import { CloudUpload as CloudUploadIcon } from '@mui/icons-material';
 import { logAction } from '../../utils/auditLog';
+import { ALL_MODEL_NAMES, toEnglishModelName } from '../../utils/airframeModelNormalize';
 
 const BRANDS = ['XRB', 'NB', 'COMMON'];
 
@@ -91,6 +92,7 @@ const PartsFormDialog = memo(({
     name: '',
     name_en: '',
     brand: '',
+    model: '',
     code: '',
     costPrice: '',
     supplyPrice: '',
@@ -127,6 +129,7 @@ const PartsFormDialog = memo(({
           name: initialData.name || '',
           name_en: initialData.name_en || '',
           brand: initialData.brand || '',
+          model: initialData.model || '',
           code: initialData.code || '',
           costPrice: initialData.cost_price?.toString() || '',
           supplyPrice: initialData.supply_price?.toString() || '',
@@ -149,6 +152,7 @@ const PartsFormDialog = memo(({
           name: '',
           name_en: '',
           brand: defaultBrand,
+          model: '',
           code: suggestedCode,
           costPrice: '',
           supplyPrice: '',
@@ -391,6 +395,21 @@ const PartsFormDialog = memo(({
             </TextField>
           </Grid>
           <Grid item xs={12} md={6}>
+            <TextField
+              select
+              fullWidth
+              label="기종"
+              name="model"
+              value={formData.model}
+              onChange={handleChange}
+            >
+              <MenuItem value="">선택안함</MenuItem>
+              {ALL_MODEL_NAMES.map((m) => (
+                <MenuItem key={m} value={m}>{toEnglishModelName(m)}</MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+          <Grid item xs={12} md={6}>
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
               <TextField
                 fullWidth
@@ -556,7 +575,7 @@ const PartsFormDialog = memo(({
             />
             {supplyPricePercent && (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right' }}>
-                판매가 대비 ({supplyPricePercent}%)
+                할인 {100 - Number(supplyPricePercent)}%
               </Typography>
             )}
             {renderVatButtons('supplyPrice')}
@@ -1069,6 +1088,7 @@ function PartsManagement() {
       partData.memo = formData.memo || null;
       partData.note = formData.note || null;
       partData.purchase_source = formData.purchaseSource || null;
+      partData.model = formData.model || null;
 
       if (selectedPart) {
         const { error } = await supabase
@@ -1950,6 +1970,7 @@ function PartsManagement() {
         image_url: part.image_url || null,
         memo: part.memo || null,
         note: part.note || null,
+        model: part.model || null,
         purchase_source: part.purchase_source || null,
         agency_price: part.agency_price || 0,
         track_inventory: part.track_inventory !== false,
@@ -1983,6 +2004,7 @@ function PartsManagement() {
               image_url: newPart.image_url,
               memo: newPart.memo,
               note: newPart.note,
+              model: newPart.model,
               purchase_source: newPart.purchase_source,
               agency_price: newPart.agency_price,
               track_inventory: newPart.track_inventory
@@ -2540,6 +2562,7 @@ function PartsManagement() {
               {showSupplyPrice && renderSortableHeader('special_price', '특별공급가', 'right')}
               {renderSortableHeader('price', '판매가', 'right')}
               {renderSortableHeader('note', '구분')}
+              {renderSortableHeader('model', '기종')}
               {renderSortableHeader('memo', '적요')}
               {renderSortableHeader('purchase_source', '매입처')}
               <TableCell sx={{ display: 'none' }} />
@@ -2594,7 +2617,7 @@ function PartsManagement() {
                   {part.supply_price?.toLocaleString() || '-'}
                   {!!part.supply_price && !!part.price && (
                     <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5, fontWeight: 'normal' }}>
-                      ({Math.round((part.supply_price / part.price) * 100)}%)
+                      (할인 {100 - Math.round((part.supply_price / part.price) * 100)}%)
                     </Typography>
                   )}
                 </TableCell>
@@ -2609,6 +2632,11 @@ function PartsManagement() {
                     }}
                   >
                     {part.note || '-'}
+                  </Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography sx={{ fontSize: '0.875rem', color: part.model ? 'text.primary' : 'text.secondary', fontStyle: part.model ? 'normal' : 'italic' }}>
+                    {part.model ? toEnglishModelName(part.model) : '-'}
                   </Typography>
                 </TableCell>
                 <TableCell>

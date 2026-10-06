@@ -37,6 +37,50 @@ const RULES = [
   { re: /스프린터|sprinter/, name: '스프린터' },
 ];
 
+// 기종 표준명(한글/혼용) → 영문 표기. RULES의 name 값과 1:1 대응.
+const MODEL_NAME_EN = {
+  'X200 GT': 'X200 GT',
+  'X100 GT': 'X100 GT',
+  'X50 GT': 'X50 GT',
+  '터보 GT': 'Turbo GT',
+  'X200 듀오': 'X200 Duo',
+  'X200 맥스 SL': 'X200 Max SL',
+  'X200 프로 SL': 'X200 Pro SL',
+  'X200 MAX': 'X200 Max',
+  'X200 Pro': 'X200 Pro',
+  'X100 맥스 SL': 'X100 Max SL',
+  'X100 MAX': 'X100 Max',
+  'X100 Pro': 'X100 Pro',
+  'X50 FS': 'X50 FS',
+  'X50': 'X50',
+  'Turbo Pro': 'Turbo Pro',
+  'Turbo S': 'Turbo S',
+  '레트로 미니': 'Retro Mini',
+  '레트로 FS': 'Retro FS',
+  '레트로 투어': 'Retro Tour',
+  '레트로': 'Retro',
+  '미니 Pro': 'Mini Pro',
+  '미니': 'Mini',
+  '블레이드 FS': 'Blade FS',
+  '블레이드': 'Blade',
+  '카고 LT': 'Cargo LT',
+  '카고': 'Cargo',
+  '클래식': 'Classic',
+  '스프린터': 'Sprinter',
+};
+
+/**
+ * 기종 표준명을 영문 표기로 변환. 매핑 없으면 원문 유지.
+ * @param {string} name
+ * @returns {string}
+ */
+export function toEnglishModelName(name) {
+  return MODEL_NAME_EN[name] || name;
+}
+
+// 상품관리 기종 선택용 표준 기종 목록 (RULES와 1:1 대응 순서)
+export const ALL_MODEL_NAMES = Object.keys(MODEL_NAME_EN);
+
 const COLOR_TAIL =
   /\s*(?:-|–|—)?\s*(블랙|화이트|베이지|그레이|핑크|틸블루|미러크롬|메탈\s*그레이|어반\s*그레이|샌드\s*베이지|매트\s*블랙|유광\s*블랙|로얄\s*네이비|어반\s*그린|아미\s*그린|메탈그레이|샌드베이지|그레이|네이비|그린).*$/i;
 

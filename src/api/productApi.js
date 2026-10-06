@@ -14,6 +14,7 @@ function mapPartToProduct(part) {
     barcode: part.barcode || '',
     name: part.name || '',
     category: part.category || null,
+    model: part.model || null,
     price: Number(part.price) || 0,
     cost_price: part.cost_price ?? null, // parts에 없을 수 있음
     stock: Number(part.stock ?? 0) || 0, // parts에 재고 필드가 없다면 0으로 처리

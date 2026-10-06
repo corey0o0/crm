@@ -18,7 +18,7 @@ import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ko } from 'date-fns/locale';
 import { format, parseISO } from 'date-fns';
-import { matchAllKnownAirframeModels } from '../../utils/airframeModelNormalize';
+import { matchAllKnownAirframeModels, toEnglishModelName } from '../../utils/airframeModelNormalize';
 
 // 왼쪽 고정(스티키) 컬럼 폭. 헤더/바디 offset 계산에 재사용.
 // 순서: 체크박스 / 이미지 / 브랜드 / 기종 / 바코드 / 제품명(한글+영문)
@@ -36,10 +36,15 @@ const STICKY_TOTAL = STICKY_LEFT.name + STICKY_WIDTHS.name;
 // 추가한 날짜 열은 컴포넌트 state라 새로고침하면 사라짐 → localStorage에 저장해 복원
 const DATE_COLUMNS_STORAGE_KEY = 'po_date_columns';
 
-// 기종은 DB 컬럼이 없어 상품명에서 추출. 브랜드별 위치(괄호/대시)가 제각각이라
-// 판매통계에서 쓰는 기종 키워드 매칭(브랜드 무관, 텍스트 전체 스캔)을 재사용.
+// parts.model이 있으면 그걸 우선 사용. 없는 레거시 데이터는
+// 판매통계에서 쓰는 기종 키워드 매칭(브랜드 무관, 텍스트 전체 스캔)으로 폴백.
+function getModelKeys(p) {
+  if (p.model) return p.model.split('/').filter(Boolean);
+  return matchAllKnownAirframeModels(p.name);
+}
+
 function extractModel(p) {
-  return matchAllKnownAirframeModels(p.name).join('/');
+  return getModelKeys(p).map(toEnglishModelName).join('/');
 }
 
 function PurchaseOrderManagement() {
@@ -464,7 +469,7 @@ function PurchaseOrderManagement() {
     if (!matchesTerm) return false;
     if (noteFilter !== 'all' && (p.note || '') !== noteFilter) return false;
     if (purchaseSourceFilter.length > 0 && !purchaseSourceFilter.includes(p.purchase_source || '')) return false;
-    if (modelFilter.length > 0 && !matchAllKnownAirframeModels(p.name).some((m) => modelFilter.includes(m))) return false;
+    if (modelFilter.length > 0 && !getModelKeys(p).some((m) => modelFilter.includes(m))) return false;
     if (receivedFilter === 'all') return true;
     if (receivedFilter === 'has_received') return hasAnyReceived(p.id);
     return getReceivedStatus(p.id) === receivedFilter;
@@ -472,7 +477,7 @@ function PurchaseOrderManagement() {
 
   const noteOptions = [...new Set(parts.map((p) => p.note).filter((n) => n && n !== '공임' && n !== '기타'))].sort((a, b) => a.localeCompare(b, 'ko'));
   const purchaseSourceOptions = [...new Set(parts.map((p) => p.purchase_source).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
-  const modelOptions = [...new Set(parts.flatMap((p) => matchAllKnownAirframeModels(p.name)))].sort((a, b) => a.localeCompare(b, 'ko'));
+  const modelOptions = [...new Set(parts.flatMap(getModelKeys))].sort((a, b) => a.localeCompare(b, 'ko'));
 
   const sortedParts = [...filteredParts].sort((a, b) => {
     const av = (sortBy === 'model' ? extractModel(a) : a[sortBy] || '').toString();
@@ -588,12 +593,12 @@ function PurchaseOrderManagement() {
             label="기종"
             value={modelFilter}
             onChange={(e) => { setModelFilter(e.target.value); setPage(0); }}
-            renderValue={(selected) => selected.length === 0 ? '전체' : selected.join(', ')}
+            renderValue={(selected) => selected.length === 0 ? '전체' : selected.map(toEnglishModelName).join(', ')}
           >
             {modelOptions.map((m) => (
               <MenuItem key={m} value={m}>
                 <Checkbox size="small" checked={modelFilter.includes(m)} />
-                {m}
+                {toEnglishModelName(m)}
               </MenuItem>
             ))}
           </Select>
