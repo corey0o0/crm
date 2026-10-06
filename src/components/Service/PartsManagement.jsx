@@ -219,6 +219,16 @@ const PartsFormDialog = memo(({
     });
   }, []);
 
+  const handleSupplyPercentChange = useCallback((e) => {
+    const raw = e.target.value.replace(/[^0-9]/g, '');
+    setFormData(prev => {
+      const priceNum = Number(prev.price || 0);
+      if (raw === '') return { ...prev, supplyPrice: '' };
+      if (!priceNum) return prev;
+      return { ...prev, supplyPrice: Math.round(priceNum * Number(raw) / 100).toString() };
+    });
+  }, []);
+
   const renderVatButtons = (field) => (
     <Box sx={{ display: 'flex', gap: 1, mt: 0.5, justifyContent: 'flex-end' }}>
       <Typography 
@@ -239,6 +249,12 @@ const PartsFormDialog = memo(({
       </Typography>
     </Box>
   );
+
+  const supplyPricePercent = (() => {
+    const priceNum = Number(formData.price || 0);
+    const supplyNum = Number(formData.supplyPrice || 0);
+    return priceNum > 0 && supplyNum > 0 ? Math.round((supplyNum / priceNum) * 100).toString() : '';
+  })();
 
   const handleSubmit = useCallback(() => {
     if (dupWarning.code || dupWarning.barcode || dupWarning.name) return;
@@ -538,7 +554,23 @@ const PartsFormDialog = memo(({
               required
               InputProps={{ endAdornment: <InputAdornment position="end">원</InputAdornment> }}
             />
+            {supplyPricePercent && (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right' }}>
+                판매가 대비 ({supplyPricePercent}%)
+              </Typography>
+            )}
             {renderVatButtons('supplyPrice')}
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <TextField
+              fullWidth
+              label="공급가율로 입력"
+              value={supplyPricePercent}
+              onChange={handleSupplyPercentChange}
+              placeholder="예: 70"
+              helperText="판매가 기준 % 입력 시 공급가 자동 계산"
+              InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+            />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <TextField
@@ -2555,7 +2587,14 @@ function PartsManagement() {
                   )}
                 </TableCell>
                 {showSupplyPrice && <TableCell align="right">{part.cost_price?.toLocaleString() || '-'}</TableCell>}
-                <TableCell align="right" sx={{ fontWeight: 'bold' }}>{part.supply_price?.toLocaleString() || '-'}</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                  {part.supply_price?.toLocaleString() || '-'}
+                  {!!part.supply_price && !!part.price && (
+                    <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5, fontWeight: 'normal' }}>
+                      ({Math.round((part.supply_price / part.price) * 100)}%)
+                    </Typography>
+                  )}
+                </TableCell>
                 {showSupplyPrice && <TableCell align="right">{part.special_price?.toLocaleString() || '-'}</TableCell>}
                 <TableCell align="right" sx={{ fontWeight: 'bold' }}>{part.price?.toLocaleString() || '-'}</TableCell>
                 <TableCell>
