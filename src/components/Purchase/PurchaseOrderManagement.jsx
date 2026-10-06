@@ -636,7 +636,7 @@ function PurchaseOrderManagement() {
         <CircularProgress size={24} />
       ) : (
         <Paper>
-        <TableContainer sx={{ overflowX: 'auto', overflowY: 'visible' }}>
+        <TableContainer sx={{ overflowX: 'auto', overflowY: 'visible', WebkitOverflowScrolling: 'touch', maxWidth: '100%' }}>
           <Table
             size="small"
             stickyHeader
