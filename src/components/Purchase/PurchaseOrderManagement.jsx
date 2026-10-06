@@ -168,7 +168,7 @@ function PurchaseOrderManagement() {
       showSnackbar('이미 추가된 날짜입니다.', 'warning');
       return;
     }
-    setDateColumns((prev) => [dateStr, ...prev]);
+    setDateColumns((prev) => [...prev, dateStr]);
     setNewDate(null);
     fetchOrdersForDate(dateStr);
   };
@@ -357,8 +357,8 @@ function PurchaseOrderManagement() {
           const scale = Math.min(IMAGE_CELL_PX.width / img.width, IMAGE_CELL_PX.height / img.height);
           const imageId = workbook.addImage({ buffer: img.buffer, extension: img.ext });
           worksheet.addImage(imageId, {
-            tl: { col: 0, row: excelRow.number - 1 },
-            ext: { width: img.width * scale, height: img.height * scale },
+            tl: { col: 1 / IMAGE_CELL_PX.width, row: excelRow.number - 1 + 1 / IMAGE_CELL_PX.height },
+            ext: { width: img.width * scale - 1, height: img.height * scale - 1 },
           });
         }
       }
@@ -518,8 +518,8 @@ function PurchaseOrderManagement() {
   });
 
   const pagedParts = sortedParts.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-  const MIN_DATE_COLUMNS = 2;
-  const placeholderColumnCount = Math.max(0, MIN_DATE_COLUMNS - dateColumns.length);
+  const MIN_DATE_COLUMNS = 1;
+  const placeholderColumnCount = MIN_DATE_COLUMNS;
   const tableMinWidth = STICKY_TOTAL + 440 + (dateColumns.length + placeholderColumnCount) * 160;
 
   return (
