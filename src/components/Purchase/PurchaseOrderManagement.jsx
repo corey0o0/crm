@@ -52,7 +52,7 @@ function PurchaseOrderManagement() {
   const [showHiddenParts, setShowHiddenParts] = useState(false);
   const [receivedFilter, setReceivedFilter] = useState('all');
   const [noteFilter, setNoteFilter] = useState('all');
-  const [purchaseSourceFilter, setPurchaseSourceFilter] = useState('all');
+  const [purchaseSourceFilter, setPurchaseSourceFilter] = useState([]); // 빈 배열 = 전체
   const [sortBy, setSortBy] = useState('brand');
   const [sortDir, setSortDir] = useState('asc');
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -429,7 +429,7 @@ function PurchaseOrderManagement() {
     );
     if (!matchesTerm) return false;
     if (noteFilter !== 'all' && (p.note || '') !== noteFilter) return false;
-    if (purchaseSourceFilter !== 'all' && (p.purchase_source || '') !== purchaseSourceFilter) return false;
+    if (purchaseSourceFilter.length > 0 && !purchaseSourceFilter.includes(p.purchase_source || '')) return false;
     if (receivedFilter === 'all') return true;
     return getReceivedStatus(p.id) === receivedFilter;
   });
@@ -525,16 +525,20 @@ function PurchaseOrderManagement() {
           </Select>
         </FormControl>
 
-        <FormControl size="small" sx={{ minWidth: 120 }}>
+        <FormControl size="small" sx={{ minWidth: 160 }}>
           <InputLabel>매입처</InputLabel>
           <Select
+            multiple
             label="매입처"
             value={purchaseSourceFilter}
             onChange={(e) => { setPurchaseSourceFilter(e.target.value); setPage(0); }}
+            renderValue={(selected) => selected.length === 0 ? '전체' : selected.join(', ')}
           >
-            <MenuItem value="all">전체</MenuItem>
             {purchaseSourceOptions.map((s) => (
-              <MenuItem key={s} value={s}>{s}</MenuItem>
+              <MenuItem key={s} value={s}>
+                <Checkbox size="small" checked={purchaseSourceFilter.includes(s)} />
+                {s}
+              </MenuItem>
             ))}
           </Select>
         </FormControl>
