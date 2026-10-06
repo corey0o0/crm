@@ -21,13 +21,16 @@ import { format, parseISO } from 'date-fns';
 import { matchAllKnownAirframeModels } from '../../utils/airframeModelNormalize';
 
 // 왼쪽 고정(스티키) 컬럼 폭. 헤더/바디 offset 계산에 재사용.
-const STICKY_WIDTHS = { checkbox: 42, image: 48, brand: 70, barcode: 90, name: 160 };
+// 순서: 체크박스 / 이미지 / 브랜드 / 기종 / 바코드 / 영문이름 / 한글이름
+const STICKY_WIDTHS = { checkbox: 42, image: 48, brand: 70, model: 90, barcode: 90, nameEn: 110, name: 160 };
 const STICKY_LEFT = {
   checkbox: 0,
   image: STICKY_WIDTHS.checkbox,
   brand: STICKY_WIDTHS.checkbox + STICKY_WIDTHS.image,
-  barcode: STICKY_WIDTHS.checkbox + STICKY_WIDTHS.image + STICKY_WIDTHS.brand,
-  name: STICKY_WIDTHS.checkbox + STICKY_WIDTHS.image + STICKY_WIDTHS.brand + STICKY_WIDTHS.barcode,
+  model: STICKY_WIDTHS.checkbox + STICKY_WIDTHS.image + STICKY_WIDTHS.brand,
+  barcode: STICKY_WIDTHS.checkbox + STICKY_WIDTHS.image + STICKY_WIDTHS.brand + STICKY_WIDTHS.model,
+  nameEn: STICKY_WIDTHS.checkbox + STICKY_WIDTHS.image + STICKY_WIDTHS.brand + STICKY_WIDTHS.model + STICKY_WIDTHS.barcode,
+  name: STICKY_WIDTHS.checkbox + STICKY_WIDTHS.image + STICKY_WIDTHS.brand + STICKY_WIDTHS.model + STICKY_WIDTHS.barcode + STICKY_WIDTHS.nameEn,
 };
 const STICKY_TOTAL = STICKY_LEFT.name + STICKY_WIDTHS.name;
 
@@ -48,7 +51,7 @@ function PurchaseOrderManagement() {
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [enlargedImage, setEnlargedImage] = useState(null);
-  const [visibleCols, setVisibleCols] = useState({ model: true, supply_price: true, price: true, note: true, memo: true, purchase_source: true });
+  const [visibleCols, setVisibleCols] = useState({ supply_price: true, price: true, note: true, memo: true, purchase_source: true });
   const [showHiddenParts, setShowHiddenParts] = useState(false);
   const [receivedFilter, setReceivedFilter] = useState('all');
   const [noteFilter, setNoteFilter] = useState('all');
@@ -273,8 +276,7 @@ function PurchaseOrderManagement() {
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('발주현황');
 
-      const headers = ['이미지', '브랜드', '코드', '바코드', '영문명', '제품명'];
-      if (visibleCols.model) headers.push('기종');
+      const headers = ['이미지', '브랜드', '기종', '코드', '바코드', '영문명', '제품명'];
       if (visibleCols.supply_price) headers.push('공급가');
       if (visibleCols.price) headers.push('판매가');
       if (visibleCols.note) headers.push('구분');
@@ -285,7 +287,7 @@ function PurchaseOrderManagement() {
       worksheet.addRow(headers);
       worksheet.getRow(1).font = { bold: true };
       worksheet.getColumn(1).width = 10;
-      worksheet.getColumn(6).width = 24;
+      worksheet.getColumn(7).width = 24;
       // 이미지 셀 크기(픽셀 환산): 열너비(문자단위) ≈ chars*7+5, 행높이(pt) ≈ pt*96/72
       const IMAGE_CELL_PX = { width: Math.round(10 * 7 + 5), height: Math.round(40 * 96 / 72) };
 
@@ -306,8 +308,7 @@ function PurchaseOrderManagement() {
       }));
 
       for (const p of exportParts) {
-        const row = [null, p.brand, p.code, p.barcode || '-', p.name_en || '', p.name];
-        if (visibleCols.model) row.push(extractModel(p));
+        const row = [null, p.brand, extractModel(p) || '-', p.code, p.barcode || '-', p.name_en || '', p.name];
         if (visibleCols.supply_price) row.push(p.supply_price || 0);
         if (visibleCols.price) row.push(p.price || 0);
         if (visibleCols.note) row.push(p.note || '');
@@ -603,10 +604,6 @@ function PurchaseOrderManagement() {
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, flexWrap: 'wrap' }}>
         <Typography variant="body2" color="text.secondary">컬럼 표시:</Typography>
         <FormControlLabel
-          control={<Checkbox size="small" checked={visibleCols.model} onChange={(e) => setVisibleCols((c) => ({ ...c, model: e.target.checked }))} />}
-          label="기종"
-        />
-        <FormControlLabel
           control={<Checkbox size="small" checked={visibleCols.supply_price} onChange={(e) => setVisibleCols((c) => ({ ...c, supply_price: e.target.checked }))} />}
           label="공급가"
         />
@@ -658,9 +655,10 @@ function PurchaseOrderManagement() {
                 </TableCell>
                 <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.image, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.image, minWidth: STICKY_WIDTHS.image }}>이미지</TableCell>
                 <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.brand, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.brand, minWidth: STICKY_WIDTHS.brand }}>브랜드</TableCell>
+                <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.model, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.model, minWidth: STICKY_WIDTHS.model }}>기종</TableCell>
                 <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.barcode, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.barcode, minWidth: STICKY_WIDTHS.barcode }}>바코드</TableCell>
+                <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.nameEn, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.nameEn, minWidth: STICKY_WIDTHS.nameEn }}>영문이름</TableCell>
                 <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.name, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.name, minWidth: STICKY_WIDTHS.name }}>제품명</TableCell>
-                {visibleCols.model && <TableCell sx={{ width: 90 }}>기종</TableCell>}
                 {visibleCols.supply_price && <TableCell align="right" sx={{ width: 90 }}>공급가</TableCell>}
                 {visibleCols.price && <TableCell align="right" sx={{ width: 90 }}>판매가</TableCell>}
                 {visibleCols.note && <TableCell sx={{ width: 70 }}>구분</TableCell>}
@@ -697,22 +695,18 @@ function PurchaseOrderManagement() {
                     />
                   </TableCell>
                   <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.brand, zIndex: 2, bgcolor: 'background.paper' }}>{p.brand}</TableCell>
+                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.model, zIndex: 2, bgcolor: 'background.paper' }}>{extractModel(p) || '-'}</TableCell>
                   <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.barcode, zIndex: 2, bgcolor: 'background.paper' }}>
                     {p.barcode || '-'}
                     <Typography variant="caption" display="block" color="text.secondary">{p.code}</Typography>
                   </TableCell>
+                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.nameEn, zIndex: 2, bgcolor: 'background.paper' }}>{p.name_en || '-'}</TableCell>
                   <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.name, zIndex: 2, bgcolor: 'background.paper' }}>
                     {p.name}
                     {(p.memo || '').includes('[HIDDEN]') && (
                       <Chip size="small" label="숨김상품" sx={{ height: 18, fontSize: '0.6rem', ml: 0.5 }} />
                     )}
-                    {p.name_en && (
-                      <Typography variant="body2" display="block" color="text.secondary">
-                        {p.name_en}
-                      </Typography>
-                    )}
                   </TableCell>
-                  {visibleCols.model && <TableCell>{extractModel(p) || '-'}</TableCell>}
                   {visibleCols.supply_price && <TableCell align="right">{p.supply_price?.toLocaleString() || '-'}</TableCell>}
                   {visibleCols.price && <TableCell align="right">{p.price?.toLocaleString() || '-'}</TableCell>}
                   {visibleCols.note && <TableCell>{p.note || '-'}</TableCell>}
