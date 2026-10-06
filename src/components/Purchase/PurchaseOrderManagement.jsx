@@ -19,6 +19,7 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ko } from 'date-fns/locale';
 import { format, parseISO } from 'date-fns';
 import { matchAllKnownAirframeModels, toEnglishModelName } from '../../utils/airframeModelNormalize';
+import { uploadFileToR2 as uploadToR2 } from '../../utils/cloudflareR2Utils';
 
 // 왼쪽 고정(스티키) 컬럼 폭. 헤더/바디 offset 계산에 재사용.
 // 순서: 체크박스 / 이미지 / 브랜드 / 기종 / 바코드 / 제품명(한글+영문)
@@ -71,7 +72,8 @@ function PurchaseOrderManagement() {
   const [ordersMap, setOrdersMap] = useState(new Map());
   const [pendingQuantities, setPendingQuantities] = useState({});
   const [memoAnchor, setMemoAnchor] = useState(null);
-  const [memoDraft, setMemoDraft] = useState({ key: null, partId: null, dateStr: null, text: '' });
+  const [memoDraft, setMemoDraft] = useState({ key: null, partId: null, dateStr: null, text: '', imageUrl: null, imageFile: null, imagePreview: null });
+  const [memoImageUploading, setMemoImageUploading] = useState(false);
   const [excelDownloading, setExcelDownloading] = useState(false);
   const [stockTotals, setStockTotals] = useState({});
 
@@ -132,7 +134,7 @@ function PurchaseOrderManagement() {
         queryWithTimeout(
           supabase
             .from('purchase_orders')
-            .select('part_id, quantity, received_quantity, received, received_at, memo')
+            .select('part_id, quantity, received_quantity, received, received_at, memo, memo_image_url')
             .eq('order_date', dateStr),
           8000
         )
@@ -147,6 +149,7 @@ function PurchaseOrderManagement() {
             received: row.received,
             received_at: row.received_at,
             memo: row.memo || '',
+            memo_image_url: row.memo_image_url || null,
           });
         });
         return next;
@@ -281,14 +284,14 @@ function PurchaseOrderManagement() {
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('발주현황');
 
-      const headers = ['이미지', '브랜드', '기종', '코드', '바코드', '영문명', '제품명'];
-      if (visibleCols.supply_price) headers.push('공급가');
-      if (visibleCols.price) headers.push('판매가');
-      if (visibleCols.note) headers.push('구분');
-      if (visibleCols.memo) headers.push('적요');
-      if (visibleCols.purchase_source) headers.push('매입처');
-      if (visibleCols.stock) headers.push('현재고');
-      dateColumns.forEach((d) => headers.push(`${d} 발주`, `${d} 입고`, `${d} 상태`, `${d} 메모`));
+      const headers = ['Image', 'Brand', 'Model', 'Code', 'Barcode', 'English Name', 'Product Name'];
+      if (visibleCols.supply_price) headers.push('Supply Price');
+      if (visibleCols.price) headers.push('Price');
+      if (visibleCols.note) headers.push('Category');
+      if (visibleCols.memo) headers.push('Remarks');
+      if (visibleCols.purchase_source) headers.push('Source');
+      if (visibleCols.stock) headers.push('Stock');
+      dateColumns.forEach((d) => headers.push(`${d} Order`, `${d} Received`, `${d} Status`, `${d} Memo`));
       worksheet.addRow(headers);
       worksheet.getRow(1).font = { bold: true };
       worksheet.getColumn(1).width = 10;
@@ -388,20 +391,38 @@ function PurchaseOrderManagement() {
     }
   };
 
-  const openMemoEditor = (e, partId, dateStr, currentMemo) => {
+  const openMemoEditor = (e, partId, dateStr, currentMemo, currentImageUrl) => {
     setMemoAnchor(e.currentTarget);
-    setMemoDraft({ key: `${partId}_${dateStr}`, partId, dateStr, text: currentMemo || '' });
+    setMemoDraft({ key: `${partId}_${dateStr}`, partId, dateStr, text: currentMemo || '', imageUrl: currentImageUrl || null, imageFile: null, imagePreview: null });
+  };
+
+  const handleMemoImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setMemoDraft((d) => ({ ...d, imageFile: file, imagePreview: URL.createObjectURL(file) }));
+  };
+
+  const handleMemoImageRemove = () => {
+    setMemoDraft((d) => ({ ...d, imageUrl: null, imageFile: null, imagePreview: null }));
   };
 
   const saveMemo = async () => {
-    const { key, partId, dateStr, text } = memoDraft;
-    const prevCell = ordersMap.get(key) || { quantity: 0, received_quantity: 0, received: false, received_at: null, memo: '' };
+    const { key, partId, dateStr, text, imageUrl, imageFile } = memoDraft;
+    const prevCell = ordersMap.get(key) || { quantity: 0, received_quantity: 0, received: false, received_at: null, memo: '', memo_image_url: null };
     const memo = text.trim();
 
-    setOrdersMap((m) => new Map(m).set(key, { ...prevCell, memo }));
     setMemoAnchor(null);
-
     try {
+      let finalImageUrl = imageUrl;
+      if (imageFile) {
+        setMemoImageUploading(true);
+        const uploadResult = await uploadToR2(imageFile, 'purchase-order-memos');
+        finalImageUrl = uploadResult.url;
+      }
+
+      const nextCell = { ...prevCell, memo, memo_image_url: finalImageUrl };
+      setOrdersMap((m) => new Map(m).set(key, nextCell));
+
       const { error } = await supabase
         .from('purchase_orders')
         .upsert(
@@ -413,6 +434,7 @@ function PurchaseOrderManagement() {
             received: prevCell.received,
             received_at: prevCell.received_at,
             memo: memo || null,
+            memo_image_url: finalImageUrl || null,
           },
           { onConflict: 'part_id,order_date' }
         );
@@ -420,6 +442,8 @@ function PurchaseOrderManagement() {
     } catch (err) {
       setOrdersMap((m) => new Map(m).set(key, prevCell));
       showSnackbar(getErrorMessage(err), 'error');
+    } finally {
+      setMemoImageUploading(false);
     }
   };
 
@@ -479,10 +503,17 @@ function PurchaseOrderManagement() {
   const purchaseSourceOptions = [...new Set(parts.map((p) => p.purchase_source).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
   const modelOptions = [...new Set(parts.flatMap(getModelKeys))].sort((a, b) => a.localeCompare(b, 'ko'));
 
+  const NOTE_SORT_RANK = { '파츠': 0, '기체': 1 };
   const sortedParts = [...filteredParts].sort((a, b) => {
     const av = (sortBy === 'model' ? extractModel(a) : a[sortBy] || '').toString();
     const bv = (sortBy === 'model' ? extractModel(b) : b[sortBy] || '').toString();
-    const cmp = av.localeCompare(bv, 'ko');
+    let cmp = av.localeCompare(bv, 'ko');
+    if (cmp === 0) {
+      const an = NOTE_SORT_RANK[a.note] ?? 2;
+      const bn = NOTE_SORT_RANK[b.note] ?? 2;
+      cmp = an - bn;
+    }
+    if (cmp === 0) cmp = (a.name || '').localeCompare(b.name || '', 'ko');
     return sortDir === 'asc' ? cmp : -cmp;
   });
 
@@ -757,7 +788,7 @@ function PurchaseOrderManagement() {
                   {visibleCols.stock && <TableCell align="right">{stockTotals[p.id] ?? 0}</TableCell>}
                   {dateColumns.map((dateStr) => {
                     const key = `${p.id}_${dateStr}`;
-                    const cell = ordersMap.get(key) || { quantity: 0, received_quantity: 0 };
+                    const cell = ordersMap.get(key) || { quantity: 0, received_quantity: 0, memo_image_url: null };
                     const pending = pendingQuantities[key];
                     const orderValue = pending?.orderRaw !== undefined ? pending.orderRaw : (cell.quantity || '');
                     const receivedValue = pending?.receivedRaw !== undefined ? pending.receivedRaw : (cell.received_quantity || '');
@@ -800,6 +831,14 @@ function PurchaseOrderManagement() {
                               ...(pending?.receivedRaw !== undefined ? { '& .MuiOutlinedInput-root': { borderRadius: 0, bgcolor: 'warning.light' } } : {}),
                             }}
                           />
+                          {cell.memo_image_url && (
+                            <Avatar
+                              src={cell.memo_image_url}
+                              variant="rounded"
+                              onClick={() => setEnlargedImage(cell.memo_image_url)}
+                              sx={{ width: 18, height: 18, cursor: 'pointer' }}
+                            />
+                          )}
                           {cell.memo ? (
                             <Tooltip
                               title={cell.memo}
@@ -812,12 +851,12 @@ function PurchaseOrderManagement() {
                                 label="메모"
                                 color="warning"
                                 variant="filled"
-                                onClick={(e) => openMemoEditor(e, p.id, dateStr, cell.memo)}
+                                onClick={(e) => openMemoEditor(e, p.id, dateStr, cell.memo, cell.memo_image_url)}
                                 sx={{ height: 20, fontSize: '0.65rem', cursor: 'pointer' }}
                               />
                             </Tooltip>
                           ) : (
-                            <IconButton size="small" onClick={(e) => openMemoEditor(e, p.id, dateStr, cell.memo)} sx={{ p: 0.25 }}>
+                            <IconButton size="small" onClick={(e) => openMemoEditor(e, p.id, dateStr, cell.memo, cell.memo_image_url)} sx={{ p: 0.25 }}>
                               <AddIcon fontSize="inherit" />
                             </IconButton>
                           )}
@@ -872,9 +911,33 @@ function PurchaseOrderManagement() {
             onChange={(e) => setMemoDraft((d) => ({ ...d, text: e.target.value }))}
             sx={{ '& .MuiInputBase-input': { fontSize: '18px' } }}
           />
+          {(memoDraft.imagePreview || memoDraft.imageUrl) ? (
+            <Box sx={{ position: 'relative', mt: 1, width: 'fit-content' }}>
+              <img
+                src={memoDraft.imagePreview || memoDraft.imageUrl}
+                alt="메모 이미지"
+                onClick={() => setEnlargedImage(memoDraft.imagePreview || memoDraft.imageUrl)}
+                style={{ maxWidth: '100%', maxHeight: 100, display: 'block', cursor: 'pointer', borderRadius: 4 }}
+              />
+              <IconButton
+                size="small"
+                onClick={handleMemoImageRemove}
+                sx={{ position: 'absolute', top: -8, right: -8, bgcolor: 'background.paper', boxShadow: 1, p: 0.25 }}
+              >
+                <CloseIcon fontSize="inherit" />
+              </IconButton>
+            </Box>
+          ) : (
+            <Button component="label" size="small" sx={{ mt: 1 }}>
+              이미지 추가
+              <input type="file" accept="image/*" hidden onChange={handleMemoImageChange} />
+            </Button>
+          )}
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5, mt: 1 }}>
             <Button size="small" onClick={() => setMemoAnchor(null)}>취소</Button>
-            <Button size="small" variant="contained" onClick={saveMemo}>저장</Button>
+            <Button size="small" variant="contained" onClick={saveMemo} disabled={memoImageUploading}>
+              {memoImageUploading ? '업로드 중...' : '저장'}
+            </Button>
           </Box>
         </Box>
       </Popover>
