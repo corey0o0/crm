@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box, Typography, TextField, Paper, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Snackbar, Alert, CircularProgress, Checkbox,
@@ -167,6 +167,7 @@ function PurchaseOrderManagement() {
   };
 
   // 새로고침해도 추가했던 날짜 열이 유지되도록 복원
+  const dateColumnsLoadedRef = useRef(false);
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(DATE_COLUMNS_STORAGE_KEY) || '[]');
@@ -176,11 +177,15 @@ function PurchaseOrderManagement() {
       }
     } catch (e) {
       // 저장된 값이 깨졌으면 무시
+    } finally {
+      dateColumnsLoadedRef.current = true;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
+    // 복원 완료 전에는 저장하지 않음 (초기 빈 배열이 복원값을 덮어쓰는 것 방지)
+    if (!dateColumnsLoadedRef.current) return;
     localStorage.setItem(DATE_COLUMNS_STORAGE_KEY, JSON.stringify(dateColumns));
   }, [dateColumns]);
 
