@@ -31,6 +31,9 @@ const STICKY_LEFT = {
 };
 const STICKY_TOTAL = STICKY_LEFT.name + STICKY_WIDTHS.name;
 
+// 추가한 날짜 열은 컴포넌트 state라 새로고침하면 사라짐 → localStorage에 저장해 복원
+const DATE_COLUMNS_STORAGE_KEY = 'po_date_columns';
+
 // 기종은 DB 컬럼이 없어 상품명에서 추출. 브랜드별 위치(괄호/대시)가 제각각이라
 // 판매통계에서 쓰는 기종 키워드 매칭(브랜드 무관, 텍스트 전체 스캔)을 재사용.
 function extractModel(p) {
@@ -162,6 +165,24 @@ function PurchaseOrderManagement() {
   const handleRemoveDateColumn = (dateStr) => {
     setDateColumns((prev) => prev.filter((d) => d !== dateStr));
   };
+
+  // 새로고침해도 추가했던 날짜 열이 유지되도록 복원
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(DATE_COLUMNS_STORAGE_KEY) || '[]');
+      if (Array.isArray(saved) && saved.length > 0) {
+        setDateColumns(saved);
+        saved.forEach((d) => fetchOrdersForDate(d));
+      }
+    } catch (e) {
+      // 저장된 값이 깨졌으면 무시
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(DATE_COLUMNS_STORAGE_KEY, JSON.stringify(dateColumns));
+  }, [dateColumns]);
 
   const parseQty = (raw) => {
     const parsed = parseInt(raw, 10);
