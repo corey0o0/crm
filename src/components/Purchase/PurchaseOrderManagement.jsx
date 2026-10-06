@@ -22,7 +22,7 @@ import { matchAllKnownAirframeModels } from '../../utils/airframeModelNormalize'
 
 // 왼쪽 고정(스티키) 컬럼 폭. 헤더/바디 offset 계산에 재사용.
 // 순서: 체크박스 / 이미지 / 브랜드 / 기종 / 바코드 / 영문이름 / 한글이름
-const STICKY_WIDTHS = { checkbox: 42, image: 48, brand: 70, model: 90, barcode: 90, nameEn: 110, name: 160 };
+const STICKY_WIDTHS = { checkbox: 42, image: 48, brand: 70, model: 90, barcode: 130, nameEn: 110, name: 160 };
 const STICKY_LEFT = {
   checkbox: 0,
   image: STICKY_WIDTHS.checkbox,
@@ -51,11 +51,12 @@ function PurchaseOrderManagement() {
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [enlargedImage, setEnlargedImage] = useState(null);
-  const [visibleCols, setVisibleCols] = useState({ supply_price: true, price: true, note: true, memo: true, purchase_source: true });
+  const [visibleCols, setVisibleCols] = useState({ supply_price: false, price: false, note: true, memo: true, purchase_source: true, stock: true });
   const [showHiddenParts, setShowHiddenParts] = useState(false);
   const [receivedFilter, setReceivedFilter] = useState('all');
   const [noteFilter, setNoteFilter] = useState('all');
   const [purchaseSourceFilter, setPurchaseSourceFilter] = useState([]); // 빈 배열 = 전체
+  const [modelFilter, setModelFilter] = useState([]); // 빈 배열 = 전체
   const [sortBy, setSortBy] = useState('brand');
   const [sortDir, setSortDir] = useState('asc');
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -282,7 +283,7 @@ function PurchaseOrderManagement() {
       if (visibleCols.note) headers.push('구분');
       if (visibleCols.memo) headers.push('적요');
       if (visibleCols.purchase_source) headers.push('매입처');
-      headers.push('현재고');
+      if (visibleCols.stock) headers.push('현재고');
       dateColumns.forEach((d) => headers.push(`${d} 발주`, `${d} 입고`, `${d} 상태`, `${d} 메모`));
       worksheet.addRow(headers);
       worksheet.getRow(1).font = { bold: true };
@@ -314,7 +315,7 @@ function PurchaseOrderManagement() {
         if (visibleCols.note) row.push(p.note || '');
         if (visibleCols.memo) row.push((p.memo || '').replace('[HIDDEN]', '').trim());
         if (visibleCols.purchase_source) row.push(p.purchase_source || '');
-        row.push(stockTotals[p.id] ?? 0);
+        if (visibleCols.stock) row.push(stockTotals[p.id] ?? 0);
         const cellBgColors = [];
         dateColumns.forEach((d) => {
           const cell = ordersMap.get(`${p.id}_${d}`) || { quantity: 0, received_quantity: 0, memo: '' };
@@ -464,6 +465,7 @@ function PurchaseOrderManagement() {
     if (!matchesTerm) return false;
     if (noteFilter !== 'all' && (p.note || '') !== noteFilter) return false;
     if (purchaseSourceFilter.length > 0 && !purchaseSourceFilter.includes(p.purchase_source || '')) return false;
+    if (modelFilter.length > 0 && !matchAllKnownAirframeModels(p.name).some((m) => modelFilter.includes(m))) return false;
     if (receivedFilter === 'all') return true;
     if (receivedFilter === 'has_received') return hasAnyReceived(p.id);
     return getReceivedStatus(p.id) === receivedFilter;
@@ -471,6 +473,7 @@ function PurchaseOrderManagement() {
 
   const noteOptions = [...new Set(parts.map((p) => p.note).filter((n) => n && n !== '공임' && n !== '기타'))].sort((a, b) => a.localeCompare(b, 'ko'));
   const purchaseSourceOptions = [...new Set(parts.map((p) => p.purchase_source).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
+  const modelOptions = [...new Set(parts.flatMap((p) => matchAllKnownAirframeModels(p.name)))].sort((a, b) => a.localeCompare(b, 'ko'));
 
   const sortedParts = [...filteredParts].sort((a, b) => {
     const av = (a[sortBy] || '').toString();
@@ -579,6 +582,24 @@ function PurchaseOrderManagement() {
           </Select>
         </FormControl>
 
+        <FormControl size="small" sx={{ minWidth: 160 }}>
+          <InputLabel>기종</InputLabel>
+          <Select
+            multiple
+            label="기종"
+            value={modelFilter}
+            onChange={(e) => { setModelFilter(e.target.value); setPage(0); }}
+            renderValue={(selected) => selected.length === 0 ? '전체' : selected.join(', ')}
+          >
+            {modelOptions.map((m) => (
+              <MenuItem key={m} value={m}>
+                <Checkbox size="small" checked={modelFilter.includes(m)} />
+                {m}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
         <FormControl size="small" sx={{ minWidth: 120 }}>
           <InputLabel>정렬</InputLabel>
           <Select
@@ -624,6 +645,10 @@ function PurchaseOrderManagement() {
           label="매입처"
         />
         <FormControlLabel
+          control={<Checkbox size="small" checked={visibleCols.stock} onChange={(e) => setVisibleCols((c) => ({ ...c, stock: e.target.checked }))} />}
+          label="현재고"
+        />
+        <FormControlLabel
           control={<Switch size="small" checked={showHiddenParts} onChange={(e) => { setShowHiddenParts(e.target.checked); setPage(0); }} color="warning" />}
           label={`숨김상품 표시${hiddenPartsCount > 0 ? ` (${hiddenPartsCount})` : ''}`}
         />
@@ -664,7 +689,7 @@ function PurchaseOrderManagement() {
                 {visibleCols.note && <TableCell sx={{ width: 70 }}>구분</TableCell>}
                 {visibleCols.memo && <TableCell sx={{ width: 120 }}>적요</TableCell>}
                 {visibleCols.purchase_source && <TableCell sx={{ width: 100 }}>매입처</TableCell>}
-                <TableCell align="right" sx={{ width: 70 }}>현재고</TableCell>
+                {visibleCols.stock && <TableCell align="right" sx={{ width: 70 }}>현재고</TableCell>}
                 {dateColumns.map((dateStr) => (
                   <TableCell key={dateStr} align="center" sx={{ width: 160, minWidth: 160 }}>
                     {format(parseISO(dateStr), 'yy/MM/dd')}
@@ -723,7 +748,7 @@ function PurchaseOrderManagement() {
                     );
                   })()}
                   {visibleCols.purchase_source && <TableCell>{p.purchase_source || '-'}</TableCell>}
-                  <TableCell align="right">{stockTotals[p.id] ?? 0}</TableCell>
+                  {visibleCols.stock && <TableCell align="right">{stockTotals[p.id] ?? 0}</TableCell>}
                   {dateColumns.map((dateStr) => {
                     const key = `${p.id}_${dateStr}`;
                     const cell = ordersMap.get(key) || { quantity: 0, received_quantity: 0 };
