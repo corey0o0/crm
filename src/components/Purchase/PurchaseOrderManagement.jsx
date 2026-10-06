@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Typography, TextField, Paper, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Snackbar, Alert, CircularProgress, Checkbox,
@@ -33,9 +33,6 @@ const STICKY_LEFT = {
   name: STICKY_WIDTHS.checkbox + STICKY_WIDTHS.image + STICKY_WIDTHS.brand + STICKY_WIDTHS.model + STICKY_WIDTHS.barcode,
 };
 const STICKY_TOTAL = STICKY_LEFT.name + STICKY_WIDTHS.name;
-
-// 추가한 날짜 열은 컴포넌트 state라 새로고침하면 사라짐 → localStorage에 저장해 복원
-const DATE_COLUMNS_STORAGE_KEY = 'po_date_columns';
 
 // parts.model이 있으면 그걸 우선 사용. 없는 레거시 데이터는
 // 판매통계에서 쓰는 기종 키워드 매칭(브랜드 무관, 텍스트 전체 스캔)으로 폴백.
@@ -92,7 +89,7 @@ function PurchaseOrderManagement() {
         queryWithTimeout(
           supabase
             .from('parts')
-            .select('id, name, name_en, brand, code, barcode, image_url, supply_price, price, note, memo, purchase_source, created_at')
+            .select('id, name, name_en, brand, code, barcode, image_url, supply_price, price, note, memo, purchase_source, model, created_at')
             .order('brand')
             .order('name'),
           8000
@@ -161,44 +158,75 @@ function PurchaseOrderManagement() {
     }
   };
 
-  const handleAddDateColumn = () => {
+  const handleAddDateColumn = async () => {
     if (!newDate) return;
     const dateStr = format(newDate, 'yyyy-MM-dd');
     if (dateColumns.includes(dateStr)) {
       showSnackbar('이미 추가된 날짜입니다.', 'warning');
       return;
     }
-    setDateColumns((prev) => [...prev, dateStr]);
+    try {
+      const { error } = await safeRetry(() =>
+        queryWithTimeout(supabase.from('po_date_columns').upsert({ order_date: dateStr }), 8000)
+      );
+      if (error) throw error;
+    } catch (err) {
+      showSnackbar(getErrorMessage(err), 'error');
+      return;
+    }
+    setDateColumns((prev) => [...prev, dateStr].sort());
     setNewDate(null);
     fetchOrdersForDate(dateStr);
   };
 
-  const handleRemoveDateColumn = (dateStr) => {
+  const handleRemoveDateColumn = async (dateStr) => {
+    try {
+      const { error } = await safeRetry(() =>
+        queryWithTimeout(supabase.from('po_date_columns').delete().eq('order_date', dateStr), 8000)
+      );
+      if (error) throw error;
+    } catch (err) {
+      showSnackbar(getErrorMessage(err), 'error');
+      return;
+    }
     setDateColumns((prev) => prev.filter((d) => d !== dateStr));
   };
 
-  // 새로고침해도 추가했던 날짜 열이 유지되도록 복원
-  const dateColumnsLoadedRef = useRef(false);
+  // 날짜 열은 DB(po_date_columns)가 기준. 브라우저 localStorage는 쓰지 않음(기기 간 공유 안 되는 문제 있었음).
+  // 이 브라우저에 과거에 저장된 localStorage 값이 있으면 1회 DB로 이전 후 비움.
   useEffect(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(DATE_COLUMNS_STORAGE_KEY) || '[]');
-      if (Array.isArray(saved) && saved.length > 0) {
-        setDateColumns(saved);
-        saved.forEach((d) => fetchOrdersForDate(d));
+    (async () => {
+      try {
+        const legacy = JSON.parse(localStorage.getItem('po_date_columns') || 'null');
+        if (Array.isArray(legacy) && legacy.length > 0) {
+          const { error: migrateError } = await safeRetry(() =>
+            queryWithTimeout(
+              supabase.from('po_date_columns').upsert(legacy.map((d) => ({ order_date: d }))),
+              8000
+            )
+          );
+          if (!migrateError) localStorage.removeItem('po_date_columns');
+        }
+      } catch (e) {
+        // 저장된 값이 깨졌으면 무시하고 DB 값만 사용
       }
-    } catch (e) {
-      // 저장된 값이 깨졌으면 무시
-    } finally {
-      dateColumnsLoadedRef.current = true;
-    }
+
+      try {
+        const { data, error } = await safeRetry(() =>
+          queryWithTimeout(supabase.from('po_date_columns').select('order_date').order('order_date'), 8000)
+        );
+        if (error) throw error;
+        const cols = (data || []).map((r) => r.order_date);
+        if (cols.length > 0) {
+          setDateColumns(cols);
+          cols.forEach((d) => fetchOrdersForDate(d));
+        }
+      } catch (err) {
+        showSnackbar(getErrorMessage(err), 'error');
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    // 복원 완료 전에는 저장하지 않음 (초기 빈 배열이 복원값을 덮어쓰는 것 방지)
-    if (!dateColumnsLoadedRef.current) return;
-    localStorage.setItem(DATE_COLUMNS_STORAGE_KEY, JSON.stringify(dateColumns));
-  }, [dateColumns]);
 
   const parseQty = (raw) => {
     const parsed = parseInt(raw, 10);

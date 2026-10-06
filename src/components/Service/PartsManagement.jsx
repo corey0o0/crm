@@ -785,6 +785,7 @@ function PartsManagement() {
   const [sortOption, setSortOption] = useState('newest'); // 'legacy'면 컬럼헤더 클릭 정렬 사용
   const [showSupplyPrice, setShowSupplyPrice] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('전체');
+  const [selectedModel, setSelectedModel] = useState('전체');
 
   // 체크박스 관련 상태 추가
   const [selectedItems, setSelectedItems] = useState([]);
@@ -1834,6 +1835,9 @@ function PartsManagement() {
       // 매입처로 필터링
       const purchaseSourceMatch = selectedPurchaseSource === '전체' || (part.purchase_source || '') === selectedPurchaseSource;
       if (!purchaseSourceMatch) return false;
+      // 기종으로 필터링
+      const modelMatch = selectedModel === '전체' || (part.model || '') === selectedModel;
+      if (!modelMatch) return false;
 
       // 검색어가 없으면 필터링만 적용
       if (!searchTerm) return true;
@@ -1843,7 +1847,7 @@ function PartsManagement() {
       const tokens = searchTermLower.trim().split(/\s+/).filter(Boolean);
       return tokens.every(tok => haystack.includes(tok));
     });
-  }, [parts, searchTerm, selectedBrand, selectedCategory, selectedPurchaseSource, showHiddenParts]);
+  }, [parts, searchTerm, selectedBrand, selectedCategory, selectedPurchaseSource, selectedModel, showHiddenParts]);
 
   // 정렬된 파츠 목록
   const sortedParts = useMemo(() => {
@@ -2410,6 +2414,21 @@ function PartsManagement() {
                   <MenuItem key={source} value={source}>{source}</MenuItem>
                 ))}
                 <MenuItem value="">(매입처 없음)</MenuItem>
+              </TextField>
+            </Grid>
+            <Grid item xs={12} sm={4} md={2}>
+              <TextField
+                select
+                fullWidth
+                size="small"
+                label="기종"
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+              >
+                <MenuItem value="전체">전체 기종</MenuItem>
+                {Array.from(new Set(parts.map(p => p.model).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ko')).map(m => (
+                  <MenuItem key={m} value={m}>{toEnglishModelName(m)}</MenuItem>
+                ))}
               </TextField>
             </Grid>
 
