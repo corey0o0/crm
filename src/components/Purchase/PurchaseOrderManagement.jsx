@@ -476,8 +476,8 @@ function PurchaseOrderManagement() {
   const modelOptions = [...new Set(parts.flatMap((p) => matchAllKnownAirframeModels(p.name)))].sort((a, b) => a.localeCompare(b, 'ko'));
 
   const sortedParts = [...filteredParts].sort((a, b) => {
-    const av = (a[sortBy] || '').toString();
-    const bv = (b[sortBy] || '').toString();
+    const av = (sortBy === 'model' ? extractModel(a) : a[sortBy] || '').toString();
+    const bv = (sortBy === 'model' ? extractModel(b) : b[sortBy] || '').toString();
     const cmp = av.localeCompare(bv, 'ko');
     return sortDir === 'asc' ? cmp : -cmp;
   });
@@ -612,6 +612,7 @@ function PurchaseOrderManagement() {
             }}
           >
             <MenuItem value="brand">브랜드순</MenuItem>
+            <MenuItem value="model">기종순</MenuItem>
             <MenuItem value="code">코드순</MenuItem>
             <MenuItem value="name">제품명순</MenuItem>
             <MenuItem value="created_at">최신순</MenuItem>
