@@ -425,7 +425,8 @@ function PurchaseOrderManagement() {
     const matchesTerm = !term || (
       (p.name || '').toLowerCase().includes(term) ||
       (p.brand || '').toLowerCase().includes(term) ||
-      (p.code || '').toLowerCase().includes(term)
+      (p.code || '').toLowerCase().includes(term) ||
+      (p.barcode || '').toLowerCase().includes(term)
     );
     if (!matchesTerm) return false;
     if (noteFilter !== 'all' && (p.note || '') !== noteFilter) return false;
