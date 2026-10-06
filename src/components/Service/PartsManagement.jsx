@@ -39,7 +39,8 @@ import {
   Stack,
   Chip,
   Avatar,
-  Divider
+  Divider,
+  Autocomplete
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -395,19 +396,16 @@ const PartsFormDialog = memo(({
             </TextField>
           </Grid>
           <Grid item xs={12} md={6}>
-            <TextField
-              select
+            <Autocomplete
+              multiple
+              freeSolo
               fullWidth
-              label="기종"
-              name="model"
-              value={formData.model}
-              onChange={handleChange}
-            >
-              <MenuItem value="">선택안함</MenuItem>
-              {ALL_MODEL_NAMES.map((m) => (
-                <MenuItem key={m} value={m}>{toEnglishModelName(m)}</MenuItem>
-              ))}
-            </TextField>
+              options={ALL_MODEL_NAMES}
+              getOptionLabel={(m) => toEnglishModelName(m)}
+              value={formData.model ? formData.model.split('/').filter(Boolean) : []}
+              onChange={(e, newValue) => setFormData(prev => ({ ...prev, model: newValue.filter(Boolean).join('/') }))}
+              renderInput={(params) => <TextField {...params} label="기종" placeholder="선택 또는 직접 입력" />}
+            />
           </Grid>
           <Grid item xs={12} md={6}>
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
@@ -1836,7 +1834,7 @@ function PartsManagement() {
       const purchaseSourceMatch = selectedPurchaseSource === '전체' || (part.purchase_source || '') === selectedPurchaseSource;
       if (!purchaseSourceMatch) return false;
       // 기종으로 필터링
-      const modelMatch = selectedModel === '전체' || (part.model || '') === selectedModel;
+      const modelMatch = selectedModel === '전체' || (part.model || '').split('/').filter(Boolean).includes(selectedModel);
       if (!modelMatch) return false;
 
       // 검색어가 없으면 필터링만 적용
@@ -2426,7 +2424,7 @@ function PartsManagement() {
                 onChange={(e) => setSelectedModel(e.target.value)}
               >
                 <MenuItem value="전체">전체 기종</MenuItem>
-                {Array.from(new Set(parts.map(p => p.model).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ko')).map(m => (
+                {Array.from(new Set(parts.flatMap(p => (p.model || '').split('/').filter(Boolean)))).sort((a, b) => a.localeCompare(b, 'ko')).map(m => (
                   <MenuItem key={m} value={m}>{toEnglishModelName(m)}</MenuItem>
                 ))}
               </TextField>
@@ -2655,7 +2653,7 @@ function PartsManagement() {
                 </TableCell>
                 <TableCell>
                   <Typography sx={{ fontSize: '0.875rem', color: part.model ? 'text.primary' : 'text.secondary', fontStyle: part.model ? 'normal' : 'italic' }}>
-                    {part.model ? toEnglishModelName(part.model) : '-'}
+                    {part.model ? part.model.split('/').filter(Boolean).map(toEnglishModelName).join('/') : '-'}
                   </Typography>
                 </TableCell>
                 <TableCell>

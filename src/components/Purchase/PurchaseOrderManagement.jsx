@@ -721,14 +721,16 @@ function PurchaseOrderManagement() {
       {loadingParts ? (
         <CircularProgress size={24} />
       ) : (
-        <Paper>
-        <TableContainer sx={{ overflowX: 'auto', overflowY: 'visible', WebkitOverflowScrolling: 'touch', maxWidth: '100%' }}>
+        <>
+        <TableContainer component={Paper} sx={{ overflowX: 'auto', overflowY: 'visible', WebkitOverflowScrolling: 'touch', maxWidth: '100%' }}>
           <Table
             size="small"
             stickyHeader
             sx={{
               minWidth: tableMinWidth,
               tableLayout: 'fixed',
+              border: '1px solid',
+              borderColor: 'divider',
               '& td, & th': { borderRight: '1px solid', borderColor: 'divider' },
             }}
           >
@@ -917,7 +919,7 @@ function PurchaseOrderManagement() {
           onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
           rowsPerPageOptions={[25, 50, 100]}
         />
-        </Paper>
+        </>
       )}
 
       <Popover
