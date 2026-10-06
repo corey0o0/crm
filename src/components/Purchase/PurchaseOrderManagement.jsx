@@ -416,6 +416,22 @@ function PurchaseOrderManagement() {
     return hasUnreceived ? 'unreceived' : 'received';
   };
 
+  // 행 배경색: 입고수량 0=회색, 전부 입고=그린, 일부만 입고=노랑
+  const getRowBg = (partId) => {
+    let ordered = 0;
+    let received = 0;
+    dateColumns.forEach((dateStr) => {
+      const cell = ordersMap.get(`${partId}_${dateStr}`);
+      if (cell) {
+        ordered += cell.quantity || 0;
+        received += cell.received_quantity || 0;
+      }
+    });
+    if (received === 0) return '#f5f5f5';
+    if (received >= ordered) return '#e8f5e9';
+    return '#fff9c4';
+  };
+
   const hiddenPartsCount = parts.filter((p) => (p.memo || '').includes('[HIDDEN]')).length;
 
   const filteredParts = parts.filter((p) => {
@@ -647,12 +663,14 @@ function PurchaseOrderManagement() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {pagedParts.map((p) => (
-                <TableRow key={p.id}>
-                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.checkbox, zIndex: 2, bgcolor: 'background.paper', p: 0.5 }}>
+              {pagedParts.map((p) => {
+                const rowBg = getRowBg(p.id);
+                return (
+                <TableRow key={p.id} sx={{ bgcolor: rowBg }}>
+                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.checkbox, zIndex: 2, bgcolor: rowBg, p: 0.5 }}>
                     <Checkbox size="small" checked={selectedIds.has(p.id)} onChange={() => handleSelectRow(p.id)} />
                   </TableCell>
-                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.image, zIndex: 2, bgcolor: 'background.paper' }}>
+                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.image, zIndex: 2, bgcolor: rowBg }}>
                     <Avatar
                       src={p.image_url}
                       alt={p.name}
@@ -661,12 +679,12 @@ function PurchaseOrderManagement() {
                       onClick={() => p.image_url && setEnlargedImage(p.image_url)}
                     />
                   </TableCell>
-                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.brand, zIndex: 2, bgcolor: 'background.paper' }}>{p.brand}</TableCell>
-                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.barcode, zIndex: 2, bgcolor: 'background.paper' }}>
+                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.brand, zIndex: 2, bgcolor: rowBg }}>{p.brand}</TableCell>
+                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.barcode, zIndex: 2, bgcolor: rowBg }}>
                     {p.barcode || '-'}
                     <Typography variant="caption" display="block" color="text.secondary">{p.code}</Typography>
                   </TableCell>
-                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.name, zIndex: 2, bgcolor: 'background.paper' }}>
+                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.name, zIndex: 2, bgcolor: rowBg }}>
                     {p.name}
                     {(p.memo || '').includes('[HIDDEN]') && (
                       <Chip size="small" label="숨김상품" sx={{ height: 18, fontSize: '0.6rem', ml: 0.5 }} />
@@ -776,7 +794,8 @@ function PurchaseOrderManagement() {
                     <TableCell key={`ph-${i}`} sx={{ bgcolor: 'action.hover' }} />
                   ))}
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         </TableContainer>
