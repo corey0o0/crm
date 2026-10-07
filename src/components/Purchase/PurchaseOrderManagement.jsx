@@ -28,6 +28,7 @@ function modelRank(p) {
   if (!keys.length) return Infinity;
   return Math.min(...keys.map((k) => MODEL_RANK.has(k) ? MODEL_RANK.get(k) : Infinity));
 }
+const BRAND_SORT_RANK = { XRB: 0, NB: 1 };
 
 // 왼쪽 고정(스티키) 컬럼 폭. 헤더/바디 offset 계산에 재사용.
 // 순서: 체크박스 / 이미지 / 브랜드 / 기종 / 바코드 / 제품명(한글+영문)
@@ -519,9 +520,27 @@ function PurchaseOrderManagement() {
 
   const hiddenPartsCount = parts.filter((p) => (p.memo || '').includes('[HIDDEN]')).length;
 
+  // 공용(COMMON) 부속은 탭/정렬에서 기종 기준으로 엑스라이더/니어바이크 중 하나로 편입.
+  // 같은 기종을 쓰는 XRB/NB 비공용 부속이 있으면 그 브랜드로, 둘 다 있으면 엑스라이더 우선.
+  const modelBrandMap = new Map();
+  parts.forEach((p) => {
+    if (p.brand !== 'XRB' && p.brand !== 'NB') return;
+    getModelKeys(p).forEach((k) => {
+      if (!modelBrandMap.has(k)) modelBrandMap.set(k, new Set());
+      modelBrandMap.get(k).add(p.brand);
+    });
+  });
+  function effectiveBrand(p) {
+    if (p.brand === 'XRB' || p.brand === 'NB') return p.brand;
+    const keys = getModelKeys(p);
+    if (keys.some((k) => modelBrandMap.get(k)?.has('XRB'))) return 'XRB';
+    if (keys.some((k) => modelBrandMap.get(k)?.has('NB'))) return 'NB';
+    return 'XRB';
+  }
+
   const filteredParts = parts.filter((p) => {
     if (p.note === '공임' || p.note === '기타') return false; // 발주관리: 공임/기타는 발주 대상 아님
-    if (brandTab !== 'all' && p.brand !== brandTab) return false;
+    if (brandTab !== 'all' && effectiveBrand(p) !== brandTab) return false;
     if (!showHiddenParts && (p.memo || '').includes('[HIDDEN]')) return false;
     const term = searchTerm.trim().toLowerCase();
     const matchesTerm = !term || (
@@ -548,7 +567,8 @@ function PurchaseOrderManagement() {
   const sortedParts = [...filteredParts].sort((a, b) => {
     let cmp;
     if (sortBy === 'model') {
-      cmp = modelRank(a) - modelRank(b);
+      cmp = BRAND_SORT_RANK[effectiveBrand(a)] - BRAND_SORT_RANK[effectiveBrand(b)];
+      if (cmp === 0) cmp = modelRank(a) - modelRank(b);
     } else {
       const av = (a[sortBy] || '').toString();
       const bv = (b[sortBy] || '').toString();
