@@ -3,7 +3,7 @@ import {
   Box, Typography, TextField, Paper, Table, TableBody, TableCell,
   TableContainer, TableHead, TableFooter, TableRow, Snackbar, Alert, CircularProgress, Checkbox,
   TablePagination, Avatar, IconButton, Button, Dialog, DialogContent, FormControlLabel,
-  Select, MenuItem, FormControl, InputLabel, Tooltip, Popover, Chip, Switch,
+  Select, MenuItem, FormControl, InputLabel, Tooltip, Popover, Chip, Switch, Tabs, Tab,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
@@ -18,8 +18,16 @@ import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ko } from 'date-fns/locale';
 import { format, parseISO } from 'date-fns';
-import { matchAllKnownAirframeModels, toEnglishModelName } from '../../utils/airframeModelNormalize';
+import { matchAllKnownAirframeModels, toEnglishModelName, ALL_MODEL_NAMES } from '../../utils/airframeModelNormalize';
 import { uploadFileToR2 as uploadToR2 } from '../../utils/cloudflareR2Utils';
+
+// ALL_MODEL_NAMES 순서 = 최신/상위 기종(X200 등) 먼저. 기종순 정렬에 그대로 재사용.
+const MODEL_RANK = new Map(ALL_MODEL_NAMES.map((m, i) => [m, i]));
+function modelRank(p) {
+  const keys = getModelKeys(p);
+  if (!keys.length) return Infinity;
+  return Math.min(...keys.map((k) => MODEL_RANK.has(k) ? MODEL_RANK.get(k) : Infinity));
+}
 
 // 왼쪽 고정(스티키) 컬럼 폭. 헤더/바디 offset 계산에 재사용.
 // 순서: 체크박스 / 이미지 / 브랜드 / 기종 / 바코드 / 제품명(한글+영문)
@@ -51,6 +59,7 @@ function PurchaseOrderManagement() {
   const [parts, setParts] = useState([]);
   const [loadingParts, setLoadingParts] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [brandTab, setBrandTab] = useState('all');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
@@ -61,7 +70,7 @@ function PurchaseOrderManagement() {
   const [noteFilter, setNoteFilter] = useState('all');
   const [purchaseSourceFilter, setPurchaseSourceFilter] = useState([]); // 빈 배열 = 전체
   const [modelFilter, setModelFilter] = useState([]); // 빈 배열 = 전체
-  const [sortBy, setSortBy] = useState('brand');
+  const [sortBy, setSortBy] = useState('model');
   const [sortDir, setSortDir] = useState('asc');
   const [selectedIds, setSelectedIds] = useState(new Set());
 
@@ -512,6 +521,7 @@ function PurchaseOrderManagement() {
 
   const filteredParts = parts.filter((p) => {
     if (p.note === '공임' || p.note === '기타') return false; // 발주관리: 공임/기타는 발주 대상 아님
+    if (brandTab !== 'all' && p.brand !== brandTab) return false;
     if (!showHiddenParts && (p.memo || '').includes('[HIDDEN]')) return false;
     const term = searchTerm.trim().toLowerCase();
     const matchesTerm = !term || (
@@ -536,9 +546,14 @@ function PurchaseOrderManagement() {
 
   const NOTE_SORT_RANK = { '파츠': 0, '기체': 1 };
   const sortedParts = [...filteredParts].sort((a, b) => {
-    const av = (sortBy === 'model' ? extractModel(a) : a[sortBy] || '').toString();
-    const bv = (sortBy === 'model' ? extractModel(b) : b[sortBy] || '').toString();
-    let cmp = av.localeCompare(bv, 'ko');
+    let cmp;
+    if (sortBy === 'model') {
+      cmp = modelRank(a) - modelRank(b);
+    } else {
+      const av = (a[sortBy] || '').toString();
+      const bv = (b[sortBy] || '').toString();
+      cmp = av.localeCompare(bv, 'ko');
+    }
     if (cmp === 0) {
       const an = NOTE_SORT_RANK[a.note] ?? 2;
       const bn = NOTE_SORT_RANK[b.note] ?? 2;
@@ -572,6 +587,18 @@ function PurchaseOrderManagement() {
   return (
     <Box sx={{ p: 3, width: '100%' }}>
       <Typography variant="h5" gutterBottom>발주 관리</Typography>
+
+      <Tabs
+        value={brandTab}
+        onChange={(e, v) => { setBrandTab(v); setPage(0); }}
+        sx={{ mb: 1, minHeight: 36 }}
+        textColor="primary"
+        indicatorColor="primary"
+      >
+        <Tab value="all" label="전체" sx={{ minHeight: 36, py: 0.5 }} />
+        <Tab value="XRB" label="엑스라이더" sx={{ minHeight: 36, py: 0.5 }} />
+        <Tab value="NB" label="니어바이크" sx={{ minHeight: 36, py: 0.5 }} />
+      </Tabs>
 
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, flexWrap: 'wrap' }}>
         <TextField
