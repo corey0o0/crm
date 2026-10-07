@@ -516,6 +516,7 @@ function PurchaseOrderManagement() {
     const term = searchTerm.trim().toLowerCase();
     const matchesTerm = !term || (
       (p.name || '').toLowerCase().includes(term) ||
+      (p.name_en || '').toLowerCase().includes(term) ||
       (p.brand || '').toLowerCase().includes(term) ||
       (p.code || '').toLowerCase().includes(term) ||
       (p.barcode || '').toLowerCase().includes(term)
