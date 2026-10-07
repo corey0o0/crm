@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box, Typography, TextField, Paper, Table, TableBody, TableCell,
-  TableContainer, TableHead, TableRow, Snackbar, Alert, CircularProgress, Checkbox,
+  TableContainer, TableHead, TableFooter, TableRow, Snackbar, Alert, CircularProgress, Checkbox,
   TablePagination, Avatar, IconButton, Button, Dialog, DialogContent, FormControlLabel,
   Select, MenuItem, FormControl, InputLabel, Tooltip, Popover, Chip, Switch,
 } from '@mui/material';
@@ -23,7 +23,7 @@ import { uploadFileToR2 as uploadToR2 } from '../../utils/cloudflareR2Utils';
 
 // 왼쪽 고정(스티키) 컬럼 폭. 헤더/바디 offset 계산에 재사용.
 // 순서: 체크박스 / 이미지 / 브랜드 / 기종 / 바코드 / 제품명(한글+영문)
-const STICKY_WIDTHS = { checkbox: 42, image: 48, brand: 70, model: 90, barcode: 130, name: 180 };
+const STICKY_WIDTHS = { checkbox: 42, image: 60, brand: 70, model: 90, barcode: 130, name: 180 };
 const STICKY_LEFT = {
   checkbox: 0,
   image: STICKY_WIDTHS.checkbox,
@@ -810,7 +810,7 @@ function PurchaseOrderManagement() {
                       src={p.image_url}
                       alt={p.name}
                       variant="rounded"
-                      sx={{ width: 32, height: 32, cursor: p.image_url ? 'pointer' : 'default' }}
+                      sx={{ width: 44, height: 44, cursor: p.image_url ? 'pointer' : 'default' }}
                       onClick={() => p.image_url && setEnlargedImage(p.image_url)}
                     />
                   </TableCell>
@@ -938,6 +938,35 @@ function PurchaseOrderManagement() {
                 );
               })}
             </TableBody>
+            <TableFooter>
+              <TableRow>
+                <TableCell
+                  colSpan={6 + Object.values(visibleCols).filter(Boolean).length}
+                  sx={{ position: 'sticky', left: 0, zIndex: 3, bgcolor: 'background.paper', fontWeight: 600 }}
+                >
+                  합계 (발주 / 입고 (차이))
+                </TableCell>
+                {dateColumns.map((dateStr) => {
+                  let orderSum = 0;
+                  let receivedSum = 0;
+                  sortedParts.forEach((p) => {
+                    const cell = ordersMap.get(`${p.id}_${dateStr}`);
+                    if (cell) {
+                      orderSum += cell.quantity || 0;
+                      receivedSum += cell.received_quantity || 0;
+                    }
+                  });
+                  return (
+                    <TableCell key={dateStr} align="center" sx={{ fontWeight: 600, bgcolor: 'action.hover' }}>
+                      {orderSum} / {receivedSum} ({orderSum - receivedSum})
+                    </TableCell>
+                  );
+                })}
+                {Array.from({ length: placeholderColumnCount }).map((_, i) => (
+                  <TableCell key={`ph-foot-${i}`} sx={{ bgcolor: 'action.hover' }} />
+                ))}
+              </TableRow>
+            </TableFooter>
           </Table>
         </TableContainer>
         <TablePagination

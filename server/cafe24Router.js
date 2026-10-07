@@ -369,13 +369,15 @@ module.exports = function(supabaseAdmin) {
       const { data: malls } = await supabaseAdmin.from('cafe24_settings').select('mall_id').not('access_token', 'is', null);
       if (!malls || malls.length === 0) return res.json({ success: true, updated: 0, notFoundCount: 0, failedCount: 0 });
 
-      const { data: parts, error: partsError } = await supabaseAdmin.from('parts').select('id, barcode');
+      const { data: parts, error: partsError } = await supabaseAdmin.from('parts').select('id, barcode, image_url');
       if (partsError) throw partsError;
 
       const barcodeToPartId = new Map();
+      const partIdHasImage = new Set();
       (parts || []).forEach(p => {
         const code = (p.barcode || '').replace(/[^0-9]/g, '');
         if (code) barcodeToPartId.set(code, p.id);
+        if (p.image_url && String(p.image_url).trim()) partIdHasImage.add(p.id);
       });
 
       let allItems = [];
@@ -425,6 +427,7 @@ module.exports = function(supabaseAdmin) {
       const failed = [];
       const failedDetails = [];
       let updated = 0;
+      let skipped = 0;
 
       // ponytail: 순차 처리하면 수백개 기준 프록시 타임아웃에 걸려 끊김 → 배치 병렬 처리
       const CONCURRENCY = 20;
@@ -437,6 +440,10 @@ module.exports = function(supabaseAdmin) {
           const partId = barcodeToPartId.get(code);
           if (!partId) {
             notFound.push(code);
+            return;
+          }
+          if (partIdHasImage.has(partId)) {
+            skipped++;
             return;
           }
 
@@ -466,6 +473,7 @@ module.exports = function(supabaseAdmin) {
       res.json({
         success: true,
         updated,
+        skipped,
         notFoundCount: notFound.length,
         failedCount: failed.length,
         notFoundSample: notFound.slice(0, 5),

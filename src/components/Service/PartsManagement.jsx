@@ -836,7 +836,7 @@ function PartsManagement() {
   const [sortOption, setSortOption] = useState('newest'); // 'legacy'면 컬럼헤더 클릭 정렬 사용
   const [showSupplyPrice, setShowSupplyPrice] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('전체');
-  const [selectedModel, setSelectedModel] = useState('전체');
+  const [selectedModel, setSelectedModel] = useState([]);
 
   // 체크박스 관련 상태 추가
   const [selectedItems, setSelectedItems] = useState([]);
@@ -1887,7 +1887,7 @@ function PartsManagement() {
       const purchaseSourceMatch = selectedPurchaseSource === '전체' || (part.purchase_source || '') === selectedPurchaseSource;
       if (!purchaseSourceMatch) return false;
       // 기종으로 필터링
-      const modelMatch = selectedModel === '전체' || (part.model || '').split('/').filter(Boolean).includes(selectedModel);
+      const modelMatch = selectedModel.length === 0 || (part.model || '').split('/').filter(Boolean).some(m => selectedModel.includes(m));
       if (!modelMatch) return false;
 
       // 검색어가 없으면 필터링만 적용
@@ -2468,19 +2468,23 @@ function PartsManagement() {
               </TextField>
             </Grid>
             <Grid item xs={12} sm={4} md={2}>
-              <TextField
-                select
-                fullWidth
-                size="small"
-                label="기종"
-                value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
-              >
-                <MenuItem value="전체">전체 기종</MenuItem>
-                {Array.from(new Set(parts.flatMap(p => (p.model || '').split('/').filter(Boolean)))).sort((a, b) => a.localeCompare(b, 'ko')).map(m => (
-                  <MenuItem key={m} value={m}>{toEnglishModelName(m)}</MenuItem>
-                ))}
-              </TextField>
+              <FormControl fullWidth size="small">
+                <InputLabel>기종</InputLabel>
+                <Select
+                  multiple
+                  label="기종"
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  renderValue={(selected) => selected.length === 0 ? '전체 기종' : selected.map(toEnglishModelName).join(', ')}
+                >
+                  {Array.from(new Set(parts.flatMap(p => (p.model || '').split('/').filter(Boolean)))).sort((a, b) => a.localeCompare(b, 'ko')).map(m => (
+                    <MenuItem key={m} value={m}>
+                      <Checkbox size="small" checked={selectedModel.includes(m)} />
+                      {toEnglishModelName(m)}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             </Grid>
 
             <Grid item xs={12} sm={12} md={4}>
@@ -2650,7 +2654,7 @@ function PartsManagement() {
                   />
                 </TableCell>
                 <TableCell>
-                  <Avatar src={part.image_url} alt={part.name} variant="rounded" sx={{ width: 40, height: 40, bgcolor: 'transparent', border: '1px solid #ddd', cursor: part.image_url ? 'pointer' : 'default', '& .MuiAvatar-img': { objectFit: 'contain' } }} onClick={() => part.image_url && setEnlargedImage(part.image_url)}>
+                  <Avatar src={part.image_url} alt={part.name} variant="rounded" sx={{ width: 52, height: 52, bgcolor: 'transparent', border: '1px solid #ddd', cursor: part.image_url ? 'pointer' : 'default', '& .MuiAvatar-img': { objectFit: 'contain' } }} onClick={() => part.image_url && setEnlargedImage(part.image_url)}>
                     <Box sx={{ fontSize: '0.4rem', color: '#999' }}>No img</Box>
                   </Avatar>
                 </TableCell>
