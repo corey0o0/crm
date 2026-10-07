@@ -141,16 +141,18 @@ const PartsFormDialog = memo(({
       setImageFile(null);
       setDupWarning({ code: null, barcode: null, name: null });
       if (initialData) {
+        // 기종 기존 유무와 무관하게 이름에서 접미사를 추출해둬야, 나중에 기종을 바꿀 때
+        // 기존 접미사를 제대로 제거하고 새 접미사를 붙여서 중복 추가되는 걸 막을 수 있음
+        const extracted = extractModelFromName(initialData.name || '');
         let autoModel = initialData.model || '';
-        let autoSuffixKr = '';
-        if (!autoModel) {
-          const extracted = extractModelFromName(initialData.name || '');
-          if (extracted) {
-            autoModel = extracted.tokens.join('/');
-            autoSuffixKr = (extracted.hasDash ? ' - ' : ' ') + extracted.suffixText;
-          }
+        if (!autoModel && extracted) {
+          autoModel = extracted.tokens.join('/');
         }
-        modelSuffixRef.current = { kr: autoSuffixKr, en: '' };
+        const autoSuffixKr = extracted ? ((extracted.hasDash ? ' - ' : ' ') + extracted.suffixText) : '';
+        const modelTokensNow = autoModel ? autoModel.split('/').filter(Boolean) : [];
+        const expectedSuffixEn = modelTokensNow.length ? ` for ${modelTokensNow.map(toEnglishModelName).join('/')}` : '';
+        const autoSuffixEn = (expectedSuffixEn && (initialData.name_en || '').endsWith(expectedSuffixEn)) ? expectedSuffixEn : '';
+        modelSuffixRef.current = { kr: autoSuffixKr, en: autoSuffixEn };
         setFormData({
           name: initialData.name || '',
           name_en: initialData.name_en || '',
@@ -235,6 +237,18 @@ const PartsFormDialog = memo(({
       checkDuplicate(name, cleanedValue);
     }
   }, [getNextPartCode, checkDuplicate]);
+
+  // 기종 선택을 다시 안 해도, 영문명 직접 입력 후 포커스 벗어나면 기종 접미사 자동 추가
+  const handleNameEnBlur = useCallback(() => {
+    setFormData(prev => {
+      const tokens = prev.model ? prev.model.split('/').filter(Boolean) : [];
+      if (!tokens.length || !prev.name_en) return prev;
+      const suffixEn = ` for ${tokens.map(toEnglishModelName).join('/')}`;
+      if (prev.name_en.endsWith(suffixEn)) return prev;
+      modelSuffixRef.current = { ...modelSuffixRef.current, en: suffixEn };
+      return { ...prev, name_en: prev.name_en + suffixEn };
+    });
+  }, []);
 
   const handleVatCalc = useCallback((field, type) => {
     setFormData(prev => {
@@ -562,6 +576,7 @@ const PartsFormDialog = memo(({
               name="name_en"
               value={formData.name_en}
               onChange={handleChange}
+              onBlur={handleNameEnBlur}
             />
           </Grid>
           <Grid item xs={12} md={6}>
