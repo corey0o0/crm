@@ -403,7 +403,10 @@ const PartsFormDialog = memo(({
               options={ALL_MODEL_NAMES}
               getOptionLabel={(m) => toEnglishModelName(m)}
               value={formData.model ? formData.model.split('/').filter(Boolean) : []}
-              onChange={(e, newValue) => setFormData(prev => ({ ...prev, model: newValue.filter(Boolean).join('/') }))}
+              onChange={(e, newValue) => {
+                const expanded = newValue.flatMap((v) => String(v).split(/[/,]/).map((s) => s.trim()).filter(Boolean));
+                setFormData(prev => ({ ...prev, model: Array.from(new Set(expanded)).join('/') }));
+              }}
               renderInput={(params) => <TextField {...params} label="기종" placeholder="선택 또는 직접 입력" />}
             />
           </Grid>
