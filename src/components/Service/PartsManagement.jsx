@@ -116,6 +116,8 @@ const PartsFormDialog = memo(({
   // 폼이 열려있는지 추적하여 불필요한 리셋 방지
   const isOpenRef = useRef(open);
   const prevInitialDataRef = useRef(initialData);
+  // 기종 변경 시 이름/영문명에 자동 추가한 접미사 추적 (다음 변경 때 이전 접미사만 제거하기 위함)
+  const modelSuffixRef = useRef({ kr: '', en: '' });
 
   useEffect(() => {
     // 닫혀있다가 열릴 때, 또는 initialData가 변경될 때만 초기화
@@ -125,6 +127,7 @@ const PartsFormDialog = memo(({
     if (justOpened || (open && dataChanged)) {
       setImageFile(null);
       setDupWarning({ code: null, barcode: null, name: null });
+      modelSuffixRef.current = { kr: '', en: '' };
       if (initialData) {
         setFormData({
           name: initialData.name || '',
@@ -405,7 +408,16 @@ const PartsFormDialog = memo(({
               value={formData.model ? formData.model.split('/').filter(Boolean) : []}
               onChange={(e, newValue) => {
                 const expanded = newValue.flatMap((v) => String(v).split(/[/,]/).map((s) => s.trim()).filter(Boolean));
-                setFormData(prev => ({ ...prev, model: Array.from(new Set(expanded)).join('/') }));
+                const tokens = Array.from(new Set(expanded));
+                const newSuffixKr = tokens.length ? ` ${tokens.join('/')}` : '';
+                const newSuffixEn = tokens.length ? ` for ${tokens.map(toEnglishModelName).join('/')}` : '';
+                setFormData(prev => {
+                  const stripSuffix = (text, suffix) => (suffix && text.endsWith(suffix)) ? text.slice(0, -suffix.length) : text;
+                  const baseName = stripSuffix(prev.name || '', modelSuffixRef.current.kr);
+                  const baseNameEn = stripSuffix(prev.name_en || '', modelSuffixRef.current.en);
+                  return { ...prev, model: tokens.join('/'), name: baseName + newSuffixKr, name_en: baseNameEn + newSuffixEn };
+                });
+                modelSuffixRef.current = { kr: newSuffixKr, en: newSuffixEn };
               }}
               renderInput={(params) => <TextField {...params} label="기종" placeholder="선택 또는 직접 입력" />}
             />
