@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box, Typography, TextField, Paper, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Snackbar, Alert, CircularProgress, Checkbox,
@@ -46,6 +46,8 @@ function extractModel(p) {
 }
 
 function PurchaseOrderManagement() {
+  const topScrollRef = useRef(null);
+  const bottomScrollRef = useRef(null);
   const [parts, setParts] = useState([]);
   const [loadingParts, setLoadingParts] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -550,6 +552,22 @@ function PurchaseOrderManagement() {
   const placeholderColumnCount = MIN_DATE_COLUMNS;
   const tableMinWidth = STICKY_TOTAL + 440 + (dateColumns.length + placeholderColumnCount) * 160;
 
+  const topScrollSyncing = useRef(false);
+  const handleTopScroll = () => {
+    if (topScrollSyncing.current) { topScrollSyncing.current = false; return; }
+    if (topScrollRef.current && bottomScrollRef.current) {
+      topScrollSyncing.current = true;
+      bottomScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+    }
+  };
+  const handleBottomScroll = () => {
+    if (topScrollSyncing.current) { topScrollSyncing.current = false; return; }
+    if (topScrollRef.current && bottomScrollRef.current) {
+      topScrollSyncing.current = true;
+      topScrollRef.current.scrollLeft = bottomScrollRef.current.scrollLeft;
+    }
+  };
+
   return (
     <Box sx={{ p: 3, width: '100%' }}>
       <Typography variant="h5" gutterBottom>발주 관리</Typography>
@@ -722,7 +740,19 @@ function PurchaseOrderManagement() {
         <CircularProgress size={24} />
       ) : (
         <>
-        <TableContainer component={Paper} sx={{ overflowX: 'auto', overflowY: 'visible', WebkitOverflowScrolling: 'touch', maxWidth: '100%' }}>
+        <Box
+          ref={topScrollRef}
+          onScroll={handleTopScroll}
+          sx={{ overflowX: 'auto', overflowY: 'hidden', maxWidth: '100%' }}
+        >
+          <Box sx={{ width: tableMinWidth, height: 1 }} />
+        </Box>
+        <TableContainer
+          component={Paper}
+          ref={bottomScrollRef}
+          onScroll={handleBottomScroll}
+          sx={{ overflowX: 'auto', overflowY: 'visible', WebkitOverflowScrolling: 'touch', maxWidth: '100%' }}
+        >
           <Table
             size="small"
             stickyHeader
