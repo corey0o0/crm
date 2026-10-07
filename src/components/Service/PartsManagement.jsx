@@ -73,9 +73,22 @@ import ExcelJS from 'exceljs';
 import { syncCafe24ProductImages } from '../../utils/cafe24Api';
 import { CloudUpload as CloudUploadIcon } from '@mui/icons-material';
 import { logAction } from '../../utils/auditLog';
-import { ALL_MODEL_NAMES, toEnglishModelName } from '../../utils/airframeModelNormalize';
+import { ALL_MODEL_NAMES, toEnglishModelName, matchAllKnownAirframeModels } from '../../utils/airframeModelNormalize';
 
 const BRANDS = ['XRB', 'NB', 'COMMON'];
+
+// 기종 미선택 시 파츠명 끝부분(" - X200GT/X100GT" 또는 "X200GT")에서 기종 추출
+function extractModelFromName(name) {
+  if (!name) return null;
+  const dashIdx = name.lastIndexOf(' - ');
+  const candidate = dashIdx >= 0 ? name.slice(dashIdx + 3).trim() : name.trim().split(' ').pop();
+  if (!candidate) return null;
+  const segments = candidate.split('/').filter(Boolean);
+  if (segments.length === 0) return null;
+  const matched = matchAllKnownAirframeModels(candidate);
+  if (matched.length !== segments.length) return null; // 전부 매칭돼야 안전
+  return { tokens: matched, suffixText: candidate, hasDash: dashIdx >= 0 };
+}
 
 // 입력 폼 컴포넌트 분리
 const PartsFormDialog = memo(({
@@ -127,13 +140,22 @@ const PartsFormDialog = memo(({
     if (justOpened || (open && dataChanged)) {
       setImageFile(null);
       setDupWarning({ code: null, barcode: null, name: null });
-      modelSuffixRef.current = { kr: '', en: '' };
       if (initialData) {
+        let autoModel = initialData.model || '';
+        let autoSuffixKr = '';
+        if (!autoModel) {
+          const extracted = extractModelFromName(initialData.name || '');
+          if (extracted) {
+            autoModel = extracted.tokens.join('/');
+            autoSuffixKr = (extracted.hasDash ? ' - ' : ' ') + extracted.suffixText;
+          }
+        }
+        modelSuffixRef.current = { kr: autoSuffixKr, en: '' };
         setFormData({
           name: initialData.name || '',
           name_en: initialData.name_en || '',
           brand: initialData.brand || '',
-          model: initialData.model || '',
+          model: autoModel,
           code: initialData.code || '',
           costPrice: initialData.cost_price?.toString() || '',
           supplyPrice: initialData.supply_price?.toString() || '',
@@ -148,6 +170,7 @@ const PartsFormDialog = memo(({
         });
         setImagePreview(initialData.image_url || '');
       } else {
+        modelSuffixRef.current = { kr: '', en: '' };
         const defaultBrand = brands[0] || '';
         const defaultCategory = '파츠';
         // 신규 등록일 때만 코드 추천
