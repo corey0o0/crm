@@ -409,7 +409,7 @@ const PartsFormDialog = memo(({
               onChange={(e, newValue) => {
                 const expanded = newValue.flatMap((v) => String(v).split(/[/,]/).map((s) => s.trim()).filter(Boolean));
                 const tokens = Array.from(new Set(expanded));
-                const newSuffixKr = tokens.length ? ` ${tokens.join('/')}` : '';
+                const newSuffixKr = tokens.length ? ` - ${tokens.join('/')}` : '';
                 const newSuffixEn = tokens.length ? ` for ${tokens.map(toEnglishModelName).join('/')}` : '';
                 setFormData(prev => {
                   const stripSuffix = (text, suffix) => (suffix && text.endsWith(suffix)) ? text.slice(0, -suffix.length) : text;
@@ -588,7 +588,7 @@ const PartsFormDialog = memo(({
             />
             {supplyPricePercent && (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right' }}>
-                할인 {100 - Number(supplyPricePercent)}%
+                ({100 - Number(supplyPricePercent)}%)
               </Typography>
             )}
             {renderVatButtons('supplyPrice')}
@@ -2648,8 +2648,8 @@ function PartsManagement() {
                 <TableCell align="right" sx={{ fontWeight: 'bold' }}>
                   {part.supply_price?.toLocaleString() || '-'}
                   {!!part.supply_price && !!part.price && (
-                    <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5, fontWeight: 'normal' }}>
-                      (할인 {100 - Math.round((part.supply_price / part.price) * 100)}%)
+                    <Typography component="div" variant="caption" color="text.secondary" sx={{ fontWeight: 'normal' }}>
+                      ({100 - Math.round((part.supply_price / part.price) * 100)}%)
                     </Typography>
                   )}
                 </TableCell>
