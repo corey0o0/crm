@@ -475,9 +475,10 @@ function PurchaseOrderManagement() {
         bitmap.close();
         return result;
       };
-      // 수백 건 동시 fetch 시 브라우저/CDN 레이트리밋으로 일부가 조용히 실패하는 문제 방지: 묶어서 처리 + 1회 재시도
+      const delay = (ms) => new Promise(r => setTimeout(r, ms));
+      // 수백 건 동시 fetch 시 브라우저/CDN 레이트리밋으로 일부가 조용히 실패하는 문제 방지: 작은 배치 + 재시도 딜레이
       // ponytail: 고정 배치 크기, 처리량이 더 늘면 pLimit 등으로 교체
-      const BATCH_SIZE = 15;
+      const BATCH_SIZE = 8;
       const partsWithImage = exportParts.filter((p) => p.image_url);
       for (let i = 0; i < partsWithImage.length; i += BATCH_SIZE) {
         const batch = partsWithImage.slice(i, i + BATCH_SIZE);
@@ -485,6 +486,7 @@ function PurchaseOrderManagement() {
           try {
             imageBuffers.set(p.id, await loadImage(p));
           } catch (e) {
+            await delay(300);
             try {
               imageBuffers.set(p.id, await loadImage(p));
             } catch (e2) {
