@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   Box, Typography, TextField, Paper, Table, TableBody, TableCell,
   TableContainer, TableHead, TableFooter, TableRow, Snackbar, Alert, CircularProgress, Checkbox,
@@ -20,6 +20,7 @@ import { ko } from 'date-fns/locale';
 import { format, parseISO } from 'date-fns';
 import { matchAllKnownAirframeModels, toEnglishModelName, ALL_MODEL_NAMES } from '../../utils/airframeModelNormalize';
 import { uploadFileToR2 as uploadToR2 } from '../../utils/cloudflareR2Utils';
+import { warehouseApi } from '../../api/warehouseApi';
 
 // ALL_MODEL_NAMES 순서 = 최신/상위 기종(X200 등) 먼저. 기종순 정렬에 그대로 재사용.
 const MODEL_RANK = new Map(ALL_MODEL_NAMES.map((m, i) => [m, i]));
@@ -85,6 +86,8 @@ function PurchaseOrderManagement() {
   const [memoImageUploading, setMemoImageUploading] = useState(false);
   const [excelDownloading, setExcelDownloading] = useState(false);
   const [stockTotals, setStockTotals] = useState({});
+  const [warehouses, setWarehouses] = useState([]);
+  const [warehouseId, setWarehouseId] = useState('');
 
   const showSnackbar = (message, severity = 'success') => {
     setSnackbar({ open: true, message, severity });
@@ -132,6 +135,11 @@ function PurchaseOrderManagement() {
     });
   }, []);
 
+  useEffect(() => {
+    warehouseApi.getVisible().then(setWarehouses).catch((err) => showSnackbar(getErrorMessage(err), 'error'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const fetchOrdersForDate = async (dateStr) => {
     setLoadingOrders(true);
     try {
@@ -143,7 +151,7 @@ function PurchaseOrderManagement() {
         queryWithTimeout(
           supabase
             .from('purchase_orders')
-            .select('part_id, quantity, received_quantity, received, received_at, memo, memo_image_url')
+            .select('part_id, quantity, received_quantity, received, received_at, memo, memo_image_url, stock_registered_qty')
             .eq('order_date', dateStr),
           8000
         )
@@ -159,6 +167,7 @@ function PurchaseOrderManagement() {
             received_at: row.received_at,
             memo: row.memo || '',
             memo_image_url: row.memo_image_url || null,
+            stock_registered_qty: row.stock_registered_qty || 0,
           });
         });
         return next;
@@ -294,6 +303,122 @@ function PurchaseOrderManagement() {
       showSnackbar(`${rows.length}건 저장되었습니다.`, 'success');
     } catch (err) {
       showSnackbar(getErrorMessage(err), 'error');
+    }
+  };
+
+  const partsById = useMemo(() => {
+    const map = new Map();
+    parts.forEach((p) => map.set(p.id, p));
+    return map;
+  }, [parts]);
+
+  // 저장된(ordersMap) 입고수량 중 아직 입출고관리에 등록 안 된 만큼(delta)만 추출
+  const registerableRows = useMemo(() => {
+    const result = [];
+    ordersMap.forEach((cell, key) => {
+      const delta = (cell.received_quantity || 0) - (cell.stock_registered_qty || 0);
+      if (delta > 0) {
+        const [partIdStr, dateStr] = key.split('_');
+        result.push({ key, partId: Number(partIdStr), dateStr, delta, received_quantity: cell.received_quantity || 0 });
+      }
+    });
+    return result;
+  }, [ordersMap]);
+
+  const handleRegisterStock = async () => {
+    if (!warehouseId) {
+      showSnackbar('입고 창고를 선택하세요.', 'error');
+      return;
+    }
+    if (registerableRows.length === 0) {
+      showSnackbar('등록할 입고 내역이 없습니다.', 'info');
+      return;
+    }
+
+    let successCount = 0;
+    const stockDeltas = {};
+
+    for (const row of registerableRows) {
+      const part = partsById.get(row.partId);
+      if (!part) continue;
+
+      try {
+        const { data: rpcData, error: rpcError } = await supabase.rpc('adjust_inventory', {
+          p_warehouse_id: warehouseId,
+          p_product_id: row.partId,
+          p_quantity_change: row.delta,
+        });
+        if (rpcError) throw rpcError;
+
+        const result = rpcData?.[0];
+        const newQuantity = result ? (result.out_quantity !== undefined ? result.out_quantity : result.quantity) : 0;
+        const previousQuantity = newQuantity - row.delta;
+
+        const { error: logError } = await supabase.from('inventory_logs').insert({
+          part_id: row.partId,
+          part_name: part.name,
+          part_code: part.code,
+          warehouse_id: warehouseId,
+          brand_code: part.brand,
+          change_type: 'purchase_received',
+          quantity_change: row.delta,
+          previous_quantity: previousQuantity,
+          new_quantity: newQuantity,
+          reference_type: 'purchase_order',
+          notes: `발주 입고 등록 (주문일: ${row.dateStr}) [${previousQuantity} -> ${newQuantity}]`,
+        });
+        if (logError) console.error('재고 로그 기록 실패:', logError);
+
+        const { error: txError } = await supabase.from('transactions').insert({
+          type: 'in',
+          product_id: row.partId,
+          product_name: part.name,
+          product_code: part.code,
+          product_supplier: part.brand,
+          quantity: row.delta,
+          from_location: '외부(발주입고)',
+          to_location: warehouseId,
+          date: row.dateStr,
+          note: `발주 입고 등록 [${previousQuantity} -> ${newQuantity}]`,
+          is_grouped: true,
+          status: '완료',
+        });
+        if (txError) console.error('입출고 거래내역 기록 실패:', txError);
+
+        const { error: poError } = await supabase
+          .from('purchase_orders')
+          .update({ stock_registered_qty: row.received_quantity })
+          .eq('part_id', row.partId)
+          .eq('order_date', row.dateStr);
+        if (poError) throw poError;
+
+        stockDeltas[row.partId] = (stockDeltas[row.partId] || 0) + row.delta;
+        successCount += 1;
+
+        setOrdersMap((m) => {
+          const next = new Map(m);
+          const prevCell = next.get(row.key);
+          if (prevCell) next.set(row.key, { ...prevCell, stock_registered_qty: row.received_quantity });
+          return next;
+        });
+      } catch (err) {
+        console.error(`부품 ${part.name} 입고 등록 실패:`, err);
+        showSnackbar(`${part.name} 등록 실패: ${getErrorMessage(err)}`, 'error');
+      }
+    }
+
+    if (Object.keys(stockDeltas).length > 0) {
+      setStockTotals((prev) => {
+        const next = { ...prev };
+        Object.entries(stockDeltas).forEach(([partId, delta]) => {
+          next[partId] = (next[partId] || 0) + delta;
+        });
+        return next;
+      });
+    }
+
+    if (successCount > 0) {
+      showSnackbar(`${successCount}건 입출고관리에 등록되었습니다.`, 'success');
     }
   };
 
@@ -649,6 +774,28 @@ function PurchaseOrderManagement() {
         >
           전체 저장{Object.keys(pendingQuantities).length > 0 && ` (${Object.keys(pendingQuantities).length})`}
         </Button>
+
+        <FormControl size="small" sx={{ minWidth: 140 }}>
+          <InputLabel>입고 창고</InputLabel>
+          <Select label="입고 창고" value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
+            <MenuItem value="">
+              <em>선택 안함</em>
+            </MenuItem>
+            {warehouses.map((w) => (
+              <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        <Button
+          variant="contained"
+          color="secondary"
+          size="small"
+          onClick={handleRegisterStock}
+          disabled={!warehouseId || registerableRows.length === 0}
+        >
+          입고 재고 등록{registerableRows.length > 0 && ` (${registerableRows.length})`}
+        </Button>
+
         <Button
           variant="outlined"
           size="small"
