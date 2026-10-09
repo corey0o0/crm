@@ -465,20 +465,34 @@ function PurchaseOrderManagement() {
       const IMAGE_CELL_PX = { width: Math.round(10 * 7 + 5), height: Math.round(40 * 96 / 72) };
 
       const imageBuffers = new Map();
-      await Promise.all(exportParts.map(async (p) => {
-        if (!p.image_url) return;
-        try {
-          const res = await fetch(p.image_url);
-          const blob = await res.blob();
-          const buffer = await blob.arrayBuffer();
-          const ext = blob.type.includes('png') ? 'png' : 'jpeg';
-          const bitmap = await createImageBitmap(blob);
-          imageBuffers.set(p.id, { buffer, ext, width: bitmap.width, height: bitmap.height });
-          bitmap.close();
-        } catch (e) {
-          // 이미지 로드 실패시 건너뜀
-        }
-      }));
+      const loadImage = async (p) => {
+        const res = await fetch(p.image_url);
+        const blob = await res.blob();
+        const buffer = await blob.arrayBuffer();
+        const ext = blob.type.includes('png') ? 'png' : 'jpeg';
+        const bitmap = await createImageBitmap(blob);
+        const result = { buffer, ext, width: bitmap.width, height: bitmap.height };
+        bitmap.close();
+        return result;
+      };
+      // 수백 건 동시 fetch 시 브라우저/CDN 레이트리밋으로 일부가 조용히 실패하는 문제 방지: 묶어서 처리 + 1회 재시도
+      // ponytail: 고정 배치 크기, 처리량이 더 늘면 pLimit 등으로 교체
+      const BATCH_SIZE = 15;
+      const partsWithImage = exportParts.filter((p) => p.image_url);
+      for (let i = 0; i < partsWithImage.length; i += BATCH_SIZE) {
+        const batch = partsWithImage.slice(i, i + BATCH_SIZE);
+        await Promise.all(batch.map(async (p) => {
+          try {
+            imageBuffers.set(p.id, await loadImage(p));
+          } catch (e) {
+            try {
+              imageBuffers.set(p.id, await loadImage(p));
+            } catch (e2) {
+              // 재시도까지 실패하면 건너뜀
+            }
+          }
+        }));
+      }
 
       for (const p of exportParts) {
         const row = [null, p.brand, extractModel(p) || '-', p.code, p.barcode || '-', p.name_en || '', p.name];
