@@ -423,23 +423,6 @@ function ProductList() {
                 helperText={!formData.name && "상품명을 입력해주세요"}
               />
             </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                select
-                label="카테고리"
-                name="category"
-                value={formData.category}
-                onChange={handleInputChange}
-                required
-                error={!formData.category}
-                helperText={!formData.category && "카테고리를 선택해주세요"}
-              >
-                <MenuItem value="기체">기체</MenuItem>
-                <MenuItem value="파츠 - 일반 부품">파츠 - 일반 부품</MenuItem>
-                <MenuItem value="파츠 - 전기 부품">파츠 - 전기 부품</MenuItem>
-              </TextField>
-            </Grid>
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth

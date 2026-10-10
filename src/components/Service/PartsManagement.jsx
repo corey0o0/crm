@@ -430,7 +430,7 @@ const PartsFormDialog = memo(({
               value={formData.note}
               onChange={handleChange}
             >
-              {['파츠 - 일반 부품', '파츠 - 전기 부품', '기체', '공임', '기타'].map(opt => (
+              {['파츠 전체', '파츠 - 일반 부품', '파츠 - 전기 부품', '기체', '악세서리', '공임', '기타'].map(opt => (
                 <MenuItem key={opt} value={opt}>{opt}</MenuItem>
               ))}
             </TextField>
@@ -2147,6 +2147,56 @@ function PartsManagement() {
       return;
     }
 
+    if (batchEditTarget === 'note') {
+      try {
+        setIsBatchUpdating(true);
+        const selectedPartsData = parts.filter(part => selectedItems.includes(part.id));
+        const updatePromises = selectedPartsData.map(part =>
+          supabase
+            .from('parts')
+            .update({ note: batchEditValue })
+            .eq('id', part.id)
+        );
+
+        await Promise.all(updatePromises);
+        showSnackbar(`${selectedItems.length}개 항목의 구분이 일괄 수정되었습니다.`, 'success');
+        handleCloseBatchEditDialog();
+        setSelectedItems([]);
+        fetchParts();
+      } catch (error) {
+        console.error('일괄 구분 수정 오류:', error);
+        showSnackbar('구분 수정 중 오류가 발생했습니다.', 'error');
+      } finally {
+        setIsBatchUpdating(false);
+      }
+      return;
+    }
+
+    if (batchEditTarget === 'model') {
+      try {
+        setIsBatchUpdating(true);
+        const selectedPartsData = parts.filter(part => selectedItems.includes(part.id));
+        const updatePromises = selectedPartsData.map(part =>
+          supabase
+            .from('parts')
+            .update({ model: batchEditValue.trim() || null })
+            .eq('id', part.id)
+        );
+
+        await Promise.all(updatePromises);
+        showSnackbar(`${selectedItems.length}개 항목의 기종이 일괄 수정되었습니다.`, 'success');
+        handleCloseBatchEditDialog();
+        setSelectedItems([]);
+        fetchParts();
+      } catch (error) {
+        console.error('일괄 기종 수정 오류:', error);
+        showSnackbar('기종 수정 중 오류가 발생했습니다.', 'error');
+      } finally {
+        setIsBatchUpdating(false);
+      }
+      return;
+    }
+
     if (!batchEditValue || isNaN(Number(batchEditValue))) {
       showSnackbar('유효한 숫자를 입력해주세요.', 'warning');
       return;
@@ -2505,7 +2555,7 @@ function PartsManagement() {
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
               >
-                {['전체', '파츠 - 일반 부품', '파츠 - 전기 부품', '기체', '공임', '기타'].map(opt => (
+                {['전체', '파츠 전체', '파츠 - 일반 부품', '파츠 - 전기 부품', '기체', '악세서리', '공임', '기타'].map(opt => (
                   <MenuItem key={opt} value={opt}>{opt}</MenuItem>
                 ))}
               </TextField>
@@ -3044,6 +3094,10 @@ function PartsManagement() {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
             {batchEditTarget === 'purchase_source'
               ? `선택한 ${selectedItems.length}개 항목의 매입처를 일괄 적용합니다.`
+              : batchEditTarget === 'note'
+              ? `선택한 ${selectedItems.length}개 항목의 구분을 일괄 적용합니다.`
+              : batchEditTarget === 'model'
+              ? `선택한 ${selectedItems.length}개 항목의 기종을 일괄 적용합니다.`
               : <>선택한 {selectedItems.length}개 항목의 대상을 지정한 후, 해당 항목의 <strong>판매가</strong>를 기준으로 일괄 계산하여 적용합니다.</>}
           </Typography>
 
@@ -3054,6 +3108,8 @@ function PartsManagement() {
               <FormControlLabel value="supply_price" control={<Radio />} label="공급가" />
               <FormControlLabel value="special_price" control={<Radio />} label="특별 공급가" />
               <FormControlLabel value="purchase_source" control={<Radio />} label="매입처" />
+              <FormControlLabel value="note" control={<Radio />} label="구분" />
+              <FormControlLabel value="model" control={<Radio />} label="기종" />
             </RadioGroup>
           </FormControl>
 
@@ -3065,6 +3121,27 @@ function PartsManagement() {
               onChange={(e) => setBatchEditValue(e.target.value)}
               placeholder="어디서 매입하는 상품인지 입력"
               helperText="빈칸으로 두고 적용하면 매입처가 비워집니다."
+            />
+          ) : batchEditTarget === 'note' ? (
+            <TextField
+              select
+              fullWidth
+              label="구분"
+              value={batchEditValue}
+              onChange={(e) => setBatchEditValue(e.target.value)}
+            >
+              {['파츠 전체', '파츠 - 일반 부품', '파츠 - 전기 부품', '기체', '악세서리', '공임', '기타'].map(opt => (
+                <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+              ))}
+            </TextField>
+          ) : batchEditTarget === 'model' ? (
+            <TextField
+              fullWidth
+              label="기종"
+              value={batchEditValue}
+              onChange={(e) => setBatchEditValue(e.target.value)}
+              placeholder="예: X200GT/X100GT (슬래시로 구분)"
+              helperText="여러 기종은 슬래시(/)로 구분하여 입력하세요."
             />
           ) : (
             <>
