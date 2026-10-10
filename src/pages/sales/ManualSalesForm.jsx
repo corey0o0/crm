@@ -633,9 +633,9 @@ function ShipmentForm() {
         sales_channel: shipmentData.sales_channel,
         product_name: combinedProductName,
         product_code: selectedParts[0]?.part_code || '',
-        quantity: totalQuantity,
-        price: totalPrice,
-        warehouse_id: shipmentData.warehouse_id, // 이제 필수로 들어감
+        quantity: parseInt(totalQuantity) || 0,
+        price: parseFloat(totalPrice) || 0,
+        warehouse_id: shipmentData.warehouse_id,
         record_type: 'manual_sale',
         updated_at: new Date().toISOString()
       };
@@ -692,10 +692,10 @@ function ShipmentForm() {
           part_name: part.part_name,
           part_code: part.part_code || '',
           part_category: part.category || '기체',
-          quantity: part.quantity || 1,
-          price: part.price || 0,
-          total_price: part.totalPrice || calculateTotal(part),
-          warehouse_id: shipmentData.warehouse_id, // 이제 필수로 들어감
+          quantity: parseInt(part.quantity) || 1,
+          price: parseFloat(part.price) || 0,
+          total_price: parseFloat(part.totalPrice || calculateTotal(part)) || 0,
+          warehouse_id: shipmentData.warehouse_id,
           created_at: new Date().toISOString()
         }));
 
