@@ -245,7 +245,10 @@ export const getPendingOrders = async (filters = {}) => {
       .from('pending_orders')
       .select(`
         *,
-        pending_order_items (*)
+        pending_order_items (
+          *,
+          parts (note)
+        )
       `)
       .order('created_at', { ascending: false });
 
@@ -267,9 +270,31 @@ export const getPendingOrders = async (filters = {}) => {
       throw new Error(`주문대기 목록 조회 실패: ${error.message}`);
     }
 
+    // ponytail: 기종별 정렬 (파츠-전기 > 파츠-일반 > 파츠-악세서리 > 기타)
+    const sortedData = (data || []).map(order => {
+      const sortedItems = [...(order.pending_order_items || [])].sort((a, b) => {
+        const noteA = a.parts?.note || '';
+        const noteB = b.parts?.note || '';
+
+        const getPriority = (note) => {
+          if (note.includes('파츠-전기')) return 1;
+          if (note.includes('파츠-일반')) return 2;
+          if (note.includes('파츠-악세서리')) return 3;
+          return 4;
+        };
+
+        const priorityDiff = getPriority(noteA) - getPriority(noteB);
+        if (priorityDiff !== 0) return priorityDiff;
+
+        return (a.part_name || '').localeCompare(b.part_name || '', 'ko');
+      });
+
+      return { ...order, pending_order_items: sortedItems };
+    });
+
     return {
       success: true,
-      data: data || []
+      data: sortedData
     };
 
   } catch (err) {
