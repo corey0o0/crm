@@ -1,5 +1,5 @@
 [build]
-  command = "npm install && npm run build"
+  command = "rm -rf node_modules/.cache build && npm install && npm run build"
   publish = "build"
 
 [functions]
