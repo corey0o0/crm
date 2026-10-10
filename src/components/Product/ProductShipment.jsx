@@ -572,12 +572,22 @@ function ProductShipment() {
   };
 
   useEffect(() => {
-    const filtered = parts.filter(part =>
-      part.name?.toLowerCase().includes(partSearchTerm.toLowerCase()) ||
-      part.code?.toLowerCase().includes(partSearchTerm.toLowerCase())
-    );
+    const filtered = parts.filter(part => {
+      const matchesSearch = part.name?.toLowerCase().includes(partSearchTerm.toLowerCase()) ||
+        part.code?.toLowerCase().includes(partSearchTerm.toLowerCase());
+
+      if (!matchesSearch) return false;
+
+      // 카테고리 필터
+      if (selectedPartCategory === '파츠 전체') {
+        const note = (part.note || '').toLowerCase();
+        return note.includes('파츠') || note.includes('part') || note.includes('부품');
+      } else {
+        return part.note === selectedPartCategory;
+      }
+    });
     setFilteredParts(filtered);
-  }, [partSearchTerm, parts]);
+  }, [partSearchTerm, parts, selectedPartCategory]);
 
   const getStatusColor = (status) => {
     switch (status) {
