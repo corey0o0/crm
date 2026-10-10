@@ -704,7 +704,7 @@ function PurchaseOrderManagement() {
   const purchaseSourceOptions = [...new Set(parts.map((p) => p.purchase_source).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
   const modelOptions = [...new Set(parts.flatMap(getModelKeys))].sort((a, b) => a.localeCompare(b, 'ko'));
 
-  const NOTE_SORT_RANK = { '파츠': 0, '기체': 1 };
+  const NOTE_SORT_RANK = { '파츠 - 일반 부품': 0, '파츠 - 전기 부품': 0, '기체': 1 };
   const sortedParts = [...filteredParts].sort((a, b) => {
     let cmp;
     if (sortBy === 'model') {
