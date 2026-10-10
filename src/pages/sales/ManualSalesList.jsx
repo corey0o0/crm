@@ -47,6 +47,7 @@ export default function ManualSalesList({ isEmbedded = false }) {
   });
 
   const [selectedItems, setSelectedItems] = useState([]);
+  const [selectedAmount, setSelectedAmount] = useState(0);
   const [bulkDeleteDialog, setBulkDeleteDialog] = useState(false);
   const [searchTrigger, setSearchTrigger] = useState(0);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -66,6 +67,13 @@ export default function ManualSalesList({ isEmbedded = false }) {
   useEffect(() => {
     fetchManualSales();
   }, [page, rowsPerPage, searchTrigger]);
+
+  useEffect(() => {
+    const sum = shipments
+      .filter(s => selectedItems.includes(s.id))
+      .reduce((acc, s) => acc + Number(s.price || 0), 0);
+    setSelectedAmount(sum);
+  }, [selectedItems, shipments]);
 
   const fetchManualSales = async () => {
     setLoading(true);
@@ -829,6 +837,13 @@ export default function ManualSalesList({ isEmbedded = false }) {
               <TableCell align="right" sx={{ fontWeight: 'bold', color: '#1976d2', py: 2 }}>{totalAmount.toLocaleString()}원</TableCell>
               <TableCell colSpan={2}></TableCell>
             </TableRow>
+            {selectedItems.length > 0 && (
+              <TableRow sx={{ bgcolor: '#fff3e0' }}>
+                <TableCell colSpan={7} align="right" sx={{ fontWeight: 'bold', py: 2 }}>선택 {selectedItems.length}건 합계</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 'bold', color: '#f57c00', py: 2 }}>{selectedAmount.toLocaleString()}원</TableCell>
+                <TableCell colSpan={2}></TableCell>
+              </TableRow>
+            )}
           </TableFooter>
         </Table>
         <TablePagination
