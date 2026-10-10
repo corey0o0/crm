@@ -83,7 +83,7 @@ import DuplicateWarningDialog from '../common/DuplicateWarningDialog';
 import { alpha } from '@mui/material/styles';
 
 // 부품 카테고리 정의
-const PART_CATEGORIES = ['기체', '파츠 전체', '파츠 - 일반 부품', '파츠 - 전기 부품', '악세서리', '공임', '기타'];
+const PART_CATEGORIES = ['기체', '파츠 전체', '파츠 - 일반 부품', '파츠 - 전기 부품', '파츠 - 악세서리', '공임', '기타'];
 
 const ShipmentSearchTextField = React.memo(function ShipmentSearchTextField({ value, onValueChange, onEnterSearch, sx }) {
   const [localValue, setLocalValue] = useState(value || '');

@@ -430,7 +430,7 @@ const PartsFormDialog = memo(({
               value={formData.note}
               onChange={handleChange}
             >
-              {['파츠 전체', '파츠 - 일반 부품', '파츠 - 전기 부품', '기체', '악세서리', '공임', '기타'].map(opt => (
+              {['파츠 전체', '파츠 - 일반 부품', '파츠 - 전기 부품', '기체', '파츠 - 악세서리', '공임', '기타'].map(opt => (
                 <MenuItem key={opt} value={opt}>{opt}</MenuItem>
               ))}
             </TextField>
@@ -2555,7 +2555,7 @@ function PartsManagement() {
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
               >
-                {['전체', '파츠 전체', '파츠 - 일반 부품', '파츠 - 전기 부품', '기체', '악세서리', '공임', '기타'].map(opt => (
+                {['전체', '파츠 전체', '파츠 - 일반 부품', '파츠 - 전기 부품', '기체', '파츠 - 악세서리', '공임', '기타'].map(opt => (
                   <MenuItem key={opt} value={opt}>{opt}</MenuItem>
                 ))}
               </TextField>
@@ -3130,7 +3130,7 @@ function PartsManagement() {
               value={batchEditValue}
               onChange={(e) => setBatchEditValue(e.target.value)}
             >
-              {['파츠 전체', '파츠 - 일반 부품', '파츠 - 전기 부품', '기체', '악세서리', '공임', '기타'].map(opt => (
+              {['파츠 전체', '파츠 - 일반 부품', '파츠 - 전기 부품', '기체', '파츠 - 악세서리', '공임', '기타'].map(opt => (
                 <MenuItem key={opt} value={opt}>{opt}</MenuItem>
               ))}
             </TextField>
