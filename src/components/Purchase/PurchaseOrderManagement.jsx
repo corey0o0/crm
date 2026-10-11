@@ -1200,12 +1200,16 @@ function PurchaseOrderManagement() {
             </TableBody>
             <TableFooter>
               <TableRow>
+                {/* ponytail: 라벨은 고정 6칸(체크박스~제품명)만 sticky로. 구분/적요/매입처/현재고 등은 본문처럼 스크롤되게 별도 셀로 분리 — 안 그러면 sticky 영역이 날짜 칸까지 가려버림 */}
                 <TableCell
-                  colSpan={6 + Object.values(visibleCols).filter(Boolean).length}
-                  sx={{ position: 'sticky', left: 0, zIndex: 3, bgcolor: 'background.paper', fontWeight: 600 }}
+                  colSpan={6}
+                  sx={{ position: 'sticky', left: 0, zIndex: 3, width: STICKY_TOTAL, minWidth: STICKY_TOTAL, bgcolor: 'background.paper', fontWeight: 600 }}
                 >
                   합계 (발주 / 입고 (차이))
                 </TableCell>
+                {Object.values(visibleCols).filter(Boolean).map((_, i) => (
+                  <TableCell key={`vf-${i}`} sx={{ bgcolor: 'action.hover' }} />
+                ))}
                 {dateColumns.map((dateStr) => {
                   let orderSum = 0;
                   let receivedSum = 0;
