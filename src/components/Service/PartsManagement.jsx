@@ -835,7 +835,7 @@ function PartsManagement() {
   const [orderBy, setOrderBy] = useState('code');
   const [sortOption, setSortOption] = useState('newest'); // 'legacy'면 컬럼헤더 클릭 정렬 사용
   const [showSupplyPrice, setShowSupplyPrice] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState('전체');
+  const [selectedCategory, setSelectedCategory] = useState([]); // 빈 배열 = 전체
   const [selectedModel, setSelectedModel] = useState([]);
 
   // 체크박스 관련 상태 추가
@@ -1881,7 +1881,7 @@ function PartsManagement() {
       const brandMatch = selectedBrand === '전체' || part.brand === selectedBrand;
       if (!brandMatch) return false;
       // 구분(카테고리)로 필터링
-      const categoryMatch = selectedCategory === '전체' || (part.note || '') === selectedCategory;
+      const categoryMatch = selectedCategory.length === 0 || selectedCategory.includes(part.note || '');
       if (!categoryMatch) return false;
       // 매입처로 필터링
       const purchaseSourceMatch = selectedPurchaseSource === '전체' || (part.purchase_source || '') === selectedPurchaseSource;
@@ -1902,6 +1902,21 @@ function PartsManagement() {
 
   // 정렬된 파츠 목록
   const sortedParts = useMemo(() => {
+    if (sortOption === 'default') {
+      // ponytail: 발주관리와 동일하게 구분(파츠 전체 > 전기 > 일반 > 악세서리 > 기타) 우선 정렬
+      const getNotePriority = (note) => {
+        if ((note || '').includes('파츠 전체')) return 1;
+        if ((note || '').includes('파츠 - 전기')) return 2;
+        if ((note || '').includes('파츠 - 일반')) return 3;
+        if ((note || '').includes('파츠 - 악세서리')) return 4;
+        return 5;
+      };
+      return [...filteredParts].sort((a, b) => {
+        const diff = getNotePriority(a.note) - getNotePriority(b.note);
+        if (diff !== 0) return diff;
+        return (a.name || '').localeCompare(b.name || '', 'ko');
+      });
+    }
     if (sortOption !== 'legacy') {
       return sortProducts(filteredParts, sortOption);
     }
@@ -2547,18 +2562,23 @@ function PartsManagement() {
               />
             </Grid>
             <Grid item xs={12} sm={4} md={2}>
-              <TextField
-                select
-                fullWidth
-                size="small"
-                label="구분"
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-              >
-                {['전체', '파츠 전체', '파츠 - 일반 부품', '파츠 - 전기 부품', '기체', '파츠 - 악세서리', '공임', '기타'].map(opt => (
-                  <MenuItem key={opt} value={opt}>{opt}</MenuItem>
-                ))}
-              </TextField>
+              <FormControl fullWidth size="small">
+                <InputLabel>구분</InputLabel>
+                <Select
+                  multiple
+                  label="구분"
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  renderValue={(selected) => selected.length === 0 ? '전체' : selected.join(', ')}
+                >
+                  {['파츠 전체', '파츠 - 일반 부품', '파츠 - 전기 부품', '기체', '파츠 - 악세서리', '공임', '기타'].map(opt => (
+                    <MenuItem key={opt} value={opt}>
+                      <Checkbox size="small" checked={selectedCategory.includes(opt)} />
+                      {opt}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             </Grid>
             <Grid item xs={12} sm={4} md={2}>
               <TextField

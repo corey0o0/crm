@@ -270,17 +270,18 @@ export const getPendingOrders = async (filters = {}) => {
       throw new Error(`주문대기 목록 조회 실패: ${error.message}`);
     }
 
-    // ponytail: 기종별 정렬 (파츠-전기 > 파츠-일반 > 파츠-악세서리 > 기타)
+    // ponytail: 기종별 정렬 (파츠 전체 > 파츠-전기 > 파츠-일반 > 파츠-악세서리 > 기타)
     const sortedData = (data || []).map(order => {
       const sortedItems = [...(order.pending_order_items || [])].sort((a, b) => {
         const noteA = a.parts?.note || '';
         const noteB = b.parts?.note || '';
 
         const getPriority = (note) => {
-          if (note.includes('파츠-전기')) return 1;
-          if (note.includes('파츠-일반')) return 2;
-          if (note.includes('파츠-악세서리')) return 3;
-          return 4;
+          if (note.includes('파츠 전체')) return 1;
+          if (note.includes('파츠-전기')) return 2;
+          if (note.includes('파츠-일반')) return 3;
+          if (note.includes('파츠-악세서리')) return 4;
+          return 5;
         };
 
         const priorityDiff = getPriority(noteA) - getPriority(noteB);
