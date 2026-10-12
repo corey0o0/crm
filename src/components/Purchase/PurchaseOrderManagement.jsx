@@ -465,16 +465,29 @@ function PurchaseOrderManagement() {
       // 이미지 셀 크기(픽셀 환산): 열너비(문자단위) ≈ chars*7+5, 행높이(pt) ≈ pt*96/72
       const IMAGE_CELL_PX = { width: Math.round(16 * 7 + 5), height: Math.round(60 * 96 / 72) };
 
+      const canvasToBlob = (canvas) => new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
       const imageBuffers = new Map();
+      // 셀에 표시될 크기로 미리 리사이즈해서 저장 — 원본(최대 수백KB)을 그대로 들고 있지 않아
+      // 메모리 부담이 줄고, 큰 이미지가 몰려 디코딩이 느려지는 문제도 같이 완화됨
       const loadImage = async (p) => {
         const res = await fetch(p.image_url);
         const blob = await res.blob();
-        const buffer = await blob.arrayBuffer();
-        const ext = blob.type.includes('png') ? 'png' : 'jpeg';
         const bitmap = await createImageBitmap(blob);
-        const result = { buffer, ext, width: bitmap.width, height: bitmap.height };
+        const scale = Math.min(IMAGE_CELL_PX.width / bitmap.width, IMAGE_CELL_PX.height / bitmap.height, 1);
+        const width = Math.round(bitmap.width * scale);
+        const height = Math.round(bitmap.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff'; // 투명 PNG가 JPEG로 바뀔 때 검게 찍히는 것 방지
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(bitmap, 0, 0, width, height);
         bitmap.close();
-        return result;
+        const outBlob = await canvasToBlob(canvas);
+        if (!outBlob) throw new Error('캔버스 압축 실패');
+        const buffer = await outBlob.arrayBuffer();
+        return { buffer, ext: 'jpeg', width, height };
       };
       const delay = (ms) => new Promise(r => setTimeout(r, ms));
       // 수백 건 동시 fetch 시 브라우저/CDN 레이트리밋으로 일부가 조용히 실패하는 문제 방지: 작은 배치 + 재시도 백오프
