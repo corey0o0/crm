@@ -66,7 +66,7 @@ function PurchaseOrderManagement() {
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [enlargedImage, setEnlargedImage] = useState(null);
-  const [visibleCols, setVisibleCols] = useState({ supply_price: false, price: false, note: true, memo: true, purchase_source: true, stock: true, orderTotal: true });
+  const [visibleCols, setVisibleCols] = useState({ supply_price: false, price: false, note: true, memo: true, purchase_source: true, stock: false, orderTotal: true });
   const [showHiddenParts, setShowHiddenParts] = useState(false);
   const [receivedFilter, setReceivedFilter] = useState('all');
   const [noteFilter, setNoteFilter] = useState([]); // 빈 배열 = 전체
@@ -477,23 +477,24 @@ function PurchaseOrderManagement() {
         return result;
       };
       const delay = (ms) => new Promise(r => setTimeout(r, ms));
-      // 수백 건 동시 fetch 시 브라우저/CDN 레이트리밋으로 일부가 조용히 실패하는 문제 방지: 작은 배치 + 재시도 딜레이
+      // 수백 건 동시 fetch 시 브라우저/CDN 레이트리밋으로 일부가 조용히 실패하는 문제 방지: 작은 배치 + 재시도 백오프
       // ponytail: 고정 배치 크기, 처리량이 더 늘면 pLimit 등으로 교체
       const BATCH_SIZE = 8;
+      const RETRY_DELAYS = [300, 800, 1500]; // 총 4회 시도(최초 1 + 재시도 3)
+      const failedImageParts = [];
       const partsWithImage = exportParts.filter((p) => p.image_url);
       for (let i = 0; i < partsWithImage.length; i += BATCH_SIZE) {
         const batch = partsWithImage.slice(i, i + BATCH_SIZE);
         await Promise.all(batch.map(async (p) => {
-          try {
-            imageBuffers.set(p.id, await loadImage(p));
-          } catch (e) {
-            await delay(300);
+          for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
             try {
               imageBuffers.set(p.id, await loadImage(p));
-            } catch (e2) {
-              // 재시도까지 실패하면 건너뜀
+              return;
+            } catch (e) {
+              if (attempt < RETRY_DELAYS.length) await delay(RETRY_DELAYS[attempt]);
             }
           }
+          failedImageParts.push(p.name); // 재시도까지 실패 — 아래에서 셀에 표시
         }));
       }
 
@@ -554,7 +555,13 @@ function PurchaseOrderManagement() {
             tl: { col: 1 / IMAGE_CELL_PX.width, row: excelRow.number - 1 + 1 / IMAGE_CELL_PX.height },
             ext: { width: img.width * scale - 1, height: img.height * scale - 1 },
           });
+        } else if (p.image_url) {
+          // 4회 시도까지 실패 — 빈칸 대신 표시해서 "이미지가 원래 없는 상품"과 구분
+          excelRow.getCell(1).value = '(이미지 로드 실패)';
         }
+      }
+      if (failedImageParts.length > 0) {
+        alert(`다음 상품 이미지를 불러오지 못했습니다(네트워크 재시도 4회 실패):\n${failedImageParts.join(', ')}`);
       }
 
       worksheet.eachRow((row) => {
