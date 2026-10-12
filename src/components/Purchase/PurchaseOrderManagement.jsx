@@ -486,14 +486,18 @@ function PurchaseOrderManagement() {
       for (let i = 0; i < partsWithImage.length; i += BATCH_SIZE) {
         const batch = partsWithImage.slice(i, i + BATCH_SIZE);
         await Promise.all(batch.map(async (p) => {
+          let lastError = null;
           for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
             try {
               imageBuffers.set(p.id, await loadImage(p));
               return;
             } catch (e) {
+              lastError = e;
               if (attempt < RETRY_DELAYS.length) await delay(RETRY_DELAYS[attempt]);
             }
           }
+          // ponytail: 매번 같은 상품만 실패하면 네트워크 재시도론 안 고쳐짐 — 실제 원인(CORS/디코딩 등) 콘솔에서 바로 보이게 로그
+          console.error(`[엑셀 이미지 로드 실패] ${p.name} (${p.image_url}):`, lastError);
           failedImageParts.push(p.name); // 재시도까지 실패 — 아래에서 셀에 표시
         }));
       }
