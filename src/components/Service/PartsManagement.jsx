@@ -56,8 +56,7 @@ import {
   LinkOff as LinkOffIcon,
   WarningAmber as WarningAmberIcon,
   Visibility as VisibilityIcon,
-  VisibilityOff as VisibilityOffIcon,
-  Image as ImageIcon
+  VisibilityOff as VisibilityOffIcon
 } from '@mui/icons-material';
 import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { supabase } from '../../lib/supabaseClient';
@@ -2459,17 +2458,7 @@ function PartsManagement() {
               </Button>
             </Grid>
 
-            <Grid item>
-              <Button
-                variant="outlined"
-                startIcon={<ImageIcon />}
-                onClick={handleBackfillThumbnails}
-                disabled={thumbBackfillRunning}
-                size="small"
-              >
-                {thumbBackfillRunning ? '썸네일 생성 중...' : '기존 이미지 썸네일 생성'}
-              </Button>
-            </Grid>
+            {/* ponytail: 기존 이미지 썸네일 백필 완료(image_url 있는데 image_thumb_url 없는 건 0건 확인) — 버튼 숨김. 로직은 남겨둠, 다시 누락건 생기면 복구 */}
 
             <Grid item>
               <Button
