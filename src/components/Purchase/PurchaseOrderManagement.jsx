@@ -469,8 +469,15 @@ function PurchaseOrderManagement() {
       const imageBuffers = new Map();
       // 셀에 표시될 크기로 미리 리사이즈해서 저장 — 원본(최대 수백KB)을 그대로 들고 있지 않아
       // 메모리 부담이 줄고, 큰 이미지가 몰려 디코딩이 느려지는 문제도 같이 완화됨
+      // ponytail: r2.dev 직접 fetch는 CORS 헤더/엣지캐시 상태에 매번 걸릴 수 있어
+      // 운영(배포)에서는 서버 프록시(Netlify function)를 거친다. 로컬(localhost)은
+      // netlify function이 안 떠 있을 수 있어 기존처럼 직접 호출.
+      const imageFetchUrl = (url) =>
+        window.location.hostname === 'localhost'
+          ? url
+          : `/.netlify/functions/r2-image-proxy?url=${encodeURIComponent(url)}`;
       const loadImage = async (p) => {
-        const res = await fetch(p.image_url);
+        const res = await fetch(imageFetchUrl(p.image_url));
         const blob = await res.blob();
         const bitmap = await createImageBitmap(blob);
         const scale = Math.min(IMAGE_CELL_PX.width / bitmap.width, IMAGE_CELL_PX.height / bitmap.height, 1);
