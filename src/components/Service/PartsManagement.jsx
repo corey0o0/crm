@@ -1618,9 +1618,24 @@ function PartsManagement() {
           const imageFile = new File([blob], `barcode_${barcode}.${media.extension}`, { type: `image/${mimeExt}` });
 
           const uploadResult = await uploadToR2(imageFile, 'parts');
+          const updateData = { image_url: uploadResult.url };
+
+          // 썸네일도 같이 생성 (단건 업로드 폼과 동일하게 — 엑셀 일괄 업로드만 썸네일 빠지던 구멍 메움)
+          try {
+            const objectUrl = URL.createObjectURL(blob);
+            const loadedImg = await loadImage(objectUrl);
+            URL.revokeObjectURL(objectUrl);
+            const { blob: thumbBlob } = await resizeToBlob(loadedImg, 120, 0.7);
+            const thumbFile = new File([thumbBlob], `thumb_barcode_${barcode}.jpg`, { type: 'image/jpeg' });
+            const thumbUploadResult = await uploadToR2(thumbFile, 'parts');
+            updateData.image_thumb_url = thumbUploadResult.url;
+          } catch (thumbErr) {
+            console.error(`썸네일 생성 실패 (barcode ${barcode}):`, thumbErr);
+          }
+
           const { error: updateError } = await supabase
             .from('parts')
-            .update({ image_url: uploadResult.url })
+            .update(updateData)
             .eq('id', matchedPart.id);
           if (updateError) throw updateError;
 
@@ -2522,24 +2537,7 @@ function PartsManagement() {
             </Grid>
             )}
 
-            {canEditBasic && (
-            <Grid item>
-              <Button
-                variant="outlined"
-                startIcon={<CloudUploadIcon />}
-                onClick={() => document.getElementById('image-excel-upload').click()}
-              >
-                이미지 일괄 업로드
-              </Button>
-              <input
-                id="image-excel-upload"
-                type="file"
-                accept=".xlsx, .xls"
-                onChange={handleImageExcelUpload}
-                style={{ display: 'none' }}
-              />
-            </Grid>
-            )}
+            {/* ponytail: 이미지 일괄 업로드 안 씀 — 버튼 숨김. 로직(handleImageExcelUpload)은 유지, 필요해지면 복구 */}
 
             {canEditBasic && (
             <Grid item>
