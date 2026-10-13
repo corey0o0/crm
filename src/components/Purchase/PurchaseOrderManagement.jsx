@@ -737,7 +737,7 @@ function PurchaseOrderManagement() {
     return getReceivedStatus(p.id) === receivedFilter;
   });
 
-  const noteOptions = [...new Set(parts.map((p) => p.note).filter((n) => n && n !== '공임' && n !== '기타'))].sort((a, b) => a.localeCompare(b, 'ko'));
+  const noteOptions = [...new Set(parts.map((p) => p.note).filter((n) => n && n !== '파츠 전체' && n !== '공임' && n !== '기타'))].sort((a, b) => a.localeCompare(b, 'ko'));
   const purchaseSourceOptions = [...new Set(parts.map((p) => p.purchase_source).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
   const modelOptions = [...new Set(parts.flatMap(getModelKeys))].sort((a, b) => a.localeCompare(b, 'ko'));
 

@@ -56,7 +56,8 @@ import {
   LinkOff as LinkOffIcon,
   WarningAmber as WarningAmberIcon,
   Visibility as VisibilityIcon,
-  VisibilityOff as VisibilityOffIcon
+  VisibilityOff as VisibilityOffIcon,
+  Image as ImageIcon
 } from '@mui/icons-material';
 import { downloadExcel, readExcelFile } from '../../utils/excelUtils';
 import { supabase } from '../../lib/supabaseClient';
@@ -76,6 +77,47 @@ import { logAction } from '../../utils/auditLog';
 import { ALL_MODEL_NAMES, toEnglishModelName, matchAllKnownAirframeModels } from '../../utils/airframeModelNormalize';
 
 const BRANDS = ['XRB', 'NB', 'COMMON'];
+
+// ponytail: 목록용 썸네일(작게)과 확대보기용 원본(크게)을 같은 이미지에서 생성 — 신규 등록 폼과 기존 이미지 일괄 생성 둘 다 재사용
+const resizeToBlob = (img, maxSize, quality) => {
+  return new Promise((resolve, reject) => {
+    const canvas = document.createElement('canvas');
+    let width = img.width;
+    let height = img.height;
+
+    if (width > height) {
+      if (width > maxSize) {
+        height = Math.round(height * (maxSize / width));
+        width = maxSize;
+      }
+    } else {
+      if (height > maxSize) {
+        width = Math.round(width * (maxSize / height));
+        height = maxSize;
+      }
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+
+    canvas.toBlob((blob) => {
+      if (blob) {
+        resolve({ blob, dataUrl: canvas.toDataURL('image/jpeg', quality) });
+      } else {
+        reject(new Error('Canvas to Blob failed'));
+      }
+    }, 'image/jpeg', quality);
+  });
+};
+
+const loadImage = (url) => new Promise((resolve, reject) => {
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => resolve(img);
+  img.onerror = () => reject(new Error(`이미지 로드 실패: ${url}`));
+  img.src = url;
+});
 
 // 기종 미선택 시 파츠명 끝부분(" - X200GT/X100GT" 또는 "X200GT")에서 기종 추출
 function extractModelFromName(name) {
@@ -117,12 +159,14 @@ const PartsFormDialog = memo(({
     note: '파츠',
     purchaseSource: '',
     image_url: '',
+    image_thumb_url: '',
     track_inventory: true
   });
 
   const [showBarcodePreview, setShowBarcodePreview] = useState(false);
   const [dupWarning, setDupWarning] = useState({ code: null, barcode: null, name: null });
   const [imageFile, setImageFile] = useState(null);
+  const [imageThumbFile, setImageThumbFile] = useState(null);
   const [imagePreview, setImagePreview] = useState('');
   const [enlargedImage, setEnlargedImage] = useState(null);
 
@@ -139,6 +183,7 @@ const PartsFormDialog = memo(({
 
     if (justOpened || (open && dataChanged)) {
       setImageFile(null);
+      setImageThumbFile(null);
       setDupWarning({ code: null, barcode: null, name: null });
       if (initialData) {
         // 기종 기존 유무와 무관하게 이름에서 접미사를 추출해둬야, 나중에 기종을 바꿀 때
@@ -168,6 +213,7 @@ const PartsFormDialog = memo(({
           note: initialData.note || '파츠',
           purchaseSource: initialData.purchase_source || '',
           image_url: initialData.image_url || '',
+          image_thumb_url: initialData.image_thumb_url || '',
           track_inventory: initialData.track_inventory !== false
         });
         setImagePreview(initialData.image_url || '');
@@ -192,6 +238,7 @@ const PartsFormDialog = memo(({
           note: defaultCategory,
           purchaseSource: '',
           image_url: '',
+          image_thumb_url: '',
           track_inventory: defaultCategory !== '공임'
         });
         setImagePreview('');
@@ -303,44 +350,28 @@ const PartsFormDialog = memo(({
 
   const handleSubmit = useCallback(() => {
     if (dupWarning.code || dupWarning.barcode || dupWarning.name) return;
-    onSubmit(formData, imageFile);
-  }, [formData, imageFile, onSubmit, dupWarning]);
+    onSubmit(formData, imageFile, imageThumbFile);
+  }, [formData, imageFile, imageThumbFile, onSubmit, dupWarning]);
 
   const compressImage = (file) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (event) => {
         const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
-          
-          if (width > height) {
-            if (width > 300) {
-              height = Math.round(height * (300 / width));
-              width = 300;
-            }
-          } else {
-            if (height > 300) {
-              width = Math.round(width * (300 / height));
-              height = 300;
-            }
+        img.onload = async () => {
+          try {
+            const [large, thumb] = await Promise.all([
+              resizeToBlob(img, 800, 0.85),
+              resizeToBlob(img, 120, 0.7)
+            ]);
+            resolve({
+              file: new File([large.blob], file.name, { type: 'image/jpeg', lastModified: Date.now() }),
+              dataUrl: large.dataUrl,
+              thumbFile: new File([thumb.blob], `thumb_${file.name}`, { type: 'image/jpeg', lastModified: Date.now() })
+            });
+          } catch (err) {
+            reject(err);
           }
-          
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, width, height);
-          
-          canvas.toBlob((blob) => {
-            if (blob) {
-              const compressedFile = new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() });
-              resolve({ file: compressedFile, dataUrl: canvas.toDataURL('image/jpeg') });
-            } else {
-              reject(new Error('Canvas to Blob failed'));
-            }
-          }, 'image/jpeg', 0.85);
         };
         img.onerror = reject;
         img.src = event.target.result;
@@ -354,16 +385,19 @@ const PartsFormDialog = memo(({
     if (file) {
       if (file.type.startsWith('image/')) {
         try {
-          const { file: compressedFile, dataUrl } = await compressImage(file);
+          const { file: compressedFile, dataUrl, thumbFile } = await compressImage(file);
           setImageFile(compressedFile);
+          setImageThumbFile(thumbFile);
           setImagePreview(dataUrl);
         } catch (err) {
           console.error('Image compression error:', err);
           setImageFile(file); // fallback
+          setImageThumbFile(null);
           setImagePreview(URL.createObjectURL(file));
         }
       } else {
         setImageFile(file);
+        setImageThumbFile(null);
         setImagePreview(URL.createObjectURL(file));
       }
     }
@@ -430,7 +464,7 @@ const PartsFormDialog = memo(({
               value={formData.note}
               onChange={handleChange}
             >
-              {['파츠 전체', '파츠 - 일반 부품', '파츠 - 전기 부품', '기체', '파츠 - 악세서리', '공임', '기타'].map(opt => (
+              {['파츠 - 일반 부품', '파츠 - 전기 부품', '기체', '파츠 - 악세서리', '공임', '기타'].map(opt => (
                 <MenuItem key={opt} value={opt}>{opt}</MenuItem>
               ))}
             </TextField>
@@ -562,7 +596,7 @@ const PartsFormDialog = memo(({
                   (이 창 어디서나 <b>Ctrl+V / Cmd+V</b>로 클립보드 붙여넣기 가능)
                 </Typography>
                 {imagePreview && (
-                  <Button size="small" color="error" onClick={() => { setImageFile(null); setImagePreview(''); setFormData(prev => ({...prev, image_url: ''})); }} sx={{ mt: 0.5, p: 0, minWidth: 'auto', textTransform: 'none' }}>
+                  <Button size="small" color="error" onClick={() => { setImageFile(null); setImageThumbFile(null); setImagePreview(''); setFormData(prev => ({...prev, image_url: '', image_thumb_url: ''})); }} sx={{ mt: 0.5, p: 0, minWidth: 'auto', textTransform: 'none' }}>
                     등록된 이미지 삭제
                   </Button>
                 )}
@@ -842,6 +876,7 @@ function PartsManagement() {
   const [selectedItems, setSelectedItems] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
   const [openCopyDialog, setOpenCopyDialog] = useState(false);
+  const [thumbBackfillRunning, setThumbBackfillRunning] = useState(false);
   const [copyTargetBrand, setCopyTargetBrand] = useState('');
 
   // 일괄 가격 수정 상태
@@ -1112,15 +1147,20 @@ function PartsManagement() {
     setSelectedPart(null);
   }, []);
 
-  const handleSubmit = useCallback(async (formData, imageFile) => {
+  const handleSubmit = useCallback(async (formData, imageFile, imageThumbFile) => {
     try {
       let finalImageUrl = formData.image_url;
+      let finalImageThumbUrl = formData.image_thumb_url;
 
-      // 이미지가 새로 업로드된 경우
+      // 이미지가 새로 업로드된 경우 (원본/썸네일 각각 업로드)
       if (imageFile) {
         showSnackbar('이미지를 클라우드에 업로드 중입니다...', 'info');
         const uploadResult = await uploadToR2(imageFile, 'parts');
         finalImageUrl = uploadResult.url;
+      }
+      if (imageThumbFile) {
+        const thumbUploadResult = await uploadToR2(imageThumbFile, 'parts');
+        finalImageThumbUrl = thumbUploadResult.url;
       }
 
       const partData = {
@@ -1133,6 +1173,7 @@ function PartsManagement() {
         special_price: Number(formData.specialPrice || 0),
         price: Number(formData.price || 0),
         image_url: finalImageUrl,
+        image_thumb_url: finalImageThumbUrl || null,
         track_inventory: formData.track_inventory !== false
       };
 
@@ -1870,6 +1911,12 @@ function PartsManagement() {
 
   const hiddenPartsCount = useMemo(() => parts.filter(p => (p.memo || '').includes('[HIDDEN]')).length, [parts]);
 
+  // ponytail: 발주관리와 동일하게 실제 데이터 기반 동적 옵션 (파츠 전체/공임/기타 제외)
+  const noteOptions = useMemo(() =>
+    [...new Set(parts.map((p) => p.note).filter((n) => n && n !== '파츠 전체' && n !== '공임' && n !== '기타'))].sort((a, b) => a.localeCompare(b, 'ko')),
+    [parts]
+  );
+
   const filteredParts = useMemo(() => {
     const searchTermLower = searchTerm.toLowerCase();
     return parts.filter(part => {
@@ -1988,6 +2035,38 @@ function PartsManagement() {
     }
   }, [selectedItems, filteredParts]);
 
+  // 기존에 썸네일 없이 등록된 이미지들 일괄 생성 (image_url만 있고 image_thumb_url이 없는 파츠 대상)
+  // ponytail: 순차 처리, 실패해도 재시도 없이 다음 건 진행 — 개수 많아 느리거나 실패 잦아지면 동시성/재시도 추가
+  const handleBackfillThumbnails = async () => {
+    const targets = parts.filter(p => p.image_url && !p.image_thumb_url);
+    if (targets.length === 0) {
+      showSnackbar('썸네일 생성이 필요한 이미지가 없습니다.', 'info');
+      return;
+    }
+    if (!window.confirm(`썸네일 없는 이미지 ${targets.length}개를 생성합니다. 계속할까요?`)) return;
+
+    setThumbBackfillRunning(true);
+    let success = 0;
+    let fail = 0;
+    for (const part of targets) {
+      try {
+        const img = await loadImage(part.image_url);
+        const { blob } = await resizeToBlob(img, 120, 0.7);
+        const thumbFile = new File([blob], `thumb_${part.id}.jpg`, { type: 'image/jpeg', lastModified: Date.now() });
+        const uploadResult = await uploadToR2(thumbFile, 'parts');
+        const { error } = await supabase.from('parts').update({ image_thumb_url: uploadResult.url }).eq('id', part.id);
+        if (error) throw error;
+        success++;
+      } catch (err) {
+        console.error(`썸네일 생성 실패 (${part.name}):`, err);
+        fail++;
+      }
+    }
+    setThumbBackfillRunning(false);
+    showSnackbar(`썸네일 생성 완료: 성공 ${success}건${fail > 0 ? `, 실패 ${fail}건` : ''}`, fail > 0 ? 'warning' : 'success');
+    fetchParts();
+  };
+
   // 복사 다이얼로그 열기
   const handleOpenCopyDialog = () => {
     if (selectedItems.length === 0) {
@@ -2038,6 +2117,7 @@ function PartsManagement() {
         price: part.price,
         barcode: part.barcode || null,
         image_url: part.image_url || null,
+        image_thumb_url: part.image_thumb_url || null,
         memo: part.memo || null,
         note: part.note || null,
         model: part.model || null,
@@ -2382,6 +2462,18 @@ function PartsManagement() {
             <Grid item>
               <Button
                 variant="outlined"
+                startIcon={<ImageIcon />}
+                onClick={handleBackfillThumbnails}
+                disabled={thumbBackfillRunning}
+                size="small"
+              >
+                {thumbBackfillRunning ? '썸네일 생성 중...' : '기존 이미지 썸네일 생성'}
+              </Button>
+            </Grid>
+
+            <Grid item>
+              <Button
+                variant="outlined"
                 startIcon={<VisibilityOffIcon />}
                 onClick={() => handleBatchToggleHidden(true)}
                 disabled={selectedItems.length === 0}
@@ -2571,7 +2663,7 @@ function PartsManagement() {
                   onChange={(e) => setSelectedCategory(e.target.value)}
                   renderValue={(selected) => selected.length === 0 ? '전체' : selected.join(', ')}
                 >
-                  {['파츠 전체', '파츠 - 일반 부품', '파츠 - 전기 부품', '기체', '파츠 - 악세서리', '공임', '기타'].map(opt => (
+                  {noteOptions.map(opt => (
                     <MenuItem key={opt} value={opt}>
                       <Checkbox size="small" checked={selectedCategory.includes(opt)} />
                       {opt}
@@ -2724,7 +2816,7 @@ function PartsManagement() {
                   />
                 </TableCell>
                 <TableCell>
-                  <Avatar src={part.image_url} alt={part.name} variant="rounded" sx={{ width: 52, height: 52, bgcolor: 'transparent', border: '1px solid #ddd', cursor: part.image_url ? 'pointer' : 'default', '& .MuiAvatar-img': { objectFit: 'contain' } }} onClick={() => part.image_url && setEnlargedImage(part.image_url)}>
+                  <Avatar src={part.image_thumb_url || part.image_url} alt={part.name} variant="rounded" sx={{ width: 52, height: 52, bgcolor: 'transparent', border: '1px solid #ddd', cursor: part.image_url ? 'pointer' : 'default', '& .MuiAvatar-img': { objectFit: 'contain' } }} onClick={() => part.image_url && setEnlargedImage(part.image_url)}>
                     <Box sx={{ fontSize: '0.4rem', color: '#999' }}>No img</Box>
                   </Avatar>
                 </TableCell>
@@ -3150,7 +3242,7 @@ function PartsManagement() {
               value={batchEditValue}
               onChange={(e) => setBatchEditValue(e.target.value)}
             >
-              {['파츠 전체', '파츠 - 일반 부품', '파츠 - 전기 부품', '기체', '파츠 - 악세서리', '공임', '기타'].map(opt => (
+              {['파츠 - 일반 부품', '파츠 - 전기 부품', '기체', '파츠 - 악세서리', '공임', '기타'].map(opt => (
                 <MenuItem key={opt} value={opt}>{opt}</MenuItem>
               ))}
             </TextField>
