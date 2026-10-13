@@ -77,6 +77,7 @@ function PurchaseOrderManagement() {
   const [selectedIds, setSelectedIds] = useState(new Set());
 
   const [dateColumns, setDateColumns] = useState([]);
+  const [dateLabels, setDateLabels] = useState({}); // { [dateStr]: 날짜 밑 간략 메모 }
   const [newDate, setNewDate] = useState(null);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [ordersMap, setOrdersMap] = useState(new Map());
@@ -196,6 +197,7 @@ function PurchaseOrderManagement() {
       return;
     }
     setDateColumns((prev) => [...prev, dateStr].sort());
+    setDateLabels((prev) => ({ ...prev, [dateStr]: '' }));
     setNewDate(null);
     fetchOrdersForDate(dateStr);
   };
@@ -211,6 +213,30 @@ function PurchaseOrderManagement() {
       return;
     }
     setDateColumns((prev) => prev.filter((d) => d !== dateStr));
+    setDateLabels((prev) => {
+      const next = { ...prev };
+      delete next[dateStr];
+      return next;
+    });
+  };
+
+  // 날짜 밑 간략 텍스트(label) - 로컬만 갱신, blur 시 DB 저장
+  const handleDateLabelChange = (dateStr, value) => {
+    setDateLabels((prev) => ({ ...prev, [dateStr]: value }));
+  };
+
+  const handleDateLabelSave = async (dateStr) => {
+    try {
+      const { error } = await safeRetry(() =>
+        queryWithTimeout(
+          supabase.from('po_date_columns').upsert({ order_date: dateStr, label: dateLabels[dateStr] || '' }),
+          8000
+        )
+      );
+      if (error) throw error;
+    } catch (err) {
+      showSnackbar(getErrorMessage(err), 'error');
+    }
   };
 
   // 날짜 열은 DB(po_date_columns)가 기준. 브라우저 localStorage는 쓰지 않음(기기 간 공유 안 되는 문제 있었음).
@@ -234,10 +260,13 @@ function PurchaseOrderManagement() {
 
       try {
         const { data, error } = await safeRetry(() =>
-          queryWithTimeout(supabase.from('po_date_columns').select('order_date').order('order_date'), 8000)
+          queryWithTimeout(supabase.from('po_date_columns').select('order_date, label').order('order_date'), 8000)
         );
         if (error) throw error;
         const cols = (data || []).map((r) => r.order_date);
+        const labels = {};
+        (data || []).forEach((r) => { labels[r.order_date] = r.label || ''; });
+        setDateLabels(labels);
         if (cols.length > 0) {
           setDateColumns(cols);
           cols.forEach((d) => fetchOrdersForDate(d));
@@ -323,6 +352,17 @@ function PurchaseOrderManagement() {
       }
     });
     return result;
+  }, [ordersMap]);
+
+  // 입출고 등록(stock_registered_qty > 0)이 한 건이라도 있는 날짜 = 뱃지 표시 대상
+  const registeredDates = useMemo(() => {
+    const s = new Set();
+    ordersMap.forEach((cell, key) => {
+      if ((cell.stock_registered_qty || 0) > 0) {
+        s.add(key.split('_')[1]);
+      }
+    });
+    return s;
   }, [ordersMap]);
 
   const handleRegisterStock = async () => {
@@ -1051,10 +1091,33 @@ function PurchaseOrderManagement() {
                 {visibleCols.orderTotal && <TableCell align="center" sx={{ width: 110 }}>발주/입고 합계</TableCell>}
                 {dateColumns.map((dateStr) => (
                   <TableCell key={dateStr} align="center" sx={{ width: 160, minWidth: 160 }}>
-                    {format(parseISO(dateStr), 'yy/MM/dd')}
-                    <IconButton size="small" onClick={() => handleRemoveDateColumn(dateStr)} sx={{ p: 0, ml: 0.5 }}>
-                      <CloseIcon fontSize="inherit" />
-                    </IconButton>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                      {format(parseISO(dateStr), 'yy/MM/dd')}
+                      {registeredDates.has(dateStr) && (
+                        <Tooltip title="입출고 등록 완료">
+                          <Chip
+                            label="등록"
+                            size="small"
+                            color="success"
+                            sx={{ height: 16, fontSize: 10, '& .MuiChip-label': { px: 0.5 } }}
+                          />
+                        </Tooltip>
+                      )}
+                      <IconButton size="small" onClick={() => handleRemoveDateColumn(dateStr)} sx={{ p: 0, ml: 0.5 }}>
+                        <CloseIcon fontSize="inherit" />
+                      </IconButton>
+                    </Box>
+                    <TextField
+                      variant="standard"
+                      size="small"
+                      fullWidth
+                      placeholder="메모"
+                      value={dateLabels[dateStr] || ''}
+                      onChange={(e) => handleDateLabelChange(dateStr, e.target.value)}
+                      onBlur={() => handleDateLabelSave(dateStr)}
+                      sx={{ mt: 0.5 }}
+                      inputProps={{ style: { fontSize: 11, textAlign: 'center' } }}
+                    />
                   </TableCell>
                 ))}
                 {Array.from({ length: placeholderColumnCount }).map((_, i) => (

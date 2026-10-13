@@ -1925,9 +1925,9 @@ function PartsManagement() {
 
   const hiddenPartsCount = useMemo(() => parts.filter(p => (p.memo || '').includes('[HIDDEN]')).length, [parts]);
 
-  // ponytail: 발주관리와 동일하게 실제 데이터 기반 동적 옵션 (파츠 전체/공임/기타 제외)
+  // 실제 데이터 기반 동적 옵션 (적용된 구분 값 전부 표시)
   const noteOptions = useMemo(() =>
-    [...new Set(parts.map((p) => p.note).filter((n) => n && n !== '파츠 전체' && n !== '공임' && n !== '기타'))].sort((a, b) => a.localeCompare(b, 'ko')),
+    [...new Set(parts.map((p) => p.note).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko')),
     [parts]
   );
 
