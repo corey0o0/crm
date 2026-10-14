@@ -89,6 +89,7 @@ function PurchaseOrderManagement() {
   const [stockTotals, setStockTotals] = useState({});
   const [warehouses, setWarehouses] = useState([]);
   const [warehouseId, setWarehouseId] = useState('');
+  const [registeringStock, setRegisteringStock] = useState(false); // 중복클릭으로 같은 입고분 두번 등록되는 것 방지
 
   const showSnackbar = (message, severity = 'success') => {
     setSnackbar({ open: true, message, severity });
@@ -403,6 +404,7 @@ function PurchaseOrderManagement() {
   }, [ordersMap]);
 
   const handleRegisterStock = async () => {
+    if (registeringStock) return; // 처리 중 중복클릭 방지
     if (!warehouseId) {
       showSnackbar('입고 창고를 선택하세요.', 'error');
       return;
@@ -412,6 +414,7 @@ function PurchaseOrderManagement() {
       return;
     }
 
+    setRegisteringStock(true);
     let successCount = 0;
     const stockDeltas = {};
 
@@ -421,57 +424,33 @@ function PurchaseOrderManagement() {
       if (!part) continue;
 
       try {
-        const { data: rpcData, error: rpcError } = await supabase.rpc('adjust_inventory', {
+        // 날짜 컬럼에 적어둔 메모(label)를 그대로 입출고 공통메모로 사용. 없으면 기본 문구.
+        const commonMemo = column?.label?.trim() || '발주 입고 등록';
+
+        // 재고조정+로그+거래내역+stock_registered_qty 갱신을 DB 함수 하나로 묶어서 원자적으로 처리.
+        // (예전엔 4개 요청 따로 보내서 중간에 하나 실패하면 중복적재 위험 있었음)
+        // 서버에서 stock_registered_qty 행을 잠그고 목표치(received_quantity)와의 차이만 적용하므로
+        // 중복클릭/동시요청으로 똑같은 호출이 두번 들어와도 두번째는 자동으로 0건 처리됨.
+        const { data: rpcData, error: rpcError } = await supabase.rpc('register_purchase_order_stock', {
+          p_part_id: row.partId,
+          p_column_id: row.columnId,
           p_warehouse_id: warehouseId,
-          p_product_id: row.partId,
-          p_quantity_change: row.delta,
+          p_received_quantity: row.received_quantity,
+          p_part_name: part.name,
+          p_part_code: part.code,
+          p_brand_code: part.brand,
+          p_order_date: column?.order_date || null,
+          p_common_memo: commonMemo,
         });
         if (rpcError) throw rpcError;
 
         const result = rpcData?.[0];
-        const newQuantity = result ? (result.out_quantity !== undefined ? result.out_quantity : result.quantity) : 0;
-        const previousQuantity = newQuantity - row.delta;
+        const deltaApplied = result?.delta_applied || 0;
 
-        const { error: logError } = await supabase.from('inventory_logs').insert({
-          part_id: row.partId,
-          part_name: part.name,
-          part_code: part.code,
-          warehouse_id: warehouseId,
-          brand_code: part.brand,
-          change_type: 'purchase_received',
-          quantity_change: row.delta,
-          previous_quantity: previousQuantity,
-          new_quantity: newQuantity,
-          reference_type: 'purchase_order',
-          notes: `발주 입고 등록 (주문일: ${column?.order_date || ''}) [${previousQuantity} -> ${newQuantity}]`,
-        });
-        if (logError) console.error('재고 로그 기록 실패:', logError);
-
-        const { error: txError } = await supabase.from('transactions').insert({
-          type: 'in',
-          product_id: row.partId,
-          product_name: part.name,
-          product_code: part.code,
-          product_supplier: part.brand,
-          quantity: row.delta,
-          from_location: '외부(발주입고)',
-          to_location: warehouseId,
-          date: column?.order_date || null,
-          note: `발주 입고 등록 [${previousQuantity} -> ${newQuantity}]`,
-          is_grouped: true,
-          status: '완료',
-        });
-        if (txError) console.error('입출고 거래내역 기록 실패:', txError);
-
-        const { error: poError } = await supabase
-          .from('purchase_orders')
-          .update({ stock_registered_qty: row.received_quantity })
-          .eq('part_id', row.partId)
-          .eq('column_id', row.columnId);
-        if (poError) throw poError;
-
-        stockDeltas[row.partId] = (stockDeltas[row.partId] || 0) + row.delta;
-        successCount += 1;
+        if (deltaApplied > 0) {
+          stockDeltas[row.partId] = (stockDeltas[row.partId] || 0) + deltaApplied;
+          successCount += 1;
+        }
 
         setOrdersMap((m) => {
           const next = new Map(m);
@@ -498,6 +477,7 @@ function PurchaseOrderManagement() {
     if (successCount > 0) {
       showSnackbar(`${successCount}건 입출고관리에 등록되었습니다.`, 'success');
     }
+    setRegisteringStock(false);
   };
 
   const handleSelectRow = (id) => {
@@ -932,9 +912,9 @@ function PurchaseOrderManagement() {
           color="secondary"
           size="small"
           onClick={handleRegisterStock}
-          disabled={!warehouseId || registerableRows.length === 0}
+          disabled={!warehouseId || registerableRows.length === 0 || registeringStock}
         >
-          입고 재고 등록{registerableRows.length > 0 && ` (${registerableRows.length})`}
+          {registeringStock ? '등록 중...' : `입고 재고 등록${registerableRows.length > 0 ? ` (${registerableRows.length})` : ''}`}
         </Button>
 
         <Button
