@@ -76,14 +76,13 @@ function PurchaseOrderManagement() {
   const [sortDir, setSortDir] = useState('asc');
   const [selectedIds, setSelectedIds] = useState(new Set());
 
-  const [dateColumns, setDateColumns] = useState([]);
-  const [dateLabels, setDateLabels] = useState({}); // { [dateStr]: 날짜 밑 간략 메모 }
+  const [dateColumns, setDateColumns] = useState([]); // [{ id, order_date, label, created_at }] - id가 진짜 식별자, 같은 날짜 여러 컬럼 가능
   const [newDate, setNewDate] = useState(null);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [ordersMap, setOrdersMap] = useState(new Map());
   const [pendingQuantities, setPendingQuantities] = useState({});
   const [memoAnchor, setMemoAnchor] = useState(null);
-  const [memoDraft, setMemoDraft] = useState({ key: null, partId: null, dateStr: null, text: '', imageUrl: null, imageFile: null, imagePreview: null });
+  const [memoDraft, setMemoDraft] = useState({ key: null, partId: null, columnId: null, text: '', imageUrl: null, imageFile: null, imagePreview: null });
   const [memoImageUploading, setMemoImageUploading] = useState(false);
   const [excelDownloading, setExcelDownloading] = useState(false);
   const [stockTotals, setStockTotals] = useState({});
@@ -141,7 +140,14 @@ function PurchaseOrderManagement() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fetchOrdersForDate = async (dateStr) => {
+  const sortColumns = (cols) =>
+    [...cols].sort((a, b) =>
+      a.order_date === b.order_date
+        ? (a.created_at || '').localeCompare(b.created_at || '')
+        : a.order_date.localeCompare(b.order_date)
+    );
+
+  const fetchOrdersForDate = async (columnId) => {
     setLoadingOrders(true);
     try {
       if (isOffline()) {
@@ -153,7 +159,7 @@ function PurchaseOrderManagement() {
           supabase
             .from('purchase_orders')
             .select('part_id, quantity, received_quantity, received, received_at, memo, memo_image_url, stock_registered_qty')
-            .eq('order_date', dateStr),
+            .eq('column_id', columnId),
           8000
         )
       );
@@ -161,7 +167,7 @@ function PurchaseOrderManagement() {
       setOrdersMap((m) => {
         const next = new Map(m);
         (data || []).forEach((row) => {
-          next.set(`${row.part_id}_${dateStr}`, {
+          next.set(`${row.part_id}_${columnId}`, {
             quantity: row.quantity,
             received_quantity: row.received_quantity || 0,
             received: row.received,
@@ -183,53 +189,59 @@ function PurchaseOrderManagement() {
   const handleAddDateColumn = async () => {
     if (!newDate) return;
     const dateStr = format(newDate, 'yyyy-MM-dd');
-    if (dateColumns.includes(dateStr)) {
-      showSnackbar('이미 추가된 날짜입니다.', 'warning');
-      return;
-    }
+    const isDup = dateColumns.some((c) => c.order_date === dateStr);
+    if (isDup && !window.confirm('이미 있는 날짜입니다. 그래도 추가할까요?')) return;
     try {
-      const { error } = await safeRetry(() =>
-        queryWithTimeout(supabase.from('po_date_columns').upsert({ order_date: dateStr }), 8000)
+      const { data, error } = await safeRetry(() =>
+        queryWithTimeout(
+          supabase.from('po_date_columns').insert({ order_date: dateStr }).select('id, order_date, label, created_at').single(),
+          8000
+        )
       );
       if (error) throw error;
+      setDateColumns((prev) => sortColumns([...prev, data]));
+      setNewDate(null);
+      fetchOrdersForDate(data.id);
     } catch (err) {
       showSnackbar(getErrorMessage(err), 'error');
-      return;
     }
-    setDateColumns((prev) => [...prev, dateStr].sort());
-    setDateLabels((prev) => ({ ...prev, [dateStr]: '' }));
-    setNewDate(null);
-    fetchOrdersForDate(dateStr);
   };
 
-  const handleRemoveDateColumn = async (dateStr) => {
+  // 입출고 등록(stock_registered_qty > 0)된 컬럼은 삭제 완전 차단 (DB 트리거로도 2차 방어)
+  const handleRemoveDateColumn = async (column) => {
+    if (registeredColumnIds.has(column.id)) {
+      showSnackbar('입출고 등록된 날짜는 삭제할 수 없습니다.', 'error');
+      return;
+    }
+    if (!window.confirm('이 날짜 컬럼을 삭제하시겠습니까? 저장된 발주/입고 데이터도 함께 삭제됩니다.')) return;
     try {
       const { error } = await safeRetry(() =>
-        queryWithTimeout(supabase.from('po_date_columns').delete().eq('order_date', dateStr), 8000)
+        queryWithTimeout(supabase.from('po_date_columns').delete().eq('id', column.id), 8000)
       );
       if (error) throw error;
     } catch (err) {
       showSnackbar(getErrorMessage(err), 'error');
       return;
     }
-    setDateColumns((prev) => prev.filter((d) => d !== dateStr));
-    setDateLabels((prev) => {
-      const next = { ...prev };
-      delete next[dateStr];
+    setDateColumns((prev) => prev.filter((c) => c.id !== column.id));
+    setOrdersMap((m) => {
+      const next = new Map(m);
+      [...next.keys()].forEach((k) => { if (k.split('_')[1] === column.id) next.delete(k); });
       return next;
     });
   };
 
   // 날짜 밑 간략 텍스트(label) - 로컬만 갱신, blur 시 DB 저장
-  const handleDateLabelChange = (dateStr, value) => {
-    setDateLabels((prev) => ({ ...prev, [dateStr]: value }));
+  const handleDateLabelChange = (columnId, value) => {
+    setDateColumns((prev) => prev.map((c) => (c.id === columnId ? { ...c, label: value } : c)));
   };
 
-  const handleDateLabelSave = async (dateStr) => {
+  const handleDateLabelSave = async (columnId) => {
+    const col = dateColumns.find((c) => c.id === columnId);
     try {
       const { error } = await safeRetry(() =>
         queryWithTimeout(
-          supabase.from('po_date_columns').upsert({ order_date: dateStr, label: dateLabels[dateStr] || '' }),
+          supabase.from('po_date_columns').update({ label: col?.label || '' }).eq('id', columnId),
           8000
         )
       );
@@ -246,9 +258,10 @@ function PurchaseOrderManagement() {
       try {
         const legacy = JSON.parse(localStorage.getItem('po_date_columns') || 'null');
         if (Array.isArray(legacy) && legacy.length > 0) {
+          // ponytail: id가 PK로 바뀌어서 upsert(order_date 중복방지) 불가 - 1회성 이전이라 그냥 insert
           const { error: migrateError } = await safeRetry(() =>
             queryWithTimeout(
-              supabase.from('po_date_columns').upsert(legacy.map((d) => ({ order_date: d }))),
+              supabase.from('po_date_columns').insert(legacy.map((d) => ({ order_date: d }))),
               8000
             )
           );
@@ -260,16 +273,16 @@ function PurchaseOrderManagement() {
 
       try {
         const { data, error } = await safeRetry(() =>
-          queryWithTimeout(supabase.from('po_date_columns').select('order_date, label').order('order_date'), 8000)
+          queryWithTimeout(
+            supabase.from('po_date_columns').select('id, order_date, label, created_at').order('order_date').order('created_at'),
+            8000
+          )
         );
         if (error) throw error;
-        const cols = (data || []).map((r) => r.order_date);
-        const labels = {};
-        (data || []).forEach((r) => { labels[r.order_date] = r.label || ''; });
-        setDateLabels(labels);
+        const cols = data || [];
         if (cols.length > 0) {
           setDateColumns(cols);
-          cols.forEach((d) => fetchOrdersForDate(d));
+          cols.forEach((c) => fetchOrdersForDate(c.id));
         }
       } catch (err) {
         showSnackbar(getErrorMessage(err), 'error');
@@ -283,21 +296,21 @@ function PurchaseOrderManagement() {
     return Number.isNaN(parsed) || parsed < 0 ? 0 : parsed;
   };
 
-  const handleOrderQtyChange = (partId, dateStr, rawValue) => {
-    const key = `${partId}_${dateStr}`;
-    setPendingQuantities((prev) => ({ ...prev, [key]: { ...prev[key], partId, dateStr, orderRaw: rawValue } }));
+  const handleOrderQtyChange = (partId, columnId, rawValue) => {
+    const key = `${partId}_${columnId}`;
+    setPendingQuantities((prev) => ({ ...prev, [key]: { ...prev[key], partId, columnId, orderRaw: rawValue } }));
   };
 
-  const handleReceivedQtyChange = (partId, dateStr, rawValue) => {
-    const key = `${partId}_${dateStr}`;
-    setPendingQuantities((prev) => ({ ...prev, [key]: { ...prev[key], partId, dateStr, receivedRaw: rawValue } }));
+  const handleReceivedQtyChange = (partId, columnId, rawValue) => {
+    const key = `${partId}_${columnId}`;
+    setPendingQuantities((prev) => ({ ...prev, [key]: { ...prev[key], partId, columnId, receivedRaw: rawValue } }));
   };
 
   const handleSaveAll = async () => {
     const entries = Object.entries(pendingQuantities);
     const rows = [];
     const commits = [];
-    entries.forEach(([key, { partId, dateStr, orderRaw, receivedRaw }]) => {
+    entries.forEach(([key, { partId, columnId, orderRaw, receivedRaw }]) => {
       const prevCell = ordersMap.get(key) || { quantity: 0, received_quantity: 0, received: false, received_at: null };
       const quantity = orderRaw !== undefined ? parseQty(orderRaw) : prevCell.quantity;
       const received_quantity = receivedRaw !== undefined ? parseQty(receivedRaw) : prevCell.received_quantity;
@@ -306,7 +319,7 @@ function PurchaseOrderManagement() {
       const received = quantity > 0 && received_quantity >= quantity;
       const received_at = received ? (prevCell.received_at || new Date().toISOString()) : null;
 
-      rows.push({ part_id: partId, order_date: dateStr, quantity, received_quantity, received, received_at });
+      rows.push({ part_id: partId, column_id: columnId, quantity, received_quantity, received, received_at });
       commits.push({ key, quantity, received_quantity, received, received_at });
     });
 
@@ -318,7 +331,7 @@ function PurchaseOrderManagement() {
     try {
       const { error } = await supabase
         .from('purchase_orders')
-        .upsert(rows, { onConflict: 'part_id,order_date' });
+        .upsert(rows, { onConflict: 'part_id,column_id' });
       if (error) throw error;
       setOrdersMap((m) => {
         const next = new Map(m);
@@ -341,21 +354,27 @@ function PurchaseOrderManagement() {
     return map;
   }, [parts]);
 
+  const columnsById = useMemo(() => {
+    const map = new Map();
+    dateColumns.forEach((c) => map.set(c.id, c));
+    return map;
+  }, [dateColumns]);
+
   // 저장된(ordersMap) 입고수량 중 아직 입출고관리에 등록 안 된 만큼(delta)만 추출
   const registerableRows = useMemo(() => {
     const result = [];
     ordersMap.forEach((cell, key) => {
       const delta = (cell.received_quantity || 0) - (cell.stock_registered_qty || 0);
       if (delta > 0) {
-        const [partIdStr, dateStr] = key.split('_');
-        result.push({ key, partId: Number(partIdStr), dateStr, delta, received_quantity: cell.received_quantity || 0 });
+        const [partIdStr, columnId] = key.split('_');
+        result.push({ key, partId: Number(partIdStr), columnId, delta, received_quantity: cell.received_quantity || 0 });
       }
     });
     return result;
   }, [ordersMap]);
 
-  // 입출고 등록(stock_registered_qty > 0)이 한 건이라도 있는 날짜 = 뱃지 표시 대상
-  const registeredDates = useMemo(() => {
+  // 입출고 등록(stock_registered_qty > 0)이 한 건이라도 있는 컬럼 = 뱃지 표시 + 삭제 차단 대상
+  const registeredColumnIds = useMemo(() => {
     const s = new Set();
     ordersMap.forEach((cell, key) => {
       if ((cell.stock_registered_qty || 0) > 0) {
@@ -380,6 +399,7 @@ function PurchaseOrderManagement() {
 
     for (const row of registerableRows) {
       const part = partsById.get(row.partId);
+      const column = columnsById.get(row.columnId);
       if (!part) continue;
 
       try {
@@ -405,7 +425,7 @@ function PurchaseOrderManagement() {
           previous_quantity: previousQuantity,
           new_quantity: newQuantity,
           reference_type: 'purchase_order',
-          notes: `발주 입고 등록 (주문일: ${row.dateStr}) [${previousQuantity} -> ${newQuantity}]`,
+          notes: `발주 입고 등록 (주문일: ${column?.order_date || ''}) [${previousQuantity} -> ${newQuantity}]`,
         });
         if (logError) console.error('재고 로그 기록 실패:', logError);
 
@@ -418,7 +438,7 @@ function PurchaseOrderManagement() {
           quantity: row.delta,
           from_location: '외부(발주입고)',
           to_location: warehouseId,
-          date: row.dateStr,
+          date: column?.order_date || null,
           note: `발주 입고 등록 [${previousQuantity} -> ${newQuantity}]`,
           is_grouped: true,
           status: '완료',
@@ -429,7 +449,7 @@ function PurchaseOrderManagement() {
           .from('purchase_orders')
           .update({ stock_registered_qty: row.received_quantity })
           .eq('part_id', row.partId)
-          .eq('order_date', row.dateStr);
+          .eq('column_id', row.columnId);
         if (poError) throw poError;
 
         stockDeltas[row.partId] = (stockDeltas[row.partId] || 0) + row.delta;
@@ -497,7 +517,10 @@ function PurchaseOrderManagement() {
       if (visibleCols.purchase_source) headers.push('Source');
       if (visibleCols.stock) headers.push('Stock');
       if (visibleCols.orderTotal) headers.push('Order Total', 'Received Total');
-      dateColumns.forEach((d) => headers.push(`${d} Order`, `${d} Received`, `${d} Status`, `${d} Memo`));
+      dateColumns.forEach((c) => {
+        const label = c.order_date + (c.label ? ` (${c.label})` : '');
+        headers.push(`${label} Order`, `${label} Received`, `${label} Status`, `${label} Memo`);
+      });
       worksheet.addRow(headers);
       worksheet.getRow(1).font = { bold: true };
       worksheet.getColumn(1).width = 16;
@@ -573,8 +596,8 @@ function PurchaseOrderManagement() {
         if (visibleCols.orderTotal) {
           let rowOrderSum = 0;
           let rowReceivedSum = 0;
-          dateColumns.forEach((d) => {
-            const cell = ordersMap.get(`${p.id}_${d}`);
+          dateColumns.forEach((c) => {
+            const cell = ordersMap.get(`${p.id}_${c.id}`);
             if (cell) {
               rowOrderSum += cell.quantity || 0;
               rowReceivedSum += cell.received_quantity || 0;
@@ -583,8 +606,8 @@ function PurchaseOrderManagement() {
           row.push(rowOrderSum, rowReceivedSum);
         }
         const cellBgColors = [];
-        dateColumns.forEach((d) => {
-          const cell = ordersMap.get(`${p.id}_${d}`) || { quantity: 0, received_quantity: 0, memo: '' };
+        dateColumns.forEach((c) => {
+          const cell = ordersMap.get(`${p.id}_${c.id}`) || { quantity: 0, received_quantity: 0, memo: '' };
           const order = cell.quantity || 0;
           const received = cell.received_quantity || 0;
           let status = '';
@@ -656,9 +679,9 @@ function PurchaseOrderManagement() {
     }
   };
 
-  const openMemoEditor = (e, partId, dateStr, currentMemo, currentImageUrl) => {
+  const openMemoEditor = (e, partId, columnId, currentMemo, currentImageUrl) => {
     setMemoAnchor(e.currentTarget);
-    setMemoDraft({ key: `${partId}_${dateStr}`, partId, dateStr, text: currentMemo || '', imageUrl: currentImageUrl || null, imageFile: null, imagePreview: null });
+    setMemoDraft({ key: `${partId}_${columnId}`, partId, columnId, text: currentMemo || '', imageUrl: currentImageUrl || null, imageFile: null, imagePreview: null });
   };
 
   const handleMemoImageChange = (e) => {
@@ -672,7 +695,7 @@ function PurchaseOrderManagement() {
   };
 
   const saveMemo = async () => {
-    const { key, partId, dateStr, text, imageUrl, imageFile } = memoDraft;
+    const { key, partId, columnId, text, imageUrl, imageFile } = memoDraft;
     const prevCell = ordersMap.get(key) || { quantity: 0, received_quantity: 0, received: false, received_at: null, memo: '', memo_image_url: null };
     const memo = text.trim();
 
@@ -693,7 +716,7 @@ function PurchaseOrderManagement() {
         .upsert(
           {
             part_id: partId,
-            order_date: dateStr,
+            column_id: columnId,
             quantity: prevCell.quantity,
             received_quantity: prevCell.received_quantity,
             received: prevCell.received,
@@ -701,7 +724,7 @@ function PurchaseOrderManagement() {
             memo: memo || null,
             memo_image_url: finalImageUrl || null,
           },
-          { onConflict: 'part_id,order_date' }
+          { onConflict: 'part_id,column_id' }
         );
       if (error) throw error;
     } catch (err) {
@@ -716,8 +739,8 @@ function PurchaseOrderManagement() {
   const getReceivedStatus = (partId) => {
     let hasOrder = false;
     let hasUnreceived = false;
-    dateColumns.forEach((dateStr) => {
-      const cell = ordersMap.get(`${partId}_${dateStr}`);
+    dateColumns.forEach((c) => {
+      const cell = ordersMap.get(`${partId}_${c.id}`);
       if (cell && cell.quantity > 0) {
         hasOrder = true;
         if ((cell.received_quantity || 0) < cell.quantity) hasUnreceived = true;
@@ -729,8 +752,8 @@ function PurchaseOrderManagement() {
 
   // 날짜 열 중 하나라도 입고수량이 있는지 (부분입고 포함)
   const hasAnyReceived = (partId) => {
-    return dateColumns.some((dateStr) => {
-      const cell = ordersMap.get(`${partId}_${dateStr}`);
+    return dateColumns.some((c) => {
+      const cell = ordersMap.get(`${partId}_${c.id}`);
       return cell && (cell.received_quantity || 0) > 0;
     });
   };
@@ -1089,11 +1112,11 @@ function PurchaseOrderManagement() {
                 {visibleCols.purchase_source && <TableCell sx={{ width: 100 }}>매입처</TableCell>}
                 {visibleCols.stock && <TableCell align="right" sx={{ width: 70 }}>현재고</TableCell>}
                 {visibleCols.orderTotal && <TableCell align="center" sx={{ width: 110 }}>발주/입고 합계</TableCell>}
-                {dateColumns.map((dateStr) => (
-                  <TableCell key={dateStr} align="center" sx={{ width: 160, minWidth: 160 }}>
+                {dateColumns.map((col) => (
+                  <TableCell key={col.id} align="center" sx={{ width: 160, minWidth: 160 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                      {format(parseISO(dateStr), 'yy/MM/dd')}
-                      {registeredDates.has(dateStr) && (
+                      {format(parseISO(col.order_date), 'yy/MM/dd')}
+                      {registeredColumnIds.has(col.id) && (
                         <Tooltip title="입출고 등록 완료">
                           <Chip
                             label="등록"
@@ -1103,7 +1126,7 @@ function PurchaseOrderManagement() {
                           />
                         </Tooltip>
                       )}
-                      <IconButton size="small" onClick={() => handleRemoveDateColumn(dateStr)} sx={{ p: 0, ml: 0.5 }}>
+                      <IconButton size="small" onClick={() => handleRemoveDateColumn(col)} sx={{ p: 0, ml: 0.5 }}>
                         <CloseIcon fontSize="inherit" />
                       </IconButton>
                     </Box>
@@ -1112,9 +1135,9 @@ function PurchaseOrderManagement() {
                       size="small"
                       fullWidth
                       placeholder="메모"
-                      value={dateLabels[dateStr] || ''}
-                      onChange={(e) => handleDateLabelChange(dateStr, e.target.value)}
-                      onBlur={() => handleDateLabelSave(dateStr)}
+                      value={col.label || ''}
+                      onChange={(e) => handleDateLabelChange(col.id, e.target.value)}
+                      onBlur={() => handleDateLabelSave(col.id)}
                       sx={{ mt: 0.5 }}
                       inputProps={{ style: { fontSize: 11, textAlign: 'center' } }}
                     />
@@ -1187,8 +1210,8 @@ function PurchaseOrderManagement() {
                   {visibleCols.orderTotal && (() => {
                     let rowOrderSum = 0;
                     let rowReceivedSum = 0;
-                    dateColumns.forEach((dateStr) => {
-                      const cell = ordersMap.get(`${p.id}_${dateStr}`);
+                    dateColumns.forEach((c) => {
+                      const cell = ordersMap.get(`${p.id}_${c.id}`);
                       if (cell) {
                         rowOrderSum += cell.quantity || 0;
                         rowReceivedSum += cell.received_quantity || 0;
@@ -1200,7 +1223,8 @@ function PurchaseOrderManagement() {
                       </TableCell>
                     );
                   })()}
-                  {dateColumns.map((dateStr) => {
+                  {dateColumns.map((col) => {
+                    const dateStr = col.id;
                     const key = `${p.id}_${dateStr}`;
                     const cell = ordersMap.get(key) || { quantity: 0, received_quantity: 0, memo_image_url: null };
                     const pending = pendingQuantities[key];
@@ -1304,18 +1328,18 @@ function PurchaseOrderManagement() {
                 {Object.values(visibleCols).filter(Boolean).map((_, i) => (
                   <TableCell key={`vf-${i}`} sx={{ bgcolor: 'action.hover' }} />
                 ))}
-                {dateColumns.map((dateStr) => {
+                {dateColumns.map((col) => {
                   let orderSum = 0;
                   let receivedSum = 0;
                   sortedParts.forEach((p) => {
-                    const cell = ordersMap.get(`${p.id}_${dateStr}`);
+                    const cell = ordersMap.get(`${p.id}_${col.id}`);
                     if (cell) {
                       orderSum += cell.quantity || 0;
                       receivedSum += cell.received_quantity || 0;
                     }
                   });
                   return (
-                    <TableCell key={dateStr} align="center" sx={{ fontWeight: 600, bgcolor: 'action.hover' }}>
+                    <TableCell key={col.id} align="center" sx={{ fontWeight: 600, bgcolor: 'action.hover' }}>
                       {orderSum} / {receivedSum} ({orderSum - receivedSum})
                     </TableCell>
                   );
