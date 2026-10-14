@@ -21,7 +21,7 @@ const RULES = [
   { re: /x50\s*fs|x50fs/, name: 'X50 FS' },
   { re: /x50\s*sl|x50sl/, name: 'X50 SL' },
   { re: /x50(?![0-9a-z])/, name: 'X50' },
-  { re: /turbo\s*pro|터보\s*pro|터보프로|turbopro/, name: 'Turbo Pro' },
+  { re: /turbo\s*pro|터보\s*pro|터보프로|turbopro|터보\s*프로/, name: 'Turbo Pro' },
   { re: /turbo\s*s|터보\s*s|터보s|turbos/, name: 'Turbo S' },
   // NB 레트로 계열을 미니/레트로 단독보다 먼저 매칭 (「레트로 미니」가 「미니」로 먹히지 않게)
   { re: /레트로\s*미니|retro\s*mini/, name: '레트로 미니' },
@@ -29,8 +29,10 @@ const RULES = [
   { re: /레트로\s*fs|retro\s*fs/, name: '레트로 FS' },
   { re: /레트로\s*투어|retro\s*tour/, name: '레트로 투어' },
   { re: /레트로|retro/, name: '레트로' },
-  { re: /mini\s*pro|미니\s*pro|미니프로/, name: '미니 Pro' },
-  { re: /(?:^|[\s\-])mini(?:[\s\-]|$)|미니/, name: '미니' },
+  { re: /mini\s*pro|미니\s*pro|미니프로|미니\s*프로/, name: '미니 Pro' },
+  // "미니"는 기종명이지만 "미니 점보/미니차저"는 배터리/충전기 제품라인명이라 기종과 무관 -> 제외
+  // (예전엔 경계 체크 없이 "미니"만 있으면 다 매칭돼서 "미니 점보 거치대" 같은 범용 파츠까지 미니 기종으로 잘못 묶였음)
+  { re: /(?:^|[\s\-])(?:mini|미니)(?=[\s\-]|$)(?!\s*(?:jumbo|점보|차저))/, name: '미니' },
   { re: /블레이드\s*fs|blade\s*fs/, name: '블레이드 FS' },
   { re: /블레이드|blade/, name: '블레이드' },
   { re: /카고\s*lt|cargo\s*lt/, name: '카고 LT' },

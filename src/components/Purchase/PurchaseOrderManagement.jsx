@@ -33,7 +33,7 @@ const BRAND_SORT_RANK = { XRB: 0, NB: 1 };
 
 // 왼쪽 고정(스티키) 컬럼 폭. 헤더/바디 offset 계산에 재사용.
 // 순서: 체크박스 / 이미지 / 브랜드 / 기종 / 바코드 / 제품명(한글+영문)
-const STICKY_WIDTHS = { checkbox: 42, image: 60, brand: 70, model: 130, barcode: 130, name: 180 };
+const STICKY_WIDTHS = { checkbox: 42, image: 60, brand: 70, model: 130, barcode: 130, name: 260 };
 const STICKY_LEFT = {
   checkbox: 0,
   image: STICKY_WIDTHS.checkbox,
@@ -78,6 +78,7 @@ function PurchaseOrderManagement() {
 
   const [dateColumns, setDateColumns] = useState([]); // [{ id, order_date, label, created_at }] - id가 진짜 식별자, 같은 날짜 여러 컬럼 가능
   const [newDate, setNewDate] = useState(null);
+  const [editingColId, setEditingColId] = useState(null); // 날짜 인라인 수정 중인 컬럼
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [ordersMap, setOrdersMap] = useState(new Map());
   const [pendingQuantities, setPendingQuantities] = useState({});
@@ -246,6 +247,23 @@ function PurchaseOrderManagement() {
         )
       );
       if (error) throw error;
+    } catch (err) {
+      showSnackbar(getErrorMessage(err), 'error');
+    }
+  };
+
+  // 컬럼의 날짜(order_date) 값 자체를 바꿈. id가 식별자라 날짜만 바꿔도 연결된 발주/입고 데이터는 그대로 유지됨.
+  const handleDateValueChange = async (column, newDateObj) => {
+    setEditingColId(null);
+    if (!newDateObj) return;
+    const newDateStr = format(newDateObj, 'yyyy-MM-dd');
+    if (newDateStr === column.order_date) return;
+    try {
+      const { error } = await safeRetry(() =>
+        queryWithTimeout(supabase.from('po_date_columns').update({ order_date: newDateStr }).eq('id', column.id), 8000)
+      );
+      if (error) throw error;
+      setDateColumns((prev) => sortColumns(prev.map((c) => (c.id === column.id ? { ...c, order_date: newDateStr } : c))));
     } catch (err) {
       showSnackbar(getErrorMessage(err), 'error');
     }
@@ -758,10 +776,10 @@ function PurchaseOrderManagement() {
     });
   };
 
-  // 셀 배경색: 입고수량 0=회색, 전부 입고=그린, 일부만 입고=노랑 (날짜 셀 단위)
+  // 셀 배경색: 발주/입고 둘 다 비어있으면 무색, 입고수량 0=회색, 전부(이상) 입고=그린, 일부만 입고=노랑 (날짜 셀 단위)
   const getCellBg = (order, received) => {
-    if (order <= 0) return undefined;
-    if (received === 0) return '#f5f5f5';
+    if (order <= 0 && received <= 0) return undefined;
+    if (received <= 0) return '#f5f5f5';
     if (received >= order) return '#e8f5e9';
     return '#fff9c4';
   };
@@ -1115,7 +1133,21 @@ function PurchaseOrderManagement() {
                 {dateColumns.map((col) => (
                   <TableCell key={col.id} align="center" sx={{ width: 160, minWidth: 160 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                      {format(parseISO(col.order_date), 'yy/MM/dd')}
+                      {editingColId === col.id ? (
+                        <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
+                          <DatePicker
+                            open
+                            value={parseISO(col.order_date)}
+                            onClose={() => setEditingColId(null)}
+                            onChange={(v) => handleDateValueChange(col, v)}
+                            slotProps={{ textField: { size: 'small', sx: { width: 100 }, inputProps: { style: { fontSize: 11, padding: '2px 4px' } } } }}
+                          />
+                        </LocalizationProvider>
+                      ) : (
+                        <Typography variant="body2" sx={{ cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' }} onClick={() => setEditingColId(col.id)}>
+                          {format(parseISO(col.order_date), 'yy/MM/dd')}
+                        </Typography>
+                      )}
                       {registeredColumnIds.has(col.id) && (
                         <Tooltip title="입출고 등록 완료">
                           <Chip
