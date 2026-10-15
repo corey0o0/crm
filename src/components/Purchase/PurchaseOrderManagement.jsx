@@ -142,11 +142,12 @@ function PurchaseOrderManagement() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 최신 날짜가 왼쪽에 오도록 내림차순 정렬
   const sortColumns = (cols) =>
     [...cols].sort((a, b) =>
       a.order_date === b.order_date
-        ? (a.created_at || '').localeCompare(b.created_at || '')
-        : a.order_date.localeCompare(b.order_date)
+        ? (b.created_at || '').localeCompare(a.created_at || '')
+        : b.order_date.localeCompare(a.order_date)
     );
 
   const fetchOrdersForDate = async (columnId) => {
@@ -293,7 +294,11 @@ function PurchaseOrderManagement() {
       try {
         const { data, error } = await safeRetry(() =>
           queryWithTimeout(
-            supabase.from('po_date_columns').select('id, order_date, label, created_at').order('order_date').order('created_at'),
+            supabase
+              .from('po_date_columns')
+              .select('id, order_date, label, created_at')
+              .order('order_date', { ascending: false })
+              .order('created_at', { ascending: false }),
             8000
           )
         );
