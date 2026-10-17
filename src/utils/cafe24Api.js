@@ -232,8 +232,9 @@ export async function transferCafe24Orders(orderIds, warehouseConfig = {}) {
   });
 
   if (!resp.ok) {
+    // ponytail: 서버가 JSON 에러를 못 주는 경우(413 등)도 상태코드는 남겨서 "판매 전송 실패"로만 뭉개지지 않게 함
     const err = await resp.json().catch(() => ({}));
-    throw new Error(err.error || '판매 전송 실패');
+    throw new Error(err.error || `판매 전송 실패 (HTTP ${resp.status})`);
   }
   return resp.json();
 }

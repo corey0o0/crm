@@ -39,7 +39,7 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // 기본 100kb라 한달치 주문 일괄전송 같은 대량 orderIds 요청이 413으로 거절되던 문제 수정
 
 // 헬스 체크 엔드포인트 추가
 app.get('/api/health', (req, res) => {
