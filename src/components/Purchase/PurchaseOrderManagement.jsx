@@ -77,6 +77,7 @@ function PurchaseOrderManagement() {
   const [selectedIds, setSelectedIds] = useState(new Set());
 
   const [dateColumns, setDateColumns] = useState([]); // [{ id, order_date, label, created_at }] - id가 진짜 식별자, 같은 날짜 여러 컬럼 가능
+  const [dateColFilter, setDateColFilter] = useState([]); // 빈 배열 = 전체 표시, 선택하면 해당 날짜 열만 표시(작업/엑셀 공통 적용)
   const [newDate, setNewDate] = useState(null);
   const [editingColId, setEditingColId] = useState(null); // 날짜 인라인 수정 중인 컬럼
   const [loadingOrders, setLoadingOrders] = useState(false);
@@ -384,6 +385,12 @@ function PurchaseOrderManagement() {
     return map;
   }, [dateColumns]);
 
+  // dateColFilter 선택 시 해당 날짜 열만 — 표/합계/엑셀 전부 이 배열 기준으로 렌더링
+  const visibleDateColumns = useMemo(
+    () => (dateColFilter.length === 0 ? dateColumns : dateColumns.filter((c) => dateColFilter.includes(c.id))),
+    [dateColumns, dateColFilter]
+  );
+
   // 저장된(ordersMap) 입고수량 중 아직 입출고관리에 등록 안 된 만큼(delta)만 추출
   const registerableRows = useMemo(() => {
     const result = [];
@@ -520,7 +527,7 @@ function PurchaseOrderManagement() {
       if (visibleCols.purchase_source) headers.push('Source');
       if (visibleCols.stock) headers.push('Stock');
       if (visibleCols.orderTotal) headers.push('Order Total', 'Received Total');
-      dateColumns.forEach((c) => {
+      visibleDateColumns.forEach((c) => {
         const label = c.order_date + (c.label ? ` (${c.label})` : '');
         headers.push(`${label} Order`, `${label} Received`, `${label} Status`, `${label} Memo`);
       });
@@ -599,7 +606,7 @@ function PurchaseOrderManagement() {
         if (visibleCols.orderTotal) {
           let rowOrderSum = 0;
           let rowReceivedSum = 0;
-          dateColumns.forEach((c) => {
+          visibleDateColumns.forEach((c) => {
             const cell = ordersMap.get(`${p.id}_${c.id}`);
             if (cell) {
               rowOrderSum += cell.quantity || 0;
@@ -609,7 +616,7 @@ function PurchaseOrderManagement() {
           row.push(rowOrderSum, rowReceivedSum);
         }
         const cellBgColors = [];
-        dateColumns.forEach((c) => {
+        visibleDateColumns.forEach((c) => {
           const cell = ordersMap.get(`${p.id}_${c.id}`) || { quantity: 0, received_quantity: 0, memo: '' };
           const order = cell.quantity || 0;
           const received = cell.received_quantity || 0;
@@ -624,7 +631,7 @@ function PurchaseOrderManagement() {
         excelRow.height = 60;
 
         // 발주/입고 셀 배경색: 화면과 동일하게 셀 단위로 적용
-        const dateColStart = headers.length - dateColumns.length * 4 + 1;
+        const dateColStart = headers.length - visibleDateColumns.length * 4 + 1;
         cellBgColors.forEach((bg, idx) => {
           if (!bg) return;
           const argb = 'FF' + bg.replace('#', '').toUpperCase();
@@ -837,7 +844,7 @@ function PurchaseOrderManagement() {
   const pagedParts = sortedParts.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   const MIN_DATE_COLUMNS = 1;
   const placeholderColumnCount = MIN_DATE_COLUMNS;
-  const tableMinWidth = STICKY_TOTAL + 440 + (dateColumns.length + placeholderColumnCount) * 160;
+  const tableMinWidth = STICKY_TOTAL + 440 + (visibleDateColumns.length + placeholderColumnCount) * 160;
 
   const topScrollSyncing = useRef(false);
   const handleTopScroll = () => {
@@ -1006,6 +1013,24 @@ function PurchaseOrderManagement() {
           </Select>
         </FormControl>
 
+        <FormControl size="small" sx={{ minWidth: 160 }}>
+          <InputLabel>날짜</InputLabel>
+          <Select
+            multiple
+            label="날짜"
+            value={dateColFilter}
+            onChange={(e) => setDateColFilter(e.target.value)}
+            renderValue={(selected) => selected.length === 0 ? '전체' : `${selected.length}개 선택`}
+          >
+            {dateColumns.map((c) => (
+              <MenuItem key={c.id} value={c.id}>
+                <Checkbox size="small" checked={dateColFilter.includes(c.id)} />
+                {format(parseISO(c.order_date), 'yy/MM/dd')}{c.label ? ` (${c.label})` : ''}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
         <FormControl size="small" sx={{ minWidth: 120 }}>
           <InputLabel>정렬</InputLabel>
           <Select
@@ -1115,7 +1140,7 @@ function PurchaseOrderManagement() {
                 {visibleCols.purchase_source && <TableCell sx={{ width: 100 }}>매입처</TableCell>}
                 {visibleCols.stock && <TableCell align="right" sx={{ width: 70 }}>현재고</TableCell>}
                 {visibleCols.orderTotal && <TableCell align="center" sx={{ width: 110 }}>발주/입고 합계</TableCell>}
-                {dateColumns.map((col) => (
+                {visibleDateColumns.map((col) => (
                   <TableCell key={col.id} align="center" sx={{ width: 160, minWidth: 160 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
                       {editingColId === col.id ? (
@@ -1227,7 +1252,7 @@ function PurchaseOrderManagement() {
                   {visibleCols.orderTotal && (() => {
                     let rowOrderSum = 0;
                     let rowReceivedSum = 0;
-                    dateColumns.forEach((c) => {
+                    visibleDateColumns.forEach((c) => {
                       const cell = ordersMap.get(`${p.id}_${c.id}`);
                       if (cell) {
                         rowOrderSum += cell.quantity || 0;
@@ -1240,7 +1265,7 @@ function PurchaseOrderManagement() {
                       </TableCell>
                     );
                   })()}
-                  {dateColumns.map((col) => {
+                  {visibleDateColumns.map((col) => {
                     const dateStr = col.id;
                     const key = `${p.id}_${dateStr}`;
                     const cell = ordersMap.get(key) || { quantity: 0, received_quantity: 0, memo_image_url: null };
@@ -1345,7 +1370,7 @@ function PurchaseOrderManagement() {
                 {Object.values(visibleCols).filter(Boolean).map((_, i) => (
                   <TableCell key={`vf-${i}`} sx={{ bgcolor: 'action.hover' }} />
                 ))}
-                {dateColumns.map((col) => {
+                {visibleDateColumns.map((col) => {
                   let orderSum = 0;
                   let receivedSum = 0;
                   sortedParts.forEach((p) => {
