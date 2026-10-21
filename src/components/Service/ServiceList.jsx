@@ -817,8 +817,20 @@ function ServiceList() {
         }
         
         console.log('태그 단어 검색 결과:', tagRows);
-        
+
         const idSet = new Set((tagRows || []).map(r => r.service_id));
+
+        // 태그뿐 아니라 사용부품 용도(usage)에도 같은 단어가 있으면 함께 포함 (예: 워런티 부품 사용건)
+        const { data: usageRows, error: usageQueryError } = await supabase
+          .from('service_parts')
+          .select('service_id, usage')
+          .or(tagConditions.replace(/tag_name/g, 'usage'));
+        if (usageQueryError) {
+          console.error('Error fetching services by parts usage:', usageQueryError);
+        } else {
+          (usageRows || []).forEach(r => idSet.add(r.service_id));
+        }
+
         tagMatchedServiceIds = Array.from(idSet);
         
         // 태그에 매칭되는 서비스가 하나도 없으면 바로 종료 (0건)
