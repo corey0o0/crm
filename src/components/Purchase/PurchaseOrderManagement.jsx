@@ -69,6 +69,7 @@ function PurchaseOrderManagement() {
   const [visibleCols, setVisibleCols] = useState({ supply_price: false, price: false, note: true, memo: true, purchase_source: true, stock: false, orderTotal: true });
   const [showHiddenParts, setShowHiddenParts] = useState(false);
   const [receivedFilter, setReceivedFilter] = useState('all');
+  const [orderedFilter, setOrderedFilter] = useState('all');
   const [noteFilter, setNoteFilter] = useState([]); // 빈 배열 = 전체
   const [purchaseSourceFilter, setPurchaseSourceFilter] = useState([]); // 빈 배열 = 전체
   const [modelFilter, setModelFilter] = useState([]); // 빈 배열 = 전체
@@ -768,6 +769,14 @@ function PurchaseOrderManagement() {
     });
   };
 
+  // 표시중인 날짜 열 기준 발주 여부: 발주수량이 하나라도 있으면 발주함
+  const hasAnyOrdered = (partId) => {
+    return dateColumns.some((c) => {
+      const cell = ordersMap.get(`${partId}_${c.id}`);
+      return cell && cell.quantity > 0;
+    });
+  };
+
   // 셀 배경색: 발주/입고 둘 다 비어있으면 무색, 입고수량 0=회색, 전부(이상) 입고=그린, 일부만 입고=노랑 (날짜 셀 단위)
   const getCellBg = (order, received) => {
     if (order <= 0 && received <= 0) return undefined;
@@ -812,6 +821,8 @@ function PurchaseOrderManagement() {
     if (noteFilter.length > 0 && !noteFilter.includes(p.note || '')) return false;
     if (purchaseSourceFilter.length > 0 && !purchaseSourceFilter.includes(p.purchase_source || '')) return false;
     if (modelFilter.length > 0 && !getModelKeys(p).some((m) => modelFilter.includes(m))) return false;
+    if (orderedFilter === 'ordered' && !hasAnyOrdered(p.id)) return false;
+    if (orderedFilter === 'not_ordered' && hasAnyOrdered(p.id)) return false;
     if (receivedFilter === 'all') return true;
     if (receivedFilter === 'has_received') return hasAnyReceived(p.id);
     return getReceivedStatus(p.id) === receivedFilter;
@@ -944,6 +955,19 @@ function PurchaseOrderManagement() {
           </Button>
         )}
         {loadingOrders && <CircularProgress size={20} />}
+
+        <FormControl size="small" sx={{ minWidth: 120 }}>
+          <InputLabel>발주여부</InputLabel>
+          <Select
+            label="발주여부"
+            value={orderedFilter}
+            onChange={(e) => { setOrderedFilter(e.target.value); setPage(0); }}
+          >
+            <MenuItem value="all">전체</MenuItem>
+            <MenuItem value="ordered">발주함</MenuItem>
+            <MenuItem value="not_ordered">미발주</MenuItem>
+          </Select>
+        </FormControl>
 
         <FormControl size="small" sx={{ minWidth: 120 }}>
           <InputLabel>입고여부</InputLabel>
