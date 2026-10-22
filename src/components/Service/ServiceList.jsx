@@ -77,6 +77,7 @@ import { sendTelegramNotification } from '../../lib/telegram'; // 텔레그램 �
 import { processServiceCompletion, processServiceRevert, normalizeServiceStatus } from '../../utils/inventoryUtils';
 import { useAuth } from '../../contexts/AuthContext';
 import { logAction } from '../../utils/auditLog';
+import { computeRestoredSearchParams } from './serviceListSearchRestore';
 
 // KST 변환 함수 추가
 // function toKST(dateString) { ... } // 삭제
@@ -369,11 +370,27 @@ function ServiceList() {
   // 무한 로딩 방지를 위한 감시 타이머
   const loadingWatchdogRef = useRef(null);
 
+  // ponytail: 마운트 시 1회, 저장된 검색/필터(serviceListFilters)가 있으면 그걸로 복원 검색.
+  // 상세화면 다녀온 뒤(브라우저 뒤로가기 포함) 검색어만 남고 리스트가 전체로 리셋되던 버그 수정.
+  // localStorage는 동기 API라 렌더 중 직접 읽어도 안전 (useEffect보다 먼저 값 확정).
+  const restoredSearchParamsRef = useRef(undefined);
+  if (restoredSearchParamsRef.current === undefined) {
+    restoredSearchParamsRef.current = computeRestoredSearchParams(localStorage.getItem('serviceListFilters'));
+  }
+
   useEffect(() => {
     console.log('selectedBrand changed to:', selectedBrand);
-    // 초기 데이터 로딩 활성화 (검색은 비활성화)
-    fetchServices();
-    console.log('[ServiceList] 브랜드 변경 감지 - 초기 데이터 로딩 활성화');
+    if (restoredSearchParamsRef.current) {
+      // 복원 검색은 최초 마운트 시 1회만: 쓰고 나면 비워서 이후 브랜드 전환은 평소처럼 전체 로딩
+      const params = restoredSearchParamsRef.current;
+      restoredSearchParamsRef.current = null;
+      console.log('[ServiceList] 저장된 검색/필터 복원 - 검색 재실행', params);
+      performServerSearch(params);
+    } else {
+      // 초기 데이터 로딩 활성화 (검색은 비활성화)
+      fetchServices();
+      console.log('[ServiceList] 브랜드 변경 감지 - 초기 데이터 로딩 활성화');
+    }
   }, [selectedBrand]);
 
   // 라우트 재진입(키 변경), 포커스/가시성 복귀 시 재호출 비활성화
