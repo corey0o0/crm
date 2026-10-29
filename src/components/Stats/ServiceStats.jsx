@@ -15,7 +15,7 @@ import {
 } from '@mui/icons-material';
 import { supabase } from '../../lib/supabaseClient';
 import { format, parseISO, startOfMonth, endOfMonth, eachMonthOfInterval, subMonths, differenceInDays } from 'date-fns';
-import { groupServicesByKeyword } from '../../utils/symptomTagUtils';
+import { groupServicesByKeyword, isWarrantyService } from '../../utils/symptomTagUtils';
 import { generateCorrelationInsights } from '../../utils/aiAnalysisUtils';
 import { useAuth } from '../../contexts/AuthContext';
 import { MASTER_ACCOUNTS } from '../../config/menuConfig';
@@ -257,12 +257,23 @@ function ServiceStats() {
   }, [completedServices]);
 
   const warrantyStats = useMemo(() => {
-    const free = completedServices.filter(s =>
-      getTags(s).some(t => t.includes('워런티'))
-    ).length;
+    const free = completedServices.filter(isWarrantyService).length;
     const paid = completedServices.length - free;
     return { free, paid, total: completedServices.length };
   }, [completedServices]);
+
+  // 월별 워런티 처리 건수 추이 (기존 monthlyStats와 동일한 월별 묶기 패턴 재사용)
+  const monthlyWarrantyStats = useMemo(() => {
+    return eachMonthOfInterval({ start: parseISO(filterStart), end: parseISO(filterEnd) }).map(month => {
+      const key = format(month, 'yyyy-MM');
+      const monthCompleted = completedServices.filter(s => {
+        const d = s.reception_date || s.created_at;
+        return d && format(parseISO(d), 'yyyy-MM') === key;
+      });
+      const warranty = monthCompleted.filter(isWarrantyService).length;
+      return { month: key, label: format(month, 'M월'), warranty, paid: monthCompleted.length - warranty };
+    });
+  }, [completedServices, filterStart, filterEnd]);
 
   const repeatCustomers = useMemo(() => {
     const map = {};
@@ -678,6 +689,22 @@ function ServiceStats() {
                   </Table>
                 </TableContainer>
               )}
+            </Paper>
+          </Grid>
+          <Grid item xs={12}>
+            <Paper sx={{ p: 3 }}>
+              <Typography variant="h6" gutterBottom>월별 워런티 처리 건수 추이</Typography>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={monthlyWarrantyStats} margin={{ top: 8, right: 16, bottom: 8, left: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="label" />
+                  <YAxis />
+                  <RechartsTooltip formatter={v => [`${v}건`]} />
+                  <Legend />
+                  <Bar dataKey="paid" name="일반 유상" stackId="a" fill="#1976d2" />
+                  <Bar dataKey="warranty" name="워런티" stackId="a" fill="#2e7d32" radius={[3,3,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
             </Paper>
           </Grid>
         </Grid>

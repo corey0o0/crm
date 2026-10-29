@@ -63,7 +63,7 @@ import {
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import { formatKoreanDateTime } from '../../utils/dateUtils';
-import { extractTagsFromSymptom } from '../../utils/symptomTagUtils';
+import { extractTagsFromSymptom, PREDEFINED_TAGS } from '../../utils/symptomTagUtils';
 import { format } from 'date-fns';
 import { sendTelegramNotification } from '../../lib/telegram';
 import { processServiceCompletion, processPartialReturn, processServiceRevert, normalizeServiceStatus } from '../../utils/inventoryUtils';
@@ -140,10 +140,7 @@ function ServiceDetail() {
   const [searchTerm, setSearchTerm] = useState('');
   const [tags, setTags] = useState([]);
   const [suggestedTags, setSuggestedTags] = useState([]);
-  const [availableTags] = useState([
-    '배터리스위치', '전체점검', '브레이크-패드', '브레이크-로터', '브레이크-교체', '배터리', '펑크',
-    '충전기', '모터', '워런티', '사고-보험', 'E07', 'E09', 'E010'
-  ]);
+  const [availableTags] = useState(PREDEFINED_TAGS);
   const [submitting, setSubmitting] = useState(false);
   const [addingToQueue, setAddingToQueue] = useState(false);
 
@@ -261,6 +258,16 @@ function ServiceDetail() {
     }, 500);
     return () => clearTimeout(timer);
   }, [formData.symptom, tags]);
+
+  // 사용 부품 선택 시 관련 태그 자동 추가 (부품명도 증상 키워드 규칙과 동일하게 매칭)
+  useEffect(() => {
+    const partTags = selectedParts.flatMap(p => extractTagsFromSymptom(p.name));
+    if (partTags.length === 0) return;
+    setTags(prev => {
+      const merged = Array.from(new Set([...prev, ...partTags]));
+      return merged.length === prev.length ? prev : merged;
+    });
+  }, [selectedParts]);
 
   // 변경사항 감지를 위한 상태 추가
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);

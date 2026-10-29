@@ -1,9 +1,23 @@
+// 전체 AS 화면(등록/수정)에서 공통으로 쓰는 추천 태그 목록.
+// 전에는 AddService.jsx / ServiceDetail.jsx 에 각각 다른 목록이 중복돼 있었음 —
+// 새 태그 유형 추가할 땐 이 배열 하나만 고치면 됨.
+export const PREDEFINED_TAGS = [
+  '배터리스위치', 'DBSM', '배터리', '충전기', '모터', '컨트롤러',
+  '브레이크', '브레이크-패드', '브레이크-로터', '브레이크-교체',
+  '타이어', '펑크', '전체점검', '전원불량', '에러코드', '변속기',
+  '체인', '안장', '워런티', '사고-보험', '사고수리',
+  '디스플레이', '소음', '핸들', 'PAS', '충전안됨',
+  'E010', 'E004', 'E007', 'E07', 'E09',
+];
+
 export const SYMPTOM_TAG_RULES = [
   { keywords: ['배터리', '배떼리', '밧데리', '밧떼리', '방전', '배충'], tag: '배터리' },
   { keywords: ['충전기', '어댑터', '충전선'], tag: '충전기' },
   { keywords: ['전원', '꺼짐', '안켜', '안켜짐', '부팅'], tag: '전원불량' },
   { keywords: ['에러', '오류', 'E0', 'E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'E7', 'E8', 'E9', '에러코드'], tag: '에러코드' },
-  { keywords: ['브레이크', '제동', '브레크', '디스크', '패드'], tag: '브레이크' },
+  { keywords: ['브레이크', '제동', '브레크'], tag: '브레이크' },
+  { keywords: ['패드'], tag: '브레이크-패드' },
+  { keywords: ['디스크', '로터'], tag: '브레이크-로터' },
   { keywords: ['변속', '기어', '변속기'], tag: '변속기' },
   { keywords: ['펑크', '타이어', '튜브', '공기'], tag: '펑크' },
   { keywords: ['모터', '구동', '허브모터'], tag: '모터' },
@@ -18,6 +32,14 @@ export const SYMPTOM_TAG_RULES = [
   { keywords: ['pas', 'PAS', '파스', '어시스트'], tag: 'PAS' },
   { keywords: ['스위치', '배터리스위치'], tag: '배터리스위치' },
 ];
+
+// 워런티(무상) 처리 여부 판정: 태그에 '워런티' 포함 OR 사용부품 용도(usage)에 '워런티' 포함.
+// ServiceList.jsx의 태그검색(tag_name/usage 둘다 ilike 매칭)과 기준을 맞춤.
+export function isWarrantyService(service) {
+  const tags = (service.service_tags || []).map(t => t.tag_name);
+  if (tags.some(t => t.includes('워런티'))) return true;
+  return (service.service_parts || []).some(p => (p.usage || '').includes('워런티'));
+}
 
 export function extractTagsFromSymptom(text) {
   if (!text) return [];

@@ -60,7 +60,7 @@ import {
 } from '@mui/icons-material';
 import { API_CONFIG } from '../../config/api';
 import { formatKoreanDateTime } from '../../utils/dateUtils';
-import { extractTagsFromSymptom } from '../../utils/symptomTagUtils';
+import { extractTagsFromSymptom, PREDEFINED_TAGS } from '../../utils/symptomTagUtils';
 import { format } from 'date-fns';
 import { sendTelegramNotification } from '../../lib/telegram'; // 텔레그램 유틸리티 함수 import
 import { 
@@ -73,12 +73,6 @@ import imageCompression from 'browser-image-compression';
 // 접수방법과 배송방법 옵션
 const RECEPTION_TYPES = ['공홈', '방문', '전화', '대리점', '기타'];
 const DELIVERY_METHODS = ['방문수령', '택배', '퀵-선불', '퀵-착불'];
-
-// 사전 정의된 태그 목록
-const PREDEFINED_TAGS = [
-  '배터리스위치', 'DBSM', '배터리', '모터', '컨트롤러', '브레이크', '타이어', '전체점검',
-  'E010', 'E004', 'E007', '사고수리', '충전안됨'
-];
 
 // 대문자 변환 함수 추가
 const toUpperCaseIfEnglish = (value) => {
@@ -131,10 +125,7 @@ function AddService() {
   const [selectedParts, setSelectedParts] = useState([]);
   const [partQuantity, setPartQuantity] = useState(1);
   const [status, setStatus] = useState('준비중');
-  const [availableTags] = useState([
-    '배터리스위치','전체점검', '브레이크-패드', '브레이크-로터', '브레이크-교체', '배터리',
-    '충전기', '모터', '워런티', '사고-보험', 'E07','E09','E010','배터리스위치'
-  ]);
+  const [availableTags] = useState(PREDEFINED_TAGS);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const searchAbortControllerRef = React.useRef(null);
   
@@ -225,6 +216,16 @@ function AddService() {
     }, 500);
     return () => clearTimeout(timer);
   }, [formData.symptom, tags]);
+
+  // 사용 부품 선택 시 관련 태그 자동 추가 (부품명도 증상 키워드 규칙과 동일하게 매칭)
+  useEffect(() => {
+    const partTags = selectedParts.flatMap(p => extractTagsFromSymptom(p.name));
+    if (partTags.length === 0) return;
+    setTags(prev => {
+      const merged = Array.from(new Set([...prev, ...partTags]));
+      return merged.length === prev.length ? prev : merged;
+    });
+  }, [selectedParts]);
 
   const [customerHistoryOpen, setCustomerHistoryOpen] = useState(false);
   const [customerHistoryData, setCustomerHistoryData] = useState([]);
