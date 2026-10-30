@@ -13,6 +13,7 @@ import {
   Assessment as AssessmentIcon, Schedule as ScheduleIcon, TrendingUp as TrendingUpIcon,
   Warning as WarningIcon, Person as PersonIcon
 } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
 import { format, parseISO, startOfMonth, endOfMonth, eachMonthOfInterval, subMonths, differenceInDays } from 'date-fns';
 import { groupServicesByKeyword, isWarrantyService } from '../../utils/symptomTagUtils';
@@ -50,6 +51,7 @@ const calcRange = (months) => {
 };
 
 function ServiceStats() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const isMaster = user?.email && MASTER_ACCOUNTS.includes(user.email);
   const [loading, setLoading] = useState(true);
@@ -274,6 +276,14 @@ function ServiceStats() {
       return { month: key, label: format(month, 'M월'), warranty, paid: monthCompleted.length - warranty };
     });
   }, [completedServices, filterStart, filterEnd]);
+
+  // 워런티 처리 건 목록 (완료 건 중 isWarrantyService 매칭, 최근 완료일 순)
+  const warrantyList = useMemo(() =>
+    completedServices.filter(isWarrantyService).map(s => ({
+      id: s.id, customer_name: s.customer_name, brand: s.brand,
+      completion_date: s.completion_date, tags: getTags(s), solution: s.solution,
+    })).sort((a, b) => (b.completion_date || '').localeCompare(a.completion_date || '')),
+  [completedServices]);
 
   const repeatCustomers = useMemo(() => {
     const map = {};
@@ -705,6 +715,45 @@ function ServiceStats() {
                   <Bar dataKey="warranty" name="워런티" stackId="a" fill="#2e7d32" radius={[3,3,0,0]} />
                 </BarChart>
               </ResponsiveContainer>
+            </Paper>
+          </Grid>
+          <Grid item xs={12}>
+            <Paper sx={{ p: 3 }}>
+              <Typography variant="h6" gutterBottom>워런티 처리 내역 ({warrantyList.length}건)</Typography>
+              {warrantyList.length === 0 ? (
+                <Typography color="textSecondary">해당 없음</Typography>
+              ) : (
+                <TableContainer sx={{ maxHeight: 420 }}>
+                  <Table size="small" stickyHeader>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>완료일</TableCell>
+                        <TableCell>고객명</TableCell>
+                        <TableCell>브랜드</TableCell>
+                        <TableCell>태그</TableCell>
+                        <TableCell>처리내역</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {warrantyList.map(w => (
+                        <TableRow key={w.id} hover onClick={() => navigate(`/services/${w.id}`)} sx={{ cursor: 'pointer' }}>
+                          <TableCell sx={{ fontSize: 11 }}>
+                            {w.completion_date ? format(parseISO(w.completion_date), 'yy.MM.dd') : '-'}
+                          </TableCell>
+                          <TableCell>{w.customer_name}</TableCell>
+                          <TableCell sx={{ fontSize: 11 }}>{w.brand}</TableCell>
+                          <TableCell>
+                            {w.tags.map(t => <Chip key={t} size="small" label={t} sx={{ m: 0.2 }} />)}
+                          </TableCell>
+                          <TableCell sx={{ fontSize: 12, maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {w.solution}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
             </Paper>
           </Grid>
         </Grid>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Typography,
   Paper,
@@ -34,7 +35,35 @@ import DOMPurify from 'dompurify';
 
 function Dashboard() {
   const { user, session, loading: authLoading } = useAuth();
-  
+  const navigate = useNavigate();
+
+  // 연락/전화 관련 태그가 붙은 미완료 A/S 건 (대시보드 간략 표시용)
+  const [contactTagServices, setContactTagServices] = useState([]);
+  useEffect(() => {
+    const fetchContactTagServices = async () => {
+      const { data: tagRows, error: tagError } = await supabase
+        .from('service_tags')
+        .select('service_id, tag_name')
+        .or('tag_name.ilike.%연락%,tag_name.ilike.%전화%');
+      if (tagError || !tagRows || tagRows.length === 0) return;
+
+      const tagByServiceId = {};
+      tagRows.forEach(r => { (tagByServiceId[r.service_id] ||= []).push(r.tag_name); });
+
+      const { data: services, error: svcError } = await supabase
+        .from('services')
+        .select('id, customer_name, product_name, status, reception_date')
+        .in('id', Object.keys(tagByServiceId))
+        .neq('status', '출고완료')
+        .order('reception_date', { ascending: false })
+        .limit(10);
+      if (svcError || !services) return;
+
+      setContactTagServices(services.map(s => ({ ...s, tags: tagByServiceId[s.id] })));
+    };
+    fetchContactTagServices();
+  }, []);
+
   // 메모 타입 (개인/공유)
   const [memoType, setMemoType] = useState('shared');
   
@@ -837,6 +866,34 @@ function Dashboard() {
         </Button>
       </Box>
 
+      {/* 연락/전화 관련 태그 미완료 건 간략 표시 */}
+      {contactTagServices.length > 0 && (
+        <Paper elevation={0} sx={{ p: 2, mb: 3, bgcolor: '#fff8e1', border: '1px solid #ffe082' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>연락/전화 필요 건</Typography>
+            <Chip label={contactTagServices.length} size="small" color="warning" />
+          </Box>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+            {contactTagServices.map(s => (
+              <Box
+                key={s.id}
+                onClick={() => navigate(`/services/${s.id}`)}
+                sx={{
+                  display: 'flex', alignItems: 'center', gap: 1, p: 0.5, borderRadius: 1,
+                  cursor: 'pointer', '&:hover': { bgcolor: 'rgba(0,0,0,0.04)' }
+                }}
+              >
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>{s.customer_name}</Typography>
+                <Typography variant="body2" color="text.secondary">{s.product_name}</Typography>
+                {s.tags.map(t => <Chip key={t} label={t} size="small" />)}
+                <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>
+                  {s.reception_date}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
+        </Paper>
+      )}
 
       {/* 메모 타입 선택 */}
       <Box sx={{ mb: 2 }}>

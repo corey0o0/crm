@@ -1076,7 +1076,9 @@ function AddService() {
 
       if (uploadResults.length > 0) {
         setUploadedFiles(prev => [...prev, ...uploadResults]);
-        
+        // 파일 업로드도 '변경사항'으로 취급 → 저장 안 하고 나가면 beforeunload/뒤로가기 경고가 뜨도록
+        setHasUnsavedChanges(true);
+
         setSnackbar({
           open: true,
           message: `${uploadResults.length}개 파일이 성공적으로 업로드되었습니다.`,

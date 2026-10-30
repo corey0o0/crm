@@ -109,7 +109,7 @@ function ServiceDetail() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing] = useState(true); // 수정 버튼 없이 항상 저장 가능하도록 고정
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [initialStatus, setInitialStatus] = useState(null); // 초기 상태 저장
   const [formData, setFormData] = useState({
@@ -853,7 +853,6 @@ function ServiceDetail() {
       ...prev,
       status: newStatus
     }));
-    setIsEditing(true);
   };
 
   const handleStatusChange = (newStatus) => {
@@ -913,7 +912,6 @@ function ServiceDetail() {
             const updatedData = { ...prev, status: newStatus, completion_date: dateStr, completion_time: timeStr };
             return updatedData;
           });
-          setIsEditing(true);
           setConfirmDialog(prev => ({ ...prev, open: false }));
         }
       });
@@ -1128,7 +1126,6 @@ function ServiceDetail() {
 
       // 변경사항 초기화
       setHasUnsavedChanges(false);
-      setIsEditing(false);
 
       // 저장된 접수일시가 새 기준이 된다. 삽입된 prefix는 본문의 일부로 확정.
       receptionBaseRef.current = {
@@ -1178,7 +1175,6 @@ function ServiceDetail() {
         [name]: value
       }));
     }
-    setIsEditing(true);
   };
 
   const fetchParts = async () => {
@@ -2377,25 +2373,6 @@ function ServiceDetail() {
     }
   };
 
-  // 편집 시작 핸들러
-  const handleStartEdit = () => {
-    setIsEditing(true);
-    // 편집 시작 시 현재 상태를 초기 데이터로 재설정
-    if (initialData) {
-      setInitialData({
-        formData: { ...formData },
-        selectedParts: selectedParts.map(part => ({
-          id: part.id,
-          part_id: part.part_id,
-          quantity: part.quantity,
-          price: part.price,
-          usage: part.usage
-        })),
-        tags: tags.slice().sort()
-      });
-    }
-  };
-
   if (loading) {
     return (
       <Box sx={{
@@ -3535,7 +3512,7 @@ function ServiceDetail() {
               {isInspectionEnabled && (
                 <Button
                   onClick={handleAddToPendingOutbounds}
-                  disabled={addingToQueue || isEditing}
+                  disabled={addingToQueue}
                   startIcon={<AddIcon />}
                   sx={{
                     color: '#9c27b0',
@@ -3580,65 +3557,44 @@ function ServiceDetail() {
               >
                 프린트
               </Button>
-              {isEditing ? (
-                <>
-                  <Button
-                    type="submit"
-                    variant="outlined"
-                    disabled={submitting}
-                    onClick={() => { submitActionRef.current = 'list'; }}
-                    sx={{
-                      borderColor: '#3182f6',
-                      color: '#3182f6',
-                      fontSize: '0.95rem',
-                      fontWeight: 600,
-                      textTransform: 'none',
-                      px: 3,
-                      '&:hover': {
-                        borderColor: '#1b64da',
-                        bgcolor: 'rgba(49,130,246,0.04)'
-                      }
-                    }}
-                  >
-                    저장/목록
-                  </Button>
-                  <Button
-                    type="submit"
-                    variant="contained"
-                    disabled={submitting}
-                    onClick={() => { submitActionRef.current = 'detail'; }}
-                    sx={{
-                      bgcolor: '#3182f6',
-                      fontSize: '0.95rem',
-                      fontWeight: 600,
-                      textTransform: 'none',
-                      px: 3,
-                      '&:hover': {
-                        bgcolor: '#1b64da'
-                      }
-                    }}
-                  >
-                    저장/계속
-                  </Button>
-                </>
-              ) : (
-                <Button
-                  onClick={handleStartEdit}
-                  variant="contained"
-                  sx={{
-                    bgcolor: '#3182f6',
-                    fontSize: '0.95rem',
-                    fontWeight: 600,
-                    textTransform: 'none',
-                    px: 4,
-                    '&:hover': {
-                      bgcolor: '#1b64da'
-                    }
-                  }}
-                >
-                  수정
-                </Button>
-              )}
+              <Button
+                type="submit"
+                variant="outlined"
+                disabled={submitting}
+                onClick={() => { submitActionRef.current = 'list'; }}
+                sx={{
+                  borderColor: '#3182f6',
+                  color: '#3182f6',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  textTransform: 'none',
+                  px: 3,
+                  '&:hover': {
+                    borderColor: '#1b64da',
+                    bgcolor: 'rgba(49,130,246,0.04)'
+                  }
+                }}
+              >
+                저장/목록
+              </Button>
+              <Button
+                type="submit"
+                variant="contained"
+                disabled={submitting}
+                onClick={() => { submitActionRef.current = 'detail'; }}
+                sx={{
+                  bgcolor: '#3182f6',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  textTransform: 'none',
+                  px: 3,
+                  '&:hover': {
+                    bgcolor: '#1b64da'
+                  }
+                }}
+              >
+                저장/계속
+              </Button>
             </Box>
           </Box>
         </Paper>
