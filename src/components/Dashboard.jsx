@@ -866,35 +866,6 @@ function Dashboard() {
         </Button>
       </Box>
 
-      {/* 연락/전화 관련 태그 미완료 건 간략 표시 */}
-      {contactTagServices.length > 0 && (
-        <Paper elevation={0} sx={{ p: 2, mb: 3, bgcolor: '#fff8e1', border: '1px solid #ffe082' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>연락/전화 필요 건</Typography>
-            <Chip label={contactTagServices.length} size="small" color="warning" />
-          </Box>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-            {contactTagServices.map(s => (
-              <Box
-                key={s.id}
-                onClick={() => navigate(`/services/${s.id}`)}
-                sx={{
-                  display: 'flex', alignItems: 'center', gap: 1, p: 0.5, borderRadius: 1,
-                  cursor: 'pointer', '&:hover': { bgcolor: 'rgba(0,0,0,0.04)' }
-                }}
-              >
-                <Typography variant="body2" sx={{ fontWeight: 500 }}>{s.customer_name}</Typography>
-                <Typography variant="body2" color="text.secondary">{s.product_name}</Typography>
-                {s.tags.map(t => <Chip key={t} label={t} size="small" />)}
-                <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>
-                  {s.reception_date}
-                </Typography>
-              </Box>
-            ))}
-          </Box>
-        </Paper>
-      )}
-
       {/* 메모 타입 선택 */}
       <Box sx={{ mb: 2 }}>
         <Tabs 
@@ -1250,6 +1221,37 @@ function Dashboard() {
           </Paper>
         </Grid>
       </Grid>
+
+      {/* 연락/전화 관련 태그 미완료 건 간략 표시 */}
+      <Paper elevation={0} sx={{ p: 2, mb: 3, bgcolor: '#fff8e1', border: '1px solid #ffe082' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>연락/전화 필요 건</Typography>
+          <Chip label={contactTagServices.length} size="small" color="warning" />
+        </Box>
+        {contactTagServices.length === 0 ? (
+          <Typography variant="body2" color="text.secondary">해당 없음</Typography>
+        ) : (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+            {contactTagServices.map(s => (
+              <Box
+                key={s.id}
+                onClick={() => navigate(`/services/${s.id}`)}
+                sx={{
+                  display: 'flex', alignItems: 'center', gap: 1, p: 0.5, borderRadius: 1,
+                  cursor: 'pointer', '&:hover': { bgcolor: 'rgba(0,0,0,0.04)' }
+                }}
+              >
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>{s.customer_name}</Typography>
+                <Typography variant="body2" color="text.secondary">{s.product_name}</Typography>
+                {s.tags.map(t => <Chip key={t} label={t} size="small" />)}
+                <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>
+                  {s.reception_date}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
+        )}
+      </Paper>
 
       {/* 캘린더 섹션 */}
       <Box sx={{ mb: 4 }}>
