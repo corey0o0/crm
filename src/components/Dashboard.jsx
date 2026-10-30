@@ -78,6 +78,9 @@ function Dashboard() {
     setWidgetLayouts(allLayouts);
     try { localStorage.setItem(WIDGET_LAYOUT_STORAGE_KEY, JSON.stringify(allLayouts)); } catch { /* 저장 실패해도 동작엔 지장 없음 */ }
   };
+  // 카드끼리 겹칠 때 마지막으로 클릭/드래그한 카드를 맨 위로 (활성 창 = 상단 레이어)
+  const [activeWidgetId, setActiveWidgetId] = useState(null);
+  const widgetZIndex = (id) => (activeWidgetId === id ? 10 : 1);
 
   // 연락/전화 관련 태그가 붙은 미완료 A/S 건 (대시보드 간략 표시용)
   const [contactTagServices, setContactTagServices] = useState([]);
@@ -953,7 +956,7 @@ function Dashboard() {
         compactType={null}
         style={{ position: 'relative', marginBottom: 24 }}
       >
-        <Box key="memo13" sx={{ height: '100%' }}>
+        <Box key="memo13" sx={{ height: '100%' }} style={{ zIndex: widgetZIndex('memo13') }} onMouseDown={() => setActiveWidgetId('memo13')}>
         <Paper elevation={0} sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflowY: 'auto', bgcolor: '#f8f9fa', border: '1px solid #e9ecef' }}>
           <Box className="drag-handle" sx={{ cursor: 'grab', display: 'flex', justifyContent: 'center', color: 'text.disabled', py: 0.3, '&:active': { cursor: 'grabbing' } }}>
             <DragIndicatorIcon fontSize="small" />
@@ -1177,7 +1180,7 @@ function Dashboard() {
         </Paper>
         </Box>
         {/* 메모 2 */}
-        <Box key="memo2" sx={{ height: '100%' }}>
+        <Box key="memo2" sx={{ height: '100%' }} style={{ zIndex: widgetZIndex('memo2') }} onMouseDown={() => setActiveWidgetId('memo2')}>
         <Paper elevation={0} sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflowY: 'auto', bgcolor: '#f8f9fa', border: '1px solid #e9ecef' }}>
           <Box className="drag-handle" sx={{ cursor: 'grab', display: 'flex', justifyContent: 'center', color: 'text.disabled', py: 0.3, '&:active': { cursor: 'grabbing' } }}>
             <DragIndicatorIcon fontSize="small" />
@@ -1287,7 +1290,7 @@ function Dashboard() {
         </Box>
 
         {/* 연락/전화 관련 태그 미완료 건 간략 표시 */}
-        <Box key="contact" sx={{ height: '100%' }}>
+        <Box key="contact" sx={{ height: '100%' }} style={{ zIndex: widgetZIndex('contact') }} onMouseDown={() => setActiveWidgetId('contact')}>
         <Paper elevation={0} sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflowY: 'auto', bgcolor: '#fff8e1', border: '1px solid #ffe082' }}>
           <Box className="drag-handle" sx={{ cursor: 'grab', display: 'flex', justifyContent: 'center', color: 'text.disabled', py: 0.3, '&:active': { cursor: 'grabbing' } }}>
             <DragIndicatorIcon fontSize="small" />
