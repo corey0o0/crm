@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   Typography,
   Paper,
-  Grid,
   Box,
   Chip,
   CircularProgress,
@@ -17,7 +16,10 @@ import {
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
+  DragIndicator as DragIndicatorIcon,
 } from '@mui/icons-material';
+import { Responsive, WidthProvider } from 'react-grid-layout';
+import 'react-grid-layout/css/styles.css';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { shouldRetry, getErrorMessage, isOffline } from '../utils/networkUtils';
@@ -33,9 +35,49 @@ import SendIcon from '@mui/icons-material/Send';
 import RichTextEditor from './common/RichTextEditor';
 import DOMPurify from 'dompurify';
 
+// 메모 보드 자유배치 레이아웃: 위젯 위치/크기를 브라우저에 기억 (스티키노트처럼 옮긴 자리 그대로 유지)
+// PC(lg)에서는 자유 배치, 좁은 화면(xxs)에서는 1열로 쌓아서 깨지지 않게
+const WIDGET_LAYOUT_STORAGE_KEY = 'dashboard_widget_layout_v1';
+const DEFAULT_WIDGET_LAYOUTS = {
+  lg: [
+    { i: 'memo13', x: 0, y: 0, w: 6, h: 11, minH: 3 },
+    { i: 'memo2', x: 6, y: 0, w: 6, h: 11, minH: 3 },
+    { i: 'contact', x: 6, y: 11, w: 6, h: 6, minH: 3 },
+  ],
+  xxs: [
+    { i: 'memo13', x: 0, y: 0, w: 1, h: 11, minH: 3 },
+    { i: 'memo2', x: 0, y: 11, w: 1, h: 11, minH: 3 },
+    { i: 'contact', x: 0, y: 22, w: 1, h: 6, minH: 3 },
+  ],
+};
+const GRID_BREAKPOINTS = { lg: 900, xxs: 0 };
+const GRID_COLS = { lg: 12, xxs: 1 };
+const ResponsiveGridLayout = WidthProvider(Responsive);
+
 function Dashboard() {
   const { user, session, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+
+  // 메모 보드 위젯 위치 (드래그로 자유 배치, localStorage에 저장)
+  const [widgetLayouts, setWidgetLayouts] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(WIDGET_LAYOUT_STORAGE_KEY) || 'null');
+      if (saved && typeof saved === 'object') {
+        // 위젯 구성이 바뀌어도 깨지지 않게 저장된 값 + 기본값 병합 (브레이크포인트별)
+        const merged = {};
+        for (const bp of Object.keys(DEFAULT_WIDGET_LAYOUTS)) {
+          const savedBp = Array.isArray(saved[bp]) ? saved[bp] : [];
+          merged[bp] = DEFAULT_WIDGET_LAYOUTS[bp].map(def => savedBp.find(s => s.i === def.i) || def);
+        }
+        return merged;
+      }
+    } catch { /* 저장된 값 깨졌으면 기본값 사용 */ }
+    return DEFAULT_WIDGET_LAYOUTS;
+  });
+  const handleWidgetLayoutChange = (_layout, allLayouts) => {
+    setWidgetLayouts(allLayouts);
+    try { localStorage.setItem(WIDGET_LAYOUT_STORAGE_KEY, JSON.stringify(allLayouts)); } catch { /* 저장 실패해도 동작엔 지장 없음 */ }
+  };
 
   // 연락/전화 관련 태그가 붙은 미완료 A/S 건 (대시보드 간략 표시용)
   const [contactTagServices, setContactTagServices] = useState([]);
@@ -895,11 +937,28 @@ function Dashboard() {
         </Tabs>
       </Box>
 
-      {/* 메모 섹션 */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        {/* 메모 1과 메모 3 탭 */}
-        <Grid item xs={12} md={6}>
-          <Paper elevation={0} sx={{ p: 2, bgcolor: '#f8f9fa', border: '1px solid #e9ecef', minHeight: '200px' }}>
+      {/* 메모 섹션 (자유 배치 보드: 드래그 손잡이로 어디든 옮길 수 있고 겹침 가능, 위치는 브라우저에 저장됨) */}
+      <ResponsiveGridLayout
+        className="layout"
+        layouts={widgetLayouts}
+        onLayoutChange={handleWidgetLayoutChange}
+        breakpoints={GRID_BREAKPOINTS}
+        cols={GRID_COLS}
+        rowHeight={28}
+        margin={[16, 16]}
+        draggableHandle=".drag-handle"
+        isResizable
+        resizeHandles={['s']}
+        allowOverlap
+        compactType={null}
+        style={{ position: 'relative', marginBottom: 24 }}
+      >
+        <Box key="memo13" sx={{ height: '100%' }}>
+        <Paper elevation={0} sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflowY: 'auto', bgcolor: '#f8f9fa', border: '1px solid #e9ecef' }}>
+          <Box className="drag-handle" sx={{ cursor: 'grab', display: 'flex', justifyContent: 'center', color: 'text.disabled', py: 0.3, '&:active': { cursor: 'grabbing' } }}>
+            <DragIndicatorIcon fontSize="small" />
+          </Box>
+          <Box sx={{ p: 2, pt: 0 }}>
             <Tabs value={selectedMemoTab} onChange={handleMemoTabChange} variant="scrollable" scrollButtons="auto">
               <Tab label={memoNames[0]} />
               <Tab label={memoNames[2]} />
@@ -1114,11 +1173,16 @@ function Dashboard() {
                 </Button>
               </Box>
             )}
-          </Paper>
-        </Grid>
+          </Box>
+        </Paper>
+        </Box>
         {/* 메모 2 */}
-        <Grid item xs={12} md={6}>
-          <Paper elevation={0} sx={{ p: 2, bgcolor: '#f8f9fa', border: '1px solid #e9ecef', minHeight: '200px' }}>
+        <Box key="memo2" sx={{ height: '100%' }}>
+        <Paper elevation={0} sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflowY: 'auto', bgcolor: '#f8f9fa', border: '1px solid #e9ecef' }}>
+          <Box className="drag-handle" sx={{ cursor: 'grab', display: 'flex', justifyContent: 'center', color: 'text.disabled', py: 0.3, '&:active': { cursor: 'grabbing' } }}>
+            <DragIndicatorIcon fontSize="small" />
+          </Box>
+          <Box sx={{ p: 2, pt: 0 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               {editingMemoName === 1 ? (
                 <TextField
@@ -1218,10 +1282,17 @@ function Dashboard() {
             >
               저장
             </Button>
-          </Paper>
+          </Box>
+        </Paper>
+        </Box>
 
-          {/* 연락/전화 관련 태그 미완료 건 간략 표시 (메모2 밑, 같은 열) */}
-          <Paper elevation={0} sx={{ p: 2, mt: 2, bgcolor: '#fff8e1', border: '1px solid #ffe082' }}>
+        {/* 연락/전화 관련 태그 미완료 건 간략 표시 */}
+        <Box key="contact" sx={{ height: '100%' }}>
+        <Paper elevation={0} sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflowY: 'auto', bgcolor: '#fff8e1', border: '1px solid #ffe082' }}>
+          <Box className="drag-handle" sx={{ cursor: 'grab', display: 'flex', justifyContent: 'center', color: 'text.disabled', py: 0.3, '&:active': { cursor: 'grabbing' } }}>
+            <DragIndicatorIcon fontSize="small" />
+          </Box>
+          <Box sx={{ p: 2, pt: 0 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
               <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>연락/전화 필요 건</Typography>
               <Chip label={contactTagServices.length} size="small" color="warning" />
@@ -1249,9 +1320,10 @@ function Dashboard() {
                 ))}
               </Box>
             )}
-          </Paper>
-        </Grid>
-      </Grid>
+          </Box>
+        </Paper>
+        </Box>
+      </ResponsiveGridLayout>
 
       {/* 캘린더 섹션 */}
       <Box sx={{ mb: 4 }}>
