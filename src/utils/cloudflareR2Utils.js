@@ -1,6 +1,6 @@
 import { supabase } from "../lib/supabaseClient";
 
-const getAuthToken = async () => {
+export const getAuthToken = async () => {
   const { data } = await supabase.auth.getSession();
   return data?.session?.access_token || null;
 };

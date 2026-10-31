@@ -16,12 +16,14 @@ import {
   Close as CloseIcon,
   History as HistoryIcon,
   ShoppingCart as ShoppingCartIcon,
-  LocationOn as LocationOnIcon
+  LocationOn as LocationOnIcon,
+  Image as ImageIcon
 } from '@mui/icons-material';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
 import { transactionApi } from '../../api/transactionApi';
 import { supabase } from '../../lib/supabaseClient';
+import { uploadFileToR2, getAuthToken } from '../../utils/cloudflareR2Utils';
 import { useAuth } from '../../contexts/AuthContext';
 import { MASTER_ACCOUNTS } from '../../config/menuConfig';
 import { sortProducts, SORT_OPTIONS } from '../../components/Product/productSortUtils';
@@ -576,19 +578,67 @@ export default function AgencyManagement() {
 // ----------------------------------------------------
 // Agency Form Component (거래처 등록/수정)
 // ----------------------------------------------------
+// AI가 사업자등록증에서 읽어온 값 중, agencies 테이블에 실제 있는 필드만 자동기입에 반영
+const OCR_FIELDS = ['business_number', 'name', 'ceo_name', 'address', 'business_type', 'business_category'];
+
 function AgencyFormDialog({ open, data, onClose, onSave }) {
   const [formData, setFormData] = useState({});
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const certFileInputRef = useRef(null);
 
   useEffect(() => {
     if (open) {
       setFormData(data || {
-        business_number: '', name: '', ceo_name: '', address: '', email: '', business_type: '', business_category: '', phone: '', mobile: '', keywords: '', memo: '', cafe24_member_id: ''
+        business_number: '', name: '', ceo_name: '', address: '', email: '', business_type: '', business_category: '', phone: '', mobile: '', keywords: '', memo: '', cafe24_member_id: '', business_reg_image_url: ''
       });
     }
   }, [open, data]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  // 사업자등록증 이미지 업로드: AI로 내용 자동인식(OCR) + 원본 이미지는 R2에 저장
+  const handleCertUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setOcrLoading(true);
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const [ocrResult, uploadResult] = await Promise.all([
+        (async () => {
+          const token = await getAuthToken();
+          if (!token) throw new Error('로그인 세션 없음');
+          const res = await fetch('/.netlify/functions/agency-ocr', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ image: base64, mediaType: file.type || 'image/jpeg' })
+          });
+          const json = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(json.error || 'AI 인식 실패');
+          return json;
+        })(),
+        uploadFileToR2(file, 'agency_certs')
+      ]);
+
+      // 값이 있는 필드만 덮어써서, 사용자가 이미 입력해둔 다른 항목이 빈 값으로 지워지지 않게 함
+      const filledFields = Object.fromEntries(
+        OCR_FIELDS.filter(key => ocrResult[key]).map(key => [key, ocrResult[key]])
+      );
+      setFormData(prev => ({ ...prev, ...filledFields, business_reg_image_url: uploadResult.url }));
+    } catch (err) {
+      alert('사업자등록증 인식/업로드 실패: ' + err.message);
+    } finally {
+      setOcrLoading(false);
+      if (certFileInputRef.current) certFileInputRef.current.value = '';
+    }
   };
 
   const handleSubmit = async () => {
@@ -621,6 +671,34 @@ function AgencyFormDialog({ open, data, onClose, onSave }) {
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>{data?.id ? '거래처 수정' : '거래처 등록'}</DialogTitle>
       <DialogContent dividers sx={{ p: 2, overflowY: 'auto' }}>
+        <Box sx={{ mb: 2, p: 1.5, bgcolor: 'grey.50', borderRadius: 1, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <input
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            ref={certFileInputRef}
+            onChange={handleCertUpload}
+          />
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<ImageIcon />}
+            disabled={ocrLoading}
+            onClick={() => certFileInputRef.current?.click()}
+          >
+            사업자등록증 업로드 (자동입력)
+          </Button>
+          {ocrLoading && <Typography variant="caption" color="text.secondary">AI 인식 중...</Typography>}
+          {formData.business_reg_image_url && (
+            <Box
+              component="img"
+              src={formData.business_reg_image_url}
+              alt="사업자등록증"
+              onClick={() => window.open(formData.business_reg_image_url, '_blank')}
+              sx={{ height: 36, borderRadius: 0.5, border: '1px solid rgba(0,0,0,0.12)', cursor: 'pointer' }}
+            />
+          )}
+        </Box>
         <Grid container spacing={1.5}>
           <Grid item xs={12} sm={6}>
             <TextField size="small" fullWidth label="거래처코드 (사업자번호 등)" name="business_number" value={formData.business_number || ''} onChange={handleChange} />
