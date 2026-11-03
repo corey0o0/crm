@@ -3077,6 +3077,7 @@ function AddService() {
                               <MenuItem value="A/S">A/S</MenuItem>
                               <MenuItem value="판매">판매</MenuItem>
                               <MenuItem value="워런티">워런티</MenuItem>
+                              <MenuItem value="자가사용">자가사용</MenuItem>
                             </Select>
                           </TableCell>
                           <TableCell align="center">

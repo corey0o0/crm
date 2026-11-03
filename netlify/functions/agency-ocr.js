@@ -33,7 +33,8 @@ async function requireUser(event) {
 const ALLOWED_FIELDS = ['business_number', 'name', 'ceo_name', 'address', 'business_type', 'business_category'];
 
 const PROMPT = `이 이미지는 한국 사업자등록증입니다. 아래 항목을 읽어서 JSON 객체 하나만 반환하세요. 설명이나 다른 텍스트는 절대 포함하지 마세요.
-{"business_number":"등록번호(000-00-00000 형식)","name":"상호(법인명)","ceo_name":"대표자 성명","address":"사업장 소재지 전체 주소","business_type":"업태(여러 개면 쉼표로 구분)","business_category":"종목(여러 개면 쉼표로 구분)"}
+{"business_number":"사업자등록번호(문서 상단 "등록번호"에 찍힌 000-00-00000 형식, 총 10자리)","name":"상호(법인명)","ceo_name":"대표자 성명","address":"사업장 소재지 전체 주소","business_type":"업태(여러 개면 쉼표로 구분)","business_category":"종목(여러 개면 쉼표로 구분)"}
+business_number은 반드시 사업자등록번호(10자리, 000-00-00000)만 넣으세요. 법인등록번호(13자리, 000000-0000000 형식)는 완전히 다른 번호이니 절대 넣지 마세요.
 읽을 수 없는 항목은 빈 문자열("")로 두세요.`;
 
 exports.handler = async (event) => {
@@ -92,6 +93,11 @@ exports.handler = async (event) => {
     const fields = {};
     for (const key of ALLOWED_FIELDS) {
       if (typeof parsed[key] === 'string') fields[key] = parsed[key];
+    }
+    // 사업자등록번호는 10자리(000-00-00000)만 허용 — 모델이 13자리 법인등록번호를
+    // 잘못 넣는 경우가 있어서, 자릿수가 다르면 자동입력하지 않고 빈 값으로 둔다.
+    if (fields.business_number && fields.business_number.replace(/\D/g, '').length !== 10) {
+      fields.business_number = '';
     }
     return ok(fields);
   } catch (e) {
