@@ -1182,7 +1182,7 @@ function PartsManagement() {
       partData.purchase_source = formData.purchaseSource || null;
       partData.model = formData.model || null;
 
-      if (selectedPart) {
+      if (selectedPart?.id) {
         const { error } = await supabase
           .from('parts')
           .update(partData)
@@ -2103,6 +2103,19 @@ function PartsManagement() {
     setOpenCopyDialog(true);
   };
 
+  // "선택 항목 복사" 버튼 클릭: 1개 선택이면 해당 항목 내역으로 신규 등록 폼을 미리 채워서 열고,
+  // 2개 이상(또는 0개) 선택이면 기존 "다른 브랜드로 즉시 복사" 동작을 그대로 유지한다.
+  const handleCopyButtonClick = () => {
+    if (selectedItems.length === 1) {
+      const part = parts.find(p => p.id === selectedItems[0]);
+      if (part) {
+        handleOpenDialog({ ...part, id: undefined });
+        return;
+      }
+    }
+    handleOpenCopyDialog();
+  };
+
   // 복사 다이얼로그 닫기
   const handleCloseCopyDialog = () => {
     setOpenCopyDialog(false);
@@ -2453,7 +2466,7 @@ function PartsManagement() {
               <Button
                 variant="contained"
                 startIcon={<FileCopyIcon />}
-                onClick={handleOpenCopyDialog}
+                onClick={handleCopyButtonClick}
                 disabled={selectedItems.length === 0}
                 sx={{ bgcolor: '#2196f3', '&:hover': { bgcolor: '#1976d2' } }}
               >
