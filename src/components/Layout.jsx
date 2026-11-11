@@ -381,6 +381,7 @@ function Layout() {
       key: 'inventory_group',
       children: [
         // { text: '매장 재고 관리', icon: <InventoryIcon />, path: '/stocks', key: 'stocks' },
+        { text: '입출고 등록', icon: <CalendarTodayIcon />, path: '/inventory-io-entry', key: 'inventory_io_entry' },
         { text: '입출고 내역', icon: <HistoryIcon />, path: '/inventory-management/history', key: 'inventory_history' },
         { text: '재고 현황', icon: <AssessmentIcon />, path: '/inventory-management/status', key: 'inventory_status' },
         { text: '박스 상태 관리', icon: <InventoryIcon />, path: '/inventory-management/boxes', key: 'inventory_boxes' },

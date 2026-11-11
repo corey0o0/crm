@@ -163,5 +163,6 @@ export const MENU_KEYS = {
   SERVICE_STATS: 'service_stats',
   CHATBOT_FAQ: 'chatbot_faq',
   PURCHASE_ORDERS: 'purchase_orders',
+  INVENTORY_IO_ENTRY: 'inventory_io_entry',
 };
 

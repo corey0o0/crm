@@ -45,6 +45,7 @@ const AVAILABLE_PERMISSIONS = [
   { key: 'stocks', label: '매장 재고 관리' },
   { key: 'inventory_group', label: '재고관리 메뉴 전체' },
   { key: 'inventory_management', label: '입출고 관리 (상위 레이아웃)' },
+  { key: 'inventory_io_entry', label: '입출고 등록 (그리드)' },
   { key: 'inventory_history', label: '입출고 내역' },
   { key: 'inventory_status', label: '재고 현황' },
   { key: 'inventory_scan', label: '출고 검수 (재고조사)' },

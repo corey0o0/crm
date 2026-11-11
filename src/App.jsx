@@ -21,6 +21,7 @@ import ServiceDetail from './components/Service/ServiceDetail';
 import ServiceStatistics from './components/Statistics/ServiceStatistics';
 import PartsManagement from './components/Service/PartsManagement';
 import PurchaseOrderManagement from './components/Purchase/PurchaseOrderManagement';
+import InventoryIOEntryGrid from './components/Inventory/InventoryIOEntryGrid';
 import ProductShipment from './components/Product/ProductShipment';
 import ManualSalesList from './pages/sales/ManualSalesList';
 import SystemHealthCheck from './components/Test/SystemHealthCheck';
@@ -108,6 +109,7 @@ function AppRouter() {
           <Route path="service-statistics" element={<PermissionRoute requiredPermission={MENU_KEYS.SERVICES}><ServiceStatistics /></PermissionRoute>} />
           <Route path="parts" element={<PermissionRoute requiredPermission={MENU_KEYS.PARTS}><PartsManagement /></PermissionRoute>} />
           <Route path="purchase-orders" element={<PermissionRoute requiredPermission={MENU_KEYS.PURCHASE_ORDERS}><PurchaseOrderManagement /></PermissionRoute>} />
+          <Route path="inventory-io-entry" element={<PermissionRoute requiredPermission={MENU_KEYS.INVENTORY_IO_ENTRY}><InventoryIOEntryGrid /></PermissionRoute>} />
 
           {/* 기존 출고 관리 페이지 */}
           <Route path="shipments" element={<ProductShipment />} />
