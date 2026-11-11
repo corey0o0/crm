@@ -34,12 +34,23 @@ const s3Client = new S3Client({
 });
 
 // 백업할 전체 테이블 목록
+// 2026-11-11 DB 실테이블 전체(`supabase inspect db table-stats`)와 대조해서
+// 재동기화 — agencies 등 누락됐던 테이블 추가, 존재하지 않는 sales_history/orders 제거.
 const TABLES = [
-  'parts', 'warehouses', 'dealers', 'model_settings', 'brand_settings', 
-  'user_memos', 'board_posts', 'services', 'shipments', 'inventory', 
+  'parts', 'warehouses', 'dealers', 'model_settings', 'brand_settings',
+  'user_memos', 'board_posts', 'services', 'shipments', 'inventory',
   'transactions', 'service_tags', 'service_parts',
   'pending_orders', 'pending_outbounds', 'cafe24_orders',
-  'inventory_logs', 'customers', 'sales_history', 'orders'
+  'inventory_logs', 'customers',
+  'agencies', 'app_settings', 'audit_logs', 'backup_history', 'backup_settings',
+  'boxes', 'box_audit_logs', 'box_items', 'cafe24_product_to_part', 'cafe24_settings',
+  'chat_logs', 'chatbot_logs', 'chatbot_naver_sessions', 'chatbot_settings',
+  'db_change_log', 'faq_items', 'notifications', 'order_processing_logs',
+  'part_sync_relations', 'pending_order_items', 'pending_outbound_items',
+  'po_date_columns', 'product_shipments', 'products', 'purchase_orders',
+  'receipt_items', 'receipts', 'role_permissions', 'roles', 'sales_statistics',
+  'service_files', 'shared_memos', 'shipment_parts', 'stock_logs',
+  'transactions_archive', 'transactions_backup_20250507', 'user_roles'
 ];
 
 async function runBackup() {

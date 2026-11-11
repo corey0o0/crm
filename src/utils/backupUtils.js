@@ -7,6 +7,8 @@ import { uploadFileToR2, findOrCreateFolder } from './cloudflareR2Utils';
  * 2단계: 1단계 테이블에만 의존하는 테이블
  * 3단계: 2단계 테이블에 의존하는 테이블
  */
+// 2026-11-11 실제 FK 제약(`supabase db query`로 information_schema 조회) 기준으로
+// 전체 테이블(55개) 재동기화 — 누락됐던 42개 테이블 추가.
 const RESTORE_ORDER = [
   // 1단계: 독립 테이블 (의존성 없음)
   'parts',
@@ -16,16 +18,58 @@ const RESTORE_ORDER = [
   'brand_settings',
   'user_memos',
   'board_posts',
-  
+  'agencies',
+  'app_settings',
+  'audit_logs',
+  'backup_history',
+  'backup_settings',
+  'cafe24_settings',
+  'chat_logs',
+  'chatbot_logs',
+  'chatbot_naver_sessions',
+  'chatbot_settings',
+  'customers',
+  'db_change_log',
+  'faq_items',
+  'inventory_logs',
+  'notifications',
+  'pending_orders',
+  'pending_outbounds',
+  'po_date_columns',
+  'product_shipments',
+  'products',
+  'receipt_items',
+  'receipts',
+  'roles',
+  'sales_statistics',
+  'shared_memos',
+  'transactions_archive',
+  'transactions_backup_20250507',
+
   // 2단계: 1단계 테이블에만 의존
-  'services',
-  'shipments',
-  'inventory',        // parts, warehouses 의존
-  'transactions',     // parts 의존
-  
+  'services',               // warehouses 의존
+  'shipments',              // agencies 의존
+  'inventory',              // parts, warehouses 의존
+  'transactions',           // parts 의존
+  'boxes',                  // warehouses 의존
+  'cafe24_orders',          // agencies 의존
+  'cafe24_product_to_part', // parts 의존
+  'part_sync_relations',    // parts 의존
+  'pending_outbound_items', // parts, pending_outbounds 의존
+  'purchase_orders',        // parts, po_date_columns 의존
+  'role_permissions',       // roles 의존
+  'user_roles',             // roles 의존
+  'order_processing_logs',  // pending_orders 의존
+  'pending_order_items',    // pending_orders 의존
+  'stock_logs',             // parts 의존
+
   // 3단계: 2단계 테이블에 의존
   'service_tags',     // services 의존
-  'service_parts'     // services, parts 의존
+  'service_parts',    // services, parts 의존
+  'service_files',     // services 의존
+  'shipment_parts',    // shipments 의존
+  'box_audit_logs',    // boxes 의존
+  'box_items'          // boxes 의존
 ];
 
 /**
