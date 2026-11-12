@@ -155,6 +155,15 @@ function SalesHistoryStats() {
     setSelectedHalf(null);
   };
 
+  const handleTodaySelect = () => {
+    const today = new Date();
+    setStartDate(today);
+    setEndDate(today);
+    setSelectedMonth(null);
+    setSelectedQuarter(null);
+    setSelectedHalf(null);
+  };
+
   const handleHalfSelect = (half) => {
     const startMonth = half === 'H1' ? 0 : 6;
     const endMonth = half === 'H1' ? 5 : 11;
@@ -1900,6 +1909,13 @@ function SalesHistoryStats() {
 
         {/* 필터 옵션 및 조회 버튼 */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+          <Button
+            size="small"
+            variant={format(startDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') && format(endDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') ? 'contained' : 'outlined'}
+            onClick={handleTodaySelect}
+          >
+            오늘 매출
+          </Button>
           <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
             <DatePicker
               label="시작일"
