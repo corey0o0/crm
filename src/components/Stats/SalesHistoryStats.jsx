@@ -1812,6 +1812,25 @@ function SalesHistoryStats() {
   const isYesterday = sameDay(startDate, yesterday) && sameDay(endDate, yesterday);
   const isThisWeek = sameDay(startDate, startOfWeek(today, { weekStartsOn: 1 })) && sameDay(endDate, endOfWeek(today, { weekStartsOn: 1 }));
 
+  const periodValue = selectedQuarter ? `Q${selectedQuarter}`
+    : selectedHalf ? selectedHalf
+    : selectedMonth !== null ? `M${selectedMonth}`
+    : (startDate && endDate && format(startDate, 'yyyy-MM-dd') === format(startOfYear(new Date(selectedYear, 0, 1)), 'yyyy-MM-dd') && format(endDate, 'yyyy-MM-dd') === format(endOfYear(new Date(selectedYear, 11, 31)), 'yyyy-MM-dd')) ? 'all'
+    : '';
+
+  const handlePeriodChange = (e) => {
+    const val = e.target.value;
+    if (val === 'all') {
+      handleYearSelect(selectedYear);
+    } else if (val.startsWith('Q')) {
+      handleQuarterSelect(parseInt(val.slice(1), 10));
+    } else if (val.startsWith('H')) {
+      handleHalfSelect(val);
+    } else if (val.startsWith('M')) {
+      handleMonthSelect(parseInt(val.slice(1), 10));
+    }
+  };
+
   return (
     <Box sx={{ p: 3, bgcolor: '#f4f6f8', minHeight: '100vh' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -1824,121 +1843,62 @@ function SalesHistoryStats() {
           조회 기간
         </Typography>
 
-        {/* 기간 선택: 연도 → 월 → 분기/반기/빠른 선택 */}
-        <Stack spacing={1.5} sx={{ mb: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-            <Typography variant="body2" sx={{ minWidth: 40, color: 'text.secondary' }}>
-              연도
-            </Typography>
-            <ButtonGroup size="small" variant="outlined" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+        {/* 기간 선택: 연도(Select) → 분기(Select) → 빠른 선택(어제/오늘/금주) */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', mb: 2 }}>
+          {/* 연도 셀렉터 */}
+          <FormControl size="small" sx={{ width: 110 }}>
+            <InputLabel id="stats-year-select-label">연도</InputLabel>
+            <Select
+              labelId="stats-year-select-label"
+              label="연도"
+              value={selectedYear}
+              onChange={(e) => handleYearSelect(Number(e.target.value))}
+            >
               {(() => {
                 const minYear = 2022;
                 const years = [];
-                for (let year = currentYear; year >= minYear; year--) {
-                  years.push(year);
-                }
-                return years.map((year) => (
-                  <Button
-                    key={year}
-                    onClick={() => handleYearSelect(year)}
-                    sx={{
-                      minWidth: '60px',
-                      backgroundColor: selectedYear === year ? 'primary.main' : 'inherit',
-                      color: selectedYear === year ? 'white' : 'inherit',
-                      fontWeight: selectedYear === year ? 'bold' : 'normal',
-                      '&:hover': { backgroundColor: selectedYear === year ? 'primary.dark' : '' }
-                    }}
-                  >
-                    {year}년
-                  </Button>
+                for (let y = currentYear; y >= minYear; y--) years.push(y);
+                return years.map(y => (
+                  <MenuItem key={y} value={y}>{y}년</MenuItem>
                 ));
               })()}
-            </ButtonGroup>
-          </Box>
+            </Select>
+          </FormControl>
 
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-            <Typography variant="body2" sx={{ minWidth: 40, color: 'text.secondary' }}>
-              월
-            </Typography>
-            <ButtonGroup size="small" variant="outlined" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+          {/* 분기 셀렉터 (연도 오른쪽) */}
+          <FormControl size="small" sx={{ width: 150 }}>
+            <InputLabel id="stats-period-select-label">분기</InputLabel>
+            <Select
+              labelId="stats-period-select-label"
+              label="분기"
+              value={periodValue}
+              onChange={handlePeriodChange}
+            >
+              <MenuItem value="all">전체 (연간)</MenuItem>
+              <MenuItem value="Q1">1분기 (1~3월)</MenuItem>
+              <MenuItem value="Q2">2분기 (4~6월)</MenuItem>
+              <MenuItem value="Q3">3분기 (7~9월)</MenuItem>
+              <MenuItem value="Q4">4분기 (10~12월)</MenuItem>
+              <MenuItem value="H1">상반기</MenuItem>
+              <MenuItem value="H2">하반기</MenuItem>
+              <Divider sx={{ my: 0.5 }} />
               {[...Array(12)].map((_, idx) => (
-                <Button
-                  key={idx}
-                  onClick={() => handleMonthSelect(idx)}
-                  sx={{
-                    minWidth: '40px',
-                    backgroundColor: selectedMonth === idx ? 'primary.main' : 'inherit',
-                    color: selectedMonth === idx ? 'white' : 'inherit',
-                    fontWeight: selectedMonth === idx ? 'bold' : 'normal',
-                    '&:hover': { backgroundColor: selectedMonth === idx ? 'primary.dark' : '' }
-                  }}
-                >
-                  {idx + 1}월
-                </Button>
+                <MenuItem key={idx} value={`M${idx}`}>{idx + 1}월</MenuItem>
               ))}
-            </ButtonGroup>
-          </Box>
+            </Select>
+          </FormControl>
 
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-            <Typography variant="body2" sx={{ minWidth: 40, color: 'text.secondary' }}>
-              분기
-            </Typography>
-            <ButtonGroup size="small" variant="outlined">
-              {[1, 2, 3, 4].map((q) => (
-                <Button
-                  key={q}
-                  onClick={() => handleQuarterSelect(q)}
-                  sx={{
-                    minWidth: '50px',
-                    backgroundColor: selectedQuarter === q ? 'primary.main' : 'inherit',
-                    color: selectedQuarter === q ? 'white' : 'inherit',
-                    fontWeight: selectedQuarter === q ? 'bold' : 'normal',
-                    '&:hover': { backgroundColor: selectedQuarter === q ? 'primary.dark' : '' }
-                  }}
-                >
-                  {q}분기
-                </Button>
-              ))}
-            </ButtonGroup>
-          </Box>
+          {/* 빠른 선택 (분기 오른쪽) */}
+          <ButtonGroup size="small" variant="outlined">
+            <Button variant={isYesterday ? 'contained' : 'outlined'} onClick={handleYesterdaySelect}>어제</Button>
+            <Button variant={isToday ? 'contained' : 'outlined'} onClick={handleTodaySelect}>오늘</Button>
+            <Button variant={isThisWeek ? 'contained' : 'outlined'} onClick={handleWeekSelect}>금주</Button>
+          </ButtonGroup>
 
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-            <Typography variant="body2" sx={{ minWidth: 40, color: 'text.secondary' }}>
-              반기
-            </Typography>
-            <ButtonGroup size="small" variant="outlined">
-              {[{ key: 'H1', label: '상반기' }, { key: 'H2', label: '하반기' }].map(({ key, label }) => (
-                <Button
-                  key={key}
-                  onClick={() => handleHalfSelect(key)}
-                  sx={{
-                    minWidth: '65px',
-                    backgroundColor: selectedHalf === key ? 'primary.main' : 'inherit',
-                    color: selectedHalf === key ? 'white' : 'inherit',
-                    fontWeight: selectedHalf === key ? 'bold' : 'normal',
-                    '&:hover': { backgroundColor: selectedHalf === key ? 'primary.dark' : '' }
-                  }}
-                >
-                  {label}
-                </Button>
-              ))}
-            </ButtonGroup>
-          </Box>
-
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-            <Typography variant="body2" sx={{ minWidth: 40, color: 'text.secondary' }}>
-              빠른 선택
-            </Typography>
-            <ButtonGroup size="small" variant="outlined">
-              <Button variant={isYesterday ? 'contained' : 'outlined'} onClick={handleYesterdaySelect}>어제</Button>
-              <Button variant={isToday ? 'contained' : 'outlined'} onClick={handleTodaySelect}>오늘</Button>
-              <Button variant={isThisWeek ? 'contained' : 'outlined'} onClick={handleWeekSelect}>금주</Button>
-            </ButtonGroup>
-            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-              {startDate && endDate ? `${format(startDate, 'yyyy-MM-dd')} ~ ${format(endDate, 'yyyy-MM-dd')}` : ''}
-            </Typography>
-          </Box>
-        </Stack>
+          <Typography variant="body2" sx={{ color: 'text.secondary', ml: 0.5 }}>
+            {startDate && endDate ? `${format(startDate, 'yyyy-MM-dd')} ~ ${format(endDate, 'yyyy-MM-dd')}` : ''}
+          </Typography>
+        </Box>
 
         <Divider sx={{ my: 2 }} />
 
