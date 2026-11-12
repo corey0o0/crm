@@ -52,6 +52,7 @@ import { processShipmentCompletion, processShipmentRevert } from '../../utils/in
 import { isWarehouseHidden } from '../../api/warehouseApi';
 import { checkSaleDuplicate } from '../../utils/duplicateCheck';
 import DuplicateWarningDialog from '../../components/common/DuplicateWarningDialog';
+import { MANUAL_SALES_CATEGORIES, isManualCategoryOnlyChange } from '../../utils/manualSalesCategory';
 // 부품 카테고리 자동 결정 함수 (setSelectedCategory 호출 제거, 카테고리 반환)
 const determinePartCategory = (part) => {
   if (!part) return '기타';
@@ -105,6 +106,7 @@ function ShipmentForm() {
     tracking_number: '',
     note: '',
     sales_channel: '청담매장',
+    revenue_category: '',
     warehouse_id: ''
   });
 
@@ -549,7 +551,30 @@ function ShipmentForm() {
   const handleSubmit = async (forceArg) => {
     const force = forceArg === true;
     if (saving) return; // 이중 클릭 방지
-    
+
+    if (!MANUAL_SALES_CATEGORIES.includes(shipmentData.revenue_category)) {
+      setSnackbar({ open: true, message: '매출 분류를 선택해주세요.', severity: 'warning' });
+      return;
+    }
+
+    if (isEditMode && isManualCategoryOnlyChange(shipmentData, selectedParts, initialData)) {
+      setSaving(true);
+      try {
+        const { error } = await supabase.from('shipments')
+          .update({ revenue_category: shipmentData.revenue_category, updated_at: new Date().toISOString() })
+          .eq('id', id);
+        if (error) throw error;
+        setInitialData(prev => ({ ...prev, shipmentData: { ...shipmentData } }));
+        setHasUnsavedChanges(false);
+        setSnackbar({ open: true, message: '매출 분류가 수정되었습니다. 재고는 변경하지 않았습니다.', severity: 'success' });
+      } catch (error) {
+        setSnackbar({ open: true, message: `매출 분류 저장 오류: ${error.message}`, severity: 'error' });
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
     // 필수 입력값 검증
     const requiredFields = [
       { field: 'customer_name', label: '고객명' },
@@ -631,6 +656,7 @@ function ShipmentForm() {
         tracking_number: shipmentData.tracking_number?.trim() || '',
         note: finalNote.trim(),
         sales_channel: shipmentData.sales_channel,
+        revenue_category: shipmentData.revenue_category,
         product_name: combinedProductName,
         product_code: selectedParts[0]?.part_code || '',
         quantity: parseInt(totalQuantity) || 0,
@@ -1554,6 +1580,26 @@ function ShipmentForm() {
                 <MenuItem value="기타">기타</MenuItem>
               </Select>
             </FormControl>
+          </Grid>
+
+          <Grid item xs={12} md={4}>
+            <FormControl fullWidth>
+              <InputLabel id="manual-revenue-category-label">매출 분류</InputLabel>
+              <Select
+                labelId="manual-revenue-category-label"
+                name="revenue_category"
+                value={shipmentData.revenue_category || ''}
+                onChange={handleChange}
+                label="매출 분류"
+                required
+              >
+                <MenuItem value="" disabled>미분류 — 분류를 선택하세요</MenuItem>
+                {MANUAL_SALES_CATEGORIES.map(category => (
+                  <MenuItem key={category} value={category}>{category}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <Typography variant="caption" color="text.secondary">결제 금액의 분류이며, 상품·재고에는 영향이 없습니다.</Typography>
           </Grid>
 
           <Grid item xs={12} md={4}>

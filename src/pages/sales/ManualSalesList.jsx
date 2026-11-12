@@ -10,6 +10,7 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ko } from 'date-fns/locale';
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO } from 'date-fns';
 import { processShipmentRevert, processShipmentCompletion } from '../../utils/inventoryUtils';
+import { getManualSalesCategory } from '../../utils/manualSalesCategory';
 import { logAction } from '../../utils/auditLog';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -763,6 +764,7 @@ export default function ManualSalesList({ isEmbedded = false }) {
               <TableCell width="11%">주문/출고일자</TableCell>
               <TableCell width="11%">주문번호(ID)</TableCell>
               <TableCell width="12%">거래처(요청채널)</TableCell>
+              <TableCell width="8%">매출 분류</TableCell>
               <TableCell width="10%">출고처(창고)</TableCell>
               <TableCell width="18%">대표 품목</TableCell>
               <TableCell width="15%">메모</TableCell>
@@ -773,9 +775,9 @@ export default function ManualSalesList({ isEmbedded = false }) {
           </TableHead>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={10} align="center">로딩 중...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={11} align="center">로딩 중...</TableCell></TableRow>
             ) : shipments.length === 0 ? (
-              <TableRow><TableCell colSpan={10} align="center">등록된 수기 판매 내역이 없습니다.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={11} align="center">등록된 수기 판매 내역이 없습니다.</TableCell></TableRow>
             ) : shipments.map(s => {
               const isItemSelected = selectedItems.indexOf(s.id) !== -1;
               const partCount = s.shipment_parts?.length || 0;
@@ -809,6 +811,20 @@ export default function ManualSalesList({ isEmbedded = false }) {
                     {s.sales_channel && <Typography variant="caption" color="text.secondary">{s.sales_channel}</Typography>}
                   </TableCell>
                   <TableCell>
+                    {(() => {
+                      const category = getManualSalesCategory(s.revenue_category);
+                      const isUnset = category === '미분류';
+                      return (
+                        <Chip
+                          label={category}
+                          size="small"
+                          color={isUnset ? 'default' : 'primary'}
+                          variant={isUnset ? 'outlined' : 'filled'}
+                        />
+                      );
+                    })()}
+                  </TableCell>
+                  <TableCell>
                     <Typography variant="body2" color="text.secondary">
                       {s.warehouse_id ? (warehouses.find(w => w.id === s.warehouse_id)?.name || '알 수 없는 창고') : '-'}
                     </Typography>
@@ -833,13 +849,13 @@ export default function ManualSalesList({ isEmbedded = false }) {
           </TableBody>
           <TableFooter>
             <TableRow sx={{ bgcolor: '#f8f9fa' }}>
-              <TableCell colSpan={7} align="right" sx={{ fontWeight: 'bold', py: 2 }}>검색 결과 총 합계</TableCell>
+              <TableCell colSpan={8} align="right" sx={{ fontWeight: 'bold', py: 2 }}>검색 결과 총 합계</TableCell>
               <TableCell align="right" sx={{ fontWeight: 'bold', color: '#1976d2', py: 2 }}>{totalAmount.toLocaleString()}원</TableCell>
               <TableCell colSpan={2}></TableCell>
             </TableRow>
             {selectedItems.length > 0 && (
               <TableRow sx={{ bgcolor: '#fff3e0' }}>
-                <TableCell colSpan={7} align="right" sx={{ fontWeight: 'bold', py: 2 }}>선택 {selectedItems.length}건 합계</TableCell>
+                <TableCell colSpan={8} align="right" sx={{ fontWeight: 'bold', py: 2 }}>선택 {selectedItems.length}건 합계</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 'bold', color: '#f57c00', py: 2 }}>{selectedAmount.toLocaleString()}원</TableCell>
                 <TableCell colSpan={2}></TableCell>
               </TableRow>

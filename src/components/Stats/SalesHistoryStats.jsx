@@ -26,6 +26,7 @@ import { MASTER_ACCOUNTS } from '../../config/menuConfig';
 import { downloadExcel } from '../../utils/excelUtils';
 import { applyVat, applyCommission, classifyPaymentChannel } from '../../utils/commissionUtils';
 import { getAppSetting } from '../../api/settingsApi';
+import { getManualSalesCategory } from '../../utils/manualSalesCategory';
 
 const COLORS = ['#1976d2', '#2e7d32', '#ed6c02', '#9c27b0', '#d32f2f', '#0288d1', '#7b1fa2'];
 
@@ -494,7 +495,7 @@ function SalesHistoryStats() {
 
     let shipQuery = supabase
       .from('shipments')
-      .select('id, order_date, customer_name, price, brand, sales_channel, status, note, tracking_number, warehouse_id, shipment_parts(id, part_name, quantity, price, total_price, note)')
+      .select('id, order_date, customer_name, price, brand, sales_channel, revenue_category, status, note, tracking_number, warehouse_id, shipment_parts(id, part_name, quantity, price, total_price, note)')
       .in('status', ['출고완료', '완료'])
       .order('order_date', { ascending: false });
 
@@ -682,16 +683,18 @@ function SalesHistoryStats() {
       if (s.note && String(s.note).includes('[수기판매]')) {
         // 수기판매 → 별도 집계용 배열에만 추가
         const parts = s.shipment_parts || [];
+        const manualCat = s.revenue_category ? getManualSalesCategory(s.revenue_category) : null;
         const baseFields = {
-          _id: s.id, _type: 'shipment', date_val: s.order_date, sales_channel: s.sales_channel || '-', customer_name: s.customer_name || '-'
+          _id: s.id, _type: 'shipment', date_val: s.order_date, sales_channel: s.sales_channel || '-', customer_name: s.customer_name || '-',
+          revenue_category: manualCat
         };
         if (parts.length === 0) {
-          manualRows.push({ ...baseFields, part_category: '기타', part_brand: '-', quantity: 0, total_price: Number(s.price || 0), total_cost: 0 });
+          manualRows.push({ ...baseFields, part_category: manualCat || '미분류', part_brand: '-', quantity: 0, total_price: Number(s.price || 0), total_cost: 0 });
         } else {
           parts.forEach(p => {
             const effectiveQty = Math.max(0, Number(p.quantity || 1));
             const total = Number(p.price || 0) * effectiveQty;
-            const cat = resolveCategory(p.part_name, p.part_code);
+            const cat = manualCat || resolveCategory(p.part_name, p.part_code);
             // 매장출고 부품 브랜드는 출고건(shipment.brand) 기준으로 통일 — 실제 출고/판매 내역·매장매출통계와 동일 (부품 코드 우연 의존 아님)
             const brand = getBrandFallback(s.brand, p.part_name, p.part_code, '');
             const unitCost = resolveCost(p.part_name, p.part_code);
@@ -2523,13 +2526,46 @@ function SalesHistoryStats() {
                 manualByBrand[b].qty += r.quantity || 0;
                 manualByBrand[b].amount += r.total_price || 0;
               });
+              const manualByCategory = {};
+              manualFlatRows.forEach(r => {
+                const c = r.part_category || '미분류';
+                if (!manualByCategory[c]) manualByCategory[c] = { qty: 0, amount: 0 };
+                manualByCategory[c].qty += r.quantity || 0;
+                manualByCategory[c].amount += r.total_price || 0;
+              });
               return (
                 <Box>
                   <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, color: '#424242' }}>
                     수기판매 현황 (총 합계: {formatCurrency(manualTotal)})
                   </Typography>
                   <Grid container spacing={3}>
-                    <Grid item xs={12} md={6}>
+                    <Grid item xs={12} md={4}>
+                      <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold', color: '#546e7a' }}>매출 분류별</Typography>
+                      <TableContainer component={Paper} sx={{ border: '1px solid #cfd8dc', borderRadius: 1, boxShadow: 'none' }}>
+                        <Table size="small" sx={{ '& th, & td': { border: '1px solid #cfd8dc', padding: '6px 10px' }, '& th': { bgcolor: '#eceff1', fontWeight: 'bold' }}}>
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>분류</TableCell>
+                              <TableCell align="right">수량</TableCell>
+                              <TableCell align="right">매출액</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {Object.entries(manualByCategory).sort((a,b) => b[1].amount - a[1].amount).map(([cat, val]) => (
+                              <TableRow key={cat} hover>
+                                <TableCell>{cat}</TableCell>
+                                <TableCell align="right">{val.qty.toLocaleString()}개</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(val.amount)}</TableCell>
+                              </TableRow>
+                            ))}
+                            {Object.keys(manualByCategory).length === 0 && (
+                              <TableRow><TableCell colSpan={3} align="center" sx={{ color: 'text.secondary' }}>수기판매 내역이 없습니다.</TableCell></TableRow>
+                            )}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    </Grid>
+                    <Grid item xs={12} md={4}>
                       <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold', color: '#546e7a' }}>거래처별 매출</Typography>
                       <TableContainer component={Paper} sx={{ border: '1px solid #cfd8dc', borderRadius: 1, boxShadow: 'none' }}>
                         <Table size="small" sx={{ '& th, & td': { border: '1px solid #cfd8dc', padding: '6px 10px' }, '& th': { bgcolor: '#eceff1', fontWeight: 'bold' }}}>
@@ -2559,7 +2595,7 @@ function SalesHistoryStats() {
                         </Table>
                       </TableContainer>
                     </Grid>
-                    <Grid item xs={12} md={6}>
+                    <Grid item xs={12} md={4}>
                       <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold', color: '#546e7a' }}>브랜드별 매출</Typography>
                       <TableContainer component={Paper} sx={{ border: '1px solid #cfd8dc', borderRadius: 1, boxShadow: 'none' }}>
                         <Table size="small" sx={{ '& th, & td': { border: '1px solid #cfd8dc', padding: '6px 10px' }, '& th': { bgcolor: '#eceff1', fontWeight: 'bold' }}}>
@@ -2593,6 +2629,7 @@ function SalesHistoryStats() {
                             <TableRow>
                               <TableCell>날짜</TableCell>
                               <TableCell>거래처</TableCell>
+                              <TableCell>매출 분류</TableCell>
                               <TableCell>상품명</TableCell>
                               <TableCell>브랜드</TableCell>
                               <TableCell align="right">수량</TableCell>
@@ -2604,6 +2641,7 @@ function SalesHistoryStats() {
                               <TableRow key={i} hover>
                                 <TableCell>{r.date_val ? r.date_val.slice(0,10) : '-'}</TableCell>
                                 <TableCell>{r.customer_name}</TableCell>
+                                <TableCell>{r.part_category || '미분류'}</TableCell>
                                 <TableCell>{r.part_name || '-'}</TableCell>
                                 <TableCell>{r.part_brand}</TableCell>
                                 <TableCell align="right">{(r.quantity||0).toLocaleString()}</TableCell>
@@ -2611,7 +2649,7 @@ function SalesHistoryStats() {
                               </TableRow>
                             ))}
                             {manualFlatRows.length === 0 && (
-                              <TableRow><TableCell colSpan={6} align="center" sx={{ color: 'text.secondary' }}>수기판매 내역이 없습니다.</TableCell></TableRow>
+                              <TableRow><TableCell colSpan={7} align="center" sx={{ color: 'text.secondary' }}>수기판매 내역이 없습니다.</TableCell></TableRow>
                             )}
                           </TableBody>
                         </Table>
