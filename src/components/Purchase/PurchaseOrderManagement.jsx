@@ -520,11 +520,11 @@ function PurchaseOrderManagement() {
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('발주현황');
 
-      const headers = ['Image', 'Brand', 'Model', 'Code', 'Barcode', 'English Name', 'Product Name'];
+      const headers = ['Image', 'Brand', 'Model', 'Code', 'Barcode', 'Product Name', 'English Name'];
+      if (visibleCols.memo) headers.push('Remarks');
       if (visibleCols.supply_price) headers.push('Supply Price');
       if (visibleCols.price) headers.push('Price');
       if (visibleCols.note) headers.push('Category');
-      if (visibleCols.memo) headers.push('Remarks');
       if (visibleCols.purchase_source) headers.push('Source');
       if (visibleCols.stock) headers.push('Stock');
       if (visibleCols.orderTotal) headers.push('Order Total', 'Received Total');
@@ -535,7 +535,7 @@ function PurchaseOrderManagement() {
       worksheet.addRow(headers);
       worksheet.getRow(1).font = { bold: true };
       worksheet.getColumn(1).width = 16;
-      worksheet.getColumn(7).width = 24;
+      worksheet.getColumn(6).width = 24;
       // 이미지 셀 크기(픽셀 환산): 열너비(문자단위) ≈ chars*7+5, 행높이(pt) ≈ pt*96/72
       const IMAGE_CELL_PX = { width: Math.round(16 * 7 + 5), height: Math.round(60 * 96 / 72) };
 
@@ -597,11 +597,11 @@ function PurchaseOrderManagement() {
       }
 
       for (const p of exportParts) {
-        const row = [null, p.brand, extractModel(p) || '-', p.code, p.barcode || '-', p.name_en || '', p.name];
+        const row = [null, p.brand, extractModel(p) || '-', p.code, p.barcode || '-', p.name, p.name_en || ''];
+        if (visibleCols.memo) row.push((p.memo || '').replace('[HIDDEN]', '').trim());
         if (visibleCols.supply_price) row.push(p.supply_price || 0);
         if (visibleCols.price) row.push(p.price || 0);
         if (visibleCols.note) row.push(p.note || '');
-        if (visibleCols.memo) row.push((p.memo || '').replace('[HIDDEN]', '').trim());
         if (visibleCols.purchase_source) row.push(p.purchase_source || '');
         if (visibleCols.stock) row.push(stockTotals[p.id] ?? 0);
         if (visibleCols.orderTotal) {
