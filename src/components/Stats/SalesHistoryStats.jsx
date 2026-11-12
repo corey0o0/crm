@@ -155,10 +155,28 @@ function SalesHistoryStats() {
     setSelectedHalf(null);
   };
 
+  const handleYesterdaySelect = () => {
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    setStartDate(yesterday);
+    setEndDate(yesterday);
+    setSelectedMonth(null);
+    setSelectedQuarter(null);
+    setSelectedHalf(null);
+  };
+
   const handleTodaySelect = () => {
     const today = new Date();
     setStartDate(today);
     setEndDate(today);
+    setSelectedMonth(null);
+    setSelectedQuarter(null);
+    setSelectedHalf(null);
+  };
+
+  const handleWeekSelect = () => {
+    const today = new Date();
+    setStartDate(startOfWeek(today, { weekStartsOn: 1 }));
+    setEndDate(endOfWeek(today, { weekStartsOn: 1 }));
     setSelectedMonth(null);
     setSelectedQuarter(null);
     setSelectedHalf(null);
@@ -1784,6 +1802,13 @@ function SalesHistoryStats() {
     );
   };
 
+  const today = new Date();
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const sameDay = (a, b) => a && b && format(a, 'yyyy-MM-dd') === format(b, 'yyyy-MM-dd');
+  const isToday = sameDay(startDate, today) && sameDay(endDate, today);
+  const isYesterday = sameDay(startDate, yesterday) && sameDay(endDate, yesterday);
+  const isThisWeek = sameDay(startDate, startOfWeek(today, { weekStartsOn: 1 })) && sameDay(endDate, endOfWeek(today, { weekStartsOn: 1 }));
+
   return (
     <Box sx={{ p: 3, bgcolor: '#f4f6f8', minHeight: '100vh' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -1793,14 +1818,14 @@ function SalesHistoryStats() {
       {/* 필터 영역 */}
       <Paper sx={{ p: 3, mb: 3, borderLeft: '4px solid #3182f6' }}>
         <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 500, color: '#3182f6' }}>
-          검색 필터
+          조회 기간
         </Typography>
 
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mb: 2, alignItems: 'flex-start', justifyContent: 'flex-start' }}>
-          {/* 연도 선택 */}
-          <Box>
-            <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
-              연도 선택
+        {/* 기간 선택: 연도 → 월 → 분기/반기/빠른 선택 */}
+        <Stack spacing={1.5} sx={{ mb: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+            <Typography variant="body2" sx={{ minWidth: 40, color: 'text.secondary' }}>
+              연도
             </Typography>
             <ButtonGroup size="small" variant="outlined" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
               {(() => {
@@ -1828,17 +1853,9 @@ function SalesHistoryStats() {
             </ButtonGroup>
           </Box>
 
-          {/* 월별 버튼 그룹 */}
-          <Box>
-            <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary', display: 'flex', alignItems: 'center' }}>
-              월 선택
-              {selectedMonth !== null && (
-                <Box component="span" sx={{
-                  ml: 2, py: 0.5, px: 1.5, borderRadius: 1, backgroundColor: '#e3f2fd', fontSize: '0.9rem', color: '#1976d2', display: 'inline-flex', alignItems: 'center'
-                }}>
-                  현재 선택: {selectedMonth + 1}월 ({format(startDate, 'yyyy-MM-dd')} ~ {format(endDate, 'yyyy-MM-dd')})
-                </Box>
-              )}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+            <Typography variant="body2" sx={{ minWidth: 40, color: 'text.secondary' }}>
+              월
             </Typography>
             <ButtonGroup size="small" variant="outlined" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
               {[...Array(12)].map((_, idx) => (
@@ -1859,10 +1876,9 @@ function SalesHistoryStats() {
             </ButtonGroup>
           </Box>
 
-          {/* 분기 선택 */}
-          <Box>
-            <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
-              분기 선택
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+            <Typography variant="body2" sx={{ minWidth: 40, color: 'text.secondary' }}>
+              분기
             </Typography>
             <ButtonGroup size="small" variant="outlined">
               {[1, 2, 3, 4].map((q) => (
@@ -1883,10 +1899,9 @@ function SalesHistoryStats() {
             </ButtonGroup>
           </Box>
 
-          {/* 상하반기 선택 */}
-          <Box>
-            <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
-              반기 선택
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+            <Typography variant="body2" sx={{ minWidth: 40, color: 'text.secondary' }}>
+              반기
             </Typography>
             <ButtonGroup size="small" variant="outlined">
               {[{ key: 'H1', label: '상반기' }, { key: 'H2', label: '하반기' }].map(({ key, label }) => (
@@ -1907,15 +1922,25 @@ function SalesHistoryStats() {
             </ButtonGroup>
           </Box>
 
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+            <Typography variant="body2" sx={{ minWidth: 40, color: 'text.secondary' }}>
+              빠른 선택
+            </Typography>
+            <ButtonGroup size="small" variant="outlined">
+              <Button variant={isYesterday ? 'contained' : 'outlined'} onClick={handleYesterdaySelect}>어제</Button>
+              <Button variant={isToday ? 'contained' : 'outlined'} onClick={handleTodaySelect}>오늘</Button>
+              <Button variant={isThisWeek ? 'contained' : 'outlined'} onClick={handleWeekSelect}>금주</Button>
+            </ButtonGroup>
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              {startDate && endDate ? `${format(startDate, 'yyyy-MM-dd')} ~ ${format(endDate, 'yyyy-MM-dd')}` : ''}
+            </Typography>
+          </Box>
+        </Stack>
+
+        <Divider sx={{ my: 2 }} />
+
         {/* 필터 옵션 및 조회 버튼 */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-          <Button
-            size="small"
-            variant={format(startDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') && format(endDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') ? 'contained' : 'outlined'}
-            onClick={handleTodaySelect}
-          >
-            오늘 매출
-          </Button>
           <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
             <DatePicker
               label="시작일"
@@ -1987,7 +2012,6 @@ function SalesHistoryStats() {
             }
             label={vatIncluded ? '부가세 포함' : '부가세 별도'}
           />
-        </Box>
         </Box>
       </Paper>
 
