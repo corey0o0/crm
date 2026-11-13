@@ -34,7 +34,7 @@ const BRAND_SORT_RANK = { XRB: 0, NB: 1 };
 // 왼쪽 고정(스티키) 컬럼 폭. 헤더/바디 offset 계산에 재사용.
 // 순서: 체크박스 / 이미지 / 브랜드 / 기종 / 바코드 / 제품명(한글+영문)
 // STICKY_LEFT/STICKY_TOTAL은 컴포넌트 내부에서 브랜드/기종 표시 여부에 따라 계산 (숨기면 뒤 열 오프셋도 줄어야 함)
-const STICKY_WIDTHS = { checkbox: 42, image: 60, brand: 70, model: 130, barcode: 130, name: 260 };
+const STICKY_WIDTHS = { checkbox: 42, image: 71, brand: 70, model: 130, barcode: 130, name: 260 };
 
 // parts.model이 있으면 그걸 우선 사용. 없는 레거시 데이터는
 // 판매통계에서 쓰는 기종 키워드 매칭(브랜드 무관, 텍스트 전체 스캔)으로 폴백.
