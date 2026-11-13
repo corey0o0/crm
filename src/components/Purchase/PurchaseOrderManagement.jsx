@@ -66,7 +66,7 @@ function PurchaseOrderManagement() {
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [enlargedImage, setEnlargedImage] = useState(null);
-  const [visibleCols, setVisibleCols] = useState({ supply_price: false, price: false, note: true, memo: true, purchase_source: true, stock: false, orderTotal: true });
+  const [visibleCols, setVisibleCols] = useState({ supply_price: false, price: false, price_usd: true, note: true, memo: true, purchase_source: true, stock: false, orderTotal: true });
   const [showHiddenParts, setShowHiddenParts] = useState(false);
   const [receivedFilter, setReceivedFilter] = useState('all');
   const [orderedFilter, setOrderedFilter] = useState('all');
@@ -108,7 +108,7 @@ function PurchaseOrderManagement() {
         queryWithTimeout(
           supabase
             .from('parts')
-            .select('id, name, name_en, brand, code, barcode, image_url, supply_price, price, note, memo, purchase_source, model, created_at')
+            .select('id, name, name_en, brand, code, barcode, image_url, supply_price, price, price_usd, note, memo, purchase_source, model, created_at')
             .order('brand')
             .order('name'),
           8000
@@ -524,6 +524,7 @@ function PurchaseOrderManagement() {
       if (visibleCols.memo) headers.push('Remarks');
       if (visibleCols.supply_price) headers.push('Supply Price');
       if (visibleCols.price) headers.push('Price');
+      if (visibleCols.price_usd) headers.push('Price (USD)');
       if (visibleCols.note) headers.push('Category');
       if (visibleCols.purchase_source) headers.push('Source');
       if (visibleCols.stock) headers.push('Stock');
@@ -601,6 +602,7 @@ function PurchaseOrderManagement() {
         if (visibleCols.memo) row.push((p.memo || '').replace('[HIDDEN]', '').trim());
         if (visibleCols.supply_price) row.push(p.supply_price || 0);
         if (visibleCols.price) row.push(p.price || 0);
+        if (visibleCols.price_usd) row.push(p.price_usd || 0);
         if (visibleCols.note) row.push(p.note || '');
         if (visibleCols.purchase_source) row.push(p.purchase_source || '');
         if (visibleCols.stock) row.push(stockTotals[p.id] ?? 0);
@@ -855,7 +857,7 @@ function PurchaseOrderManagement() {
   const pagedParts = sortedParts.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   const MIN_DATE_COLUMNS = 1;
   const placeholderColumnCount = MIN_DATE_COLUMNS;
-  const tableMinWidth = STICKY_TOTAL + 440 + (visibleDateColumns.length + placeholderColumnCount) * 160;
+  const tableMinWidth = STICKY_TOTAL + 530 + (visibleDateColumns.length + placeholderColumnCount) * 160;
 
   const topScrollSyncing = useRef(false);
   const handleTopScroll = () => {
@@ -1089,6 +1091,10 @@ function PurchaseOrderManagement() {
           label="판매가"
         />
         <FormControlLabel
+          control={<Checkbox size="small" checked={visibleCols.price_usd} onChange={(e) => setVisibleCols((c) => ({ ...c, price_usd: e.target.checked }))} />}
+          label="금액(USD)"
+        />
+        <FormControlLabel
           control={<Checkbox size="small" checked={visibleCols.note} onChange={(e) => setVisibleCols((c) => ({ ...c, note: e.target.checked }))} />}
           label="구분"
         />
@@ -1159,6 +1165,7 @@ function PurchaseOrderManagement() {
                 <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.name, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.name, minWidth: STICKY_WIDTHS.name }}>제품명</TableCell>
                 {visibleCols.supply_price && <TableCell align="right" sx={{ width: 90 }}>공급가</TableCell>}
                 {visibleCols.price && <TableCell align="right" sx={{ width: 90 }}>판매가</TableCell>}
+                {visibleCols.price_usd && <TableCell align="right" sx={{ width: 90 }}>금액(USD)</TableCell>}
                 {visibleCols.note && <TableCell sx={{ width: 70 }}>구분</TableCell>}
                 {visibleCols.memo && <TableCell sx={{ width: 120 }}>적요</TableCell>}
                 {visibleCols.purchase_source && <TableCell sx={{ width: 100 }}>매입처</TableCell>}
@@ -1258,6 +1265,7 @@ function PurchaseOrderManagement() {
                   </TableCell>
                   {visibleCols.supply_price && <TableCell align="right">{p.supply_price?.toLocaleString() || '-'}</TableCell>}
                   {visibleCols.price && <TableCell align="right">{p.price?.toLocaleString() || '-'}</TableCell>}
+                  {visibleCols.price_usd && <TableCell align="right">{p.price_usd != null ? `$${Number(p.price_usd).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</TableCell>}
                   {visibleCols.note && <TableCell>{p.note || '-'}</TableCell>}
                   {visibleCols.memo && (() => {
                     const memoText = (p.memo || '').replace('[HIDDEN]', '').trim();

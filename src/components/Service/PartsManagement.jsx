@@ -153,6 +153,7 @@ const PartsFormDialog = memo(({
     supplyPrice: '',
     specialPrice: '',
     price: '',
+    priceUsd: '',
     barcode: '',
     memo: '',
     note: '파츠',
@@ -207,6 +208,7 @@ const PartsFormDialog = memo(({
           supplyPrice: initialData.supply_price?.toString() || '',
           specialPrice: initialData.special_price?.toString() || '',
           price: initialData.price?.toString() || '',
+          priceUsd: initialData.price_usd?.toString() || '',
           barcode: initialData.barcode || '',
           memo: initialData.memo || '',
           note: initialData.note || '파츠',
@@ -232,6 +234,7 @@ const PartsFormDialog = memo(({
           supplyPrice: '',
           specialPrice: '',
           price: '',
+          priceUsd: '',
           barcode: '',
           memo: '',
           note: defaultCategory,
@@ -261,7 +264,11 @@ const PartsFormDialog = memo(({
 
   const handleChange = useCallback((e) => {
     const { name, value } = e.target;
-    const cleanedValue = ['price', 'supplyPrice', 'costPrice', 'specialPrice', 'barcode'].includes(name) ? value.replace(/[^0-9]/g, '') : value;
+    const cleanedValue = ['price', 'supplyPrice', 'costPrice', 'specialPrice', 'barcode'].includes(name)
+      ? value.replace(/[^0-9]/g, '')
+      : name === 'priceUsd'
+        ? value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1') // 달러는 소수점 하나까지 허용
+        : value;
     setFormData(prev => {
       const next = { ...prev, [name]: cleanedValue };
       const shouldSuggest = (!prev.code || prev.code.trim() === '');
@@ -633,6 +640,16 @@ const PartsFormDialog = memo(({
               InputProps={{ endAdornment: <InputAdornment position="end">원</InputAdornment> }}
             />
             {renderVatButtons('price')}
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <TextField
+              fullWidth
+              label="금액 (USD)"
+              name="priceUsd"
+              value={formData.priceUsd}
+              onChange={handleChange}
+              InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+            />
           </Grid>
           {isMaster && (
           <Grid item xs={12} sm={6} md={3}>
@@ -1171,6 +1188,7 @@ function PartsManagement() {
         supply_price: Number(formData.supplyPrice || 0),
         special_price: Number(formData.specialPrice || 0),
         price: Number(formData.price || 0),
+        price_usd: formData.priceUsd === '' ? null : Number(formData.priceUsd),
         image_url: finalImageUrl,
         image_thumb_url: finalImageThumbUrl || null,
         track_inventory: formData.track_inventory !== false
@@ -1351,6 +1369,7 @@ function PartsManagement() {
       const supply_price = row.supplyPrice || row.supply_price || row['매입가'] || row['공급가'] || 0;
       const special_price = row.specialPrice || row.special_price || row['특별공급가'] || 0;
       const price = row.price || row['판매가'] || 0;
+      const price_usd = row.price_usd || row['금액(USD)'] || '';
       const barcode = row.barcode || row['바코드'] || '';
       const note = row.note || row['구분'] || row['카테고리'] || '';
 
@@ -1377,6 +1396,7 @@ function PartsManagement() {
         supply_price: Number(String(supply_price).replace(/[^0-9]/g, '') || 0),
         special_price: Number(String(special_price).replace(/[^0-9]/g, '') || 0),
         price: Number(String(price).replace(/[^0-9]/g, '') || 0),
+        price_usd: price_usd === '' ? null : Number(String(price_usd).replace(/[^0-9.]/g, '') || 0),
         barcode: barcode ? String(barcode).replace(/[^0-9]/g, '') : null,
         note: note ? String(note).trim() : null
       });
@@ -1797,6 +1817,7 @@ function PartsManagement() {
         '공급가': 100000,
         '특별공급가': 95000,
         '판매가': 150000,
+        '금액(USD)': 50,
         '바코드': '8801234567890',
         '구분': '파츠'
       },
@@ -1809,6 +1830,7 @@ function PartsManagement() {
         '공급가': 0,
         '특별공급가': 0,
         '판매가': 0,
+        '금액(USD)': '',
         '바코드': '',
         '구분': ''
       }
@@ -1823,6 +1845,7 @@ function PartsManagement() {
       { label: '공급가', key: '공급가' },
       { label: '특별공급가', key: '특별공급가' },
       { label: '판매가', key: '판매가' },
+      { label: '금액(USD)', key: '금액(USD)' },
       { label: '바코드', key: '바코드' },
       { label: '구분', key: '구분' }
     ];
@@ -1845,6 +1868,7 @@ function PartsManagement() {
       '공급가': Number(part.supply_price) || 0,
       '특별공급가': Number(part.special_price) || 0,
       '판매가': Number(part.price) || 0,
+      '금액(USD)': part.price_usd != null ? Number(part.price_usd) : '',
       '재고': Number(part.stock) || 0,
       '바코드': part.barcode || '',
       '구분': part.note || ''
@@ -1859,6 +1883,7 @@ function PartsManagement() {
       { label: '공급가', key: '공급가' },
       { label: '특별공급가', key: '특별공급가' },
       { label: '판매가', key: '판매가' },
+      { label: '금액(USD)', key: '금액(USD)' },
       { label: '재고', key: '재고' },
       { label: '바코드', key: '바코드' },
       { label: '구분', key: '구분' }
@@ -2797,6 +2822,7 @@ function PartsManagement() {
               {renderSortableHeader('supply_price', '공급가', 'right')}
               {showSupplyPrice && renderSortableHeader('special_price', '특별공급가', 'right')}
               {renderSortableHeader('price', '판매가', 'right')}
+              {renderSortableHeader('price_usd', '금액(USD)', 'right')}
               {renderSortableHeader('note', '구분')}
               {renderSortableHeader('model', '기종')}
               {renderSortableHeader('memo', '적요')}
@@ -2859,6 +2885,7 @@ function PartsManagement() {
                 </TableCell>
                 {showSupplyPrice && <TableCell align="right">{part.special_price?.toLocaleString() || '-'}</TableCell>}
                 <TableCell align="right" sx={{ fontWeight: 'bold' }}>{part.price?.toLocaleString() || '-'}</TableCell>
+                <TableCell align="right">{part.price_usd != null ? `$${Number(part.price_usd).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</TableCell>
                 <TableCell>
                   <Typography
                     sx={{
