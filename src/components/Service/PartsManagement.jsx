@@ -2822,7 +2822,7 @@ function PartsManagement() {
               {renderSortableHeader('supply_price', '공급가', 'right')}
               {showSupplyPrice && renderSortableHeader('special_price', '특별공급가', 'right')}
               {renderSortableHeader('price', '판매가', 'right')}
-              {renderSortableHeader('price_usd', '금액(USD)', 'right')}
+              {showSupplyPrice && renderSortableHeader('price_usd', '금액(USD)', 'right')}
               {renderSortableHeader('note', '구분')}
               {renderSortableHeader('model', '기종')}
               {renderSortableHeader('memo', '적요')}
@@ -2885,7 +2885,7 @@ function PartsManagement() {
                 </TableCell>
                 {showSupplyPrice && <TableCell align="right">{part.special_price?.toLocaleString() || '-'}</TableCell>}
                 <TableCell align="right" sx={{ fontWeight: 'bold' }}>{part.price?.toLocaleString() || '-'}</TableCell>
-                <TableCell align="right">{part.price_usd != null ? `$${Number(part.price_usd).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</TableCell>
+                {showSupplyPrice && <TableCell align="right">{part.price_usd != null ? `$${Number(part.price_usd).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</TableCell>}
                 <TableCell>
                   <Typography
                     sx={{

@@ -3,7 +3,7 @@ import {
   Box, Typography, TextField, Paper, Table, TableBody, TableCell,
   TableContainer, TableHead, TableFooter, TableRow, Snackbar, Alert, CircularProgress, Checkbox,
   TablePagination, Avatar, IconButton, Button, Dialog, DialogContent, FormControlLabel,
-  Select, MenuItem, FormControl, InputLabel, Tooltip, Popover, Chip, Switch, Tabs, Tab,
+  Select, MenuItem, FormControl, InputLabel, Tooltip, Popover, Chip, Switch, Tabs, Tab, InputAdornment,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
@@ -66,7 +66,7 @@ function PurchaseOrderManagement() {
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [enlargedImage, setEnlargedImage] = useState(null);
-  const [visibleCols, setVisibleCols] = useState({ supply_price: false, price: false, price_usd: true, note: true, memo: true, purchase_source: true, stock: false, orderTotal: true });
+  const [visibleCols, setVisibleCols] = useState({ supply_price: false, price: false, price_usd: true, note: false, memo: true, purchase_source: false, stock: false, orderTotal: true });
   const [showHiddenParts, setShowHiddenParts] = useState(false);
   const [receivedFilter, setReceivedFilter] = useState('all');
   const [orderedFilter, setOrderedFilter] = useState('all');
@@ -92,9 +92,73 @@ function PurchaseOrderManagement() {
   const [warehouses, setWarehouses] = useState([]);
   const [warehouseId, setWarehouseId] = useState('');
   const [registeringStock, setRegisteringStock] = useState(false); // 중복클릭으로 같은 입고분 두번 등록되는 것 방지
+  const [priceUsdDrafts, setPriceUsdDrafts] = useState({}); // 날짜 열별 금액(USD) 인라인 수정 중인 값 { [`${partId}_${columnId}`]: string }
+  const [memoDrafts, setMemoDrafts] = useState({}); // 적요(parts.memo) 인라인 수정 중인 값 { [partId]: string } — [HIDDEN] 태그 뺀 텍스트만
 
   const showSnackbar = (message, severity = 'success') => {
     setSnackbar({ open: true, message, severity });
+  };
+
+  // 날짜(입고)별 금액(USD) 인라인 수정. 비워두면 "최근 값"(parts.price_usd)을 그대로 적용.
+  // 이 열이 전체 날짜 중 가장 최근(dateColumns[0])이면 parts.price_usd도 같이 갱신 → 상품관리에 반영.
+  const handleOrderPriceUsdBlur = async (partId, columnId, rawValue) => {
+    const key = `${partId}_${columnId}`;
+    setPriceUsdDrafts((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    const part = parts.find((p) => p.id === partId);
+    const trimmed = (rawValue || '').trim();
+    const newValue = trimmed === '' ? (part?.price_usd ?? null) : Number(trimmed);
+
+    const cell = ordersMap.get(key) || { quantity: 0, received_quantity: 0 };
+    if ((cell.price_usd ?? null) === newValue) return;
+
+    try {
+      const { error } = await supabase.from('purchase_orders').upsert(
+        { part_id: partId, column_id: columnId, quantity: cell.quantity || 0, received_quantity: cell.received_quantity || 0, price_usd: newValue },
+        { onConflict: 'part_id,column_id' }
+      );
+      if (error) throw error;
+      setOrdersMap((m) => {
+        const next = new Map(m);
+        next.set(key, { ...cell, price_usd: newValue });
+        return next;
+      });
+
+      // 가장 최근 날짜 열이면 상품 기준가(parts.price_usd)도 갱신
+      if (dateColumns[0]?.id === columnId && part && (part.price_usd ?? null) !== newValue) {
+        const { error: partErr } = await supabase.from('parts').update({ price_usd: newValue }).eq('id', partId);
+        if (partErr) throw partErr;
+        setParts((prev) => prev.map((p) => (p.id === partId ? { ...p, price_usd: newValue } : p)));
+      }
+    } catch (err) {
+      showSnackbar(getErrorMessage(err), 'error');
+    }
+  };
+
+  // 적요(parts.memo) 저장 — [HIDDEN] 숨김 태그는 그대로 보존해서 붙여넣음
+  const handleMemoSave = async (partId) => {
+    const part = parts.find((p) => p.id === partId);
+    if (!part) return;
+    const draft = memoDrafts[partId];
+    if (draft === undefined) return; // 수정 안 했으면 저장 버튼 자체가 비활성이라 여기 안 옴
+    const isHidden = (part.memo || '').includes('[HIDDEN]');
+    const finalMemo = isHidden ? `[HIDDEN] ${draft.trim()}`.trim() : draft.trim();
+    if (finalMemo === (part.memo || '')) {
+      setMemoDrafts((prev) => { const next = { ...prev }; delete next[partId]; return next; });
+      return;
+    }
+    try {
+      const { error } = await supabase.from('parts').update({ memo: finalMemo }).eq('id', partId);
+      if (error) throw error;
+      setParts((prev) => prev.map((p) => (p.id === partId ? { ...p, memo: finalMemo } : p)));
+      setMemoDrafts((prev) => { const next = { ...prev }; delete next[partId]; return next; });
+      showSnackbar('적요가 저장되었습니다.', 'success');
+    } catch (err) {
+      showSnackbar(getErrorMessage(err), 'error');
+    }
   };
 
   const fetchParts = useCallback(async () => {
@@ -163,7 +227,7 @@ function PurchaseOrderManagement() {
         queryWithTimeout(
           supabase
             .from('purchase_orders')
-            .select('part_id, quantity, received_quantity, received, received_at, memo, memo_image_url, stock_registered_qty')
+            .select('part_id, quantity, received_quantity, received, received_at, memo, memo_image_url, stock_registered_qty, price_usd')
             .eq('column_id', columnId),
           8000
         )
@@ -180,6 +244,7 @@ function PurchaseOrderManagement() {
             memo: row.memo || '',
             memo_image_url: row.memo_image_url || null,
             stock_registered_qty: row.stock_registered_qty || 0,
+            price_usd: row.price_usd ?? null,
           });
         });
         return next;
@@ -522,9 +587,9 @@ function PurchaseOrderManagement() {
 
       const headers = ['Image', 'Brand', 'Model', 'Code', 'Barcode', 'Product Name', 'English Name'];
       if (visibleCols.memo) headers.push('Remarks');
+      if (visibleCols.price_usd) headers.push('Price (USD)');
       if (visibleCols.supply_price) headers.push('Supply Price');
       if (visibleCols.price) headers.push('Price');
-      if (visibleCols.price_usd) headers.push('Price (USD)');
       if (visibleCols.note) headers.push('Category');
       if (visibleCols.purchase_source) headers.push('Source');
       if (visibleCols.stock) headers.push('Stock');
@@ -600,9 +665,9 @@ function PurchaseOrderManagement() {
       for (const p of exportParts) {
         const row = [null, p.brand, extractModel(p) || '-', p.code, p.barcode || '-', p.name, p.name_en || ''];
         if (visibleCols.memo) row.push((p.memo || '').replace('[HIDDEN]', '').trim());
+        if (visibleCols.price_usd) row.push(p.price_usd || 0);
         if (visibleCols.supply_price) row.push(p.supply_price || 0);
         if (visibleCols.price) row.push(p.price || 0);
-        if (visibleCols.price_usd) row.push(p.price_usd || 0);
         if (visibleCols.note) row.push(p.note || '');
         if (visibleCols.purchase_source) row.push(p.purchase_source || '');
         if (visibleCols.stock) row.push(stockTotals[p.id] ?? 0);
@@ -1163,11 +1228,11 @@ function PurchaseOrderManagement() {
                 <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.model, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.model, minWidth: STICKY_WIDTHS.model }}>기종</TableCell>
                 <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.barcode, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.barcode, minWidth: STICKY_WIDTHS.barcode }}>바코드</TableCell>
                 <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.name, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.name, minWidth: STICKY_WIDTHS.name }}>제품명</TableCell>
+                {visibleCols.memo && <TableCell sx={{ width: 120 }}>적요</TableCell>}
+                {visibleCols.price_usd && <TableCell align="right" sx={{ width: 90 }}>금액(USD)</TableCell>}
                 {visibleCols.supply_price && <TableCell align="right" sx={{ width: 90 }}>공급가</TableCell>}
                 {visibleCols.price && <TableCell align="right" sx={{ width: 90 }}>판매가</TableCell>}
-                {visibleCols.price_usd && <TableCell align="right" sx={{ width: 90 }}>금액(USD)</TableCell>}
                 {visibleCols.note && <TableCell sx={{ width: 70 }}>구분</TableCell>}
-                {visibleCols.memo && <TableCell sx={{ width: 120 }}>적요</TableCell>}
                 {visibleCols.purchase_source && <TableCell sx={{ width: 100 }}>매입처</TableCell>}
                 {visibleCols.stock && <TableCell align="right" sx={{ width: 70 }}>현재고</TableCell>}
                 {visibleCols.orderTotal && <TableCell align="center" sx={{ width: 110 }}>발주/입고 합계</TableCell>}
@@ -1263,22 +1328,36 @@ function PurchaseOrderManagement() {
                       <Typography variant="caption" display="block" color="text.secondary">{p.name_en}</Typography>
                     )}
                   </TableCell>
-                  {visibleCols.supply_price && <TableCell align="right">{p.supply_price?.toLocaleString() || '-'}</TableCell>}
-                  {visibleCols.price && <TableCell align="right">{p.price?.toLocaleString() || '-'}</TableCell>}
-                  {visibleCols.price_usd && <TableCell align="right">{p.price_usd != null ? `$${Number(p.price_usd).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</TableCell>}
-                  {visibleCols.note && <TableCell>{p.note || '-'}</TableCell>}
                   {visibleCols.memo && (() => {
                     const memoText = (p.memo || '').replace('[HIDDEN]', '').trim();
+                    const draft = memoDrafts[p.id];
+                    const value = draft !== undefined ? draft : memoText;
                     return (
                       <TableCell>
-                        {memoText ? (
-                          <Tooltip title={memoText}>
-                            <span style={{ display: 'block', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{memoText}</span>
-                          </Tooltip>
-                        ) : '-'}
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <TextField
+                            size="small"
+                            value={value}
+                            onChange={(e) => setMemoDrafts((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                            inputProps={{ style: { width: 110, fontSize: '0.8rem' } }}
+                          />
+                          <Button size="small" disabled={draft === undefined} onClick={() => handleMemoSave(p.id)} sx={{ minWidth: 'auto', px: 0.75 }}>
+                            저장
+                          </Button>
+                        </Box>
                       </TableCell>
                     );
                   })()}
+                  {visibleCols.price_usd && (
+                    <TableCell align="right">
+                      <Tooltip title="가장 최근 입고 건의 금액(USD) — 날짜 열 쪽 입력란에서 수정">
+                        <span>{p.price_usd != null ? `$${Number(p.price_usd).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</span>
+                      </Tooltip>
+                    </TableCell>
+                  )}
+                  {visibleCols.supply_price && <TableCell align="right">{p.supply_price?.toLocaleString() || '-'}</TableCell>}
+                  {visibleCols.price && <TableCell align="right">{p.price?.toLocaleString() || '-'}</TableCell>}
+                  {visibleCols.note && <TableCell>{p.note || '-'}</TableCell>}
                   {visibleCols.purchase_source && <TableCell>{p.purchase_source || '-'}</TableCell>}
                   {visibleCols.stock && <TableCell align="right">{stockTotals[p.id] ?? 0}</TableCell>}
                   {visibleCols.orderTotal && (() => {
@@ -1373,6 +1452,22 @@ function PurchaseOrderManagement() {
                             </IconButton>
                           )}
                         </Box>
+                        {visibleCols.price_usd && (
+                          <Box sx={{ mt: 0.25 }}>
+                            <TextField
+                              size="small"
+                              placeholder={p.price_usd != null ? `$${p.price_usd}` : '$'}
+                              value={priceUsdDrafts[key] !== undefined ? priceUsdDrafts[key] : (cell.price_usd ?? p.price_usd ?? '')}
+                              onChange={(e) => {
+                                const v = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+                                setPriceUsdDrafts((prev) => ({ ...prev, [key]: v }));
+                              }}
+                              onBlur={(e) => handleOrderPriceUsdBlur(p.id, dateStr, e.target.value)}
+                              InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+                              inputProps={{ style: { width: 56, textAlign: 'right', padding: '2px 4px', fontSize: '0.75rem' } }}
+                            />
+                          </Box>
+                        )}
                         {statusLabel && (
                           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <Typography variant="body2" sx={{ color: statusColor, fontWeight: 600 }}>
