@@ -33,16 +33,8 @@ const BRAND_SORT_RANK = { XRB: 0, NB: 1 };
 
 // 왼쪽 고정(스티키) 컬럼 폭. 헤더/바디 offset 계산에 재사용.
 // 순서: 체크박스 / 이미지 / 브랜드 / 기종 / 바코드 / 제품명(한글+영문)
+// STICKY_LEFT/STICKY_TOTAL은 컴포넌트 내부에서 브랜드/기종 표시 여부에 따라 계산 (숨기면 뒤 열 오프셋도 줄어야 함)
 const STICKY_WIDTHS = { checkbox: 42, image: 60, brand: 70, model: 130, barcode: 130, name: 260 };
-const STICKY_LEFT = {
-  checkbox: 0,
-  image: STICKY_WIDTHS.checkbox,
-  brand: STICKY_WIDTHS.checkbox + STICKY_WIDTHS.image,
-  model: STICKY_WIDTHS.checkbox + STICKY_WIDTHS.image + STICKY_WIDTHS.brand,
-  barcode: STICKY_WIDTHS.checkbox + STICKY_WIDTHS.image + STICKY_WIDTHS.brand + STICKY_WIDTHS.model,
-  name: STICKY_WIDTHS.checkbox + STICKY_WIDTHS.image + STICKY_WIDTHS.brand + STICKY_WIDTHS.model + STICKY_WIDTHS.barcode,
-};
-const STICKY_TOTAL = STICKY_LEFT.name + STICKY_WIDTHS.name;
 
 // parts.model이 있으면 그걸 우선 사용. 없는 레거시 데이터는
 // 판매통계에서 쓰는 기종 키워드 매칭(브랜드 무관, 텍스트 전체 스캔)으로 폴백.
@@ -66,7 +58,17 @@ function PurchaseOrderManagement() {
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [enlargedImage, setEnlargedImage] = useState(null);
-  const [visibleCols, setVisibleCols] = useState({ supply_price: false, price: false, price_usd: true, note: false, memo: true, purchase_source: false, stock: false, orderTotal: true });
+  const [visibleCols, setVisibleCols] = useState({ brand: true, model: true, supply_price: false, price: false, price_usd: true, note: false, memo: true, purchase_source: false, stock: false, orderTotal: true });
+  // ponytail: 브랜드/기종은 고정(sticky) 열이라 숨기면 뒤 열들의 left 오프셋도 같이 줄어야 함 — 모듈 상수를 컴포넌트 내부에서 같은 이름으로 가려서(shadow) 아래 전체 JSX가 자동으로 동적 값을 쓰게 함
+  const STICKY_LEFT = {
+    checkbox: 0,
+    image: STICKY_WIDTHS.checkbox,
+    brand: STICKY_WIDTHS.checkbox + STICKY_WIDTHS.image,
+    model: STICKY_WIDTHS.checkbox + STICKY_WIDTHS.image + (visibleCols.brand ? STICKY_WIDTHS.brand : 0),
+    barcode: STICKY_WIDTHS.checkbox + STICKY_WIDTHS.image + (visibleCols.brand ? STICKY_WIDTHS.brand : 0) + (visibleCols.model ? STICKY_WIDTHS.model : 0),
+    name: STICKY_WIDTHS.checkbox + STICKY_WIDTHS.image + (visibleCols.brand ? STICKY_WIDTHS.brand : 0) + (visibleCols.model ? STICKY_WIDTHS.model : 0) + STICKY_WIDTHS.barcode,
+  };
+  const STICKY_TOTAL = STICKY_LEFT.name + STICKY_WIDTHS.name;
   const [showHiddenParts, setShowHiddenParts] = useState(false);
   const [receivedFilter, setReceivedFilter] = useState('all');
   const [orderedFilter, setOrderedFilter] = useState('all');
@@ -1148,6 +1150,14 @@ function PurchaseOrderManagement() {
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, flexWrap: 'wrap' }}>
         <Typography variant="body2" color="text.secondary">컬럼 표시:</Typography>
         <FormControlLabel
+          control={<Checkbox size="small" checked={visibleCols.brand} onChange={(e) => setVisibleCols((c) => ({ ...c, brand: e.target.checked }))} />}
+          label="브랜드"
+        />
+        <FormControlLabel
+          control={<Checkbox size="small" checked={visibleCols.model} onChange={(e) => setVisibleCols((c) => ({ ...c, model: e.target.checked }))} />}
+          label="기종"
+        />
+        <FormControlLabel
           control={<Checkbox size="small" checked={visibleCols.supply_price} onChange={(e) => setVisibleCols((c) => ({ ...c, supply_price: e.target.checked }))} />}
           label="공급가"
         />
@@ -1224,11 +1234,11 @@ function PurchaseOrderManagement() {
                   />
                 </TableCell>
                 <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.image, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.image, minWidth: STICKY_WIDTHS.image }}>이미지</TableCell>
-                <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.brand, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.brand, minWidth: STICKY_WIDTHS.brand }}>브랜드</TableCell>
-                <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.model, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.model, minWidth: STICKY_WIDTHS.model }}>기종</TableCell>
+                {visibleCols.brand && <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.brand, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.brand, minWidth: STICKY_WIDTHS.brand }}>브랜드</TableCell>}
+                {visibleCols.model && <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.model, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.model, minWidth: STICKY_WIDTHS.model }}>기종</TableCell>}
                 <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.barcode, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.barcode, minWidth: STICKY_WIDTHS.barcode }}>바코드</TableCell>
                 <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.name, zIndex: 3, bgcolor: 'background.paper', width: STICKY_WIDTHS.name, minWidth: STICKY_WIDTHS.name }}>제품명</TableCell>
-                {visibleCols.memo && <TableCell sx={{ width: 120 }}>적요</TableCell>}
+                {visibleCols.memo && <TableCell sx={{ width: STICKY_WIDTHS.name, minWidth: STICKY_WIDTHS.name }}>적요</TableCell>}
                 {visibleCols.price_usd && <TableCell align="right" sx={{ width: 90 }}>금액(USD)</TableCell>}
                 {visibleCols.supply_price && <TableCell align="right" sx={{ width: 90 }}>공급가</TableCell>}
                 {visibleCols.price && <TableCell align="right" sx={{ width: 90 }}>판매가</TableCell>}
@@ -1302,19 +1312,21 @@ function PurchaseOrderManagement() {
                       onClick={() => p.image_url && setEnlargedImage(p.image_url)}
                     />
                   </TableCell>
-                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.brand, zIndex: 2, bgcolor: 'background.paper' }}>{p.brand}</TableCell>
-                  <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.model, zIndex: 2, bgcolor: 'background.paper', whiteSpace: 'normal' }}>
-                    {getModelKeys(p).length > 0 ? (
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-start' }}>
-                        {getModelKeys(p).map(toEnglishModelName).map((m) => (
-                          // ponytail: Chip 대신 테두리 Box 사용 — 모델명 내부 공백에서 줄바꿈 돼도 테두리 안에 묶여서 보여 다른 모델과 안 섞임
-                          <Box key={m} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, px: 0.75, py: 0.25, fontSize: '0.7rem', fontWeight: 600, lineHeight: 1.3, wordBreak: 'keep-all' }}>
-                            {m}
-                          </Box>
-                        ))}
-                      </Box>
-                    ) : '-'}
-                  </TableCell>
+                  {visibleCols.brand && <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.brand, zIndex: 2, bgcolor: 'background.paper' }}>{p.brand}</TableCell>}
+                  {visibleCols.model && (
+                    <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.model, zIndex: 2, bgcolor: 'background.paper', whiteSpace: 'normal' }}>
+                      {getModelKeys(p).length > 0 ? (
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-start' }}>
+                          {getModelKeys(p).map(toEnglishModelName).map((m) => (
+                            // ponytail: Chip 대신 테두리 Box 사용 — 모델명 내부 공백에서 줄바꿈 돼도 테두리 안에 묶여서 보여 다른 모델과 안 섞임
+                            <Box key={m} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, px: 0.75, py: 0.25, fontSize: '0.7rem', fontWeight: 600, lineHeight: 1.3, wordBreak: 'keep-all' }}>
+                              {m}
+                            </Box>
+                          ))}
+                        </Box>
+                      ) : '-'}
+                    </TableCell>
+                  )}
                   <TableCell sx={{ position: 'sticky', left: STICKY_LEFT.barcode, zIndex: 2, bgcolor: 'background.paper' }}>
                     {p.barcode || '-'}
                     <Typography variant="caption" display="block" color="text.secondary">{p.code}</Typography>
@@ -1333,15 +1345,20 @@ function PurchaseOrderManagement() {
                     const draft = memoDrafts[p.id];
                     const value = draft !== undefined ? draft : memoText;
                     return (
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <TableCell sx={{ width: STICKY_WIDTHS.name, minWidth: STICKY_WIDTHS.name }}>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                           <TextField
+                            variant="standard"
                             size="small"
+                            fullWidth
+                            multiline
+                            placeholder="적요 입력"
                             value={value}
                             onChange={(e) => setMemoDrafts((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                            inputProps={{ style: { width: 110, fontSize: '0.8rem' } }}
+                            sx={{ '& .MuiInput-underline:before': { borderBottomColor: 'rgba(0,0,0,0.12)' }, '& .MuiInput-underline:hover:before': { borderBottomColor: 'rgba(0,0,0,0.3)' } }}
+                            inputProps={{ style: { fontSize: '0.8rem' } }}
                           />
-                          <Button size="small" disabled={draft === undefined} onClick={() => handleMemoSave(p.id)} sx={{ minWidth: 'auto', px: 0.75 }}>
+                          <Button size="small" disabled={draft === undefined} onClick={() => handleMemoSave(p.id)} sx={{ minWidth: 'auto', px: 0.75, alignSelf: 'flex-start' }}>
                             저장
                           </Button>
                         </Box>
@@ -1400,26 +1417,28 @@ function PurchaseOrderManagement() {
                       <TableCell key={dateStr} align="center" sx={{ p: 0.5, bgcolor: getCellBg(effOrder, effReceived) }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.25 }}>
                           <TextField
+                            variant="standard"
                             type="number"
                             size="small"
                             value={orderValue}
                             onChange={(e) => handleOrderQtyChange(p.id, dateStr, e.target.value)}
                             inputProps={{ min: 0, style: { width: 52, textAlign: 'center', padding: '2px 4px' } }}
                             sx={{
-                              '& .MuiOutlinedInput-root': { borderRadius: 0 },
-                              ...(pending?.orderRaw !== undefined ? { '& .MuiOutlinedInput-root': { borderRadius: 0, bgcolor: 'warning.light' } } : {}),
+                              '& .MuiInput-underline:before': { borderBottomColor: 'rgba(0,0,0,0.12)' },
+                              ...(pending?.orderRaw !== undefined ? { bgcolor: 'warning.light' } : {}),
                             }}
                           />
                           <Typography variant="caption">/</Typography>
                           <TextField
+                            variant="standard"
                             type="number"
                             size="small"
                             value={receivedValue}
                             onChange={(e) => handleReceivedQtyChange(p.id, dateStr, e.target.value)}
                             inputProps={{ min: 0, style: { width: 52, textAlign: 'center', padding: '2px 4px' } }}
                             sx={{
-                              '& .MuiOutlinedInput-root': { borderRadius: 0 },
-                              ...(pending?.receivedRaw !== undefined ? { '& .MuiOutlinedInput-root': { borderRadius: 0, bgcolor: 'warning.light' } } : {}),
+                              '& .MuiInput-underline:before': { borderBottomColor: 'rgba(0,0,0,0.12)' },
+                              ...(pending?.receivedRaw !== undefined ? { bgcolor: 'warning.light' } : {}),
                             }}
                           />
                           {cell.memo_image_url && (
@@ -1455,6 +1474,7 @@ function PurchaseOrderManagement() {
                         {visibleCols.price_usd && (
                           <Box sx={{ mt: 0.25 }}>
                             <TextField
+                              variant="standard"
                               size="small"
                               placeholder={p.price_usd != null ? `$${p.price_usd}` : '$'}
                               value={priceUsdDrafts[key] !== undefined ? priceUsdDrafts[key] : (cell.price_usd ?? p.price_usd ?? '')}
