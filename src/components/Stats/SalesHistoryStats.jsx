@@ -539,7 +539,8 @@ function SalesHistoryStats() {
 
     const formatCategory = (cat) => {
       if (!cat) return '기타';
-      if (cat === '파츠') return '부품';
+      // parts.note는 '파츠 - 일반 부품'처럼 세부 구분이 붙는다. 완전일치만 보면 부품이 기타로 빠짐
+      if (cat === '파츠' || cat.startsWith('파츠')) return '부품';
       return cat;
     };
 

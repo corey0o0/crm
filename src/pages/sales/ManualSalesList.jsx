@@ -106,11 +106,10 @@ export default function ManualSalesList({ isEmbedded = false }) {
       }
 
       if (searchTerm) {
-        let orQuery = `customer_name.ilike.%${searchTerm}%,sales_channel.ilike.%${searchTerm}%,note.ilike.%${searchTerm}%,tracking_number.ilike.%${searchTerm}%`;
-        const cleanTerm = searchTerm.replace(/^(shp-|SHP-)/i, '').trim();
-        if (cleanTerm && /^[0-9a-fA-F-]+$/.test(cleanTerm)) {
-           orQuery += `,id::text.ilike.%${cleanTerm}%`;
-        }
+        // or 필터는 , ( ) . : 를 구분자로 쓴다. 검색어에 있으면 파서 에러 (주문번호의 - 포함)
+        const safeTerm = searchTerm.replace(/[,().:*\\]/g, ' ').trim();
+        // id::text 캐스트는 or() 로직트리 파서가 지원 안 해서 무조건 깨짐(PGRST100) — 제거
+        const orQuery = `customer_name.ilike.%${safeTerm}%,sales_channel.ilike.%${safeTerm}%,note.ilike.%${safeTerm}%,tracking_number.ilike.%${safeTerm}%`;
         query = query.or(orQuery);
       }
 
@@ -133,11 +132,9 @@ export default function ManualSalesList({ isEmbedded = false }) {
       if (dateFilter.startDate) sumQuery = sumQuery.gte(dateFilter.type, `${dateFilter.startDate}T00:00:00+09:00`);
       if (dateFilter.endDate) sumQuery = sumQuery.lte(dateFilter.type, `${dateFilter.endDate}T23:59:59+09:00`);
       if (searchTerm) {
-        let orQuery = `customer_name.ilike.%${searchTerm}%,sales_channel.ilike.%${searchTerm}%,note.ilike.%${searchTerm}%,tracking_number.ilike.%${searchTerm}%`;
-        const cleanTerm = searchTerm.replace(/^(shp-|SHP-)/i, '').trim();
-        if (cleanTerm && /^[0-9a-fA-F-]+$/.test(cleanTerm)) {
-           orQuery += `,id::text.ilike.%${cleanTerm}%`;
-        }
+        // or 필터는 , ( ) . : 를 구분자로 쓴다. 검색어에 있으면 파서 에러 (주문번호의 - 포함)
+        const safeTerm = searchTerm.replace(/[,().:*\\]/g, ' ').trim();
+        const orQuery = `customer_name.ilike.%${safeTerm}%,sales_channel.ilike.%${safeTerm}%,note.ilike.%${safeTerm}%,tracking_number.ilike.%${safeTerm}%`;
         sumQuery = sumQuery.or(orQuery);
       }
       
@@ -539,11 +536,9 @@ export default function ManualSalesList({ isEmbedded = false }) {
         if (dateFilter.startDate) query = query.gte(dateFilter.type, `${dateFilter.startDate}T00:00:00+09:00`);
         if (dateFilter.endDate) query = query.lte(dateFilter.type, `${dateFilter.endDate}T23:59:59+09:00`);
         if (searchTerm) {
-          let orQuery = `customer_name.ilike.%${searchTerm}%,sales_channel.ilike.%${searchTerm}%,note.ilike.%${searchTerm}%,tracking_number.ilike.%${searchTerm}%`;
-          const cleanTerm = searchTerm.replace(/^(shp-|SHP-)/i, '').trim();
-          if (cleanTerm && /^[0-9a-fA-F-]+$/.test(cleanTerm)) {
-             orQuery += `,id::text.ilike.%${cleanTerm}%`;
-          }
+          // or 필터는 , ( ) . : 를 구분자로 쓴다. 검색어에 있으면 파서 에러 (주문번호의 - 포함)
+          const safeTerm = searchTerm.replace(/[,().:*\\]/g, ' ').trim();
+          const orQuery = `customer_name.ilike.%${safeTerm}%,sales_channel.ilike.%${safeTerm}%,note.ilike.%${safeTerm}%,tracking_number.ilike.%${safeTerm}%`;
           query = query.or(orQuery);
         }
       }

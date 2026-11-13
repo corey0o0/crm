@@ -69,7 +69,9 @@ export default function TaxInvoiceManagement() {
       }
 
       if (searchTerm) {
-        query = query.or(`customer_name.ilike.%${searchTerm}%,sales_channel.ilike.%${searchTerm}%,note.ilike.%${searchTerm}%`);
+        // or 필터는 , ( ) . : 를 구분자로 쓴다. 검색어에 있으면 파서 에러 (주문번호의 - 포함)
+        const safeTerm = searchTerm.replace(/[,().:*\\]/g, ' ').trim();
+        query = query.or(`customer_name.ilike.%${safeTerm}%,sales_channel.ilike.%${safeTerm}%,note.ilike.%${safeTerm}%`);
       }
 
       query = query.order('order_date', { ascending: false })

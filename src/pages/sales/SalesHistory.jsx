@@ -183,7 +183,8 @@ function SalesHistory() {
 
     const formatCategory = (cat) => {
       if (!cat) return '기타';
-      if (cat === '파츠') return '부품';
+      // parts.note는 '파츠 - 일반 부품'처럼 세부 구분이 붙는다. 완전일치만 보면 부품이 기타로 빠짐
+      if (cat === '파츠' || cat.startsWith('파츠')) return '부품';
       return cat;
     };
 
@@ -409,7 +410,7 @@ function SalesHistory() {
           const pCode = p.part_code || '';
           
           let cat = p.part_category;
-          if (cat === '파츠') cat = '부품'; // 통계 용어 통일
+          if (cat === '파츠' || (typeof cat === 'string' && cat.startsWith('파츠'))) cat = '부품'; // 통계 용어 통일 ('파츠 - 일반 부품' 포함)
           if (!cat || cat === '-' || cat === '알수없음') {
             cat = resolveCategory(pName, pCode, '', p.part_id);
           }

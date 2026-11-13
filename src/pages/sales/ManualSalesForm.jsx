@@ -52,7 +52,7 @@ import { processShipmentCompletion, processShipmentRevert } from '../../utils/in
 import { isWarehouseHidden } from '../../api/warehouseApi';
 import { checkSaleDuplicate } from '../../utils/duplicateCheck';
 import DuplicateWarningDialog from '../../components/common/DuplicateWarningDialog';
-import { MANUAL_SALES_CATEGORIES, isManualCategoryOnlyChange } from '../../utils/manualSalesCategory';
+import { MANUAL_SALES_CATEGORIES, getManualSalesCategory, manualSalesPartSnapshot, isManualCategoryOnlyChange } from '../../utils/manualSalesCategory';
 // 부품 카테고리 자동 결정 함수 (setSelectedCategory 호출 제거, 카테고리 반환)
 const determinePartCategory = (part) => {
   if (!part) return '기타';
@@ -106,7 +106,6 @@ function ShipmentForm() {
     tracking_number: '',
     note: '',
     sales_channel: '청담매장',
-    revenue_category: '',
     warehouse_id: ''
   });
 
@@ -176,14 +175,7 @@ function ShipmentForm() {
 
     const currentData = {
       shipmentData,
-      selectedParts: selectedParts.map(part => ({
-        part_name: part.part_name,
-        part_code: part.part_code,
-        category: part.category,
-        quantity: part.quantity,
-        price: part.price,
-        totalPrice: part.totalPrice
-      }))
+      selectedParts: manualSalesPartSnapshot(selectedParts)
     };
 
     const hasChanges = JSON.stringify(currentData) !== JSON.stringify(initialData);
@@ -359,7 +351,7 @@ function ShipmentForm() {
             id: part.id,
             part_name: part.part_name,
             part_code: part.part_code,
-            category: part.part_category || '기체',
+            category: getManualSalesCategory(part.revenue_category, data.revenue_category || part.part_category),
             quantity: part.quantity,
             price: part.price,
             totalPrice: part.total_price || part.price * part.quantity
@@ -370,14 +362,7 @@ function ShipmentForm() {
           // 초기 데이터 설정 (변경사항 감지용)
           setInitialData({
             shipmentData: shipmentInfo,
-            selectedParts: formattedParts.map(part => ({
-              part_name: part.part_name,
-              part_code: part.part_code,
-              category: part.category,
-              quantity: part.quantity,
-              price: part.price,
-              totalPrice: part.totalPrice
-            }))
+            selectedParts: manualSalesPartSnapshot(formattedParts)
           });
         }
       } catch (partsError) {
@@ -552,23 +537,30 @@ function ShipmentForm() {
     const force = forceArg === true;
     if (saving) return; // 이중 클릭 방지
 
-    if (!MANUAL_SALES_CATEGORIES.includes(shipmentData.revenue_category)) {
-      setSnackbar({ open: true, message: '매출 분류를 선택해주세요.', severity: 'warning' });
+    if (selectedParts.some(part => ![...MANUAL_SALES_CATEGORIES, '파츠', '부품', '미분류'].includes(part.category))) {
+      setSnackbar({ open: true, message: '제품 정보의 구분을 확인해주세요.', severity: 'warning' });
       return;
     }
 
     if (isEditMode && isManualCategoryOnlyChange(shipmentData, selectedParts, initialData)) {
       setSaving(true);
       try {
-        const { error } = await supabase.from('shipments')
-          .update({ revenue_category: shipmentData.revenue_category, updated_at: new Date().toISOString() })
-          .eq('id', id);
-        if (error) throw error;
-        setInitialData(prev => ({ ...prev, shipmentData: { ...shipmentData } }));
+        for (const part of selectedParts) {
+          const before = initialData.selectedParts.find(item => item.id === part.id);
+          if (before.category === part.category) continue;
+          const { error } = await supabase.from('shipment_parts')
+            .update({ revenue_category: getManualSalesCategory(part.category) })
+            .eq('shipment_id', id)
+            .eq('id', part.id)
+            .select('id')
+            .single();
+          if (error) throw error;
+        }
+        setInitialData({ shipmentData: { ...shipmentData }, selectedParts: manualSalesPartSnapshot(selectedParts) });
         setHasUnsavedChanges(false);
-        setSnackbar({ open: true, message: '매출 분류가 수정되었습니다. 재고는 변경하지 않았습니다.', severity: 'success' });
+        setSnackbar({ open: true, message: '제품 구분이 저장되었습니다. 재고는 변경하지 않았습니다.', severity: 'success' });
       } catch (error) {
-        setSnackbar({ open: true, message: `매출 분류 저장 오류: ${error.message}`, severity: 'error' });
+        setSnackbar({ open: true, message: `제품 구분 저장 오류: ${error.message}`, severity: 'error' });
       } finally {
         setSaving(false);
       }
@@ -656,7 +648,6 @@ function ShipmentForm() {
         tracking_number: shipmentData.tracking_number?.trim() || '',
         note: finalNote.trim(),
         sales_channel: shipmentData.sales_channel,
-        revenue_category: shipmentData.revenue_category,
         product_name: combinedProductName,
         product_code: selectedParts[0]?.part_code || '',
         quantity: parseInt(totalQuantity) || 0,
@@ -717,7 +708,8 @@ function ShipmentForm() {
           shipment_id: shipmentId,
           part_name: part.part_name,
           part_code: part.part_code || '',
-          part_category: part.category || '기체',
+          part_category: getManualSalesCategory(part.category),
+          revenue_category: getManualSalesCategory(part.category),
           quantity: parseInt(part.quantity) || 1,
           price: parseFloat(part.price) || 0,
           total_price: parseFloat(part.totalPrice || calculateTotal(part)) || 0,
