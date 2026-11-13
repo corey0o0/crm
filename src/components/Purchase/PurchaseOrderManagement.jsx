@@ -919,7 +919,7 @@ function PurchaseOrderManagement() {
     return sortDir === 'asc' ? cmp : -cmp;
   });
 
-  const pagedParts = sortedParts.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  const pagedParts = rowsPerPage === -1 ? sortedParts : sortedParts.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   const MIN_DATE_COLUMNS = 1;
   const placeholderColumnCount = MIN_DATE_COLUMNS;
   const tableMinWidth = STICKY_TOTAL + 530 + (visibleDateColumns.length + placeholderColumnCount) * 160;
@@ -1527,7 +1527,7 @@ function PurchaseOrderManagement() {
           onPageChange={(e, newPage) => setPage(newPage)}
           rowsPerPage={rowsPerPage}
           onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
-          rowsPerPageOptions={[25, 50, 100]}
+          rowsPerPageOptions={[10, 25, 50, 100, 200, { label: '전체', value: -1 }]}
         />
         </>
       )}
