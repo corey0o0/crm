@@ -10,6 +10,7 @@ import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import AddIcon from '@mui/icons-material/Add';
 import DownloadIcon from '@mui/icons-material/Download';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
 import ExcelJS from 'exceljs';
 import { supabase, queryWithTimeout } from '../../lib/supabaseClient';
 import { inventoryApi } from '../../api/inventoryApi';
@@ -90,6 +91,8 @@ function PurchaseOrderManagement() {
   const [memoDraft, setMemoDraft] = useState({ key: null, partId: null, columnId: null, text: '', imageUrl: null, imageFile: null, imagePreview: null });
   const [memoImageUploading, setMemoImageUploading] = useState(false);
   const [excelDownloading, setExcelDownloading] = useState(false);
+  const [excelUploading, setExcelUploading] = useState(false);
+  const excelUploadInputRef = useRef(null);
   const [stockTotals, setStockTotals] = useState({});
   const [warehouses, setWarehouses] = useState([]);
   const [warehouseId, setWarehouseId] = useState('');
@@ -598,7 +601,7 @@ function PurchaseOrderManagement() {
       if (visibleCols.orderTotal) headers.push('Order Total', 'Received Total');
       visibleDateColumns.forEach((c) => {
         const label = c.order_date + (c.label ? ` (${c.label})` : '');
-        headers.push(`${label} Order`, `${label} Received`, `${label} Status`, `${label} Memo`);
+        headers.push(`${label} Order`, `${label} Received`, `${label} Status`, `${label} Memo`, `${label} Price (USD)`);
       });
       worksheet.addRow(headers);
       worksheet.getRow(1).font = { bold: true };
@@ -694,19 +697,19 @@ function PurchaseOrderManagement() {
           if (order > 0 && received > 0) {
             status = received >= order ? '입고완료' : `부분입고(잔여 ${order - received})`;
           }
-          row.push(order, received, status, cell.memo || '');
+          row.push(order, received, status, cell.memo || '', cell.price_usd ?? '');
           cellBgColors.push(getCellBg(order, received));
         });
         const excelRow = worksheet.addRow(row);
         excelRow.height = 60;
 
         // 발주/입고 셀 배경색: 화면과 동일하게 셀 단위로 적용
-        const dateColStart = headers.length - visibleDateColumns.length * 4 + 1;
+        const dateColStart = headers.length - visibleDateColumns.length * 5 + 1;
         cellBgColors.forEach((bg, idx) => {
           if (!bg) return;
           const argb = 'FF' + bg.replace('#', '').toUpperCase();
           [0, 1].forEach((offset) => {
-            excelRow.getCell(dateColStart + idx * 4 + offset).fill = {
+            excelRow.getCell(dateColStart + idx * 5 + offset).fill = {
               type: 'pattern',
               pattern: 'solid',
               fgColor: { argb },
@@ -756,6 +759,154 @@ function PurchaseOrderManagement() {
       showSnackbar(getErrorMessage(err), 'error');
     } finally {
       setExcelDownloading(false);
+    }
+  };
+
+  // 엑셀 다운로드 파일을 그대로 다시 올려서 발주/입고 수량·메모·USD를 일괄 반영.
+  // 헤더의 날짜(YYYY-MM-DD) 기준으로 날짜 열을 찾고, 없으면 새로 만든다. 같은 (상품, 날짜)는 덮어쓰기.
+  const handleExcelUpload = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // 같은 파일 다시 선택 가능하게
+    if (!file) return;
+    setExcelUploading(true);
+    try {
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(await file.arrayBuffer());
+      const worksheet = workbook.worksheets[0];
+      if (!worksheet) throw new Error('시트를 찾을 수 없습니다.');
+
+      const headerRow = worksheet.getRow(1);
+      const headerTexts = [];
+      headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+        headerTexts[colNumber] = String(cell.value ?? '').trim();
+      });
+
+      // "2026-11-13 (메모) Order" 형태에서 날짜/라벨 추출
+      const DATE_HEADER_RE = /^(\d{4}-\d{2}-\d{2})(?:\s*\((.*)\))?\s+Order$/;
+      const dateColsInFile = [];
+      headerTexts.forEach((text, colNumber) => {
+        const m = DATE_HEADER_RE.exec(text || '');
+        if (m) dateColsInFile.push({ order_date: m[1], label: (m[2] || '').trim(), startCol: colNumber });
+      });
+      if (dateColsInFile.length === 0) {
+        throw new Error('날짜 열을 찾을 수 없습니다. 발주관리에서 내려받은 엑셀 파일인지 확인하세요.');
+      }
+
+      const codeCol = headerTexts.findIndex((t) => t === 'Code');
+      const barcodeCol = headerTexts.findIndex((t) => t === 'Barcode');
+      if (codeCol < 0 && barcodeCol < 0) throw new Error('Code/Barcode 열을 찾을 수 없습니다.');
+
+      // 1) 날짜 열 확보 (기존 날짜는 재사용, 없으면 생성)
+      const existingByDate = new Map(dateColumns.map((c) => [c.order_date, c]));
+      const resolvedCols = [];
+      for (const dc of dateColsInFile) {
+        let col = existingByDate.get(dc.order_date);
+        if (!col) {
+          const { data, error } = await safeRetry(() =>
+            queryWithTimeout(
+              supabase.from('po_date_columns').insert({ order_date: dc.order_date, label: dc.label || '' }).select('id, order_date, label, created_at').single(),
+              8000
+            )
+          );
+          if (error) throw error;
+          col = data;
+          existingByDate.set(dc.order_date, col);
+        } else if (dc.label && dc.label !== (col.label || '')) {
+          await safeRetry(() => queryWithTimeout(supabase.from('po_date_columns').update({ label: dc.label }).eq('id', col.id), 8000));
+        }
+        resolvedCols.push({ ...dc, id: col.id });
+      }
+
+      // 2) 상품 매칭 (Code 우선, 없으면 Barcode)
+      const byCode = new Map();
+      const byBarcode = new Map();
+      parts.forEach((p) => {
+        if (p.code) byCode.set(String(p.code).trim(), p);
+        if (p.barcode) byBarcode.set(String(p.barcode).trim(), p);
+      });
+
+      const rows = [];
+      const skipped = [];
+      worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+        if (rowNumber === 1) return;
+        const code = codeCol > 0 ? String(row.getCell(codeCol).value ?? '').trim() : '';
+        const barcode = barcodeCol > 0 ? String(row.getCell(barcodeCol).value ?? '').trim() : '';
+        const part = (code && byCode.get(code)) || (barcode && byBarcode.get(barcode));
+        if (!part) {
+          if (code || barcode) skipped.push(code || barcode);
+          return;
+        }
+        resolvedCols.forEach((dc) => {
+          const num = (offset) => {
+            const v = row.getCell(dc.startCol + offset).value;
+            const n = Number(typeof v === 'object' && v !== null ? v.result ?? v.text ?? 0 : v);
+            return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+          };
+          const quantity = num(0);
+          const received_quantity = num(1);
+          const memoCell = row.getCell(dc.startCol + 3).value;
+          const memo = memoCell == null ? '' : String(typeof memoCell === 'object' ? memoCell.text ?? '' : memoCell).trim();
+          const usdRaw = row.getCell(dc.startCol + 4).value;
+          const usdNum = Number(typeof usdRaw === 'object' && usdRaw !== null ? usdRaw.result ?? usdRaw.text ?? '' : usdRaw);
+          const price_usd = Number.isFinite(usdNum) && usdNum > 0 ? usdNum : null;
+          if (quantity === 0 && received_quantity === 0 && !memo && price_usd == null) return; // 빈 셀은 건드리지 않음
+          const received = quantity > 0 && received_quantity >= quantity;
+          rows.push({
+            part_id: part.id,
+            column_id: dc.id,
+            quantity,
+            received_quantity,
+            received,
+            received_at: received ? new Date().toISOString() : null,
+            memo,
+            price_usd,
+          });
+        });
+      });
+
+      if (rows.length === 0) {
+        showSnackbar('반영할 데이터가 없습니다. (Code/Barcode가 기존 상품과 일치하는지 확인)', 'error');
+        return;
+      }
+
+      // 3) 덮어쓰기 저장
+      const { error: upsertError } = await supabase
+        .from('purchase_orders')
+        .upsert(rows, { onConflict: 'part_id,column_id' });
+      if (upsertError) throw upsertError;
+
+      // 4) 가장 최근 날짜 열의 USD는 parts.price_usd(최신 기준가)에도 반영
+      const latest = sortColumns(resolvedCols.map((dc) => ({ id: dc.id, order_date: dc.order_date, created_at: '' })))[0];
+      if (latest) {
+        const usdByPart = new Map();
+        rows.filter((r) => r.column_id === latest.id && r.price_usd != null).forEach((r) => usdByPart.set(r.part_id, r.price_usd));
+        for (const [partId, usd] of usdByPart) {
+          await supabase.from('parts').update({ price_usd: usd }).eq('id', partId);
+        }
+        setParts((prev) => prev.map((p) => (usdByPart.has(p.id) ? { ...p, price_usd: usdByPart.get(p.id) } : p)));
+      }
+
+      // 5) 화면 갱신
+      const { data: freshCols } = await safeRetry(() =>
+        queryWithTimeout(
+          supabase.from('po_date_columns').select('id, order_date, label, created_at')
+            .order('order_date', { ascending: false }).order('created_at', { ascending: false }),
+          8000
+        )
+      );
+      if (freshCols) {
+        setDateColumns(freshCols);
+        await Promise.all(freshCols.map((c) => fetchOrdersForDate(c.id)));
+      }
+
+      showSnackbar(
+        `${rows.length}건 반영되었습니다.${skipped.length ? ` (상품 미매칭 ${skipped.length}건 제외: ${skipped.slice(0, 5).join(', ')}${skipped.length > 5 ? ' 외' : ''})` : ''}`,
+        skipped.length ? 'warning' : 'success'
+      );
+    } catch (err) {
+      showSnackbar(getErrorMessage(err), 'error');
+    } finally {
+      setExcelUploading(false);
     }
   };
 
@@ -1017,6 +1168,22 @@ function PurchaseOrderManagement() {
           disabled={excelDownloading}
         >
           엑셀 다운로드{selectedIds.size > 0 && ` (선택 ${selectedIds.size})`}
+        </Button>
+        <input
+          ref={excelUploadInputRef}
+          type="file"
+          accept=".xlsx,.xls"
+          style={{ display: 'none' }}
+          onChange={handleExcelUpload}
+        />
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={excelUploading ? <CircularProgress size={14} /> : <UploadFileIcon />}
+          onClick={() => excelUploadInputRef.current?.click()}
+          disabled={excelUploading}
+        >
+          엑셀 업로드
         </Button>
         {selectedIds.size > 0 && (
           <Button size="small" onClick={() => setSelectedIds(new Set())}>
