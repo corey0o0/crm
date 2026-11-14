@@ -781,15 +781,26 @@ function PurchaseOrderManagement() {
         headerTexts[colNumber] = String(cell.value ?? '').trim();
       });
 
-      // "2026-11-13 (메모) Order" 형태에서 날짜/라벨 추출
-      const DATE_HEADER_RE = /^(\d{4}-\d{2}-\d{2})(?:\s*\((.*)\))?\s+Order$/;
-      const dateColsInFile = [];
+      // 헤더 이름 기준으로 각 칸을 찾음 — 칸 순서가 바뀌거나 일부가 빠져도 동작
+      // "2026-11-13 (메모) Order" → 날짜 2026-11-13, 라벨 "메모", 필드 Order
+      const DATE_HEADER_RE = /^(\d{4}-\d{2}-\d{2})(?:\s*\((.*)\))?\s+(Order|Received|Status|Memo|Price \(USD\))$/;
+      const dateColsByKey = new Map(); // `${order_date}|${label}` → { order_date, label, cols: { Order: n, ... } }
       headerTexts.forEach((text, colNumber) => {
         const m = DATE_HEADER_RE.exec(text || '');
-        if (m) dateColsInFile.push({ order_date: m[1], label: (m[2] || '').trim(), startCol: colNumber });
+        if (!m) return;
+        const key = `${m[1]}|${(m[2] || '').trim()}`;
+        if (!dateColsByKey.has(key)) {
+          dateColsByKey.set(key, { order_date: m[1], label: (m[2] || '').trim(), cols: {} });
+        }
+        dateColsByKey.get(key).cols[m[3]] = colNumber;
       });
+      const dateColsInFile = [...dateColsByKey.values()];
       if (dateColsInFile.length === 0) {
-        throw new Error('날짜 열을 찾을 수 없습니다. 발주관리에서 내려받은 엑셀 파일인지 확인하세요.');
+        throw new Error('날짜 열을 찾을 수 없습니다. 헤더가 "YYYY-MM-DD Order" 형식인지 확인하세요.');
+      }
+      const noOrderColumns = dateColsInFile.filter((dc) => !dc.cols.Order && !dc.cols.Received);
+      if (noOrderColumns.length > 0) {
+        throw new Error(`날짜 열에 Order/Received 칸이 없습니다: ${noOrderColumns.map((d) => d.order_date).join(', ')}`);
       }
 
       const codeCol = headerTexts.findIndex((t) => t === 'Code');
@@ -837,16 +848,17 @@ function PurchaseOrderManagement() {
           return;
         }
         resolvedCols.forEach((dc) => {
-          const num = (offset) => {
-            const v = row.getCell(dc.startCol + offset).value;
+          const rawAt = (field) => (dc.cols?.[field] ? row.getCell(dc.cols[field]).value : null);
+          const numAt = (field) => {
+            const v = rawAt(field);
             const n = Number(typeof v === 'object' && v !== null ? v.result ?? v.text ?? 0 : v);
             return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
           };
-          const quantity = num(0);
-          const received_quantity = num(1);
-          const memoCell = row.getCell(dc.startCol + 3).value;
+          const quantity = numAt('Order');
+          const received_quantity = numAt('Received');
+          const memoCell = rawAt('Memo');
           const memo = memoCell == null ? '' : String(typeof memoCell === 'object' ? memoCell.text ?? '' : memoCell).trim();
-          const usdRaw = row.getCell(dc.startCol + 4).value;
+          const usdRaw = rawAt('Price (USD)');
           const usdNum = Number(typeof usdRaw === 'object' && usdRaw !== null ? usdRaw.result ?? usdRaw.text ?? '' : usdRaw);
           const price_usd = Number.isFinite(usdNum) && usdNum > 0 ? usdNum : null;
           if (quantity === 0 && received_quantity === 0 && !memo && price_usd == null) return; // 빈 셀은 건드리지 않음
