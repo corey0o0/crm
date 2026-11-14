@@ -830,6 +830,17 @@ const SearchInput = React.memo(function SearchInput({
       >
         {isSearching ? <CircularProgress size={20} /> : '검색'}
       </Button>
+      <Button
+        variant="outlined"
+        onClick={onClear}
+        sx={{
+          minWidth: { xs: '100%', sm: 80 },
+          height: { xs: 44, sm: 40 },
+          px: { xs: 2, sm: 2 }
+        }}
+      >
+        초기화
+      </Button>
     </Stack>
   );
 });
@@ -885,6 +896,10 @@ function PartsManagement() {
   const [orderBy, setOrderBy] = useState('code');
   const [sortOption, setSortOption] = useState('newest'); // 'legacy'면 컬럼헤더 클릭 정렬 사용
   const [showSupplyPrice, setShowSupplyPrice] = useState(false);
+  const [showSpecialPrice, setShowSpecialPrice] = useState(false);
+  const [showModelCol, setShowModelCol] = useState(true);
+  const [showNoteCol, setShowNoteCol] = useState(true);
+  const [showPurchaseSourceCol, setShowPurchaseSourceCol] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState([]); // 빈 배열 = 전체
   const [selectedModel, setSelectedModel] = useState([]);
 
@@ -1038,6 +1053,10 @@ function PartsManagement() {
   const handleClearSearch = useCallback(() => {
     setSearchInput('');
     setSearchTerm('');
+    setSelectedBrand('전체');
+    setSelectedPurchaseSource('전체');
+    setSelectedCategory([]);
+    setSelectedModel([]);
     setPage(0); // 초기화 시 페이지 리셋
   }, []);
 
@@ -2679,6 +2698,22 @@ function PartsManagement() {
               />
             </Grid>
             <Grid item xs={12} sm={4} md={2}>
+              <TextField
+                select
+                fullWidth
+                size="small"
+                label="정렬"
+                value={sortOption === 'legacy' ? 'default' : sortOption}
+                onChange={handleSortOptionChange}
+              >
+                {SORT_OPTIONS.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+            <Grid item xs={12} sm={4} md={2}>
               <FormControl fullWidth size="small">
                 <InputLabel>구분</InputLabel>
                 <Select
@@ -2697,22 +2732,6 @@ function PartsManagement() {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} sm={4} md={2}>
-              <TextField
-                select
-                fullWidth
-                size="small"
-                label="정렬"
-                value={sortOption === 'legacy' ? 'default' : sortOption}
-                onChange={handleSortOptionChange}
-              >
-                {SORT_OPTIONS.map((option) => (
-                  <MenuItem key={option.value} value={option.value}>
-                    {option.label}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Grid>
 
             {isMaster && (
             <Grid item xs={12} sm={6} md={3}>
@@ -2728,6 +2747,41 @@ function PartsManagement() {
               />
             </Grid>
             )}
+            {isMaster && (
+            <Grid item xs={12} sm={6} md={3}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={showSpecialPrice}
+                    onChange={(e) => setShowSpecialPrice(e.target.checked)}
+                  />
+                }
+                label="특별공급가 표시"
+                sx={{ m: 0 }}
+              />
+            </Grid>
+            )}
+            <Grid item xs={12} sm={6} md={3}>
+              <FormControlLabel
+                control={<Switch checked={showModelCol} onChange={(e) => setShowModelCol(e.target.checked)} />}
+                label="기종 표시"
+                sx={{ m: 0 }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <FormControlLabel
+                control={<Switch checked={showNoteCol} onChange={(e) => setShowNoteCol(e.target.checked)} />}
+                label="구분 표시"
+                sx={{ m: 0 }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <FormControlLabel
+                control={<Switch checked={showPurchaseSourceCol} onChange={(e) => setShowPurchaseSourceCol(e.target.checked)} />}
+                label="매입처 표시"
+                sx={{ m: 0 }}
+              />
+            </Grid>
             <Grid item xs={12} sm={6} md={3}>
               <FormControlLabel
                 control={
@@ -2815,18 +2869,17 @@ function PartsManagement() {
               </TableCell>
               <TableCell>이미지</TableCell>
               {renderSortableHeader('brand', '브랜드')}
-              {renderSortableHeader('code', '코드')}
+              {showModelCol && renderSortableHeader('model', '기종')}
               {renderSortableHeader('barcode', '바코드')}
               {renderSortableHeader('name', '제품명')}
               {showSupplyPrice && renderSortableHeader('cost_price', '매입가(원가)', 'right')}
               {renderSortableHeader('supply_price', '공급가', 'right')}
-              {showSupplyPrice && renderSortableHeader('special_price', '특별공급가', 'right')}
+              {showSpecialPrice && renderSortableHeader('special_price', '특별공급가', 'right')}
               {renderSortableHeader('price', '판매가', 'right')}
               {showSupplyPrice && renderSortableHeader('price_usd', '금액(USD)', 'right')}
-              {renderSortableHeader('note', '구분')}
-              {renderSortableHeader('model', '기종')}
+              {showNoteCol && renderSortableHeader('note', '구분')}
               {renderSortableHeader('memo', '적요')}
-              {renderSortableHeader('purchase_source', '매입처')}
+              {showPurchaseSourceCol && renderSortableHeader('purchase_source', '매입처')}
               <TableCell sx={{ display: 'none' }} />
               {/* <TableCell>연동</TableCell> */}
               <TableCell align="right">액션</TableCell>
@@ -2847,7 +2900,13 @@ function PartsManagement() {
                   </Avatar>
                 </TableCell>
                 <TableCell>{part.brand}</TableCell>
-                <TableCell>{part.code}</TableCell>
+                {showModelCol && (
+                  <TableCell>
+                    <Typography sx={{ fontSize: '0.875rem', color: part.model ? 'text.primary' : 'text.secondary', fontStyle: part.model ? 'normal' : 'italic' }}>
+                      {part.model ? part.model.split('/').filter(Boolean).map(toEnglishModelName).join('/') : '-'}
+                    </Typography>
+                  </TableCell>
+                )}
                 <TableCell>
                   <Typography
                     sx={{
@@ -2858,6 +2917,9 @@ function PartsManagement() {
                     }}
                   >
                     {part.barcode || '-'}
+                  </Typography>
+                  <Typography variant="caption" display="block" color="text.secondary">
+                    {part.code || '-'}
                   </Typography>
                 </TableCell>
                 <TableCell>
@@ -2883,35 +2945,34 @@ function PartsManagement() {
                     </Typography>
                   )}
                 </TableCell>
-                {showSupplyPrice && <TableCell align="right">{part.special_price?.toLocaleString() || '-'}</TableCell>}
+                {showSpecialPrice && <TableCell align="right">{part.special_price?.toLocaleString() || '-'}</TableCell>}
                 <TableCell align="right" sx={{ fontWeight: 'bold' }}>{part.price?.toLocaleString() || '-'}</TableCell>
                 {showSupplyPrice && <TableCell align="right">{part.price_usd != null ? `$${Number(part.price_usd).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</TableCell>}
-                <TableCell>
-                  <Typography
-                    sx={{
-                      fontSize: '0.875rem',
-                      color: part.note ? 'text.primary' : 'text.secondary',
-                      fontStyle: part.note ? 'normal' : 'italic'
-                    }}
-                  >
-                    {part.note || '-'}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography sx={{ fontSize: '0.875rem', color: part.model ? 'text.primary' : 'text.secondary', fontStyle: part.model ? 'normal' : 'italic' }}>
-                    {part.model ? part.model.split('/').filter(Boolean).map(toEnglishModelName).join('/') : '-'}
-                  </Typography>
-                </TableCell>
+                {showNoteCol && (
+                  <TableCell>
+                    <Typography
+                      sx={{
+                        fontSize: '0.875rem',
+                        color: part.note ? 'text.primary' : 'text.secondary',
+                        fontStyle: part.note ? 'normal' : 'italic'
+                      }}
+                    >
+                      {part.note || '-'}
+                    </Typography>
+                  </TableCell>
+                )}
                 <TableCell>
                   <Typography sx={{ fontSize: '0.875rem', color: part.memo ? 'text.primary' : 'text.secondary', fontStyle: part.memo ? 'normal' : 'italic' }}>
                     {part.memo || '-'}
                   </Typography>
                 </TableCell>
-                <TableCell>
-                  <Typography sx={{ fontSize: '0.875rem', color: part.purchase_source ? 'text.primary' : 'text.secondary', fontStyle: part.purchase_source ? 'normal' : 'italic' }}>
-                    {part.purchase_source || '-'}
-                  </Typography>
-                </TableCell>
+                {showPurchaseSourceCol && (
+                  <TableCell>
+                    <Typography sx={{ fontSize: '0.875rem', color: part.purchase_source ? 'text.primary' : 'text.secondary', fontStyle: part.purchase_source ? 'normal' : 'italic' }}>
+                      {part.purchase_source || '-'}
+                    </Typography>
+                  </TableCell>
+                )}
                 <TableCell sx={{ display: 'none' }} />
                 {/* 
                 <TableCell>
