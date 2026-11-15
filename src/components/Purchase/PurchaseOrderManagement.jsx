@@ -22,6 +22,7 @@ import { format, parseISO } from 'date-fns';
 import { matchAllKnownAirframeModels, toEnglishModelName, ALL_MODEL_NAMES } from '../../utils/airframeModelNormalize';
 import { uploadFileToR2 as uploadToR2 } from '../../utils/cloudflareR2Utils';
 import { warehouseApi } from '../../api/warehouseApi';
+import { parseDateHeaders, extractDateColumnValues } from './purchaseOrderExcelUtils';
 
 // ALL_MODEL_NAMES 순서 = 최신/상위 기종(X200 등) 먼저. 기종순 정렬에 그대로 재사용.
 const MODEL_RANK = new Map(ALL_MODEL_NAMES.map((m, i) => [m, i]));
@@ -782,19 +783,7 @@ function PurchaseOrderManagement() {
       });
 
       // 헤더 이름 기준으로 각 칸을 찾음 — 칸 순서가 바뀌거나 일부가 빠져도 동작
-      // "2026-11-13 (메모) Order" → 날짜 2026-11-13, 라벨 "메모", 필드 Order
-      const DATE_HEADER_RE = /^(\d{4}-\d{2}-\d{2})(?:\s*\((.*)\))?\s+(Order|Received|Status|Memo|Price \(USD\))$/;
-      const dateColsByKey = new Map(); // `${order_date}|${label}` → { order_date, label, cols: { Order: n, ... } }
-      headerTexts.forEach((text, colNumber) => {
-        const m = DATE_HEADER_RE.exec(text || '');
-        if (!m) return;
-        const key = `${m[1]}|${(m[2] || '').trim()}`;
-        if (!dateColsByKey.has(key)) {
-          dateColsByKey.set(key, { order_date: m[1], label: (m[2] || '').trim(), cols: {} });
-        }
-        dateColsByKey.get(key).cols[m[3]] = colNumber;
-      });
-      const dateColsInFile = [...dateColsByKey.values()];
+      const dateColsInFile = parseDateHeaders(headerTexts);
       if (dateColsInFile.length === 0) {
         throw new Error('날짜 열을 찾을 수 없습니다. 헤더가 "YYYY-MM-DD Order" 형식인지 확인하세요.');
       }
@@ -848,20 +837,9 @@ function PurchaseOrderManagement() {
           return;
         }
         resolvedCols.forEach((dc) => {
-          const rawAt = (field) => (dc.cols?.[field] ? row.getCell(dc.cols[field]).value : null);
-          const numAt = (field) => {
-            const v = rawAt(field);
-            const n = Number(typeof v === 'object' && v !== null ? v.result ?? v.text ?? 0 : v);
-            return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
-          };
-          const quantity = numAt('Order');
-          const received_quantity = numAt('Received');
-          const memoCell = rawAt('Memo');
-          const memo = memoCell == null ? '' : String(typeof memoCell === 'object' ? memoCell.text ?? '' : memoCell).trim();
-          const usdRaw = rawAt('Price (USD)');
-          const usdNum = Number(typeof usdRaw === 'object' && usdRaw !== null ? usdRaw.result ?? usdRaw.text ?? '' : usdRaw);
-          const price_usd = Number.isFinite(usdNum) && usdNum > 0 ? usdNum : null;
-          if (quantity === 0 && received_quantity === 0 && !memo && price_usd == null) return; // 빈 셀은 건드리지 않음
+          const { quantity, received_quantity, memo, price_usd, isEmpty } =
+            extractDateColumnValues((colNumber) => row.getCell(colNumber).value, dc);
+          if (isEmpty) return; // 빈 셀은 건드리지 않음
           const received = quantity > 0 && received_quantity >= quantity;
           rows.push({
             part_id: part.id,
