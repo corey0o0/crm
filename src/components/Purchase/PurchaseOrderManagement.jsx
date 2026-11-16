@@ -763,8 +763,9 @@ function PurchaseOrderManagement() {
     }
   };
 
-  // 엑셀 다운로드 파일을 그대로 다시 올려서 발주/입고 수량·메모·USD를 일괄 반영.
+  // 엑셀 다운로드 파일을 그대로 다시 올려서 발주/입고 수량·메모·날짜별 USD·적요(Remarks)를 일괄 반영.
   // 헤더의 날짜(YYYY-MM-DD) 기준으로 날짜 열을 찾고, 없으면 새로 만든다. 같은 (상품, 날짜)는 덮어쓰기.
+  // 상품 열의 Price (USD)(기준가)는 읽지 않음 — 기준가는 최신 날짜 열의 USD에서만 갱신.
   const handleExcelUpload = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = ''; // 같은 파일 다시 선택 가능하게
@@ -794,6 +795,7 @@ function PurchaseOrderManagement() {
 
       const codeCol = headerTexts.findIndex((t) => t === 'Code');
       const barcodeCol = headerTexts.findIndex((t) => t === 'Barcode');
+      const remarksCol = headerTexts.findIndex((t) => t === 'Remarks'); // 적요(parts.memo) — 있으면 반영
       if (codeCol < 0 && barcodeCol < 0) throw new Error('Code/Barcode 열을 찾을 수 없습니다.');
 
       // 1) 날짜 열 확보 (기존 날짜는 재사용, 없으면 생성)
@@ -827,6 +829,7 @@ function PurchaseOrderManagement() {
 
       const rows = [];
       const skipped = [];
+      const memoUpdates = new Map(); // partId → 새 parts.memo ([HIDDEN] 보존)
       worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
         if (rowNumber === 1) return;
         const code = codeCol > 0 ? String(row.getCell(codeCol).value ?? '').trim() : '';
@@ -835,6 +838,16 @@ function PurchaseOrderManagement() {
         if (!part) {
           if (code || barcode) skipped.push(code || barcode);
           return;
+        }
+        // 적요: 셀이 비어 있지 않을 때만 반영 (비우기 용도로는 안 씀 — 날짜 셀과 같은 규칙)
+        if (remarksCol > 0) {
+          const v = row.getCell(remarksCol).value;
+          const text = (v == null ? '' : typeof v === 'object' ? (v.text ?? v.result ?? '') : String(v)).trim();
+          if (text) {
+            const isHidden = (part.memo || '').includes('[HIDDEN]');
+            const finalMemo = isHidden ? `[HIDDEN] ${text}` : text;
+            if (finalMemo !== (part.memo || '')) memoUpdates.set(part.id, finalMemo);
+          }
         }
         resolvedCols.forEach((dc) => {
           const { quantity, received_quantity, memo, price_usd, isEmpty } =
@@ -854,16 +867,27 @@ function PurchaseOrderManagement() {
         });
       });
 
-      if (rows.length === 0) {
+      if (rows.length === 0 && memoUpdates.size === 0) {
         showSnackbar('반영할 데이터가 없습니다. (Code/Barcode가 기존 상품과 일치하는지 확인)', 'error');
         return;
       }
 
       // 3) 덮어쓰기 저장
-      const { error: upsertError } = await supabase
-        .from('purchase_orders')
-        .upsert(rows, { onConflict: 'part_id,column_id' });
-      if (upsertError) throw upsertError;
+      if (rows.length > 0) {
+        const { error: upsertError } = await supabase
+          .from('purchase_orders')
+          .upsert(rows, { onConflict: 'part_id,column_id' });
+        if (upsertError) throw upsertError;
+      }
+
+      // 3-1) 적요(parts.memo) 반영
+      for (const [partId, memo] of memoUpdates) {
+        const { error: memoErr } = await supabase.from('parts').update({ memo }).eq('id', partId);
+        if (memoErr) throw memoErr;
+      }
+      if (memoUpdates.size > 0) {
+        setParts((prev) => prev.map((p) => (memoUpdates.has(p.id) ? { ...p, memo: memoUpdates.get(p.id) } : p)));
+      }
 
       // 4) 가장 최근 날짜 열의 USD는 parts.price_usd(최신 기준가)에도 반영
       const latest = sortColumns(resolvedCols.map((dc) => ({ id: dc.id, order_date: dc.order_date, created_at: '' })))[0];
@@ -890,7 +914,7 @@ function PurchaseOrderManagement() {
       }
 
       showSnackbar(
-        `${rows.length}건 반영되었습니다.${skipped.length ? ` (상품 미매칭 ${skipped.length}건 제외: ${skipped.slice(0, 5).join(', ')}${skipped.length > 5 ? ' 외' : ''})` : ''}`,
+        `${rows.length}건 반영되었습니다.${memoUpdates.size ? ` 적요 ${memoUpdates.size}건 갱신.` : ''}${skipped.length ? ` (상품 미매칭 ${skipped.length}건 제외: ${skipped.slice(0, 5).join(', ')}${skipped.length > 5 ? ' 외' : ''})` : ''}`,
         skipped.length ? 'warning' : 'success'
       );
     } catch (err) {
