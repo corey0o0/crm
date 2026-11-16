@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import {
   Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Button, MenuItem, CircularProgress, Snackbar, Alert, IconButton, Dialog, DialogTitle, DialogContent,
-  Checkbox, FormControlLabel, Stack, InputAdornment, Chip
+  Checkbox, FormControlLabel, Stack, InputAdornment, Chip, Switch
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import AddIcon from '@mui/icons-material/Add';
@@ -104,6 +104,8 @@ function StockList() {
     endDate: ''
   });
   const [showSupplyPrice, setShowSupplyPrice] = useState(false);
+  const [showHiddenParts, setShowHiddenParts] = useState(false);
+  const hiddenPartsCount = useMemo(() => parts.filter((p) => (p.memo || '').includes('[HIDDEN]')).length, [parts]);
   const [selectedItems, setSelectedItems] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
@@ -374,10 +376,13 @@ function StockList() {
 
   // 필터링 로직 최적화
   const filteredParts = useMemo(() => {
-    // 브랜드와 재고 상태로 1차 필터링
+    // 숨김 상품, 브랜드, 재고 상태로 1차 필터링
     let filtered = parts.filter(part => {
+      const isHidden = (part.memo || '').includes('[HIDDEN]');
+      if (isHidden && !showHiddenParts) return false;
+
       const matchesBrand = brand === '전체' || part.brand === brand;
-      
+
       let matchesStock = true;
       if (stockFilter !== '전체') {
         switch (stockFilter) {
@@ -398,21 +403,22 @@ function StockList() {
             break;
         }
       }
-      
+
       return matchesBrand && matchesStock;
     });
 
     // 검색어로 2차 필터링
     if (searchTerm) {
       const searchLower = searchTerm; // executeSearch에서 이미 toLowerCase().trim() 처리됨
-      filtered = filtered.filter(part => 
+      filtered = filtered.filter(part =>
         (part.name?.toLowerCase().includes(searchLower) ||
-        part.code?.toLowerCase().includes(searchLower))
-  );
+        part.code?.toLowerCase().includes(searchLower) ||
+        part.barcode?.toLowerCase().includes(searchLower))
+      );
     }
 
     return filtered;
-  }, [parts, brand, stockFilter, searchTerm]);
+  }, [parts, brand, stockFilter, searchTerm, showHiddenParts]);
 
   // 정렬 로직 최적화 - 정렬 설정이나 필터링 결과가 변경될 때만 재계산
   const sortedParts = useMemo(() => {
@@ -1265,10 +1271,22 @@ function StockList() {
           >
             브랜드 설정
           </Button>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={showHiddenParts}
+                onChange={(e) => setShowHiddenParts(e.target.checked)}
+                color="warning"
+                size="small"
+              />
+            }
+            label={`숨김 상품 표시${hiddenPartsCount > 0 ? ` (${hiddenPartsCount})` : ''}`}
+            sx={{ ml: 'auto', '& .MuiTypography-root': { fontSize: '0.85rem' } }}
+          />
           <IconButton
             onClick={() => setShowSupplyPrice(!showSupplyPrice)}
-            sx={{ 
-              ml: 'auto',
+            sx={{
+              ml: 1,
               bgcolor: showSupplyPrice ? 'primary.main' : 'transparent',
               color: showSupplyPrice ? 'white' : 'primary.main',
               '&:hover': {
@@ -1324,9 +1342,10 @@ function StockList() {
             </TableHead>
             <TableBody>
               {pagedParts.map(part => (
-                <TableRow 
+                <TableRow
                   key={part.id}
                   sx={{
+                    opacity: (part.memo || '').includes('[HIDDEN]') ? 0.55 : 1,
                     backgroundColor: changedItems.has(part.id) ? 'rgba(255, 235, 59, 0.15)' : 'inherit',
                     borderLeft: changedItems.has(part.id) ? '4px solid #ffcc02' : 'none',
                     transition: 'background-color 0.3s ease, border-left 0.3s ease',

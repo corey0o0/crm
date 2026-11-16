@@ -3,6 +3,7 @@ export const SHARED_STOCK_MALL_IDS = ['slimpack79', 'nearbike'];
 export function isComparableProduct(product) {
   if (product.note === '공임') return false;
   if (product.track_inventory === false) return false;
+  if ((product.memo || '').includes('[HIDDEN]')) return false;
   return true;
 }
 

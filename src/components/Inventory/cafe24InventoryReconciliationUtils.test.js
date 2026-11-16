@@ -72,6 +72,11 @@ test('excludes products with track_inventory false', () => {
   expect(isComparableProduct({ note: '', track_inventory: false })).toBe(false);
 });
 
+test('excludes hidden products ([HIDDEN] in memo)', () => {
+  expect(isComparableProduct({ note: '', track_inventory: true, memo: '[HIDDEN] 단종 상품' })).toBe(false);
+  expect(isComparableProduct({ note: '', track_inventory: true, memo: '[HIDDEN]' })).toBe(false);
+});
+
 test('excludes labor (공임) products', () => {
   expect(isComparableProduct({ note: '공임', track_inventory: true })).toBe(false);
 });
