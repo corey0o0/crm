@@ -957,10 +957,11 @@ function PurchaseOrderManagement() {
   };
 
   // 표시중인 날짜 열 기준 입고 상태: 입고수량 < 발주수량 있으면 미입고, 주문 있고 전부 입고면 입고완료
+  // (날짜 필터로 열을 좁히면 그 열만 기준으로 판단)
   const getReceivedStatus = (partId) => {
     let hasOrder = false;
     let hasUnreceived = false;
-    dateColumns.forEach((c) => {
+    visibleDateColumns.forEach((c) => {
       const cell = ordersMap.get(`${partId}_${c.id}`);
       if (cell && cell.quantity > 0) {
         hasOrder = true;
@@ -973,7 +974,7 @@ function PurchaseOrderManagement() {
 
   // 날짜 열 중 하나라도 입고수량이 있는지 (부분입고 포함)
   const hasAnyReceived = (partId) => {
-    return dateColumns.some((c) => {
+    return visibleDateColumns.some((c) => {
       const cell = ordersMap.get(`${partId}_${c.id}`);
       return cell && (cell.received_quantity || 0) > 0;
     });
@@ -981,7 +982,7 @@ function PurchaseOrderManagement() {
 
   // 표시중인 날짜 열 기준 발주 여부: 발주수량이 하나라도 있으면 발주함
   const hasAnyOrdered = (partId) => {
-    return dateColumns.some((c) => {
+    return visibleDateColumns.some((c) => {
       const cell = ordersMap.get(`${partId}_${c.id}`);
       return cell && cell.quantity > 0;
     });
