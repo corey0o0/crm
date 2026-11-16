@@ -1135,6 +1135,7 @@ function PurchaseOrderManagement() {
         <Tab value="NB" label="니어바이크" sx={{ minHeight: 36, py: 0.5 }} />
       </Tabs>
 
+      {/* 1줄: 검색 / 날짜 열 추가 / 저장 / 입고 등록 / 엑셀 */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, flexWrap: 'wrap' }}>
         <TextField
           size="small"
@@ -1217,7 +1218,10 @@ function PurchaseOrderManagement() {
           </Button>
         )}
         {loadingOrders && <CircularProgress size={20} />}
+      </Box>
 
+      {/* 2줄: 필터/정렬 */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, flexWrap: 'wrap' }}>
         <FormControl size="small" sx={{ minWidth: 120 }}>
           <InputLabel>발주여부</InputLabel>
           <Select
@@ -1340,6 +1344,7 @@ function PurchaseOrderManagement() {
         </IconButton>
       </Box>
 
+      {/* 3줄: 컬럼 표시 / 숨김상품 */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, flexWrap: 'wrap' }}>
         <Typography variant="body2" color="text.secondary">컬럼 표시:</Typography>
         <FormControlLabel

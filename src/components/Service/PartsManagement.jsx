@@ -2569,20 +2569,14 @@ function PartsManagement() {
                 label={`전체 선택 ${selectedItems.length > 0 ? `(${selectedItems.length}개)` : ''}`}
               />
             </Grid>
-          </Grid>
-        </Paper>
-        )}
 
-        <Paper sx={{ p: 2, mb: 2 }}>
-          <Grid container spacing={2} alignItems="center">
-            {canEditBasic && (
             <Grid item>
               <Button
                 variant="outlined"
                 startIcon={<UploadIcon />}
                 onClick={() => document.getElementById('excel-upload').click()}
               >
-                파츠 업로드
+                엑셀 업로드
               </Button>
               <input
                 id="excel-upload"
@@ -2592,22 +2586,8 @@ function PartsManagement() {
                 style={{ display: 'none' }}
               />
             </Grid>
-            )}
-
             {/* ponytail: 이미지 일괄 업로드 안 씀 — 버튼 숨김. 로직(handleImageExcelUpload)은 유지, 필요해지면 복구 */}
-
-            {canEditBasic && (
-            <Grid item>
-              <Button
-                variant="outlined"
-                startIcon={<CloudUploadIcon />}
-                onClick={handleCafe24ImageSync}
-              >
-                카페24 이미지 동기화
-              </Button>
-            </Grid>
-            )}
-
+            {/* ponytail: 카페24 이미지 동기화 버튼 숨김 — 로직(handleCafe24ImageSync)은 유지, 필요해지면 복구 */}
             <Grid item>
               <Button
                 variant="outlined"
@@ -2617,8 +2597,6 @@ function PartsManagement() {
                 엑셀 다운로드
               </Button>
             </Grid>
-
-            {canEditBasic && (
             <Grid item>
               <Button
                 variant="outlined"
@@ -2628,174 +2606,148 @@ function PartsManagement() {
                 템플릿 다운로드
               </Button>
             </Grid>
-            )}
           </Grid>
         </Paper>
+        )}
+        {!canEditBasic && (
+        <Paper sx={{ p: 2, mb: 2 }}>
+          <Button variant="outlined" startIcon={<DownloadIcon />} onClick={handleDownloadExcel}>
+            엑셀 다운로드
+          </Button>
+        </Paper>
+        )}
 
         {/* 검색 및 필터 영역 */}
         <Paper sx={{ p: 2 }}>
-          <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} sm={4} md={2}>
-              <TextField
-                select
-                fullWidth
-                size="small"
-                label="브랜드"
-                value={selectedBrand}
-                onChange={(e) => setSelectedBrand(e.target.value)}
+          {/* 1줄: 텍스트 검색 / 검색 / 초기화 */}
+          <Box sx={{ mb: 2 }}>
+            <SearchInput
+              searchInput={searchInput}
+              setSearchInput={setSearchInput}
+              onSearch={executeSearch}
+              onClear={handleClearSearch}
+              isSearching={isSearching}
+            />
+          </Box>
+
+          {/* 2줄: 필터 / 정렬 */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+            <FormControl size="small" sx={{ minWidth: 180 }}>
+              <InputLabel>구분</InputLabel>
+              <Select
+                multiple
+                label="구분"
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                renderValue={(selected) => selected.length === 0 ? '전체' : selected.join(', ')}
               >
-                <MenuItem value="전체">전체</MenuItem>
-                {brands.map(brand => (
-                  <MenuItem key={brand} value={brand}>
-                    {brand === 'XRB' ? 'X-RIDER' : brand === 'NB' ? 'NEARBIKE' : '공용'}
+                {noteOptions.map(opt => (
+                  <MenuItem key={opt} value={opt}>
+                    <Checkbox size="small" checked={selectedCategory.includes(opt)} />
+                    {opt}
                   </MenuItem>
                 ))}
-              </TextField>
-            </Grid>
-            <Grid item xs={12} sm={4} md={2}>
-              <TextField
-                select
-                fullWidth
-                size="small"
-                label="매입처"
-                value={selectedPurchaseSource}
-                onChange={(e) => setSelectedPurchaseSource(e.target.value)}
+              </Select>
+            </FormControl>
+            <TextField
+              select
+              size="small"
+              label="정렬"
+              value={sortOption === 'legacy' ? 'default' : sortOption}
+              onChange={handleSortOptionChange}
+              sx={{ minWidth: 160 }}
+            >
+              {SORT_OPTIONS.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              select
+              size="small"
+              label="브랜드"
+              value={selectedBrand}
+              onChange={(e) => setSelectedBrand(e.target.value)}
+              sx={{ minWidth: 140 }}
+            >
+              <MenuItem value="전체">전체</MenuItem>
+              {brands.map(brand => (
+                <MenuItem key={brand} value={brand}>
+                  {brand === 'XRB' ? 'X-RIDER' : brand === 'NB' ? 'NEARBIKE' : '공용'}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              select
+              size="small"
+              label="매입처"
+              value={selectedPurchaseSource}
+              onChange={(e) => setSelectedPurchaseSource(e.target.value)}
+              sx={{ minWidth: 160 }}
+            >
+              <MenuItem value="전체">전체 매입처</MenuItem>
+              {Array.from(new Set(parts.map(p => p.purchase_source).filter(Boolean))).map(source => (
+                <MenuItem key={source} value={source}>{source}</MenuItem>
+              ))}
+              <MenuItem value="">(매입처 없음)</MenuItem>
+            </TextField>
+            <FormControl size="small" sx={{ minWidth: 160 }}>
+              <InputLabel>기종</InputLabel>
+              <Select
+                multiple
+                label="기종"
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                renderValue={(selected) => selected.length === 0 ? '전체 기종' : selected.map(toEnglishModelName).join(', ')}
               >
-                <MenuItem value="전체">전체 매입처</MenuItem>
-                {Array.from(new Set(parts.map(p => p.purchase_source).filter(Boolean))).map(source => (
-                  <MenuItem key={source} value={source}>{source}</MenuItem>
-                ))}
-                <MenuItem value="">(매입처 없음)</MenuItem>
-              </TextField>
-            </Grid>
-            <Grid item xs={12} sm={4} md={2}>
-              <FormControl fullWidth size="small">
-                <InputLabel>기종</InputLabel>
-                <Select
-                  multiple
-                  label="기종"
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                  renderValue={(selected) => selected.length === 0 ? '전체 기종' : selected.map(toEnglishModelName).join(', ')}
-                >
-                  {Array.from(new Set(parts.flatMap(p => (p.model || '').split('/').filter(Boolean)))).sort((a, b) => a.localeCompare(b, 'ko')).map(m => (
-                    <MenuItem key={m} value={m}>
-                      <Checkbox size="small" checked={selectedModel.includes(m)} />
-                      {toEnglishModelName(m)}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-
-            <Grid item xs={12} sm={12} md={4}>
-              <SearchInput
-                searchInput={searchInput}
-                setSearchInput={setSearchInput}
-                onSearch={executeSearch}
-                onClear={handleClearSearch}
-                isSearching={isSearching}
-              />
-            </Grid>
-            <Grid item xs={12} sm={4} md={2}>
-              <TextField
-                select
-                fullWidth
-                size="small"
-                label="정렬"
-                value={sortOption === 'legacy' ? 'default' : sortOption}
-                onChange={handleSortOptionChange}
-              >
-                {SORT_OPTIONS.map((option) => (
-                  <MenuItem key={option.value} value={option.value}>
-                    {option.label}
+                {Array.from(new Set(parts.flatMap(p => (p.model || '').split('/').filter(Boolean)))).sort((a, b) => a.localeCompare(b, 'ko')).map(m => (
+                  <MenuItem key={m} value={m}>
+                    <Checkbox size="small" checked={selectedModel.includes(m)} />
+                    {toEnglishModelName(m)}
                   </MenuItem>
                 ))}
-              </TextField>
-            </Grid>
-            <Grid item xs={12} sm={4} md={2}>
-              <FormControl fullWidth size="small">
-                <InputLabel>구분</InputLabel>
-                <Select
-                  multiple
-                  label="구분"
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  renderValue={(selected) => selected.length === 0 ? '전체' : selected.join(', ')}
-                >
-                  {noteOptions.map(opt => (
-                    <MenuItem key={opt} value={opt}>
-                      <Checkbox size="small" checked={selectedCategory.includes(opt)} />
-                      {opt}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
+              </Select>
+            </FormControl>
+          </Box>
 
+          {/* 3줄: 표시 / 숨김 토글 */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
             {isMaster && (
-            <Grid item xs={12} sm={6} md={3}>
               <FormControlLabel
-                control={
-                  <Switch
-                    checked={showSupplyPrice}
-                    onChange={(e) => setShowSupplyPrice(e.target.checked)}
-                  />
-                }
+                control={<Switch checked={showSupplyPrice} onChange={(e) => setShowSupplyPrice(e.target.checked)} />}
                 label="매입가 표시"
                 sx={{ m: 0 }}
               />
-            </Grid>
             )}
             {isMaster && (
-            <Grid item xs={12} sm={6} md={3}>
               <FormControlLabel
-                control={
-                  <Switch
-                    checked={showSpecialPrice}
-                    onChange={(e) => setShowSpecialPrice(e.target.checked)}
-                  />
-                }
+                control={<Switch checked={showSpecialPrice} onChange={(e) => setShowSpecialPrice(e.target.checked)} />}
                 label="특별공급가 표시"
                 sx={{ m: 0 }}
               />
-            </Grid>
             )}
-            <Grid item xs={12} sm={6} md={3}>
-              <FormControlLabel
-                control={<Switch checked={showModelCol} onChange={(e) => setShowModelCol(e.target.checked)} />}
-                label="기종 표시"
-                sx={{ m: 0 }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <FormControlLabel
-                control={<Switch checked={showNoteCol} onChange={(e) => setShowNoteCol(e.target.checked)} />}
-                label="구분 표시"
-                sx={{ m: 0 }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <FormControlLabel
-                control={<Switch checked={showPurchaseSourceCol} onChange={(e) => setShowPurchaseSourceCol(e.target.checked)} />}
-                label="매입처 표시"
-                sx={{ m: 0 }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={showHiddenParts}
-                    onChange={(e) => setShowHiddenParts(e.target.checked)}
-                    color="warning"
-                  />
-                }
-                label={`숨김 상품 표시${hiddenPartsCount > 0 ? ` (${hiddenPartsCount})` : ''}`}
-                sx={{ m: 0 }}
-              />
-            </Grid>
-          </Grid>
+            <FormControlLabel
+              control={<Switch checked={showModelCol} onChange={(e) => setShowModelCol(e.target.checked)} />}
+              label="기종 표시"
+              sx={{ m: 0 }}
+            />
+            <FormControlLabel
+              control={<Switch checked={showNoteCol} onChange={(e) => setShowNoteCol(e.target.checked)} />}
+              label="구분 표시"
+              sx={{ m: 0 }}
+            />
+            <FormControlLabel
+              control={<Switch checked={showPurchaseSourceCol} onChange={(e) => setShowPurchaseSourceCol(e.target.checked)} />}
+              label="매입처 표시"
+              sx={{ m: 0 }}
+            />
+            <FormControlLabel
+              control={<Switch checked={showHiddenParts} onChange={(e) => setShowHiddenParts(e.target.checked)} color="warning" />}
+              label={`숨김 상품 표시${hiddenPartsCount > 0 ? ` (${hiddenPartsCount})` : ''}`}
+              sx={{ m: 0 }}
+            />
+          </Box>
 
           {/* 검색 결과 카운트 */}
           {searchTerm && (
