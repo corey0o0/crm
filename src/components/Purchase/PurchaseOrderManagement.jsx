@@ -1015,6 +1015,15 @@ function PurchaseOrderManagement() {
     return 'XRB';
   }
 
+  // 텍스트 검색용: 날짜 열 메모에 검색어가 들어간 상품 id 집합 (매번 O(전체셀)으로 필터 내에서 반복 안 하려고 미리 계산)
+  const searchTermLower = searchTerm.trim().toLowerCase();
+  const dateMemoHitIds = new Set();
+  if (searchTermLower) {
+    ordersMap.forEach((cell, key) => {
+      if ((cell.memo || '').toLowerCase().includes(searchTermLower)) dateMemoHitIds.add(key.split('_')[0]);
+    });
+  }
+
   const filteredParts = parts.filter((p) => {
     if (p.note === '공임' || p.note === '기타') return false; // 발주관리: 공임/기타는 발주 대상 아님
     if (brandTab !== 'all' && effectiveBrand(p) !== brandTab) return false;
@@ -1025,7 +1034,9 @@ function PurchaseOrderManagement() {
       (p.name_en || '').toLowerCase().includes(term) ||
       (p.brand || '').toLowerCase().includes(term) ||
       (p.code || '').toLowerCase().includes(term) ||
-      (p.barcode || '').toLowerCase().includes(term)
+      (p.barcode || '').toLowerCase().includes(term) ||
+      (p.memo || '').replace('[HIDDEN]', '').trim().toLowerCase().includes(term) || // 적요
+      dateMemoHitIds.has(p.id) // 날짜 열 메모
     );
     if (!matchesTerm) return false;
     if (noteFilter.length > 0 && !noteFilter.includes(p.note || '')) return false;
@@ -1065,7 +1076,7 @@ function PurchaseOrderManagement() {
   const pagedParts = rowsPerPage === -1 ? sortedParts : sortedParts.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   const MIN_DATE_COLUMNS = 1;
   const placeholderColumnCount = MIN_DATE_COLUMNS;
-  const tableMinWidth = STICKY_TOTAL + 530 + (visibleDateColumns.length + placeholderColumnCount) * 160;
+  const tableMinWidth = STICKY_TOTAL + 550 + (visibleDateColumns.length + placeholderColumnCount) * 160;
 
   const topScrollSyncing = useRef(false);
   const handleTopScroll = () => {
@@ -1102,7 +1113,7 @@ function PurchaseOrderManagement() {
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, flexWrap: 'wrap' }}>
         <TextField
           size="small"
-          placeholder="브랜드/코드/이름 검색"
+          placeholder="이름/영문명/코드/바코드/적요/메모 검색"
           value={searchTerm}
           onChange={(e) => { setSearchTerm(e.target.value); setPage(0); }}
           sx={{ width: 300 }}
@@ -1402,7 +1413,7 @@ function PurchaseOrderManagement() {
                 {visibleCols.note && <TableCell sx={{ width: 70 }}>구분</TableCell>}
                 {visibleCols.purchase_source && <TableCell sx={{ width: 100 }}>매입처</TableCell>}
                 {visibleCols.stock && <TableCell align="right" sx={{ width: 70 }}>현재고</TableCell>}
-                {visibleCols.orderTotal && <TableCell align="center" sx={{ width: 110 }}>발주/입고 합계</TableCell>}
+                {visibleCols.orderTotal && <TableCell align="center" sx={{ width: 130, whiteSpace: 'nowrap' }}>발주/입고 합계</TableCell>}
                 {visibleDateColumns.map((col) => (
                   <TableCell key={col.id} align="center" sx={{ width: 160, minWidth: 160 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
@@ -1545,7 +1556,7 @@ function PurchaseOrderManagement() {
                       }
                     });
                     return (
-                      <TableCell align="center" sx={{ fontWeight: 600 }}>
+                      <TableCell align="center" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
                         {rowOrderSum} / {rowReceivedSum} ({rowOrderSum - rowReceivedSum})
                       </TableCell>
                     );
@@ -1666,13 +1677,14 @@ function PurchaseOrderManagement() {
               <TableRow>
                 {/* ponytail: 라벨은 고정 6칸(체크박스~제품명)만 sticky로. 구분/적요/매입처/현재고 등은 본문처럼 스크롤되게 별도 셀로 분리 — 안 그러면 sticky 영역이 날짜 칸까지 가려버림 */}
                 <TableCell
-                  colSpan={6}
+                  colSpan={4 + (visibleCols.brand ? 1 : 0) + (visibleCols.model ? 1 : 0)}
                   sx={{ position: 'sticky', left: 0, zIndex: 3, width: STICKY_TOTAL, minWidth: STICKY_TOTAL, bgcolor: 'background.paper', fontWeight: 600 }}
                 >
-                  합계 (발주 / 입고 (차이))
+                  합계 (발주 / 입고)
                 </TableCell>
-                {Object.values(visibleCols).filter(Boolean).map((_, i) => (
-                  <TableCell key={`vf-${i}`} sx={{ bgcolor: 'action.hover' }} />
+                {/* 브랜드/기종은 위 sticky colSpan에 포함되므로 제외 */}
+                {Object.entries(visibleCols).filter(([k, v]) => v && k !== 'brand' && k !== 'model').map(([k]) => (
+                  <TableCell key={`vf-${k}`} sx={{ bgcolor: 'action.hover' }} />
                 ))}
                 {visibleDateColumns.map((col) => {
                   let orderSum = 0;
@@ -1685,8 +1697,8 @@ function PurchaseOrderManagement() {
                     }
                   });
                   return (
-                    <TableCell key={col.id} align="center" sx={{ fontWeight: 600, bgcolor: 'action.hover' }}>
-                      {orderSum} / {receivedSum} ({orderSum - receivedSum})
+                    <TableCell key={col.id} align="center" sx={{ fontWeight: 600, bgcolor: 'action.hover', whiteSpace: 'nowrap' }}>
+                      {orderSum} / {receivedSum}
                     </TableCell>
                   );
                 })}

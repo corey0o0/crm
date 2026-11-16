@@ -795,7 +795,7 @@ const SearchInput = React.memo(function SearchInput({
       <TextField
         fullWidth
         size="small"
-        placeholder="제품명, 코드, 바코드로 검색"
+        placeholder="제품명/영문명/코드/바코드/기종/구분/적요/매입처 검색"
         value={searchInput}
         onChange={handleInputChange}
         onKeyPress={handleKeyPress}
@@ -1999,7 +1999,7 @@ function PartsManagement() {
       if (!searchTerm) return true;
 
       // 검색어 필터링 — 공백으로 쪼갠 단어가 모두 포함되면 매치(순서 무관, 대소문자 구분 없이)
-      const haystack = `${part.name || ''} ${part.name_en || ''} ${part.code || ''} ${part.barcode || ''} ${part.note || ''} ${part.memo || ''} ${part.purchase_source || ''}`.toLowerCase();
+      const haystack = `${part.name || ''} ${part.name_en || ''} ${part.code || ''} ${part.barcode || ''} ${part.brand || ''} ${part.model || ''} ${part.note || ''} ${part.memo || ''} ${part.purchase_source || ''}`.toLowerCase();
       const tokens = searchTermLower.trim().split(/\s+/).filter(Boolean);
       return tokens.every(tok => haystack.includes(tok));
     });
