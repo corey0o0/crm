@@ -454,8 +454,10 @@ function InventoryLayout() {
         baseDelay: 1000
       });
       
-      setProducts(productsData);
-      console.log(`상품관리에서 ${productsData.length}개의 전체 상품을 가져왔습니다.`);
+      // 숨김 상품([HIDDEN]) 제외
+      const visibleProducts = (productsData || []).filter(p => !(p.memo || '').includes('[HIDDEN]'));
+      setProducts(visibleProducts);
+      console.log(`상품관리에서 ${visibleProducts.length}개의 활성 상품을 가져왔습니다 (숨김 제외).`);
     } catch (error) {
       console.error('상품 데이터 로딩 실패:', error);
       

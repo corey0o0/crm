@@ -71,7 +71,6 @@ function PurchaseOrderManagement() {
     name: STICKY_WIDTHS.checkbox + STICKY_WIDTHS.image + (visibleCols.brand ? STICKY_WIDTHS.brand : 0) + (visibleCols.model ? STICKY_WIDTHS.model : 0) + STICKY_WIDTHS.barcode,
   };
   const STICKY_TOTAL = STICKY_LEFT.name + STICKY_WIDTHS.name;
-  const [showHiddenParts, setShowHiddenParts] = useState(false);
   const [receivedFilter, setReceivedFilter] = useState('all');
   const [orderedFilter, setOrderedFilter] = useState('all');
   const [noteFilter, setNoteFilter] = useState([]); // 빈 배열 = 전체
@@ -187,7 +186,8 @@ function PurchaseOrderManagement() {
         )
       );
       if (error) throw error;
-      setParts(data || []);
+      const visibleData = (data || []).filter((p) => !(p.memo || '').includes('[HIDDEN]'));
+      setParts(visibleData);
     } catch (err) {
       showSnackbar(getErrorMessage(err), 'error');
     } finally {
@@ -1022,8 +1022,6 @@ function PurchaseOrderManagement() {
     return '#fff9c4';
   };
 
-  const hiddenPartsCount = parts.filter((p) => (p.memo || '').includes('[HIDDEN]')).length;
-
   // 공용(COMMON) 부속은 탭/정렬에서 기종 기준으로 엑스라이더/니어바이크 중 하나로 편입.
   // 같은 기종을 쓰는 XRB/NB 비공용 부속이 있으면 그 브랜드로, 둘 다 있으면 엑스라이더 우선.
   const modelBrandMap = new Map();
@@ -1054,7 +1052,7 @@ function PurchaseOrderManagement() {
   const filteredParts = parts.filter((p) => {
     if (p.note === '공임' || p.note === '기타') return false; // 발주관리: 공임/기타는 발주 대상 아님
     if (brandTab !== 'all' && effectiveBrand(p) !== brandTab) return false;
-    if (!showHiddenParts && (p.memo || '').includes('[HIDDEN]')) return false;
+    if ((p.memo || '').includes('[HIDDEN]')) return false; // 숨김 상품 제외
     const term = searchTerm.trim().toLowerCase();
     const matchesTerm = !term || (
       (p.name || '').toLowerCase().includes(term) ||
@@ -1388,10 +1386,6 @@ function PurchaseOrderManagement() {
         <FormControlLabel
           control={<Checkbox size="small" checked={visibleCols.orderTotal} onChange={(e) => setVisibleCols((c) => ({ ...c, orderTotal: e.target.checked }))} />}
           label="발주/입고 합계"
-        />
-        <FormControlLabel
-          control={<Switch size="small" checked={showHiddenParts} onChange={(e) => { setShowHiddenParts(e.target.checked); setPage(0); }} color="warning" />}
-          label={`숨김상품 표시${hiddenPartsCount > 0 ? ` (${hiddenPartsCount})` : ''}`}
         />
       </Box>
 

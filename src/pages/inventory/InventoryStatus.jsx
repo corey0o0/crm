@@ -21,8 +21,6 @@ export default function InventoryStatus() {
   const [saving, setSaving] = useState(false);
   const [statusPage, setStatusPage] = useState(0);
   const [statusRowsPerPage, setStatusRowsPerPage] = useState(50);
-  const [showHidden, setShowHidden] = useState(false);
-  const hiddenCount = useMemo(() => (products || []).filter(p => (p.memo || '').includes('[HIDDEN]')).length, [products]);
 
   // N개 이상/이하 수량 필터
   const [qtyFilterValue, setQtyFilterValue] = useState('');
@@ -66,8 +64,8 @@ export default function InventoryStatus() {
         const searchTokens = overallSearch.trim().toLowerCase().split(/\s+/).filter(Boolean);
         let rows = (products || []).filter(p => {
           if (p.is_deleted) return false;
-          // 숨김 상품 제외 (토글로 켰을 때만 표시)
-          if (!showHidden && (p.memo || '').includes('[HIDDEN]')) return false;
+          // 숨김 상품 완전 제외
+          if ((p.memo || '').includes('[HIDDEN]')) return false;
           // 재고 비관리 상품 제외 (track_inventory가 false이거나 공임)
           if (!p.track_inventory) return false;
           // 검색 필터 — 공백으로 쪼갠 단어가 모두 포함되면 매치(순서 무관)
@@ -291,18 +289,6 @@ export default function InventoryStatus() {
                   >
                     새로고침
                   </Button>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={showHidden}
-                        onChange={(e) => { setShowHidden(e.target.checked); setStatusPage(0); }}
-                        color="warning"
-                        size="small"
-                      />
-                    }
-                    label={`숨김 상품 표시${hiddenCount > 0 ? ` (${hiddenCount})` : ''}`}
-                    sx={{ ml: 0.5, '& .MuiTypography-root': { fontSize: '0.8rem' } }}
-                  />
                 </Box>
               </Box>
             </Card>

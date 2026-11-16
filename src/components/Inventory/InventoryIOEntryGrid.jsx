@@ -68,14 +68,14 @@ function InventoryIOEntryGrid() {
         queryWithTimeout(
           supabase
             .from('parts')
-            .select('id, name, name_en, brand, code, barcode, note')
+            .select('id, name, name_en, brand, code, barcode, note, memo')
             .order('brand')
             .order('name'),
           8000
         )
       );
       if (error) throw error;
-      setParts(data || []);
+      setParts((data || []).filter(p => !(p.memo || '').includes('[HIDDEN]')));
     } catch (err) {
       showSnackbar(getErrorMessage(err), 'error');
     } finally {

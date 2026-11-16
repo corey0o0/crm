@@ -104,8 +104,6 @@ function StockList() {
     endDate: ''
   });
   const [showSupplyPrice, setShowSupplyPrice] = useState(false);
-  const [showHiddenParts, setShowHiddenParts] = useState(false);
-  const hiddenPartsCount = useMemo(() => parts.filter((p) => (p.memo || '').includes('[HIDDEN]')).length, [parts]);
   const [selectedItems, setSelectedItems] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
@@ -376,10 +374,9 @@ function StockList() {
 
   // 필터링 로직 최적화
   const filteredParts = useMemo(() => {
-    // 숨김 상품, 브랜드, 재고 상태로 1차 필터링
+    // 숨김 상품([HIDDEN]) 제외, 브랜드, 재고 상태로 1차 필터링
     let filtered = parts.filter(part => {
-      const isHidden = (part.memo || '').includes('[HIDDEN]');
-      if (isHidden && !showHiddenParts) return false;
+      if ((part.memo || '').includes('[HIDDEN]')) return false;
 
       const matchesBrand = brand === '전체' || part.brand === brand;
 
@@ -418,7 +415,7 @@ function StockList() {
     }
 
     return filtered;
-  }, [parts, brand, stockFilter, searchTerm, showHiddenParts]);
+  }, [parts, brand, stockFilter, searchTerm]);
 
   // 정렬 로직 최적화 - 정렬 설정이나 필터링 결과가 변경될 때만 재계산
   const sortedParts = useMemo(() => {
@@ -1271,22 +1268,10 @@ function StockList() {
           >
             브랜드 설정
           </Button>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={showHiddenParts}
-                onChange={(e) => setShowHiddenParts(e.target.checked)}
-                color="warning"
-                size="small"
-              />
-            }
-            label={`숨김 상품 표시${hiddenPartsCount > 0 ? ` (${hiddenPartsCount})` : ''}`}
-            sx={{ ml: 'auto', '& .MuiTypography-root': { fontSize: '0.85rem' } }}
-          />
           <IconButton
             onClick={() => setShowSupplyPrice(!showSupplyPrice)}
             sx={{
-              ml: 1,
+              ml: 'auto',
               bgcolor: showSupplyPrice ? 'primary.main' : 'transparent',
               color: showSupplyPrice ? 'white' : 'primary.main',
               '&:hover': {

@@ -1155,6 +1155,12 @@ function PartsManagement() {
 
   const sortData = (data, order, orderBy) => {
     return data.sort((a, b) => {
+      if (orderBy === 'track_inventory') {
+        const aVal = a.track_inventory !== false ? 1 : 0;
+        const bVal = b.track_inventory !== false ? 1 : 0;
+        return order === 'asc' ? aVal - bVal : bVal - aVal;
+      }
+
       if (orderBy === 'supply_price' || orderBy === 'price') {
         const aValue = a[orderBy] || 0;
         const bValue = b[orderBy] || 0;
@@ -1964,6 +1970,23 @@ function PartsManagement() {
     } catch (err) {
       console.error('일괄 숨김 처리 실패:', err);
       showSnackbar('일괄 숨김 처리에 실패했습니다.', 'error');
+    }
+  };
+
+  const handleToggleTrackInventory = async (part) => {
+    if (!canEditBasic) return;
+    const nextVal = part.track_inventory === false ? true : false;
+    try {
+      const { error } = await supabase
+        .from('parts')
+        .update({ track_inventory: nextVal })
+        .eq('id', part.id);
+      if (error) throw error;
+      setParts((prev) => prev.map((p) => (p.id === part.id ? { ...p, track_inventory: nextVal } : p)));
+      showSnackbar(`${part.name}: 재고관리가 ${nextVal ? 'ON' : 'OFF'}되었습니다.`, 'success');
+    } catch (err) {
+      console.error('재고관리 토글 실패:', err);
+      showSnackbar(getErrorMessage(err), 'error');
     }
   };
 
@@ -2832,6 +2855,7 @@ function PartsManagement() {
               {showNoteCol && renderSortableHeader('note', '구분')}
               {renderSortableHeader('memo', '적요')}
               {showPurchaseSourceCol && renderSortableHeader('purchase_source', '매입처')}
+              {renderSortableHeader('track_inventory', '재고관리', 'center')}
               <TableCell sx={{ display: 'none' }} />
               {/* <TableCell>연동</TableCell> */}
               <TableCell align="right">액션</TableCell>
@@ -2926,33 +2950,20 @@ function PartsManagement() {
                   </TableCell>
                 )}
                 <TableCell sx={{ display: 'none' }} />
-                {/* 
-                <TableCell>
-                  {syncedPartsMap[part.id] && syncedPartsMap[part.id].length > 0 ? (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                      {syncedPartsMap[part.id].map((sp, idx) => (
-                        <Box key={sp.relationId} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <LinkIcon fontSize="small" color="primary" />
-                          <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>
-                            {sp.part.brand} {sp.part.code}
-                          </Typography>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleDeleteSync(sp.relationId, part.id)}
-                            sx={{ p: 0, ml: 0.5 }}
-                          >
-                            <LinkOffIcon fontSize="small" />
-                          </IconButton>
-                        </Box>
-                      ))}
-                    </Box>
-                  ) : (
-                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                      없음
-                    </Typography>
-                  )}
+                {/* <TableCell>연동</TableCell> */}
+                <TableCell align="center">
+                  <Tooltip title={part.track_inventory !== false ? '재고관리 ON (클릭 시 OFF)' : '재고관리 OFF (클릭 시 ON)'}>
+                    <span>
+                      <Switch
+                        size="small"
+                        checked={part.track_inventory !== false}
+                        onChange={() => handleToggleTrackInventory(part)}
+                        disabled={!canEditBasic}
+                        color="primary"
+                      />
+                    </span>
+                  </Tooltip>
                 </TableCell>
-                */}
                 <TableCell align="right">
                   {canEditBasic && (
                   <>
