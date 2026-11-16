@@ -105,10 +105,12 @@ function PurchaseOrderManagement() {
     setSnackbar({ open: true, message, severity });
   };
 
-  // 날짜(입고)별 금액(USD) 인라인 수정. 비워두면 "최근 값"(parts.price_usd)을 그대로 적용.
+  // 날짜(입고)별 금액(USD) 인라인 수정. 사용자가 입력한 경우에만 저장하고, 입력란을 지우고 나가면 "최근 값"(parts.price_usd)으로 책정.
+  // 그냥 클릭했다 나가는 건 저장 안 함 (저장값 없는 셀은 빈칸 + placeholder로 기준가만 보여줌).
   // 이 열이 전체 날짜 중 가장 최근(dateColumns[0])이면 parts.price_usd도 같이 갱신 → 상품관리에 반영.
   const handleOrderPriceUsdBlur = async (partId, columnId, rawValue) => {
     const key = `${partId}_${columnId}`;
+    if (priceUsdDrafts[key] === undefined) return; // 입력 안 했으면 아무것도 안 함
     setPriceUsdDrafts((prev) => {
       const next = { ...prev };
       delete next[key];
@@ -1674,8 +1676,8 @@ function PurchaseOrderManagement() {
                             <TextField
                               variant="standard"
                               size="small"
-                              placeholder={p.price_usd != null ? `$${p.price_usd}` : '$'}
-                              value={priceUsdDrafts[key] !== undefined ? priceUsdDrafts[key] : (cell.price_usd ?? p.price_usd ?? '')}
+                              placeholder={p.price_usd != null ? String(p.price_usd) : ''}
+                              value={priceUsdDrafts[key] !== undefined ? priceUsdDrafts[key] : (cell.price_usd ?? '')}
                               onChange={(e) => {
                                 const v = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
                                 setPriceUsdDrafts((prev) => ({ ...prev, [key]: v }));
