@@ -374,8 +374,13 @@ function ServiceList() {
   // 상세화면 다녀온 뒤(브라우저 뒤로가기 포함) 검색어만 남고 리스트가 전체로 리셋되던 버그 수정.
   // localStorage는 동기 API라 렌더 중 직접 읽어도 안전 (useEffect보다 먼저 값 확정).
   const restoredSearchParamsRef = useRef(undefined);
+  const restorePageAfterSearchRef = useRef(null);
   if (restoredSearchParamsRef.current === undefined) {
     restoredSearchParamsRef.current = computeRestoredSearchParams(localStorage.getItem('serviceListFilters'));
+    // 복원 검색이 끝난 뒤 돌아갈 페이지 (아래 effect들이 serviceListPage를 0으로 덮어쓰기 전에 읽어둠)
+    if (restoredSearchParamsRef.current) {
+      try { restorePageAfterSearchRef.current = JSON.parse(localStorage.getItem('serviceListPage'))?.page || 0; } catch { restorePageAfterSearchRef.current = 0; }
+    }
   }
 
   useEffect(() => {
@@ -2805,6 +2810,13 @@ function ServiceList() {
 
   // 검색이나 필터 변경 시에만 페이지 초기화
   useEffect(() => {
+    // 상세화면에서 돌아와 복원 검색 중이면 초기화 대신, 검색 완료 후 직전 페이지로 이동
+    if (restorePageAfterSearchRef.current !== null) {
+      if (!hasActiveSearch) return;
+      setPage(restorePageAfterSearchRef.current);
+      restorePageAfterSearchRef.current = null;
+      return;
+    }
     setPage(0);
   }, [searchTerm, selectedStatuses, selectedTags, dateFilter, hasActiveSearch]);
 
