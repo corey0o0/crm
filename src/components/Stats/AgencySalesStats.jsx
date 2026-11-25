@@ -107,9 +107,18 @@ function AgencySalesStats() {
       const startDateTime = formatDateToStartOfDay(qStart || startDate);
       const endDateTime = formatDateToEndOfDay(qEnd || endDate);
 
-      const { data: agencies, error: agencyError } = await supabase.from('agencies').select('id, name');
-      if (agencyError) throw agencyError;
-      const agencyNames = new Set((agencies || []).map(a => a.name));
+      // 서로 독립인 조회는 동시 요청 (shipment_parts만 출고 id 필요)
+      const agenciesPromise = Promise.resolve(supabase.from('agencies').select('id, name'));
+      const ordersPromise = Promise.resolve(supabase
+        .from('cafe24_orders')
+        .select('id, order_id, order_date, buyer_name, total_amount, shipping_fee, used_points, mall_id, agency_id, order_items')
+        .gte('order_date', startDateTime)
+        .lte('order_date', endDateTime)
+        .eq('is_deleted', false)
+        .eq('is_transferred', true));
+      const partsPromise = Promise.resolve(supabase
+        .from('parts')
+        .select('id, code, barcode, brand, note, price, name'));
 
       const merged = {};
       const ensureBucket = (name) => {
@@ -127,9 +136,12 @@ function AgencySalesStats() {
       if (qBrand !== '전체') {
         shipmentQuery = shipmentQuery.eq('brand', qBrand);
       }
-      const { data: shipments, error: shipmentError } = await shipmentQuery;
+      const [{ data: agencies, error: agencyError }, { data: shipments, error: shipmentError }] =
+        await Promise.all([agenciesPromise, shipmentQuery]);
+      if (agencyError) throw agencyError;
       if (shipmentError) throw shipmentError;
 
+      const agencyNames = new Set((agencies || []).map(a => a.name));
       const agencyShipments = (shipments || []).filter(s => {
         const channel = extractSalesChannel(s.note, s.sales_channel);
         return channel && !B2C_CHANNELS.includes(channel) && agencyNames.has(channel);
@@ -208,18 +220,9 @@ function AgencySalesStats() {
       }
 
       // ---------- 온라인(cafe24 주문) ----------
-      const { data: orders, error: orderError } = await supabase
-        .from('cafe24_orders')
-        .select('*')
-        .gte('order_date', startDateTime)
-        .lte('order_date', endDateTime)
-        .eq('is_deleted', false)
-        .eq('is_transferred', true);
+      const [{ data: orders, error: orderError }, { data: parts, error: partError }] =
+        await Promise.all([ordersPromise, partsPromise]);
       if (orderError) throw orderError;
-
-      const { data: parts, error: partError } = await supabase
-        .from('parts')
-        .select('id, code, barcode, brand, note, price, name');
       if (partError) throw partError;
 
       const {

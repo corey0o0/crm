@@ -4,7 +4,7 @@ import {
   FormControl, Select, MenuItem, InputLabel, Button, Divider,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Tabs, Tab, ButtonGroup, Stack, Switch, FormControlLabel, Collapse, IconButton,
-  Dialog, DialogTitle, DialogContent, DialogActions
+  Dialog, DialogTitle, DialogContent, DialogActions, Alert
 } from '@mui/material';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -27,6 +27,7 @@ import { downloadExcel } from '../../utils/excelUtils';
 import { applyVat, applyCommission, classifyPaymentChannel } from '../../utils/commissionUtils';
 import { getAppSetting } from '../../api/settingsApi';
 import { getManualSalesCategory } from '../../utils/manualSalesCategory';
+import { withMonthSnapshots } from '../../utils/monthSnapshots';
 
 const COLORS = ['#1976d2', '#2e7d32', '#ed6c02', '#9c27b0', '#d32f2f', '#0288d1', '#7b1fa2'];
 
@@ -80,13 +81,33 @@ export const getSalesChannelName = (r) => {
   }
 };
 
+const monthKeyToDate = (k) => new Date(Number(k.slice(0, 4)), Number(k.slice(5, 7)) - 1, 1);
+
+// 행을 'yyyy-MM'(로컬 시간)별 매출/원가 합계로
+const sumRowsByMonth = (rows) => {
+  const m = {};
+  (rows || []).forEach(r => {
+    const k = format(new Date(r.date_val), 'yyyy-MM');
+    if (!m[k]) m[k] = { amount: 0, cost: 0 };
+    m[k].amount += Number(r.total_price || 0);
+    m[k].cost += Number(r.total_cost || 0);
+  });
+  return m;
+};
+
 function SalesHistoryStats() {
   const { getAllowedMalls, user } = useAuth();
   const allowedMalls = getAllowedMalls();
   const isMaster = user?.email && MASTER_ACCOUNTS.includes(user.email);
   const [loading, setLoading] = useState(true);
+  // 조회 실패 표시 — 실패한 데이터로 틀린 숫자를 보여주지 않기 위함
+  const [loadErrors, setLoadErrors] = useState({ sales: false, compare: false, chart: false });
+  const setLoadError = (key, val) => setLoadErrors(prev => (prev[key] === val ? prev : { ...prev, [key]: val }));
+  // 늦게 끝난 이전 조회가 최신 결과를 덮어쓰지 않도록 요청 번호로 구분
+  const mainReqRef = useRef(0);
+  const compareReqRef = useRef(0);
   const [flatRows, setFlatRows] = useState([]);
-  const [yearFlatRows, setYearFlatRows] = useState([]);
+  const [yearMonthTotals, setYearMonthTotals] = useState({}); // 'yyyy-MM' → { amount, cost } (월 보기 연간 차트용)
   const [manualFlatRows, setManualFlatRows] = useState([]);
   const [inventoryList, setInventoryList] = useState([]);
   const [agenciesList, setAgenciesList] = useState([]);
@@ -203,20 +224,67 @@ function SalesHistoryStats() {
     fetchCommissionRates();
   }, []);
 
+  // 수수료 미반영 시 요율 변경(최초 로드 포함)은 결과에 영향 없음 → 재조회 트리거에서 제외
+  const effectiveRates = commissionApplied ? commissionRates : null;
+
   useEffect(() => {
     fetchSales();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startDate, endDate, commissionApplied, commissionRates]);
+  }, [startDate, endDate, commissionApplied, effectiveRates]);
 
+  // month view일 때만 연간 차트용 월별 합계 로드 (그 외 보기는 flatRows로 계산)
+  const isMonthView = selectedMonth !== null;
+  const yearChartReqRef = useRef(0);
   useEffect(() => {
-    // month view일 때만 별도로 연간 데이터 fetch (year view는 fetchSales가 이미 전체 연도 로드)
-    if (selectedMonthRef.current !== null) {
-      const yearStart = startOfYear(new Date(selectedYear, 0, 1));
-      const yearEnd = endOfYear(new Date(selectedYear, 11, 31));
-      fetchSales({ overrideStart: yearStart, overrideEnd: yearEnd });
-    }
+    const req = ++yearChartReqRef.current;
+    if (!isMonthView) { setLoadError('chart', false); return; }
+    loadYearChart()
+      .then(t => {
+        if (req !== yearChartReqRef.current) return;
+        setYearMonthTotals(t);
+        const nowKey = format(new Date(), 'yyyy-MM');
+        const expected = Array.from({ length: 12 }, (_, i) => `${selectedYear}-${String(i + 1).padStart(2, '0')}`).filter(k => k <= nowKey);
+        setLoadError('chart', expected.some(k => !(k in t)));
+      })
+      .catch(err => {
+        console.error('연간 차트 조회 오류:', err?.message || err, err?.code || '', err?.details || '');
+        if (req === yearChartReqRef.current) setLoadError('chart', true);
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedYear, commissionApplied, commissionRates]);
+  }, [selectedYear, commissionApplied, effectiveRates, isMonthView]);
+
+  // 마감된 달은 DB 스냅샷 재사용(원본 변경 시 트리거로 무효화), 이번 달만 매번 계산
+  const loadYearChart = async () => {
+    const nowKey = format(new Date(), 'yyyy-MM');
+    const months = Array.from({ length: 12 }, (_, i) => `${selectedYear}-${String(i + 1).padStart(2, '0')}`);
+    const closed = months.filter(k => k < nowKey);
+    const live = months.filter(k => k === nowKey); // 미래 달은 매출 없음
+    // 달별로 3개씩 나눠 계산 — 여러 달을 한 번에 조회하면 출고 쿼리가 타임아웃남.
+    // 실패한 달은 결과에서 빠짐(저장도 안 됨) → 다음 조회 때 다시 계산
+    const computeMonths = async (keys) => {
+      const out = {};
+      const queue = [...keys];
+      const worker = async () => {
+        while (queue.length) {
+          const k = queue.shift();
+          try {
+            const rows = await fetchSales({ overrideStart: startOfMonth(monthKeyToDate(k)), overrideEnd: endOfMonth(monthKeyToDate(k)) });
+            out[k] = sumRowsByMonth(rows)[k] || { amount: 0, cost: 0 };
+          } catch (err) {
+            console.warn(`${k} 월 합계 계산 실패:`, err?.message || err);
+          }
+        }
+      };
+      await Promise.all([worker(), worker(), worker()]);
+      return out;
+    };
+    const variant = JSON.stringify({ malls: allowedMalls, rates: effectiveRates });
+    const [snap, liveTotals] = await Promise.all([
+      withMonthSnapshots('chart', variant, closed, computeMonths),
+      computeMonths(live),
+    ]);
+    return { ...snap, ...liveTotals };
+  };
 
   useEffect(() => {
     fetchCompareStats();
@@ -228,7 +296,8 @@ function SalesHistoryStats() {
     return ((current - previous) / previous) * 100;
   };
 
-  const fetchTotalsForRange = async (start, end, targetBrand) => {
+  // strict: 조회 오류 시 0 대신 throw (스냅샷에 잘못된 값 저장 방지)
+  const fetchTotalsForRange = async (start, end, targetBrand, { strict = false } = {}) => {
     try {
       const sDate = format(start, 'yyyy-MM-dd') + 'T00:00:00+09:00';
       const eDate = format(end, 'yyyy-MM-dd') + 'T23:59:59+09:00';
@@ -237,11 +306,32 @@ function SalesHistoryStats() {
       let asTotal = 0;
       let cafeTotal = 0;
 
-      // 1. Shipments
-      const { data: shipRows, error: shipErr } = await supabase.from('shipments')
-        .select('id, note, price, brand, shipment_parts(quantity, price, total_price, part_name, part_code, note)')
-        .gte('order_date', sDate).lte('order_date', eDate).in('status', ['출고완료', '완료']);
+      let cafeQuery = supabase.from('cafe24_orders')
+        .select('total_amount, shipping_fee, order_items, mall_id, order_id, used_points')
+        .gte('order_date', sDate).lte('order_date', eDate)
+        .eq('is_deleted', false).eq('is_transferred', true);
+      if (!allowedMalls.includes('all')) {
+        cafeQuery = cafeQuery.in('mall_id', allowedMalls);
+      }
+
+      // 출고/AS/카페24 동시 조회
+      const [
+        { data: shipRows, error: shipErr },
+        { data: asRows, error: asErr },
+        { data: cafeRows, error: cafeErr },
+      ] = await Promise.all([
+        supabase.from('shipments')
+          .select('id, note, price, brand, shipment_parts(quantity, price, total_price, part_name, part_code, note)')
+          .gte('order_date', sDate).lte('order_date', eDate).in('status', ['출고완료', '완료']),
+        supabase.from('service_parts')
+          .select('price, quantity, usage, parts(brand, name, code), services!inner(completion_date, status, brand)')
+          .gte('services.completion_date', sDate).lte('services.completion_date', eDate).in('services.status', ['출고완료', '완료', '수령완료']),
+        cafeQuery,
+      ]);
       if (shipErr) console.error('Shipments fetch error:', shipErr);
+      if (asErr) console.error('Services fetch error:', asErr);
+      if (cafeErr) console.error('Cafe24 fetch error:', cafeErr);
+      if (strict && (shipErr || asErr || cafeErr)) throw shipErr || asErr || cafeErr;
 
       // 중복 방지: shipment.note에 Cafe24 주문번호가 있으면 cafe24 집계와 겹침
       const dupShipOrderNos = new Set();
@@ -250,12 +340,14 @@ function SalesHistoryStats() {
         return m ? m[0] : null;
       }).filter(Boolean);
       if (shipNoteOrderNos.length > 0) {
-        for (let i = 0; i < shipNoteOrderNos.length; i += 100) {
-          const chunk = shipNoteOrderNos.slice(i, i + 100);
-          const { data: dupOrders } = await supabase.from('cafe24_orders').select('order_id')
-            .in('order_id', chunk).eq('is_deleted', false).eq('is_transferred', true);
-          (dupOrders || []).forEach(o => dupShipOrderNos.add(o.order_id));
-        }
+        const chunks = [];
+        for (let i = 0; i < shipNoteOrderNos.length; i += 100) chunks.push(shipNoteOrderNos.slice(i, i + 100));
+        const results = await Promise.all(chunks.map(chunk =>
+          supabase.from('cafe24_orders').select('order_id')
+            .in('order_id', chunk).eq('is_deleted', false).eq('is_transferred', true)
+        ));
+        if (strict) { const bad = results.find(r => r.error); if (bad) throw bad.error; }
+        results.forEach(({ data: dupOrders }) => (dupOrders || []).forEach(o => dupShipOrderNos.add(o.order_id)));
       }
 
       (shipRows || []).forEach(s => {
@@ -289,12 +381,6 @@ function SalesHistoryStats() {
         }
       });
 
-      // 2. Services
-      const { data: asRows, error: asErr } = await supabase.from('service_parts')
-        .select('price, quantity, usage, parts(brand, name, code), services!inner(completion_date, status, brand)')
-        .gte('services.completion_date', sDate).lte('services.completion_date', eDate).in('services.status', ['출고완료', '완료', '수령완료']);
-      if (asErr) console.error('Services fetch error:', asErr);
-      
       (asRows || []).forEach(sp => {
           let returnedQty = 0;
           if (sp.usage && sp.usage.includes('[반품완료]')) returnedQty = sp.quantity;
@@ -314,19 +400,6 @@ function SalesHistoryStats() {
           }
       });
 
-      // 3. Cafe24
-      let cafeQuery = supabase.from('cafe24_orders')
-        .select('total_amount, shipping_fee, order_items, mall_id, order_id, used_points')
-        .gte('order_date', sDate).lte('order_date', eDate)
-        .eq('is_deleted', false).eq('is_transferred', true);
-
-      if (!allowedMalls.includes('all')) {
-        cafeQuery = cafeQuery.in('mall_id', allowedMalls);
-      }
-
-      const { data: cafeRows, error: cafeErr } = await cafeQuery;
-      if (cafeErr) console.error('Cafe24 fetch error:', cafeErr);
-      
       (cafeRows || []).forEach(o => {
          const items = o.order_items || [];
          // 창고 정보 없는 건(반영 예외 처리된 건) 제외 — 메인 집계와 동일 기준
@@ -446,29 +519,51 @@ function SalesHistoryStats() {
       return shipTotal + asTotal + cafeTotal;
     } catch (error) {
       console.error('Error in fetchTotalsForRange:', error);
+      if (strict) throw error;
       return 0;
     }
   };
 
   const fetchCompareStats = async () => {
     if (!startDate || !endDate) return;
+    const req = ++compareReqRef.current;
+    const isStale = () => req !== compareReqRef.current;
+    // 조회 실패 시 한 번 재시도, 그래도 실패하면 비교 % 숨기고 실패 표시 (틀린 % 표시 방지)
+    const tryTwice = async (fn) => { try { return await fn(); } catch { return await fn(); } };
     const days = Math.round((endDate - startDate) / (24 * 60 * 60 * 1000)) + 1;
     const isFullMonth = format(startDate, 'yyyy-MM-dd') === format(startOfMonth(startDate), 'yyyy-MM-dd') &&
                         format(endDate, 'yyyy-MM-dd') === format(endOfMonth(startDate), 'yyyy-MM-dd');
     const isApproxWeek = days === 7;
 
-    const currentTotal = await fetchTotalsForRange(startDate, endDate, '전체');
-
     if (isFullMonth) {
       const prevMonthStart = startOfMonth(setMonth(startDate, startDate.getMonth() - 1));
-      const prevMonthEnd = endOfMonth(prevMonthStart);
       const lastYearMonthStart = startOfMonth(new Date(startDate.getFullYear() - 1, startDate.getMonth(), 1));
-      const lastYearMonthEnd = endOfMonth(lastYearMonthStart);
 
-      const [prev, yoyBase] = await Promise.all([
-        fetchTotalsForRange(prevMonthStart, prevMonthEnd, '전체'),
-        fetchTotalsForRange(lastYearMonthStart, lastYearMonthEnd, '전체')
-      ]);
+      // 마감된 달 합계는 DB 스냅샷 재사용, 이번 달 이후만 매번 계산
+      const keys = [startDate, prevMonthStart, lastYearMonthStart].map(d => format(d, 'yyyy-MM'));
+      const nowKey = format(new Date(), 'yyyy-MM');
+      const totalsFor = async (ks, strict) => {
+        const vals = await Promise.all(ks.map(k =>
+          fetchTotalsForRange(startOfMonth(monthKeyToDate(k)), endOfMonth(monthKeyToDate(k)), '전체', { strict })));
+        return Object.fromEntries(ks.map((k, i) => [k, vals[i]]));
+      };
+      let totals;
+      try {
+        totals = await tryTwice(async () => {
+          const [snap, live] = await Promise.all([
+            withMonthSnapshots('total', JSON.stringify({ malls: allowedMalls }), [...new Set(keys.filter(k => k < nowKey))], ks => totalsFor(ks, true)),
+            totalsFor([...new Set(keys.filter(k => k >= nowKey))], true),
+          ]);
+          return { ...snap, ...live };
+        });
+      } catch (err) {
+        console.error('비교 합계 조회 오류:', err?.message || err);
+        if (!isStale()) { setCompareStats({ context: null, mom: null, yoy: null, wow: null, yoyWeek: null }); setLoadError('compare', true); }
+        return;
+      }
+      if (isStale()) return;
+      setLoadError('compare', false);
+      const [currentTotal, prev, yoyBase] = keys.map(k => totals[k]);
       setCompareStats({ context: 'month', mom: percentChange(currentTotal, prev), yoy: percentChange(currentTotal, yoyBase), wow: null, yoyWeek: null });
     } else if (isApproxWeek) {
       const prevWeekStart = startOfWeek(new Date(startDate.getTime() - 7 * 24 * 60 * 60 * 1000), { weekStartsOn: 1 });
@@ -476,20 +571,34 @@ function SalesHistoryStats() {
       const lastYearWeekStart = startOfWeek(new Date(startDate.getFullYear() - 1, startDate.getMonth(), startDate.getDate()), { weekStartsOn: 1 });
       const lastYearWeekEnd = endOfWeek(lastYearWeekStart, { weekStartsOn: 1 });
 
-      const [prev, yoyBase] = await Promise.all([
-        fetchTotalsForRange(prevWeekStart, prevWeekEnd, '전체'),
-        fetchTotalsForRange(lastYearWeekStart, lastYearWeekEnd, '전체')
-      ]);
+      let weekTotals;
+      try {
+        weekTotals = await tryTwice(() => Promise.all([
+          fetchTotalsForRange(startDate, endDate, '전체', { strict: true }),
+          fetchTotalsForRange(prevWeekStart, prevWeekEnd, '전체', { strict: true }),
+          fetchTotalsForRange(lastYearWeekStart, lastYearWeekEnd, '전체', { strict: true })
+        ]));
+      } catch (err) {
+        console.error('비교 합계 조회 오류:', err?.message || err);
+        if (!isStale()) { setCompareStats({ context: null, mom: null, yoy: null, wow: null, yoyWeek: null }); setLoadError('compare', true); }
+        return;
+      }
+      if (isStale()) return;
+      setLoadError('compare', false);
+      const [currentTotal, prev, yoyBase] = weekTotals;
       setCompareStats({ context: 'week', mom: null, yoy: null, wow: percentChange(currentTotal, prev), yoyWeek: percentChange(currentTotal, yoyBase) });
     } else {
+      setLoadError('compare', false);
       setCompareStats({ context: null, mom: null, yoy: null, wow: null, yoyWeek: null });
     }
   };
 
-  const fetchSales = async ({ overrideStart, overrideEnd } = {}) => {
+  const fetchSales = async ({ overrideStart, overrideEnd, attempt = 0 } = {}) => {
     const isYearFetch = !!overrideStart;
     const sDate = overrideStart || startDate;
     const eDate = overrideEnd || endDate;
+    const req = isYearFetch ? 0 : ++mainReqRef.current;
+    const isStale = () => !isYearFetch && req !== mainReqRef.current;
     if (!isYearFetch) setLoading(true);
     try {
 
@@ -529,8 +638,12 @@ function SalesHistoryStats() {
       supabase.from('warehouses').select('id, name, note'),
       supabase.from('parts').select('id, code, barcode, name, note, brand, supply_price, price, track_inventory'),
       supabase.from('agencies').select('name'),
-      supabase.from('inventory').select('product_id, quantity, warehouse_id')
+      // 연간 조회는 재고 가공 안 함(아래 isYearFetch return) → 재고 전체 조회 생략
+      isYearFetch ? Promise.resolve({ data: [] }) : supabase.from('inventory').select('product_id, quantity, warehouse_id')
     ]);
+
+    // 조회 오류 시 throw — 부분 데이터로 틀린 합계를 보여주거나 저장하지 않도록
+    { const bad = [shipRes, asRes, cafeRes, whRes, partsRes, invRes].find(r => r.error); if (bad) throw bad.error; }
 
     setAgenciesList((agenciesRes.data || []).map(a => a.name));
 
@@ -611,69 +724,66 @@ function SalesHistoryStats() {
       servicePartsMap[sid].push(sp);
     });
     const asIds = Object.keys(serviceDataMap);
-    const serviceTxMap = {};
-    if (asIds.length > 0) {
-      const { data: txData } = await supabase
-        .from('transactions')
-        .select('group_id, product_id, from_location')
-        .in('group_id', asIds.map(String))
-        .eq('type', 'out');
-      (txData || []).forEach(tx => {
-        serviceTxMap[tx.group_id] = tx.from_location;
-        if (tx.product_id) serviceTxMap[`${tx.group_id}_${tx.product_id}`] = tx.from_location;
-      });
-    }
-
     const cafeIds = (cafeRes.data || []).map(o => String(o.id));
-    const cafeWarehouseMap = {};
-    if (cafeIds.length > 0) {
-      const { data: txData, error: txErr } = await supabase
-        .from('transactions')
-        .select('group_id, product_id, from_location')
-        .in('group_id', cafeIds)
-        .eq('type', 'out');
-        
-      if (!txErr && txData) {
-        txData.forEach(tx => {
-           cafeWarehouseMap[tx.group_id] = tx.from_location;
-           if (tx.product_id) {
-             cafeWarehouseMap[`${tx.group_id}_${tx.product_id}`] = tx.from_location;
-           }
-        });
-      }
-    }
 
-    // === BUG 2 FIX: Deduplicate shipments that have Cafe24 order numbers in note or tracking_number ===
-    const duplicatedCafeOrderNos = new Set();
+    // 이하 조회들은 서로 독립 → 동시 실행
     const ORDER_NO_PATTERN = /(20\d{6}-\d{7})/;
     const shipmentCafeOrderNos = (shipRes.data || []).map(s => {
       const m = (s.note ? String(s.note).match(ORDER_NO_PATTERN) : null)
              || (s.tracking_number ? String(s.tracking_number).match(ORDER_NO_PATTERN) : null);
       return m ? m[0] : null;
     }).filter(Boolean);
+    // 100개 단위로 끊어서 조회 (Supabase 필터 길이 제한 대비)
+    // mall 접두사(nearbike_ 등) 버전도 함께 검색하여 미스매칭 방지
+    const MALL_PREFIXES = ['nearbike_'];
+    const dupChunks = [];
+    for (let i = 0; i < shipmentCafeOrderNos.length; i += 100) {
+      const chunk = shipmentCafeOrderNos.slice(i, i + 100);
+      const extendedChunk = [...chunk];
+      chunk.forEach(no => MALL_PREFIXES.forEach(prefix => extendedChunk.push(`${prefix}${no}`)));
+      dupChunks.push(extendedChunk);
+    }
+    // group_id 목록이 길면 URL 초과(400)로 조회가 통째로 실패 → 300개씩 나눠 조회 후 합침
+    const txByGroupIds = async (ids) => {
+      const results = await Promise.all(Array.from({ length: Math.ceil(ids.length / 300) }, (_, i) =>
+        supabase.from('transactions').select('group_id, product_id, from_location').in('group_id', ids.slice(i * 300, (i + 1) * 300)).eq('type', 'out')));
+      const bad = results.find(r => r.error);
+      return bad ? { data: null, error: bad.error } : { data: results.flatMap(r => r.data || []), error: null };
+    };
+    const [asTxRes, cafeTxRes, ...dupResults] = await Promise.all([
+      txByGroupIds(asIds.map(String)),
+      txByGroupIds(cafeIds),
+      ...dupChunks.map(c => supabase.from('cafe24_orders').select('order_id').in('order_id', c).eq('is_deleted', false).eq('is_transferred', true)),
+    ]);
 
-    if (shipmentCafeOrderNos.length > 0) {
-      // 100개 단위로 끊어서 조회 (Supabase 필터 길이 제한 대비)
-      // mall 접두사(nearbike_ 등) 버전도 함께 검색하여 미스매칭 방지
-      const MALL_PREFIXES = ['nearbike_'];
-      for (let i = 0; i < shipmentCafeOrderNos.length; i += 100) {
-        const chunk = shipmentCafeOrderNos.slice(i, i + 100);
-        const extendedChunk = [...chunk];
-        chunk.forEach(no => MALL_PREFIXES.forEach(prefix => extendedChunk.push(`${prefix}${no}`)));
-        const { data: dupCafeOrders } = await supabase
-          .from('cafe24_orders')
-          .select('order_id')
-          .in('order_id', extendedChunk)
-          .eq('is_deleted', false)
-          .eq('is_transferred', true);
+    { const bad = [asTxRes, cafeTxRes, ...dupResults].find(r => r.error); if (bad) throw bad.error; }
+
+    const serviceTxMap = {};
+    (asTxRes.data || []).forEach(tx => {
+      serviceTxMap[tx.group_id] = tx.from_location;
+      if (tx.product_id) serviceTxMap[`${tx.group_id}_${tx.product_id}`] = tx.from_location;
+    });
+
+    const cafeWarehouseMap = {};
+    if (!cafeTxRes.error && cafeTxRes.data) {
+      cafeTxRes.data.forEach(tx => {
+         cafeWarehouseMap[tx.group_id] = tx.from_location;
+         if (tx.product_id) {
+           cafeWarehouseMap[`${tx.group_id}_${tx.product_id}`] = tx.from_location;
+         }
+      });
+    }
+
+    // === BUG 2 FIX: Deduplicate shipments that have Cafe24 order numbers in note or tracking_number ===
+    const duplicatedCafeOrderNos = new Set();
+    dupResults.forEach(({ data: dupCafeOrders }) => {
         (dupCafeOrders || []).forEach(o => {
           duplicatedCafeOrderNos.add(o.order_id);
           // 접두사 없는 raw 번호도 추가하여 패턴 매칭 커버
           const raw = o.order_id.includes('_') ? o.order_id.split('_').slice(1).join('_') : o.order_id;
           duplicatedCafeOrderNos.add(raw);
         });
-      }
-    }
+    });
     // =================================================================================
 
     const rows = [];
@@ -995,16 +1105,12 @@ function SalesHistoryStats() {
       });
     }
 
-    if (isYearFetch) {
-      setYearFlatRows(rows);
-    } else {
-      setFlatRows(rows);
-      setManualFlatRows(manualRows);
-      // year view(전체 연도)일 때 yearFlatRows도 동기화
-      if (selectedMonthRef.current === null) setYearFlatRows(rows);
-    }
+    if (isYearFetch) return rows;
+    if (isStale()) return;
 
-    if (isYearFetch) return;
+    setLoadError('sales', false);
+    setFlatRows(rows);
+    setManualFlatRows(manualRows);
 
     // 재고(Inventory) 데이터 가공 — 재고관리 화면(재고 현황)과 동일 기준으로 집계
     // 1) [HIDDEN] 창고 제외, 2) 삭제/재고 비관리 파츠 제외 (기준 불일치 방지)
@@ -1043,9 +1149,17 @@ function SalesHistoryStats() {
 
     setInventoryList(invRows);
     } catch (err) {
-      console.error('fetchSales 오류:', err);
+      if (isYearFetch) throw err;
+      if (isStale()) return;
+      if (attempt === 0) return await fetchSales({ attempt: 1 }); // 한 번 재시도
+      console.error('fetchSales 오류:', err?.message || err);
+      // 일부만 받은 데이터로 계산한 숫자는 보여주지 않음
+      setFlatRows([]);
+      setManualFlatRows([]);
+      setInventoryList([]);
+      setLoadError('sales', true);
     } finally {
-      if (!isYearFetch) setLoading(false);
+      if (!isYearFetch && !isStale()) setLoading(false);
     }
   };
 
@@ -1219,25 +1333,23 @@ function SalesHistoryStats() {
       const key = `${year}-${String(m + 1).padStart(2, '0')}`;
       mMap[key] = { period: `${year}년 ${String(m + 1).padStart(2, '0')}월`, amount: 0, cost: 0, profit: 0 };
     }
-    yearFlatRows.forEach(r => {
-      const d = new Date(r.date_val);
-      if (d.getFullYear() !== year) return;
-      const mKey = format(d, 'yyyy-MM');
-      if (!mMap[mKey]) return;
-      const amt = Number(r.total_price || 0);
-      const cost = Number(r.total_cost || 0);
-      mMap[mKey].amount += amt;
-      mMap[mKey].cost += cost;
-      mMap[mKey].profit += (amt - cost);
+    // 월 보기: 연간 합계 + 선택 달은 화면 데이터(flatRows)로 덮어씀. 그 외 보기: 조회 범위(flatRows)만
+    const totals = selectedMonth !== null ? { ...yearMonthTotals, ...sumRowsByMonth(flatRows) } : sumRowsByMonth(flatRows);
+    Object.keys(mMap).forEach(mKey => {
+      const t = totals[mKey];
+      if (!t) return;
+      mMap[mKey].amount = t.amount;
+      mMap[mKey].cost = t.cost;
+      mMap[mKey].profit = t.amount - t.cost;
     });
     return Object.values(mMap);
-  }, [yearFlatRows, selectedYear]);
+  }, [yearMonthTotals, flatRows, selectedYear, selectedMonth]);
 
   // 주별 통계: 필터 무시, 선택 월의 전체 주차
   const weeklyStats = React.useMemo(() => {
     const year = selectedYear;
     const activeMonth = selectedMonth !== null ? selectedMonth : getMonth(startDate);
-    const monthRows = yearFlatRows.filter(r => {
+    const monthRows = flatRows.filter(r => {
       const d = new Date(r.date_val);
       return d.getFullYear() === year && d.getMonth() === activeMonth;
     });
@@ -1255,7 +1367,7 @@ function SalesHistoryStats() {
       wMap[wKey].profit += (amt - cost);
     });
     return Object.values(wMap).sort((a, b) => a.period.localeCompare(b.period));
-  }, [yearFlatRows, selectedYear, selectedMonth, startDate]);
+  }, [flatRows, selectedYear, selectedMonth, startDate]);
 
   // 요약
   const totalAmt = currentFiltered.reduce((a, r) => a + Number(r.total_price || 0), 0);
@@ -1979,6 +2091,11 @@ function SalesHistoryStats() {
         </Box>
       </Paper>
 
+      {(loadErrors.sales || loadErrors.compare || loadErrors.chart) && (
+        <Alert severity="error" sx={{ mb: 2 }} action={<Button color="inherit" size="small" onClick={() => window.location.reload()}>다시 불러오기</Button>}>
+          일부 데이터를 불러오지 못했습니다 ({[loadErrors.sales && '판매 현황', loadErrors.compare && '전월·전년 비교', loadErrors.chart && '월별 차트 일부 달'].filter(Boolean).join(', ')}). 표시된 숫자를 믿지 말고 다시 불러와 주세요.
+        </Alert>
+      )}
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}><CircularProgress /></Box>
       ) : (

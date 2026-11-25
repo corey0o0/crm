@@ -200,7 +200,7 @@ function OnlineStats() {
       const startDateTime = formatDateToStartOfDay(qStart || startDate);
       const endDateTime = formatDateToEndOfDay(qEnd || endDate);
 
-      let orderQuery = supabase.from('cafe24_orders').select('*').gte('order_date', startDateTime).lte('order_date', endDateTime).eq('is_deleted', false).eq('is_transferred', true);
+      let orderQuery = supabase.from('cafe24_orders').select('id, order_id, order_date, buyer_name, total_amount, shipping_fee, used_points, mall_id, agency_id, order_items').gte('order_date', startDateTime).lte('order_date', endDateTime).eq('is_deleted', false).eq('is_transferred', true);
 
       if (!allowedMalls.includes('all')) {
         orderQuery = orderQuery.in('mall_id', allowedMalls);

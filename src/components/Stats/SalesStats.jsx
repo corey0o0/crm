@@ -242,38 +242,51 @@ function SalesStats() {
     try {
       setLoading(true);
 
-      // 1. parts 테이블에서 모든 부품의 이름과 단가(price)를 가져옵니다.
-      const { data: allPartsData, error: allPartsError } = await supabase
-        .from('parts')
-        .select('name, price, note');
-
-      if (allPartsError) {
-        console.error('Parts 테이블 조회 오류:', allPartsError);
-      }
-
-      const partsPriceMap = new Map();
-      if (allPartsData) {
-        allPartsData.forEach(p => {
-          if (p.name) {
-            // 가격과 노트를 객체로 저장
-            partsPriceMap.set(p.name.trim(), {
-              price: typeof p.price === 'number' ? p.price : 0,
-              note: p.note
-            });
-          }
-        });
-      }
-      partsPriceMapRef.current = partsPriceMap;
-      console.log('[DEBUG] Parts Price Map Loaded');
-
       // 날짜 범위를 'YYYY-MM-DD 00:00:00' ~ 'YYYY-MM-DD 23:59:59'로 변환
-      const formattedStartDate = format(queryStartDate, 'yyyy-MM-dd');
-      const formattedEndDate = format(queryEndDate, 'yyyy-MM-dd');
       const startDateTime = formatDateToStartOfDay(queryStartDate);
       const endDateTime = formatDateToEndOfDay(queryEndDate);
-      console.log('====== 매출 데이터 조회 시작 ======');
-      console.log(`조회 기간: ${startDateTime} ~ ${endDateTime}`);
-      console.log(`브랜드: ${queryBrand}`);
+
+      // A/S 부품 데이터 조회
+      let servicePartsQuery = supabase
+        .from('service_parts')
+        .select(`
+          price,
+          quantity,
+          usage,
+          services!inner (
+            id,
+            completion_date,
+            brand
+          ),
+          parts!inner (
+            name,
+            code,
+            note
+          )
+        `)
+        .gte('services.completion_date', startDateTime)
+        .lte('services.completion_date', endDateTime)
+        .in('services.status', ['출고완료', '완료', '수령완료']);
+
+      // forceRefresh가 1 이상일 때 캐시를 사용하지 않도록 설정
+      if (forceRefresh > 0) {
+        servicePartsQuery = servicePartsQuery.options({
+          cache: 'no-store',
+          head: false
+        });
+      }
+
+      if (queryBrand !== '전체') {
+        servicePartsQuery = servicePartsQuery.eq('services.brand', queryBrand);
+      }
+
+      // A/S 조회는 출고 쪽과 독립 → 지금 바로 요청 시작, 아래에서 결과만 받음
+      const servicePartsPromise = Promise.resolve(servicePartsQuery);
+
+      // 1. parts 테이블에서 모든 부품의 이름과 단가(price)를 가져옵니다.
+      const partsPromise = Promise.resolve(supabase
+        .from('parts')
+        .select('name, price, note'));
 
       // 1-1. 출고 데이터 먼저 조회 (id 목록 추출)
       let shipmentQuery = supabase
@@ -304,7 +317,36 @@ function SalesStats() {
       if (queryBrand !== '전체') {
         shipmentQuery = shipmentQuery.eq('brand', queryBrand);
       }
-      const { data: rawShipmentsData, error: shipmentsError } = await shipmentQuery;
+      const shipmentPromise = Promise.resolve(shipmentQuery); // 출고·부품·A/S 동시 요청
+
+      const { data: allPartsData, error: allPartsError } = await partsPromise;
+
+      if (allPartsError) {
+        console.error('Parts 테이블 조회 오류:', allPartsError);
+      }
+
+      const partsPriceMap = new Map();
+      if (allPartsData) {
+        allPartsData.forEach(p => {
+          if (p.name) {
+            // 가격과 노트를 객체로 저장
+            partsPriceMap.set(p.name.trim(), {
+              price: typeof p.price === 'number' ? p.price : 0,
+              note: p.note
+            });
+          }
+        });
+      }
+      partsPriceMapRef.current = partsPriceMap;
+      console.log('[DEBUG] Parts Price Map Loaded');
+
+      const formattedStartDate = format(queryStartDate, 'yyyy-MM-dd');
+      const formattedEndDate = format(queryEndDate, 'yyyy-MM-dd');
+      console.log('====== 매출 데이터 조회 시작 ======');
+      console.log(`조회 기간: ${startDateTime} ~ ${endDateTime}`);
+      console.log(`브랜드: ${queryBrand}`);
+
+      const { data: rawShipmentsData, error: shipmentsError } = await shipmentPromise;
       if (shipmentsError) {
         console.error('출고 데이터 조회 오류:', shipmentsError);
         throw shipmentsError;
@@ -334,9 +376,10 @@ function SalesStats() {
         }
         // 3. 날짜별로 그룹핑 (order_date 기준)
         if (shipmentPartsData && shipmentPartsData.length > 0) {
+          const shipmentById = new Map(shipmentsData.map(s => [s.id, s]));
           shipmentPartsData.forEach(part => {
             // 해당 출고건의 order_date 찾기
-            const shipment = shipmentsData.find(s => s.id === part.shipment_id);
+            const shipment = shipmentById.get(part.shipment_id);
             if (!shipment) return;
             const date = format(parseISO(shipment.order_date), 'yyyy-MM-dd');
             if (!shipmentPartsByDate[date]) shipmentPartsByDate[date] = [];
@@ -379,10 +422,12 @@ function SalesStats() {
       }
       // 4. shipment_parts 데이터가 없는 출고건만 fallback (기존 임의 분배/추정)
       const fallbackShipmentPartsByDate = {};
+      // 출고건의 부품은 항상 그 출고건 날짜 버킷에 들어가므로 id 집합으로 판별해도 동일
+      const shipmentIdsWithParts = new Set(Object.values(shipmentPartsByDate).flat().map(p => p.shipment_id));
       shipmentsData.forEach(shipment => {
         const date = format(parseISO(shipment.order_date), 'yyyy-MM-dd');
         // shipmentPartsByDate에 이미 해당 출고건이 있으면 skip
-        if (shipmentPartsByDate[date] && shipmentPartsByDate[date].some(p => p.shipment_id === shipment.id)) return;
+        if (shipmentIdsWithParts.has(shipment.id)) return;
         
         if (!fallbackShipmentPartsByDate[date]) fallbackShipmentPartsByDate[date] = [];
         const salesChannel = extractSalesChannel(shipment.note, shipment.sales_channel);
@@ -457,41 +502,7 @@ function SalesStats() {
         shipmentPartsByDate[date].push(...parts);
       });
 
-      // A/S 부품 데이터 조회
-      let servicePartsQuery = supabase
-        .from('service_parts')
-        .select(`
-          price,
-          quantity,
-          usage,
-          services!inner (
-            id,
-            completion_date,
-            brand
-          ),
-          parts!inner (
-            name,
-            code,
-            note
-          )
-        `)
-        .gte('services.completion_date', startDateTime)
-        .lte('services.completion_date', endDateTime)
-        .in('services.status', ['출고완료', '완료', '수령완료']);
-
-      // forceRefresh가 1 이상일 때 캐시를 사용하지 않도록 설정
-      if (forceRefresh > 0) {
-        servicePartsQuery = servicePartsQuery.options({
-          cache: 'no-store',
-          head: false
-        });
-      }
-
-      if (queryBrand !== '전체') {
-        servicePartsQuery = servicePartsQuery.eq('services.brand', queryBrand);
-      }
-
-      const { data: servicePartsData, error: servicePartsError } = await servicePartsQuery;
+      const { data: servicePartsData, error: servicePartsError } = await servicePartsPromise;
       console.log('조회된 A/S 부품 데이터:', servicePartsData);
       console.log('A/S 부품 데이터 조회 오류:', servicePartsError);
       if (servicePartsError) throw servicePartsError;
@@ -994,6 +1005,7 @@ function SalesStats() {
     if (brandFilter && brandFilter !== '전체') {
       shipmentQuery = shipmentQuery.eq('brand', brandFilter);
     }
+    const spPromise = Promise.resolve(buildSpQuery()); // 출고·A/S 동시 요청
     const { data: shipmentRows, error: shipmentErr } = await shipmentQuery;
     if (shipmentErr) throw shipmentErr;
     const filteredShipments = (shipmentRows || []).filter(r => {
@@ -1004,6 +1016,7 @@ function SalesStats() {
     const shipmentTotal = filteredShipments.reduce((sum, r) => sum + (r.price || 0), 0);
 
     // Service Parts 총액 (공임 포함)
+    function buildSpQuery() {
     let spQuery = supabase
       .from('service_parts')
       .select(`
@@ -1019,7 +1032,9 @@ function SalesStats() {
     if (brandFilter && brandFilter !== '전체') {
       spQuery = spQuery.eq('services.brand', brandFilter);
     }
-    const { data: spRows, error: spErr } = await spQuery;
+    return spQuery;
+    }
+    const { data: spRows, error: spErr } = await spPromise;
     if (spErr) throw spErr;
     const serviceTotal = (spRows || []).reduce((sum, item) => {
       const total = Math.round((item.quantity || 0) * (item.price || 0));
@@ -1095,8 +1110,9 @@ function SalesStats() {
       }
     };
     compute();
+    // totalStats는 조회 완료 시 1회 갱신 → 조회당 비교 계산 1회 (기존엔 currentPeriod 변경 시 이전 합계로 한 번 더 돌았음)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [salesData, currentPeriod, totalStats.totalSales]);
+  }, [totalStats]);
 
   // 월별 통계 생성 함수
   const generateMonthlyStats = (salesData) => {
