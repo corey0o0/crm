@@ -1850,7 +1850,12 @@ export default function Cafe24OrderList() {
                         : 0
                     : Number(order.total_amount || 0);
                   // 실결제 현금(외부 결제액): 선불금은 반영금액 자체가 현금, 그 외엔 품목실결제 + 배송비
-                  const realCashAmount = isChunbulgeum ? effectiveTotalAmount : (orderItemsSum + Number(order.shipping_fee || 0));
+                  // 예치금 사용 주문은 배송비도 예치금으로 낼 수 있어 품목+배송비 합산이 틀림 → 반영금액 - 예치금 사용액
+                  const realCashAmount = isChunbulgeum
+                    ? effectiveTotalAmount
+                    : Number(order.deposit_used || 0) > 0
+                      ? Math.max(0, effectiveTotalAmount - Number(order.deposit_used))
+                      : (orderItemsSum + Number(order.shipping_fee || 0));
                   // 선불금: 외부 결제수단·반영완료·회원할인 주문에는 표시 안 함
                   const isPrepaid = !isNearbikeMemberDiscount && !isRealPaymentMethod && !order.is_transferred && Number(order.total_amount || 0) === 0 && orderItemsSum > 0;
                   const calculatedUsedPoints = Math.max(0, orderItemsSum + Number(order.shipping_fee || 0) - effectiveTotalAmount);
