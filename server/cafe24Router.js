@@ -76,6 +76,15 @@ function buildCafe24ProductImages(products = []) {
   return items;
 }
 
+// 예치금 포함 주문의 외부(PG) 결제액.
+// 무통장/계좌이체 미입금 상태면 카페24 order.payment_amount가 0이라 예치금만 매출로 잡히고
+// 나머지가 적립금(used_points)처럼 저장되던 문제 → 품목 결제액(예치금 제외분) + 배송비로 대체.
+function depositOrderPgPayment(pgPayment, paymentMethodStr, itemsPaymentSum, shippingFee) {
+  if (pgPayment > 0) return pgPayment;
+  if (!/무통장|계좌이체/.test(paymentMethodStr || '')) return pgPayment;
+  return Number(itemsPaymentSum || 0) + Number(shippingFee || 0);
+}
+
 function mapCafe24Comments(comments = []) {
   return (comments || []).map(c => ({
     comment_no: c.comment_no,
@@ -895,8 +904,9 @@ module.exports = function(supabaseAdmin) {
         amount_decision_path = '전액 적립금 결제 → 할인 처리, 실매출 0';
       } else if (deposit_used > 0) {
         // 케이스B: 예치금 포함 결제 → 예치금은 정상 판매(실매출), PG도 있으면 합산
-        total_amount = pg_payment + deposit_used;
-        amount_decision_path = `예치금 포함 결제 → PG(${pg_payment}) + 예치금(${deposit_used}) 실매출`;
+        const depositPg = depositOrderPgPayment(pg_payment, paymentMethodStr, items_payment_sum, shipping_fee);
+        total_amount = depositPg + deposit_used;
+        amount_decision_path = `예치금 포함 결제 → PG(${depositPg}) + 예치금(${deposit_used}) 실매출`;
       } else if ((paymentMethodStr.includes('예치금') || paymentMethodStr.includes('적립금') || paymentMethodStr.includes('마일리지') || paymentMethodStr.includes('선불금')) && pg_payment === 0) {
         // 케이스C: 결제수단명 기반 (API 필드 미수신)
         if (paymentMethodStr.includes('예치금') || paymentMethodStr.includes('선불금')) {
@@ -1779,3 +1789,4 @@ module.exports = function(supabaseAdmin) {
 
 module.exports.mapCafe24Comments = mapCafe24Comments;
 module.exports.buildCafe24Variants = buildCafe24Variants;
+module.exports.depositOrderPgPayment = depositOrderPgPayment;

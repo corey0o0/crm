@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { mapCafe24Comments, buildCafe24Variants } = require('./cafe24Router');
+const { mapCafe24Comments, buildCafe24Variants, depositOrderPgPayment } = require('./cafe24Router');
 
 test('maps Cafe24 comments to board post answers', () => {
   const answers = mapCafe24Comments([
@@ -101,4 +101,13 @@ test('does not fall back to product-level code for a multi-variant product missi
   assert.deepEqual(variants, [
     { product_no: 4, product_name: '부분옵션상품', variant_code: 'V1', custom_variant_code: 'OPT-A', quantity: 5, use_inventory: true, display: true },
   ]);
+});
+
+test('deposit + bank transfer order before payment uses item payments + shipping as PG', () => {
+  // nearbike_20261126-0000071: 예치금 18,750 + 무통장 161,250 (입금 전 payment_amount=0)
+  assert.equal(depositOrderPgPayment(0, '무통장입금,예치금', 161250, 0), 161250);
+  // 입금 후엔 카페24 값 그대로
+  assert.equal(depositOrderPgPayment(6000, '무통장입금,예치금', 1000, 5000), 6000);
+  // 전액 예치금(무통장 아님)은 PG 0 유지
+  assert.equal(depositOrderPgPayment(0, '예치금', 0, 5000), 0);
 });
