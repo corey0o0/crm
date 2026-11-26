@@ -18,7 +18,7 @@ export const SYMPTOM_TAG_RULES = [
   { keywords: ['브레이크', '제동', '브레크'], tag: '브레이크' },
   { keywords: ['패드'], tag: '브레이크-패드' },
   { keywords: ['디스크', '로터'], tag: '브레이크-로터' },
-  { keywords: ['변속', '기어', '변속기', '컨트롤러'], tag: '컨트롤러' },
+  { keywords: ['변속', '변속기', '컨트롤러'], tag: '컨트롤러' },
   { keywords: ['펑크', '타이어', '튜브', '공기'], tag: '펑크' },
   { keywords: ['모터', '구동', '허브모터'], tag: '모터' },
   { keywords: ['체인'], tag: '체인' },
