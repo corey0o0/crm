@@ -204,6 +204,16 @@ function SalesHistoryStats() {
     setSelectedHalf(null);
   };
 
+  const handleThisMonthSelect = () => {
+    const today = new Date();
+    setSelectedYear(today.getFullYear());
+    setSelectedMonth(today.getMonth());
+    setStartDate(startOfMonth(today));
+    setEndDate(endOfMonth(today));
+    setSelectedQuarter(null);
+    setSelectedHalf(null);
+  };
+
   const handleHalfSelect = (half) => {
     const startMonth = half === 'H1' ? 0 : 6;
     const endMonth = half === 'H1' ? 5 : 11;
@@ -1924,6 +1934,7 @@ function SalesHistoryStats() {
   const isToday = sameDay(startDate, today) && sameDay(endDate, today);
   const isYesterday = sameDay(startDate, yesterday) && sameDay(endDate, yesterday);
   const isThisWeek = sameDay(startDate, startOfWeek(today, { weekStartsOn: 1 })) && sameDay(endDate, endOfWeek(today, { weekStartsOn: 1 }));
+  const isThisMonth = sameDay(startDate, startOfMonth(today)) && sameDay(endDate, endOfMonth(today));
 
   const periodValue = selectedQuarter ? `Q${selectedQuarter}`
     : selectedHalf ? selectedHalf
@@ -1956,7 +1967,7 @@ function SalesHistoryStats() {
           조회 기간
         </Typography>
 
-        {/* 기간 선택: 연도(Select) → 분기(Select) → 빠른 선택(어제/오늘/금주) */}
+        {/* 기간 선택: 연도(Select) → 분기(Select) → 빠른 선택(어제/오늘/금주/이번달) */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', mb: 2 }}>
           {/* 연도 셀렉터 */}
           <FormControl size="small" sx={{ width: 110 }}>
@@ -2006,6 +2017,7 @@ function SalesHistoryStats() {
             <Button variant={isYesterday ? 'contained' : 'outlined'} onClick={handleYesterdaySelect}>어제</Button>
             <Button variant={isToday ? 'contained' : 'outlined'} onClick={handleTodaySelect}>오늘</Button>
             <Button variant={isThisWeek ? 'contained' : 'outlined'} onClick={handleWeekSelect}>금주</Button>
+            <Button variant={isThisMonth ? 'contained' : 'outlined'} onClick={handleThisMonthSelect}>이번달</Button>
           </ButtonGroup>
 
           <Typography variant="body2" sx={{ color: 'text.secondary', ml: 0.5 }}>
